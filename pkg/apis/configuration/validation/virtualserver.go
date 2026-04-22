@@ -1388,13 +1388,13 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 
 	allErrs := field.ErrorList{}
 	if strings.HasPrefix(path, "^~") {
-		allErrs = append(allErrs, validatePath(strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "), fieldPath)...)
+		allErrs = append(allErrs, validatePath(strings.TrimLeftFunc(strings.TrimPrefix(path, "^~"), unicode.IsSpace), fieldPath)...)
 	} else if strings.HasPrefix(path, "~") {
 		allErrs = append(allErrs, validateRegexPath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "/") {
 		allErrs = append(allErrs, validatePath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "=") {
-		allErrs = append(allErrs, validatePath(strings.TrimLeft(strings.TrimPrefix(path, "="), " "), fieldPath)...)
+		allErrs = append(allErrs, validatePath(strings.TrimLeftFunc(strings.TrimPrefix(path, "="), unicode.IsSpace), fieldPath)...)
 	} else {
 		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~, = or ^~"))
 	}
