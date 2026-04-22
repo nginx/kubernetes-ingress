@@ -212,6 +212,7 @@ def setup_ext_auth(
         backend_yaml=backend_yaml,
         policy_yamls=policy_yamls,
         validate_policies=validate_policies,
+        wait_for_service="external-auth-svc",
     )
     headers = build_ext_auth_headers(vs_host, credentials)
     return secret_names, policy_names, headers
@@ -278,6 +279,7 @@ def ext_auth_setup(request, kube_apis, test_namespace):
         backend_yaml=backend_yaml,
         policy_yamls=policy_yamls,
         validate_policies=validate_policies,
+        wait_for_service="external-auth-svc",
     )
 
     def fin():
