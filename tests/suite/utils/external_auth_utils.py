@@ -9,7 +9,6 @@ from suite.utils.policy_resources_utils import (
     setup_policy_backend,
     teardown_policy_backend,
 )
-from suite.utils.vs_vsr_resources_utils import delete_and_create_vs_from_yaml
 from suite.utils.resources_utils import (
     create_example_app,
     create_items_from_yaml,
@@ -19,6 +18,7 @@ from suite.utils.resources_utils import (
     wait_for_reload,
     wait_until_all_pods_are_ready,
 )
+from suite.utils.vs_vsr_resources_utils import delete_and_create_vs_from_yaml
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml
 
 logger = logging.getLogger(__name__)
@@ -325,6 +325,7 @@ def ext_auth_ingress(
 
     request.addfinalizer(fin)
     return ing
+
 
 @pytest.fixture
 def ext_auth_restore_vs(kube_apis, virtual_server_setup):
