@@ -1930,8 +1930,7 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 }
 
 func removeFromVSRSlice(s []*conf_v1.VirtualServerRoute, i int) []*conf_v1.VirtualServerRoute {
-	s[i] = s[len(s)-1]
-	return s[:len(s)-1]
+	return append(s[:i], s[i+1:]...)
 }
 
 // regexVSREntry holds a VSR and all the normalized regex VS paths that reference it.
