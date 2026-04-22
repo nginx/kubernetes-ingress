@@ -30,7 +30,7 @@ func createTestConfiguration() *Configuration {
 	snippetsEnabled := true
 	isIPV6Disabled := false
 	isDirectiveAutoadjustEnabled := false
-	return NewConfiguration(
+	config := NewConfiguration(
 		lbc.HasCorrectIngressClass,
 		isPlus,
 		appProtectEnabled,
@@ -48,6 +48,11 @@ func createTestConfiguration() *Configuration {
 		isIPV6Disabled,
 		isDirectiveAutoadjustEnabled,
 	)
+	// Set startupComplete to true so tests will run considering the startup cycle is finished
+	// This ensures rebuildHosts() is called and ResourceChange objects are generated
+	// For tests that must run during startup, set startupComplete = false
+	config.startupComplete = true
+	return config
 }
 
 // setupVSRConfiguration creates a test configuration with a VirtualServer and two VirtualServerRoutes
@@ -6051,4 +6056,214 @@ func TestValidateDuplicateVSRs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAddOrUpdateIngress_StartupOptimization(t *testing.T) {
+	t.Parallel()
+
+	// --- subtest 1: valid ingress during startup ---
+	t.Run("valid ingress during startup skips rebuildHosts", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		configuration.startupComplete = false // OVERRIDE: simulate startup phase
+
+		ing := createTestIngress("test-ingress", "example.com")
+		changes, problems := configuration.AddOrUpdateIngress(ing)
+
+		// rebuildHosts() skipped → no changes
+		if len(changes) != 0 {
+			t.Errorf("expected 0 changes during startup, got %d", len(changes))
+		}
+		// valid ingress → no validation error → no problems
+		if len(problems) != 0 {
+			t.Errorf("expected 0 problems for valid ingress during startup, got %d", len(problems))
+		}
+		// ingress must be stored in the map for CompleteStartup() to process
+		key := getResourceKey(&ing.ObjectMeta)
+		if _, exists := configuration.ingresses[key]; !exists {
+			t.Error("ingress was not stored in configuration.ingresses during startup")
+		}
+	})
+
+	// --- subtest 2: invalid ingress during startup still emits problem ---
+	t.Run("invalid ingress during startup still returns problem", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		configuration.startupComplete = false // OVERRIDE: simulate startup phase
+
+		// duplicate host makes ingress invalid
+		invalidIng := createTestIngress("invalid-ingress", "example.com", "example.com")
+		changes, problems := configuration.AddOrUpdateIngress(invalidIng)
+
+		// rebuildHosts() skipped → no changes
+		if len(changes) != 0 {
+			t.Errorf("expected 0 changes for invalid ingress during startup, got %d", len(changes))
+		}
+		// validation error must still be surfaced as a problem
+		if len(problems) != 1 {
+			t.Errorf("expected 1 problem for invalid ingress during startup, got %d", len(problems))
+		}
+		// invalid ingress must NOT be stored in the map
+		key := getResourceKey(&invalidIng.ObjectMeta)
+		if _, exists := configuration.ingresses[key]; exists {
+			t.Error("invalid ingress must not be stored in configuration.ingresses")
+		}
+	})
+
+	// --- subtest 3: post-startup behaves as before ---
+	t.Run("post-startup calls rebuildHosts normally", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		// startupComplete is already true from createTestConfiguration()
+
+		ing := createTestIngress("test-ingress", "example.com")
+		changes, problems := configuration.AddOrUpdateIngress(ing)
+
+		if len(changes) == 0 {
+			t.Error("expected changes after startup, got 0")
+		}
+		if len(problems) != 0 {
+			t.Errorf("expected 0 problems for valid ingress post-startup, got %d", len(problems))
+		}
+	})
+}
+
+func TestAddOrUpdateVirtualServer_StartupOptimization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid VS during startup skips rebuildHosts", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		configuration.startupComplete = false // OVERRIDE: simulate startup phase
+
+		vs := createTestVirtualServer("test-vs", "example.com")
+		changes, problems := configuration.AddOrUpdateVirtualServer(vs)
+
+		if len(changes) != 0 {
+			t.Errorf("expected 0 changes during startup, got %d", len(changes))
+		}
+		if len(problems) != 0 {
+			t.Errorf("expected 0 problems for valid VS during startup, got %d", len(problems))
+		}
+		key := getResourceKey(&vs.ObjectMeta)
+		if _, exists := configuration.virtualServers[key]; !exists {
+			t.Error("VS was not stored in configuration.virtualServers during startup")
+		}
+	})
+
+	t.Run("post-startup calls rebuildHosts normally", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		// startupComplete is already true from createTestConfiguration()
+
+		vs := createTestVirtualServer("test-vs", "example.com")
+		changes, problems := configuration.AddOrUpdateVirtualServer(vs)
+
+		if len(changes) == 0 {
+			t.Error("expected changes after startup, got 0")
+		}
+		if len(problems) != 0 {
+			t.Errorf("expected 0 problems for valid VS post-startup, got %d", len(problems))
+		}
+	})
+}
+
+func TestAddOrUpdateVirtualServerRoute_StartupOptimization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid VSR during startup skips rebuildHosts", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		configuration.startupComplete = false // OVERRIDE: simulate startup phase
+
+		vsr := createTestVirtualServerRoute("test-vsr", "default", "example.com", "/test")
+		changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+		if len(changes) != 0 {
+			t.Errorf("expected 0 changes during startup, got %d", len(changes))
+		}
+		if len(problems) != 0 {
+			t.Errorf("expected 0 problems for valid VSR during startup, got %d", len(problems))
+		}
+		key := getResourceKey(&vsr.ObjectMeta)
+		if _, exists := configuration.virtualServerRoutes[key]; !exists {
+			t.Error("VSR was not stored in configuration.virtualServerRoutes during startup")
+		}
+	})
+}
+
+func TestCompleteStartup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CompleteStartup populates hosts from all stored ingresses", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		configuration.startupComplete = false // OVERRIDE: simulate startup phase
+
+		ing1 := createTestIngress("ingress-1", "foo.example.com")
+		ing2 := createTestIngress("ingress-2", "bar.example.com")
+
+		// during startup: resources stored but rebuildHosts() skipped
+		configuration.AddOrUpdateIngress(ing1)
+		configuration.AddOrUpdateIngress(ing2)
+
+		// c.hosts must be empty before CompleteStartup()
+		if len(configuration.hosts) != 0 {
+			t.Errorf("expected c.hosts to be empty before CompleteStartup(), got %d entries", len(configuration.hosts))
+		}
+
+		changes, problems := configuration.CompleteStartup()
+
+		// startupComplete must now be true
+		if !configuration.startupComplete {
+			t.Error("CompleteStartup() must set startupComplete to true")
+		}
+		// c.hosts must now be populated
+		if len(configuration.hosts) != 2 {
+			t.Errorf("expected 2 hosts after CompleteStartup(), got %d", len(configuration.hosts))
+		}
+		// 2 valid ingresses → 2 AddOrUpdate changes, no problems
+		if len(changes) != 2 {
+			t.Errorf("expected 2 changes from CompleteStartup(), got %d", len(changes))
+		}
+		if len(problems) != 0 {
+			t.Errorf("expected 0 problems for non-conflicting ingresses, got %d", len(problems))
+		}
+	})
+
+	t.Run("CompleteStartup returns host-conflict problem for loser", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		configuration.startupComplete = false // OVERRIDE: simulate startup phase
+
+		// two ingresses claiming the same host — rebuildHosts() will pick a winner
+		ing1 := createTestIngress("ingress-1", "foo.example.com")
+		ing2 := createTestIngress("ingress-2", "foo.example.com")
+
+		configuration.AddOrUpdateIngress(ing1)
+		configuration.AddOrUpdateIngress(ing2)
+
+		_, problems := configuration.CompleteStartup()
+
+		// the losing ingress must produce a host-conflict problem
+		// so processProblems() can emit the Kubernetes warning event
+		if len(problems) != 1 {
+			t.Errorf("expected 1 host-conflict problem from CompleteStartup(), got %d", len(problems))
+		}
+		if problems[0].IsError {
+			t.Error("host conflict is a warning (IsError=false), not an error")
+		}
+	})
+
+	t.Run("GetResources returns populated hosts after CompleteStartup", func(t *testing.T) {
+		configuration := createTestConfiguration()
+		configuration.startupComplete = false // OVERRIDE: simulate startup phase
+
+		ing := createTestIngress("ingress-1", "foo.example.com")
+		configuration.AddOrUpdateIngress(ing)
+
+		// before CompleteStartup: GetResources returns nothing
+		if len(configuration.GetResources()) != 0 {
+			t.Error("expected GetResources() to return empty before CompleteStartup()")
+		}
+
+		configuration.CompleteStartup()
+
+		// after CompleteStartup: GetResources returns the ingress
+		if len(configuration.GetResources()) != 1 {
+			t.Errorf("expected 1 resource from GetResources() after CompleteStartup(), got %d", len(configuration.GetResources()))
+		}
+	})
 }

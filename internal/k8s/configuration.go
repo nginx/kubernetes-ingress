@@ -415,6 +415,8 @@ type Configuration struct {
 	isDirectiveAutoadjustEnabled bool
 
 	lock sync.RWMutex
+
+	startupComplete bool
 }
 
 // NewConfiguration creates a new Configuration.
@@ -483,7 +485,11 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 		}
 	}
 
-	changes, problems := c.rebuildHosts()
+	var changes []ResourceChange
+	var problems []ConfigurationProblem
+	if c.startupComplete {
+		changes, problems = c.rebuildHosts()
+	}
 
 	if validationError != nil {
 		// If the invalid resource has any active hosts, rebuildHosts will create a change
@@ -513,6 +519,14 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 	}
 
 	return changes, problems
+}
+
+// CompleteStartup ends the startup phase, rebuilds hosts and returns any problems for event emission.
+func (c *Configuration) CompleteStartup() ([]ResourceChange, []ConfigurationProblem) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.startupComplete = true
+	return c.rebuildHosts()
 }
 
 // DeleteIngress deletes an Ingress resource by the key.
@@ -554,7 +568,11 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 		}
 	}
 
-	changes, problems := c.rebuildHosts()
+	var changes []ResourceChange
+	var problems []ConfigurationProblem
+	if c.startupComplete {
+		changes, problems = c.rebuildHosts()
+	}
 
 	if validationError != nil {
 		// If the invalid resource has an active host, rebuildHosts will create a change
@@ -627,7 +645,11 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 		}
 	}
 
-	changes, problems := c.rebuildHosts()
+	var changes []ResourceChange
+	var problems []ConfigurationProblem
+	if c.startupComplete {
+		changes, problems = c.rebuildHosts()
+	}
 
 	if validationError != nil {
 		p := ConfigurationProblem{

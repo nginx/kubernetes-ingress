@@ -1109,6 +1109,9 @@ func (lbc *LoadBalancerController) sync(task task) {
 	}
 
 	if !lbc.isNginxReady && lbc.syncQueue.Len() == 0 {
+		_, startupProblems := lbc.configuration.CompleteStartup()
+		lbc.processProblems(startupProblems)
+		
 		lbc.configurator.EnableReloads()
 		lbc.updateAllConfigs()
 
