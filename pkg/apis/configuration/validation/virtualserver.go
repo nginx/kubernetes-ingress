@@ -1378,6 +1378,29 @@ func pathModifierOf(path string) string {
 	return ""
 }
 
+// Path category constants group modifiers for type-consistency checks.
+const (
+	pathCategoryRegex  = "regex"
+	pathCategoryExact  = "exact"
+	pathCategoryPrefix = "prefix"
+)
+
+// pathCategory groups modifiers into broader categories for type-consistency
+// checks.  "~" and "~*" are both regex and treated interchangeably; "=" is
+// exact; "" and "^~" are prefix.  This allows a single VSR to be referenced
+// by a mix of case-sensitive and case-insensitive regex VS routes.
+func pathCategory(path string) string {
+	mod := pathModifierOf(path)
+	switch mod {
+	case PathModifierRegex, PathModifierRegexIC:
+		return pathCategoryRegex
+	case PathModifierExact:
+		return pathCategoryExact
+	default:
+		return pathCategoryPrefix
+	}
+}
+
 // We support prefix-based NGINX locations, longest prefix match locations,
 // positive case-sensitive/insensitive regular expressions matches and exact matches.
 // More info http://nginx.org/en/docs/http/ngx_http_core_module.html#location
@@ -1605,11 +1628,13 @@ func (vsv *VirtualServerValidator) validateVirtualServerRouteSubroutes(routes []
 		return vsv.validateSubroutesStandalone(routes, fieldPath, upstreamNames, namespace)
 	}
 
-	// Type consistency: all vsPaths must share the same modifier.
+	// Type consistency: all vsPaths must share the same category (regex, exact,
+	// or prefix).  "~" and "~*" are both regex and may be mixed freely; a VSR
+	// cannot span categories (e.g. one prefix path and one regex path).
 	if len(vsPaths) > 1 {
-		mod0 := pathModifierOf(vsPaths[0])
+		cat0 := pathCategory(vsPaths[0])
 		for _, p := range vsPaths[1:] {
-			if pathModifierOf(p) != mod0 {
+			if pathCategory(p) != cat0 {
 				return field.ErrorList{field.Invalid(fieldPath, "subroutes", "all referenced VS route paths must have the same modifier type")}
 			}
 		}
