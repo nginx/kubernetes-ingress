@@ -5872,185 +5872,49 @@ func TestValidateDuplicateVSRPaths(t *testing.T) {
 	}
 }
 
-func TestValidateDuplicateVSRs(t *testing.T) {
+// TestClassifyAndCollectVSRsDuplicateDedup verifies that classifyAndCollectVSRs
+// deduplicates VSRs that are referenced by multiple VS routes, keeping only the
+// first occurrence and emitting a warning for subsequent references.
+// This replaces the former TestValidateDuplicateVSRs which tested a now-removed
+// post-processing step; the dedup now happens during collection.
+func TestClassifyAndCollectVSRsDuplicateDedup(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		name          string
-		vsName        string
-		vsNamespace   string
-		vsrs          []*conf_v1.VirtualServerRoute
-		expectedVSRs  []*conf_v1.VirtualServerRoute
-		expectedWarns []string
-	}{
-		{
-			name:        "No duplicate vsrs",
-			vsName:      "cafe",
-			vsNamespace: "default",
-			vsrs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr1",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path1",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path1"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr2",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path2",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path2"},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedVSRs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr1",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path1",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path1"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr2",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path2",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path2"},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedWarns: nil,
-		},
-		{
-			name:        "Duplicate VSRs",
-			vsName:      "cafe",
-			vsNamespace: "default",
-			vsrs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedVSRs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
-			},
-			expectedWarns: []string{
-				fmt.Sprintf("VS %s has duplicate VirtualServerRoutes %s", "default/cafe", "default/duplicate-vsr"),
-			},
-		},
-		{
-			name:          "Empty VSR slice",
-			vsrs:          []*conf_v1.VirtualServerRoute{},
-			expectedVSRs:  []*conf_v1.VirtualServerRoute{},
-			expectedWarns: nil,
-		},
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "cafe"
+	)
+
+	vsr := createTestVirtualServerRoute("duplicate-vsr", namespace, host, "/duplicate")
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{Path: "/duplicate", Route: "duplicate-vsr"},
+		{Path: "/duplicate", Route: "duplicate-vsr"},
+	})
+
+	cfg := createTestConfiguration()
+	cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/duplicate-vsr": vsr,
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-			resultVSRs, warnings := validateDuplicateVSRs(testCase.vsrs, testCase.vsName, testCase.vsNamespace)
+	col := cfg.classifyAndCollectVSRs(vs)
 
-			if diff := cmp.Diff(testCase.expectedVSRs, resultVSRs); diff != "" {
-				t.Errorf("validateDuplicateVSRs() returned unexpected VSRs (-want +got):\n%s", diff)
-			}
-			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
-				t.Errorf("validateDuplicateVSRs() returned unexpected warnings (-want +got):\n%s", diff)
-			}
-		})
+	if len(col.vsrs) != 1 {
+		t.Errorf("expected 1 VSR after dedup, got %d", len(col.vsrs))
+	}
+	if col.vsrs[0].Name != "duplicate-vsr" {
+		t.Errorf("expected duplicate-vsr, got %s", col.vsrs[0].Name)
+	}
+
+	foundDupWarning := false
+	for _, w := range col.warnings {
+		if strings.Contains(w, "duplicate VirtualServerRoutes") && strings.Contains(w, "duplicate-vsr") {
+			foundDupWarning = true
+		}
+	}
+	if !foundDupWarning {
+		t.Errorf("expected duplicate VSR warning, got warnings: %v", col.warnings)
 	}
 }
 
@@ -6211,6 +6075,7 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			},
 			expectedVSR: false,
 			expectedWarns: []string{
+				"VS default/myvs has duplicate VirtualServerRoutes default/myroute",
 				"VirtualServerRoute default/myroute is referenced by both regex and non-regex VS routes; it will not be used",
 			},
 		},
