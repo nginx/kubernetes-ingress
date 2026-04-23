@@ -78,9 +78,17 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			lbc.recorder.Eventf(pol, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
 
 			if lbc.reportCustomResourceStatusEnabled() {
-				err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateInvalid, "Rejected", msg)
-				if err != nil {
-					nl.Debugf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+				// Defer policy status updates during startup to avoid serial
+				// API calls that block readiness. See flushPendingStatusesAsync().
+				if !lbc.isNginxReady {
+					lbc.pendingStatusPolicies = append(lbc.pendingStatusPolicies, pendingPolicyStatus{
+						pol: pol, state: conf_v1.StateInvalid, reason: "Rejected", message: msg,
+					})
+				} else {
+					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateInvalid, "Rejected", msg)
+					if err != nil {
+						nl.Debugf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+					}
 				}
 			}
 		} else {
@@ -88,9 +96,17 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			lbc.recorder.Eventf(pol, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
 
 			if lbc.reportCustomResourceStatusEnabled() {
-				err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "AddedOrUpdated", msg)
-				if err != nil {
-					nl.Debugf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+				// Defer policy status updates during startup to avoid serial
+				// API calls that block readiness. See flushPendingStatusesAsync().
+				if !lbc.isNginxReady {
+					lbc.pendingStatusPolicies = append(lbc.pendingStatusPolicies, pendingPolicyStatus{
+						pol: pol, state: conf_v1.StateValid, reason: "AddedOrUpdated", message: msg,
+					})
+				} else {
+					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "AddedOrUpdated", msg)
+					if err != nil {
+						nl.Debugf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+					}
 				}
 			}
 		}
