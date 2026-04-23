@@ -1,0 +1,78 @@
+# Egress MTLS
+
+In this example, we deploy a secure web application, configure load balancing for it via an Ingress resource, and apply an
+Egress MTLS policy through the `nginx.org/policies` annotation.
+
+## Prerequisites
+
+1. Run `make secrets` command to generate the necessary secrets for the example.
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/installation/installing-nic/installation-with-manifests/)
+   instructions to deploy the Ingress Controller.
+1. Save the public IP address of the Ingress Controller into a shell variable:
+
+    ```console
+    IC_IP=XXX.YYY.ZZZ.III
+    ```
+
+1. Save the HTTP port of the Ingress Controller into a shell variable:
+
+    ```console
+    IC_HTTP_PORT=<port number>
+    ```
+
+## Step 1 - Deploy a Secure Web Application
+
+The application requires clients to use TLS and present a client TLS certificate which it will verify.
+
+Create the application secret, deployment, service and config map:
+
+```console
+kubectl apply -f secure-app-tls-secret.yaml -f secure-app.yaml
+```
+
+## Step 2 - Deploy the Egress MTLS Secret
+
+Create a secret with the name `egress-mtls-secret` that will be used for authentication to the application:
+
+```console
+kubectl apply -f egress-mtls-secret.yaml
+```
+
+## Step 3 - Deploy the Trusted CA Secret
+
+Create a secret with the name `egress-trusted-ca-secret` that will be used to verify the certificate of the application:
+
+```console
+kubectl apply -f egress-trusted-ca-secret.yaml
+```
+
+## Step 4 - Deploy the Egress MTLS Policy
+
+Create a policy with the name `egress-mtls-policy` that references the secrets from the previous steps:
+
+```console
+kubectl apply -f egress-mtls.yaml
+```
+
+## Step 5 - Configure Load Balancing
+
+Create an Ingress resource for the web application:
+
+```console
+kubectl apply -f ingress.yaml
+```
+
+Note that the Ingress references the policy `egress-mtls-policy` created in Step 4 and marks the backend with
+`nginx.org/ssl-services` so NGINX proxies to it over HTTPS.
+
+## Step 6 - Test the Configuration
+
+Access the secure backend with the following command:
+
+```console
+curl --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP http://webapp.example.com:$IC_HTTP_PORT/
+```
+
+```text
+hello from pod secure-app-8cb576989-7hdhp
+```

@@ -18,7 +18,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.8"
+          "version": "3.9"
         }
       ],
       "system": "debian",
@@ -49,7 +49,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.8"
+          "version": "3.9"
         }
       ],
       "system": "debian",
@@ -260,7 +260,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.8"
+          "version": "3.9"
         }
       ],
       "system": "alpine",
@@ -291,7 +291,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.8"
+          "version": "3.9"
         }
       ],
       "system": "alpine",
@@ -322,7 +322,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.8"
+          "version": "3.9"
         }
       ],
       "system": "alpine",
@@ -441,7 +441,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.8"
+          "version": "3.9"
         }
       ],
       "system": "ubi",
@@ -472,7 +472,7 @@
         },
         {
           "name": "nginx-agent",
-          "version": "3.8"
+          "version": "3.9"
         }
       ],
       "system": "ubi",

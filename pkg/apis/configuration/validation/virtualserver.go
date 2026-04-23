@@ -1377,24 +1377,6 @@ func validateRegexPath(path string, fieldPath *field.Path) field.ErrorList {
 }
 
 const (
-	pathFmt    = `/[^\s{};\\]*`
-	pathErrMsg = "must start with / and must not include any whitespace character, `{`, `}` or `;`"
-)
-
-var pathRegexp = regexp.MustCompile("^" + pathFmt + "$")
-
-func validatePath(path string, fieldPath *field.Path) field.ErrorList {
-	if path == "" {
-		return field.ErrorList{field.Required(fieldPath, "")}
-	}
-	if !pathRegexp.MatchString(path) {
-		msg := validation.RegexError(pathErrMsg, pathFmt, "/", "/path", "/path/subpath-123")
-		return field.ErrorList{field.Invalid(fieldPath, path, msg)}
-	}
-	return nil
-}
-
-const (
 	grpcFmt    = `[^\s{};]*`
 	grpcErrMsg = "must not include any whitespace character, `{`, `}`, or `;`"
 )
