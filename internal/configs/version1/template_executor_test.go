@@ -109,7 +109,8 @@ func newTestTemplateExecutor(t *testing.T) *TemplateExecutor {
 	return te
 }
 
-// custom Main Template represents a main-template passed via ConfigMap
+// customMainTemplate is a sample custom main template for testing the template swap mechanism.
+// It is a copy of nginx-plus.tmpl and may not be up to date with the actual template.
 var customMainTemplate = `# TEST NEW MAIN TEMPLATE
 {{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.MainConfig*/ -}}
 worker_processes  {{.WorkerProcesses}};
@@ -125,6 +126,9 @@ daemon off;
 error_log  stderr {{.ErrorLogLevel}};
 pid        /var/lib/nginx/nginx.pid;
 
+{{- if .MainOtelLoadModule}}
+load_module modules/ngx_otel_module.so;
+{{- end}}
 {{- if .AppProtectLoadModule}}
 load_module modules/ngx_http_app_protect_module.so;
 {{- end}}
@@ -132,10 +136,8 @@ load_module modules/ngx_http_app_protect_module.so;
 load_module modules/ngx_http_app_protect_dos_module.so;
 {{- end}}
 load_module modules/ngx_fips_check_module.so;
-{{- if .MainSnippets}}
-{{range $value := .MainSnippets}}
-{{$value}}{{end}}
-{{- end}}
+{{- range $value := .MainSnippets}}
+{{$value}}{{- end}}
 
 load_module modules/ngx_http_js_module.so;
 
@@ -149,13 +151,15 @@ http {
     map_hash_max_size {{.MapHashMaxSize}};
     map_hash_bucket_size {{.MapHashBucketSize}};
 
+    {{- if .ClientBodyBufferSize }}
+    client_body_buffer_size {{.ClientBodyBufferSize}};
+    {{- end }}
+
     js_import /etc/nginx/njs/apikey_auth.js;
     js_set $apikey_auth_hash apikey_auth.hash;
 
-    {{- if .HTTPSnippets}}
-    {{range $value := .HTTPSnippets}}
-    {{$value}}{{end}}
-    {{- end}}
+    {{- range $value := .HTTPSnippets}}
+    {{$value}}{{- end}}
 
     {{if .LogFormat -}}
     log_format  main {{if .LogFormatEscaping}}escape={{ .LogFormatEscaping }} {{end}}
@@ -239,6 +243,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -256,31 +275,34 @@ http {
     ssl_dhparam {{.SSLDHParam}};
     {{- end}}
 
-    {{- if .ResolverAddresses}}
-    resolver {{range $resolver := .ResolverAddresses}}{{$resolver}}{{end}}{{if .ResolverValid}} valid={{.ResolverValid}}{{end}}{{if not .ResolverIPV6}} ipv6=off{{end}};
-    {{- if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
+    {{- if .MainOtelLoadModule }}
+    otel_exporter {
+        endpoint {{ .MainOtelExporterEndpoint }};
+        {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
+        header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
+        {{- end }}
+    }
+
+    {{ if .MainOtelServiceName}}
+    otel_service_name {{ .MainOtelServiceName }};
+    {{- end }}
+    {{ if .MainOtelGlobalTraceEnabled }}
+    otel_trace on;
+    {{- end}}
     {{- end}}
 
-    {{- if .OIDC}}
+    {{ $resolverIPV6HTTPBool := boolToPointerBool .ResolverIPV6 -}}
+    {{ makeResolver .ResolverAddresses .ResolverValid $resolverIPV6HTTPBool }}
+    {{if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
+
+    {{- if .OIDC.Enable}}
+    keyval_zone zone=oidc_pkce:{{.OIDC.PKCEZoneSize}} timeout={{.OIDC.PKCETimeout}} sync;
+    keyval_zone zone=oidc_id_tokens:{{.OIDC.IDTokenZoneSize}} timeout={{.OIDC.IDTokenTimeout}} sync;
+    keyval_zone zone=oidc_access_tokens:{{.OIDC.AccessZoneSize}} timeout={{.OIDC.AccessTimeout}} sync;
+    keyval_zone zone=refresh_tokens:{{.OIDC.RefreshZoneSize}} timeout={{.OIDC.RefreshTimeout}} sync;
+    keyval_zone zone=oidc_sids:{{.OIDC.SIDSZoneSize}} timeout={{.OIDC.SIDSTimeout}} sync;
     include oidc/oidc_common.conf;
     {{- end}}
-
-    map $http_upgrade $default_connection_header {
-        default "";
-    }
-    map $http_host $resource_type {
-        default "";
-    }
-    map $http_host $resource_name {
-        default "";
-    }
-    map $http_host $resource_namespace {
-        default "";
-    }
-    map $http_host $service {
-        default "";
-    }
-
     {{- if .NginxStatus}}
     # NGINX Plus APIs
     server {
@@ -367,11 +389,9 @@ stream {
 
     {{- range $value := .StreamSnippets}}
     {{$value}}{{end}}
-
-    {{- if .ResolverAddresses}}
-    resolver {{range $resolver := .ResolverAddresses}}{{$resolver}}{{end}}{{if .ResolverValid}} valid={{.ResolverValid}}{{end}}{{if not .ResolverIPV6}} ipv6=off{{end}};
+    {{ $resolverIPV6StreamBool := boolToPointerBool .ResolverIPV6 -}}
+    {{ makeResolver .ResolverAddresses .ResolverValid $resolverIPV6StreamBool }}
     {{if .ResolverTimeout}}resolver_timeout {{.ResolverTimeout}};{{end}}
-    {{- end}}
 
     map_hash_max_size {{.MapHashMaxSize}};
     {{if .MapHashBucketSize}}map_hash_bucket_size {{.MapHashBucketSize}};{{end}}
@@ -404,34 +424,93 @@ stream {
     }
     {{end}}
 
+    {{- if .ZoneSyncConfig.Enable }}
+    server {
+        listen {{ .ZoneSyncConfig.Port }};
+        {{- if not .DisableIPV6 }}
+        listen [::]:{{ .ZoneSyncConfig.Port }};
+        {{- end }}
+        {{ makeResolver .ZoneSyncConfig.ResolverAddresses .ZoneSyncConfig.ResolverValid .ZoneSyncConfig.ResolverIPV6 }}
+        zone_sync;
+        zone_sync_server {{ .ZoneSyncConfig.Domain }}:{{ .ZoneSyncConfig.Port }} resolve;
+    }
+    {{- end }}
     include /etc/nginx/stream-conf.d/*.conf;
 }
 
-{{- if (.NginxVersion.PlusGreaterThanOrEqualTo "nginx-plus-r31") }}
 mgmt {
-    usage_report interval=0s;
+    {{- if or (ne .MGMTConfig.Endpoint "") (ne .MGMTConfig.Interval "") }}
+    usage_report
+    {{- if ne .MGMTConfig.Endpoint "" }} endpoint={{ .MGMTConfig.Endpoint }} {{- end }} {{- if ne .MGMTConfig.Interval "" }} interval={{ .MGMTConfig.Interval }} {{- end }};
+    {{- end }}
+    {{- if ne .MGMTConfig.ProxyHost "" }}
+    proxy {{ .MGMTConfig.ProxyHost }};
+    {{- end }}
+    {{- if ne .MGMTConfig.ProxyUser "" }}
+    proxy_username {{ .MGMTConfig.ProxyUser }};
+    {{- end }}
+    {{- if ne .MGMTConfig.ProxyPass "" }}
+    proxy_password {{ .MGMTConfig.ProxyPass }};
+    {{- end }}
+    license_token {{ printf "%s/license.jwt" .StaticSSLPath }};
+    enforce_initial_report {{ makeOnOffFromBool .MGMTConfig.EnforceInitialReport}};
+    {{ if .MGMTConfig.SSLVerify -}}
+    ssl_verify {{ makeOnOffFromBool .MGMTConfig.SSLVerify }};
+    {{ end -}}
+    {{ if .MGMTConfig.ResolverAddresses -}}
+    {{ makeResolver .MGMTConfig.ResolverAddresses .MGMTConfig.ResolverValid .MGMTConfig.ResolverIPV6 }}
+    {{ end -}}
+    {{ if .MGMTConfig.TrustedCert -}}
+    ssl_trusted_certificate {{ printf "%s/mgmt/ca.crt" .StaticSSLPath }};
+    {{ end -}}
+    {{ if .MGMTConfig.TrustedCRL -}}
+    ssl_crl {{ printf "%s/mgmt/ca.crl" .StaticSSLPath }};
+    {{ end -}}
+    {{ if .MGMTConfig.ClientAuth -}}
+    ssl_certificate {{ printf "%s/mgmt/client" .StaticSSLPath }};
+    ssl_certificate_key {{ printf "%s/mgmt/client" .StaticSSLPath }};
+    {{ end -}}
+    deployment_context /etc/nginx/reporting/tracking.info;
 }
-{{- end}}
 `
 
-// custom Ingress Template represents an ingress-template passed via ConfigMap
+// customIngressTemplate is a sample custom ingress template for testing the template swap mechanism.
+// It is a copy of nginx-plus.ingress.tmpl and may not be up to date with the actual template.
 var customIngressTemplate = `# TEST NEW CUSTOM INGRESS TEMPLATE
 {{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version1.IngressNginxConfig*/ -}}
 # configuration for {{.Ingress.Namespace}}/{{.Ingress.Name}}
 {{- range $upstream := .Upstreams}}
 upstream {{$upstream.Name}} {
-	{{- if ne $upstream.UpstreamZoneSize "0"}}zone {{$upstream.Name}} {{$upstream.UpstreamZoneSize}};{{end}}
+	zone {{$upstream.Name}} {{if ne $upstream.UpstreamZoneSize "0"}}{{$upstream.UpstreamZoneSize}}{{else}}512k{{end}};
 	{{- if $upstream.LBMethod }}
 	{{$upstream.LBMethod}};
 	{{- end}}
 	{{- range $server := $upstream.UpstreamServers}}
-	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};{{end}}
+	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}}
+	    {{- if $server.SlowStart}} slow_start={{$server.SlowStart}}{{end}}{{if $server.Resolve}} resolve{{end}};{{end}}
+	{{- if $upstream.StickyCookie}}
+	sticky cookie {{$upstream.StickyCookie}};
+	{{- end}}
 	{{- if $.Keepalive}}keepalive {{$.Keepalive}};{{end}}
+	{{- if $upstream.UpstreamServers -}}
+	{{- if $upstream.Queue}}
+	queue {{$upstream.Queue}} timeout={{$upstream.QueueTimeout}}s;
+	{{- end -}}
+	{{- end}}
 }
-{{end -}}
+{{- end}}
 
+{{- if .Maps}}
+{{- range $m := .Maps}}
+map {{ $m.Source }} {{ $m.Variable }} {
+	{{- range $p := $m.Parameters }}
+	{{ $p.Value }} {{ $p.Result }};
+	{{- end }}
+}
+{{- end}}
+{{- end -}}
 {{range $limitReqZone := .LimitReqZones}}
-limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}};
+limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReqZone.Size}} rate={{$limitReqZone.Rate}}{{- if $limitReqZone.Sync }} sync{{- end }};
 {{end}}
 
 {{range $server := .Servers}}
@@ -444,20 +523,20 @@ server {
 	{{- else}}
 	{{- if not $server.GRPCOnly}}
 	{{- range $port := $server.Ports}}
-	listen {{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
-	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
+	listen {{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
+	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
 	{{- end}}
 
 	{{- if $server.SSL}}
 	{{- if $server.TLSPassthrough}}
-	listen unix:/var/lib/nginx/passthrough-https.sock ssl proxy_protocol;
+	listen unix:/var/lib/nginx/passthrough-https.sock ssl{{if $server.IsDefaultServer}} default_server{{end}} proxy_protocol;
 	set_real_ip_from unix:;
 	real_ip_header proxy_protocol;
 	{{- else}}
 	{{- range $port := $server.SSLPorts}}
-	listen {{$port}} ssl{{if $server.ProxyProtocol}} proxy_protocol{{end}};
-	{{- if not $server.DisableIPV6}}listen [::]:{{$port}} ssl{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
+	listen {{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
+	{{- if not $server.DisableIPV6}}listen [::]:{{$port}} ssl{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
 	{{- end}}
 	{{- end}}
 	{{- if $server.HTTP2}}
@@ -468,27 +547,129 @@ server {
 	{{- else}}
 	ssl_certificate {{ makeSecretPath $server.SSLCertificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	ssl_certificate_key {{ makeSecretPath $server.SSLCertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	{{- if $server.SSLCiphers}}
+	ssl_ciphers {{$server.SSLCiphers}};
+	{{- end}}
+	{{- if $server.SSLPreferServerCiphers}}
+	ssl_prefer_server_ciphers on;
 	{{- end}}
 	{{- end}}
 	{{- end}}
+	{{- end}}
+
+	{{- range $allow := $server.Allow }}
+		allow {{ $allow }};
+	{{- end }}
+	{{- if gt (len $server.Allow) 0 }}
+		deny all;
+	{{- end }}
+
+	{{- range $deny := $server.Deny }}
+		deny {{ $deny }};
+	{{- end }}
+	{{- if gt (len $server.Deny) 0 }}
+		allow all;
+	{{- end }}
 
 	{{- range $setRealIPFrom := $server.SetRealIPFrom}}
 	set_real_ip_from {{$setRealIPFrom}};{{end}}
 	{{- if $server.RealIPHeader}}real_ip_header {{$server.RealIPHeader}};{{end}}
 	{{- if $server.RealIPRecursive}}real_ip_recursive on;{{end}}
 
-	server_tokens {{$server.ServerTokens}};
+	server_tokens "{{$server.ServerTokens}}";
 
+	{{- with $server.PoliciesErrorReturn }}
+	return {{ .Code }};
+	{{- end }}
+
+	{{- if $server.IsDefaultServer}}
+	server_name _;
+	{{- else}}
 	server_name {{$server.Name}};
+	{{- end}}
 
+	{{- if $server.StatusZone}}
+	status_zone {{$server.StatusZone}};
+	{{- end}}
+	{{- if $.Ingress.Name}}
 	set $resource_type "ingress";
 	set $resource_name "{{$.Ingress.Name}}";
 	set $resource_namespace "{{$.Ingress.Namespace}}";
+	set $service "-";
+	{{- end}}
 
+	{{- with $server.EgressMTLS }}
+		{{- if .Certificate }}
+	proxy_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	proxy_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{- end }}
+		{{- if .TrustedCert }}
+	proxy_ssl_trusted_certificate {{ .TrustedCert }};
+		{{- end }}
+	proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+	proxy_ssl_verify_depth {{ .VerifyDepth }};
+	proxy_ssl_protocols {{ .Protocols }};
+	proxy_ssl_ciphers {{ .Ciphers }};
+	proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+	proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+	proxy_ssl_name {{ .SSLName }};
+	{{- end }}
+
+	{{- with $server.WAF }}
+	app_protect_enable {{ .Enable }};
+	{{- if .ApPolicy }}
+	app_protect_policy_file {{ .ApPolicy }};
+	{{- end }}
+	{{- if .ApBundle }}
+	app_protect_policy_file {{ .ApBundle }};
+	{{- end }}
+	{{- if .ApSecurityLogEnable }}
+	app_protect_security_log_enable on;
+	{{- range $logconf := .ApLogConf }}
+	app_protect_security_log {{ $logconf }};
+	{{- end }}
+	{{- end }}
+	{{- else }}
+	{{- if $server.AppProtectEnable}}
+	app_protect_enable {{$server.AppProtectEnable}};
+	{{if $server.AppProtectPolicy}}app_protect_policy_file {{$server.AppProtectPolicy}};{{end}}
+	{{- end}}
+	{{- if $server.AppProtectLogEnable}}
+	app_protect_security_log_enable {{$server.AppProtectLogEnable}};
+	{{range $AppProtectLogConf := $server.AppProtectLogConfs}}app_protect_security_log {{$AppProtectLogConf}};
+	{{end}}
+	{{- end}}
+	{{- end }}
+
+	{{- if $server.AppProtectDosEnable}}
+	app_protect_dos_enable {{$server.AppProtectDosEnable}};
+	{{if $server.AppProtectDosPolicyFile}}app_protect_dos_policy_file {{$server.AppProtectDosPolicyFile}};{{end}}
+	{{- if $server.AppProtectDosLogEnable}}
+	app_protect_dos_security_log_enable on;
+	{{if $server.AppProtectDosLogConfFile}}app_protect_dos_security_log {{$server.AppProtectDosLogConfFile}};{{end}}
+	{{- end}}
+	{{- if $server.AppProtectDosAccessLogDst}}
+	set $loggable '0';
+	# app-protect-dos module will set it to '1'  if a request doesn't pass the rate limit
+	access_log {{ .AppProtectDosAccessLogDst }} log_dos if=$loggable;
+	{{- end}}
+	{{- if $server.AppProtectDosMonitorURI}}
+		{{- if or $server.AppProtectDosMonitorProtocol $server.AppProtectDosMonitorTimeout}}
+	app_protect_dos_monitor uri={{$server.AppProtectDosMonitorURI}}{{if $server.AppProtectDosMonitorProtocol}} protocol={{$server.AppProtectDosMonitorProtocol}}{{end}}{{if $server.AppProtectDosMonitorTimeout}} timeout={{$server.AppProtectDosMonitorTimeout}}{{end}};
+		{{- else}}
+	app_protect_dos_monitor "{{$server.AppProtectDosMonitorURI}}";
+		{{- end}}
+	{{- end}}
+	{{if $server.AppProtectDosName}}app_protect_dos_name "{{$server.AppProtectDosName}}";{{end}}
+	{{if $server.AppProtectDosAllowListPath}}app_protect_dos_access_file "{{$server.AppProtectDosAllowListPath}}";{{end}}
+	{{- end}}
+
+	{{if not $server.GRPCOnly}}
 	{{- range $proxyHideHeader := $server.ProxyHideHeaders}}
 	proxy_hide_header {{$proxyHideHeader}};{{end}}
 	{{- range $proxyPassHeader := $server.ProxyPassHeaders}}
 	proxy_pass_header {{$proxyPassHeader}};{{end}}
+	{{- end}}
 
 	{{- if and $server.HSTS (or $server.SSL $server.HSTSBehindProxy)}}
 	set $hsts_header_val "";
@@ -508,7 +689,7 @@ server {
 	{{- if not $server.GRPCOnly}}
 	{{- if $server.SSLRedirect}}
 	if ($scheme = http) {
-		return 301 https://$host:{{index $server.SSLPorts 0}}$request_uri;
+		return {{$server.HTTPRedirectCode}} https://$host:{{index $server.SSLPorts 0}}$request_uri;
 	}
 	{{- end}}
 	{{- end}}
@@ -516,7 +697,7 @@ server {
 
 	{{- if $server.RedirectToHTTPS}}
 	if ($http_x_forwarded_proto = 'http') {
-		return 301 https://$host$request_uri;
+		return {{$server.HTTPRedirectCode}} https://$host$request_uri;
 	}
 	{{- end}}
 
@@ -525,18 +706,108 @@ server {
 	auth_basic_user_file {{ .Secret }};
 	{{- end }}
 
+	{{with $jwt := $server.JWTAuth}}
+	auth_jwt_key_file {{$jwt.Key}};
+	auth_jwt "{{.Realm}}"{{if $jwt.Token}} token={{$jwt.Token}}{{end}};
+
+	{{- if $jwt.RedirectLocationName}}
+	error_page 401 {{$jwt.RedirectLocationName}};
+	{{end}}
+	{{- end}}
+
 	{{- if $server.ServerSnippets}}
 	{{- range $value := $server.ServerSnippets}}
 	{{$value}}{{end}}
 	{{- end}}
 
-	{{- range $location := $server.Locations}}
+	{{- if $server.AppRoot }}
+	if ($uri = /) {
+		return 302 $scheme://$http_host{{ $server.AppRoot }};
+	}
+	{{- end }}
+
+	{{- range $healthCheck := $server.HealthChecks}}
+	location @hc-{{$healthCheck.UpstreamName}} {
+		{{- range $name, $header := $healthCheck.Headers}}
+		proxy_set_header {{$name}} {{ printf "%q" $header }};
+		{{- end }}
+		proxy_connect_timeout {{$healthCheck.TimeoutSeconds}}s;
+		proxy_read_timeout {{$healthCheck.TimeoutSeconds}}s;
+		proxy_send_timeout {{$healthCheck.TimeoutSeconds}}s;
+		proxy_pass {{$healthCheck.Scheme}}://{{$healthCheck.UpstreamName}};
+		health_check {{if $healthCheck.Mandatory}}mandatory {{end}}uri={{$healthCheck.URI}} interval=
+			{{- $healthCheck.Interval}}s fails={{$healthCheck.Fails}} passes={{$healthCheck.Passes}};
+	}
+	{{end -}}
+
+	{{- range $location := $server.JWTRedirectLocations}}
+	location {{$location.Name}} {
+		internal;
+		return 302 {{$location.LoginURL}};
+	}
+	{{end -}}
+
+	{{range $location := $server.Locations}}
 	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
 		set $service "{{$location.ServiceName}}";
+		status_zone "{{ $location.ServiceName }}";
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
 		set $resource_name "{{$location.MinionIngress.Name}}";
 		set $resource_namespace "{{$location.MinionIngress.Namespace}}";
+		{{- end}}
+
+		{{- with $location.PoliciesErrorReturn }}
+		return {{ .Code }};
+		{{- end }}
+
+		{{- range $allow := $location.Allow }}
+		allow {{ $allow }};
+		{{- end }}
+		{{- if gt (len $location.Allow) 0 }}
+		deny all;
+		{{- end }}
+
+		{{- range $deny := $location.Deny }}
+		deny {{ $deny }};
+		{{- end }}
+		{{- if gt (len $location.Deny) 0 }}
+		allow all;
+		{{- end }}
+		{{- with $location.WAF }}
+		app_protect_enable {{ .Enable }};
+		{{- if .ApPolicy }}
+		app_protect_policy_file {{ .ApPolicy }};
+		{{- end }}
+		{{- if .ApBundle }}
+		app_protect_policy_file {{ .ApBundle }};
+		{{- end }}
+		{{- if .ApSecurityLogEnable }}
+		app_protect_security_log_enable on;
+		{{- range $logconf := .ApLogConf }}
+		app_protect_security_log {{ $logconf }};
+		{{- end }}
+		{{- end }}
+		{{- end }}
+		{{- if $location.RewriteTarget}}
+		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
+		{{- end}}
+		{{- $proxyOrGRPC := "proxy" }}{{ if $location.GRPC }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
+		{{- with $location.EgressMTLS}}
+			{{- if .Certificate }}
+		{{$proxyOrGRPC}}_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{$proxyOrGRPC}}_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+			{{- end }}
+			{{- if .TrustedCert }}
+		{{$proxyOrGRPC}}_ssl_trusted_certificate {{ .TrustedCert }};
+			{{- end }}
+		{{$proxyOrGRPC}}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_verify_depth {{ .VerifyDepth }};
+		{{$proxyOrGRPC}}_ssl_protocols {{ .Protocols }};
+		{{$proxyOrGRPC}}_ssl_ciphers {{ .Ciphers }};
+		{{$proxyOrGRPC}}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_name {{ .SSLName }};
 		{{- end}}
 		{{- if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}
@@ -555,9 +826,12 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
-		{{- if $location.LocationSnippets}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{end}}
+
+		{{- with $jwt := $location.JWTAuth}}
+		auth_jwt_key_file {{$jwt.Key}};
+		auth_jwt "{{.Realm}}"{{if $jwt.Token}} token={{$jwt.Token}}{{end}};
 		{{- end}}
 
 		{{- with $location.BasicAuth }}
@@ -573,7 +847,7 @@ server {
 		grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		grpc_set_header X-Forwarded-Host $host;
 		grpc_set_header X-Forwarded-Port $server_port;
-		grpc_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
+		grpc_set_header X-Forwarded-Proto $scheme;
 
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
@@ -588,9 +862,9 @@ server {
 		grpc_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
 		{{- if $location.SSL}}
-		grpc_pass grpcs://{{$location.Upstream.Name}}{{$location.Rewrite}};
+		grpc_pass grpcs://{{$location.Upstream.Name}};
 		{{- else}}
-		grpc_pass grpc://{{$location.Upstream.Name}}{{$location.Rewrite}};
+		grpc_pass grpc://{{$location.Upstream.Name}};
 		{{- end}}
 		{{- else}}
 		proxy_http_version 1.1;
@@ -601,18 +875,29 @@ server {
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
-		{{- if $location.LocationSnippets}}
-		{{range $value := $location.LocationSnippets}}
-		{{$value}}{{end}}
+		{{- range $value := $location.LocationSnippets}}
+		{{$value}}{{- end}}
+
+		{{- with $jwt := $location.JWTAuth }}
+		auth_jwt_key_file {{$jwt.Key}};
+		auth_jwt "{{.Realm}}"{{if $jwt.Token}} token={{$jwt.Token}}{{end}};
+		{{- if $jwt.RedirectLocationName}}
+		error_page 401 {{$jwt.RedirectLocationName}};
 		{{- end}}
+		{{- end}}
+
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
 		{{- end }}
+
 		proxy_connect_timeout {{$location.ProxyConnectTimeout}};
 		proxy_read_timeout {{$location.ProxyReadTimeout}};
 		proxy_send_timeout {{$location.ProxySendTimeout}};
 		client_max_body_size {{$location.ClientMaxBodySize}};
+		{{- if $location.ClientBodyBufferSize }}
+		client_body_buffer_size {{$location.ClientBodyBufferSize}};
+		{{- end}}
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
 		{{- end}}
@@ -623,12 +908,14 @@ server {
 		proxy_set_header X-Forwarded-Port $server_port;
 		proxy_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
-
 		{{- if $location.ProxyBuffers}}
 		proxy_buffers {{$location.ProxyBuffers}};
 		{{- end}}
 		{{- if $location.ProxyBufferSize}}
 		proxy_buffer_size {{$location.ProxyBufferSize}};
+		{{- end}}
+		{{- if $location.ProxyBusyBuffersSize}}
+		proxy_busy_buffers_size {{$location.ProxyBusyBuffersSize}};
 		{{- end}}
 		{{- if $location.ProxyMaxTempFileSize}}
 		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};
@@ -642,22 +929,61 @@ server {
 		proxy_ssl_verify_depth 25;
 		proxy_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
-		{{- if $location.SSL}}
-		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
-		{{- else}}
-		proxy_pass http://{{$location.Upstream.Name}}{{$location.Rewrite}};
-		{{- end}}
+		{{- if $location.ProxyNextUpstream}}
+		proxy_next_upstream {{ $location.ProxyNextUpstream }};
+		{{- end }}
+		{{- if $location.ProxyNextUpstreamTimeout}}
+		proxy_next_upstream_timeout {{ $location.ProxyNextUpstreamTimeout }};
+		{{- end }}
+		{{- if $location.ProxyNextUpstreamTries}}
+		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
+		{{- end }}
+		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
 
+		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
+		{{- range $h := $location.AddHeaders }}
+		add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
+		{{- end }}
+		{{- if $location.CORSEnabled }}
+		# CORS configuration per enable-cors.org
+		# Handle CORS preflight OPTIONS requests
+		if ($request_method = 'OPTIONS') {
+			{{- range $h := $location.AddHeaders }}
+			add_header {{ $h.Name }} {{ printf "%q" $h.Value }};
+			{{- end }}
+			add_header Content-Type text/plain;
+			add_header Content-Length 0;
+			return 204;
+		}
+		{{- end }}
+		{{- end }}
 		{{with $location.LimitReq}}
-		limit_req zone={{ $location.LimitReq.Zone }} {{if $location.LimitReq.Burst}}burst={{$location.LimitReq.Burst}}{{end}} {{if $location.LimitReq.NoDelay}}nodelay{{else if $location.LimitReq.Delay}}delay={{$location.LimitReq.Delay}}{{end}};
+		limit_req zone={{ $location.LimitReq.Zone }}{{- if $location.LimitReq.Burst }} burst={{$location.LimitReq.Burst}}{{- end }}{{- if $location.LimitReq.NoDelay }} nodelay{{- else if $location.LimitReq.Delay }} delay={{$location.LimitReq.Delay}}{{- end }};
 		{{if $location.LimitReq.DryRun}}limit_req_dry_run on;{{end}}
 		{{if $location.LimitReq.LogLevel}}limit_req_log_level {{$location.LimitReq.LogLevel}};{{end}}
 		{{if $location.LimitReq.RejectCode}}limit_req_status {{$location.LimitReq.RejectCode}};{{end}}
 		{{end}}
 	}
 	{{end -}}
-	{{- if $server.GRPCOnly}}
+
+	{{- if $server.AccessLogOff}}
+	access_log off;
+	{{- end}}
+
+	{{- if $server.HealthStatus}}
+	location = {{$server.HealthStatusURI}} {
+		default_type text/plain;
+		return 200 "healthy\n";
+	}
+	{{- end}}
+
+	{{- if and $server.DefaultServerReturn (not $server.HasRootLocation)}}
+	location / {
+		return {{$server.DefaultServerReturn}};
+	}
+	{{- end}}
+	{{- if and $.Ingress.Name $server.GRPCOnly}}
 	error_page 400 @grpcerror400;
 	error_page 401 @grpcerror401;
 	error_page 403 @grpcerror403;
