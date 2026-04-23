@@ -12,6 +12,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_item_removal,
+    get_service_endpoint,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -88,7 +89,9 @@ def apply_and_wait_for_valid_policy(kube_apis, namespace, policy_yaml, retry_cou
     )
 
 
-def setup_policy_backend(kube_apis, namespace, *, secret_yamls, backend_yaml, policy_yamls, validate_policies=True):
+def setup_policy_backend(
+    kube_apis, namespace, *, secret_yamls, backend_yaml, policy_yamls, validate_policies=True, wait_for_service=None
+):
     """Deploy a backend with secrets and create policies.
 
     Generic setup function that can be used for any policy type (external-auth,
@@ -102,6 +105,9 @@ def setup_policy_backend(kube_apis, namespace, *, secret_yamls, backend_yaml, po
         policy_yamls: List of YAML file paths for policies to create.
         validate_policies: If True (default), wait for each policy to reach Valid state.
             Set to False for tests that expect the policy to be Invalid/Rejected.
+        wait_for_service: If set, wait for this service name's endpoints to be registered
+            before returning. Use this when the controller must see endpoints before the
+            VS/VSR is patched, to avoid a transient Warning from endpoint propagation lag.
 
     Returns:
         (secret_names, policy_names) -- lists of created resource names.
@@ -115,6 +121,10 @@ def setup_policy_backend(kube_apis, namespace, *, secret_yamls, backend_yaml, po
     print(f"Deploy backend from {backend_yaml}")
     create_items_from_yaml(kube_apis, backend_yaml, namespace)
     wait_until_all_pods_are_ready(kube_apis.v1, namespace)
+
+    if wait_for_service:
+        print(f"Waiting for endpoints of service '{wait_for_service}' to be ready...")
+        get_service_endpoint(kube_apis, wait_for_service, namespace)
 
     policy_names = []
     for yaml_path in policy_yamls:

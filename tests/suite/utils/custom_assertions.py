@@ -21,19 +21,19 @@ def assert_no_new_events(old_list, new_list):
             pytest.fail(f'Expected: no new events. There is a new event found:"{new_list[i].message}". Exiting...')
 
 
-def assert_event_count_increased(event_text, count, events_list) -> None:
+def assert_event_count_increased(event_text, count, events_list) -> int:
     """
-    Search for the event in the list and verify its counter is more than the expected value.
+    Search for the event in the list and verify its counter is more than the expected value, return the new count.
 
     :param event_text: event text
     :param count: expected value
     :param events_list: list of events
-    :return:
+    :return: event.count
     """
     for i in range(len(events_list) - 1, -1, -1):
         if event_text in events_list[i].message:
             assert events_list[i].count > count
-            return
+            return events_list[i].count
     pytest.fail(f'Failed to find the event "{event_text}" in the list. Exiting...')
 
 
