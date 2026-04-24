@@ -158,8 +158,9 @@ func (rc *serviceReferenceChecker) IsReferencedByVirtualServer(svcNamespace stri
 		if ns == svcNamespace && name == svcName {
 			return true
 		}
-		backupNamespace, backupName := configs.ParseServiceReference(u.Backup, vs.Namespace)
-		if backupNamespace == svcNamespace && backupName == svcName {
+		// Only check backup for service events (hasClusterIP=false).
+		// Backup uses resolve -- NGINX handles DNS resolution, no endpoint tracking needed.
+		if !rc.hasClusterIP && u.Backup == svcName && vs.Namespace == svcNamespace {
 			return true
 		}
 	}
@@ -185,8 +186,9 @@ func (rc *serviceReferenceChecker) IsReferencedByVirtualServerRoute(svcNamespace
 		if ns == svcNamespace && name == svcName {
 			return true
 		}
-		backupNamespace, backupName := configs.ParseServiceReference(u.Backup, vsr.Namespace)
-		if backupNamespace == svcNamespace && backupName == svcName {
+		// Only check backup for service events (hasClusterIP=false).
+		// Backup uses resolve -- NGINX handles DNS resolution, no endpoint tracking needed.
+		if !rc.hasClusterIP && u.Backup == svcName && vsr.Namespace == svcNamespace {
 			return true
 		}
 	}
