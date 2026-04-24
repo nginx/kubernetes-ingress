@@ -678,6 +678,19 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 		}
 	}
 
+	if !c.startupComplete {
+        var problems []ConfigurationProblem
+        if validationError != nil {
+            problems = append(problems, ConfigurationProblem{
+                Object:  vsr,
+                IsError: true,
+                Reason:  nl.EventReasonRejected,
+                Message: fmt.Sprintf("VirtualServerRoute %s was rejected with error: %s", getResourceKey(&vsr.ObjectMeta), validationError.Error()),
+            })
+        }
+        return nil, problems
+    }
+	
 	changes, problems := c.rebuildHosts()
 
 	if validationError != nil {
