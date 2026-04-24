@@ -3879,6 +3879,51 @@ func TestAddVirtualServerDuringStartup_ReturnsNoChanges(t *testing.T) {
 	}
 }
 
+func TestAddVirtualServerRouteDuringStartup_ReturnsNoChanges(t *testing.T) {
+    t.Parallel()
+    configuration := createTestConfigurationDuringStartup()
+
+    vsr := createTestVirtualServerRoute("virtualserverroute", "default", "foo.example.com", "/path")
+
+    changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+    if len(changes) != 0 {
+        t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d changes, expected 0", len(changes))
+    }
+    if len(problems) != 0 {
+        t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d problems, expected 0", len(problems))
+    }
+
+    // VSR must be stored in the map for CompleteStartup() to process
+    key := getResourceKey(&vsr.ObjectMeta)
+    if _, exists := configuration.virtualServerRoutes[key]; !exists {
+        t.Error("VSR was not stored in configuration.virtualServerRoutes during startup")
+    }
+}
+
+func TestAddInvalidVirtualServerRouteDuringStartup_ReportsValidationProblem(t *testing.T) {
+    t.Parallel()
+    configuration := createTestConfigurationDuringStartup()
+
+    // Create an invalid VSR with empty host
+    vsr := createTestVirtualServerRoute("virtualserverroute", "default", "", "/path")
+
+    changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+    if len(changes) != 0 {
+        t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d changes, expected 0", len(changes))
+    }
+    if len(problems) != 1 {
+        t.Fatalf("AddOrUpdateVirtualServerRoute() during startup returned %d problems, expected 1", len(problems))
+    }
+    if !problems[0].IsError {
+        t.Errorf("expected problem to be an error")
+    }
+    if problems[0].Reason != nl.EventReasonRejected {
+        t.Errorf("expected problem reason %q, got %q", nl.EventReasonRejected, problems[0].Reason)
+    }
+}
+
 func TestDeleteIngressDuringStartup_ReturnsNoChanges(t *testing.T) {
 	t.Parallel()
 	configuration := createTestConfigurationDuringStartup()
