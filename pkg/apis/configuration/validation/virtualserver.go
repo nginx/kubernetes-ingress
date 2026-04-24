@@ -88,10 +88,7 @@ func (vsv *VirtualServerValidator) ValidateVirtualServer(virtualServer *v1.Virtu
 // BalanceUpstreamProxies balances proxy buffer sizes for all upstreams in a VirtualServer.
 func (vsv *VirtualServerValidator) BalanceUpstreamProxies(virtualServer *v1.VirtualServer) error {
 	for i := range virtualServer.Spec.Upstreams {
-		err := internalValidation.BalanceProxiesForUpstreams(&virtualServer.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
-		if err != nil {
-			return fmt.Errorf("upstream %d: %w", i, err)
-		}
+		internalValidation.BalanceProxiesForUpstreams(&virtualServer.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
 	}
 	return nil
 }
@@ -99,10 +96,7 @@ func (vsv *VirtualServerValidator) BalanceUpstreamProxies(virtualServer *v1.Virt
 // BalanceUpstreamProxiesForRoute balances proxy buffer sizes for all upstreams in a VirtualServerRoute.
 func (vsv *VirtualServerValidator) BalanceUpstreamProxiesForRoute(virtualServerRoute *v1.VirtualServerRoute) error {
 	for i := range virtualServerRoute.Spec.Upstreams {
-		err := internalValidation.BalanceProxiesForUpstreams(&virtualServerRoute.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
-		if err != nil {
-			return fmt.Errorf("upstream %d: %w", i, err)
-		}
+		internalValidation.BalanceProxiesForUpstreams(&virtualServerRoute.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
 	}
 	return nil
 }
