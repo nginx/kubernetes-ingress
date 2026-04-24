@@ -3977,53 +3977,6 @@ func TestVirtualServerRequiresEndpointsUpdate(t *testing.T) {
 			expected:     true,
 		},
 		{
-			name: "matches backup service in VirtualServer upstream",
-			vsEx: &configs.VirtualServerEx{
-				VirtualServer: &conf_v1.VirtualServer{
-					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
-					Spec: conf_v1.VirtualServerSpec{
-						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
-					},
-				},
-			},
-			svcNamespace: "default",
-			svcName:      "backup-svc",
-			expected:     true,
-		},
-		{
-			name: "matches backup service in VirtualServerRoute upstream",
-			vsEx: &configs.VirtualServerEx{
-				VirtualServer: &conf_v1.VirtualServer{
-					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
-				},
-				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
-					{
-						ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
-						Spec: conf_v1.VirtualServerRouteSpec{
-							Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
-						},
-					},
-				},
-			},
-			svcNamespace: "default",
-			svcName:      "backup-svc",
-			expected:     true,
-		},
-		{
-			name: "does not match backup service in different namespace",
-			vsEx: &configs.VirtualServerEx{
-				VirtualServer: &conf_v1.VirtualServer{
-					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
-					Spec: conf_v1.VirtualServerSpec{
-						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
-					},
-				},
-			},
-			svcNamespace: "other-namespace",
-			svcName:      "backup-svc",
-			expected:     false,
-		},
-		{
 			name: "does not match useClusterIP upstream",
 			vsEx: &configs.VirtualServerEx{
 				VirtualServer: &conf_v1.VirtualServer{
