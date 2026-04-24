@@ -189,7 +189,7 @@ func TestBalanceProxyValues(t *testing.T) {
 		wantProxyBusyBufferSize string
 	}{
 		{
-			name:    "All empty",
+			name: "All empty",
 		},
 
 		{
