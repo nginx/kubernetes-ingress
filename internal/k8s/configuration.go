@@ -690,7 +690,7 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
         }
         return nil, problems
     }
-	
+
 	changes, problems := c.rebuildHosts()
 
 	if validationError != nil {
