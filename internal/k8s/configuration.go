@@ -621,7 +621,7 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 			if err := c.balanceUpstreamProxies(vsr.Spec.Upstreams); err != nil {
 				// Create a proper validation error for proxy buffer balancing failures
 				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
-				delete(c.virtualServers, key)
+				delete(c.virtualServerRoutes, key)
 			} else {
 				c.virtualServerRoutes[key] = vsr
 			}
