@@ -156,9 +156,17 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 	lbc.recorder.Eventf(tsConfig.TransportServer, eventType, eventTitle, msg)
 
 	if lbc.reportCustomResourceStatusEnabled() {
-		err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
-		if err != nil {
-			nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+		// Defer TS status updates during startup to avoid serial API calls
+		// that block readiness. See flushPendingStatusesAsync().
+		if !lbc.isNginxReady {
+			lbc.pendingStatusTSes = append(lbc.pendingStatusTSes, pendingTSStatus{
+				ts: tsConfig.TransportServer, state: state, reason: eventTitle, message: msg,
+			})
+		} else {
+			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
+			if err != nil {
+				nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+			}
 		}
 	}
 }
