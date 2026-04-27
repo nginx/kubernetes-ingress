@@ -411,6 +411,16 @@ func TestUpdateEndpointsMergeableIngressFailsWithInvalidTemplate(t *testing.T) {
 	}
 }
 
+func TestSyncDefaultServerConfigReturnsErrorOnTemplateFailure(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+
+	err := cnf.syncDefaultServerConfig()
+	if err == nil {
+		t.Errorf("expected syncDefaultServerConfig to fail when template execution fails")
+	}
+}
+
 func TestGetVirtualServerConfigFileName(t *testing.T) {
 	t.Parallel()
 	vs := conf_v1.VirtualServer{
