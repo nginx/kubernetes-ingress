@@ -243,7 +243,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} \
-      app-protect-ip-intelligence~=${NAP_WAF_IPI_VERSION/+/.} \
+      app-protect-ip-intelligence \
       app-protect-attack-signatures \
       app-protect-threat-campaigns \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
@@ -364,7 +364,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	app-protect-common=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
-	app-protect-ip-intelligence=${NAP_WAF_IPI_VERSION}* \
+	app-protect-ip-intelligence \
 	app-protect-attack-signatures \
 	app-protect-threat-campaigns \
 	nginx-agent=${NAP_AGENT_VERSION}.* \
@@ -470,8 +470,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
 	&& microdnf --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms --nodocs install -y \
 	app-protect-${NAP_WAF_VERSION}* \
-	app-protect-ip-intelligence-${NAP_WAF_IPI_VERSION}* \
-	app-protect-attack-signatures app-protect-threat-campaigns \
+	app-protect-ip-intelligence \
+	app-protect-attack-signatures \
+    app-protect-threat-campaigns \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo \
 	&& nap-waf.sh \
 	&& agent.sh; \
@@ -556,7 +557,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
 	&& dnf --nodocs install -y app-protect-${NAP_WAF_VERSION}* \
-       app-protect-ip-intelligence-${NAP_WAF_IPI_VERSION}* \
+       app-protect-ip-intelligence \
        app-protect-attack-signatures \
        app-protect-threat-campaigns \
 	&& subscription-manager unregister \

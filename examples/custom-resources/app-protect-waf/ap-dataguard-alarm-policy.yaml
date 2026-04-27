@@ -19,6 +19,9 @@ spec:
       - alarm: true
         block: false
         name: VIOL_DATA_GUARD
+      - alarm: true
+        block: true
+        name: VIOL_MALICIOUS_IP
     data-guard:
       creditCardNumbers: true
       enabled: true
@@ -30,5 +33,44 @@ spec:
       usSocialSecurityNumbers: true
     enforcementMode: blocking
     name: dataguard-alarm
+    ip-intelligence:
+      enabled: true
+      ipIntelligenceCategories:
+        - category: Anonymous Proxy
+          block: true
+          alarm: true
+        - category: BotNets
+          block: true
+          alarm: true
+        - category: Cloud-based Services
+          block: true
+          alarm: true
+        - category: Denial of Service
+          block: true
+          alarm: true
+        - category: Infected Sources
+          block: true
+          alarm: true
+        - category: Mobile Threats
+          block: true
+          alarm: true
+        - category: Phishing Proxies
+          block: true
+          alarm: true
+        - category: Scanners
+          block: true
+          alarm: true
+        - category: Spam Sources
+          block: true
+          alarm: true
+        - category: Tor Proxies
+          block: true
+          alarm: true
+        - category: Web Attacks
+          block: true
+          alarm: true
+        - category: Windows Exploits
+          block: true
+          alarm: true
     template:
       name: POLICY_TEMPLATE_NGINX_BASE
