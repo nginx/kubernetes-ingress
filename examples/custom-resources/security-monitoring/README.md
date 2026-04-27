@@ -1,12 +1,17 @@
 # WAF
 
 This example describes how to deploy the NGINX Plus Ingress Controller with [NGINX App
-Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) in order to integrate with [NGINX Instance Manager Security Monitoring](https://docs.nginx.com/nginx-instance-manager/security-monitoring/). It involves deploying a simple web application, then configure load balancing and WAF protection for the application using the VirtualServer resource. Afterwards, we configure NGINX App Protect to send logs to the NGINX Agent syslog listener, which is then sent to the Security Monitoring dashboard in NGINX Instance Manager.
+Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) in order to integrate with NGINX Security Monitoring. It involves deploying a simple web application, then configure load balancing and WAF protection for the application using the VirtualServer resource. Afterwards, we configure NGINX App Protect to send logs to the NGINX Agent syslog listener, which is then sent to the Security Monitoring dashboard.
+
+This example works with both:
+
+- **NGINX Instance Manager** (Agent v2) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
+- **NGINX One Console** (Agent v3) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
 
 ## Prerequisites
 
 1. Follow the installation [instructions](https://docs.nginx.com/nginx-ingress-controller/installation) to deploy NGINX
-   Ingress Controller with NGINX App Protect and NGINX Agent. Configure NGINX Agent to connect to a deployment of NGINX Instance Manager with Security Monitoring, and verify your NGINX Ingress Controller deployment is online in NGINX Instance Manager.
+   Ingress Controller with NGINX App Protect and NGINX Agent. Configure NGINX Agent to connect to either a deployment of NGINX Instance Manager with Security Monitoring, or to NGINX One Console, and verify your NGINX Ingress Controller deployment is online.
 
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
@@ -64,7 +69,7 @@ Note that the VirtualServer references the policy `waf-policy` created in Step 3
 ## Step 5 - Test the Application
 
 To access the application, **curl`** the coffee and the tea services. Use the --resolve option to set the Host header
-of a request with `webapp.example.com`
+of a request with`webapp.example.com`
 
 1. Send a request to the application:
 
@@ -102,4 +107,4 @@ of a request with `webapp.example.com`
 
     The suspicious requests are demonstrably blocked by App Protect.
 
-1. Access the Security Monitoring dashboard in NGINX Instance Manager to view details for the blocked requests.
+1. Access the Security Monitoring dashboard in NGINX Instance Manager or NGINX One Console to view details for the blocked requests.

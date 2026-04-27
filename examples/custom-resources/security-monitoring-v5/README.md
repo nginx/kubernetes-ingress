@@ -1,11 +1,16 @@
 # WAF Security Monitoring with F5 WAF for NGINX v5
 
-This example describes how to deploy NGINX Plus Ingress Controller with [F5 WAF for NGINX v5](https://docs.nginx.com/waf/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) to integrate with [NGINX Instance Manager Security Monitoring](https://docs.nginx.com/nginx-instance-manager/security-monitoring/). It deploys a simple web application and configures WAF protection using compiled policy and log bundles, forwarding security logs to the Security Monitoring dashboard via syslog.
+This example describes how to deploy NGINX Plus Ingress Controller with [F5 WAF for NGINX v5](https://docs.nginx.com/waf/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) to integrate with NGINX Security Monitoring. It deploys a simple web application and configures WAF protection using compiled policy and log bundles, forwarding security logs to the Security Monitoring dashboard via syslog.
+
+This example works with both:
+
+- **NGINX Instance Manager** (Agent v2) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
+- **NGINX One Console** (Agent v3) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
 
 ## Prerequisites
 
 1. Follow the installation [instructions](https://docs.nginx.com/nginx-ingress-controller/installation) to deploy NGINX
-   Ingress Controller with F5 WAF for NGINX v5 and NGINX Agent. Configure NGINX Agent to connect to a deployment of NGINX Instance Manager with Security Monitoring, and verify your NGINX Ingress Controller deployment is online in NGINX Instance Manager.
+   Ingress Controller with F5 WAF for NGINX v5 and NGINX Agent. Configure NGINX Agent to connect to either a deployment of NGINX Instance Manager with Security Monitoring, or to NGINX One Console, and verify your NGINX Ingress Controller deployment is online.
 
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
@@ -66,7 +71,7 @@ kubectl apply -f waf.yaml
 
 The `waf.yaml` Policy resource configures WAF protection using the compiled policy bundle and sends security logs to the syslog service using the compiled log bundle.
 
-Note the log configuration in the `apLogBundle` must be compiled from a log profile that matches the format required by NGINX Instance Manager Security Monitoring.
+Note the log configuration in the `apLogBundle` must be compiled from a log profile that matches the format required by NGINX Security Monitoring (applicable to both NGINX Instance Manager and NGINX One Console).
 
 ## Step 5 - Configure Load Balancing
 
@@ -109,4 +114,4 @@ kubectl apply -f virtual-server.yaml
     kubectl exec -it <syslog-pod-name> -- cat /var/log/messages
     ```
 
-1. Access the Security Monitoring dashboard in NGINX Instance Manager to view details for the blocked requests.
+1. Access the Security Monitoring dashboard in NGINX Instance Manager or NGINX One Console to view details for the blocked requests.
