@@ -1973,7 +1973,7 @@ spec:
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
       - name: waf-ip-intelligence
-        image: my.private.reg/nap/waf-ip-intelligence:5.12.0
+        image: my.private.reg/nap/waf-ip-intelligence:5.12.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
       
