@@ -161,8 +161,10 @@ else ifeq ($(strip $(TARGET)),debug)
 	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
 else ifeq ($(strip $(TARGET)),container)
 # Binary is built inside Docker as part of the image build; nothing to do here.
+else ifeq ($(strip $(TARGET)),goreleaser)
+# Binary is built using GoReleaser; nothing to do here.
 else
-	$(error Unknown TARGET "$(TARGET)". Valid values: local, container, download, debug)
+	$(error Unknown TARGET "$(TARGET)". Valid values: local, container, download, goreleaser, debug)
 endif
 
 .PHONY: download-binary-docker
