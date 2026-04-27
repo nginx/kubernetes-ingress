@@ -160,6 +160,132 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressWithEmptyHostForNGINX(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgEmptyHost)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantDirectives := []string{
+		"listen 80 default_server;",
+		"server_name _;",
+		"set $resource_type \"ingress\";",
+		"set $resource_name \"cafe-ingress\";",
+		"ssl_reject_handshake on;",
+		"location = /nginx-health",
+		"access_log off;",
+		"location /tea",
+		"location / {",
+		"return 404;",
+	}
+
+	rendered := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithEmptyHostForNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgEmptyHost)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantDirectives := []string{
+		"listen 80 default_server;",
+		"server_name _;",
+		"status_zone _;",
+		"set $resource_type \"ingress\";",
+		"location = /nginx-health",
+		"access_log off;",
+		"location /tea",
+		"location / {",
+		"return 404;",
+		"@grpcerror400",
+	}
+
+	rendered := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithEmptyHostWithRootLocation(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgEmptyHostWithRootLocation)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "listen 80 default_server;") {
+		t.Error("want default_server on listen")
+	}
+	if !strings.Contains(rendered, "server_name _;") {
+		t.Error("want server_name _")
+	}
+	if !strings.Contains(rendered, "location / {") {
+		t.Error("want location / from user ingress")
+	}
+	// Fallback return should NOT render because HasRootLocation is true
+	if strings.Contains(rendered, "return 404;") {
+		t.Error("unwant return 404; — HasRootLocation should suppress fallback")
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMergeableIngressWithEmptyHostForNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgEmptyHostMasterMinion)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantDirectives := []string{
+		"listen 80 default_server;",
+		"server_name _;",
+		"location /coffee {",
+		"location /tea {",
+		"return 404;",
+	}
+
+	rendered := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 func TestExecuteTemplate_ForIngressWithCORS(t *testing.T) {
 	t.Parallel()
 
@@ -3733,6 +3859,150 @@ var (
 		}},
 		DynamicSSLReloadEnabled: true,
 		StaticSSLPath:           "/etc/nginx/secrets",
+	}
+
+	// Empty-host ingress test data — same as ingressCfg but IsDefaultServer: true, no host
+	ingressCfgEmptyHost = IngressNginxConfig{
+		Servers: []Server{
+			{
+				IsDefaultServer:     true,
+				ServerTokens:        "off",
+				StatusZone:          "_",
+				SSL:                 true,
+				SSLCertificate:      "/etc/nginx/secrets/default",
+				SSLCertificateKey:   "/etc/nginx/secrets/default",
+				SSLRejectHandshake:  true,
+				SSLPorts:            []int{443},
+				Ports:               []int{80},
+				DefaultServerReturn: "404",
+				HealthStatus:        true,
+				HealthStatusURI:     "/nginx-health",
+				AccessLogOff:        true,
+				HTTP2:               true,
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "http://test",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
+	}
+
+	// Empty-host ingress with HasRootLocation — fallback return should NOT render
+	ingressCfgEmptyHostWithRootLocation = IngressNginxConfig{
+		Servers: []Server{
+			{
+				IsDefaultServer:     true,
+				ServerTokens:        "off",
+				StatusZone:          "_",
+				SSL:                 true,
+				SSLCertificate:      "/etc/nginx/secrets/default",
+				SSLCertificateKey:   "/etc/nginx/secrets/default",
+				SSLRejectHandshake:  true,
+				SSLPorts:            []int{443},
+				Ports:               []int{80},
+				DefaultServerReturn: "404",
+				HasRootLocation:     true,
+				Locations: []Location{
+					{
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "http://test",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "webapp-ingress",
+			Namespace: "default",
+		},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
+	}
+
+	// Empty-host master with minions
+	ingressCfgEmptyHostMasterMinion = IngressNginxConfig{
+		Upstreams: []Upstream{
+			coffeeUpstreamNginxPlus,
+			teaUpstreamNGINXPlus,
+		},
+		Servers: []Server{
+			{
+				IsDefaultServer:     true,
+				ServerTokens:        "on",
+				StatusZone:          "_",
+				SSL:                 true,
+				SSLCertificate:      "/etc/nginx/secrets/default",
+				SSLCertificateKey:   "/etc/nginx/secrets/default",
+				SSLRejectHandshake:  true,
+				SSLPorts:            []int{443},
+				Ports:               []int{80},
+				DefaultServerReturn: "404",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						ServiceName:         "coffee-svc",
+						Upstream:            coffeeUpstreamNginxPlus,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyBuffering:      true,
+						MinionIngress: &Ingress{
+							Name:      "cafe-ingress-coffee-minion",
+							Namespace: "default",
+						},
+						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-_-coffee-svc-80",
+					},
+					{
+						Path:                "/tea",
+						ServiceName:         "tea-svc",
+						Upstream:            teaUpstreamNGINXPlus,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyBuffering:      true,
+						MinionIngress: &Ingress{
+							Name:      "cafe-ingress-tea-minion",
+							Namespace: "default",
+						},
+						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-_-tea-svc-80",
+					},
+				},
+				HealthChecks: make(map[string]HealthCheck),
+			},
+		},
+		Ingress: Ingress{
+			Name:      "cafe-ingress-master",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+			},
+		},
 	}
 
 	mainCfgWithMGMTProxyWithNoAuth = MainConfig{

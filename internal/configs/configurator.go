@@ -457,7 +457,30 @@ func (cnf *Configurator) buildDefaultServerConfig() version1.IngressNginxConfig 
 	return GenerateDefaultServerConfig(cnf.staticCfgParams, cnf.CfgParams)
 }
 
+func (cnf *Configurator) hasActiveEmptyHostIngress() bool {
+	for _, ingEx := range cnf.ingresses {
+		if ingEx != nil && ingEx.ValidHosts[emptyHost] {
+			return true
+		}
+	}
+	return false
+}
+
+func (cnf *Configurator) cleanUpStaleIngressConfig(ingressKey string, newIsEmptyHost bool) {
+	current, exists := cnf.ingresses[ingressKey]
+	if !exists {
+		return
+	}
+	if !current.ValidHosts[emptyHost] && newIsEmptyHost {
+		cnf.nginxManager.DeleteConfig(ingressKey)
+	}
+}
+
 func (cnf *Configurator) syncDefaultServerConfig() error {
+	if cnf.hasActiveEmptyHostIngress() {
+		return nil
+	}
+
 	defaultCfg := cnf.buildDefaultServerConfig()
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&defaultCfg)
 	if err != nil {
@@ -501,19 +524,31 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
-	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
-	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
-	if err != nil {
-		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
-	}
-	configChanged, err := cnf.nginxManager.CreateConfig(name, content)
-	if err != nil {
-		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+	ingressKey := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+	isEmptyHost := ingEx.ValidHosts[emptyHost]
+
+	configName := ingressKey
+	if isEmptyHost {
+		configName = DefaultServerConfigName
 	}
 
-	cnf.ingresses[name] = ingEx
+	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
+	if err != nil {
+		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", ingressKey, err)
+	}
+	configChanged, err := cnf.nginxManager.CreateConfig(configName, content)
+	if err != nil {
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", ingressKey, err)
+	}
+
+	cnf.cleanUpStaleIngressConfig(ingressKey, isEmptyHost)
+
+	cnf.ingresses[ingressKey] = ingEx
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(ingEx, nginxCfg.Upstreams)
+	}
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return false, warnings, fmt.Errorf("error syncing default server config for ingress %v: %w", ingressKey, err)
 	}
 	return configChanged, warnings, nil
 }
@@ -567,27 +602,39 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
-	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+	ingressKey := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+	isEmptyHost := mergeableIngs.Master.ValidHosts[emptyHost]
+
+	configName := ingressKey
+	if isEmptyHost {
+		configName = DefaultServerConfigName
+	}
+
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", ingressKey, err)
 	}
-	changed, err := cnf.nginxManager.CreateConfig(name, content)
+	changed, err := cnf.nginxManager.CreateConfig(configName, content)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", ingressKey, err)
 	}
 
-	cnf.ingresses[name] = mergeableIngs.Master
-	cnf.minions[name] = make(map[string]bool)
+	cnf.cleanUpStaleIngressConfig(ingressKey, isEmptyHost)
+
+	cnf.ingresses[ingressKey] = mergeableIngs.Master
+	cnf.minions[ingressKey] = make(map[string]bool)
 	for _, minion := range mergeableIngs.Minions {
 		minionName := objectMetaToFileName(&minion.Ingress.ObjectMeta)
-		cnf.minions[name][minionName] = true
+		cnf.minions[ingressKey][minionName] = true
 	}
 
-	cnf.mergeableIngresses[name] = mergeableIngs
+	cnf.mergeableIngresses[ingressKey] = mergeableIngs
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(mergeableIngs.Master, nginxCfg.Upstreams)
+	}
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return false, warnings, fmt.Errorf("error syncing default server config for mergeable ingress %v: %w", ingressKey, err)
 	}
 
 	return changed, warnings, nil
@@ -1100,11 +1147,17 @@ func GenerateLicenseSecret(secret *api_v1.Secret) ([]byte, error) {
 // DeleteIngress deletes NGINX configuration for the Ingress resource.
 func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 	name := keyToFileName(key)
-	cnf.nginxManager.DeleteConfig(name)
+
+	if ingEx, exists := cnf.ingresses[name]; !exists || !ingEx.ValidHosts[emptyHost] {
+		cnf.nginxManager.DeleteConfig(name)
+	}
 
 	delete(cnf.ingresses, name)
 	delete(cnf.minions, name)
 	delete(cnf.mergeableIngresses, name)
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return fmt.Errorf("error syncing default server config after deleting ingress %v: %w", key, err)
+	}
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.deleteIngressMetricsLabels(key)

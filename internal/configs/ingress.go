@@ -369,10 +369,16 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		serverName := rule.Host
 
+		isDefaultServer := rule.Host == emptyHostName
 		statusZone := rule.Host
+		if statusZone == emptyHostName {
+			serverName = emptyHostToken
+			statusZone = emptyHostToken
+		}
 
 		server := version1.Server{
 			Name:                   serverName,
+			IsDefaultServer:        isDefaultServer,
 			ServerTokens:           cfgParams.ServerTokens,
 			HTTP2:                  cfgParams.HTTP2,
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
@@ -407,13 +413,28 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
 		}
 
+		if isDefaultServer {
+			server.Ports = []int{ncp.staticParams.DefaultHTTPListenerPort}
+			server.SSLPorts = []int{ncp.staticParams.DefaultHTTPSListenerPort}
+			server.SSL = true
+			server.SSLCertificate = DefaultServerSecretPath
+			server.SSLCertificateKey = DefaultServerSecretPath
+			server.SSLRejectHandshake = ncp.staticParams.SSLRejectHandshake
+			server.AccessLogOff = cfgParams.DefaultServerAccessLogOff
+			server.DefaultServerReturn = cfgParams.DefaultServerReturn
+			server.HealthStatus = ncp.staticParams.HealthStatus
+			server.HealthStatusURI = ncp.staticParams.HealthStatusURI
+		}
+
 		if ncp.isMinion {
 			// Mergeable minions apply egress mTLS at location scope so minion policies can override the master.
 			server.EgressMTLS = nil
 		}
 
-		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
-		allWarnings.Add(warnings)
+		if !isDefaultServer {
+			warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
+			allWarnings.Add(warnings)
+		}
 
 		if hasAppProtect {
 			if apResources != nil {
