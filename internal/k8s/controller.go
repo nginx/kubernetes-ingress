@@ -1377,50 +1377,37 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 				state = conf_v1.StateInvalid
 			}
 
+			// Problem resources (conflicts, orphans, validation failures) are never
+			// deferred into the pending slices, even during startup. The number of
+			// problem resources is bounded by misconfiguration (not total resources),
+			// so the API calls here have negligible startup-time cost.
+			//
+			// Deferring them would cause two bugs:
+			//  1. Ingress problems need ClearIngressStatus (remove LB IP), but the
+			//     pending slice only knows how to call UpdateIngressStatus (set LB IP).
+			//  2. A resource queued first as Valid then as Invalid could be applied
+			//     out-of-order by concurrent flush workers.
 			switch obj := p.Object.(type) {
 			case *networking.Ingress:
-				if !lbc.isNginxReady {
-					lbc.pendingStatusIngresses = append(lbc.pendingStatusIngresses, *obj)
-				} else {
-					err := lbc.statusUpdater.ClearIngressStatus(*obj)
-					if err != nil {
-						nl.Errorf(lbc.Logger, "Error when updating the status for Ingress %v/%v: %v", obj.Namespace, obj.Name, err)
-					}
+				err := lbc.statusUpdater.ClearIngressStatus(*obj)
+				if err != nil {
+					nl.Errorf(lbc.Logger, "Error when updating the status for Ingress %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServer:
-				if !lbc.isNginxReady {
-					lbc.pendingStatusVSes = append(lbc.pendingStatusVSes, pendingVSStatus{
-						vs: obj, state: state, reason: p.Reason, message: p.Message,
-					})
-				} else {
-					err := lbc.statusUpdater.UpdateVirtualServerStatus(obj, state, p.Reason, p.Message)
-					if err != nil {
-						nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServer %v/%v: %v", obj.Namespace, obj.Name, err)
-					}
+				err := lbc.statusUpdater.UpdateVirtualServerStatus(obj, state, p.Reason, p.Message)
+				if err != nil {
+					nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.TransportServer:
-				if !lbc.isNginxReady {
-					lbc.pendingStatusTSes = append(lbc.pendingStatusTSes, pendingTSStatus{
-						ts: obj, state: state, reason: p.Reason, message: p.Message,
-					})
-				} else {
-					err := lbc.statusUpdater.UpdateTransportServerStatus(obj, state, p.Reason, p.Message)
-					if err != nil {
-						nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
-					}
+				err := lbc.statusUpdater.UpdateTransportServerStatus(obj, state, p.Reason, p.Message)
+				if err != nil {
+					nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServerRoute:
-				if !lbc.isNginxReady {
-					var emptyVSes []*conf_v1.VirtualServer
-					lbc.pendingStatusVSRs = append(lbc.pendingStatusVSRs, pendingVSRStatus{
-						vsr: obj, state: state, reason: p.Reason, message: p.Message, referencedBy: emptyVSes,
-					})
-				} else {
-					var emptyVSes []*conf_v1.VirtualServer
-					err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(obj, state, p.Reason, p.Message, emptyVSes)
-					if err != nil {
-						nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServerRoute %v/%v: %v", obj.Namespace, obj.Name, err)
-					}
+				var emptyVSes []*conf_v1.VirtualServer
+				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(obj, state, p.Reason, p.Message, emptyVSes)
+				if err != nil {
+					nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServerRoute %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			}
 		}
