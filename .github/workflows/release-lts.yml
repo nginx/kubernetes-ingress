@@ -26,7 +26,7 @@ on:
         default: false
       skip_step:
         description: "Comma separated list of jobs to skip"
-        # publish-helm-chart,build-artifacts,operator,release-oss,release-plus,certify-openshift-images,aws-marketplace,azure-marketplace,gcp-marketplace,azure-upload,github-release,release-image-notification
+        # publish-helm-chart,release-plus,azure-upload,github-release
         type: string
         required: false
 
@@ -162,7 +162,7 @@ jobs:
     if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-plus') }}
     name: Release Docker Plus
     needs: [variables, build-artifacts]
-    uses: ./.github/workflows/plus-release.yml
+    uses: ./.github/workflows/plus-release-lts.yml
     strategy:
       fail-fast: false
       matrix:
@@ -173,9 +173,6 @@ jobs:
     with:
       gcr_release_registry: true
       nginx_registry: true
-      gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
-      az_mktpl_registry: false
       source_tag: ${{ needs.variables.outputs.source_tag }}
       target_tag: ${{ inputs.lts_version }}
       branch: ${{ inputs.release_branch }}

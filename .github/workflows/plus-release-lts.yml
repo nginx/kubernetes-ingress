@@ -1,0 +1,180 @@
+name: "Release NGINX Ingress Controller Plus Images"
+
+on:
+  workflow_dispatch:
+    inputs:
+      nginx_registry:
+        required: true
+        type: boolean
+      gcr_release_registry:
+        required: true
+        type: boolean
+      source_tag:
+        required: true
+        type: string
+      target_tag:
+        required: true
+        type: string
+      branch:
+        required: false
+        type: string
+        default: "main"
+      dry_run:
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      nginx_registry:
+        required: true
+        type: boolean
+      gcr_release_registry:
+        required: true
+        type: boolean
+      source_tag:
+        required: true
+        type: string
+      target_tag:
+        required: true
+        type: string
+      branch:
+        required: false
+        type: string
+        default: "main"
+      dry_run:
+        type: boolean
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  release-to-gcr-release-registry:
+    name: Push images to the GCR Release Registry
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    if: ${{ inputs.gcr_release_registry }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Azure login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to Google Cloud
+        id: gcr-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+
+      - name: Login to GCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.gcr-auth.outputs.access_token }}
+
+      - name: Publish Plus images
+        run: |
+          export CONFIG_PATH=.github/config/config-plus-gcr-release-lts
+          export SOURCE_TAG=${{ inputs.source_tag }}
+          export TARGET_TAG=${{ inputs.target_tag }}
+          if ${{ inputs.dry_run }}; then
+            export DRY_RUN=true
+          fi
+          .github/scripts/copy-images.sh
+
+  release-to-nginx-registry:
+    name: Push Plus images to the NGINX Registry
+    runs-on: 'kic-plus'
+    permissions:
+      contents: read
+      id-token: write
+    if: ${{ inputs.nginx_registry }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: Azure login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        run: |
+          echo "Setting secrets for job"
+          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_WORKLOAD_ID"
+          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
+          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
+          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+
+      - name: Authenticate to Google Cloud
+        id: gcr-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
+          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+
+      - name: Login to GCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.gcr-auth.outputs.access_token }}
+
+      - name: Get Id Token
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Login to NGINX Registry
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: docker-mgmt.nginx.com
+          username: ${{ steps.idtoken.outputs.id_token }}
+          password: ${{ github.actor }}
+
+      - name: Publish images
+        run: |
+          export CONFIG_PATH=.github/config/config-plus-nginx-lts
+          export SOURCE_TAG=${{ inputs.source_tag }}
+          export TARGET_TAG=${{ inputs.target_tag }}
+          if ${{ inputs.dry_run }}; then
+            export DRY_RUN=true
+          fi
+          .github/scripts/copy-images.sh
