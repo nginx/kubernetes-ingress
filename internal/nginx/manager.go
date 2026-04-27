@@ -115,6 +115,7 @@ type LocalManager struct {
 	secretsPath                  string
 	stateFilesPath               string
 	mainConfFilename             string
+	defaultServerConfFilename    string
 	configVersionFilename        string
 	debug                        bool
 	dhparamFilename              string
@@ -151,6 +152,7 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 		stateFilesPath:              path.Join(confPath, "state_files"),
 		dhparamFilename:             path.Join(confPath, "secrets", "dhparam.pem"),
 		mainConfFilename:            path.Join(confPath, "nginx.conf"),
+		defaultServerConfFilename:   path.Join(confPath, "conf.d", "_default-server.conf"),
 		configVersionFilename:       path.Join(confPath, "config-version.conf"),
 		tlsPassthroughHostsFilename: path.Join(confPath, "tls-passthrough-hosts.conf"),
 		oidcConfPath:                path.Join(confPath, "oidc-conf.d"),

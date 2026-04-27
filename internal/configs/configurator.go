@@ -44,7 +44,10 @@ const (
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
 const DefaultServerSecretPath = "/etc/nginx/secrets/default" //nolint:gosec // G101: Potential hardcoded credentials - false positive
 
-const defaultServerConfigName = "_default-server"
+const (
+	DefaultServerConfigName = "_default-server"
+	defaultServerConfigName = DefaultServerConfigName
+)
 
 // DefaultSecretPath is the full default path to where secrets are stored and accessed.
 const DefaultSecretPath = "/etc/nginx/secrets" // #nosec G101
@@ -420,33 +423,37 @@ func (cnf *Configurator) streamUpstreamsForTransportServer(ts *conf_v1.Transport
 	return upstreamNames
 }
 
-func (cnf *Configurator) buildDefaultServerConfig() version1.IngressNginxConfig {
+func GenerateDefaultServerConfig(staticCfgParams *StaticConfigParams, cfgParams *ConfigParams) version1.IngressNginxConfig {
 	return version1.IngressNginxConfig{
 		Servers: []version1.Server{{
 			IsDefaultServer:     true,
-			Ports:               []int{cnf.staticCfgParams.DefaultHTTPListenerPort},
-			SSLPorts:            []int{cnf.staticCfgParams.DefaultHTTPSListenerPort},
+			Ports:               []int{staticCfgParams.DefaultHTTPListenerPort},
+			SSLPorts:            []int{staticCfgParams.DefaultHTTPSListenerPort},
 			SSL:                 true,
 			SSLCertificate:      DefaultServerSecretPath,
 			SSLCertificateKey:   DefaultServerSecretPath,
-			SSLRejectHandshake:  cnf.staticCfgParams.SSLRejectHandshake,
-			AccessLogOff:        cnf.CfgParams.DefaultServerAccessLogOff,
-			DefaultServerReturn: cnf.CfgParams.DefaultServerReturn,
-			HealthStatus:        cnf.staticCfgParams.HealthStatus,
-			HealthStatusURI:     cnf.staticCfgParams.HealthStatusURI,
-			ServerTokens:        cnf.CfgParams.ServerTokens,
-			TLSPassthrough:      cnf.staticCfgParams.TLSPassthrough,
-			HTTP2:               cnf.CfgParams.HTTP2,
-			ProxyProtocol:       cnf.CfgParams.ProxyProtocol,
-			RealIPHeader:        cnf.CfgParams.RealIPHeader,
-			SetRealIPFrom:       cnf.CfgParams.SetRealIPFrom,
-			RealIPRecursive:     cnf.CfgParams.RealIPRecursive,
-			DisableIPV6:         cnf.staticCfgParams.DisableIPV6,
+			SSLRejectHandshake:  staticCfgParams.SSLRejectHandshake,
+			AccessLogOff:        cfgParams.DefaultServerAccessLogOff,
+			DefaultServerReturn: cfgParams.DefaultServerReturn,
+			HealthStatus:        staticCfgParams.HealthStatus,
+			HealthStatusURI:     staticCfgParams.HealthStatusURI,
+			ServerTokens:        cfgParams.ServerTokens,
+			TLSPassthrough:      staticCfgParams.TLSPassthrough,
+			HTTP2:               cfgParams.HTTP2,
+			ProxyProtocol:       cfgParams.ProxyProtocol,
+			RealIPHeader:        cfgParams.RealIPHeader,
+			SetRealIPFrom:       cfgParams.SetRealIPFrom,
+			RealIPRecursive:     cfgParams.RealIPRecursive,
+			DisableIPV6:         staticCfgParams.DisableIPV6,
 		}},
 		Ingress:                 version1.Ingress{},
-		DynamicSSLReloadEnabled: cnf.staticCfgParams.DynamicSSLReload,
-		StaticSSLPath:           cnf.staticCfgParams.StaticSSLPath,
+		DynamicSSLReloadEnabled: staticCfgParams.DynamicSSLReload,
+		StaticSSLPath:           staticCfgParams.StaticSSLPath,
 	}
+}
+
+func (cnf *Configurator) buildDefaultServerConfig() version1.IngressNginxConfig {
+	return GenerateDefaultServerConfig(cnf.staticCfgParams, cnf.CfgParams)
 }
 
 func (cnf *Configurator) syncDefaultServerConfig() error {
