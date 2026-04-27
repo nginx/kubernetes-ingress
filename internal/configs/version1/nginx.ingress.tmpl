@@ -117,6 +117,23 @@ server {
 	add_header_inherit {{$server.AddHeaderInherit}};
 	{{- end}}
 
+	{{- with $server.EgressMTLS }}
+		{{- if .Certificate }}
+	proxy_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+	proxy_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{- end }}
+		{{- if .TrustedCert }}
+	proxy_ssl_trusted_certificate {{ .TrustedCert }};
+		{{- end }}
+	proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+	proxy_ssl_verify_depth {{ .VerifyDepth }};
+	proxy_ssl_protocols {{ .Protocols }};
+	proxy_ssl_ciphers {{ .Ciphers }};
+	proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+	proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+	proxy_ssl_name {{ .SSLName }};
+	{{- end }}
+
 	{{- if and $server.HSTS (or $server.SSL $server.HSTSBehindProxy)}}
 	set $hsts_header_val "";
 	proxy_hide_header Strict-Transport-Security;
@@ -152,6 +169,14 @@ server {
 	auth_basic_user_file {{ .Secret }};
 	{{- end }}
 
+	{{- if $server.ExternalAuth }}
+	auth_request {{ $server.ExternalAuth.URI.InternalPath }};
+	{{- if $server.ExternalAuth.SigninURL }}
+	proxy_intercept_errors on;
+	error_page 401 "{{ $server.ExternalAuth.SigninURL }}";
+	{{- end }}
+	{{- end }}
+
 	{{- range $value := $server.ServerSnippets}}
 	{{$value}}{{- end}}
 
@@ -164,6 +189,9 @@ server {
 	{{- range $location := $server.Locations}}
 	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
 		set $service "{{$location.ServiceName}}";
+		{{- if $location.Internal}}
+		internal;
+		{{- end}}
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
 		set $resource_name "{{$location.MinionIngress.Name}}";
@@ -172,6 +200,16 @@ server {
 
 		{{- with $location.PoliciesErrorReturn }}
 		return {{ .Code }};
+		{{- end }}
+
+		{{- if $location.AuthRequestOff}}
+		auth_request off;
+		{{- else if $location.ExternalAuth }}
+		auth_request {{ $location.ExternalAuth.URI.InternalPath }};
+		{{- if $location.ExternalAuth.SigninURL }}
+		proxy_intercept_errors on;
+		error_page 401 "{{ $location.ExternalAuth.SigninURL }}";
+		{{- end }}
 		{{- end }}
 
 		{{- range $allow := $location.Allow }}
@@ -193,6 +231,23 @@ server {
 		{{- if $location.RewriteTarget}}
 		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
 		{{- end}}
+		{{- $proxyOrGRPC := "proxy" }}{{ if $location.GRPC }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
+		{{- with $location.EgressMTLS}}
+			{{- if .Certificate }}
+		{{$proxyOrGRPC}}_ssl_certificate {{ makeSecretPath .Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+		{{$proxyOrGRPC}}_ssl_certificate_key {{ makeSecretPath .CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
+			{{- end }}
+			{{- if .TrustedCert }}
+		{{$proxyOrGRPC}}_ssl_trusted_certificate {{ .TrustedCert }};
+			{{- end }}
+		{{$proxyOrGRPC}}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_verify_depth {{ .VerifyDepth }};
+		{{$proxyOrGRPC}}_ssl_protocols {{ .Protocols }};
+		{{$proxyOrGRPC}}_ssl_ciphers {{ .Ciphers }};
+		{{$proxyOrGRPC}}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
+		{{$proxyOrGRPC}}_ssl_name {{ .SSLName }};
+		{{- end}}
 		{{- if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}
 		error_page 400 @grpcerror400;
@@ -210,8 +265,10 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
+		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
+		{{- end}}
 
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
@@ -254,8 +311,10 @@ server {
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
+		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
+		{{- end}}
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
@@ -266,6 +325,12 @@ server {
 		client_max_body_size {{$location.ClientMaxBodySize}};
 		{{- if $location.ClientBodyBufferSize }}
 		client_body_buffer_size {{$location.ClientBodyBufferSize}};
+		{{- end}}
+		{{- if $location.ProxyPassRequestHeaders }}
+		proxy_pass_request_headers {{ $location.ProxyPassRequestHeaders }};
+		{{- end }}
+		{{- if $location.ProxyPassRequestBody }}
+		proxy_pass_request_body {{ $location.ProxyPassRequestBody }};
 		{{- end}}
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
@@ -309,6 +374,15 @@ server {
 		{{- end }}
 		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
+		{{- if $location.ProxySSLVerify }}
+		proxy_ssl_verify on;
+		proxy_ssl_verify_depth {{ $location.ProxySSLVerifyDepth }};
+		proxy_ssl_server_name on;
+		proxy_ssl_name {{ $location.ProxySSLName }};
+		{{- end }}
+		{{- if $location.ProxySSLTrustedCertificate }}
+		proxy_ssl_trusted_certificate {{ $location.ProxySSLTrustedCertificate }};
+		{{- end }}
 
 		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
 		{{- range $h := $location.AddHeaders }}

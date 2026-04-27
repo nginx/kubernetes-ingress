@@ -12,6 +12,9 @@ if [ "$PWD" != "$ROOTDIR" ]; then
     cd "$ROOTDIR";
 fi
 
+# renovate: datasource=docker depName=kindest/node
+K8S_LATEST_VERSION=1.35.1
+
 get_docker_md5() {
   docker_md5=$(find build .github/data/version.txt internal/configs/njs internal/configs/oidc -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }')
   echo "${docker_md5:0:8}"
@@ -58,6 +61,20 @@ get_additional_tag() {
   fi
 }
 
+get_k8s_latest_version() {
+  echo "$K8S_LATEST_VERSION"
+}
+
+# Outputs docs_only=true if all changed files match doc paths (*.md, docs/**, examples/**)
+get_docs_only() {
+  non_doc_files=$(git diff --name-only HEAD^ | grep -Ev '(\.md$|^docs/|^examples/)')
+  if [ -z "$non_doc_files" ]; then
+    echo "docs_only=true"
+  else
+    echo "docs_only=false"
+  fi
+}
+
 case $INPUT in
   docker_md5)
     echo "docker_md5=$(get_docker_md5)"
@@ -77,6 +94,14 @@ case $INPUT in
 
   additional_tag)
     echo "additional_tag=$(get_additional_tag)"
+    ;;
+
+  k8s_latest_version)
+    echo "k8s_latest=$(get_k8s_latest_version)"
+    ;;
+
+  docs_only)
+    get_docs_only
     ;;
 
   *)

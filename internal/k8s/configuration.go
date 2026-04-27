@@ -433,6 +433,7 @@ func NewConfiguration(
 	isIPV6Disabled bool,
 	isDirectiveAutoadjustEnabled bool,
 ) *Configuration {
+	policyServiceRefs := make(map[string]string)
 	return &Configuration{
 		hosts:                        make(map[string]Resource),
 		listenerHosts:                make(map[listenerHostKey]*TransportServerConfiguration),
@@ -446,8 +447,8 @@ func NewConfiguration(
 		globalConfigurationValidator: globalConfigurationValidator,
 		transportServerValidator:     transportServerValidator,
 		secretReferenceChecker:       newSecretReferenceChecker(isPlus),
-		serviceReferenceChecker:      newServiceReferenceChecker(false),
-		endpointReferenceChecker:     newServiceReferenceChecker(true),
+		serviceReferenceChecker:      newServiceReferenceChecker(false, policyServiceRefs),
+		endpointReferenceChecker:     newServiceReferenceChecker(true, policyServiceRefs),
 		policyReferenceChecker:       newPolicyReferenceChecker(),
 		appPolicyReferenceChecker:    newAppProtectResourceReferenceChecker(configs.AppProtectPolicyAnnotation),
 		appLogConfReferenceChecker:   newAppProtectResourceReferenceChecker(configs.AppProtectLogConfAnnotation),
@@ -545,12 +546,8 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 		if validationError != nil {
 			delete(c.virtualServers, key)
 		} else {
-			if err := c.balanceUpstreamProxies(vs.Spec.Upstreams); err != nil {
-				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
-				delete(c.virtualServers, key)
-			} else {
-				c.virtualServers[key] = vs
-			}
+			c.balanceUpstreamProxies(vs.Spec.Upstreams)
+			c.virtualServers[key] = vs
 		}
 	}
 
@@ -617,13 +614,8 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 			delete(c.virtualServerRoutes, key)
 		} else {
 			// Balance proxy buffer sizes for all upstreams before storing
-			if err := c.balanceUpstreamProxies(vsr.Spec.Upstreams); err != nil {
-				// Create a proper validation error for proxy buffer balancing failures
-				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
-				delete(c.virtualServers, key)
-			} else {
-				c.virtualServerRoutes[key] = vsr
-			}
+			c.balanceUpstreamProxies(vsr.Spec.Upstreams)
+			c.virtualServerRoutes[key] = vsr
 		}
 	}
 
@@ -957,6 +949,34 @@ func (c *Configuration) FindResourcesForService(svcNamespace string, svcName str
 	return c.findResourcesForResourceReference(svcNamespace, svcName, c.serviceReferenceChecker)
 }
 
+// IsServiceReferencedByVirtualServer checks if the specified service is referenced by the VirtualServer.
+func (c *Configuration) IsServiceReferencedByVirtualServer(svcNamespace, svcName string, vs *conf_v1.VirtualServer) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByVirtualServer(svcNamespace, svcName, vs)
+}
+
+// IsServiceReferencedByVirtualServerRoute checks if the specified service is referenced by the VirtualServerRoute.
+func (c *Configuration) IsServiceReferencedByVirtualServerRoute(svcNamespace, svcName string, vsr *conf_v1.VirtualServerRoute) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByVirtualServerRoute(svcNamespace, svcName, vsr)
+}
+
+// IsServiceReferencedByIngress checks if the specified service is referenced by the Ingress.
+func (c *Configuration) IsServiceReferencedByIngress(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByIngress(svcNamespace, svcName, ing)
+}
+
+// IsServiceReferencedByMinion checks if the specified service is referenced by the minion Ingress.
+func (c *Configuration) IsServiceReferencedByMinion(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByMinion(svcNamespace, svcName, ing)
+}
+
 // FindResourcesForEndpoints finds resources that reference the specified endpoints.
 func (c *Configuration) FindResourcesForEndpoints(endpointsNamespace string, endpointsName string) []Resource {
 	// Resources reference not endpoints but the corresponding service, which has the same namespace and name
@@ -971,6 +991,22 @@ func (c *Configuration) FindResourcesForSecret(secretNamespace string, secretNam
 // FindResourcesForPolicy finds resources that reference the specified policy.
 func (c *Configuration) FindResourcesForPolicy(policyNamespace string, policyName string) []Resource {
 	return c.findResourcesForResourceReference(policyNamespace, policyName, c.policyReferenceChecker)
+}
+
+// UpdatePolicyServiceRef tracks an external auth service reference for a policy.
+// This allows service/endpoint changes to be correlated back to VirtualServers
+// that reference the auth service via the policy.
+func (c *Configuration) UpdatePolicyServiceRef(policyNamespace, policyName, authServiceName string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.serviceReferenceChecker.policyServices[policyNamespace+"/"+policyName] = authServiceName
+}
+
+// DeletePolicyServiceRef removes the external auth service reference tracking for a policy.
+func (c *Configuration) DeletePolicyServiceRef(policyNamespace, policyName string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	delete(c.serviceReferenceChecker.policyServices, policyNamespace+"/"+policyName)
 }
 
 // FindResourcesForAppProtectPolicyAnnotation finds resources that reference the specified AppProtect policy via annotation.
@@ -2054,12 +2090,8 @@ func detectChangesInListenerHosts(
 // VirtualServer and VirtualServerRoute. We need this here because upstreams are
 // values in the slice, but the balancing function takes pointers as it modifies
 // the upstreams.
-func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) error {
+func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) {
 	for i := range upstreams {
-		err := internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
-		if err != nil {
-			return fmt.Errorf("upstream %d: %w", i, err)
-		}
+		internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
 	}
-	return nil
 }

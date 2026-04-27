@@ -4003,6 +4003,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
 				`annotations.nginx.org/rewrite-target: Invalid value: "http://example.com/path": absolute URLs not allowed in rewrite target`,
+				"annotations.nginx.org/rewrite-target: Invalid value: \"http://example.com/path\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, absolute HTTP URL",
 		},
@@ -4017,6 +4018,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
 				`annotations.nginx.org/rewrite-target: Invalid value: "https://example.com/path": absolute URLs not allowed in rewrite target`,
+				"annotations.nginx.org/rewrite-target: Invalid value: \"https://example.com/path\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, absolute HTTPS URL",
 		},
@@ -4030,7 +4032,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/rewrite-target: Invalid value: "//example.com/path": protocol-relative URLs not allowed in rewrite target`,
+				`annotations.nginx.org/rewrite-target: Invalid value: "//example.com/path": protocol-relative URIs not allowed, must not start with '//'`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, protocol-relative URL",
 		},
@@ -4044,7 +4046,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/rewrite-target: Invalid value: "/api/../admin/users": path traversal patterns not allowed in rewrite target`,
+				`annotations.nginx.org/rewrite-target: Invalid value: "/api/../admin/users": path traversal not allowed, path must not contain '..' segments`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, path traversal with ../",
 		},
@@ -4058,7 +4060,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/rewrite-target: Invalid value: "/api/..\\admin/users": path traversal patterns not allowed in rewrite target`,
+				`annotations.nginx.org/rewrite-target: Invalid value: "/api/..\\admin/users": path traversal not allowed, path must not contain '..' segments`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, path traversal with ..\\ (Windows style)",
 		},
@@ -4072,6 +4074,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
+				"annotations.nginx.org/rewrite-target: Invalid value: \"/foo/$1; } path / { my/location/test/ }\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 				`annotations.nginx.org/rewrite-target: Invalid value: "/foo/$1; } path / { my/location/test/ }": NGINX configuration syntax characters (;{}) and []|<>,^` + "`" + `~ not allowed in rewrite target`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, NGINX configuration syntax characters (;{}) not allowed in rewrite target",
@@ -4086,6 +4089,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
+				"annotations.nginx.org/rewrite-target: Invalid value: \"/api\\npath\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 				`annotations.nginx.org/rewrite-target: Invalid value: "/api\npath": control characters not allowed in rewrite target`,
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, control characters not allowed in rewrite target",
@@ -4100,7 +4104,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/rewrite-target: Invalid value: "api/users": rewrite target must start with /`,
+				"annotations.nginx.org/rewrite-target: Invalid value: \"api/users\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, does not start with slash",
 		},
@@ -4114,6 +4118,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
+				"annotations.nginx.org/rewrite-target: Invalid value: \"/api/v1`; proxy_pass http://evil.com; #\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 				"annotations.nginx.org/rewrite-target: Invalid value: \"/api/v1`; proxy_pass http://evil.com; #\": NGINX configuration syntax characters (;{}) and []|<>,^`~ not allowed in rewrite target",
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, backtick and semicolon injection",
@@ -4166,7 +4171,8 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/app-root: Invalid value: "coffee": must start with '/'`,
+				"annotations.nginx.org/app-root: Invalid value: \"coffee\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
+				`annotations.nginx.org/app-root: Invalid value: "coffee": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
 			},
 			msg: "invalid nginx.org/app-root annotation, does not start with slash",
 		},
@@ -4181,6 +4187,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
 				`annotations.nginx.org/app-root: Invalid value: "/": cannot be '/'`,
+				`annotations.nginx.org/app-root: Invalid value: "/": path should not end with '/'`,
 			},
 			msg: "invalid nginx.org/app-root annotation, cannot be root path",
 		},
@@ -4236,6 +4243,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
+				"annotations.nginx.org/app-root: Invalid value: \"/coffee{test}\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 				`annotations.nginx.org/app-root: Invalid value: "/coffee{test}": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
 			},
 			msg: "invalid app-root - contains curly braces",
@@ -4250,6 +4258,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
+				"annotations.nginx.org/app-root: Invalid value: \"/tea;chai\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 				`annotations.nginx.org/app-root: Invalid value: "/tea;chai": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
 			},
 			msg: "invalid app-root - contains semicolon",
@@ -4264,6 +4273,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
+				"annotations.nginx.org/app-root: Invalid value: \"/tea chai\": must start with / and must not include any whitespace character, `{`, `}` or `;` (e.g. '/',  or '/path',  or '/path/subpath-123', regex used for validation is '/[^\\s{};\\\\]*')",
 				`annotations.nginx.org/app-root: Invalid value: "/tea chai": path must not contain the following characters: whitespace, '{', '}', ';', '$', '|', '^', '<', '>', '\', '"', '#', '[', ']'`,
 			},
 			msg: "invalid app-root - contains whitespace",
@@ -5213,6 +5223,11 @@ func TestValidatePath(t *testing.T) {
 		`/var/run/secrets`,
 		"/{autoindex on; root /var/run/secrets;}location /tea",
 		"/{root}",
+		"//evil.com/payload",
+		"/api/../etc/passwd",
+		`/api/..\admin`,
+		"/api/..",
+		"/a/b/..",
 	}
 
 	for _, path := range invalidPaths {
