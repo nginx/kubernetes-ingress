@@ -23,7 +23,40 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Set release branch variable
+        id: branch
+        env:
+          comment_body: ${{ github.event.comment.body }}
+        run: |
+          regex="/cherry-pick to (release-[2-9]+\.[0-9]+|release-20[0-9]{2}-lts)"
+          if [[ "${comment_body}" =~ $regex ]]; then
+            branch=${BASH_REMATCH[1]}
+            if git branch -a | grep -E '^\s+remotes/origin/release' | grep -q "${branch}"; then
+              echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+            else
+              echo "branch=" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Azure login
+        if: ${{ steps.branch.outputs.branch }}
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        id: secrets
+        if: ${{ steps.branch.outputs.branch }}
+        run: |
+          echo "Setting secrets for job"
+          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$NGINX_PAT"
+          echo "NGINX_PAT=$NGINX_PAT" >> "$GITHUB_OUTPUT"
+
       - name: Check if Actor is a Member of one of the teams
+        if: ${{ steps.branch.outputs.branch }}
         uses: im-open/is-actor-team-member@6633b6e4d9bd2a6917f976b14c64626902e13805 # v1.2.0
         with:
           github-actor: ${{ github.actor }}
@@ -33,37 +66,7 @@ jobs:
               "kic",
               "nginx-docs"
             ]
-          github-token: ${{ secrets.NGINX_PAT }}
-
-      - name: Set release branch variable
-        id: branch
-        env:
-          comment_body: ${{ github.event.comment.body }}
-        run: |
-          regex="/cherry-pick to (release-[2-9]+\.[0-9]+)"
-          if [[ "${comment_body}" =~ $regex ]]; then
-            branch=${BASH_REMATCH[1]}
-            if git branch -a | egrep '^\s+remotes/origin/release' | grep -q "${branch}"; then
-              echo "branch=${branch}" >> $GITHUB_OUTPUT
-            else
-              echo "branch=" >> $GITHUB_OUTPUT
-            fi
-          fi
-
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
-
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_PAT"
-          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+          github-token: ${{ steps.secrets.outputs.NGINX_PAT }}
 
       - name: Cherry pick into ${{ steps.branch.outputs.branch }}
         if: ${{ steps.branch.outputs.branch }}
