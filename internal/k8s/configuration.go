@@ -546,12 +546,8 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 		if validationError != nil {
 			delete(c.virtualServers, key)
 		} else {
-			if err := c.balanceUpstreamProxies(vs.Spec.Upstreams); err != nil {
-				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
-				delete(c.virtualServers, key)
-			} else {
-				c.virtualServers[key] = vs
-			}
+			c.balanceUpstreamProxies(vs.Spec.Upstreams)
+			c.virtualServers[key] = vs
 		}
 	}
 
@@ -618,13 +614,8 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 			delete(c.virtualServerRoutes, key)
 		} else {
 			// Balance proxy buffer sizes for all upstreams before storing
-			if err := c.balanceUpstreamProxies(vsr.Spec.Upstreams); err != nil {
-				// Create a proper validation error for proxy buffer balancing failures
-				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
-				delete(c.virtualServers, key)
-			} else {
-				c.virtualServerRoutes[key] = vsr
-			}
+			c.balanceUpstreamProxies(vsr.Spec.Upstreams)
+			c.virtualServerRoutes[key] = vsr
 		}
 	}
 
@@ -2099,12 +2090,8 @@ func detectChangesInListenerHosts(
 // VirtualServer and VirtualServerRoute. We need this here because upstreams are
 // values in the slice, but the balancing function takes pointers as it modifies
 // the upstreams.
-func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) error {
+func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) {
 	for i := range upstreams {
-		err := internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
-		if err != nil {
-			return fmt.Errorf("upstream %d: %w", i, err)
-		}
+		internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
 	}
-	return nil
 }
