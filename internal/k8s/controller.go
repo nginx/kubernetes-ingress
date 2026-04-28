@@ -1053,7 +1053,9 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 }
 
 func (lbc *LoadBalancerController) sync(task task) {
-	if lbc.isNginxReady && lbc.syncQueue.Len() > 1 && !lbc.batchSyncEnabled {
+	// Batch reloads whenever the queue is backed up, including during initial sync before NGINX is
+	// marked ready, so we do not run a reload per ingress while draining thousands of objects.
+	if lbc.syncQueue.Len() > 1 && !lbc.batchSyncEnabled {
 		lbc.configurator.DisableReloads()
 		lbc.batchSyncEnabled = true
 
@@ -1137,9 +1139,15 @@ func (lbc *LoadBalancerController) sync(task task) {
 
 		lbc.isNginxReady = true
 		nl.Debug(lbc.Logger, "NGINX is ready")
-	}
 
-	if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
+		// Initial updateAllConfigs already pushed the full config; clear batch state without a second reload.
+		if lbc.batchSyncEnabled {
+			lbc.batchSyncEnabled = false
+			lbc.enableBatchReload = false
+			lbc.updateAllConfigsOnBatch = false
+			nl.Debug(lbc.Logger, "Batch sync folded into initial updateAllConfigs")
+		}
+	} else if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
 		lbc.batchSyncEnabled = false
 		lbc.configurator.EnableReloads()
 		if lbc.updateAllConfigsOnBatch {
