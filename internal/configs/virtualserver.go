@@ -1831,10 +1831,10 @@ func generatePath(path string) string {
 	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
-		return fmt.Sprintf(`~* "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~*"), " "))
+		return fmt.Sprintf(`~* "%v"`, strings.TrimLeft(strings.TrimPrefix(path, "~*"), " "))
 	}
 	if strings.HasPrefix(path, "~") {
-		return fmt.Sprintf(`~ "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~"), " "))
+		return fmt.Sprintf(`~ "%v"`, strings.TrimLeft(strings.TrimPrefix(path, "~"), " "))
 	}
 
 	return path
