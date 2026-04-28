@@ -187,11 +187,9 @@ func TestBalanceProxyValues(t *testing.T) {
 		wantProxyBuffers        string
 		wantProxyBufferSize     string
 		wantProxyBusyBufferSize string
-		wantErr                 bool
 	}{
 		{
-			name:    "All empty",
-			wantErr: false,
+			name: "All empty",
 		},
 
 		{
@@ -202,7 +200,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "4k",
-			wantErr:                 false,
 		},
 
 		{
@@ -213,7 +210,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "4 16k",
 			wantProxyBufferSize:     "16k",
 			wantProxyBusyBufferSize: "16k",
-			wantErr:                 false,
 		},
 
 		{
@@ -225,7 +221,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "8 1m",
 			wantProxyBufferSize:     "5m",
 			wantProxyBusyBufferSize: "5m",
-			wantErr:                 false,
 		},
 
 		{
@@ -248,7 +243,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "4k",
-			wantErr:                 false,
 		},
 
 		{
@@ -261,7 +255,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "16k",
-			wantErr:                 false,
 		},
 
 		{
@@ -274,7 +267,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "4 8k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "24k",
-			wantErr:                 false,
 		},
 
 		{
@@ -285,7 +277,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "4k",
-			wantErr:                 false,
 		},
 
 		{
@@ -297,7 +288,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "1024 1k",
 			wantProxyBufferSize:     "1023k",
 			wantProxyBusyBufferSize: "1023k",
-			wantErr:                 false,
 		},
 
 		{
@@ -309,7 +299,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "28k",
 			wantProxyBusyBufferSize: "28k",
-			wantErr:                 false,
 		},
 
 		{
@@ -321,7 +310,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "4k",
-			wantErr:                 false,
 		},
 
 		{
@@ -332,7 +320,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 2k",
 			wantProxyBufferSize:     "2k",
 			wantProxyBusyBufferSize: "2k",
-			wantErr:                 false,
 		},
 
 		{
@@ -344,7 +331,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 2k",
 			wantProxyBufferSize:     "2k",
 			wantProxyBusyBufferSize: "2k",
-			wantErr:                 false,
 		},
 
 		{
@@ -355,7 +341,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "4k",
-			wantErr:                 false,
 		},
 
 		{
@@ -366,7 +351,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "16 1k",
 			wantProxyBufferSize:     "1k",
 			wantProxyBusyBufferSize: "1k",
-			wantErr:                 false,
 		},
 
 		{
@@ -377,7 +361,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "4k",
-			wantErr:                 false,
 		},
 
 		{
@@ -389,7 +372,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 1k",
 			wantProxyBufferSize:     "1k",
 			wantProxyBusyBufferSize: "1k",
-			wantErr:                 false,
 		},
 
 		{
@@ -401,7 +383,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "4 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "12k",
-			wantErr:                 false,
 		},
 
 		{
@@ -414,7 +395,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "4 8k",
 			wantProxyBufferSize:     "16k",
 			wantProxyBusyBufferSize: "16k",
-			wantErr:                 false,
 		},
 		// no no no no
 		{
@@ -426,7 +406,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "4 16k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "16k",
-			wantErr:                 false,
 		},
 
 		{
@@ -438,7 +417,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "2 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "4k",
-			wantErr:                 false,
 		},
 		{
 			name: "proxy_buffers is too small, but valid",
@@ -450,7 +428,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "24 1k",
 			wantProxyBufferSize:     "23k",
 			wantProxyBusyBufferSize: "23k",
-			wantErr:                 false,
 		},
 		{
 			name: "trio should pass unchanged",
@@ -462,7 +439,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "16k",
-			wantErr:                 false,
 		},
 		{
 			name: "proxy_busy_buffers is in MB",
@@ -474,7 +450,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "28k",
-			wantErr:                 false,
 		},
 
 		{
@@ -486,7 +461,6 @@ func TestBalanceProxyValues(t *testing.T) {
 			wantProxyBuffers:        "4 2k",
 			wantProxyBufferSize:     "2k",
 			wantProxyBusyBufferSize: "2k",
-			wantErr:                 false,
 		},
 	}
 	for _, tt := range tests {
@@ -506,9 +480,7 @@ func TestBalanceProxyValues(t *testing.T) {
 				t.Fatalf("Failed to parse proxyBusyBuffers: %v", err)
 			}
 
-			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m, err := BalanceProxyValues(pb, pbs, pbbs, true)
-
-			assert.NoError(t, err)
+			gotProxyBuffers, gotProxyBufferSize, gotProxyBusyBufferSize, m := BalanceProxyValues(pb, pbs, pbbs, true)
 
 			for _, mm := range m {
 				t.Logf("Modification: %s", mm)
@@ -529,7 +501,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 		wantProxyBuffers        string
 		wantProxyBufferSize     string
 		wantProxyBusyBufferSize string
-		wantErr                 bool
 	}{
 		{
 			name: "nil ProxyBuffers - no changes",
@@ -537,7 +508,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 				ProxyBuffers: nil,
 			},
 			autoadjust: true,
-			wantErr:    false,
 		},
 		{
 			name: "valid configuration unchanged",
@@ -553,7 +523,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "16k",
-			wantErr:                 false,
 		},
 		{
 			name: "invalid proxy buffers get default values",
@@ -569,7 +538,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "4k",
-			wantErr:                 false,
 		},
 		{
 			name: "minimum buffer count enforced",
@@ -585,7 +553,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "2 8k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "8k",
-			wantErr:                 false,
 		},
 		{
 			name: "maximum buffer count enforced",
@@ -601,7 +568,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "1024 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "8k",
-			wantErr:                 false,
 		},
 		{
 			name: "proxy buffer size too large gets adjusted",
@@ -617,7 +583,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "4 4k",
 			wantProxyBufferSize:     "12k",
 			wantProxyBusyBufferSize: "12k",
-			wantErr:                 false,
 		},
 		{
 			name: "proxy busy buffer size too large gets adjusted",
@@ -633,7 +598,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "4 8k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "24k",
-			wantErr:                 false,
 		},
 		{
 			name: "proxy busy buffer size too small gets adjusted",
@@ -649,7 +613,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "8k",
-			wantErr:                 false,
 		},
 		{
 			name: "empty proxy buffer size gets set to proxy buffers size",
@@ -665,7 +628,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "6 16k",
 			wantProxyBufferSize:     "16k",
 			wantProxyBusyBufferSize: "32k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - no changes to valid configuration",
@@ -681,7 +643,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "16k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - invalid buffer count unchanged",
@@ -697,7 +658,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "1 8k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "16k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - oversized buffer size unchanged",
@@ -713,7 +673,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "4 4k",
 			wantProxyBufferSize:     "64k",
 			wantProxyBusyBufferSize: "8k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - undersized busy buffer unchanged",
@@ -729,7 +688,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "8 4k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "2k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - oversized busy buffer unchanged",
@@ -745,7 +703,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "4 8k",
 			wantProxyBufferSize:     "8k",
 			wantProxyBusyBufferSize: "64k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - zero buffer count unchanged",
@@ -761,7 +718,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "0 4k",
 			wantProxyBufferSize:     "4k",
 			wantProxyBusyBufferSize: "8k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - extreme buffer count unchanged",
@@ -777,7 +733,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "2000 1k",
 			wantProxyBufferSize:     "1k",
 			wantProxyBusyBufferSize: "2k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - empty buffer size unchanged",
@@ -793,7 +748,6 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "6 16k",
 			wantProxyBufferSize:     "",
 			wantProxyBusyBufferSize: "32k",
-			wantErr:                 false,
 		},
 		{
 			name: "autoadjust disabled - invalid size values get defaults but no balancing",
@@ -809,18 +763,12 @@ func TestBalanceProxiesForUpstreams(t *testing.T) {
 			wantProxyBuffers:        "0 invalid",
 			wantProxyBufferSize:     "invalid",
 			wantProxyBusyBufferSize: "invalid",
-			wantErr:                 false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := BalanceProxiesForUpstreams(tt.upstream, tt.autoadjust)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("BalanceProxiesForUpstreams() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+			BalanceProxiesForUpstreams(tt.upstream, tt.autoadjust)
 
 			if tt.upstream.ProxyBuffers != nil {
 				gotProxyBuffers := fmt.Sprintf("%d %s", tt.upstream.ProxyBuffers.Number, tt.upstream.ProxyBuffers.Size)
