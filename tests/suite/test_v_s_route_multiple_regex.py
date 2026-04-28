@@ -181,15 +181,13 @@ class TestVSRMultipleRegexPaths:
             ingress_controller_prerequisites.namespace,
         )
 
-        # The template writes paths verbatim from the VSR subroute definition — no quoting,
-        # no normalisation of whitespace. nginx treats whitespace between modifier and pattern
-        # as insignificant, which is confirmed by test_happy_path_traffic passing.
-        assert "location ~/api/v1" in config, "Expected ~/api/v1 location block"
-        assert (
-            "location ~  /api/v2" in config
-        ), "Expected ~  /api/v2 location block (double-space from route-api.yaml subroute)"
-        assert "location ~*/images/jpg" in config, "Expected ~*/images/jpg location block"
-        assert "location ~*/images/png" in config, "Expected ~*/images/png location block"
+        # generatePath() in virtualserver.go wraps regex patterns in double quotes and
+        # normalises spacing: ~/api/v1 → ~ "/api/v1", ~  /api/v2 → ~ "/api/v2",
+        # ~*/images/jpg → ~* "/images/jpg". The template renders {{ $l.Path }} verbatim.
+        assert 'location ~ "/api/v1"' in config, 'Expected ~ "/api/v1" location block'
+        assert 'location ~ "/api/v2"' in config, 'Expected ~ "/api/v2" location block (normalised from ~  /api/v2)'
+        assert 'location ~* "/images/jpg"' in config, 'Expected ~* "/images/jpg" location block'
+        assert 'location ~* "/images/png"' in config, 'Expected ~* "/images/png" location block'
         assert "location /static" in config, "Expected /static location block (non-VSR direct return route)"
 
     # ------------------------------------------------------------------ #
