@@ -1708,7 +1708,7 @@ func (vsv *VirtualServerValidator) validateSubroutesRegex(routes []v1.Route, fie
 	for _, p := range vsPaths {
 		if !subrouteNormSet[NormalizePath(p)] {
 			allErrs = append(allErrs, field.Invalid(fieldPath, "subroutes",
-				fmt.Sprintf("subroute with path '%s' is missing; all VS route paths must be covered by VSR subroutes", p)))
+				fmt.Sprintf("subroute with path %q is missing; all VS route paths must be covered by VSR subroutes", p)))
 		}
 	}
 
@@ -1721,7 +1721,7 @@ func (vsv *VirtualServerValidator) validateSubroutesRegex(routes []v1.Route, fie
 				"must be a regex path when the referenced VirtualServer route is a regex path"))
 		} else if !vsPathNormSet[norm] {
 			allErrs = append(allErrs, field.Invalid(idxPath.Child("path"), r.Path,
-				fmt.Sprintf("subroute path '%s' is not referenced by any VS route; all VSR subroutes must be referenced", r.Path)))
+				fmt.Sprintf("subroute path %q is not referenced by any VS route; all VSR subroutes must be referenced", r.Path)))
 		}
 	}
 
