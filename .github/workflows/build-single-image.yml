@@ -130,14 +130,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GOPATH: ${{ steps.vars.outputs.go_path }}
           GORELEASER_CURRENT_TAG: "v${{ steps.vars.outputs.ic_version }}"
-        if: ${{ !steps.binary-cache.outputs.binary_cache_hit }}
+        if: ${{ steps.binary-cache.outputs.cache-hit != 'true' }}
 
       - name: Store Artifacts in Cache
         uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ steps.vars.outputs.go_code_md5 }}
-        if: ${{ steps.binary-cache.outputs.binary_cache_hit != 'true' }}
+        if: ${{ steps.binary-cache.outputs.cache-hit != 'true' }}
 
       - name: Build Image
         run: |
