@@ -128,6 +128,7 @@ jobs:
     name: Create Tag on release branch in NIC repo
     runs-on: ubuntu-24.04
     needs: [build-artifacts]
+    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) }}
     permissions:
       contents: write
     steps:
@@ -169,7 +170,7 @@ jobs:
     secrets: inherit
 
   release-oss:
-    if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-oss') }}
+    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-oss') }}
     name: Release Docker OSS
     needs: [variables, build-artifacts]
     uses: ./.github/workflows/oss-release.yml
@@ -198,7 +199,7 @@ jobs:
     secrets: inherit
 
   release-plus-gcr-nginx:
-    if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-plus') }}
+    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-plus') }}
     name: Release Docker Plus
     needs: [variables, build-artifacts]
     uses: ./.github/workflows/plus-release.yml

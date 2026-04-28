@@ -118,6 +118,7 @@ jobs:
     name: Create Tag on release branch in NIC repo
     runs-on: ubuntu-24.04
     needs: [build-artifacts]
+    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) }}
     permissions:
       contents: write
     steps:
@@ -132,7 +133,7 @@ jobs:
           git config --global user.email "kubernetes@nginx.com"
           git config --global user.name "NGINX Kubernetes Team"
           branch="${{ inputs.release_branch }}"
-          tag="v${{ inputs.lts_version }}"
+          tag="${{ inputs.lts_version }}"
           if ! git rev-parse --verify refs/tags/${tag}; then
             echo "Adding tag ${tag}."
             git tag -a ${tag} -m "Version ${tag#v*}"
@@ -159,7 +160,7 @@ jobs:
     secrets: inherit
 
   release-plus-gcr-nginx:
-    if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-plus') }}
+    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-plus') }}
     name: Release Docker Plus
     needs: [variables, build-artifacts]
     uses: ./.github/workflows/plus-release-lts.yml
@@ -169,12 +170,11 @@ jobs:
         tag:
           - "${{ inputs.lts_version }}"
           - "${{ inputs.lts_version }}-${{ needs.variables.outputs.date }}"
-          - "latest"
     with:
       gcr_release_registry: true
       nginx_registry: true
       source_tag: ${{ needs.variables.outputs.source_tag }}
-      target_tag: ${{ inputs.lts_version }}
+      target_tag: ${{ matrix.tag }}
       branch: ${{ inputs.release_branch }}
       dry_run: ${{ inputs.dry_run }}
     permissions:
@@ -292,10 +292,10 @@ jobs:
         with:
           inlineScript: |
             for i in $(find tarballs -type f); do
-              echo -n "Uploading ${i} to kubernetes-ingress/v${{ inputs.lts_version }}/${i##*/} ... "
+              echo -n "Uploading ${i} to kubernetes-ingress/${{ inputs.lts_version }}/${i##*/} ... "
               if ${{ ! inputs.dry_run}}; then
                 az storage blob upload --auth-mode=login -f "$i" -c ${{ steps.secrets.outputs.AZURE_BUCKET_NAME }} \
-                  --account-name ${{ steps.secrets.outputs.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.lts_version }}/${i##*/}
+                  --account-name ${{ steps.secrets.outputs.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/${{ inputs.lts_version }}/${i##*/}
                 echo "done"
               else
                 echo "skipped, dry_run."
