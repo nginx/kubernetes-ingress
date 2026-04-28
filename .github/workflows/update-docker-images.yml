@@ -255,7 +255,7 @@ jobs:
       gcr_release_registry: false
       source_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
       target_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
-      branch: "release-${{ matrix.branch }}"
+      branch: "${{ matrix.branch }}"
       dry_run: ${{ inputs.dry_run || false }}
     permissions:
       contents: read
@@ -276,7 +276,7 @@ jobs:
       gcr_release_registry: true
       source_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
       target_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
-      branch: "release-${{ matrix.branch }}"
+      branch: "${{ matrix.branch }}"
       dry_run: ${{ inputs.dry_run || false }}
     permissions:
       contents: read
