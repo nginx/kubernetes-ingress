@@ -38,6 +38,7 @@ func createTestConfigurationDuringStartup() *Configuration {
 	snippetsEnabled := true
 	isIPV6Disabled := false
 	isDirectiveAutoadjustEnabled := false
+	allowEmptyIngressHost := true
 	return NewConfiguration(
 		lbc.HasCorrectIngressClass,
 		isPlus,
@@ -55,7 +56,7 @@ func createTestConfigurationDuringStartup() *Configuration {
 		certManagerEnabled,
 		isIPV6Disabled,
 		isDirectiveAutoadjustEnabled,
-		false, // allowEmptyIngressHost
+		allowEmptyIngressHost,
 	)
 }
 
@@ -995,69 +996,9 @@ func TestAddIngressWithIncorrectClass(t *testing.T) {
 	}
 }
 
-func createTestConfigurationWithEmptyHost() *Configuration {
-	lbc := LoadBalancerController{
-		ingressClass: "nginx",
-		Logger:       nl.LoggerFromContext(context.Background()),
-	}
-	isPlus := false
-	appProtectEnabled := false
-	appProtectDosEnabled := false
-	internalRoutesEnabled := false
-	isTLSPassthroughEnabled := true
-	certManagerEnabled := true
-	snippetsEnabled := true
-	isIPV6Disabled := false
-	isDirectiveAutoadjustEnabled := false
-	return NewConfiguration(
-		lbc.HasCorrectIngressClass,
-		isPlus,
-		appProtectEnabled,
-		appProtectDosEnabled,
-		internalRoutesEnabled,
-		validation.NewVirtualServerValidator(validation.IsPlus(isTLSPassthroughEnabled), validation.IsDosEnabled(appProtectDosEnabled), validation.IsCertManagerEnabled(certManagerEnabled)),
-		validation.NewGlobalConfigurationValidator(map[int]bool{
-			80:  true,
-			443: true,
-		}),
-		validation.NewTransportServerValidator(isTLSPassthroughEnabled, snippetsEnabled, isPlus),
-		isTLSPassthroughEnabled,
-		snippetsEnabled,
-		certManagerEnabled,
-		isIPV6Disabled,
-		isDirectiveAutoadjustEnabled,
-		true, // allowEmptyIngressHost
-	)
-}
-
-func TestAddIngressEmptyHostRejectedWhenDisabled(t *testing.T) {
-	t.Parallel()
-	configuration := createTestConfiguration() // allowEmptyIngressHost: false
-
-	ing := createTestIngress("empty-host-ingress", "")
-
-	var expectedChanges []ResourceChange
-	expectedProblems := []ConfigurationProblem{
-		{
-			Object:  ing,
-			IsError: true,
-			Reason:  nl.EventReasonRejected,
-			Message: "spec.rules[0].host: Required value",
-		},
-	}
-
-	changes, problems := configuration.AddOrUpdateIngress(ing)
-	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
-		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
-		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
-	}
-}
-
 func TestAddIngressEmptyHostAcceptedWhenEnabled(t *testing.T) {
 	t.Parallel()
-	configuration := createTestConfigurationWithEmptyHost() // allowEmptyIngressHost: true
+	configuration := createTestConfiguration()
 
 	ing := createTestIngress("empty-host-ingress", "")
 
@@ -1085,7 +1026,7 @@ func TestAddIngressEmptyHostAcceptedWhenEnabled(t *testing.T) {
 
 func TestAddIngressEmptyHostOldestWinsAndPromotesOnDelete(t *testing.T) {
 	t.Parallel()
-	configuration := createTestConfigurationWithEmptyHost()
+	configuration := createTestConfiguration()
 
 	older := createTestIngress("empty-host-older", "")
 	newer := createTestIngress("empty-host-newer", "")
