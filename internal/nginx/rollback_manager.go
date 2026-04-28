@@ -16,12 +16,13 @@ import (
 // ConfigRollbackManager wraps LocalManager and adds rollback protection for main and regular configs.
 type ConfigRollbackManager struct {
 	*LocalManager
+	initialDefaultServerPending bool
 }
 
 // NewConfigRollbackManager creates a ConfigRollbackManager.
 func NewConfigRollbackManager(ctx context.Context, confPath string, debug bool, mc collectors.ManagerCollector, lr *license_reporting.LicenseReporter, metadata *metadata.Metadata, timeout time.Duration, nginxPlus bool) *ConfigRollbackManager {
 	lm := NewLocalManager(ctx, confPath, debug, mc, lr, metadata, timeout, nginxPlus)
-	return &ConfigRollbackManager{LocalManager: lm}
+	return &ConfigRollbackManager{LocalManager: lm, initialDefaultServerPending: true}
 }
 
 // testConfig tests the nginx configuration for syntax errors and file accessibility.
@@ -122,7 +123,14 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 // CreateConfig creates a configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
 func (cm *ConfigRollbackManager) CreateConfig(name string, content []byte) (bool, error) {
-	return cm.createConfigWithRollback(name, cm.getFilenameForConfig(name), content)
+	configPath := cm.getFilenameForConfig(name)
+	if cm.initialDefaultServerPending && configPath == cm.defaultServerConfFilename {
+		cm.initialDefaultServerPending = false
+		nl.Debugf(cm.logger, "Skipping validation for initial default server config bootstrap")
+		return cm.LocalManager.CreateConfig(name, content)
+	}
+
+	return cm.createConfigWithRollback(name, configPath, content)
 }
 
 // CreateStreamConfig creates a stream configuration file after validating it won't break nginx.
