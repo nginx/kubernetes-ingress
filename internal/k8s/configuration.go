@@ -1842,7 +1842,7 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 	collected := c.classifyAndCollectVSRs(vs)
 
 	// Step 2: Remove VSRs referenced by both regex and non-regex VS routes.
-	regexEntries, vsrs, mixedWarnings := rejectMixedTypeVSRs(collected.regexEntries, collected.nonRegexKeys, collected.vsrs)
+	regexEntries, vsrs, mixedWarnings := rejectMixedTypeVSRs(collected.regexEntries, collected.regexSelectorKeys, collected.nonRegexKeys, collected.vsrs)
 	collected.warnings = append(collected.warnings, mixedWarnings...)
 
 	// Step 3: Validate regex VSRs with their full set of collected paths.
@@ -1871,11 +1871,12 @@ func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*
 
 // vsrCollection holds the results of classifyAndCollectVSRs.
 type vsrCollection struct {
-	vsrs         []*conf_v1.VirtualServerRoute
-	regexEntries map[string]*regexVSREntry
-	vsrSelectors map[string][]string
-	nonRegexKeys map[string]bool
-	warnings     []string
+	vsrs              []*conf_v1.VirtualServerRoute
+	regexEntries      map[string]*regexVSREntry
+	vsrSelectors      map[string][]string
+	nonRegexKeys      map[string]bool
+	regexSelectorKeys map[string]bool // VSR ns/name keys from regex selector routes
+	warnings          []string
 }
 
 // regexVSREntry holds a VSR and all the normalized regex VS paths that reference it.
@@ -1892,9 +1893,10 @@ type regexVSREntry struct {
 //   - deduplicate VSR references (same VSR from multiple routes/selectors)
 func (c *Configuration) classifyAndCollectVSRs(vs *conf_v1.VirtualServer) vsrCollection {
 	col := vsrCollection{
-		regexEntries: make(map[string]*regexVSREntry),
-		vsrSelectors: make(map[string][]string),
-		nonRegexKeys: make(map[string]bool),
+		regexEntries:      make(map[string]*regexVSREntry),
+		vsrSelectors:      make(map[string][]string),
+		nonRegexKeys:      make(map[string]bool),
+		regexSelectorKeys: make(map[string]bool),
 	}
 
 	seenRegexNorm := make(map[string]string)               // normalized regex path → first raw path
@@ -1968,22 +1970,23 @@ func (col *vsrCollection) collectNonRegexNamedRoute(
 	col.warnings = append(col.warnings, vsrWarnings...)
 	for _, vsr := range validVsrs {
 		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		// Always record non-regex reference for mixed-type detection,
+		// even when deduplicating.
+		col.nonRegexKeys[nsName] = true
 		if seenVSRs[nsName] {
 			col.warnings = append(col.warnings, fmt.Sprintf(
 				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName))
 			continue
 		}
 		seenVSRs[nsName] = true
-		col.nonRegexKeys[nsName] = true
 		col.vsrs = append(col.vsrs, vsr)
 	}
 }
 
 // collectSelectorRoute validates a selector route eagerly and adds the
 // resulting VSRs to the collection, deduplicating by namespace/name.
-// Only classifies matched VSRs as non-regex when the VS route path is
-// genuinely non-regex; a regex selector path must not mark the VSR as
-// non-regex or rejectMixedTypeVSRs would incorrectly discard it.
+// Reference type (regex vs non-regex) is always recorded for mixed-type
+// detection, even when the VSR itself is a duplicate.
 func (col *vsrCollection) collectSelectorRoute(
 	c *Configuration, vs *conf_v1.VirtualServer,
 	r *conf_v1.Route, isRegex bool, seenVSRs map[string]bool,
@@ -1993,15 +1996,19 @@ func (col *vsrCollection) collectSelectorRoute(
 	maps.Copy(col.vsrSelectors, selectors)
 	for _, vsr := range validVsrs {
 		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		// Always record reference type for mixed-type detection,
+		// even when deduplicating.
+		if isRegex {
+			col.regexSelectorKeys[nsName] = true
+		} else {
+			col.nonRegexKeys[nsName] = true
+		}
 		if seenVSRs[nsName] {
 			col.warnings = append(col.warnings, fmt.Sprintf(
 				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName))
 			continue
 		}
 		seenVSRs[nsName] = true
-		if !isRegex {
-			col.nonRegexKeys[nsName] = true
-		}
 		col.vsrs = append(col.vsrs, vsr)
 	}
 }
@@ -2057,35 +2064,50 @@ func removeFromVSRSlice(s []*conf_v1.VirtualServerRoute, i int) []*conf_v1.Virtu
 	return append(s[:i], s[i+1:]...)
 }
 
-// rejectMixedTypeVSRs removes any VSR that appears in both the regex and non-regex sets, since
-// the same VSR cannot serve both roles simultaneously.  It returns updated copies of both
-// regexEntries and nonRegexVsrs, plus warnings for any removals.
+// rejectMixedTypeVSRs removes any VSR that appears in both a regex reference set
+// (named regex entries or selector-derived regex keys) and the non-regex set, since
+// the same VSR cannot serve both roles simultaneously.  It returns updated copies of
+// regexEntries and vsrs, plus warnings for any removals.
 // Keys are sorted to ensure deterministic warning order across reconciles.
 func rejectMixedTypeVSRs(
 	regexEntries map[string]*regexVSREntry,
+	regexSelectorKeys map[string]bool,
 	nonRegexKeys map[string]bool,
-	nonRegexVsrs []*conf_v1.VirtualServerRoute,
+	vsrs []*conf_v1.VirtualServerRoute,
 ) (map[string]*regexVSREntry, []*conf_v1.VirtualServerRoute, []string) {
-	keys := make([]string, 0, len(regexEntries))
-	for k := range regexEntries {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var warnings []string
-	for _, vsrKey := range keys {
-		entry := regexEntries[vsrKey]
+	// Build the union of all regex-referenced VSR ns/name keys.
+	allRegexNsNames := make(map[string]bool, len(regexEntries)+len(regexSelectorKeys))
+	regexEntryKeyByNsName := make(map[string]string, len(regexEntries))
+	for vsrKey, entry := range regexEntries {
 		nsName := fmt.Sprintf("%s/%s", entry.vsr.Namespace, entry.vsr.Name)
+		allRegexNsNames[nsName] = true
+		regexEntryKeyByNsName[nsName] = vsrKey
+	}
+	for nsName := range regexSelectorKeys {
+		allRegexNsNames[nsName] = true
+	}
+
+	// Find VSRs that appear in both regex and non-regex sets.
+	var mixedKeys []string
+	for nsName := range allRegexNsNames {
 		if nonRegexKeys[nsName] {
-			warnings = append(warnings, fmt.Sprintf(
-				"VirtualServerRoute %s is referenced by both regex and non-regex VS routes; it will not be used",
-				vsrKey,
-			))
-			delete(regexEntries, vsrKey)
-			nonRegexVsrs = removeAllVSRsByNsName(nonRegexVsrs, nsName)
+			mixedKeys = append(mixedKeys, nsName)
 		}
 	}
-	return regexEntries, nonRegexVsrs, warnings
+	sort.Strings(mixedKeys)
+
+	var warnings []string
+	for _, nsName := range mixedKeys {
+		warnings = append(warnings, fmt.Sprintf(
+			"VirtualServerRoute %s is referenced by both regex and non-regex VS routes; it will not be used",
+			nsName,
+		))
+		if entryKey, ok := regexEntryKeyByNsName[nsName]; ok {
+			delete(regexEntries, entryKey)
+		}
+		vsrs = removeAllVSRsByNsName(vsrs, nsName)
+	}
+	return regexEntries, vsrs, warnings
 }
 
 // validateAndBuildRegexVSRs runs Pass 2: validates each unique regex VSR against the full set

@@ -6384,3 +6384,54 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 		}
 	})
 }
+
+// TestBuildVirtualServerRoutesRegexSelectorMixedType verifies that rejectMixedTypeVSRs
+// correctly detects mixed-type references when regex selector keys are populated.
+//
+// In the current validation model, a VSR's subroutes can't be valid for both regex and
+// non-regex VS paths simultaneously, so the integration path through collectSelectorRoute
+// can't produce this scenario. This test exercises rejectMixedTypeVSRs directly to verify
+// the defensive logic that guards against future validation changes.
+func TestBuildVirtualServerRoutesRegexSelectorMixedType(t *testing.T) {
+	t.Parallel()
+
+	const namespace = "default"
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "shared-vsr",
+			Namespace: namespace,
+		},
+	}
+
+	// Simulate: the VSR was added to col.vsrs by a non-regex named route, AND
+	// recorded in regexSelectorKeys by a regex selector route.
+	regexEntries := map[string]*regexVSREntry{}
+	regexSelectorKeys := map[string]bool{
+		namespace + "/shared-vsr": true,
+	}
+	nonRegexKeys := map[string]bool{
+		namespace + "/shared-vsr": true,
+	}
+	vsrs := []*conf_v1.VirtualServerRoute{vsr}
+
+	resultEntries, resultVSRs, warnings := rejectMixedTypeVSRs(regexEntries, regexSelectorKeys, nonRegexKeys, vsrs)
+
+	if len(resultVSRs) != 0 {
+		t.Errorf("expected 0 VSRs after mixed-type rejection, got %d", len(resultVSRs))
+	}
+	if len(resultEntries) != 0 {
+		t.Errorf("expected 0 regex entries after mixed-type rejection, got %d", len(resultEntries))
+	}
+
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "referenced by both regex and non-regex") && strings.Contains(w, "shared-vsr") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected mixed-type rejection warning for shared-vsr, got warnings: %v", warnings)
+	}
+}
