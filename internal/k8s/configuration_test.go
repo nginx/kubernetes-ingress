@@ -5999,7 +5999,7 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			},
 			expectedVSR: false,
 			expectedWarns: []string{
-				`VirtualServerRoute default/myroute is invalid: spec.subroutes[1].path: Invalid value: "~/api/v2": subroute path '~/api/v2' is not referenced by any VS route; all VSR subroutes must be referenced`,
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes[1].path: Invalid value: "~/api/v2": subroute path "~/api/v2" is not referenced by any VS route; all VSR subroutes must be referenced`,
 			},
 		},
 		{
@@ -6013,7 +6013,7 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			},
 			expectedVSR: false,
 			expectedWarns: []string{
-				`VirtualServerRoute default/myroute is invalid: spec.subroutes: Invalid value: "subroutes": subroute with path '~/api/v2' is missing; all VS route paths must be covered by VSR subroutes`,
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes: Invalid value: "subroutes": subroute with path "~/api/v2" is missing; all VS route paths must be covered by VSR subroutes`,
 			},
 		},
 		{
