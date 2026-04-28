@@ -1381,7 +1381,6 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 			// deferred into the pending slices, even during startup. The number of
 			// problem resources is bounded by misconfiguration (not total resources),
 			// so the API calls here have negligible startup-time cost.
-			//
 			// Deferring them would cause two bugs:
 			//  1. Ingress problems need ClearIngressStatus (remove LB IP), but the
 			//     pending slice only knows how to call UpdateIngressStatus (set LB IP).
@@ -2042,7 +2041,7 @@ func (lbc *LoadBalancerController) waitForLeadership() bool {
 	for {
 		select {
 		case <-deadline:
-			nl.Debugf(lbc.Logger, "Status flush: leader election deadline exceeded (%v), skipping flush (follower pod). "+
+			nl.Warnf(lbc.Logger, "Status flush: leader election deadline exceeded (%v), skipping flush (follower pod). "+
 				"OnStartedLeading will handle status when leadership is acquired.", leaderPollDeadline)
 			return false
 		case <-ticker.C:

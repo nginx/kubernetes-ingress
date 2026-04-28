@@ -87,7 +87,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				} else {
 					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateInvalid, "Rejected", msg)
 					if err != nil {
-						nl.Debugf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+						nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
 					}
 				}
 			}
@@ -105,7 +105,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				} else {
 					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "AddedOrUpdated", msg)
 					if err != nil {
-						nl.Debugf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+						nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
 					}
 				}
 			}
