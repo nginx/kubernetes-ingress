@@ -34,19 +34,27 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-type trackingNginxManager struct {
+type testNginxManager struct {
 	*nginx.FakeManager
-	createdConfigNames []string
+
+	CreatedConfigNames []string
+	FailCreateForName  string
+	FailCreateOnCall   int
+	CreateCalls        int
 }
 
-func newTrackingNginxManager() *trackingNginxManager {
-	return &trackingNginxManager{
-		FakeManager: nginx.NewFakeManager("/etc/nginx"),
+func newTestNginxManager() *testNginxManager {
+	return &testNginxManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+}
+
+func (m *testNginxManager) CreateConfig(name string, content []byte) (bool, error) {
+	m.CreateCalls++
+	m.CreatedConfigNames = append(m.CreatedConfigNames, name)
+
+	if m.FailCreateForName == name && m.FailCreateOnCall > 0 && m.FailCreateOnCall == m.CreateCalls {
+		return false, fmt.Errorf("injected CreateConfig failure for %s at call %d", name, m.CreateCalls)
 	}
-}
 
-func (m *trackingNginxManager) CreateConfig(name string, content []byte) (bool, error) {
-	m.createdConfigNames = append(m.createdConfigNames, name)
 	return m.FakeManager.CreateConfig(name, content)
 }
 
@@ -82,6 +90,35 @@ func createTestPolicySyncConfigurator(t *testing.T, manager nginx.Manager) *conf
 		IsPrometheusEnabled:     false,
 		IsLatencyMetricsEnabled: false,
 	})
+}
+
+func createIngressProcessChangesController(t *testing.T, manager nginx.Manager) *LoadBalancerController {
+	t.Helper()
+
+	ingressStore := &cache.FakeCustomStore{
+		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
+			return nil, false, nil
+		},
+	}
+
+	return &LoadBalancerController{
+		configurator: createTestPolicySyncConfigurator(t, manager),
+		recorder:     record.NewFakeRecorder(100),
+		secretStore:  secrets.NewEmptyFakeSecretsStore(),
+		namespacedInformers: map[string]*namespacedInformer{
+			"default": {
+				ingressLister: storeToIngressLister{Store: ingressStore},
+			},
+		},
+		Logger: nl.LoggerFromContext(context.Background()),
+	}
+}
+
+func newHostlessIngressChange(name string) *IngressConfiguration {
+	ing := createTestIngress(name, "")
+	ingCfg := NewRegularIngressConfiguration(ing)
+	ingCfg.ValidHosts[""] = true
+	return ingCfg
 }
 
 func TestHasCorrectIngressClass(t *testing.T) {
@@ -2426,8 +2463,8 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 		},
 	}
 
-	trackingManager := newTrackingNginxManager()
-	cnf := createTestPolicySyncConfigurator(t, trackingManager)
+	manager := newTestNginxManager()
+	cnf := createTestPolicySyncConfigurator(t, manager)
 
 	lbc := LoadBalancerController{
 		namespacedInformers: map[string]*namespacedInformer{
@@ -2446,12 +2483,12 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 
 	lbc.syncPolicy(task{Key: "default/test-policy"})
 
-	if len(trackingManager.createdConfigNames) == 0 {
+	if len(manager.CreatedConfigNames) == 0 {
 		t.Fatalf("expected mergeable ingress config to be created on policy update")
 	}
 
 	foundMasterConfig := false
-	for _, name := range trackingManager.createdConfigNames {
+	for _, name := range manager.CreatedConfigNames {
 		if name == "default-master-ingress" {
 			foundMasterConfig = true
 			break
@@ -2459,7 +2496,81 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 	}
 
 	if !foundMasterConfig {
-		t.Fatalf("expected config for mergeable master ingress to be updated, got configs: %v", trackingManager.createdConfigNames)
+		t.Fatalf("expected config for mergeable master ingress to be updated, got configs: %v", manager.CreatedConfigNames)
+	}
+}
+
+func TestProcessChangesHostlessDeleteFailureStillProcessesNextAdd(t *testing.T) {
+	t.Parallel()
+
+	manager := newTestNginxManager()
+	lbc := createIngressProcessChangesController(t, manager)
+
+	oldCfg := newHostlessIngressChange("hostless-old")
+	oldEx := lbc.createIngressEx(oldCfg.Ingress, oldCfg.ValidHosts, nil)
+	_, err := lbc.configurator.AddOrUpdateIngress(oldEx)
+	if err != nil {
+		t.Fatalf("failed to seed old hostless ingress: %v", err)
+	}
+
+	manager.CreatedConfigNames = nil
+	manager.CreateCalls = 0
+	manager.FailCreateForName = "_default-server"
+	manager.FailCreateOnCall = 1
+
+	newCfg := newHostlessIngressChange("hostless-new")
+	changes := []ResourceChange{
+		{Op: Delete, Resource: oldCfg},
+		{Op: AddOrUpdate, Resource: newCfg},
+	}
+
+	lbc.processChanges(changes)
+
+	if lbc.configurator.HasIngress(oldCfg.Ingress) {
+		t.Fatal("expected old hostless ingress to be removed")
+	}
+	if !lbc.configurator.HasIngress(newCfg.Ingress) {
+		t.Fatal("expected new hostless ingress to be added even when delete step failed")
+	}
+	if manager.CreateCalls < 2 {
+		t.Fatalf("expected both delete-sync and add steps to attempt default-server writes, got %d call(s)", manager.CreateCalls)
+	}
+}
+
+func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *testing.T) {
+	t.Parallel()
+
+	manager := newTestNginxManager()
+	lbc := createIngressProcessChangesController(t, manager)
+
+	oldCfg := newHostlessIngressChange("hostless-old")
+	oldEx := lbc.createIngressEx(oldCfg.Ingress, oldCfg.ValidHosts, nil)
+	_, err := lbc.configurator.AddOrUpdateIngress(oldEx)
+	if err != nil {
+		t.Fatalf("failed to seed old hostless ingress: %v", err)
+	}
+
+	manager.CreatedConfigNames = nil
+	manager.CreateCalls = 0
+	manager.FailCreateForName = "_default-server"
+	manager.FailCreateOnCall = 2
+
+	newCfg := newHostlessIngressChange("hostless-new")
+	changes := []ResourceChange{
+		{Op: Delete, Resource: oldCfg},
+		{Op: AddOrUpdate, Resource: newCfg},
+	}
+
+	lbc.processChanges(changes)
+
+	if lbc.configurator.HasIngress(oldCfg.Ingress) {
+		t.Fatal("expected old hostless ingress to be removed")
+	}
+	if lbc.configurator.HasIngress(newCfg.Ingress) {
+		t.Fatal("expected new hostless ingress not to be stored when add step fails")
+	}
+	if manager.CreateCalls < 2 {
+		t.Fatalf("expected add step to be attempted after delete step, got %d call(s)", manager.CreateCalls)
 	}
 }
 

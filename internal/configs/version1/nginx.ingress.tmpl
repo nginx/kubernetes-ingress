@@ -202,7 +202,7 @@ server {
 	{{- end}}
 
 	{{- if $server.HealthStatus}}
-	location {{$server.HealthStatusURI}} {
+	location = {{$server.HealthStatusURI}} {
 		default_type text/plain;
 		return 200 "healthy\n";
 	}
