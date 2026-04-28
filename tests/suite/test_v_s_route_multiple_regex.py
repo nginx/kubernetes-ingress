@@ -181,9 +181,8 @@ class TestVSRMultipleRegexPaths:
             ingress_controller_prerequisites.namespace,
         )
 
-        # generatePath() in virtualserver.go wraps regex patterns in double quotes and
-        # normalises spacing: ~/api/v1 → ~ "/api/v1", ~  /api/v2 → ~ "/api/v2",
-        # ~*/images/jpg → ~* "/images/jpg". The template renders {{ $l.Path }} verbatim.
+        # generatePath() wraps regex patterns in double quotes and normalises spacing
+        # between modifier and pattern (e.g. ~/api/v1 → ~ "/api/v1", ~  /api/v2 → ~ "/api/v2").
         assert 'location ~ "/api/v1"' in config, 'Expected ~ "/api/v1" location block'
         assert 'location ~ "/api/v2"' in config, 'Expected ~ "/api/v2" location block (normalised from ~  /api/v2)'
         assert 'location ~* "/images/jpg"' in config, 'Expected ~* "/images/jpg" location block'

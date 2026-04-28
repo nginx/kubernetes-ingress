@@ -2019,7 +2019,7 @@ func generateLocationForRedirect(
 	}
 
 	return version2.Location{
-		Path:                 path,
+		Path:                 generatePath(path),
 		Snippets:             locationSnippets,
 		ProxyInterceptErrors: true,
 		InternalProxyPass:    fmt.Sprintf("http://%s", nginx418Server),
@@ -2057,7 +2057,7 @@ func generateLocationForReturn(path string, locationSnippets []string, actionRet
 	retLocName := fmt.Sprintf("@return_%d", retLocIndex)
 
 	return version2.Location{
-			Path:                 path,
+			Path:                 generatePath(path),
 			Snippets:             locationSnippets,
 			ProxyInterceptErrors: true,
 			InternalProxyPass:    fmt.Sprintf("http://%s", nginx418Server),
