@@ -54,7 +54,21 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+      - name: Setup Golang Environment
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Restore secrets-gen binary cache
+        id: secrets-gen-cache
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: hack/secrets-gen/secrets-gen
+          key: nic-secrets-gen-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('hack/secrets-gen/**', 'internal/configs/**/*.go', 'internal/k8s/secrets/**/*.go', 'go.mod', 'go.sum') }}
+
       - name: Generate Secrets for tests
+        env:
+          SECRETS_GEN_BIN: ${{ steps.secrets-gen-cache.outputs.cache-hit == 'true' && format('{0}/hack/secrets-gen/secrets-gen', github.workspace) || '' }}
         run: |
           make secrets
 
