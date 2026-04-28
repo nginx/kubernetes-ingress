@@ -191,7 +191,8 @@ jobs:
       ic_version: ${{ inputs.lts_version }}
       chart_version: ${{ inputs.chart_version }}
       chart_name: "nginx-ingress-lts"
-      nginx_helm_repo: false # we don't want to publish to the nginx helm repo for LTS releases, but we want to run the workflow to publish to GHCR & DockerHub      runner: "ubuntu-24.04-amd64"
+      nginx_helm_repo: false # we don't want to publish to the nginx helm repo for LTS releases, but we want to run the workflow to publish to GHCR & DockerHub
+      runner: "ubuntu-24.04-amd64"
     permissions:
       packages: write # for helm to push to GHCR
       id-token: write
