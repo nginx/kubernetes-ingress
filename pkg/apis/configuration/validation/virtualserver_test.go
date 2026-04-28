@@ -1667,6 +1667,10 @@ func TestValidateRegexPathFails(t *testing.T) {
 			regexPath: `~ /foo\`,
 			msg:       "ending in backslash",
 		},
+		{
+			regexPath: "~ +",
+			msg:       "modifier-only valid regex that nginx rejects (bare + is nothing to repeat)",
+		},
 	}
 
 	for _, test := range tests {
