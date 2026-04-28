@@ -44,10 +44,8 @@ const (
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
 const DefaultServerSecretPath = "/etc/nginx/secrets/default" //nolint:gosec // G101: Potential hardcoded credentials - false positive
 
-const (
-	DefaultServerConfigName = "_default-server"
-	defaultServerConfigName = DefaultServerConfigName
-)
+// DefaultServerConfigName is the config name used for the default server file in conf.d.
+const DefaultServerConfigName = "_default-server"
 
 // DefaultSecretPath is the full default path to where secrets are stored and accessed.
 const DefaultSecretPath = "/etc/nginx/secrets" // #nosec G101
@@ -423,6 +421,7 @@ func (cnf *Configurator) streamUpstreamsForTransportServer(ts *conf_v1.Transport
 	return upstreamNames
 }
 
+// GenerateDefaultServerConfig builds the fallback default server config written to conf.d.
 func GenerateDefaultServerConfig(staticCfgParams *StaticConfigParams, cfgParams *ConfigParams) version1.IngressNginxConfig {
 	return version1.IngressNginxConfig{
 		Servers: []version1.Server{{
@@ -462,7 +461,7 @@ func (cnf *Configurator) syncDefaultServerConfig() error {
 	if err != nil {
 		return fmt.Errorf("error generating default server config: %w", err)
 	}
-	if _, err := cnf.nginxManager.CreateConfig(defaultServerConfigName, content); err != nil {
+	if _, err := cnf.nginxManager.CreateConfig(DefaultServerConfigName, content); err != nil {
 		return fmt.Errorf("error writing default server config: %w", err)
 	}
 	return nil
