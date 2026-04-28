@@ -64,7 +64,7 @@ jobs:
         uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: hack/secrets-gen/secrets-gen
-          key: nic-secrets-gen-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('hack/secrets-gen/**', 'internal/configs/**/*.go', 'internal/k8s/secrets/**/*.go', 'go.mod', 'go.sum') }}
+          key: nic-secrets-gen-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('hack/secrets-gen/**', 'internal/**/*.go', 'go.mod', 'go.sum') }}
 
       - name: Generate Secrets for tests
         env:
