@@ -32,8 +32,8 @@ jobs:
       short_tag: ${{ steps.kic.outputs.short }}
       date: ${{ steps.kic.outputs.date }}
       matrix: ${{ steps.kic.outputs.matrix }}
-      lts-patch-matrix: ${{ steps.kic.outputs.lts-patch-matrix }}
-      lts-release-matrix: ${{ steps.kic.outputs.lts-release-matrix }}
+      lts_patch_matrix: ${{ steps.kic.outputs.lts_patch_matrix }}
+      lts_release_matrix: ${{ steps.kic.outputs.lts_release_matrix }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -59,12 +59,12 @@ jobs:
           # so awk deduplicates by base (part before -r), keeping the first (highest) occurrence.
           # "2028-lts-r2" "2027-lts-r4" "2026-lts-r4" -> ["2028-lts-r2", "2027-lts-r4", "2026-lts-r4"]
           lts_tags=$(git tag --sort=-version:refname | grep -E -- '-lts-r[0-9]+' | awk -F'-r' '!seen[$1]++' | head -n3 | jq -R -s -c 'split("\n")[:-1]')
-          # Build lts-patch-matrix as an array of {tags, image} objects by cross-combining tags with the image config
+          # Build lts_patch_matrix as an array of {tags, image} objects by cross-combining tags with the image config
           lts_patch_matrix=$(jq -c --argjson tags "$lts_tags" '[.image as $img | $tags[] | {tags: ., image: $img}]' .github/data/patch-images-lts.json)
-          echo "lts-patch-matrix=$lts_patch_matrix" >> $GITHUB_OUTPUT
-          # build lts-release-matrix: [{tag: "2028-lts-r2", branch: "release-2028-lts"}, ...]
+          echo "lts_patch_matrix=$lts_patch_matrix" >> $GITHUB_OUTPUT
+          # build lts_release_matrix: [{tag: "2028-lts-r2", branch: "release-2028-lts"}, ...]
           lts_release_matrix=$(echo "$lts_tags" | jq -c '[.[] | {tag: ., branch: ("release-" + (split("-r")[0]))}]')
-          echo "lts-release-matrix=$lts_release_matrix" >> $GITHUB_OUTPUT
+          echo "lts_release_matrix=$lts_release_matrix" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
   patch-images:
@@ -222,12 +222,12 @@ jobs:
 
   patch-images-lts:
     name: Patch Images LTS
-    if: needs.variables.outputs.lts-release-matrix != '[]'
+    if: needs.variables.outputs.lts_release_matrix != '[]'
     needs: [variables]
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON( needs.variables.outputs.lts-patch-matrix ) }}
+        include: ${{ fromJSON( needs.variables.outputs.lts_patch_matrix ) }}
     uses: ./.github/workflows/patch-image.yml
     with:
       platforms: ${{ matrix.image.platforms }}
@@ -243,12 +243,12 @@ jobs:
 
   release-plus-external-lts:
     name: Publish Docker Plus ${{ matrix.tag }}-${{ needs.variables.outputs.date }} to external release Registries
-    if: needs.variables.outputs.lts-release-matrix != '[]'
+    if: needs.variables.outputs.lts_release_matrix != '[]'
     needs: [variables, patch-images-lts]
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON( needs.variables.outputs.lts-release-matrix ) }}
+        include: ${{ fromJSON( needs.variables.outputs.lts_release_matrix ) }}
     uses: ./.github/workflows/plus-release-lts.yml
     with:
       nginx_registry: true
@@ -264,12 +264,12 @@ jobs:
 
   release-plus-internal-lts:
     name: Publish Docker Plus ${{ matrix.tag }}-${{ needs.variables.outputs.date }} to internal release Registries
-    if: needs.variables.outputs.lts-release-matrix != '[]'
+    if: needs.variables.outputs.lts_release_matrix != '[]'
     needs: [variables, patch-images-lts]
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON( needs.variables.outputs.lts-release-matrix ) }}
+        include: ${{ fromJSON( needs.variables.outputs.lts_release_matrix ) }}
     uses: ./.github/workflows/plus-release-lts.yml
     with:
       nginx_registry: false
