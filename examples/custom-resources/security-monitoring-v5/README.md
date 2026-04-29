@@ -5,7 +5,9 @@ This example describes how to deploy NGINX Plus Ingress Controller with [F5 WAF 
 This example works with both:
 
 - **NGINX Instance Manager** (Agent 2.*) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
-- **NGINX One Console** (Agent 3.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
+- **NGINX One Console** (Agent 3.9.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
+
+> **Note**: Starting with NGINX Ingress Controller 5.5.0, images with the `-agent` suffix include NGINX Agent 3.9.*and are pre-configured for NGINX One Console. Images without the `-agent` suffix include NGINX Agent 2.* for NGINX Instance Manager. See the [Technical Specifications](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/) for available image variants.
 
 ## Prerequisites
 
@@ -21,7 +23,7 @@ This example works with both:
     The output will show either `2.x.x` or `3.x.x`. Use this to choose the correct WAF policy in Step 4 below.
 
     - **Agent 2.***: connects to NGINX Instance Manager
-    - **Agent 3.***: connects to NGINX One Console (requires 3.9.0 or later for security monitoring)
+    - **Agent 3.9.***: connects to NGINX One Console
 
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
@@ -72,7 +74,7 @@ If you are using Agent 2.* (NGINX Instance Manager), create the syslog service a
 kubectl apply -f syslog.yaml
 ```
 
-If you are using Agent 3.*(NGINX One Console), skip this step. NGINX Agent 3.* listens for security logs locally on `127.0.0.1:1514` using its embedded OpenTelemetry collector.
+If you are using Agent 3.9.*(NGINX One Console), skip this step. NGINX Agent 3.9.* listens for security logs locally on `127.0.0.1:1514` using its embedded OpenTelemetry collector.
 
 ## Step 4 - Deploy the WAF Policy
 
@@ -84,7 +86,7 @@ Create the WAF policy referencing the compiled bundles. Choose the file that mat
 kubectl apply -f waf.yaml
 ```
 
-**Agent 3.* (NGINX One Console)** — logs sent directly to the local NGINX Agent listener:
+**Agent 3.9.* (NGINX One Console)** — logs sent directly to the local NGINX Agent listener:
 
 ```console
 kubectl apply -f waf-agent-v3.yaml

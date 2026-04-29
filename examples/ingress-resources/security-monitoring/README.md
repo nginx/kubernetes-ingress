@@ -6,7 +6,9 @@ Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](ht
 This example works with both:
 
 - **NGINX Instance Manager** (Agent 2.*) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
-- **NGINX One Console** (Agent 3.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
+- **NGINX One Console** (Agent 3.9.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
+
+> **Note**: Starting with NGINX Ingress Controller 5.5.0, images with the `-agent` suffix include NGINX Agent 3.9.*and are pre-configured for NGINX One Console. Images without the `-agent` suffix include NGINX Agent 2.* for NGINX Instance Manager. See the [Technical Specifications](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/) for available image variants.
 
 ## Running the example
 
@@ -26,7 +28,7 @@ This example works with both:
     The output will show either `2.x.x` or `3.x.x`. Use this to choose the correct log configuration in step 3 below.
 
     - **Agent 2.***: connects to NGINX Instance Manager
-    - **Agent 3.***: connects to NGINX One Console (requires 3.9.0 or later for security monitoring)
+    - **Agent 3.9.***: connects to NGINX One Console
 
 4. Save the public IP address of the Ingress Controller into a shell variable:
 
@@ -71,7 +73,7 @@ kubectl create -f cafe.yaml
     kubectl create -f ap-logconf.yaml
     ```
 
-    **Agent 3.* (NGINX One Console)**:
+    **Agent 3.9.* (NGINX One Console)**:
 
     ```console
     kubectl create -f ap-logconf-agent-v3.yaml
@@ -80,7 +82,7 @@ kubectl create -f cafe.yaml
     Two log configurations are provided because the two agent versions require different formats:
 
     - **Agent 2.***: comma-separated `user-defined` format parsed by the `nap_monitoring` extension.
-    - **Agent 3.***: the `secops-dashboard-log` format with exactly 28 pipe-separated (`|`) fields in a specific order. NGINX Agent 3's embedded OpenTelemetry `securityviolationsfilter` processor validates the first received log record against this schema. If the wrong format is used, the processor closes its gate permanently and drops all events until the agent is restarted.
+    - **Agent 3.9.***: the `secops-dashboard-log` format with exactly 28 pipe-separated (`|`) fields in a specific order. NGINX Agent 3.9's embedded OpenTelemetry `securityviolationsfilter` processor validates the first received log record against this schema. If the wrong format is used, the processor closes its gate permanently and drops all events until the agent is restarted.
 
 3. Create an Ingress Resource:
 
