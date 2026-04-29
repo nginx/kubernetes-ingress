@@ -150,6 +150,11 @@ jobs:
           secret-names: "gcr-workload-identity,kic-pipeline-gcr-sa,plus-creds-crt,plus-creds-key"
           env-names: "GCR_WORKLOAD_ID,GCR_SERVICE_ACCOUNT,PLUS_CREDS_CRT,PLUS_CREDS_KEY"
 
+      - name: Write files for build
+        run: |
+          echo "${{ env.PLUS_CREDS_CRT }}" > plus-creds.crt
+          echo "${{ env.PLUS_CREDS_KEY }}" > plus-creds.key
+
       - name: Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
@@ -199,9 +204,9 @@ jobs:
           build-args: |
             BUILD_OS=${{ matrix.image }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
-          secret-envs: |
-            nginx-repo.crt=${{ env.PLUS_CREDS_CRT }}
-            nginx-repo.key=${{ env.PLUS_CREDS_KEY }}
+          secret-files: |
+            nginx-repo.crt=plus-creds.crt
+            nginx-repo.key=plus-creds.key
 
       - name: Clean up secrets
         run: |
@@ -236,6 +241,12 @@ jobs:
           vault-name: "${{ secrets.NIC_KEYVAULT_NAME }}"
           secret-names: "gcr-workload-identity,kic-pipeline-gcr-sa,plus-creds-crt,plus-creds-key,rhel-creds"
           env-names: "GCR_WORKLOAD_ID,GCR_SERVICE_ACCOUNT,PLUS_CREDS_CRT,PLUS_CREDS_KEY,RHEL_CREDS"
+
+      - name: Write files for build
+        run: |
+          echo "${{ env.PLUS_CREDS_CRT }}" > plus-creds.crt
+          echo "${{ env.PLUS_CREDS_KEY }}" > plus-creds.key
+          echo "${{ env.RHEL_CREDS }}" > rhel_license
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -289,10 +300,10 @@ jobs:
             BUILD_OS=${{ matrix.image }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
             NAP_MODULES=${{ matrix.nap_modules }}
-          secret-envs: |
-            nginx-repo.crt=${{ env.PLUS_CREDS_CRT }}
-            nginx-repo.key=${{ env.PLUS_CREDS_KEY }}
-            ${{ contains(matrix.image, 'ubi') && 'rhel_license=${{ env.RHEL_CREDS }}' || '' }}
+          secret-files: |
+            nginx-repo.crt=nginx-repo.crt
+            nginx-repo.key=nginx-repo.key
+            ${{ contains(matrix.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
 
       - name: Clean up secrets
         run: |
