@@ -52,6 +52,9 @@ const (
 	appProtectDosAgentStartDebugCmd = "/usr/bin/admd -d --standalone --log debug"
 
 	defaultCAPath = "/etc/ssl/certs/ca-certificates.crt"
+
+	// socketPath is the directory where NGINX writes Unix domain socket files.
+	socketPath = "/var/lib/nginx"
 )
 
 var (
@@ -105,6 +108,7 @@ type Manager interface {
 	GetOSCABundlePath() (string, error)
 	UpsertSplitClientsKeyVal(zoneName string, key string, value string)
 	DeleteKeyValStateFiles(virtualServerName string)
+	CleanupSocketFiles()
 }
 
 // LocalManager updates NGINX configuration, starts, reloads and quits NGINX, updates License Reporting and the Deployment Metadata file
@@ -804,4 +808,22 @@ func getOSCABundlePath(s string) string {
 	}
 
 	return caFilePath
+}
+
+// CleanupSocketFiles removes any leftover NGINX Unix domain socket files from previous runs.
+func (lm *LocalManager) CleanupSocketFiles() {
+	files, readErr := os.ReadDir(socketPath)
+	if readErr != nil {
+		nl.Errorf(lm.logger, "error trying to read directory %s: %v", socketPath, readErr)
+		return
+	}
+	for _, f := range files {
+		if !f.IsDir() && strings.HasSuffix(f.Name(), ".sock") {
+			fullPath := filepath.Join(socketPath, f.Name())
+			nl.Infof(lm.logger, "Removing socket file %s", fullPath)
+			if removeErr := os.Remove(fullPath); removeErr != nil {
+				nl.Errorf(lm.logger, "error trying to remove file %s: %v", fullPath, removeErr)
+			}
+		}
+	}
 }

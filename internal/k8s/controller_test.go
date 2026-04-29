@@ -41,7 +41,7 @@ type trackingNginxManager struct {
 
 func newTrackingNginxManager() *trackingNginxManager {
 	return &trackingNginxManager{
-		FakeManager: nginx.NewFakeManager("/etc/nginx"),
+		FakeManager: nginx.NewFakeManager(context.Background(), "/etc/nginx", false),
 	}
 }
 

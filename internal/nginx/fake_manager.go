@@ -1,14 +1,13 @@
 package nginx
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
 	"path"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
-	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/nginx-plus-go-client/v3/client"
 )
 
@@ -18,15 +17,19 @@ type FakeManager struct {
 	secretsPath     string
 	dhparamFilename string
 	logger          *slog.Logger
+	nginxPlus       bool
+	done            chan error
 }
 
 // NewFakeManager creates a FakeManager.
-func NewFakeManager(confPath string) *FakeManager {
+func NewFakeManager(ctx context.Context, confPath string, nginxPlus bool) *FakeManager {
+	l := nl.LoggerFromContext(ctx)
 	return &FakeManager{
 		confdPath:       path.Join(confPath, "conf.d"),
 		secretsPath:     path.Join(confPath, "secrets"),
 		dhparamFilename: path.Join(confPath, "secrets", "dhparam.pem"),
-		logger:          slog.New(nic_glog.New(os.Stdout, &nic_glog.Options{Level: levels.LevelInfo})),
+		logger:          l,
+		nginxPlus:       nginxPlus,
 	}
 }
 
@@ -118,14 +121,20 @@ func (fm *FakeManager) CreateDHParam(_ string) (string, error) {
 }
 
 // Version provides a fake implementation of Version.
+// It returns an OSS or Plus version string based on the nginxPlus flag passed at construction.
 func (fm *FakeManager) Version() Version {
 	nl.Debug(fm.logger, "Printing nginx version")
-	return NewVersion("nginx version: nginx/1.25.3 (nginx-plus-r31)")
+	if fm.nginxPlus {
+		return NewVersion("nginx version: nginx/1.0.0 (nginx-plus-r00)")
+	}
+	return NewVersion("nginx version: nginx/1.0.0")
 }
 
 // Start provides a fake implementation of Start.
-func (fm *FakeManager) Start(_ chan error) {
+// It stores the done channel so Quit can signal it for clean shutdown.
+func (fm *FakeManager) Start(done chan error) {
 	nl.Debug(fm.logger, "Starting nginx")
+	fm.done = done
 }
 
 // Reload provides a fake implementation of Reload.
@@ -135,8 +144,16 @@ func (fm *FakeManager) Reload(_ bool) error {
 }
 
 // Quit provides a fake implementation of Quit.
+// It signals the done channel so handleTermination can complete cleanly after SIGTERM.
 func (fm *FakeManager) Quit() {
 	nl.Debug(fm.logger, "Quitting nginx")
+	if fm.done != nil {
+		fm.done <- nil
+	}
+}
+
+// CleanupSocketFiles provides a no-op fake implementation of CleanupSocketFiles.
+func (fm *FakeManager) CleanupSocketFiles() {
 }
 
 // UpdateConfigVersionFile provides a fake implementation of UpdateConfigVersionFile.

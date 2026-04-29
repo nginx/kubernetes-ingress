@@ -2690,7 +2690,7 @@ func newConfigurator(t *testing.T) *configs.Configurator {
 		t.Fatal(err)
 	}
 
-	manager := nginx.NewFakeManager("/etc/nginx")
+	manager := nginx.NewFakeManager(context.Background(), "/etc/nginx", false)
 	cnf := configs.NewConfigurator(configs.ConfiguratorParams{
 		NginxManager: manager,
 		StaticCfgParams: &configs.StaticConfigParams{
