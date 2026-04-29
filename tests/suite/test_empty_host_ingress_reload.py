@@ -1,6 +1,5 @@
-import yaml
-
 import pytest
+import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, assert_ingress_conf_not_exists, wait_and_assert_status_code
 from suite.utils.resources_utils import (
@@ -18,7 +17,6 @@ from suite.utils.resources_utils import (
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
-
 
 empty_host_test_data_path = f"{TEST_DATA}/empty-host-ingress-reload"
 cafe_app_src = f"{empty_host_test_data_path}/cafe-app.yaml"
@@ -139,7 +137,9 @@ class TestEmptyHostIngressReload:
 
         print("Step 2: create a second empty-host ingress that is blocked now but will fail on promotion")
         # This second ingress is valid at the API layer, but its generated NGINX config will fail reload.
-        invalid = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, reload_failure_buffer_size_ingress_src)
+        invalid = create_ingress_from_yaml(
+            kube_apis.networking_v1, test_namespace, reload_failure_buffer_size_ingress_src
+        )
         wait_before_test()
         assert_event(
             "All hosts are taken by other resources",
