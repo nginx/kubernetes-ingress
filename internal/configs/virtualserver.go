@@ -1831,10 +1831,10 @@ func generatePath(path string) string {
 	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
-		return fmt.Sprintf(`~* "%v"`, strings.TrimLeft(strings.TrimPrefix(path, "~*"), " "))
+		return fmt.Sprintf(`~* "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~*"), " "))
 	}
 	if strings.HasPrefix(path, "~") {
-		return fmt.Sprintf(`~ "%v"`, strings.TrimLeft(strings.TrimPrefix(path, "~"), " "))
+		return fmt.Sprintf(`~ "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~"), " "))
 	}
 
 	return path
@@ -2019,7 +2019,7 @@ func generateLocationForRedirect(
 	}
 
 	return version2.Location{
-		Path:                 generatePath(path),
+		Path:                 path,
 		Snippets:             locationSnippets,
 		ProxyInterceptErrors: true,
 		InternalProxyPass:    fmt.Sprintf("http://%s", nginx418Server),
@@ -2057,7 +2057,7 @@ func generateLocationForReturn(path string, locationSnippets []string, actionRet
 	retLocName := fmt.Sprintf("@return_%d", retLocIndex)
 
 	return version2.Location{
-			Path:                 generatePath(path),
+			Path:                 path,
 			Snippets:             locationSnippets,
 			ProxyInterceptErrors: true,
 			InternalProxyPass:    fmt.Sprintf("http://%s", nginx418Server),
