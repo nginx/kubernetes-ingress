@@ -967,6 +967,20 @@ func TestValidateVirtualServerRoutes(t *testing.T) {
 			},
 			msg: "valid route",
 		},
+		{
+			routes: []v1.Route{
+				{
+					Path:  "~ /regex-one",
+					Route: "default/my-vsr",
+				},
+				{
+					Path:  "~* /regex-two",
+					Route: "default/my-vsr",
+				},
+			},
+			upstreamNames: map[string]sets.Empty{},
+			msg:           "multiple regex routes referencing the same VSR",
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
@@ -1017,6 +1031,34 @@ func TestValidateVirtualServerRoutesFails(t *testing.T) {
 			},
 			upstreamNames: map[string]sets.Empty{},
 			msg:           "invalid route",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path:  "~ /regex",
+					Route: "default/my-vsr",
+				},
+				{
+					Path:  "/prefix",
+					Route: "default/my-vsr",
+				},
+			},
+			upstreamNames: map[string]sets.Empty{},
+			msg:           "mixed modifier types referencing the same VSR",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path:  "= /exact",
+					Route: "default/my-vsr",
+				},
+				{
+					Path:  "~ /regex",
+					Route: "default/my-vsr",
+				},
+			},
+			upstreamNames: map[string]sets.Empty{},
+			msg:           "exact and regex referencing the same VSR",
 		},
 	}
 

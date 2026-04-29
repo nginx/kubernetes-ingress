@@ -782,6 +782,14 @@ func (vsv *VirtualServerValidator) validateVirtualServerRoutes(routes []v1.Route
 
 	allPaths := sets.Set[string]{}
 
+	// Track which modifier categories each VSR reference uses, so we can
+	// reject a VS that points mixed-type paths at the same VSR.
+	type vsrPathInfo struct {
+		category string
+		index    int
+	}
+	vsrCategories := map[string][]vsrPathInfo{}
+
 	for i, r := range routes {
 		idxPath := fieldPath.Index(i)
 
@@ -793,6 +801,29 @@ func (vsv *VirtualServerValidator) validateVirtualServerRoutes(routes []v1.Route
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
 			allPaths.Insert(r.Path)
+		}
+
+		if r.Route != "" {
+			vsrCategories[r.Route] = append(vsrCategories[r.Route], vsrPathInfo{
+				category: subrouteModifierCategory(r.Path),
+				index:    i,
+			})
+		}
+	}
+
+	for vsrRef, infos := range vsrCategories {
+		if len(infos) < 2 {
+			continue
+		}
+		first := infos[0].category
+		for _, info := range infos[1:] {
+			if info.category != first {
+				allErrs = append(allErrs, field.Invalid(
+					fieldPath.Index(info.index).Child("path"),
+					routes[info.index].Path,
+					fmt.Sprintf("routes referencing the same VirtualServerRoute '%s' must use the same modifier type, but got '%s' and '%s'", vsrRef, first, info.category),
+				))
+			}
 		}
 	}
 
