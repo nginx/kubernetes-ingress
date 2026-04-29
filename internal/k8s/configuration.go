@@ -386,6 +386,11 @@ type Configuration struct {
 	virtualServerRoutes map[string]*conf_v1.VirtualServerRoute
 	transportServers    map[string]*conf_v1.TransportServer
 
+	// minionsByHost indexes minion Ingresses by their host for O(1) lookup.
+	// Outer key: host string, inner key: ingress resource key (namespace/name).
+	// Maintained by AddOrUpdateIngress/DeleteIngress; consumed by buildMinionConfigs.
+	minionsByHost map[string]map[string]bool
+
 	globalConfiguration *conf_v1.GlobalConfiguration
 
 	hostProblems     map[string]ConfigurationProblem
@@ -414,6 +419,12 @@ type Configuration struct {
 	isIPV6Disabled               bool
 	isDirectiveAutoadjustEnabled bool
 
+	// startupComplete indicates whether the initial informer cache sync and
+	// queue drain have finished. When false, rebuildHosts() is skipped in
+	// AddOrUpdate*/Delete* methods to avoid O(N) full rebuilds during startup.
+	// CompleteStartup() flips this to true and performs a single rebuild.
+	startupComplete bool
+
 	lock sync.RWMutex
 }
 
@@ -441,6 +452,7 @@ func NewConfiguration(
 		virtualServers:               make(map[string]*conf_v1.VirtualServer),
 		virtualServerRoutes:          make(map[string]*conf_v1.VirtualServerRoute),
 		transportServers:             make(map[string]*conf_v1.TransportServer),
+		minionsByHost:                make(map[string]map[string]bool),
 		hostProblems:                 make(map[string]ConfigurationProblem),
 		hasCorrectIngressClass:       hasCorrectIngressClass,
 		virtualServerValidator:       virtualServerValidator,
@@ -475,13 +487,29 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 
 	if !c.hasCorrectIngressClass(ing) {
 		delete(c.ingresses, key)
+		c.updateMinionIndex(key, nil)
 	} else {
 		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled).ToAggregate()
 		if validationError != nil {
 			delete(c.ingresses, key)
+			c.updateMinionIndex(key, nil)
 		} else {
 			c.ingresses[key] = ing
+			c.updateMinionIndex(key, ing)
 		}
+	}
+
+	if !c.startupComplete {
+		var problems []ConfigurationProblem
+		if validationError != nil {
+			problems = append(problems, ConfigurationProblem{
+				Object:  ing,
+				IsError: true,
+				Reason:  nl.EventReasonRejected,
+				Message: validationError.Error(),
+			})
+		}
+		return nil, problems
 	}
 
 	changes, problems := c.rebuildHosts()
@@ -527,6 +555,11 @@ func (c *Configuration) DeleteIngress(key string) ([]ResourceChange, []Configura
 	}
 
 	delete(c.ingresses, key)
+	c.removeMinionFromIndex(key)
+
+	if !c.startupComplete {
+		return nil, nil
+	}
 
 	return c.rebuildHosts()
 }
@@ -549,6 +582,19 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 			c.balanceUpstreamProxies(vs.Spec.Upstreams)
 			c.virtualServers[key] = vs
 		}
+	}
+
+	if !c.startupComplete {
+		var problems []ConfigurationProblem
+		if validationError != nil {
+			problems = append(problems, ConfigurationProblem{
+				Object:  vs,
+				IsError: true,
+				Reason:  nl.EventReasonRejected,
+				Message: fmt.Sprintf("VirtualServer %s was rejected with error: %s", getResourceKey(&vs.ObjectMeta), validationError.Error()),
+			})
+		}
+		return nil, problems
 	}
 
 	changes, problems := c.rebuildHosts()
@@ -595,6 +641,10 @@ func (c *Configuration) DeleteVirtualServer(key string) ([]ResourceChange, []Con
 
 	delete(c.virtualServers, key)
 
+	if !c.startupComplete {
+		return nil, nil
+	}
+
 	return c.rebuildHosts()
 }
 
@@ -617,6 +667,19 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 			c.balanceUpstreamProxies(vsr.Spec.Upstreams)
 			c.virtualServerRoutes[key] = vsr
 		}
+	}
+
+	if !c.startupComplete {
+		var problems []ConfigurationProblem
+		if validationError != nil {
+			problems = append(problems, ConfigurationProblem{
+				Object:  vsr,
+				IsError: true,
+				Reason:  nl.EventReasonRejected,
+				Message: fmt.Sprintf("VirtualServerRoute %s was rejected with error: %s", getResourceKey(&vsr.ObjectMeta), validationError.Error()),
+			})
+		}
+		return nil, problems
 	}
 
 	changes, problems := c.rebuildHosts()
@@ -646,6 +709,10 @@ func (c *Configuration) DeleteVirtualServerRoute(key string) ([]ResourceChange, 
 
 	delete(c.virtualServerRoutes, key)
 
+	if !c.startupComplete {
+		return nil, nil
+	}
+
 	return c.rebuildHosts()
 }
 
@@ -667,9 +734,11 @@ func (c *Configuration) AddOrUpdateGlobalConfiguration(gc *conf_v1.GlobalConfigu
 	changes = append(changes, listenerChanges...)
 	problems = append(problems, listenerProblems...)
 
-	hostChanges, hostProblems := c.rebuildHosts()
-	changes = append(changes, hostChanges...)
-	problems = append(problems, hostProblems...)
+	if c.startupComplete {
+		hostChanges, hostProblems := c.rebuildHosts()
+		changes = append(changes, hostChanges...)
+		problems = append(problems, hostProblems...)
+	}
 
 	return changes, problems, validationErr
 }
@@ -688,9 +757,11 @@ func (c *Configuration) DeleteGlobalConfiguration() ([]ResourceChange, []Configu
 	changes = append(changes, listenerChanges...)
 	problems = append(problems, listenerProblems...)
 
-	hostChanges, hostProblems := c.rebuildHosts()
-	changes = append(changes, hostChanges...)
-	problems = append(problems, hostProblems...)
+	if c.startupComplete {
+		hostChanges, hostProblems := c.rebuildHosts()
+		changes = append(changes, hostChanges...)
+		problems = append(problems, hostProblems...)
+	}
 
 	return changes, problems
 }
@@ -724,7 +795,7 @@ func (c *Configuration) AddOrUpdateTransportServer(ts *conf_v1.TransportServer) 
 
 	changes, problems := c.rebuildListenerHosts()
 
-	if c.isTLSPassthroughEnabled {
+	if c.isTLSPassthroughEnabled && c.startupComplete {
 		hostChanges, hostProblems := c.rebuildHosts()
 
 		changes = append(changes, hostChanges...)
@@ -775,7 +846,7 @@ func (c *Configuration) DeleteTransportServer(key string) ([]ResourceChange, []C
 
 	changes, problems := c.rebuildListenerHosts()
 
-	if c.isTLSPassthroughEnabled {
+	if c.isTLSPassthroughEnabled && c.startupComplete {
 		hostChanges, hostProblems := c.rebuildHosts()
 
 		changes = append(changes, hostChanges...)
@@ -783,6 +854,49 @@ func (c *Configuration) DeleteTransportServer(key string) ([]ResourceChange, []C
 	}
 
 	return changes, problems
+}
+
+// updateMinionIndex adds or removes an ingress from the minionsByHost index.
+// Must be called with the lock held.
+func (c *Configuration) updateMinionIndex(key string, ing *networking.Ingress) {
+	// Remove old entry for this key from any host it was previously under.
+	c.removeMinionFromIndex(key)
+
+	// If the ingress is a valid minion, add it to the index under its host.
+	if ing != nil && isMinion(ing) && len(ing.Spec.Rules) > 0 {
+		host := ing.Spec.Rules[0].Host
+		if c.minionsByHost[host] == nil {
+			c.minionsByHost[host] = make(map[string]bool)
+		}
+		c.minionsByHost[host][key] = true
+	}
+}
+
+// removeMinionFromIndex removes a key from the minionsByHost index.
+// Must be called with the lock held.
+func (c *Configuration) removeMinionFromIndex(key string) {
+	for host, keys := range c.minionsByHost {
+		if keys[key] {
+			delete(keys, key)
+			if len(keys) == 0 {
+				delete(c.minionsByHost, host)
+			}
+			return
+		}
+	}
+}
+
+// CompleteStartup marks startup as complete and performs a single rebuildHosts()
+// to compute the definitive host→resource mapping and all ConfigurationProblems
+// (host conflicts, orphaned minions, orphaned VSRs). This must be called exactly
+// once after the initial informer cache sync and queue drain, before
+// updateAllConfigs() generates and writes NGINX config files.
+func (c *Configuration) CompleteStartup() ([]ResourceChange, []ConfigurationProblem) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.startupComplete = true
+	return c.rebuildHosts()
 }
 
 func (c *Configuration) rebuildListenerHosts() ([]ResourceChange, []ConfigurationProblem) {
@@ -1299,17 +1413,21 @@ func (c *Configuration) isListenerInCorrectBlock(listenerName string, expectedSs
 }
 
 func (c *Configuration) addProblemsForOrphanMinions(problems map[string]ConfigurationProblem) {
-	for _, key := range getSortedIngressKeys(c.ingresses) {
-		ing := c.ingresses[key]
+	// Iterate only over indexed minions instead of all ingresses.
+	for host, minionKeys := range c.minionsByHost {
+		r, exists := c.hosts[host]
+		ingressConf, ok := r.(*IngressConfiguration)
+		hasMaster := exists && ok && ingressConf.IsMaster
 
-		if !isMinion(ing) {
+		if hasMaster {
 			continue
 		}
 
-		r, exists := c.hosts[ing.Spec.Rules[0].Host]
-		ingressConf, ok := r.(*IngressConfiguration)
-
-		if !exists || !ok || !ingressConf.IsMaster {
+		for key := range minionKeys {
+			ing, ingExists := c.ingresses[key]
+			if !ingExists {
+				continue
+			}
 			p := ConfigurationProblem{
 				Object:  ing,
 				IsError: false,
@@ -1674,14 +1792,17 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 	childWarnings := make(map[string][]string)
 	paths := make(map[string]*MinionConfiguration)
 
-	for _, minionKey := range getSortedIngressKeys(c.ingresses) {
-		ingress := c.ingresses[minionKey]
+	// Use the minionsByHost index for O(1) host lookup instead of scanning all ingresses.
+	minionKeys := c.minionsByHost[masterHost]
+	sortedKeys := make([]string, 0, len(minionKeys))
+	for k := range minionKeys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
 
-		if !isMinion(ingress) {
-			continue
-		}
-
-		if masterHost != ingress.Spec.Rules[0].Host {
+	for _, minionKey := range sortedKeys {
+		ingress, exists := c.ingresses[minionKey]
+		if !exists {
 			continue
 		}
 
