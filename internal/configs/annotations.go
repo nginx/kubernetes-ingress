@@ -56,6 +56,9 @@ const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
 // ProxySetHeadersAnnotation is the annotation where the proxy set headers are specified.
 const ProxySetHeadersAnnotation = "nginx.org/proxy-set-headers"
 
+// AddHeaderAnnotation is the annotation where add_header directives are specified.
+const AddHeaderAnnotation = "nginx.org/add-header"
+
 // ProxyNextUpstreamAnnotation is the annotation where the proxy next upstream settings are specified.
 const ProxyNextUpstreamAnnotation = "nginx.org/proxy-next-upstream"
 

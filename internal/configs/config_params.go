@@ -29,6 +29,7 @@ type ConfigParams struct {
 	LBMethod                               string
 	LocationSnippets                       []string
 	MainAccessLog                          string
+	MainAddHeaders                         []version2.AddHeader
 	MainErrorLogLevel                      string
 	MainHTTPSnippets                       []string
 	MainKeepaliveRequests                  int64

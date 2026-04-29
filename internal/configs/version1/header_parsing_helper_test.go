@@ -138,3 +138,93 @@ func TestMergeProxySetHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAddHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		annotation string
+		want       []version2.AddHeader
+	}{
+		{
+			name:       "single header without always",
+			annotation: "X-Frame-Options:DENY",
+			want:       []version2.AddHeader{{Header: version2.Header{Name: "X-Frame-Options", Value: "DENY"}, Always: false}},
+		},
+		{
+			name:       "single header with always flag",
+			annotation: "X-Frame-Options:DENY:always",
+			want:       []version2.AddHeader{{Header: version2.Header{Name: "X-Frame-Options", Value: "DENY"}, Always: true}},
+		},
+		{
+			name:       "always flag is case-insensitive",
+			annotation: "X-Header:val:ALWAYS",
+			want:       []version2.AddHeader{{Header: version2.Header{Name: "X-Header", Value: "val"}, Always: true}},
+		},
+		{
+			name:       "multiple headers comma-separated",
+			annotation: "X-Frame-Options:DENY, X-Content-Type:nosniff",
+			want: []version2.AddHeader{
+				{Header: version2.Header{Name: "X-Frame-Options", Value: "DENY"}, Always: false},
+				{Header: version2.Header{Name: "X-Content-Type", Value: "nosniff"}, Always: false},
+			},
+		},
+		{
+			name:       "mixed always and non-always",
+			annotation: "X-Frame-Options:DENY:always, X-Content-Type:nosniff",
+			want: []version2.AddHeader{
+				{Header: version2.Header{Name: "X-Frame-Options", Value: "DENY"}, Always: true},
+				{Header: version2.Header{Name: "X-Content-Type", Value: "nosniff"}, Always: false},
+			},
+		},
+		{
+			name:       "whitespace trimmed around name, value, and flag",
+			annotation: "  X-Header  :  myvalue  :  always  ",
+			want:       []version2.AddHeader{{Header: version2.Header{Name: "X-Header", Value: "myvalue"}, Always: true}},
+		},
+		{
+			name:       "empty entries are skipped",
+			annotation: "X-Header:val,,X-Other:val2",
+			want: []version2.AddHeader{
+				{Header: version2.Header{Name: "X-Header", Value: "val"}, Always: false},
+				{Header: version2.Header{Name: "X-Other", Value: "val2"}, Always: false},
+			},
+		},
+		{
+			name:       "header with empty value",
+			annotation: "X-Header:",
+			want:       []version2.AddHeader{{Header: version2.Header{Name: "X-Header", Value: ""}, Always: false}},
+		},
+		{
+			name:       "invalid always flag produces non-always (parser is permissive; validator rejects)",
+			annotation: "X-Header:val:badFlag",
+			want:       []version2.AddHeader{{Header: version2.Header{Name: "X-Header", Value: "val"}, Always: false}},
+		},
+		{
+			name:       "empty annotation returns nil",
+			annotation: "",
+			want:       nil,
+		},
+		{
+			name:       "commas only returns nil",
+			annotation: ",,,",
+			want:       nil,
+		},
+		{
+			name:       "name-only entry treated as name with empty value",
+			annotation: "X-Header",
+			want:       []version2.AddHeader{{Header: version2.Header{Name: "X-Header", Value: ""}, Always: false}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := ParseAddHeaders(tc.annotation)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("ParseAddHeaders(%q) mismatch (-want +got):\n%s", tc.annotation, diff)
+			}
+		})
+	}
+}

@@ -113,6 +113,8 @@ server {
 	proxy_hide_header {{$proxyHideHeader}};{{end}}
 	{{- range $proxyPassHeader := $server.ProxyPassHeaders}}
 	proxy_pass_header {{$proxyPassHeader}};{{end}}
+	{{- range $h := $server.AddHeaders}}
+	add_header {{$h.Name}} {{ printf "%q" $h.Value }}{{if $h.Always}} always{{end}};{{end}}
 
 	{{- with $server.EgressMTLS }}
 		{{- if .Certificate }}

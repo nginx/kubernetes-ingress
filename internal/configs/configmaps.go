@@ -98,6 +98,13 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.ProxyPassHeaders = proxyPassHeaders
 	}
 
+	if addHeader, exists := cfgm.Data["add-header"]; exists {
+		// ConfigMap "add-header" is a global default → http {} context.
+		// Stored in MainAddHeaders so GenerateNginxMainConfig wires it into
+		// MainConfig and the main template renders it at http level.
+		cfgParams.MainAddHeaders = version1.ParseAddHeaders(addHeader)
+	}
+
 	if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
@@ -1176,6 +1183,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 
 	nginxCfg := &version1.MainConfig{
 		AccessLog:                          config.MainAccessLog,
+		AddHeaders:                         config.MainAddHeaders,
 		DefaultServerAccessLogOff:          config.DefaultServerAccessLogOff,
 		DefaultServerReturn:                config.DefaultServerReturn,
 		DisableIPV6:                        staticCfgParams.DisableIPV6,

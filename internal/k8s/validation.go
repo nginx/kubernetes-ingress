@@ -33,6 +33,7 @@ const (
 	proxyHideHeadersAnnotation            = "nginx.org/proxy-hide-headers"
 	proxyPassHeadersAnnotation            = "nginx.org/proxy-pass-headers" // #nosec G101
 	proxySetHeadersAnnotation             = configs.ProxySetHeadersAnnotation
+	addHeaderAnnotation                   = configs.AddHeaderAnnotation
 	clientMaxBodySizeAnnotation           = "nginx.org/client-max-body-size"
 	clientBodyBufferSizeAnnotation        = "nginx.org/client-body-buffer-size"
 	redirectToHTTPSAnnotation             = "nginx.org/redirect-to-https"
@@ -176,6 +177,10 @@ var (
 		proxySetHeadersAnnotation: {
 			validateRequiredAnnotation,
 			validateProxySetHeaderAnnotation,
+		},
+		addHeaderAnnotation: {
+			validateRequiredAnnotation,
+			validateAddHeaderAnnotation,
 		},
 		clientMaxBodySizeAnnotation: {
 			validateRequiredAnnotation,
@@ -579,6 +584,47 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 			}
 			if err := ValidateEscapedString(value); err != nil {
 				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, err.Error()))
+			}
+		}
+	}
+
+	return allErrs
+}
+
+// validateAddHeaderAnnotation validates the nginx.org/add-header annotation.
+// Each comma-separated entry has the form: Name:Value or Name:Value:always
+func validateAddHeaderAnnotation(context *annotationValidationContext) field.ErrorList {
+	var allErrs field.ErrorList
+
+	for _, entry := range strings.Split(context.value, commaDelimiter) {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "empty entry in add-header annotation"))
+			continue
+		}
+		parts := strings.SplitN(entry, ":", 3)
+		name := strings.TrimSpace(parts[0])
+		if name == "" {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "empty header name"))
+			continue
+		}
+		for _, msg := range validation.IsHTTPHeaderName(name) {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, name, msg))
+		}
+		if len(parts) >= 2 {
+			value := strings.TrimSpace(parts[1])
+			if strings.Contains(value, "$") {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "invalid character in header value: $"))
+			}
+			if err := ValidateEscapedString(value); err != nil {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, err.Error()))
+			}
+		}
+		if len(parts) == 3 {
+			flag := strings.TrimSpace(parts[2])
+			if !strings.EqualFold(flag, "always") {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry,
+					fmt.Sprintf("invalid flag %q: must be \"always\" or empty", flag)))
 			}
 		}
 	}

@@ -4988,6 +4988,155 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 	}
 }
 
+func TestValidateAddHeaderAnnotation(t *testing.T) {
+	t.Parallel()
+
+	headerNameErrMsg := `a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`
+
+	tests := []struct {
+		name           string
+		value          string
+		expectedErrors []string
+	}{
+		// ── Valid inputs ──────────────────────────────────────────────
+		{
+			name:           "valid Name:Value",
+			value:          "X-Frame-Options:DENY",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid Name:Value:always",
+			value:          "X-Frame-Options:DENY:always",
+			expectedErrors: nil,
+		},
+		{
+			name:           "always flag is case-insensitive uppercase",
+			value:          "X-Custom:value:ALWAYS",
+			expectedErrors: nil,
+		},
+		{
+			name:           "always flag is case-insensitive mixed",
+			value:          "X-Custom:value:Always",
+			expectedErrors: nil,
+		},
+		{
+			name:           "multiple headers comma-separated",
+			value:          "X-Frame-Options:DENY, X-Content-Type:nosniff",
+			expectedErrors: nil,
+		},
+		{
+			name:           "header with name only (empty value)",
+			value:          "X-Header:",
+			expectedErrors: nil,
+		},
+		{
+			name:           "header with whitespace around parts",
+			value:          "  X-Header  :  myvalue  :  always  ",
+			expectedErrors: nil,
+		},
+		{
+			name:           "header with escaped double quote in value",
+			value:          `X-Header:val\"ue`,
+			expectedErrors: nil,
+		},
+
+		// ── Invalid: $ in value ───────────────────────────────────────
+		{
+			name:  "dollar sign in value",
+			value: "X-Header:$upstream_addr",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Header:$upstream_addr": invalid character in header value: $`,
+			},
+		},
+		{
+			name:  "dollar sign in value of second header",
+			value: "X-Good:ok,X-Bad:$bad",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Bad:$bad": invalid character in header value: $`,
+			},
+		},
+
+		// ── Invalid: bad header name ──────────────────────────────────
+		{
+			name:  "dollar sign in header name",
+			value: "$bad-header:value",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "$bad-header": ` + headerNameErrMsg,
+			},
+		},
+		{
+			name:  "empty header name (colon-only entry)",
+			value: ":value",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: ":value": empty header name`,
+			},
+		},
+
+		// ── Invalid: bad always flag ──────────────────────────────────
+		{
+			name:  "invalid flag string",
+			value: "X-Header:value:badFlag",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Header:value:badFlag": invalid flag "badFlag": must be "always" or empty`,
+			},
+		},
+		{
+			name:  "numeric flag",
+			value: "X-Header:value:1",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Header:value:1": invalid flag "1": must be "always" or empty`,
+			},
+		},
+
+		// ── Invalid: empty entries ────────────────────────────────────
+		{
+			name:  "empty entry from consecutive commas",
+			value: "X-Header:val,,X-Other:val2",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "": empty entry in add-header annotation`,
+			},
+		},
+		{
+			name:  "leading comma produces empty entry",
+			value: ",X-Header:val",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "": empty entry in add-header annotation`,
+			},
+		},
+
+		// ── Invalid: unescaped characters in value ────────────────────
+		{
+			name:  "unescaped double quote in value",
+			value: `X-Bad:"unquoted"`,
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Bad:\"unquoted\"": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
+		{
+			name:  "unescaped backslash at end of value",
+			value: `X-Bad:value\`,
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Bad:value\\": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := &annotationValidationContext{
+				value:     tc.value,
+				fieldPath: field.NewPath("annotations").Child(configs.AddHeaderAnnotation),
+			}
+			allErrs := validateAddHeaderAnnotation(ctx)
+			assertion := assertErrors("validateAddHeaderAnnotation()", tc.name, allErrs, tc.expectedErrors)
+			if assertion != "" {
+				t.Error(assertion)
+			}
+		})
+	}
+}
+
 func TestGetSpecServices(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

@@ -2987,6 +2987,68 @@ func TestParseConfigMapWithHTTPRedirectCode(t *testing.T) {
 	}
 }
 
+// TestParseConfigMapAddHeader verifies that the ConfigMap "add-header" key is parsed
+// into ConfigParams.MainAddHeaders (http {} context)
+// (server {} context, which is reserved for the nginx.org/add-header annotation).
+func TestParseConfigMapAddHeader(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		data            map[string]string
+		wantMainHeaders []string // expected header names in MainAddHeaders
+		wantNoHeaders   bool     // true when key is absent
+	}{
+		{
+			name:            "single header without always",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY"},
+			wantMainHeaders: []string{"X-Frame-Options"},
+		},
+		{
+			name:            "single header with always flag",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY:always"},
+			wantMainHeaders: []string{"X-Frame-Options"},
+		},
+		{
+			name:            "multiple headers",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY, X-Content-Type-Options:nosniff"},
+			wantMainHeaders: []string{"X-Frame-Options", "X-Content-Type-Options"},
+		},
+		{
+			name:          "key absent — MainAddHeaders stays nil",
+			data:          map[string]string{},
+			wantNoHeaders: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{Data: tc.data}
+			result, _ := ParseConfigMap(context.Background(), cm,
+				false, false, false, false, false, makeEventLogger())
+
+			// ConfigMap "add-header" must populate MainAddHeaders (http {} context).
+			if tc.wantNoHeaders {
+				if len(result.MainAddHeaders) != 0 {
+					t.Errorf("want MainAddHeaders empty, got %v", result.MainAddHeaders)
+				}
+				return
+			}
+
+			if len(result.MainAddHeaders) != len(tc.wantMainHeaders) {
+				t.Fatalf("want %d MainAddHeaders, got %d: %v",
+					len(tc.wantMainHeaders), len(result.MainAddHeaders), result.MainAddHeaders)
+			}
+			for i, want := range tc.wantMainHeaders {
+				if got := result.MainAddHeaders[i].Name; got != want {
+					t.Errorf("MainAddHeaders[%d].Name: want %q, got %q", i, want, got)
+				}
+			}
+		})
+	}
+}
+
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
 }

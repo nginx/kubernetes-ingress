@@ -59,3 +59,35 @@ func MergeProxySetHeaders(masterAnnotation, minionAnnotation string) []version2.
 
 	return merged
 }
+
+// ParseAddHeaders parses a comma-separated add-header annotation or ConfigMap value into
+// a slice of AddHeader structs. Each entry has the format:
+//
+//	Name:Value         — emits: add_header Name "Value";
+//	Name:Value:always  — emits: add_header Name "Value" always;
+//
+// Whitespace around each component is trimmed. Entries with an empty name are skipped.
+func ParseAddHeaders(annotation string) []version2.AddHeader {
+	var headers []version2.AddHeader
+	for _, entry := range strings.Split(annotation, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		parts := strings.SplitN(entry, ":", 3)
+		name := strings.TrimSpace(parts[0])
+		if name == "" {
+			continue
+		}
+		var value string
+		if len(parts) >= 2 {
+			value = strings.TrimSpace(parts[1])
+		}
+		always := len(parts) == 3 && strings.EqualFold(strings.TrimSpace(parts[2]), "always")
+		headers = append(headers, version2.AddHeader{
+			Header: version2.Header{Name: name, Value: value},
+			Always: always,
+		})
+	}
+	return headers
+}
