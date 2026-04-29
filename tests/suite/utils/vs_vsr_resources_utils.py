@@ -339,7 +339,7 @@ def delete_v_s_route(custom_objects: CustomObjectsApi, name, namespace) -> None:
 
 def delete_and_create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manifest, namespace) -> None:
     """
-    Update a VirtualServerRoute based on yaml manifest
+    Delete and recreate a VirtualServerRoute based on yaml manifest
 
     :param custom_objects: CustomObjectsApi
     :param name:
@@ -352,5 +352,5 @@ def delete_and_create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name
         create_v_s_route_from_yaml(custom_objects, yaml_manifest, namespace)
         wait_before_test()
     except ApiException:
-        logging.error(f"Failed with exception while patching VirtualServerRoute: {name}", exc_info=True)
+        logging.error(f"Failed with exception while deleting and recreating VirtualServerRoute: {name}", exc_info=True)
         raise
