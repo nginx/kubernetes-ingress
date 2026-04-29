@@ -1571,6 +1571,10 @@ func validateVirtualServerRouteHost(host string, virtualServerHost string, field
 	return allErrs
 }
 
+func isRegexOrExactMatch(path string) bool {
+	return strings.HasPrefix(path, "~") || strings.HasPrefix(path, "=")
+}
+
 func (vsv *VirtualServerValidator) validateVirtualServerRouteSubroutes(routes []v1.Route, fieldPath *field.Path, upstreamNames sets.Set[string], vsPaths []string, namespace string) field.ErrorList {
 	if len(vsPaths) == 0 {
 		return vsv.validateSubroutesStandalone(routes, fieldPath, upstreamNames, namespace)
@@ -1586,10 +1590,10 @@ func (vsv *VirtualServerValidator) validateVirtualServerRouteSubroutes(routes []
 	}
 
 	firstPath := vsPaths[0]
-	if strings.HasPrefix(firstPath, "=") {
-		return vsv.validateSubroutesExact(routes, fieldPath, firstPath, upstreamNames, namespace)
-	}
-	if strings.HasPrefix(firstPath, "~") {
+	if isRegexOrExactMatch(firstPath) {
+		if strings.HasPrefix(firstPath, "=") {
+			return vsv.validateSubroutesExact(routes, fieldPath, firstPath, upstreamNames, namespace)
+		}
 		return vsv.validateSubroutesRegex(routes, fieldPath, upstreamNames, vsPaths, namespace)
 	}
 	return vsv.validateSubroutesPrefix(routes, fieldPath, upstreamNames, firstPath, namespace)
