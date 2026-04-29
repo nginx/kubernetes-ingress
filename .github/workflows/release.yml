@@ -144,9 +144,9 @@ jobs:
           git config --global user.name "NGINX Kubernetes Team"
           branch="${{ inputs.release_branch }}"
           tag="v${{ inputs.nic_version }}"
-          if ! git rev-parse --verify refs/tags/${tag}; then
+          if ! git rev-parse --verify "refs/tags/${tag}"; then
             echo "Adding tag ${tag}."
-            git tag -a ${tag} -m "Version ${tag#v*}"
+            git tag -a "${tag}" -m "Version ${tag#v*}"
             echo "Pushing to tag ${tag} to branch ${branch}"
             if ! ${{ inputs.dry_run }}; then
               git push origin "${tag}"
