@@ -283,6 +283,13 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "ExternalAuthPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{externalAuthPolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -435,6 +442,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				oidcPolicy,
 				cachePolicy,
 				corsPolicy,
+				externalAuthPolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -457,12 +465,13 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 	}
 
 	nicResourceCounts := telemetry.NICResourceCounts{
-		RateLimitPolicies:  0,
-		WAFPolicies:        2,
-		OIDCPolicies:       1,
-		EgressMTLSPolicies: 2,
-		CachePolicies:      1,
-		CORSPolicies:       1,
+		RateLimitPolicies:    0,
+		WAFPolicies:          2,
+		OIDCPolicies:         1,
+		EgressMTLSPolicies:   2,
+		CachePolicies:        1,
+		CORSPolicies:         1,
+		ExternalAuthPolicies: 1,
 	}
 
 	td := telemetry.Data{
@@ -2912,6 +2921,21 @@ var (
 		},
 		Spec: conf_v1.PolicySpec{
 			CORS: &conf_v1.CORS{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	externalAuthPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "external-auth-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}
