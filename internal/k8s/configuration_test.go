@@ -17,6 +17,14 @@ import (
 )
 
 func createTestConfiguration() *Configuration {
+	c := createTestConfigurationDuringStartup()
+	c.CompleteStartup()
+	return c
+}
+
+// createTestConfigurationDuringStartup creates a Configuration in pre-startup
+// state (startupComplete=false), matching the state during initial queue drain.
+func createTestConfigurationDuringStartup() *Configuration {
 	lbc := LoadBalancerController{
 		ingressClass: "nginx",
 		Logger:       nl.LoggerFromContext(context.Background()),
@@ -3813,6 +3821,401 @@ func addOrUpdateVirtualServer(t *testing.T, c *Configuration, virtualServer *con
 	if !cmp.Equal(expectedProblems, problems) {
 		t.Fatalf("AddOrUpdateVirtualServer() returned unexpected result (-want +got):\n%s",
 			cmp.Diff(noProblems, problems))
+	}
+}
+
+func TestAddIngressDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	ing := createTestIngress("ingress", "foo.example.com")
+
+	changes, problems := configuration.AddOrUpdateIngress(ing)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateIngress() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateIngress() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestAddInvalidIngressDuringStartup_ReportsValidationProblem(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Create an invalid ingress with duplicate hosts
+	ing := createTestIngress("ingress", "foo.example.com", "foo.example.com")
+
+	changes, problems := configuration.AddOrUpdateIngress(ing)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateIngress() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 1 {
+		t.Fatalf("AddOrUpdateIngress() during startup returned %d problems, expected 1", len(problems))
+	}
+	if !problems[0].IsError {
+		t.Errorf("expected problem to be an error")
+	}
+	if problems[0].Reason != nl.EventReasonRejected {
+		t.Errorf("expected problem reason %q, got %q", nl.EventReasonRejected, problems[0].Reason)
+	}
+}
+
+func TestAddVirtualServerDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+
+	changes, problems := configuration.AddOrUpdateVirtualServer(vs)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateVirtualServer() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateVirtualServer() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestDeleteIngressDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// First complete startup so we can add an ingress normally
+	// Then we'll test delete during a fresh startup scenario
+	// Actually: add during startup (no rebuild), then delete during startup
+	ing := createTestIngress("ingress", "foo.example.com")
+	configuration.AddOrUpdateIngress(ing)
+
+	changes, problems := configuration.DeleteIngress("default/ingress")
+
+	if len(changes) != 0 {
+		t.Errorf("DeleteIngress() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("DeleteIngress() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestCompleteStartup_RebuildsHostsOnce(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add multiple resources during startup — no rebuilds happen
+	ing1 := createTestIngress("ingress-1", "foo.example.com")
+	ing2 := createTestIngress("ingress-2", "bar.example.com")
+	vs := createTestVirtualServer("virtualserver", "baz.example.com")
+
+	changes, _ := configuration.AddOrUpdateIngress(ing1)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup, got %d", len(changes))
+	}
+
+	changes, _ = configuration.AddOrUpdateIngress(ing2)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup, got %d", len(changes))
+	}
+
+	changes, _ = configuration.AddOrUpdateVirtualServer(vs)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup, got %d", len(changes))
+	}
+
+	// CompleteStartup should return all resources as AddOrUpdate changes
+	changes, problems := configuration.CompleteStartup()
+
+	if len(changes) != 3 {
+		t.Errorf("CompleteStartup() returned %d changes, expected 3", len(changes))
+	}
+	for _, c := range changes {
+		if c.Op != AddOrUpdate {
+			t.Errorf("expected AddOrUpdate operation, got %v", c.Op)
+		}
+	}
+	if len(problems) != 0 {
+		t.Errorf("CompleteStartup() returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestCompleteStartup_ReportsHostConflicts(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add two resources competing for the same host during startup
+	ing := createTestIngress("ingress", "foo.example.com")
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+
+	configuration.AddOrUpdateIngress(ing)
+	configuration.AddOrUpdateVirtualServer(vs)
+
+	// CompleteStartup should detect the host conflict
+	changes, problems := configuration.CompleteStartup()
+
+	// One resource wins the host, the loser gets a ConfigurationProblem (warning, not error)
+	if len(problems) != 1 {
+		t.Fatalf("CompleteStartup() returned %d problems, expected 1 (host conflict)", len(problems))
+	}
+	if problems[0].IsError {
+		t.Errorf("expected host conflict problem to be a warning (IsError=false)")
+	}
+
+	// The winner should get an AddOrUpdate change
+	addOrUpdateCount := 0
+	for _, c := range changes {
+		if c.Op == AddOrUpdate {
+			addOrUpdateCount++
+		}
+	}
+	if addOrUpdateCount < 1 {
+		t.Errorf("expected at least 1 AddOrUpdate change, got %d", addOrUpdateCount)
+	}
+}
+
+func TestCompleteStartup_OrphanedMinions(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add a minion without its master during startup
+	minion := createTestIngressMinion("minion", "foo.example.com", "/path")
+
+	configuration.AddOrUpdateIngress(minion)
+
+	// CompleteStartup should detect the orphaned minion
+	changes, problems := configuration.CompleteStartup()
+
+	if len(problems) != 1 {
+		t.Fatalf("CompleteStartup() returned %d problems, expected 1 (orphaned minion)", len(problems))
+	}
+	if problems[0].Reason != nl.EventReasonNoIngressMasterFound {
+		t.Errorf("expected problem reason %q, got %q", nl.EventReasonNoIngressMasterFound, problems[0].Reason)
+	}
+
+	// Orphaned minion should produce no AddOrUpdate changes
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes for orphaned minion, got %d", len(changes))
+	}
+}
+
+func TestAfterCompleteStartup_NormalBehaviorResumes(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Complete startup with no resources
+	configuration.CompleteStartup()
+
+	// Now add a resource — should get normal changes back
+	ing := createTestIngress("ingress", "foo.example.com")
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &IngressConfiguration{
+				Ingress: ing,
+				ValidHosts: map[string]bool{
+					"foo.example.com": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateIngress(ing)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() after CompleteStartup() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateIngress() after CompleteStartup() returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestCompleteStartup_MergeableIngresses(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add master and minions during startup
+	master := createTestIngressMaster("master", "foo.example.com")
+	minion1 := createTestIngressMinion("minion-1", "foo.example.com", "/path-1")
+	minion2 := createTestIngressMinion("minion-2", "foo.example.com", "/path-2")
+
+	configuration.AddOrUpdateIngress(master)
+	configuration.AddOrUpdateIngress(minion1)
+	configuration.AddOrUpdateIngress(minion2)
+
+	// CompleteStartup should produce a single AddOrUpdate for the master with both minions
+	changes, problems := configuration.CompleteStartup()
+
+	if len(changes) != 1 {
+		t.Fatalf("CompleteStartup() returned %d changes, expected 1", len(changes))
+	}
+	if changes[0].Op != AddOrUpdate {
+		t.Fatalf("expected AddOrUpdate operation, got %v", changes[0].Op)
+	}
+
+	ingConfig, ok := changes[0].Resource.(*IngressConfiguration)
+	if !ok {
+		t.Fatalf("expected *IngressConfiguration, got %T", changes[0].Resource)
+	}
+	if !ingConfig.IsMaster {
+		t.Errorf("expected IsMaster to be true")
+	}
+	if len(ingConfig.Minions) != 2 {
+		t.Errorf("expected 2 minions, got %d", len(ingConfig.Minions))
+	}
+	if len(problems) != 0 {
+		t.Errorf("CompleteStartup() returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestMinionsByHostIndex_TracksMinions(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add master and minions
+	master := createTestIngressMaster("master", "foo.example.com")
+	minion1 := createTestIngressMinion("minion-1", "foo.example.com", "/path-1")
+	minion2 := createTestIngressMinion("minion-2", "foo.example.com", "/path-2")
+
+	configuration.AddOrUpdateIngress(master)
+	configuration.AddOrUpdateIngress(minion1)
+	configuration.AddOrUpdateIngress(minion2)
+
+	// Verify the index tracks minions by host
+	hostMinions := configuration.minionsByHost["foo.example.com"]
+	if len(hostMinions) != 2 {
+		t.Fatalf("expected 2 minions indexed for foo.example.com, got %d", len(hostMinions))
+	}
+	if !hostMinions["default/minion-1"] {
+		t.Error("expected default/minion-1 in minionsByHost index")
+	}
+	if !hostMinions["default/minion-2"] {
+		t.Error("expected default/minion-2 in minionsByHost index")
+	}
+
+	// Master should not be in the index
+	for host, keys := range configuration.minionsByHost {
+		for key := range keys {
+			if key == "default/master" {
+				t.Errorf("master should not be in minionsByHost index, found under host %s", host)
+			}
+		}
+	}
+
+	// Delete a minion and verify it's removed from the index
+	configuration.DeleteIngress("default/minion-1")
+	hostMinions = configuration.minionsByHost["foo.example.com"]
+	if len(hostMinions) != 1 {
+		t.Fatalf("expected 1 minion indexed after delete, got %d", len(hostMinions))
+	}
+	if hostMinions["default/minion-1"] {
+		t.Error("default/minion-1 should have been removed from index")
+	}
+}
+
+func TestAddVirtualServerRouteDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	vsr := createTestVirtualServerRoute("vsr", "default", "foo.example.com", "/path")
+
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestAddInvalidVirtualServerRouteDuringStartup_ReportsValidationProblem(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// An empty host makes the VSR invalid
+	vsr := createTestVirtualServerRoute("vsr", "default", "", "/path")
+
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 1 {
+		t.Fatalf("AddOrUpdateVirtualServerRoute() during startup returned %d problems, expected 1", len(problems))
+	}
+	if !problems[0].IsError {
+		t.Errorf("expected problem to be an error")
+	}
+	if problems[0].Reason != nl.EventReasonRejected {
+		t.Errorf("expected problem reason %q, got %q", nl.EventReasonRejected, problems[0].Reason)
+	}
+}
+
+func TestDeleteVirtualServerRouteDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	vsr := createTestVirtualServerRoute("vsr", "default", "foo.example.com", "/path")
+	configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	changes, problems := configuration.DeleteVirtualServerRoute("default/vsr")
+
+	if len(changes) != 0 {
+		t.Errorf("DeleteVirtualServerRoute() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("DeleteVirtualServerRoute() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestCompleteStartup_WithVSAndVSRs(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	vs := createTestVirtualServerWithRoutes(
+		"virtualserver",
+		"foo.example.com",
+		[]conf_v1.Route{
+			{Path: "/first", Route: "virtualserverroute-1"},
+			{Path: "/second", Route: "virtualserverroute-2"},
+		},
+	)
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "default", "foo.example.com", "/first")
+	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "default", "foo.example.com", "/second")
+
+	// All three calls during startup return no changes
+	changes, _ := configuration.AddOrUpdateVirtualServer(vs)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup for VS, got %d", len(changes))
+	}
+	changes, _ = configuration.AddOrUpdateVirtualServerRoute(vsr1)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup for VSR1, got %d", len(changes))
+	}
+	changes, _ = configuration.AddOrUpdateVirtualServerRoute(vsr2)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup for VSR2, got %d", len(changes))
+	}
+
+	// CompleteStartup should emit one AddOrUpdate change for the VS (with VSRs attached)
+	changes, problems := configuration.CompleteStartup()
+
+	if len(problems) != 0 {
+		t.Errorf("CompleteStartup() returned %d problems, expected 0", len(problems))
+	}
+	if len(changes) != 1 {
+		t.Fatalf("CompleteStartup() returned %d changes, expected 1", len(changes))
+	}
+	if changes[0].Op != AddOrUpdate {
+		t.Errorf("expected AddOrUpdate operation, got %v", changes[0].Op)
+	}
+	vsConfig, ok := changes[0].Resource.(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected *VirtualServerConfiguration, got %T", changes[0].Resource)
+	}
+	if len(vsConfig.VirtualServerRoutes) != 2 {
+		t.Errorf("expected 2 VSRs attached, got %d", len(vsConfig.VirtualServerRoutes))
 	}
 }
 

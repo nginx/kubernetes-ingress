@@ -306,31 +306,23 @@ class PodNotReadyException(Exception):
         super().__init__(self.message)
 
 
-def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace) -> None:
+def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None:
     """
     Wait for all the pods to be 'Ready'.
 
     :param v1: CoreV1Api
     :param namespace: namespace of a pod
+    :param timeout: maximum seconds to wait before raising (default 600)
     :return:
     """
     print("Start waiting for all pods in a namespace to be Ready")
     counter = 0
-    while not are_all_pods_in_ready_state(v1, namespace) and counter < 200:
-        # remove counter based condition from line #264 and #269 if --batch-start="True"
-        print("There are pods that are not Ready. Wait for 1 sec...")
+    while not are_all_pods_in_ready_state(v1, namespace):
+        print("There are pods that are not Ready. Wait ...")
         wait_before_test()
         counter = counter + 1
-    if counter >= 300:
-        print("\n===================== IC Logs Start =====================")
-        try:
-            pod_name = get_pod_name_that_contains(kube_apis.v1, "nginx-ingress", "nginx-ingress")
-            logs = kube_apis.v1.read_namespaced_pod_log(pod_name, "nginx-ingress")
-            print(logs)
-        except:
-            print("Failed to load logs for nginx-ingress pod")
-        print("\n===================== IC Logs End =====================")
-        raise PodNotReadyException()
+        if counter * 3 >= timeout:
+            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}' to be Ready")
     print("All pods are Ready")
 
 
