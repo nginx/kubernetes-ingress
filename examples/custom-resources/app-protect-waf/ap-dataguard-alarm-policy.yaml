@@ -34,7 +34,6 @@ spec:
     enforcementMode: blocking
     name: dataguard-alarm
     ip-intelligence:
-      enabled: true
       ipIntelligenceCategories:
         - category: Anonymous Proxy
           block: true

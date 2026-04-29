@@ -585,7 +585,7 @@ func (lm *LocalManager) AppProtectPluginQuit() {
 	}
 }
 
-// IpRepdStart starts the IP Reputation Daemon (iprepd) for App Protect IP Intelligence.
+// IPRepdStart starts the IP Reputation Daemon (iprepd) for App Protect IP Intelligence.
 func (lm *LocalManager) IPRepdStart(ipRepdDone chan error) {
 	if _, err := os.Stat(ipRepdBinaryPath); os.IsNotExist(err) {
 		nl.Debugf(lm.logger, "iprepd binary not found at %s, skipping IP Intelligence", ipRepdBinaryPath)
@@ -593,7 +593,7 @@ func (lm *LocalManager) IPRepdStart(ipRepdDone chan error) {
 	}
 
 	nl.Debugf(lm.logger, "Starting IP Reputation Daemon (iprepd)")
-	cmd := exec.Command(ipRepdBinaryPath, ipRepdConfigPath) //nolint:gosec // G204: paths resolve to constants
+	cmd := exec.CommandContext(context.Background(), ipRepdBinaryPath, ipRepdConfigPath) //nolint:gosec // G204: paths resolve to constants
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -606,7 +606,7 @@ func (lm *LocalManager) IPRepdStart(ipRepdDone chan error) {
 	}()
 }
 
-// IpRepdQuit gracefully ends the IP Reputation Daemon.
+// IPRepdQuit gracefully ends the IP Reputation Daemon.
 func (lm *LocalManager) IPRepdQuit() {
 	if lm.ipRepdPid == 0 {
 		return

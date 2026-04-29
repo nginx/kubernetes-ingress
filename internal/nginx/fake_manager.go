@@ -195,13 +195,13 @@ func (fm *FakeManager) AgentVersion() string {
 	return "v0.00.0-00000000"
 }
 
-// IpRepdStart is a fake implementation of IpRepdStart.
-func (fm *FakeManager) IpRepdStart(_ chan error) {
+// IPRepdStart is a fake implementation of IpRepdStart.
+func (fm *FakeManager) IPRepdStart(_ chan error) {
 	nl.Debugf(fm.logger, "Starting FakeIpRepd")
 }
 
-// IpRepdQuit is a fake implementation of IpRepdQuit.
-func (fm *FakeManager) IpRepdQuit() {
+// IPRepdQuit is a fake implementation of IpRepdQuit.
+func (fm *FakeManager) IPRepdQuit() {
 	nl.Debugf(fm.logger, "Quitting FakeIpRepd")
 }
 

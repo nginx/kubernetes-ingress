@@ -650,7 +650,7 @@ func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childPro
 		nginxManager.AppProtectPluginStart(aPPluginDone, *appProtectLogLevel)
 
 		ipRepdDone = make(chan error, 1)
-		nginxManager.IpRepdStart(ipRepdDone)
+		nginxManager.IPRepdStart(ipRepdDone)
 	}
 
 	var aPPDosAgentDone chan error
@@ -851,7 +851,7 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 			<-cpcfg.aPDosDone
 		}
 		if cpcfg.ipRepdEnable {
-			nginxManager.IpRepdQuit()
+			nginxManager.IPRepdQuit()
 			<-cpcfg.ipRepdDone
 		}
 		listener.Stop()
