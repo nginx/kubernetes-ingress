@@ -376,7 +376,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithIngressMTLSPolicy(t *testing.T) {
 
 	bufString := buf.String()
 	wantedStrings := []string{
-		"ssl_client_certificate ingress-mtls-secret;",
+		"ssl_client_certificate /etc/nginx/secrets/default-ingress-mtls-ca-secret;",
 		"ssl_verify_client on;",
 		"ssl_verify_depth 2;",
 	}
@@ -404,7 +404,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithIngressMTLSPolicy(t *testing.
 
 	bufString := buf.String()
 	wantedStrings := []string{
-		"ssl_client_certificate ingress-mtls-secret;",
+		"ssl_client_certificate /etc/nginx/secrets/default-ingress-mtls-ca-secret;",
 		"ssl_verify_client on;",
 		"ssl_verify_depth 2;",
 	}
@@ -3033,7 +3033,7 @@ var (
 					},
 				},
 				IngressMTLS: &version2.IngressMTLS{
-					ClientCert:   "ingress-mtls-secret",
+					ClientCert:   "/etc/nginx/secrets/default-ingress-mtls-ca-secret",
 					VerifyClient: "on",
 					VerifyDepth:  2,
 				},

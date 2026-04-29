@@ -325,6 +325,11 @@ func (p *policiesCfg) addIngressMTLSConfig(
 
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, ingressMTLS.ClientCertSecret)
 	secretRef := secretRefs[secretKey]
+	if secretRef == nil {
+		res.addWarningf("IngressMTLS policy %q references an invalid secret %s: secret doesn't exist", polKey, secretKey)
+		res.isError = true
+		return res
+	}
 	var secretType api_v1.SecretType
 	if secretRef.Secret != nil {
 		secretType = secretRef.Secret.Type

@@ -2649,6 +2649,43 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "ingress-mtls-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ingress-mtls-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "ingress-mtls-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						IngressMTLS: &conf_v1.IngressMTLS{
+							ClientCertSecret: "ingress-mtls-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				tls:        true,
+				secretRefs: map[string]*secrets.SecretReference{},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`IngressMTLS policy "default/ingress-mtls-policy" references an invalid secret default/ingress-mtls-secret: secret doesn't exist`,
+				},
+			},
+			msg: "ingress mtls absent secret ref",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "egress-mtls-policy",
 					Namespace: "default",
 				},

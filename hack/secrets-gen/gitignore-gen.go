@@ -265,6 +265,7 @@ func generateIngressMtlsIgnoreLines(ingressMtls IngressMtls) []string {
 	addCertsToIgnore(ingressMtls.Invalid)
 	addCertsToIgnore(ingressMtls.NotRevoked)
 	addCertsToIgnore(ingressMtls.Revoked)
+	addCertsToIgnore(ingressMtls.Intermediate)
 
 	return filesToIgnore
 }

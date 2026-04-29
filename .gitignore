@@ -310,6 +310,10 @@ common-secrets/ingress-mtls-revoked-client-cert.pem
 tests/data/ingress-mtls/client-auth/revoked/client-cert.pem
 common-secrets/ingress-mtls-revoked-client-key.pem
 tests/data/ingress-mtls/client-auth/revoked/client-key.pem
+common-secrets/ingress-mtls-intermediate-client-cert.pem
+tests/data/ingress-mtls/client-auth/intermediate/client-cert.pem
+common-secrets/ingress-mtls-intermediate-client-key.pem
+tests/data/ingress-mtls/client-auth/intermediate/client-key.pem
 
 # Management ConfigMap Keys Bundle secrets
 common-secrets/mgmt-cm-ssl-cert.yaml
