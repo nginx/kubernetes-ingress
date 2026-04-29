@@ -13,7 +13,6 @@ from suite.utils.resources_utils import (
     wait_until_all_pods_are_ready,
 )
 
-
 mergeable_test_data_path = f"{TEST_DATA}/empty-host-ingress-mergeable"
 master_ingress_src = f"{mergeable_test_data_path}/empty-host-master-ingress.yaml"
 minion1_ingress_src = f"{mergeable_test_data_path}/empty-host-minion1-ingress.yaml"
