@@ -159,7 +159,7 @@ jobs:
             docker_build="true"
           elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
             docker_build="true"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.binary-cache.outputs.cache-hit }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.binary-cache.outputs.cache-hit }}" != "true" ]; then
             docker_build="true"
           fi
           echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
@@ -207,7 +207,7 @@ jobs:
     if: >-
       inputs.force ||
       needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit == 'false'
+      needs.checks.outputs.binary_cache_hit != 'true'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -259,7 +259,7 @@ jobs:
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit == 'false'
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -271,7 +271,7 @@ jobs:
           inputs.force ||
           needs.checks.outputs.forked_workflow == 'false' &&
           (needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit == 'false')
+          needs.checks.outputs.binary_cache_hit != 'true')
 
       - name: Setup secrets
         id: secrets
@@ -284,7 +284,7 @@ jobs:
           inputs.force ||
           needs.checks.outputs.forked_workflow == 'false' &&
           (needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit == 'false')
+          needs.checks.outputs.binary_cache_hit != 'true')
 
       - name: Setup Golang Environment
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
@@ -293,7 +293,7 @@ jobs:
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit == 'false'
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Generate secrets for tests
         run: |
@@ -301,14 +301,14 @@ jobs:
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit == 'false'
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Run Tests
         run: make cover
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit == 'false'
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
@@ -319,7 +319,7 @@ jobs:
           inputs.force ||
           (needs.checks.outputs.forked_workflow == 'false' &&
           (needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit == 'false'))
+          needs.checks.outputs.binary_cache_hit != 'true'))
 
   staticcheck:
     name: Static Check
@@ -330,7 +330,7 @@ jobs:
     if: >-
       inputs.force ||
       needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit == 'false'
+      needs.checks.outputs.binary_cache_hit != 'true'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -362,7 +362,7 @@ jobs:
     if: >-
       inputs.force ||
       needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit == 'false'
+      needs.checks.outputs.binary_cache_hit != 'true'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:

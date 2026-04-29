@@ -369,6 +369,14 @@ server {
     proxy_ssl_name {{ .SSLName }};
     {{- end }}
 
+    {{- if $s.ExternalAuth }}
+    auth_request {{ $s.ExternalAuth.URI.InternalPath }};
+    {{- end }}
+
+    {{- range $e := $s.ErrorPages }}
+    error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    {{- end }}
+
     {{- with $s.APIKey}}
     js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
     js_var $apikey_auth_local_map "{{ .MapName}}";
@@ -505,6 +513,12 @@ server {
         {{- end }}
         {{- range $snippet := $l.Snippets }}
         {{ $snippet }}
+        {{- end }}
+
+        {{- if $l.AuthRequestOff }}
+        auth_request off;
+        {{- else if $l.ExternalAuth }}
+        auth_request {{ $l.ExternalAuth.URI.InternalPath }};
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}
@@ -674,7 +688,7 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ $e.ResponseCode }}{{ end }} "{{ $e.Name }}";
+        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}
@@ -722,6 +736,9 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
+        {{- if $l.ProxyPassRequestBody }}
+        proxy_pass_request_body {{ $l.ProxyPassRequestBody }};
+        {{- end }}
             {{- end }}
 
         {{- $custom_headers := $l.ProxySetHeaders | headerListToCIMap }}
@@ -838,6 +855,15 @@ server {
             {{- else }}
         proxy_pass {{ $l.ProxyPass }}{{ $l.ProxyPassRewrite }};
             {{- end }}
+        {{- if $l.ProxySSLVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ $l.ProxySSLVerifyDepth }};
+        proxy_ssl_server_name on;
+        proxy_ssl_name {{ $l.ProxySSLName }};
+        {{- end }}
+        {{- if $l.ProxySSLTrustedCertificate }}
+        proxy_ssl_trusted_certificate {{ $l.ProxySSLTrustedCertificate }};
+        {{- end }}
         {{ $proxyOrGRPC }}_next_upstream {{ $l.ProxyNextUpstream }};
         {{ $proxyOrGRPC }}_next_upstream_timeout {{ $l.ProxyNextUpstreamTimeout }};
         {{ $proxyOrGRPC }}_next_upstream_tries {{ $l.ProxyNextUpstreamTries }};

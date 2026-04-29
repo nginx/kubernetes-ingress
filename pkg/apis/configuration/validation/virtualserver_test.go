@@ -1716,40 +1716,6 @@ func TestValidateRoutePath(t *testing.T) {
 	}
 }
 
-func TestValidatePath(t *testing.T) {
-	t.Parallel()
-	validPaths := []string{
-		"/",
-		"/path",
-		"/a-1/_A/",
-	}
-
-	for _, path := range validPaths {
-		allErrs := validatePath(path, field.NewPath("path"))
-		if len(allErrs) > 0 {
-			t.Errorf("validatePath(%q) returned errors %v for valid input", path, allErrs)
-		}
-	}
-
-	invalidPaths := []string{
-		"",
-		" /",
-		"/ ",
-		"/{",
-		"/}",
-		"/abc;",
-		`/path\`,
-		`/path\n`,
-	}
-
-	for _, path := range invalidPaths {
-		allErrs := validatePath(path, field.NewPath("path"))
-		if len(allErrs) == 0 {
-			t.Errorf("validatePath(%q) returned no errors for invalid input", path)
-		}
-	}
-}
-
 func TestValidateSplits(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

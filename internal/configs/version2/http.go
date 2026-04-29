@@ -95,6 +95,8 @@ type Server struct {
 	JWTAuth                   *JWTAuth
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
+	ExternalAuth              *ExternalAuth
+	ErrorPages                []ErrorPage
 	BasicAuth                 *BasicAuth
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
@@ -195,55 +197,61 @@ type Dos struct {
 
 // Location defines a location.
 type Location struct {
-	Path                     string
-	Internal                 bool
-	Snippets                 []string
-	ProxyConnectTimeout      string
-	ProxyReadTimeout         string
-	ProxySendTimeout         string
-	ClientMaxBodySize        string
-	ClientBodyBufferSize     string
-	ProxyMaxTempFileSize     string
-	ProxyBuffering           bool
-	ProxyBuffers             string
-	ProxyBufferSize          string
-	ProxyBusyBuffersSize     string
-	ProxyPass                string
-	ProxyNextUpstream        string
-	ProxyNextUpstreamTimeout string
-	ProxyNextUpstreamTries   int
-	ProxyInterceptErrors     bool
-	ProxyPassRequestHeaders  bool
-	ProxySetHeaders          []Header
-	ProxyHideHeaders         []string
-	ProxyPassHeaders         []string
-	ProxyIgnoreHeaders       string
-	ProxyPassRewrite         string
-	AddHeaders               []AddHeader
-	Rewrites                 []string
-	HasKeepalive             bool
-	ErrorPages               []ErrorPage
-	ProxySSLName             string
-	InternalProxyPass        string
-	Allow                    []string
-	Deny                     []string
-	LimitReqOptions          LimitReqOptions
-	LimitReqs                []LimitReq
-	JWTAuth                  *JWTAuth
-	BasicAuth                *BasicAuth
-	EgressMTLS               *EgressMTLS
-	OIDC                     bool
-	APIKey                   *APIKey
-	WAF                      *WAF
-	Dos                      *Dos
-	PoliciesErrorReturn      *Return
-	Cache                    *Cache
-	ServiceName              string
-	IsVSR                    bool
-	VSRName                  string
-	VSRNamespace             string
-	GRPCPass                 string
-	CORSEnabled              bool
+	Path                       string
+	Internal                   bool
+	Snippets                   []string
+	ProxyConnectTimeout        string
+	ProxyReadTimeout           string
+	ProxySendTimeout           string
+	ClientMaxBodySize          string
+	ClientBodyBufferSize       string
+	ProxyMaxTempFileSize       string
+	ProxyBuffering             bool
+	ProxyBuffers               string
+	ProxyBufferSize            string
+	ProxyBusyBuffersSize       string
+	ProxyPass                  string
+	ProxyNextUpstream          string
+	ProxyNextUpstreamTimeout   string
+	ProxyNextUpstreamTries     int
+	ProxyInterceptErrors       bool
+	ProxyPassRequestHeaders    bool
+	ProxyPassRequestBody       string
+	ProxySetHeaders            []Header
+	ProxyHideHeaders           []string
+	ProxyPassHeaders           []string
+	ProxyIgnoreHeaders         string
+	ProxyPassRewrite           string
+	AddHeaders                 []AddHeader
+	Rewrites                   []string
+	HasKeepalive               bool
+	ErrorPages                 []ErrorPage
+	ProxySSLName               string
+	InternalProxyPass          string
+	Allow                      []string
+	Deny                       []string
+	LimitReqOptions            LimitReqOptions
+	LimitReqs                  []LimitReq
+	JWTAuth                    *JWTAuth
+	AuthRequestOff             bool
+	ExternalAuth               *ExternalAuth
+	BasicAuth                  *BasicAuth
+	EgressMTLS                 *EgressMTLS
+	OIDC                       bool
+	APIKey                     *APIKey
+	WAF                        *WAF
+	Dos                        *Dos
+	PoliciesErrorReturn        *Return
+	Cache                      *Cache
+	ServiceName                string
+	IsVSR                      bool
+	VSRName                    string
+	VSRNamespace               string
+	GRPCPass                   string
+	CORSEnabled                bool
+	ProxySSLVerify             bool
+	ProxySSLVerifyDepth        int
+	ProxySSLTrustedCertificate string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -458,6 +466,29 @@ type JwksURI struct {
 	SSLVerify      bool
 	TrustedCert    string
 	SSLVerifyDepth int
+}
+
+// ExternalAuth holds external authentication configuration.
+type ExternalAuth struct {
+	URI                    *AuthURI
+	SigninURL              string
+	Snippets               string
+	ServicePorts           []int
+	SigninRedirectBasePath string // Base path for OAuth2/signin redirect location, defaults to /oauth2
+	SSLEnabled             bool
+	SSLVerify              bool
+	SSLVerifyDepth         int
+	SSLTrustedCert         string // Path to the CA certificate file for upstream verification
+	SNIName                string // Server name for SNI and certificate verification
+}
+
+// AuthURI defines the components of an AuthURI
+type AuthURI struct {
+	Service      string
+	Upstream     string
+	Port         string
+	Path         string
+	InternalPath string
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options

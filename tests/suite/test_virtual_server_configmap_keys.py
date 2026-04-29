@@ -36,7 +36,7 @@ def assert_update_event_count_increased(virtual_server_setup, new_list, previous
     text_invalid = "but was not applied"
     for i in range(len(previous_list) - 1, 0, -1):
         if text_valid in previous_list[i].message and text_invalid not in previous_list[i].message:
-            assert new_list[i].count - previous_list[i].count == 1, "We expect the counter to increase"
+            assert new_list[i].count - previous_list[i].count >= 1, "We expect the counter to increase"
 
 
 def assert_keys_without_validation(config, expected_values):

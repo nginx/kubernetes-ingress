@@ -306,31 +306,23 @@ class PodNotReadyException(Exception):
         super().__init__(self.message)
 
 
-def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace) -> None:
+def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None:
     """
     Wait for all the pods to be 'Ready'.
 
     :param v1: CoreV1Api
     :param namespace: namespace of a pod
+    :param timeout: maximum seconds to wait before raising (default 600)
     :return:
     """
     print("Start waiting for all pods in a namespace to be Ready")
     counter = 0
-    while not are_all_pods_in_ready_state(v1, namespace) and counter < 200:
-        # remove counter based condition from line #264 and #269 if --batch-start="True"
-        print("There are pods that are not Ready. Wait for 1 sec...")
+    while not are_all_pods_in_ready_state(v1, namespace):
+        print("There are pods that are not Ready. Wait ...")
         wait_before_test()
         counter = counter + 1
-    if counter >= 300:
-        print("\n===================== IC Logs Start =====================")
-        try:
-            pod_name = get_pod_name_that_contains(kube_apis.v1, "nginx-ingress", "nginx-ingress")
-            logs = kube_apis.v1.read_namespaced_pod_log(pod_name, "nginx-ingress")
-            print(logs)
-        except:
-            print("Failed to load logs for nginx-ingress pod")
-        print("\n===================== IC Logs End =====================")
-        raise PodNotReadyException()
+        if counter * 3 >= timeout:
+            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}' to be Ready")
     print("All pods are Ready")
 
 
@@ -1807,6 +1799,30 @@ def get_events_for_object(v1: CoreV1Api, namespace, object_name) -> []:
     print(f"Get the events for {object_name} in the namespace: {namespace}")
     events = v1.list_namespaced_event(namespace)
     return [event for event in events.items if event.involved_object.name == object_name]
+
+
+def print_events(events, detail=False) -> None:
+    """
+    Print each event on a newline with Kind, Controller, Namespace, Name, and Reason/Note.
+
+    :param events: list of V1Event objects
+    :param detail: boolean flag to print detailed information
+    """
+    print("========= Events ==========")
+    for event in events:
+        kind = event.involved_object.kind or ""
+        namespace = event.involved_object.namespace or ""
+        name = event.involved_object.name or ""
+        if detail:
+            controller = ""
+            if event.source and event.source.component:
+                controller = event.source.component
+        reason = event.reason or ""
+        note = event.message or ""
+        if detail:
+            print(f"EVENT: Kind={kind}  Controller={controller}  Name={namespace}/{name}  Reason={reason}  Note={note}")
+        else:
+            print(f"EVENT: Kind={kind}  Name={namespace}/{name}  Reason={reason}  Note={note}")
 
 
 def get_events(v1: CoreV1Api, namespace) -> []:

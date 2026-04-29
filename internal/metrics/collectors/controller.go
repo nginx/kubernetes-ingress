@@ -95,16 +95,25 @@ func (cc *ControllerMetricsCollector) SetIngresses(ingressType string, count int
 
 // SetVirtualServers sets the value of the VirtualServer resources gauge
 func (cc *ControllerMetricsCollector) SetVirtualServers(count int) {
+	if cc.virtualServersTotal == nil {
+		return
+	}
 	cc.virtualServersTotal.Set(float64(count))
 }
 
 // SetVirtualServerRoutes sets the value of the VirtualServerRoute resources gauge
 func (cc *ControllerMetricsCollector) SetVirtualServerRoutes(count int) {
+	if cc.virtualServerRoutesTotal == nil {
+		return
+	}
 	cc.virtualServerRoutesTotal.Set(float64(count))
 }
 
 // SetTransportServers sets the value of the TransportServer resources gauge
 func (cc *ControllerMetricsCollector) SetTransportServers(tlsPassthroughCount, tcpCount, udpCount int) {
+	if cc.transportServersTotal == nil {
+		return
+	}
 	cc.transportServersTotal.WithLabelValues("passthrough").Set(float64(tlsPassthroughCount))
 	cc.transportServersTotal.WithLabelValues("tcp").Set(float64(tcpCount))
 	cc.transportServersTotal.WithLabelValues("udp").Set(float64(udpCount))
