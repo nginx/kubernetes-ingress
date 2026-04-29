@@ -1,7 +1,12 @@
 # NGINX Security Monitoring
 
 This example describes how to deploy NGINX Plus Ingress Controller with [NGINX App
-Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) in order to integrate with [NGINX Instance Manager Security Monitoring](https://docs.nginx.com/nginx-instance-manager/security-monitoring/). It involves deploying a simple web application, then configuring load balancing and WAF protection for the application using the Ingress resource. We then configure logging for NGINX App Protect to send logs to the NGINX Agent syslog listener, which is sent to the Security Monitoring dashboard in NGINX Instance Manager.
+Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) in order to integrate with NGINX Security Monitoring. It involves deploying a simple web application, then configuring load balancing and WAF protection for the application using the Ingress resource. We then configure logging for NGINX App Protect to send logs to the NGINX Agent syslog listener, which is sent to the Security Monitoring dashboard.
+
+This example works with both:
+
+- **NGINX Instance Manager** (Agent 2.*) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
+- **NGINX One Console** (Agent 3.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
 
 ## Running the example
 
@@ -10,15 +15,26 @@ Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](ht
 1. Run `make secrets` command to generate the necessary secrets for the example.
 
 2. Follow the installation [instructions](https://docs.nginx.com/nginx-ingress-controller/installation) to deploy NGINX
-   Ingress Controller with NGINX App Protect and NGINX Agent. Configure NGINX Agent to connect to a deployment of NGINX Instance Manager with Security Monitoring, and verify that your NGINX Ingress Controller deployment is online in NGINX Instance Manager.
+   Ingress Controller with NGINX App Protect and NGINX Agent. Configure NGINX Agent to connect to either a deployment of NGINX Instance Manager with Security Monitoring, or to NGINX One Console, and verify your NGINX Ingress Controller deployment is online.
 
-3. Save the public IP address of the Ingress Controller into a shell variable:
+3. Confirm which version of NGINX Agent is running in your Ingress Controller pod:
+
+    ```console
+    kubectl exec -it <nginx-ingress-pod> -c nginx-ingress -- nginx-agent -v
+    ```
+
+    The output will show either `2.x.x` or `3.x.x`. Use this to choose the correct log configuration in step 3 below.
+
+    - **Agent 2.***: connects to NGINX Instance Manager
+    - **Agent 3.***: connects to NGINX One Console (requires 3.9.0 or later for security monitoring)
+
+4. Save the public IP address of the Ingress Controller into a shell variable:
 
     ```console
     IC_IP=XXX.YYY.ZZZ.III
     ```
 
-4. Save the HTTPS port of NGINX Ingress Controller into a shell variable:
+5. Save the HTTPS port of NGINX Ingress Controller into a shell variable:
 
     ```console
     IC_HTTPS_PORT=<port number>
@@ -40,15 +56,31 @@ kubectl create -f cafe.yaml
     kubectl create -f cafe-secret.yaml
     ```
 
-2. Create the App Protect policy, log configuration and user defined signature:
+2. Create the App Protect policy and user defined signature:
 
     ```console
     kubectl create -f ap-dataguard-alarm-policy.yaml
-    kubectl create -f ap-logconf.yaml
     kubectl create -f ap-apple-uds.yaml
     ```
 
-    Note the log configuration in `ap-logconf.yaml` is a specific format required by NGINX Agent for integration with Security Monitoring.
+    Apply the log configuration that matches your agent version:
+
+    **Agent 2.* (NGINX Instance Manager)**:
+
+    ```console
+    kubectl create -f ap-logconf.yaml
+    ```
+
+    **Agent 3.* (NGINX One Console)**:
+
+    ```console
+    kubectl create -f ap-logconf-agent-v3.yaml
+    ```
+
+    Two log configurations are provided because the two agent versions require different formats:
+
+    - **Agent 2.***: comma-separated `user-defined` format parsed by the `nap_monitoring` extension.
+    - **Agent 3.***: the `secops-dashboard-log` format with exactly 28 pipe-separated (`|`) fields in a specific order. NGINX Agent 3's embedded OpenTelemetry `securityviolationsfilter` processor validates the first received log record against this schema. If the wrong format is used, the processor closes its gate permanently and drops all events until the agent is restarted.
 
 3. Create an Ingress Resource:
 
@@ -113,4 +145,4 @@ with `cafe.example.com`
 
     The suspicious requests were demonstrably blocked by App Protect.
 
-1. Access the Security Monitoring dashboard in your deployment of NGINX Instance Manager to view details for the blocked requests.
+1. Access the Security Monitoring dashboard in NGINX Instance Manager or NGINX One Console to view details for the blocked requests.

@@ -1,0 +1,22 @@
+# Log configuration for NGINX Agent v3 (NGINX One Console / Security Monitoring dashboard).
+# For NGINX Agent v2 (NGINX Instance Manager), use ap-logconf.yaml instead.
+#
+# NGINX Agent v3's embedded OpenTelemetry securityviolationsfilter processor validates the
+# first received log record against the secops-dashboard-log schema. It requires exactly 28
+# pipe-separated (|) fields in the order below. Using any other format causes the processor
+# to permanently close its gate and drop all events until the agent is restarted.
+apiVersion: appprotect.f5.com/v1beta1
+kind: APLogConf
+metadata:
+  name: secops-logconf
+spec:
+  content:
+    format: user-defined
+    format_string: "%support_id%|%ip_client%|%src_port%|%dest_ip%|%dest_port%|%vs_name%|%policy_name%|%method%|%uri%|%protocol%|%request_status%|%response_code%|%outcome%|%outcome_reason%|%violation_rating%|%blocking_exception_reason%|%is_truncated_bool%|%sig_ids%|%sig_names%|%sig_cves%|%sig_set_names%|%threat_campaign_names%|%sub_violations%|%x_forwarded_for_header_value%|%violations%|%violation_details%|%request%|%geo_location%"
+    escaping_characters:
+      - from: "|"
+        to: "%7C"
+    max_message_size: 64k
+    list_delimiter: "::"
+  filter:
+    request_type: illegal
