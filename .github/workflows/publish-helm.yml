@@ -124,7 +124,11 @@ jobs:
         run: |
           helm_versions="--app-version ${{ inputs.ic_version }} --version ${{ inputs.chart_version }}"
           chart_name="${{ inputs.chart_name }}"
-          yq -i ".name = \"${chart_name}\"" kic/charts/nginx-ingress/Chart.yaml
+          if [[ ! "$chart_name" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+            echo "Invalid chart_name: must match Helm chart name pattern ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" >&2
+            exit 1
+          fi
+          CHART_NAME="$chart_name" yq -i '.name = strenv(CHART_NAME)' kic/charts/nginx-ingress/Chart.yaml
           output=$(helm package ${helm_versions} kic/charts/nginx-ingress)
           echo "path=$(basename -- $(echo $output | cut -d: -f2))" >> $GITHUB_OUTPUT
 
