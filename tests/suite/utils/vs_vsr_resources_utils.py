@@ -128,9 +128,7 @@ def patch_virtual_server_from_yaml(custom_objects: CustomObjectsApi, name, yaml_
         logging.error(f"Failed with exception while patching VirtualServer: {name}")
         raise
     except Exception as ex:
-        logging.error(
-            f"Failed with exception while patching VirtualServer: {name}, Exception: {ex.with_traceback}", exc_info=True
-        )
+        logging.error(f"Failed with exception while patching VirtualServer: {name}, Exception: {ex}", exc_info=True)
         raise
 
 
@@ -194,7 +192,7 @@ def patch_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manif
         raise
     except Exception as ex:
         logging.error(
-            f"Failed with exception while patching VirtualServerRoute: {name}, Exception: {ex.with_traceback}",
+            f"Failed with exception while patching VirtualServerRoute: {name}, Exception: {ex}",
             exc_info=True,
         )
         raise

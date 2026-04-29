@@ -145,7 +145,7 @@ def create_resource_from_manifest(custom_objects: CustomObjectsApi, body, namesp
         logging.error(
             f"Exception: {ex} occurred while creating {body['kind']}: {body['metadata']['name']}", exc_info=True
         )
-        raise ex
+        raise
 
 
 def read_custom_resource_v1(custom_objects: CustomObjectsApi, namespace, plural, name) -> object:
