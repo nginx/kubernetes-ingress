@@ -189,6 +189,7 @@ jobs:
       docker-md5: ${{ needs.checks.outputs.docker_md5 }}
       runner: "ubuntu-24.04-amd64"
       write-to-cache: true
+      read-from-cache: false
     secrets: inherit
     permissions:
       contents: read
@@ -328,7 +329,7 @@ jobs:
           image: quay.io/nginx/nginx-ingress:edge-ubi
           project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
-          preflight_version: 1.17.1 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
+          preflight_version: 1.17.2 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
 
   scan-docker-oss:
     name: Scan ${{ matrix.image }}

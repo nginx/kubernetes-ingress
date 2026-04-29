@@ -175,6 +175,14 @@ server {
 	auth_basic_user_file {{ .Secret }};
 	{{- end }}
 
+	{{- if $server.ExternalAuth }}
+	auth_request {{ $server.ExternalAuth.URI.InternalPath }};
+	{{- if $server.ExternalAuth.SigninURL }}
+	proxy_intercept_errors on;
+	error_page 401 "{{ $server.ExternalAuth.SigninURL }}";
+	{{- end }}
+	{{- end }}
+
 	{{- range $value := $server.ServerSnippets}}
 	{{$value}}{{- end}}
 
@@ -187,6 +195,9 @@ server {
 	{{- range $location := $server.Locations}}
 	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
 		set $service "{{$location.ServiceName}}";
+		{{- if $location.Internal}}
+		internal;
+		{{- end}}
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
 		set $resource_name "{{$location.MinionIngress.Name}}";
@@ -195,6 +206,16 @@ server {
 
 		{{- with $location.PoliciesErrorReturn }}
 		return {{ .Code }};
+		{{- end }}
+
+		{{- if $location.AuthRequestOff}}
+		auth_request off;
+		{{- else if $location.ExternalAuth }}
+		auth_request {{ $location.ExternalAuth.URI.InternalPath }};
+		{{- if $location.ExternalAuth.SigninURL }}
+		proxy_intercept_errors on;
+		error_page 401 "{{ $location.ExternalAuth.SigninURL }}";
+		{{- end }}
 		{{- end }}
 
 		{{- range $allow := $location.Allow }}
@@ -247,8 +268,10 @@ server {
 		error_page 504 @grpcerror504;
 		{{- end}}
 
+		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
+		{{- end}}
 
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
@@ -291,8 +314,10 @@ server {
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
+		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
+		{{- end}}
 		{{- with $location.BasicAuth }}
 		auth_basic {{ printf "%q" .Realm }};
 		auth_basic_user_file {{ .Secret }};
@@ -303,6 +328,12 @@ server {
 		client_max_body_size {{$location.ClientMaxBodySize}};
 		{{- if $location.ClientBodyBufferSize }}
 		client_body_buffer_size {{$location.ClientBodyBufferSize}};
+		{{- end}}
+		{{- if $location.ProxyPassRequestHeaders }}
+		proxy_pass_request_headers {{ $location.ProxyPassRequestHeaders }};
+		{{- end }}
+		{{- if $location.ProxyPassRequestBody }}
+		proxy_pass_request_body {{ $location.ProxyPassRequestBody }};
 		{{- end}}
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
@@ -346,6 +377,15 @@ server {
 		{{- end }}
 		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
+		{{- if $location.ProxySSLVerify }}
+		proxy_ssl_verify on;
+		proxy_ssl_verify_depth {{ $location.ProxySSLVerifyDepth }};
+		proxy_ssl_server_name on;
+		proxy_ssl_name {{ $location.ProxySSLName }};
+		{{- end }}
+		{{- if $location.ProxySSLTrustedCertificate }}
+		proxy_ssl_trusted_certificate {{ $location.ProxySSLTrustedCertificate }};
+		{{- end }}
 
 		{{- if or $location.CORSEnabled (gt (len $location.AddHeaders) 0) }}
 		{{- range $h := $location.AddHeaders }}

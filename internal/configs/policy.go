@@ -20,6 +20,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// DefaultSigninRedirectBasePath is the default base path for the NGINX location
+// that handles sign-in redirect requests (e.g. oauth2-proxy expects /oauth2).
+const DefaultSigninRedirectBasePath = "/oauth2"
+
 // rateLimit hold the configuration for the ratelimiting Policy
 type rateLimit struct {
 	Reqs             []version2.LimitReq
@@ -56,6 +60,7 @@ type policiesCfg struct {
 	Deny            []string
 	RateLimit       rateLimit
 	JWTAuth         jwtAuth
+	ExternalAuth    *version2.ExternalAuth
 	BasicAuth       *version2.BasicAuth
 	IngressMTLS     *version2.IngressMTLS
 	EgressMTLS      *version2.EgressMTLS
@@ -261,6 +266,120 @@ func (p *policiesCfg) addJWTAuthConfig(
 		p.JWTAuth.JWKSEnabled = true
 		return res
 	}
+	return res
+}
+
+func (p *policiesCfg) addExternalAuthConfig(
+	externalAuth *conf_v1.ExternalAuth,
+	polKey string,
+	polNamespace string,
+	polName string,
+	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
+	ownerDetails policyOwnerDetails,
+) *validationResults {
+	res := newValidationResults()
+	if p.ExternalAuth != nil {
+		res.addWarningf("Multiple external auth policies in the same context is not valid. External auth policy %s will be ignored", polNamespace+"/"+polName)
+		return res
+	}
+
+	upstreamName := fmt.Sprintf("%s_exauth_%s_%s", ownerDetails.parentType, polNamespace, polName)
+	internalPath := fmt.Sprintf("/_external_auth%s", externalAuth.AuthURI)
+
+	p.ExternalAuth = &version2.ExternalAuth{
+		URI: &version2.AuthURI{
+			Service:      externalAuth.AuthServiceName,
+			Upstream:     upstreamName,
+			Path:         externalAuth.AuthURI,
+			InternalPath: internalPath,
+		},
+		ServicePorts: externalAuth.AuthServicePorts,
+		SSLEnabled:   externalAuth.SSLEnabled,
+	}
+	if externalAuth.AuthSigninURI != "" {
+		p.ExternalAuth.SigninURL = externalAuth.AuthSigninURI
+
+		// Set the SigninRedirectBasePath to the default value, and override it if the user has specified a custom value. This is needed to ensure that the correct default path is used when the user specifies a custom signin URI but does not specify a custom signin redirect base path.
+		p.ExternalAuth.SigninRedirectBasePath = DefaultSigninRedirectBasePath
+		if externalAuth.AuthSigninRedirectBasePath != "" {
+			p.ExternalAuth.SigninRedirectBasePath = externalAuth.AuthSigninRedirectBasePath
+		}
+	}
+	if externalAuth.AuthSnippets != "" {
+		p.ExternalAuth.Snippets = externalAuth.AuthSnippets
+	}
+
+	// Handle SSL verification for external auth
+	if externalAuth.SSLEnabled && externalAuth.SSLVerify {
+		sslRes := p.configureExternalAuthSSL(externalAuth, polKey, polNamespace, secretRefs, policyOpts)
+		res.warnings = append(res.warnings, sslRes.warnings...)
+		if sslRes.isError {
+			res.isError = true
+			return res
+		}
+	}
+
+	return res
+}
+
+// configureExternalAuthSSL configures SSL verification settings for external auth.
+func (p *policiesCfg) configureExternalAuthSSL(
+	externalAuth *conf_v1.ExternalAuth,
+	polKey string,
+	polNamespace string,
+	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
+) *validationResults {
+	res := newValidationResults()
+	p.ExternalAuth.SSLVerify = true
+
+	sslVerifyDepth := 1
+	if externalAuth.SSLVerifyDepth != nil {
+		sslVerifyDepth = *externalAuth.SSLVerifyDepth
+	}
+	p.ExternalAuth.SSLVerifyDepth = sslVerifyDepth
+
+	trustedCertPath := policyOpts.defaultCABundle
+	if externalAuth.TrustedCertSecret != "" {
+		secretNS, secretName := ParseResourceReference(externalAuth.TrustedCertSecret, polNamespace)
+		trustedCertSecretRefName := fmt.Sprintf("%s/%s", secretNS, secretName)
+		trustedCertSecretRef := secretRefs[trustedCertSecretRefName]
+
+		if trustedCertSecretRef == nil {
+			res.addWarningf("ExternalAuth policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretRefName)
+			res.isError = true
+			return res
+		}
+
+		var secretType api_v1.SecretType
+		if trustedCertSecretRef.Secret != nil {
+			secretType = trustedCertSecretRef.Secret.Type
+		}
+		if secretType != "" && secretType != secrets.SecretTypeCA {
+			res.addWarningf("ExternalAuth policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretRefName, secretType, secrets.SecretTypeCA)
+			res.isError = true
+			return res
+		} else if trustedCertSecretRef.Error != nil {
+			res.addWarningf("ExternalAuth policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretRefName, trustedCertSecretRef.Error)
+			res.isError = true
+			return res
+		}
+
+		caFields := strings.Fields(trustedCertSecretRef.Path)
+		if len(caFields) > 0 {
+			trustedCertPath = caFields[0]
+		}
+	}
+	p.ExternalAuth.SSLTrustedCert = trustedCertPath
+
+	if externalAuth.SNIName != "" {
+		p.ExternalAuth.SNIName = externalAuth.SNIName
+	} else {
+		svcNs, svcName := ParseServiceReference(externalAuth.AuthServiceName, polNamespace)
+		p.ExternalAuth.SNIName = fmt.Sprintf("%s.%s.svc", svcName, svcNs)
+	}
+
 	return res
 }
 
@@ -1033,6 +1152,8 @@ func generatePolicies(
 				)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
+			case pol.Spec.ExternalAuth != nil:
+				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key, polNamespace, p.Name, policyOpts.secretRefs, policyOpts, ownerDetails)
 			case pol.Spec.BasicAuth != nil:
 				res = config.addBasicAuthConfig(pol.Spec.BasicAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.IngressMTLS != nil:

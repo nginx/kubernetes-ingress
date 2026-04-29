@@ -86,25 +86,17 @@ func (vsv *VirtualServerValidator) ValidateVirtualServer(virtualServer *v1.Virtu
 }
 
 // BalanceUpstreamProxies balances proxy buffer sizes for all upstreams in a VirtualServer.
-func (vsv *VirtualServerValidator) BalanceUpstreamProxies(virtualServer *v1.VirtualServer) error {
+func (vsv *VirtualServerValidator) BalanceUpstreamProxies(virtualServer *v1.VirtualServer) {
 	for i := range virtualServer.Spec.Upstreams {
-		err := internalValidation.BalanceProxiesForUpstreams(&virtualServer.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
-		if err != nil {
-			return fmt.Errorf("upstream %d: %w", i, err)
-		}
+		internalValidation.BalanceProxiesForUpstreams(&virtualServer.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
 	}
-	return nil
 }
 
 // BalanceUpstreamProxiesForRoute balances proxy buffer sizes for all upstreams in a VirtualServerRoute.
-func (vsv *VirtualServerValidator) BalanceUpstreamProxiesForRoute(virtualServerRoute *v1.VirtualServerRoute) error {
+func (vsv *VirtualServerValidator) BalanceUpstreamProxiesForRoute(virtualServerRoute *v1.VirtualServerRoute) {
 	for i := range virtualServerRoute.Spec.Upstreams {
-		err := internalValidation.BalanceProxiesForUpstreams(&virtualServerRoute.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
-		if err != nil {
-			return fmt.Errorf("upstream %d: %w", i, err)
-		}
+		internalValidation.BalanceProxiesForUpstreams(&virtualServerRoute.Spec.Upstreams[i], vsv.isDirectiveAutoadjustEnabled)
 	}
-	return nil
 }
 
 // validateVirtualServerSpec validates a VirtualServerSpec.
@@ -1372,24 +1364,6 @@ func validateRegexPath(path string, fieldPath *field.Path) field.ErrorList {
 	}
 	if err := ValidateEscapedString(path, "*.jpg", "^/images/image_*.png$"); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, err.Error())}
-	}
-	return nil
-}
-
-const (
-	pathFmt    = `/[^\s{};\\]*`
-	pathErrMsg = "must start with / and must not include any whitespace character, `{`, `}` or `;`"
-)
-
-var pathRegexp = regexp.MustCompile("^" + pathFmt + "$")
-
-func validatePath(path string, fieldPath *field.Path) field.ErrorList {
-	if path == "" {
-		return field.ErrorList{field.Required(fieldPath, "")}
-	}
-	if !pathRegexp.MatchString(path) {
-		msg := validation.RegexError(pathErrMsg, pathFmt, "/", "/path", "/path/subpath-123")
-		return field.ErrorList{field.Invalid(fieldPath, path, msg)}
 	}
 	return nil
 }

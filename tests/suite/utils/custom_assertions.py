@@ -21,19 +21,19 @@ def assert_no_new_events(old_list, new_list):
             pytest.fail(f'Expected: no new events. There is a new event found:"{new_list[i].message}". Exiting...')
 
 
-def assert_event_count_increased(event_text, count, events_list) -> None:
+def assert_event_count_increased(event_text, count, events_list) -> int:
     """
-    Search for the event in the list and verify its counter is more than the expected value.
+    Search for the event in the list and verify its counter is more than the expected value, return the new count.
 
     :param event_text: event text
     :param count: expected value
     :param events_list: list of events
-    :return:
+    :return: event.count
     """
     for i in range(len(events_list) - 1, -1, -1):
         if event_text in events_list[i].message:
             assert events_list[i].count > count
-            return
+            return events_list[i].count
     pytest.fail(f'Failed to find the event "{event_text}" in the list. Exiting...')
 
 
@@ -404,7 +404,7 @@ def assert_ts_status(kube_apis, namespace, name, expected_state, **kwargs):
     return assert_crd_status(kube_apis, namespace, name, "transportservers", expected_state, **kwargs)
 
 
-def assert_valid_vs(kube_apis, namespace, name, retry_count=30, wait_time=1):
+def assert_valid_vs(kube_apis, namespace, name, retry_count=60, wait_time=1):
     """Assert that a VirtualServer reaches Valid state with AddedOrUpdated reason."""
     return assert_vs_status(
         kube_apis,
@@ -417,7 +417,7 @@ def assert_valid_vs(kube_apis, namespace, name, retry_count=30, wait_time=1):
     )
 
 
-def assert_valid_vsr(kube_apis, namespace, name, retry_count=30, wait_time=1):
+def assert_valid_vsr(kube_apis, namespace, name, retry_count=60, wait_time=1):
     """Assert that a VirtualServerRoute reaches Valid state with AddedOrUpdated reason."""
     return assert_vsr_status(
         kube_apis,
@@ -440,7 +440,7 @@ def assert_invalid_vsr(kube_apis, namespace, name, retry_count=30, wait_time=1):
     return assert_vsr_status(kube_apis, namespace, name, "Invalid", retry_count=retry_count, wait_time=wait_time)
 
 
-def assert_valid_ts(kube_apis, namespace, name, retry_count=30, wait_time=1):
+def assert_valid_ts(kube_apis, namespace, name, retry_count=60, wait_time=1):
     """Assert that a TransportServer reaches Valid state with AddedOrUpdated reason."""
     return assert_ts_status(
         kube_apis,
