@@ -80,7 +80,7 @@ def create_virtual_server(custom_objects: CustomObjectsApi, vs, namespace) -> st
         print(f"VirtualServer created with name '{vs['metadata']['name']}'")
         return vs["metadata"]["name"]
     except ApiException as ex:
-        logging.exception(f"Exception: {ex} occurred while creating VirtualServer: {vs['metadata']['name']}")
+        logging.error(f"Exception: {ex} occurred while creating VirtualServer: {vs['metadata']['name']}", exc_info=True)
         raise
 
 
@@ -125,10 +125,12 @@ def patch_virtual_server_from_yaml(custom_objects: CustomObjectsApi, name, yaml_
         custom_objects.patch_namespaced_custom_object("k8s.nginx.org", "v1", namespace, "virtualservers", name, dep)
         print(f"VirtualServer updated with name '{dep['metadata']['name']}'")
     except ApiException:
-        logging.exception(f"Failed with exception while patching VirtualServer: {name}")
+        logging.error(f"Failed with exception while patching VirtualServer: {name}")
         raise
     except Exception as ex:
-        logging.exception(f"Failed with exception while patching VirtualServer: {name}, Exception: {ex.with_traceback}")
+        logging.error(
+            f"Failed with exception while patching VirtualServer: {name}, Exception: {ex.with_traceback}", exc_info=True
+        )
         raise
 
 
@@ -147,7 +149,7 @@ def delete_and_create_vs_from_yaml(custom_objects: CustomObjectsApi, name, yaml_
         create_virtual_server_from_yaml(custom_objects, yaml_manifest, namespace)
         wait_before_test()
     except ApiException:
-        logging.exception(f"Failed with exception while patching VirtualServer: {name}")
+        logging.error(f"Failed with exception while patching VirtualServer: {name}", exc_info=True)
         raise
 
 
@@ -188,11 +190,12 @@ def patch_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name, yaml_manif
         wait_before_test()
         print(f"VirtualServerRoute updated with name '{dep['metadata']['name']}'")
     except ApiException:
-        logging.exception(f"Failed with exception while patching VirtualServerRoute: {name}")
+        logging.error(f"Failed with exception while patching VirtualServerRoute: {name}")
         raise
     except Exception as ex:
-        logging.exception(
-            f"Failed with exception while patching VirtualServerRoute: {name}, Exception: {ex.with_traceback}"
+        logging.error(
+            f"Failed with exception while patching VirtualServerRoute: {name}, Exception: {ex.with_traceback}",
+            exc_info=True,
         )
         raise
 
@@ -351,5 +354,5 @@ def delete_and_create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, name
         create_v_s_route_from_yaml(custom_objects, yaml_manifest, namespace)
         wait_before_test()
     except ApiException:
-        logging.exception(f"Failed with exception while patching VirtualServerRoute: {name}")
+        logging.error(f"Failed with exception while patching VirtualServerRoute: {name}", exc_info=True)
         raise
