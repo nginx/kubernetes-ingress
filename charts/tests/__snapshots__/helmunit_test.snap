@@ -2650,6 +2650,7 @@ data:
       - connection
       - metrics
       - file-watcher
+      - logs-nap
     
     ## command server settings
     command:
@@ -2973,7 +2974,7 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: app-protect-wafv5-agentv3
-        agent-configuration-revision-hash: "af84a0cc"
+        agent-configuration-revision-hash: "59aa7a70"
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
