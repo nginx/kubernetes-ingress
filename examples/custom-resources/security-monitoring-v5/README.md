@@ -4,13 +4,24 @@ This example describes how to deploy NGINX Plus Ingress Controller with [F5 WAF 
 
 This example works with both:
 
-- **NGINX Instance Manager** (Agent v2) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
-- **NGINX One Console** (Agent v3) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
+- **NGINX Instance Manager** (Agent 2.*) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
+- **NGINX One Console** (Agent 3.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
 
 ## Prerequisites
 
 1. Follow the installation [instructions](https://docs.nginx.com/nginx-ingress-controller/installation) to deploy NGINX
    Ingress Controller with F5 WAF for NGINX v5 and NGINX Agent. Configure NGINX Agent to connect to either a deployment of NGINX Instance Manager with Security Monitoring, or to NGINX One Console, and verify your NGINX Ingress Controller deployment is online.
+
+1. Confirm which version of NGINX Agent is running in your Ingress Controller pod:
+
+    ```console
+    kubectl exec -it <nginx-ingress-pod> -c nginx-ingress -- nginx-agent -v
+    ```
+
+    The output will show either `2.x.x` or `3.x.x`. Use this to choose the correct WAF policy in Step 4 below.
+
+    - **Agent 2.***: connects to NGINX Instance Manager
+    - **Agent 3.***: connects to NGINX One Console (requires 3.9.0 or later for security monitoring)
 
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
@@ -53,25 +64,33 @@ kubectl apply -f webapp.yaml
     kubectl cp ./compiled_log.tgz <pod-name>:/etc/app_protect/bundles/compiled_log.tgz -c nginx-ingress
     ```
 
-## Step 3 - Deploy the Syslog Service
+## Step 3 - Deploy the Syslog Service (Agent 2.* only)
 
-Create the syslog service and pod that receives App Protect security logs:
+If you are using Agent 2.* (NGINX Instance Manager), create the syslog service and pod that receives App Protect security logs:
 
 ```console
 kubectl apply -f syslog.yaml
 ```
 
+If you are using Agent 3.*(NGINX One Console), skip this step. NGINX Agent 3.* listens for security logs locally on `127.0.0.1:1514` using its embedded OpenTelemetry collector.
+
 ## Step 4 - Deploy the WAF Policy
 
-Create the WAF policy referencing the compiled bundles:
+Create the WAF policy referencing the compiled bundles. Choose the file that matches your agent version:
+
+**Agent 2.* (NGINX Instance Manager)** — logs sent to the syslog service:
 
 ```console
 kubectl apply -f waf.yaml
 ```
 
-The `waf.yaml` Policy resource configures WAF protection using the compiled policy bundle and sends security logs to the syslog service using the compiled log bundle.
+**Agent 3.* (NGINX One Console)** — logs sent directly to the local NGINX Agent listener:
 
-Note the log configuration in the `apLogBundle` must be compiled from a log profile that matches the format required by NGINX Security Monitoring (applicable to both NGINX Instance Manager and NGINX One Console).
+```console
+kubectl apply -f waf-agent-v3.yaml
+```
+
+Note the log bundle referenced in the `apLogBundle` field must be compiled from a log profile that matches the format required by NGINX Security Monitoring.
 
 ## Step 5 - Configure Load Balancing
 
@@ -108,7 +127,7 @@ kubectl apply -f virtual-server.yaml
 
     The suspicious request is blocked by F5 WAF for NGINX.
 
-1. To check the security logs in the syslog pod:
+1. If using Agent 2.*, check the security logs in the syslog pod:
 
     ```console
     kubectl exec -it <syslog-pod-name> -- cat /var/log/messages
