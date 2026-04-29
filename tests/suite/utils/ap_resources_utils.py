@@ -23,8 +23,9 @@ def read_ap_custom_resource(custom_objects: CustomObjectsApi, namespace, plural,
         response = custom_objects.get_namespaced_custom_object("appprotect.f5.com", "v1beta1", namespace, plural, name)
         return response
 
-    except ApiException:
-        logging.exception(f"Exception occurred while reading CRD")
+    except ApiException as ex:
+        if ex.status != 404:
+            logging.error(f"Exception occurred while reading CRD", exc_info=True)
         raise
 
 
@@ -66,7 +67,7 @@ def create_ap_waf_policy_from_yaml(
         print(f"Policy created: {dep}")
         return dep["metadata"]["name"]
     except ApiException:
-        logging.exception(f"Exception occurred while creating Policy: {dep['metadata']['name']}")
+        logging.error(f"Exception occurred while creating Policy: {dep['metadata']['name']}", exc_info=True)
         raise
 
 
@@ -108,7 +109,7 @@ def create_ap_multilog_waf_policy_from_yaml(
                 )
             dep["spec"]["waf"]["securityLogs"] = seclogs
         except KeyError:
-            logging.exception(f"Exception occurred while creating Policy: {dep['metadata']['name']}")
+            logging.error(f"Exception occurred while creating Policy: {dep['metadata']['name']}", exc_info=True)
             raise
         del dep["spec"]["waf"]["securityLog"]
 
@@ -116,7 +117,7 @@ def create_ap_multilog_waf_policy_from_yaml(
         print(f"Policy created: {dep}")
         return dep["metadata"]["name"]
     except ApiException:
-        logging.exception(f"Exception occurred while creating Policy: {dep['metadata']['name']}")
+        logging.error(f"Exception occurred while creating Policy: {dep['metadata']['name']}", exc_info=True)
         raise
 
 
@@ -183,7 +184,7 @@ def delete_and_create_ap_policy_from_yaml(custom_objects: CustomObjectsApi, name
         delete_ap_policy(custom_objects, name, namespace)
         create_ap_policy_from_yaml(custom_objects, yaml_manifest, namespace)
     except ApiException:
-        logging.exception(f"Failed with exception while patching AP Policy: {name}")
+        logging.error(f"Failed with exception while patching AP Policy: {name}", exc_info=True)
         raise
 
 
