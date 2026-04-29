@@ -72,24 +72,20 @@ jobs:
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+      - name: Collect secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@refs/heads/main
+        with:
+          vault-name: "${{ secrets.NIC_KEYVAULT_NAME }}"
+          secret-names: "gcr-workload-identity,kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID,GCR_SERVICE_ACCOUNT"
 
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
@@ -147,28 +143,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$PLUS_CREDS"
-          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
-          while read -r line; do
-            echo "::add-mask::${line}"
-          done <<< "${CERT}"
-          echo $CERT > nginx-repo.crt
-          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
-          while read -r line; do
-            echo "::add-mask::${line}"
-          done <<< "${KEY}"
-          echo $KEY > nginx-repo.key
+      - name: Collect secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@refs/heads/main
+        with:
+          vault-name: "${{ secrets.NIC_KEYVAULT_NAME }}"
+          secret-names: "gcr-workload-identity,kic-pipeline-gcr-sa,plus-creds-crt,plus-creds-key"
+          env-names: "GCR_WORKLOAD_ID,GCR_SERVICE_ACCOUNT,PLUS_CREDS_CRT,PLUS_CREDS_KEY"
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -183,8 +163,8 @@ jobs:
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
@@ -219,9 +199,9 @@ jobs:
           build-args: |
             BUILD_OS=${{ matrix.image }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
-          secret-files: |
-            nginx-repo.crt=nginx-repo.crt
-            nginx-repo.key=nginx-repo.key
+          secret-envs: |
+            nginx-repo.crt=${{ env.PLUS_CREDS_CRT }}
+            nginx-repo.key=${{ env.PLUS_CREDS_KEY }}
 
       - name: Clean up secrets
         run: |
@@ -250,33 +230,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$PLUS_CREDS"
-          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
-          while read -r line; do
-            echo "::add-mask::${line}"
-          done <<< "${CERT}"
-          echo $CERT > nginx-repo.crt
-          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
-          while read -r line; do
-            echo "::add-mask::${line}"
-          done <<< "${KEY}"
-          echo $KEY > nginx-repo.key
-          IFS=@ RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          while read -r line; do
-            echo "::add-mask::${line}"
-          done <<< "${RHEL_CREDS}"
-          echo $RHEL_CREDS > rhel_license
+      - name: Collect secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@refs/heads/main
+        with:
+          vault-name: "${{ secrets.NIC_KEYVAULT_NAME }}"
+          secret-names: "gcr-workload-identity,kic-pipeline-gcr-sa,plus-creds-crt,plus-creds-key,rhel-creds"
+          env-names: "GCR_WORKLOAD_ID,GCR_SERVICE_ACCOUNT,PLUS_CREDS_CRT,PLUS_CREDS_KEY,RHEL_CREDS"
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
@@ -286,8 +245,8 @@ jobs:
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
@@ -330,10 +289,10 @@ jobs:
             BUILD_OS=${{ matrix.image }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
             NAP_MODULES=${{ matrix.nap_modules }}
-          secret-files: |
-            nginx-repo.crt=nginx-repo.crt
-            nginx-repo.key=nginx-repo.key
-            ${{ contains(matrix.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
+          secret-envs: |
+            nginx-repo.crt=${{ env.PLUS_CREDS_CRT }}
+            nginx-repo.key=${{ env.PLUS_CREDS_KEY }}
+            ${{ contains(matrix.image, 'ubi') && 'rhel_license=${{ env.RHEL_CREDS }}' || '' }}
 
       - name: Clean up secrets
         run: |
