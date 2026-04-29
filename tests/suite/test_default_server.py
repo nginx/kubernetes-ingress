@@ -94,6 +94,14 @@ def secret_setup(request, kube_apis):
 
 
 @pytest.mark.ingresses
+@pytest.mark.parametrize(
+    "deploy_empty_host_ingress",
+    [
+        pytest.param(False, id="default-server"),
+        pytest.param(True, id="empty-host-ingress"),
+    ],
+    indirect=True,
+)
 class TestDefaultServer:
     @pytest.mark.parametrize(
         "ingress_controller",
@@ -105,14 +113,6 @@ class TestDefaultServer:
             },
         ],
         indirect=True,
-    )
-    @pytest.mark.parametrize(
-        "deploy_empty_host_ingress",
-        [
-            pytest.param(False, id="default-server"),
-            pytest.param(True, id="empty-host-ingress"),
-        ],
-        indirect=["deploy_empty_host_ingress"],
     )
     def test_with_default_tls_secret(
         self,
@@ -159,14 +159,6 @@ class TestDefaultServer:
         ],
         indirect=True,
     )
-    @pytest.mark.parametrize(
-        "deploy_empty_host_ingress",
-        [
-            pytest.param(False, id="default-server"),
-            pytest.param(True, id="empty-host-ingress"),
-        ],
-        indirect=["deploy_empty_host_ingress"],
-    )
     def test_without_default_tls_secret(
         self,
         ingress_controller_endpoint,
@@ -188,14 +180,6 @@ class TestDefaultServer:
             },
         ],
         indirect=True,
-    )
-    @pytest.mark.parametrize(
-        "deploy_empty_host_ingress",
-        [
-            pytest.param(False, id="default-server"),
-            pytest.param(True, id="empty-host-ingress"),
-        ],
-        indirect=["deploy_empty_host_ingress"],
     )
     def test_disable_default_listeners_true(
         self,
@@ -224,14 +208,6 @@ class TestDefaultServer:
             },
         ],
         indirect=True,
-    )
-    @pytest.mark.parametrize(
-        "deploy_empty_host_ingress",
-        [
-            pytest.param(False, id="default-server"),
-            pytest.param(True, id="empty-host-ingress"),
-        ],
-        indirect=["deploy_empty_host_ingress"],
     )
     def test_custom_default_listeners(
         self,
@@ -264,20 +240,11 @@ class TestDefaultServer:
         ],
         indirect=True,
     )
-    @pytest.mark.parametrize(
-        "deploy_empty_host_ingress, expected_root_status",
-        [
-            pytest.param(False, 404, id="default-server"),
-            pytest.param(True, 301, id="empty-host-ingress"),
-        ],
-        indirect=["deploy_empty_host_ingress"],
-    )
     def test_health_status_bypasses_ssl_redirect(
         self,
         ingress_controller_endpoint,
         default_server_setup,
         deploy_empty_host_ingress,
-        expected_root_status,
     ):
         print("Step 1: ensure the health URI stays reachable over HTTP")
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/nginx-health"
@@ -285,4 +252,13 @@ class TestDefaultServer:
 
         print("Step 2: ensure non-health traffic keeps its normal default-server behavior")
         request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/"
+
+        # The built-in default server returns 404 for HTTP requests to '/'.
+        # Once an empty-host Ingress takes ownership of the default server,
+        # the same request follows the default ssl-redirect behavior and returns 301.
+        if deploy_empty_host_ingress:
+            expected_root_status = 301
+        else:
+            expected_root_status = 404
+
         wait_and_assert_status_code(expected_root_status, request_url, allow_redirects=False)
