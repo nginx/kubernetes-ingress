@@ -794,6 +794,7 @@ func validateHostlessForbiddenAnnotation(context *annotationValidationContext) f
 
 	return field.ErrorList{field.Forbidden(context.fieldPath, "annotation is not supported for hostless Ingress")}
 }
+
 func validateQualifiedName(context *annotationValidationContext) field.ErrorList {
 	err := validation.IsQualifiedName(context.value)
 	if err != nil {
