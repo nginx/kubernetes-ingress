@@ -10,7 +10,7 @@ spec:
       return:
         code: 200
         body: "api-v1"
-  - path: "~ /api/v1"
+  - path: "~/api/v1"
     action:
       return:
         code: 200

@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -1333,63 +1332,20 @@ func (vsv *VirtualServerValidator) validateSplits(splits []v1.Split, fieldPath *
 	return allErrs
 }
 
-const (
-	// PathModifierExact is the prefix used for exact location matches.
-	PathModifierExact = "="
-
-	// PathModifierLongestPrefix is the prefix for longest prefix matches.
-	PathModifierLongestPrefix = "^~"
-
-	// PathModifierRegex is the prefix for case-sensitive regular expression matches.
-	PathModifierRegex = "~"
-
-	// PathModifierRegexIC is the prefix for case-insensitive regular expression matches.
-	PathModifierRegexIC = "~*"
-)
-
-// NormalizePath removes optional whitespace between a location modifier and its URI.
-// For example, "~ /api" and "~/api" both normalize to "~/api".
-func NormalizePath(path string) string {
-	// ~* must appear before ~ in this slice since ~* starts with ~
-	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex, PathModifierLongestPrefix, PathModifierExact} {
-		if strings.HasPrefix(path, mod) {
-			return mod + strings.TrimLeftFunc(strings.TrimPrefix(path, mod), unicode.IsSpace)
-		}
-	}
-	return path
-}
-
-// pathModifierOf returns the location modifier of a path ("~*", "~", "^~", "=" or "").
-func pathModifierOf(path string) string {
-	norm := NormalizePath(path)
-	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex, PathModifierLongestPrefix, PathModifierExact} {
-		if strings.HasPrefix(norm, mod) {
-			return mod
-		}
-	}
-	return ""
-}
-
-// Path category constants group modifiers for type-consistency checks.
-const (
-	pathCategoryRegex  = "regex"
-	pathCategoryExact  = "exact"
-	pathCategoryPrefix = "prefix"
-)
-
-// pathCategory groups modifiers into broader categories for type-consistency
-// checks.  "~" and "~*" are both regex and treated interchangeably; "=" is
-// exact; "" and "^~" are prefix.  This allows a single VSR to be referenced
-// by a mix of case-sensitive and case-insensitive regex VS routes.
-func pathCategory(path string) string {
-	mod := pathModifierOf(path)
-	switch mod {
-	case PathModifierRegex, PathModifierRegexIC:
-		return pathCategoryRegex
-	case PathModifierExact:
-		return pathCategoryExact
+// subrouteModifierCategory returns a category string for a subroute path's modifier.
+// Paths sharing the same category may coexist in one VSR; different categories may not.
+// "~" and "~*" are both "regex" and may mix freely.
+// "^~" is "longest-prefix", "=" is "exact", no modifier is "prefix".
+func subrouteModifierCategory(path string) string {
+	switch {
+	case strings.HasPrefix(path, "~"):
+		return "regex"
+	case strings.HasPrefix(path, "="):
+		return "exact"
+	case strings.HasPrefix(path, "^~"):
+		return "longest-prefix"
 	default:
-		return pathCategoryPrefix
+		return "prefix"
 	}
 }
 
@@ -1403,13 +1359,13 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 
 	allErrs := field.ErrorList{}
 	if strings.HasPrefix(path, "^~") {
-		allErrs = append(allErrs, validatePath(strings.TrimLeftFunc(strings.TrimPrefix(path, "^~"), unicode.IsSpace), fieldPath)...)
+		allErrs = append(allErrs, validatePath(strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "), fieldPath)...)
 	} else if strings.HasPrefix(path, "~") {
 		allErrs = append(allErrs, validateRegexPath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "/") {
 		allErrs = append(allErrs, validatePath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "=") {
-		allErrs = append(allErrs, validatePath(strings.TrimLeftFunc(strings.TrimPrefix(path, "="), unicode.IsSpace), fieldPath)...)
+		allErrs = append(allErrs, validatePath(strings.TrimPrefix(path, "="), fieldPath)...)
 	} else {
 		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~, = or ^~"))
 	}
@@ -1425,7 +1381,7 @@ func validateRegexPath(path string, fieldPath *field.Path) field.ErrorList {
 	regex := path
 	for _, mod := range []string{"~*", "~"} {
 		if strings.HasPrefix(regex, mod) {
-			regex = strings.TrimLeftFunc(strings.TrimPrefix(regex, mod), unicode.IsSpace)
+			regex = strings.TrimLeft(strings.TrimPrefix(regex, mod), " ")
 			break
 		}
 	}
@@ -1629,42 +1585,54 @@ func (vsv *VirtualServerValidator) validateVirtualServerRouteSubroutes(routes []
 		return vsv.validateSubroutesStandalone(routes, fieldPath, upstreamNames, namespace)
 	}
 
-	// Type consistency: all vsPaths must share the same category (regex, exact,
-	// or prefix).  "~" and "~*" are both regex and may be mixed freely; a VSR
-	// cannot span categories (e.g. one prefix path and one regex path).
+	// Type consistency: multiple VS paths are only supported for regex routes.
 	if len(vsPaths) > 1 {
-		cat0 := pathCategory(vsPaths[0])
-		for _, p := range vsPaths[1:] {
-			if pathCategory(p) != cat0 {
-				return field.ErrorList{field.Invalid(fieldPath, "subroutes", "all referenced VS route paths must have the same modifier type")}
+		for _, p := range vsPaths {
+			if !strings.HasPrefix(p, "~") {
+				return field.ErrorList{field.Invalid(fieldPath, "subroutes", "multiple VS route paths are only supported for regex routes")}
 			}
 		}
 	}
 
-	norm0 := NormalizePath(vsPaths[0])
-	if strings.HasPrefix(norm0, PathModifierExact) {
-		return vsv.validateSubroutesExact(routes, fieldPath, vsPaths[0], upstreamNames, namespace)
+	firstPath := vsPaths[0]
+	if strings.HasPrefix(firstPath, "=") {
+		return vsv.validateSubroutesExact(routes, fieldPath, firstPath, upstreamNames, namespace)
 	}
-	if strings.HasPrefix(norm0, PathModifierRegex) {
+	if strings.HasPrefix(firstPath, "~") {
 		return vsv.validateSubroutesRegex(routes, fieldPath, upstreamNames, vsPaths, namespace)
 	}
-	return vsv.validateSubroutesPrefix(routes, fieldPath, upstreamNames, vsPaths[0], namespace)
+	return vsv.validateSubroutesPrefix(routes, fieldPath, upstreamNames, firstPath, namespace)
 }
 
 // validateSubroutesStandalone validates subroutes when no VS path constraint is present (standalone VSR).
+// All subroutes must share the same modifier category (regex, exact, longest-prefix, or prefix).
 func (vsv *VirtualServerValidator) validateSubroutesStandalone(routes []v1.Route, fieldPath *field.Path, upstreamNames sets.Set[string], namespace string) field.ErrorList {
 	allErrs := field.ErrorList{}
+
+	// Type-consistency check: all subroutes must be the same category.
+	if len(routes) > 1 {
+		cat0 := subrouteModifierCategory(routes[0].Path)
+		for i, r := range routes[1:] {
+			if subrouteModifierCategory(r.Path) != cat0 {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Index(i+1).Child("path"), r.Path,
+					fmt.Sprintf("all subroutes must use the same path modifier type; got '%s' and '%s'", cat0, subrouteModifierCategory(r.Path))))
+			}
+		}
+		if len(allErrs) > 0 {
+			return allErrs
+		}
+	}
+
 	allPaths := sets.Set[string]{}
 	for i, r := range routes {
 		idxPath := fieldPath.Index(i)
 		routeErrs := vsv.validateRoute(r, idxPath, upstreamNames, true, namespace)
-		normPath := NormalizePath(r.Path)
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)
-		} else if allPaths.Has(normPath) {
+		} else if allPaths.Has(r.Path) {
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
-			allPaths.Insert(normPath)
+			allPaths.Insert(r.Path)
 		}
 	}
 	return allErrs
@@ -1676,61 +1644,55 @@ func (vsv *VirtualServerValidator) validateSubroutesExact(routes []v1.Route, fie
 	if len(routes) != 1 {
 		return field.ErrorList{field.Invalid(fieldPath, "subroutes", "must have only one subroute if exact match is being used")}
 	}
-	normVSPath := NormalizePath(vsPath)
-	if NormalizePath(routes[0].Path) != normVSPath {
-		return field.ErrorList{field.Invalid(fieldPath.Index(0).Child("path"), routes[0].Path, fmt.Sprintf("must have the same path as the referenced VirtualServer route path %q", normVSPath))}
+	if routes[0].Path != vsPath {
+		return field.ErrorList{field.Invalid(fieldPath.Index(0).Child("path"), routes[0].Path,
+			fmt.Sprintf("must have the same path as the referenced VirtualServer route path '%s'", vsPath))}
 	}
 	return vsv.validateRoute(routes[0], fieldPath.Index(0), upstreamNames, true, namespace)
 }
 
 // validateSubroutesRegex validates subroutes when the VS paths use regex match (~ or ~*).
-// Subroutes must form a bidirectional normalized set equal to the VS paths, and each must be a regex path.
+// Subroutes must form a bidirectional set equal to the VS paths.
+// Type consistency (all subroutes are regex) is guaranteed by standalone validation.
 func (vsv *VirtualServerValidator) validateSubroutesRegex(routes []v1.Route, fieldPath *field.Path, upstreamNames sets.Set[string], vsPaths []string, namespace string) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Spacing-duplicate check: two subroutes that normalize to the same path.
-	normalizedToIdx := make(map[string]int)
+	// Duplicate check: exact string match.
+	allPaths := sets.Set[string]{}
 	for i, r := range routes {
-		norm := NormalizePath(r.Path)
-		if existingIdx, exists := normalizedToIdx[norm]; exists {
+		if allPaths.Has(r.Path) {
 			allErrs = append(allErrs, field.Duplicate(fieldPath.Index(i).Child("path"), r.Path))
-			allErrs = append(allErrs, field.Duplicate(fieldPath.Index(existingIdx).Child("path"), routes[existingIdx].Path))
 		} else {
-			normalizedToIdx[norm] = i
+			allPaths.Insert(r.Path)
 		}
 	}
 	if len(allErrs) > 0 {
 		return allErrs
 	}
 
-	// Build normalized sets for bidirectional coverage check.
-	subrouteNormSet := make(map[string]bool, len(routes))
+	// Build sets for bidirectional coverage check.
+	subrouteSet := sets.New[string]()
 	for _, r := range routes {
-		subrouteNormSet[NormalizePath(r.Path)] = true
+		subrouteSet.Insert(r.Path)
 	}
-	vsPathNormSet := make(map[string]bool, len(vsPaths))
+	vsPathSet := sets.New[string]()
 	for _, p := range vsPaths {
-		vsPathNormSet[NormalizePath(p)] = true
+		vsPathSet.Insert(p)
 	}
 
 	// Every VS path must have a matching subroute.
 	for _, p := range vsPaths {
-		if !subrouteNormSet[NormalizePath(p)] {
+		if !subrouteSet.Has(p) {
 			allErrs = append(allErrs, field.Invalid(fieldPath, "subroutes",
-				fmt.Sprintf("subroute with path %q is missing; all VS route paths must be covered by VSR subroutes", p)))
+				fmt.Sprintf("subroute with path '%s' is missing; all VS route paths must be covered by VSR subroutes", p)))
 		}
 	}
 
-	// Every subroute must be a regex path and must be referenced by a VS path.
+	// Every subroute must be referenced by a VS path.
 	for i, r := range routes {
-		idxPath := fieldPath.Index(i)
-		norm := NormalizePath(r.Path)
-		if !strings.HasPrefix(norm, PathModifierRegex) {
-			allErrs = append(allErrs, field.Invalid(idxPath.Child("path"), r.Path,
-				"must be a regex path when the referenced VirtualServer route is a regex path"))
-		} else if !vsPathNormSet[norm] {
-			allErrs = append(allErrs, field.Invalid(idxPath.Child("path"), r.Path,
-				fmt.Sprintf("subroute path %q is not referenced by any VS route; all VSR subroutes must be referenced", r.Path)))
+		if !vsPathSet.Has(r.Path) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i).Child("path"), r.Path,
+				fmt.Sprintf("subroute path '%s' is not referenced by any VS route; all VSR subroutes must be referenced", r.Path)))
 		}
 	}
 
@@ -1748,21 +1710,19 @@ func (vsv *VirtualServerValidator) validateSubroutesRegex(routes []v1.Route, fie
 // Each subroute path must start with the VS path.
 func (vsv *VirtualServerValidator) validateSubroutesPrefix(routes []v1.Route, fieldPath *field.Path, upstreamNames sets.Set[string], vsPath string, namespace string) field.ErrorList {
 	allErrs := field.ErrorList{}
-	vsPathNorm := NormalizePath(vsPath)
 	allPaths := sets.Set[string]{}
 	for i, r := range routes {
 		idxPath := fieldPath.Index(i)
 		routeErrs := vsv.validateRoute(r, idxPath, upstreamNames, true, namespace)
-		if vsPathNorm != "" && !strings.HasPrefix(NormalizePath(r.Path), vsPathNorm) {
-			routeErrs = append(routeErrs, field.Invalid(idxPath.Child("path"), r.Path, fmt.Sprintf("must start with %q", vsPathNorm)))
+		if vsPath != "" && !strings.HasPrefix(r.Path, vsPath) {
+			routeErrs = append(routeErrs, field.Invalid(idxPath.Child("path"), r.Path, fmt.Sprintf("must start with '%s'", vsPath)))
 		}
-		normPath := NormalizePath(r.Path)
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)
-		} else if allPaths.Has(normPath) {
+		} else if allPaths.Has(r.Path) {
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
-			allPaths.Insert(normPath)
+			allPaths.Insert(r.Path)
 		}
 	}
 	return allErrs

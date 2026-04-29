@@ -2718,18 +2718,6 @@ func TestGeneratePath(t *testing.T) {
 			path:     "~*  /images/jpg",
 			expected: `~* "/images/jpg"`,
 		},
-		{
-			path:     "~\t/api/v3",
-			expected: `~ "/api/v3"`,
-		},
-		{
-			path:     "~*\t /images/gif",
-			expected: `~* "/images/gif"`,
-		},
-		{
-			path:     "^~\t/static",
-			expected: "^~ /static",
-		},
 	}
 
 	for _, test := range tests {

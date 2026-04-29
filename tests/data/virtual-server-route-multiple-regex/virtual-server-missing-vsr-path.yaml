@@ -12,7 +12,7 @@ spec:
         body: "static"
   - path: "~/api/v1"
     route: route-api
-  - path: "~ /api/v2"
+  - path: "~/api/v2"
     route: route-api
   - path: "~/api/v3"
     route: route-api

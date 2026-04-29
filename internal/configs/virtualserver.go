@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
@@ -1828,14 +1827,14 @@ func generateBool(s *bool, defaultS bool) bool {
 func generatePath(path string) string {
 	// Format the longest prefix match with a space between the modifier and the path
 	if strings.HasPrefix(path, "^~") {
-		return fmt.Sprintf(`^~ %v`, strings.TrimLeftFunc(strings.TrimPrefix(path, "^~"), unicode.IsSpace))
+		return fmt.Sprintf(`^~ %v`, strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "))
 	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
-		return fmt.Sprintf(`~* "%v"`, strings.TrimLeftFunc(strings.TrimPrefix(path, "~*"), unicode.IsSpace))
+		return fmt.Sprintf(`~* "%v"`, strings.TrimLeft(strings.TrimPrefix(path, "~*"), " "))
 	}
 	if strings.HasPrefix(path, "~") {
-		return fmt.Sprintf(`~ "%v"`, strings.TrimLeftFunc(strings.TrimPrefix(path, "~"), unicode.IsSpace))
+		return fmt.Sprintf(`~ "%v"`, strings.TrimLeft(strings.TrimPrefix(path, "~"), " "))
 	}
 
 	return path

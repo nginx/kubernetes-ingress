@@ -1,9 +1,8 @@
 """Tests for multiple regex paths per VSR feature.
 
 A single VSR may be referenced by multiple regex VS routes. The VS paths and
-VSR subroute paths must form an exact set match (after normalisation). This
-file exercises the happy path, normalisation with whitespace variants, and
-several failure scenarios.
+VSR subroute paths must form an exact set match. This file exercises the happy
+path and several failure scenarios.
 """
 
 import pytest
@@ -181,10 +180,10 @@ class TestVSRMultipleRegexPaths:
             ingress_controller_prerequisites.namespace,
         )
 
-        # generatePath() wraps regex patterns in double quotes and normalises spacing
-        # between modifier and pattern (e.g. ~/api/v1 → ~ "/api/v1", ~  /api/v2 → ~ "/api/v2").
+        # generatePath() wraps regex patterns in double quotes and adds a space
+        # between modifier and pattern (e.g. ~/api/v1 → ~ "/api/v1").
         assert 'location ~ "/api/v1"' in config, 'Expected ~ "/api/v1" location block'
-        assert 'location ~ "/api/v2"' in config, 'Expected ~ "/api/v2" location block (normalised from ~  /api/v2)'
+        assert 'location ~ "/api/v2"' in config, 'Expected ~ "/api/v2" location block'
         assert 'location ~* "/images/jpg"' in config, 'Expected ~* "/images/jpg" location block'
         assert 'location ~* "/images/png"' in config, 'Expected ~* "/images/png" location block'
         assert "location /static" in config, "Expected /static location block (non-VSR direct return route)"
@@ -242,13 +241,14 @@ class TestVSRMultipleRegexPaths:
         self.restore_valid_state(kube_apis, setup)
 
     # ------------------------------------------------------------------ #
-    # Failure: VS has duplicate normalised regex paths
+    # Failure: VS has duplicate regex paths for the same VSR
     # ------------------------------------------------------------------ #
 
-    def test_vs_duplicate_normalized_paths(
+    def test_vs_duplicate_paths(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, multi_regex_vsr_setup
     ):
-        """VS with ~/api/v1 and ~ /api/v1 should emit a spacing-duplicate warning."""
+        """VS with ~/api/v1 listed twice should still be valid (deduplicated) but the VSR should fail
+        because the VSR subroutes don't cover the deduplicated path set."""
         setup = multi_regex_vsr_setup
 
         patch_virtual_server_from_yaml(
@@ -259,19 +259,24 @@ class TestVSRMultipleRegexPaths:
         )
         wait_before_test(2)
 
-        events = get_events(kube_apis.v1, setup.namespace)
-        assert_event("equivalent regex paths after normalization", events)
+        # VS still valid; VSR validation handles path matching
+        vs_info = read_custom_resource(kube_apis.custom_objects, setup.namespace, "virtualservers", setup.vs_name)
+        # The duplicate path is deduplicated, so the VSR can still validate against the unique set
+        assert vs_info["status"]["state"] in (
+            "Valid",
+            "Warning",
+        ), f"VS should be Valid or Warning, got: {vs_info['status']}"
 
         self.restore_valid_state(kube_apis, setup)
 
     # ------------------------------------------------------------------ #
-    # Failure: VSR has duplicate normalised subroute paths
+    # Failure: VSR has duplicate subroute paths
     # ------------------------------------------------------------------ #
 
-    def test_vsr_duplicate_normalized_paths(
+    def test_vsr_duplicate_paths(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, multi_regex_vsr_setup
     ):
-        """VSR with ~/api/v1 and ~ /api/v1 collapses to one unique path, failing the set match."""
+        """VSR with duplicate ~/api/v1 subroutes fails standalone validation (duplicate paths)."""
         setup = multi_regex_vsr_setup
 
         patch_v_s_route_from_yaml(

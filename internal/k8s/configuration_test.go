@@ -1517,7 +1517,7 @@ func TestMakeVirtualServerRouteInvalidForVirtualServer(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr2, vsr3},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {"default/virtualserverroute-3"}},
-				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0].path: Invalid value: \"/\": must start with \"/first\""},
+				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0].path: Invalid value: \"/\": must start with '/first'"},
 			},
 		},
 	}
@@ -6378,20 +6378,6 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			expectedWarns: nil,
 		},
 		{
-			name: "spacing-duplicate VS regex paths produce warning but VSR still validates",
-			vsRoutes: []conf_v1.Route{
-				{Path: "~/api", Route: vsrName},
-				{Path: "~ /api", Route: vsrName},
-			},
-			vsrSubroutes: []conf_v1.Route{
-				makeSubroute("~/api"),
-			},
-			expectedVSR: true,
-			expectedWarns: []string{
-				`routes "~/api" and "~ /api" have equivalent regex paths after normalization; only one will be used by nginx`,
-			},
-		},
-		{
 			name: "orphaned VSR subroute not covered by any VS path is rejected",
 			vsRoutes: []conf_v1.Route{
 				{Path: "~/api/v1", Route: vsrName},
@@ -6402,7 +6388,7 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			},
 			expectedVSR: false,
 			expectedWarns: []string{
-				`VirtualServerRoute default/myroute is invalid: spec.subroutes[1].path: Invalid value: "~/api/v2": subroute path "~/api/v2" is not referenced by any VS route; all VSR subroutes must be referenced`,
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes[1].path: Invalid value: "~/api/v2": subroute path '~/api/v2' is not referenced by any VS route; all VSR subroutes must be referenced`,
 			},
 		},
 		{
@@ -6416,11 +6402,11 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			},
 			expectedVSR: false,
 			expectedWarns: []string{
-				`VirtualServerRoute default/myroute is invalid: spec.subroutes: Invalid value: "subroutes": subroute with path "~/api/v2" is missing; all VS route paths must be covered by VSR subroutes`,
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes: Invalid value: "subroutes": subroute with path '~/api/v2' is missing; all VS route paths must be covered by VSR subroutes`,
 			},
 		},
 		{
-			name: "VSR referenced by both regex and non-regex VS routes is rejected from both",
+			name: "non-regex route validates eagerly while regex entry fails independently",
 			vsRoutes: []conf_v1.Route{
 				{Path: "/prefix", Route: vsrName},
 				{Path: "~/regex", Route: vsrName},
@@ -6428,27 +6414,9 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			vsrSubroutes: []conf_v1.Route{
 				makeSubroute("/prefix/sub"),
 			},
-			expectedVSR: false,
-			expectedWarns: []string{
-				"VirtualServerRoute default/myroute is referenced by both regex and non-regex VS routes; it will not be used",
-			},
-		},
-		{
-			name: "multiple spacing-duplicate regex paths for same VSR deduplicate correctly",
-			vsRoutes: []conf_v1.Route{
-				{Path: "~/api/v1", Route: vsrName},
-				{Path: "~ /api/v1", Route: vsrName},  // spacing dup of v1
-				{Path: "~  /api/v1", Route: vsrName}, // another spacing dup of v1
-				{Path: "~/api/v2", Route: vsrName},
-			},
-			vsrSubroutes: []conf_v1.Route{
-				makeSubroute("~/api/v1"),
-				makeSubroute("~/api/v2"),
-			},
 			expectedVSR: true,
 			expectedWarns: []string{
-				`routes "~/api/v1" and "~ /api/v1" have equivalent regex paths after normalization; only one will be used by nginx`,
-				`routes "~/api/v1" and "~  /api/v1" have equivalent regex paths after normalization; only one will be used by nginx`,
+				`VirtualServerRoute default/myroute is invalid: [spec.subroutes: Invalid value: "subroutes": subroute with path '~/regex' is missing; all VS route paths must be covered by VSR subroutes, spec.subroutes[0].path: Invalid value: "/prefix/sub": subroute path '/prefix/sub' is not referenced by any VS route; all VSR subroutes must be referenced]`,
 			},
 		},
 		{
@@ -6467,7 +6435,7 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			},
 		},
 		{
-			name: "VSR referenced by duplicate non-regex routes and a regex route is fully removed",
+			name: "duplicate non-regex routes plus regex route — non-regex wins, regex fails independently",
 			vsRoutes: []conf_v1.Route{
 				{Path: "/prefix", Route: vsrName},
 				{Path: "/prefix", Route: vsrName},
@@ -6476,10 +6444,10 @@ func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
 			vsrSubroutes: []conf_v1.Route{
 				makeSubroute("/prefix/sub"),
 			},
-			expectedVSR: false,
+			expectedVSR: true,
 			expectedWarns: []string{
 				"VS default/myvs has duplicate VirtualServerRoutes default/myroute",
-				"VirtualServerRoute default/myroute is referenced by both regex and non-regex VS routes; it will not be used",
+				`VirtualServerRoute default/myroute is invalid: [spec.subroutes: Invalid value: "subroutes": subroute with path '~/regex' is missing; all VS route paths must be covered by VSR subroutes, spec.subroutes[0].path: Invalid value: "/prefix/sub": subroute path '/prefix/sub' is not referenced by any VS route; all VSR subroutes must be referenced]`,
 			},
 		},
 	}
@@ -6594,102 +6562,13 @@ func TestRegexVSROutputOrderMatchesVSRouteOrder(t *testing.T) {
 	}
 }
 
-// TestVSRSelectorsCleanedUpAfterMixedTypeRejection verifies that when a VSR is matched by
-// a routeSelector AND referenced by a regex route on the same VS, the mixed-type rejection
-// removes it from both VirtualServerRoutes and VirtualServerRouteSelectors. Without the
-// post-filter sync, vsrSelectors would contain a stale key pointing to the rejected VSR,
-// causing incorrect IsEqual() comparisons and spurious nginx reloads.
-func TestVSRSelectorsCleanedUpAfterMixedTypeRejection(t *testing.T) {
-	t.Parallel()
-
-	const (
-		host      = "foo.example.com"
-		namespace = "default"
-		vsName    = "myvs"
-	)
-
-	// The VSR is matched by a label selector AND explicitly referenced by a regex route.
-	vsr := &conf_v1.VirtualServerRoute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mixed-vsr",
-			Namespace: namespace,
-			Labels:    map[string]string{"app": "mixed"},
-		},
-		Spec: conf_v1.VirtualServerRouteSpec{
-			IngressClass: "nginx",
-			Host:         host,
-			Subroutes: []conf_v1.Route{
-				{
-					Path:   "/prefix/sub",
-					Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "ok"}},
-				},
-			},
-		},
-	}
-
-	// VS has two routes for the same VSR:
-	//   1. A non-regex routeSelector (matches the VSR by label)
-	//   2. A regex route explicitly naming the same VSR
-	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
-		{
-			Path: "/prefix",
-			RouteSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": "mixed"},
-			},
-		},
-		{
-			Path:  "~/regex",
-			Route: namespace + "/mixed-vsr",
-		},
-	})
-
-	configuration := createTestConfiguration()
-	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
-		namespace + "/mixed-vsr": vsr,
-	}
-
-	gotVSRs, gotSelectors, gotWarnings := configuration.buildVirtualServerRoutes(vs)
-
-	// The VSR must not appear in VirtualServerRoutes.
-	if len(gotVSRs) != 0 {
-		t.Errorf("expected 0 VSRs after mixed-type rejection, got %d: %v", len(gotVSRs), gotVSRs)
-	}
-	// The rejected VSR key must not appear in any selector's VSR list.
-	// The selector entry itself may remain with an empty list (preserving
-	// change-tracking for future label matches), but the stale key must be gone.
-	rejectedKey := namespace + "/mixed-vsr"
-	for selectorStr, vsrKeys := range gotSelectors {
-		for _, k := range vsrKeys {
-			if k == rejectedKey {
-				t.Errorf("rejected VSR key %q still present in selector %q after mixed-type rejection", k, selectorStr)
-			}
-		}
-	}
-	// The warning about mixed-type reference must be present.
-	found := false
-	for _, w := range gotWarnings {
-		if w == "VirtualServerRoute default/mixed-vsr is referenced by both regex and non-regex VS routes; it will not be used" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("expected mixed-type rejection warning, got warnings: %v", gotWarnings)
-	}
-}
-
 // TestBuildVirtualServerRoutesRegexSelector covers the routeSelector flow with regex VS paths.
 // It verifies two scenarios:
 //
-//  1. A regex routeSelector selects a VSR normally — the VSR should be returned without any
-//     mixed-type rejection (since the selector path is regex, the VSR must NOT be classified
-//     as "non-regex" in nonRegexKeys).
+//  1. A regex routeSelector selects a VSR normally — the VSR should be returned.
 //
 //  2. A regex routeSelector selects a VSR that is ALSO referenced by an explicit regex route:
-//     field on the same VS.  Before the fix, the selector would incorrectly add the VSR to
-//     nonRegexKeys, causing rejectMixedTypeVSRs to fire and discard it.  After the fix,
-//     no mixed-type warning is emitted; instead a duplicate-VSR warning fires (expected,
-//     because the same VSR now appears via two valid regex paths).
+//     field on the same VS.  This is a duplicate reference, and a duplicate-VSR warning fires.
 func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 	t.Parallel()
 
@@ -6702,7 +6581,7 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 	// --- Scenario 1: regex routeSelector, no explicit regex route ---
 	// The VSR is matched purely by label selector on a regex VS path.
 	// Expected: 1 VSR returned, no warnings.
-	t.Run("regex routeSelector selects VSR without rejection", func(t *testing.T) {
+	t.Run("regex routeSelector selects VSR", func(t *testing.T) {
 		t.Parallel()
 
 		vsr := createTestVirtualServerRouteWithLabels(
@@ -6723,24 +6602,18 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 			namespace + "/regex-vsr": vsr,
 		}
 
-		gotVSRs, _, gotWarnings := cfg.buildVirtualServerRoutes(vs)
+		gotVSRs, _, _ := cfg.buildVirtualServerRoutes(vs)
 
 		if len(gotVSRs) != 1 {
 			t.Errorf("expected 1 VSR, got %d: %v", len(gotVSRs), gotVSRs)
 		}
-		for _, w := range gotWarnings {
-			if strings.Contains(w, "referenced by both regex and non-regex") {
-				t.Errorf("unexpected mixed-type rejection warning: %q", w)
-			}
-		}
 	})
 
-	// --- Scenario 2: regex routeSelector + explicit regex route: to the same VSR ---
+	// --- Scenario 2: regex routeSelector + explicit regex route to the same VSR ---
 	// The same VSR is matched by a label selector (on a regex path) AND referenced
-	// by an explicit regex route: field.  This is a duplicate reference, but it must
-	// NOT trigger the mixed-type rejection warning — both references are regex.
-	// A duplicate-VSR warning is expected instead.
-	t.Run("regex routeSelector plus explicit regex route to same VSR emits duplicate not mixed-type warning", func(t *testing.T) {
+	// by an explicit regex route: field.  This is a duplicate reference, and a
+	// duplicate-VSR warning is expected.
+	t.Run("regex routeSelector plus explicit regex route to same VSR emits duplicate warning", func(t *testing.T) {
 		t.Parallel()
 
 		vsr := createTestVirtualServerRouteWithLabels(
@@ -6749,14 +6622,13 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 		)
 		vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
 			{
-				// Regex routeSelector — before the fix this wrongly added regex-vsr to nonRegexKeys.
 				Path: "~/api",
 				RouteSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"app": "regex-app"},
 				},
 			},
 			{
-				// Explicit regex route: to the same VSR.
+				// Explicit regex route to the same VSR.
 				Path:  "~/api",
 				Route: namespace + "/regex-vsr",
 			},
@@ -6769,72 +6641,14 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 
 		_, _, gotWarnings := cfg.buildVirtualServerRoutes(vs)
 
-		mixedTypeWarning := false
 		duplicateWarning := false
 		for _, w := range gotWarnings {
-			if strings.Contains(w, "referenced by both regex and non-regex") {
-				mixedTypeWarning = true
-			}
 			if strings.Contains(w, "has duplicate VirtualServerRoutes") {
 				duplicateWarning = true
 			}
-		}
-		if mixedTypeWarning {
-			t.Errorf("expected no mixed-type rejection warning after fix, got warnings: %v", gotWarnings)
 		}
 		if !duplicateWarning {
 			t.Errorf("expected a duplicate-VSR warning for the double reference, got warnings: %v", gotWarnings)
 		}
 	})
-}
-
-// TestBuildVirtualServerRoutesRegexSelectorMixedType verifies that rejectMixedTypeVSRs
-// correctly detects mixed-type references when regex selector keys are populated.
-//
-// In the current validation model, a VSR's subroutes can't be valid for both regex and
-// non-regex VS paths simultaneously, so the integration path through collectSelectorRoute
-// can't produce this scenario. This test exercises rejectMixedTypeVSRs directly to verify
-// the defensive logic that guards against future validation changes.
-func TestBuildVirtualServerRoutesRegexSelectorMixedType(t *testing.T) {
-	t.Parallel()
-
-	const namespace = "default"
-
-	vsr := &conf_v1.VirtualServerRoute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "shared-vsr",
-			Namespace: namespace,
-		},
-	}
-
-	// Simulate: the VSR was added to col.vsrs by a non-regex named route, AND
-	// recorded in regexSelectorKeys by a regex selector route.
-	regexEntries := map[string]*regexVSREntry{}
-	regexSelectorKeys := map[string]bool{
-		namespace + "/shared-vsr": true,
-	}
-	nonRegexKeys := map[string]bool{
-		namespace + "/shared-vsr": true,
-	}
-	vsrs := []*conf_v1.VirtualServerRoute{vsr}
-
-	resultEntries, resultVSRs, warnings := rejectMixedTypeVSRs(regexEntries, regexSelectorKeys, nonRegexKeys, vsrs)
-
-	if len(resultVSRs) != 0 {
-		t.Errorf("expected 0 VSRs after mixed-type rejection, got %d", len(resultVSRs))
-	}
-	if len(resultEntries) != 0 {
-		t.Errorf("expected 0 regex entries after mixed-type rejection, got %d", len(resultEntries))
-	}
-
-	found := false
-	for _, w := range warnings {
-		if strings.Contains(w, "referenced by both regex and non-regex") && strings.Contains(w, "shared-vsr") {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("expected mixed-type rejection warning for shared-vsr, got warnings: %v", warnings)
-	}
 }
