@@ -1375,20 +1375,11 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 // validateRegexPath validates correctness of the string representing the path.
 //
 // Internally it uses Perl5 compatible regexp2 package.
-// The modifier (~, ~*) and any separator whitespace are stripped before
-// compilation so we validate only the regex portion that nginx will parse.
 func validateRegexPath(path string, fieldPath *field.Path) field.ErrorList {
-	regex := path
-	for _, mod := range []string{"~*", "~"} {
-		if strings.HasPrefix(regex, mod) {
-			regex = strings.TrimLeft(strings.TrimPrefix(regex, mod), " ")
-			break
-		}
-	}
-	if _, err := regexp2.Compile(regex, 0); err != nil {
+	if _, err := regexp2.Compile(path, 0); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, fmt.Sprintf("must be a valid regular expression: %v", err))}
 	}
-	if err := ValidateEscapedString(regex, "*.jpg", "^/images/image_*.png$"); err != nil {
+	if err := ValidateEscapedString(path, "*.jpg", "^/images/image_*.png$"); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, err.Error())}
 	}
 	return nil
