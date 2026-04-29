@@ -16,13 +16,13 @@ import (
 )
 
 type IngressMtls struct {
-	Ca         CertificateInfo `json:"ca"`
-	Crl        CertificateInfo `json:"crl"`
-	Client     FilePaths       `json:"client"`
-	Valid      ClientCerts     `json:"valid"`
-	Invalid    ClientCerts     `json:"invalid"`
-	NotRevoked ClientCerts     `json:"not-revoked"`
-	Revoked    ClientCerts     `json:"revoked"`
+	Ca           CertificateInfo `json:"ca"`
+	Crl          CertificateInfo `json:"crl"`
+	Client       FilePaths       `json:"client"`
+	Valid        ClientCerts     `json:"valid"`
+	Invalid      ClientCerts     `json:"invalid"`
+	NotRevoked   ClientCerts     `json:"not-revoked"`
+	Revoked      ClientCerts     `json:"revoked"`
 	Intermediate ClientCerts     `json:"intermediate"`
 }
 
