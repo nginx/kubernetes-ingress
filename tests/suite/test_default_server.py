@@ -4,6 +4,7 @@ import pytest
 import requests
 from requests.exceptions import ConnectionError
 from settings import TEST_DATA
+from suite.utils.custom_assertions import wait_and_assert_status_code
 from suite.utils.resources_utils import (
     create_ingress,
     create_secret_from_yaml,
@@ -53,7 +54,7 @@ def default_server_setup_custom_port(ingress_controller_endpoint, ingress_contro
 
 
 @pytest.fixture(scope="class")
-def empty_host_ingress(request, kube_apis, ingress_controller, test_namespace):
+def deploy_empty_host_ingress(request, kube_apis, ingress_controller, test_namespace):
     if not request.param:
         return
 
@@ -95,15 +96,31 @@ def secret_setup(request, kube_apis):
 @pytest.mark.ingresses
 class TestDefaultServer:
     @pytest.mark.parametrize(
-        "ingress_controller, empty_host_ingress",
+        "ingress_controller",
         [
-            pytest.param({"extra_args": []}, False, id="default-server"),
-            pytest.param({"extra_args": ["-allow-empty-ingress-host"]}, True, id="empty-host-ingress"),
+            {
+                "extra_args": [
+                    "-allow-empty-ingress-host",
+                ],
+            },
         ],
         indirect=True,
     )
+    @pytest.mark.parametrize(
+        "deploy_empty_host_ingress",
+        [
+            pytest.param(False, id="default-server"),
+            pytest.param(True, id="empty-host-ingress"),
+        ],
+        indirect=["deploy_empty_host_ingress"],
+    )
     def test_with_default_tls_secret(
-        self, kube_apis, ingress_controller_endpoint, secret_setup, default_server_setup, empty_host_ingress
+        self,
+        kube_apis,
+        ingress_controller_endpoint,
+        secret_setup,
+        default_server_setup,
+        deploy_empty_host_ingress,
     ):
         print("Step 1: ensure CN of the default server TLS cert")
         assert_cn(ingress_controller_endpoint, "NGINXIngressController")
@@ -131,44 +148,61 @@ class TestDefaultServer:
         assert_cn(ingress_controller_endpoint, "NGINXIngressController")
 
     @pytest.mark.parametrize(
-        "ingress_controller, empty_host_ingress",
+        "ingress_controller",
         [
-            pytest.param({"extra_args": ["-default-server-tls-secret="]}, False, id="default-server"),
-            pytest.param(
-                {"extra_args": ["-default-server-tls-secret=", "-allow-empty-ingress-host"]},
-                True,
-                id="empty-host-ingress",
-            ),
+            {
+                "extra_args": [
+                    "-default-server-tls-secret=",
+                    "-allow-empty-ingress-host",
+                ],
+            },
         ],
         indirect=True,
     )
-    def test_without_default_tls_secret(self, ingress_controller_endpoint, default_server_setup, empty_host_ingress):
+    @pytest.mark.parametrize(
+        "deploy_empty_host_ingress",
+        [
+            pytest.param(False, id="default-server"),
+            pytest.param(True, id="empty-host-ingress"),
+        ],
+        indirect=["deploy_empty_host_ingress"],
+    )
+    def test_without_default_tls_secret(
+        self,
+        ingress_controller_endpoint,
+        default_server_setup,
+        deploy_empty_host_ingress,
+    ):
         print("Ensure connection to HTTPS cannot be established")
         assert_unrecognized_name_error(ingress_controller_endpoint)
 
     @pytest.mark.parametrize(
-        "ingress_controller, empty_host_ingress",
+        "ingress_controller",
         [
-            pytest.param(
-                {"extra_args": ["-default-http-listener-port=8085", "-default-https-listener-port=8445"]},
-                False,
-                id="default-server",
-            ),
-            pytest.param(
-                {
-                    "extra_args": [
-                        "-default-http-listener-port=8085",
-                        "-default-https-listener-port=8445",
-                        "-allow-empty-ingress-host",
-                    ]
-                },
-                True,
-                id="empty-host-ingress",
-            ),
+            {
+                "extra_args": [
+                    "-default-http-listener-port=8085",
+                    "-default-https-listener-port=8445",
+                    "-allow-empty-ingress-host",
+                ],
+            },
         ],
         indirect=True,
     )
-    def test_disable_default_listeners_true(self, ingress_controller_endpoint, ingress_controller, empty_host_ingress):
+    @pytest.mark.parametrize(
+        "deploy_empty_host_ingress",
+        [
+            pytest.param(False, id="default-server"),
+            pytest.param(True, id="empty-host-ingress"),
+        ],
+        indirect=["deploy_empty_host_ingress"],
+    )
+    def test_disable_default_listeners_true(
+        self,
+        ingress_controller_endpoint,
+        ingress_controller,
+        deploy_empty_host_ingress,
+    ):
         print("Ensure ports 80 and 443 return result in an ERR_CONNECTION_REFUSED")
         request_url_80 = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/"
         with pytest.raises(ConnectionError, match="Connection refused") as e:
@@ -179,26 +213,25 @@ class TestDefaultServer:
             requests.get(request_url_443, headers={}, verify=False)
 
     @pytest.mark.parametrize(
-        "ingress_controller, empty_host_ingress",
+        "ingress_controller",
         [
-            pytest.param(
-                {"extra_args": ["-default-http-listener-port=8085", "-default-https-listener-port=8445"]},
-                False,
-                id="default-server",
-            ),
-            pytest.param(
-                {
-                    "extra_args": [
-                        "-default-http-listener-port=8085",
-                        "-default-https-listener-port=8445",
-                        "-allow-empty-ingress-host",
-                    ]
-                },
-                True,
-                id="empty-host-ingress",
-            ),
+            {
+                "extra_args": [
+                    "-default-http-listener-port=8085",
+                    "-default-https-listener-port=8445",
+                    "-allow-empty-ingress-host",
+                ],
+            },
         ],
         indirect=True,
+    )
+    @pytest.mark.parametrize(
+        "deploy_empty_host_ingress",
+        [
+            pytest.param(False, id="default-server"),
+            pytest.param(True, id="empty-host-ingress"),
+        ],
+        indirect=["deploy_empty_host_ingress"],
     )
     def test_custom_default_listeners(
         self,
@@ -206,7 +239,7 @@ class TestDefaultServer:
         ingress_controller_endpoint,
         ingress_controller,
         default_server_setup_custom_port,
-        empty_host_ingress,
+        deploy_empty_host_ingress,
     ):
         print("Ensure custom ports for default listeners return 404")
         request_url_http = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.custom_http}/"
@@ -218,3 +251,38 @@ class TestDefaultServer:
         )
         resp = requests.get(request_url_https, headers={}, verify=False)
         assert resp.status_code == 404
+
+    @pytest.mark.parametrize(
+        "ingress_controller",
+        [
+            {
+                "extra_args": [
+                    "-health-status=true",
+                    "-allow-empty-ingress-host",
+                ],
+            },
+        ],
+        indirect=True,
+    )
+    @pytest.mark.parametrize(
+        "deploy_empty_host_ingress, expected_root_status",
+        [
+            pytest.param(False, 404, id="default-server"),
+            pytest.param(True, 301, id="empty-host-ingress"),
+        ],
+        indirect=["deploy_empty_host_ingress"],
+    )
+    def test_health_status_bypasses_ssl_redirect(
+        self,
+        ingress_controller_endpoint,
+        default_server_setup,
+        deploy_empty_host_ingress,
+        expected_root_status,
+    ):
+        print("Step 1: ensure the health URI stays reachable over HTTP")
+        health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/nginx-health"
+        wait_and_assert_status_code(200, health_url)
+
+        print("Step 2: ensure non-health traffic keeps its normal default-server behavior")
+        request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/"
+        wait_and_assert_status_code(expected_root_status, request_url, allow_redirects=False)

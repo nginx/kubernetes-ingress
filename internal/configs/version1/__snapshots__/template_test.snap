@@ -4058,6 +4058,214 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressWithEmptyHostForNGINX - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    http2 on;
+    ssl_reject_handshake on;
+
+    server_tokens off;
+    server_name _;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($request_uri = /nginx-health) {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    access_log off;
+    location = /nginx-health {
+        default_type text/plain;
+        return 200 "healthy\n";
+    }
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location / {
+        return 404;
+    }
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithEmptyHostForNGINXPlus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    http2 on;
+    ssl_reject_handshake on;
+
+    server_tokens "off";
+    server_name _;
+    status_zone _;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($request_uri = /nginx-health) {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    access_log off;
+    location = /nginx-health {
+        default_type text/plain;
+        return 200 "healthy\n";
+    }
+    location / {
+        return 404;
+    }
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithEmptyHostWithRootLocation - 1]
+# configuration for default/webapp-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_reject_handshake on;
+
+    server_tokens off;
+    server_name _;
+    set $resource_type "ingress";
+    set $resource_name "webapp-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressWithGRPCEgressMTLSPolicy/nginx - 1]
 # configuration for default/ing
 upstream ups {
@@ -7844,6 +8052,89 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForMergeableIngressWithEmptyHostForNGINXPlus - 1]
+# configuration for default/cafe-ingress-master
+upstream default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80 {
+    zone default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80 512k;
+    random two least_conn;
+    server 10.0.0.1:80 max_fails=1 fail_timeout=10s max_conns=0;
+}
+upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
+    zone default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 512k;
+    random two least_conn;
+    server 10.0.0.2:80 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_reject_handshake on;
+
+    server_tokens "on";
+    server_name _;
+    status_zone _;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /coffee {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering on;
+        proxy_pass http://default-cafe-ingress-coffee-minion-_-coffee-svc-80;
+        
+    }
+    
+    location /tea {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering on;
+        proxy_pass http://default-cafe-ingress-tea-minion-_-tea-svc-80;
+        
+    }
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
 [TestExecuteTemplate_ForMergeableIngressWithOneMinionWithPathRegexAnnotation - 1]
 # configuration for default/cafe-ingress-master
 upstream default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80 {
@@ -8012,277 +8303,6 @@ server {
         
     }
     
-}
-
----
-
-[TestExecuteTemplate_ForIngressWithEmptyHostForNGINX - 1]
-# configuration for default/cafe-ingress
-upstream test {
-    zone test 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
-    keepalive 16;
-}
-
-
-
-server {
-    listen 80 default_server;listen [::]:80 default_server;
-    listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    http2 on;
-    ssl_reject_handshake on;
-
-    server_tokens off;
-    server_name _;
-    set $resource_type "ingress";
-    set $resource_name "cafe-ingress";
-    set $resource_namespace "default";
-    set $service "-";
-    access_log off;
-    location = /nginx-health {
-        default_type text/plain;
-        return 200 "healthy\n";
-    }
-    location /tea {
-        set $service "";
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_connect_timeout 10s;
-        proxy_read_timeout 10s;
-        proxy_send_timeout 10s;
-        client_max_body_size 2m;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://test;
-        
-    }
-    
-    location / {
-        return 404;
-    }
-    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
-    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
-    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
-    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
-    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
-    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
-    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
-    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
-    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
-    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
-    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
-    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
-    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
-}
-
----
-
-[TestExecuteTemplate_ForIngressWithEmptyHostWithRootLocation - 1]
-# configuration for default/webapp-ingress
-upstream test {
-    zone test 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
-}
-
-
-
-server {
-    listen 80 default_server;listen [::]:80 default_server;
-    listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    ssl_reject_handshake on;
-
-    server_tokens off;
-    server_name _;
-    set $resource_type "ingress";
-    set $resource_name "webapp-ingress";
-    set $resource_namespace "default";
-    set $service "-";
-    location / {
-        set $service "";
-        proxy_http_version 1.1;
-        proxy_connect_timeout 10s;
-        proxy_read_timeout 10s;
-        proxy_send_timeout 10s;
-        client_max_body_size 2m;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://test;
-        
-    }
-    
-}
-
----
-
-[TestExecuteTemplate_ForIngressWithEmptyHostForNGINXPlus - 1]
-# configuration for default/cafe-ingress
-upstream test {
-    zone test 256k;
-    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
-}
-
-
-server {
-    listen 80 default_server;listen [::]:80 default_server;
-    listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    http2 on;
-    ssl_reject_handshake on;
-
-    server_tokens "off";
-    server_name _;
-    status_zone _;
-    set $resource_type "ingress";
-    set $resource_name "cafe-ingress";
-    set $resource_namespace "default";
-    set $service "-";
-
-    
-
-    
-    location @hc-test {
-        proxy_set_header Test-Header "test-header-value";
-        proxy_connect_timeout 0s;
-        proxy_read_timeout 0s;
-        proxy_send_timeout 0s;
-        proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
-    }
-    
-    location /tea {
-        set $service "";
-        status_zone "";
-        proxy_http_version 1.1;
-        proxy_set_header Connection "";
-
-        proxy_connect_timeout 10s;
-        proxy_read_timeout 10s;
-        proxy_send_timeout 10s;
-        client_max_body_size 2m;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://test;
-        
-    }
-    
-    access_log off;
-    location = /nginx-health {
-        default_type text/plain;
-        return 200 "healthy\n";
-    }
-    location / {
-        return 404;
-    }
-    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
-    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
-    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
-    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
-    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
-    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
-    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
-    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
-    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
-    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
-    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
-    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
-    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
-}
-
----
-
-[TestExecuteTemplate_ForMergeableIngressWithEmptyHostForNGINXPlus - 1]
-# configuration for default/cafe-ingress-master
-upstream default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80 {
-    zone default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80 512k;
-    random two least_conn;
-    server 10.0.0.1:80 max_fails=1 fail_timeout=10s max_conns=0;
-}
-upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
-    zone default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 512k;
-    random two least_conn;
-    server 10.0.0.2:80 max_fails=1 fail_timeout=10s max_conns=0;
-}
-
-
-server {
-    listen 80 default_server;listen [::]:80 default_server;
-    listen 443 ssl default_server;listen [::]:443 ssl default_server;
-    ssl_reject_handshake on;
-
-    server_tokens "on";
-    server_name _;
-    status_zone _;
-    set $resource_type "ingress";
-    set $resource_name "cafe-ingress-master";
-    set $resource_namespace "default";
-    set $service "-";
-
-    
-
-    
-    location /coffee {
-        set $service "coffee-svc";
-        status_zone "coffee-svc";
-        # location for minion default/cafe-ingress-coffee-minion
-        set $resource_name "cafe-ingress-coffee-minion";
-        set $resource_namespace "default";
-        proxy_http_version 1.1;
-
-        proxy_connect_timeout 60s;
-        proxy_read_timeout 60s;
-        proxy_send_timeout 60s;
-        client_max_body_size 1m;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering on;
-        proxy_pass http://default-cafe-ingress-coffee-minion-_-coffee-svc-80;
-        
-    }
-    
-    location /tea {
-        set $service "tea-svc";
-        status_zone "tea-svc";
-        # location for minion default/cafe-ingress-tea-minion
-        set $resource_name "cafe-ingress-tea-minion";
-        set $resource_namespace "default";
-        proxy_http_version 1.1;
-
-        proxy_connect_timeout 60s;
-        proxy_read_timeout 60s;
-        proxy_send_timeout 60s;
-        client_max_body_size 1m;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering on;
-        proxy_pass http://default-cafe-ingress-tea-minion-_-tea-svc-80;
-        
-    }
-    
-    location / {
-        return 404;
-    }
 }
 
 ---
