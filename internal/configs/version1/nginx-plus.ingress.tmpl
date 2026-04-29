@@ -204,14 +204,14 @@ server {
 	{{- if not $server.GRPCOnly}}
 	{{- if $server.SSLRedirect}}
 	{{- if $server.HealthStatus}}
-	set $do_ssl_redirect "";
+	set $redirect 0;
 	if ($scheme = http) {
-		set $do_ssl_redirect "http";
+		set $redirect 1;
 	}
 	if ($request_uri = {{$server.HealthStatusURI}}) {
-		set $do_ssl_redirect "";
+		set $redirect 0;
 	}
-	if ($do_ssl_redirect) {
+	if ($redirect = 1) {
 		return {{$server.HTTPRedirectCode}} https://$host:{{index $server.SSLPorts 0}}$request_uri;
 	}
 	{{- else}}
