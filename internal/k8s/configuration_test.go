@@ -1024,6 +1024,151 @@ func TestAddIngressEmptyHostAcceptedWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestUpdateIngressNamedHostToEmptyHost(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	ing := createTestIngress("ingress", "foo.example.com")
+	_, problems := configuration.AddOrUpdateIngress(ing)
+	if len(problems) != 0 {
+		t.Fatalf("expected no problems when adding named-host ingress, got %v", problems)
+	}
+
+	updatedIng := ing.DeepCopy()
+	updatedIng.Generation++
+	updatedIng.Spec.Rules[0].Host = ""
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &IngressConfiguration{
+				Ingress: updatedIng,
+				ValidHosts: map[string]bool{
+					"": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+	}
+	var expectedProblems []ConfigurationProblem
+
+	changes, problems := configuration.AddOrUpdateIngress(updatedIng)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestUpdateIngressEmptyHostToNamedHost(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	ing := createTestIngress("ingress", "")
+	_, problems := configuration.AddOrUpdateIngress(ing)
+	if len(problems) != 0 {
+		t.Fatalf("expected no problems when adding hostless ingress, got %v", problems)
+	}
+
+	updatedIng := ing.DeepCopy()
+	updatedIng.Generation++
+	updatedIng.Spec.Rules[0].Host = "foo.example.com"
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &IngressConfiguration{
+				Ingress: updatedIng,
+				ValidHosts: map[string]bool{
+					"foo.example.com": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+	}
+	var expectedProblems []ConfigurationProblem
+
+	changes, problems := configuration.AddOrUpdateIngress(updatedIng)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
+func TestUpdateIngressNamedHostToEmptyHostRejectedWhenDisabled(t *testing.T) {
+	t.Parallel()
+	lbc := LoadBalancerController{
+		ingressClass: "nginx",
+		Logger:       nl.LoggerFromContext(context.Background()),
+	}
+	isPlus := false
+	appProtectEnabled := false
+	appProtectDosEnabled := false
+	internalRoutesEnabled := false
+	isTLSPassthroughEnabled := true
+	certManagerEnabled := true
+	snippetsEnabled := true
+	isIPV6Disabled := false
+	isDirectiveAutoadjustEnabled := false
+	allowEmptyIngressHost := false
+	configuration := NewConfiguration(
+		lbc.HasCorrectIngressClass,
+		isPlus,
+		appProtectEnabled,
+		appProtectDosEnabled,
+		internalRoutesEnabled,
+		validation.NewVirtualServerValidator(validation.IsPlus(isTLSPassthroughEnabled), validation.IsDosEnabled(appProtectDosEnabled), validation.IsCertManagerEnabled(certManagerEnabled)),
+		validation.NewGlobalConfigurationValidator(map[int]bool{
+			80:  true,
+			443: true,
+		}),
+		validation.NewTransportServerValidator(isTLSPassthroughEnabled, snippetsEnabled, isPlus),
+		isTLSPassthroughEnabled,
+		snippetsEnabled,
+		certManagerEnabled,
+		isIPV6Disabled,
+		isDirectiveAutoadjustEnabled,
+		allowEmptyIngressHost,
+	)
+	configuration.CompleteStartup()
+
+	ing := createTestIngress("ingress", "foo.example.com")
+	_, problems := configuration.AddOrUpdateIngress(ing)
+	if len(problems) != 0 {
+		t.Fatalf("expected no problems when adding named-host ingress, got %v", problems)
+	}
+
+	updatedIng := ing.DeepCopy()
+	updatedIng.Generation++
+	updatedIng.Spec.Rules[0].Host = ""
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &IngressConfiguration{
+				Ingress: ing,
+				ValidHosts: map[string]bool{
+					"foo.example.com": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+			Error: "spec.rules[0].host: Required value",
+		},
+	}
+	var expectedProblems []ConfigurationProblem
+
+	changes, problems := configuration.AddOrUpdateIngress(updatedIng)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
 func TestAddIngressEmptyHostOldestWinsAndPromotesOnDelete(t *testing.T) {
 	t.Parallel()
 	configuration := createTestConfiguration()

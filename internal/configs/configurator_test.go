@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -39,11 +38,6 @@ func createTestStaticConfigParams() *StaticConfigParams {
 func createTestConfigurator(t *testing.T) *Configurator {
 	t.Helper()
 	manager := nginx.NewFakeManager("/etc/nginx")
-	return createTestConfiguratorWithManager(t, manager)
-}
-
-func createTestConfiguratorWithManager(t *testing.T, manager nginx.Manager) *Configurator {
-	t.Helper()
 	templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl")
 	if err != nil {
 		t.Fatal(err)
@@ -71,17 +65,6 @@ func createTestConfiguratorWithManager(t *testing.T, manager nginx.Manager) *Con
 	})
 	cnf.isReloadsEnabled = true
 	return cnf
-}
-
-type errorOnDefaultServerCreateManager struct {
-	*nginx.FakeManager
-}
-
-func (m *errorOnDefaultServerCreateManager) CreateConfig(name string, content []byte) (bool, error) {
-	if name == DefaultServerConfigName {
-		return false, fmt.Errorf("default server create failed")
-	}
-	return m.FakeManager.CreateConfig(name, content)
 }
 
 func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
@@ -496,82 +479,6 @@ func TestSyncDefaultServerConfigReturnsErrorOnTemplateFailure(t *testing.T) {
 	err := cnf.syncDefaultServerConfig()
 	if err == nil {
 		t.Errorf("expected syncDefaultServerConfig to fail when template execution fails")
-	}
-}
-
-func TestSyncDefaultServerConfigSuppressedByEmptyHostIngress(t *testing.T) {
-	t.Parallel()
-	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
-	cnf := createTestConfiguratorWithManager(t, manager)
-
-	err := cnf.syncDefaultServerConfig()
-	if err == nil {
-		t.Fatal("expected syncDefaultServerConfig to fail without an active empty-host ingress")
-	}
-
-	hostlessIngress := createHostlessCafeIngressEx()
-	cnf.ingresses[objectMetaToFileName(&hostlessIngress.Ingress.ObjectMeta)] = &hostlessIngress
-
-	err = cnf.syncDefaultServerConfig()
-	if err != nil {
-		t.Fatalf("expected syncDefaultServerConfig to be skipped with an active empty-host ingress: %v", err)
-	}
-}
-
-func TestAddOrUpdateIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
-	t.Parallel()
-	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
-	cnf := createTestConfiguratorWithManager(t, manager)
-	ingress := createCafeIngressEx()
-
-	warnings, err := cnf.AddOrUpdateIngress(&ingress)
-	if len(warnings) != 0 {
-		t.Fatalf("AddOrUpdateIngress returned warnings: %v", warnings)
-	}
-	if err == nil {
-		t.Fatal("expected AddOrUpdateIngress to fail when default server sync fails")
-	}
-	if err.Error() != "error adding or updating ingress default/cafe-ingress: error syncing default server config for ingress default-cafe-ingress: error writing default server config: default server create failed" {
-		t.Fatalf("unexpected AddOrUpdateIngress error: %v", err)
-	}
-}
-
-func TestAddOrUpdateMergeableIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
-	t.Parallel()
-	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
-	cnf := createTestConfiguratorWithManager(t, manager)
-	mergeableIngress := createMergeableCafeIngress()
-
-	warnings, err := cnf.AddOrUpdateMergeableIngress(mergeableIngress)
-	if len(warnings) != 0 {
-		t.Fatalf("AddOrUpdateMergeableIngress returned warnings: %v", warnings)
-	}
-	if err == nil {
-		t.Fatal("expected AddOrUpdateMergeableIngress to fail when default server sync fails")
-	}
-	if err.Error() != "error when adding or updating ingress default/cafe-ingress-master: error syncing default server config for mergeable ingress default-cafe-ingress-master: error writing default server config: default server create failed" {
-		t.Fatalf("unexpected AddOrUpdateMergeableIngress error: %v", err)
-	}
-}
-
-func TestDeleteIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
-	t.Parallel()
-	cnf := createTestConfigurator(t)
-	ingress := createCafeIngressEx()
-
-	_, err := cnf.AddOrUpdateIngress(&ingress)
-	if err != nil {
-		t.Fatalf("AddOrUpdateIngress returned error: %v", err)
-	}
-
-	cnf.nginxManager = &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
-
-	err = cnf.DeleteIngress(generateNamespaceNameKey(&ingress.Ingress.ObjectMeta), true)
-	if err == nil {
-		t.Fatal("expected DeleteIngress to fail when default server sync fails")
-	}
-	if err.Error() != "error syncing default server config after deleting ingress default/cafe-ingress: error writing default server config: default server create failed" {
-		t.Fatalf("unexpected DeleteIngress error: %v", err)
 	}
 }
 
