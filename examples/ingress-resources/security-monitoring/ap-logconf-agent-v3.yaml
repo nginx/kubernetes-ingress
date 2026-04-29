@@ -1,10 +1,3 @@
-# Log configuration for NGINX Agent v3 (NGINX One Console / Security Monitoring dashboard).
-# For NGINX Agent v2 (NGINX Instance Manager), use ap-logconf.yaml instead.
-#
-# NGINX Agent v3's embedded OpenTelemetry securityviolationsfilter processor validates the
-# first received log record against the secops-dashboard-log schema. It requires exactly 28
-# pipe-separated (|) fields in the order below. Using any other format causes the processor
-# to permanently close its gate and drop all events until the agent is restarted.
 apiVersion: appprotect.f5.com/v1beta1
 kind: APLogConf
 metadata:
