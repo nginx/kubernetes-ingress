@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -16,6 +17,28 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
+
+const (
+	// PathModifierExact is the NGINX exact match modifier.
+	PathModifierExact = "="
+	// PathModifierLongestPrefix is the NGINX longest prefix match modifier.
+	PathModifierLongestPrefix = "^~"
+	// PathModifierRegex is the NGINX case-sensitive regex match modifier.
+	PathModifierRegex = "~"
+	// PathModifierRegexIC is the NGINX case-insensitive regex match modifier.
+	PathModifierRegexIC = "~*"
+)
+
+// NormalizePath removes optional whitespace between a location modifier and its URI.
+// For example, "~ /api" and "~  /api" both normalize to "~/api".
+func NormalizePath(path string) string {
+	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex, PathModifierLongestPrefix, PathModifierExact} {
+		if strings.HasPrefix(path, mod) {
+			return mod + strings.TrimLeftFunc(strings.TrimPrefix(path, mod), unicode.IsSpace)
+		}
+	}
+	return path
+}
 
 // VsvOption defines the signature of our VirtualServerValidator option functions.
 type VsvOption func(*VirtualServerValidator)
@@ -1410,11 +1433,21 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 // validateRegexPath validates correctness of the string representing the path.
 //
 // Internally it uses Perl5 compatible regexp2 package.
+// validateRegexPath validates correctness of the string representing the path.
+// The modifier (~, ~*) and any separator whitespace are stripped before
+// compilation so we validate only the regex portion that nginx will parse.
 func validateRegexPath(path string, fieldPath *field.Path) field.ErrorList {
-	if _, err := regexp2.Compile(path, 0); err != nil {
+	regex := path
+	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex} {
+		if strings.HasPrefix(regex, mod) {
+			regex = strings.TrimLeftFunc(strings.TrimPrefix(regex, mod), unicode.IsSpace)
+			break
+		}
+	}
+	if _, err := regexp2.Compile(regex, 0); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, fmt.Sprintf("must be a valid regular expression: %v", err))}
 	}
-	if err := ValidateEscapedString(path, "*.jpg", "^/images/image_*.png$"); err != nil {
+	if err := ValidateEscapedString(regex, "*.jpg", "^/images/image_*.png$"); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, err.Error())}
 	}
 	return nil

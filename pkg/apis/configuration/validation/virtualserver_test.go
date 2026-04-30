@@ -10,6 +10,35 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+func TestNormalizePath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input    string
+		expected string
+		msg      string
+	}{
+		{input: "/foo", expected: "/foo", msg: "plain prefix unchanged"},
+		{input: "~ /api", expected: "~/api", msg: "regex with space"},
+		{input: "~  /api", expected: "~/api", msg: "regex with double space"},
+		{input: "~\t/api", expected: "~/api", msg: "regex with tab"},
+		{input: "~/api", expected: "~/api", msg: "regex without space"},
+		{input: "~* /bar", expected: "~*/bar", msg: "regex-ic with space"},
+		{input: "~*  /bar", expected: "~*/bar", msg: "regex-ic with double space"},
+		{input: "~*/bar", expected: "~*/bar", msg: "regex-ic without space"},
+		{input: "= /exact", expected: "=/exact", msg: "exact with space"},
+		{input: "=/exact", expected: "=/exact", msg: "exact without space"},
+		{input: "^~ /images", expected: "^~/images", msg: "longest prefix with space"},
+		{input: "^~/images", expected: "^~/images", msg: "longest prefix without space"},
+	}
+
+	for _, test := range tests {
+		result := NormalizePath(test.input)
+		if result != test.expected {
+			t.Errorf("NormalizePath(%q) = %q, want %q for case: %s", test.input, result, test.expected, test.msg)
+		}
+	}
+}
+
 func TestValidateVirtualServer(t *testing.T) {
 	t.Parallel()
 
@@ -1691,6 +1720,14 @@ func TestValidateRegexPath(t *testing.T) {
 			regexPath: "~ ^/coffee/(?!.*\\/latte)(?!.*\\/americano)(.*)",
 			msg:       "regex with backtracking",
 		},
+		{
+			regexPath: "~  ^/foo.*\\.jpg",
+			msg:       "case sensitive regexp with extra space after modifier",
+		},
+		{
+			regexPath: "~*\t^/Bar.*\\.jpg",
+			msg:       "case insensitive regexp with tab after modifier",
+		},
 	}
 
 	for _, test := range tests {
@@ -1722,6 +1759,10 @@ func TestValidateRegexPathFails(t *testing.T) {
 		{
 			regexPath: `~ /foo\`,
 			msg:       "ending in backslash",
+		},
+		{
+			regexPath: "~ +",
+			msg:       "bare + after modifier is nothing to repeat",
 		},
 	}
 
