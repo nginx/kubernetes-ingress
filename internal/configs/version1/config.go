@@ -94,6 +94,7 @@ type Server struct {
 	TLSPassthrough         bool
 	GRPCOnly               bool
 	IngressMTLS            *version2.IngressMTLS
+	HasGRPCLocations       bool
 	StatusZone             string
 	HTTP2                  bool
 	RedirectToHTTPS        bool
