@@ -2440,6 +2440,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2On(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	ingConf := buf.String()
 
 	wantDirectives := []string{
@@ -2451,6 +2452,92 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2On(t *testing.T) {
 	unwantDirectives := []string{
 		"listen 443 ssl http2;",
 		"listen [::]:443 ssl http2;",
+	}
+
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	for _, want := range unwantDirectives {
+		if strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndMixedGRPCLocations(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgHTTP2OnAndMixedGRPCLocations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ingConf := buf.String()
+	wantDirectives := []string{
+		"error_page 400 @grpcerror400;",
+		"location @grpcerror400 { default_type application/grpc; return 400 \"\\n\"; }",
+		"grpc_pass grpc://test;",
+	}
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndGRPCOnlyLocations(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgHTTP2OnAndGRPCOnlyLocations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ingConf := buf.String()
+	wantDirectives := []string{
+		"error_page 400 @grpcerror400;",
+		"location @grpcerror400 { default_type application/grpc; return 400 \"\\n\"; }",
+		"grpc_pass grpc://test;",
+	}
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2Off(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ingConf := buf.String()
+
+	wantDirectives := []string{
+		"listen 443 ssl;",
+		"listen [::]:443 ssl;",
+	}
+
+	unwantDirectives := []string{
+		"http2 on;",
 	}
 
 	for _, want := range wantDirectives {
@@ -2505,36 +2592,50 @@ func TestExecuteTemplate_ForIngressForNGINXWithHTTP2On(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2Off(t *testing.T) {
+func TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndMixedGRPCLocations(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXPlusIngressTmpl(t)
+	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, ingressCfg)
-	t.Log(buf.String())
+	err := tmpl.Execute(buf, ingressCfgHTTP2OnAndMixedGRPCLocations)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	ingConf := buf.String()
-
 	wantDirectives := []string{
-		"listen 443 ssl;",
-		"listen [::]:443 ssl;",
+		"error_page 400 @grpcerror400;",
+		"location @grpcerror400 { default_type application/grpc; return 400 \"\\n\"; }",
+		"grpc_pass grpc://test;",
 	}
-
-	unwantDirectives := []string{
-		"http2 on;",
-	}
-
 	for _, want := range wantDirectives {
 		if !strings.Contains(ingConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
 	}
+	snaps.MatchSnapshot(t, buf.String())
+}
 
-	for _, want := range unwantDirectives {
-		if strings.Contains(ingConf, want) {
+func TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndGRPCOnlyLocations(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgHTTP2OnAndGRPCOnlyLocations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ingConf := buf.String()
+	wantDirectives := []string{
+		"error_page 400 @grpcerror400;",
+		"location @grpcerror400 { default_type application/grpc; return 400 \"\\n\"; }",
+		"grpc_pass grpc://test;",
+	}
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
 	}
@@ -4499,7 +4600,104 @@ var (
 			Namespace: "default",
 		},
 	}
-
+	ingressCfgHTTP2OnAndMixedGRPCLocations = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				HTTP2:             true,
+				HasGRPCLocations:  true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                "/grpc",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "grpc://test",
+						GRPC:                true,
+					},
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+						},
+						ProxyPass: "http://test",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+				JWTRedirectLocations: []JWTRedirectLocation{
+					{
+						Name:     "@login_url-default-cafe-ingress",
+						LoginURL: "https://test.example.com/login",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+	ingressCfgHTTP2OnAndGRPCOnlyLocations = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				HTTP2:             true,
+				GRPCOnly:          true,
+				HasGRPCLocations:  true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                "/grpc",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "grpc://test",
+						GRPC:                true,
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+				JWTRedirectLocations: []JWTRedirectLocation{
+					{
+						Name:     "@login_url-default-cafe-ingress",
+						LoginURL: "https://test.example.com/login",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
 	// Ingress Config that includes a request rate limit
 	ingressCfgRequestRateLimit = IngressNginxConfig{
 		Ingress: Ingress{
