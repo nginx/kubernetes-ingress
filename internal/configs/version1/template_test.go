@@ -263,9 +263,9 @@ func TestExecuteTemplate_ForIngressWithEmptyHostWithRootLocation(t *testing.T) {
 	if !strings.Contains(rendered, "location / {") {
 		t.Error("want location / from user ingress")
 	}
-	// Fallback return should NOT render because HasRootLocation is true
+	// Fallback return should NOT render because a user-defined root location already exists.
 	if strings.Contains(rendered, "return 404;") {
-		t.Error("unwant return 404; — HasRootLocation should suppress fallback")
+		t.Error("unwant return 404; - existing root location should suppress fallback")
 	}
 	snaps.MatchSnapshot(t, buf.String())
 }
@@ -4441,7 +4441,7 @@ var (
 		StaticSSLPath:           fakeManager.GetSecretsDir(),
 	}
 
-	// Empty-host ingress with HasRootLocation — fallback return should NOT render
+	// Empty-host ingress with a root location - fallback return should NOT render.
 	ingressCfgEmptyHostWithRootLocation = IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -4454,8 +4454,7 @@ var (
 				SSLRejectHandshake:  true,
 				SSLPorts:            []int{443},
 				Ports:               []int{80},
-				DefaultServerReturn: "404",
-				HasRootLocation:     true,
+				DefaultServerReturn: "",
 				Locations: []Location{
 					{
 						Path:                "/",
