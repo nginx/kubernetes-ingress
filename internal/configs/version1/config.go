@@ -90,7 +90,6 @@ type Server struct {
 	ServerTokens           string
 	Locations              []Location
 	EgressMTLS             *version2.EgressMTLS
-	HasRootLocation        bool
 	SSL                    bool
 	SSLCertificate         string
 	SSLCertificateKey      string
