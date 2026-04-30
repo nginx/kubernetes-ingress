@@ -21,13 +21,13 @@ This example works with both:
 1. Confirm which version of NGINX Agent is running in your Ingress Controller pod:
 
     ```console
-    kubectl exec -it <nginx-ingress-pod> -c nginx-ingress -- nginx-agent -v
+    kubectl exec -it <nginx-ingress-pod> -- nginx-agent -v
     ```
 
     The output will show either `2.x.x` or `3.x.x`. Use this to choose the correct WAF policy in step 4 below.
 
-    - **Agent 2.***: connects to NGINX Instance Manager
-    - **Agent 3.9.***: connects to NGINX One Console
+    - Agent 2.*: connects to NGINX Instance Manager
+    - Agent 3.9.* or newer: connects to NGINX One Console
 
 1. Save the public IP address of the Ingress Controller into a shell variable:
 
@@ -51,17 +51,9 @@ kubectl apply -f cafe.yaml
 
 ## 3. Create and Deploy the WAF Policy and Log Bundles
 
-1. Compile your WAF policy JSON into a policy bundle (`compiled_policy.tgz`) and a log configuration bundle (`compiled_log.tgz`) using the `waf-compiler` image:
+1. Compile your WAF policy and log configuration into bundles (`.tgz` files) using the `waf-compiler` image. See [Compile WAF Policy from JSON to Bundle](https://docs.nginx.com/nginx-ingress-controller/install/waf-helm/#compile-waf-policy-from-json-to-bundle) for compilation steps.
 
-    ```console
-    docker run --rm \
-        -v /tmp:/tmp \
-        private-registry.nginx.com/nap/waf-compiler:<version> \
-        -p /tmp/your_policy.json \
-        -o /tmp/compiled_policy.tgz
-    ```
-
-    Refer to the [F5 WAF for NGINX documentation](https://docs.nginx.com/waf/) for details on compiling policy and log bundles. The log bundle must be compiled from a log profile that matches the format required by NGINX Security Monitoring.
+    When using NGINX One Console, you can create and manage WAF policies under **WAF > Policies**, and download the `secops_dashboard` log profile from **WAF > Log Profiles**. See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for full setup instructions.
 
 1. Copy both bundles to the volume mounted at `/etc/app_protect/bundles` in the Ingress Controller pod:
 
@@ -105,8 +97,6 @@ kubectl apply -f cafe.yaml
     ```console
     kubectl apply -f cafe-ingress.yaml
     ```
-
-    Note the `nginx.com/policies` annotation in the Ingress resource. It enables WAF protection by referencing the `waf-policy` created in the previous step.
 
 ## 5. Test the Application
 

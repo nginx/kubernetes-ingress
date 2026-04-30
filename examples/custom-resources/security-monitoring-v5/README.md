@@ -47,17 +47,9 @@ kubectl apply -f webapp.yaml
 
 ## Step 2 - Create and Deploy the WAF Policy and Log Bundles
 
-1. Compile your WAF policy JSON into a policy bundle (`compiled_policy.tgz`) and a log configuration bundle (`compiled_log.tgz`) using the `waf-compiler` image:
+1. Compile your WAF policy and log configuration into bundles (`.tgz` files) using the `waf-compiler` image. See [Compile WAF Policy from JSON to Bundle](https://docs.nginx.com/nginx-ingress-controller/install/waf-helm/#compile-waf-policy-from-json-to-bundle) for compilation steps.
 
-    ```console
-    docker run --rm \
-        -v /tmp:/tmp \
-        private-registry.nginx.com/nap/waf-compiler:<version> \
-        -p /tmp/your_policy.json \
-        -o /tmp/compiled_policy.tgz
-    ```
-
-    Refer to the [F5 WAF for NGINX documentation](https://docs.nginx.com/waf/) for details on compiling policy and log bundles.
+    When using NGINX One Console, you can create and manage WAF policies under **WAF > Policies**, and download the `secops_dashboard` log profile from **WAF > Log Profiles**. See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for full setup instructions.
 
 1. Copy both bundles to the volume mounted at `/etc/app_protect/bundles` in the Ingress Controller pod:
 
