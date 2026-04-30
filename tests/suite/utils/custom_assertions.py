@@ -404,7 +404,7 @@ def assert_ts_status(kube_apis, namespace, name, expected_state, **kwargs):
     return assert_crd_status(kube_apis, namespace, name, "transportservers", expected_state, **kwargs)
 
 
-def assert_valid_vs(kube_apis, namespace, name, retry_count=30, wait_time=1):
+def assert_valid_vs(kube_apis, namespace, name, retry_count=60, wait_time=1):
     """Assert that a VirtualServer reaches Valid state with AddedOrUpdated reason."""
     return assert_vs_status(
         kube_apis,
@@ -417,7 +417,7 @@ def assert_valid_vs(kube_apis, namespace, name, retry_count=30, wait_time=1):
     )
 
 
-def assert_valid_vsr(kube_apis, namespace, name, retry_count=30, wait_time=1):
+def assert_valid_vsr(kube_apis, namespace, name, retry_count=60, wait_time=1):
     """Assert that a VirtualServerRoute reaches Valid state with AddedOrUpdated reason."""
     return assert_vsr_status(
         kube_apis,
@@ -440,7 +440,7 @@ def assert_invalid_vsr(kube_apis, namespace, name, retry_count=30, wait_time=1):
     return assert_vsr_status(kube_apis, namespace, name, "Invalid", retry_count=retry_count, wait_time=wait_time)
 
 
-def assert_valid_ts(kube_apis, namespace, name, retry_count=30, wait_time=1):
+def assert_valid_ts(kube_apis, namespace, name, retry_count=60, wait_time=1):
     """Assert that a TransportServer reaches Valid state with AddedOrUpdated reason."""
     return assert_ts_status(
         kube_apis,
