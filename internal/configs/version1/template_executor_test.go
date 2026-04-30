@@ -978,7 +978,7 @@ server {
 	}
 	{{- end}}
 
-	{{- if and $server.DefaultServerReturn (not $server.HasRootLocation)}}
+	{{- if $server.DefaultServerReturn}}
 	location / {
 		return {{$server.DefaultServerReturn}};
 	}
