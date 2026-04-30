@@ -804,7 +804,11 @@ func (vsv *VirtualServerValidator) validateVirtualServerRoutes(routes []v1.Route
 		}
 
 		if r.Route != "" {
-			vsrCategories[r.Route] = append(vsrCategories[r.Route], vsrPathInfo{
+			routeRef := r.Route
+			if !nsutils.HasNamespace(routeRef) {
+				routeRef = fmt.Sprintf("%s/%s", namespace, routeRef)
+			}
+			vsrCategories[routeRef] = append(vsrCategories[routeRef], vsrPathInfo{
 				category: subrouteModifierCategory(r.Path),
 				index:    i,
 			})

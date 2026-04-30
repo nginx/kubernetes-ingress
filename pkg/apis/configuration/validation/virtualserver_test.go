@@ -1060,6 +1060,20 @@ func TestValidateVirtualServerRoutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{},
 			msg:           "exact and regex referencing the same VSR",
 		},
+		{
+			routes: []v1.Route{
+				{
+					Path:  "~ /regex",
+					Route: "my-vsr",
+				},
+				{
+					Path:  "/prefix",
+					Route: "default/my-vsr",
+				},
+			},
+			upstreamNames: map[string]sets.Empty{},
+			msg:           "mixed types with implicit and explicit namespace referencing same VSR",
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
