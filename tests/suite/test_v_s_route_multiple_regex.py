@@ -247,8 +247,7 @@ class TestVSRMultipleRegexPaths:
     def test_vs_duplicate_paths(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, multi_regex_vsr_setup
     ):
-        """VS with ~/api/v1 listed twice should still be valid (deduplicated) but the VSR should fail
-        because the VSR subroutes don't cover the deduplicated path set."""
+        """VS with ~/api/v1 listed twice is rejected as Invalid (duplicate path at spec level)."""
         setup = multi_regex_vsr_setup
 
         patch_virtual_server_from_yaml(
@@ -259,13 +258,10 @@ class TestVSRMultipleRegexPaths:
         )
         wait_before_test(2)
 
-        # VS still valid; VSR validation handles path matching
         vs_info = read_custom_resource(kube_apis.custom_objects, setup.namespace, "virtualservers", setup.vs_name)
-        # The duplicate path is deduplicated, so the VSR can still validate against the unique set
-        assert vs_info["status"]["state"] in (
-            "Valid",
-            "Warning",
-        ), f"VS should be Valid or Warning, got: {vs_info['status']}"
+        assert (
+            vs_info["status"]["state"] == "Invalid"
+        ), f"VS should be Invalid due to duplicate path, got: {vs_info['status']}"
 
         self.restore_valid_state(kube_apis, setup)
 
