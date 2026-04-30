@@ -3045,6 +3045,11 @@ func TestParseConfigMapAddHeader(t *testing.T) {
 					t.Errorf("MainAddHeaders[%d].Name: want %q, got %q", i, want, got)
 				}
 			}
+
+			// ConfigMap must never populate AddHeaders (annotation path → server {} context).
+			if len(result.AddHeaders) != 0 {
+				t.Errorf("ConfigMap must not populate AddHeaders (server context); got %v", result.AddHeaders)
+			}
 		})
 	}
 }

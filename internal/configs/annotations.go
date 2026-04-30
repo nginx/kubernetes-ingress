@@ -293,6 +293,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxySetHeaders = version1.ParseProxySetHeaders(proxySetHeaders)
 	}
 
+	if addHeader, exists := ingEx.Ingress.Annotations[AddHeaderAnnotation]; exists {
+		cfgParams.AddHeaders = version1.ParseAddHeaders(addHeader)
+	}
+
 	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {
 		normalizedValue := strings.Join(strings.Fields(proxyNextUpstream), " ")
 		cfgParams.ProxyNextUpstream = normalizedValue

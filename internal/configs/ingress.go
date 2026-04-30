@@ -389,6 +389,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			RealIPRecursive:        cfgParams.RealIPRecursive,
 			ProxyHideHeaders:       cfgParams.ProxyHideHeaders,
 			ProxyPassHeaders:       cfgParams.ProxyPassHeaders,
+			AddHeaders:             cfgParams.AddHeaders,
 			ServerSnippets:         cfgParams.ServerSnippets,
 			Ports:                  cfgParams.Ports,
 			SSLPorts:               cfgParams.SSLPorts,
@@ -403,18 +404,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			WAF:                    policyCfg.WAF,
 			EgressMTLS:             policyCfg.EgressMTLS,
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
-			// AddHeaders is populated for regular and master Ingress (server {} context).
-			// For minions, generateNginxCfg is called with isMinion=true and the returned
-			// server struct is discarded — only its locations survive. The minion's
-			// annotation is instead applied directly to each Location in the merge loop
-			// in generateNginxCfgForMergeableIngresses. Skipping the parse here avoids
-			// wasted work for the minion path.
-			AddHeaders: func() []version2.AddHeader {
-				if ncp.isMinion {
-					return nil
-				}
-				return version1.ParseAddHeaders(ncp.ingEx.Ingress.Annotations[AddHeaderAnnotation])
-			}(),
 		}
 
 		if ncp.isMinion {

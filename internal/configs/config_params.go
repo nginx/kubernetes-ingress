@@ -78,6 +78,7 @@ type ConfigParams struct {
 	ProxyBufferSize                        string
 	ProxyBusyBuffersSize                   string
 	ProxyConnectTimeout                    string
+	AddHeaders                             []version2.AddHeader
 	ProxyHideHeaders                       []string
 	ProxyMaxTempFileSize                   string
 	ProxyPassHeaders                       []string
