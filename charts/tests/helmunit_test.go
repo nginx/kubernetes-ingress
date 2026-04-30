@@ -176,6 +176,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "app-protect-waf-agentv2",
 			namespace:   "default",
 		},
+		"appProtectWAFV4AgentV3": {
+			valuesFile:  "testdata/app-protect-waf-agentv3.yaml",
+			releaseName: "app-protect-waf-agentv3",
+			namespace:   "default",
+		},
 		"startupStatusValid": {
 			valuesFile:  "testdata/startupstatus-valid.yaml",
 			releaseName: "startupstatus",
