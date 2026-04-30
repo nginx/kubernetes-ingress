@@ -2137,10 +2137,6 @@ func removeFromVSRSlice(s []*conf_v1.VirtualServerRoute, i int) []*conf_v1.Virtu
 	return append(s[:i], s[i+1:]...)
 }
 
-// GetTransportServerMetrics returns metrics about TransportServers
-// of collected VS paths and returns the approved VSRs.
-// Entries are processed in VS route definition order (by firstSeenIdx) to ensure
-// deterministic nginx location ordering and avoid config churn between reconciles.
 func (c *Configuration) validateAndBuildRegexVSRs(entries map[string]*regexVSREntry, vsHost string) ([]*conf_v1.VirtualServerRoute, []string) {
 	type entryWithKey struct {
 		key   string
