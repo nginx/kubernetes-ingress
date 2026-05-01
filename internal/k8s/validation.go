@@ -384,7 +384,6 @@ var (
 			validateHTTPRedirectCodeAnnotation,
 		},
 		appRootAnnotation: {
-			validateHostlessForbiddenAnnotation,
 			validateAppRootAnnotation,
 		},
 		configs.PoliciesAnnotation: {
@@ -685,10 +684,6 @@ func validateHostlessIngress(ing *networking.Ingress, specPath *field.Path) fiel
 
 	if len(ing.Spec.TLS) > 0 {
 		allErrs = append(allErrs, field.Forbidden(specPath.Child("tls"), "hostless Ingress cannot configure TLS; the catch-all default server certificate is controller-owned"))
-	}
-
-	if ing.Spec.DefaultBackend != nil {
-		allErrs = append(allErrs, field.Forbidden(specPath.Child("defaultBackend"), "hostless Ingress cannot configure defaultBackend; catch-all fallback behavior is controller-owned"))
 	}
 
 	return allErrs
