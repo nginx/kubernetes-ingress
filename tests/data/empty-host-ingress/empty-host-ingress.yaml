@@ -7,10 +7,10 @@ spec:
   rules:
   - http:
       paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: empty-host-svc
-            port:
-              number: 80
+       - path: /
+         pathType: Prefix
+         backend:
+           service:
+             name: backend1-svc
+             port:
+               number: 80

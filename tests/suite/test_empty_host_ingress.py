@@ -3,10 +3,10 @@ import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, assert_ingress_conf_not_exists, wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    create_example_app,
     create_ingress_from_yaml,
-    create_items_from_yaml,
+    delete_common_app,
     delete_ingress,
-    delete_items_from_yaml,
     get_default_server_conf,
     get_events_for_object,
     get_first_pod_name,
@@ -17,9 +17,7 @@ from suite.utils.resources_utils import (
 )
 
 empty_host_test_data_path = f"{TEST_DATA}/empty-host-ingress"
-cafe_app_src = f"{empty_host_test_data_path}/cafe-app.yaml"
-cafe_ingress_src = f"{empty_host_test_data_path}/cafe-ingress.yaml"
-empty_host_app_src = f"{empty_host_test_data_path}/empty-host-app.yaml"
+named_host_ingress_src = f"{empty_host_test_data_path}/named-host-ingress.yaml"
 empty_host_ingress_src = f"{empty_host_test_data_path}/empty-host-ingress.yaml"
 rejected_listen_ports_ingress_src = f"{empty_host_test_data_path}/empty-host-ingress-rejected-listen-ports.yaml"
 
@@ -40,8 +38,7 @@ class TestEmptyHostIngressCollisionResolution:
         ingress_controller,
         test_namespace,
     ):
-        create_items_from_yaml(kube_apis, cafe_app_src, test_namespace)
-        create_items_from_yaml(kube_apis, empty_host_app_src, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
         wait_and_assert_status_code(
             404,
@@ -51,8 +48,7 @@ class TestEmptyHostIngressCollisionResolution:
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
-                delete_items_from_yaml(kube_apis, cafe_app_src, test_namespace)
-                delete_items_from_yaml(kube_apis, empty_host_app_src, test_namespace)
+                delete_common_app(kube_apis, "simple", test_namespace)
 
         request.addfinalizer(fin)
 
@@ -68,8 +64,8 @@ class TestEmptyHostIngressCollisionResolution:
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
-        print("Step 1: create named-host cafe-ingress; the synthetic default server still owns bare requests")
-        cafe = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, cafe_ingress_src)
+        print("Step 1: create named-host ingress; the synthetic default server still owns bare requests")
+        named_host_ingress = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, named_host_ingress_src)
         wait_before_test()
 
         # The synthetic default server still handles requests without a Host match.
@@ -78,22 +74,22 @@ class TestEmptyHostIngressCollisionResolution:
         assert get_ingress_nginx_template_conf(
             kube_apis.v1,
             test_namespace,
-            cafe,
+            named_host_ingress,
             ic_pod,
             ingress_controller_prerequisites.namespace,
         ) is not None
-        assert "coffee-svc" in get_ingress_nginx_template_conf(
+        assert "backend1-svc" in get_ingress_nginx_template_conf(
             kube_apis.v1,
             test_namespace,
-            cafe,
+            named_host_ingress,
             ic_pod,
             ingress_controller_prerequisites.namespace,
         )
         # Bare requests still hit the synthetic default server.
         wait_and_assert_status_code(404, f"{request_url}/", verify=False)
-        # Host-specific traffic routes through cafe-ingress as usual.
-        wait_and_assert_status_code(200, f"{health_url}/coffee", "cafe.example.com")
-        wait_and_assert_status_code(404, f"{request_url}/coffee", verify=False)
+        # Host-specific traffic routes through the named ingress as usual.
+        wait_and_assert_status_code(200, f"{health_url}/backend1", "named-host.example.com")
+        wait_and_assert_status_code(404, f"{request_url}/backend1", verify=False)
 
         print("Step 2: create empty-host-ingress; it takes over _default-server.conf for bare requests")
         empty_host_ingress = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, empty_host_ingress_src)
@@ -101,32 +97,31 @@ class TestEmptyHostIngressCollisionResolution:
 
         conf = get_default_server_conf(kube_apis.v1, ic_pod, ingress_controller_prerequisites.namespace)
         # The empty-host ingress now owns _default-server.conf, so bare requests go to its backend.
-        assert "empty-host-svc" in conf
+        assert "backend1-svc" in conf
         assert "return 404" not in conf
         wait_and_assert_status_code(200, f"{request_url}/", verify=False)
         wait_and_assert_status_code(200, f"{request_url}/", "anything.example.com", verify=False)
-        # Named-host routing for cafe.example.com is preserved while default-server ownership changes.
-        wait_and_assert_status_code(200, f"{health_url}/coffee", "cafe.example.com")
+        # Named-host routing is preserved while default-server ownership changes.
+        wait_and_assert_status_code(200, f"{health_url}/backend1", "named-host.example.com")
 
         print(
-            "Step 3: patch cafe-ingress to empty-host; now two empty-host ingresses collide and older cafe-ingress wins"
+            "Step 3: patch the named ingress to empty-host; now two empty-host ingresses collide and the older one wins"
         )
-        with open(cafe_ingress_src) as f:
+        with open(named_host_ingress_src) as f:
             body = yaml.safe_load(f)
         del body["spec"]["rules"][0]["host"]
-        replace_ingress(kube_apis.networking_v1, cafe, test_namespace, body)
+        replace_ingress(kube_apis.networking_v1, named_host_ingress, test_namespace, body)
         wait_before_test()
 
         conf = get_default_server_conf(kube_apis.v1, ic_pod, ingress_controller_prerequisites.namespace)
-        # After cafe becomes empty-host too, the older claimant wins default-server ownership.
-        assert "coffee-svc" in conf
-        assert "empty-host-svc" not in conf
-        # Because cafe now owns the default server, it no longer has a named ingress config file.
+        # After the named ingress becomes empty-host too, the older claimant wins default-server ownership.
+        assert "backend1-svc" in conf
+        # Because the named ingress now owns the default server, it no longer has a named ingress config file.
         assert_ingress_conf_not_exists(
-            kube_apis, ic_pod, ingress_controller_prerequisites.namespace, test_namespace, cafe
+            kube_apis, ic_pod, ingress_controller_prerequisites.namespace, test_namespace, named_host_ingress
         )
-        # Bare /coffee requests now resolve through cafe's empty-host ownership.
-        wait_and_assert_status_code(200, f"{request_url}/coffee", verify=False)
+        # Bare /backend1 requests now resolve through the older ingress's empty-host ownership.
+        wait_and_assert_status_code(200, f"{request_url}/backend1", verify=False)
         wait_and_assert_status_code(404, f"{request_url}/", verify=False)
         # The newer empty-host ingress stays present in Kubernetes but is not applied.
         assert_event(
@@ -134,7 +129,7 @@ class TestEmptyHostIngressCollisionResolution:
             get_events_for_object(kube_apis.v1, test_namespace, empty_host_ingress),
         )
 
-        print("Step 4: patch empty-host-ingress back to a named host; cafe-ingress stays the empty-host owner")
+        print("Step 4: patch empty-host-ingress back to a named host; the older ingress stays the empty-host owner")
         with open(empty_host_ingress_src) as f:
             body = yaml.safe_load(f)
         body["spec"]["rules"][0]["host"] = "empty-host.example.com"
@@ -149,19 +144,19 @@ class TestEmptyHostIngressCollisionResolution:
             ic_pod,
             ingress_controller_prerequisites.namespace,
         ) is not None
-        assert "empty-host-svc" in get_ingress_nginx_template_conf(
+        assert "backend1-svc" in get_ingress_nginx_template_conf(
             kube_apis.v1,
             test_namespace,
             empty_host_ingress,
             ic_pod,
             ingress_controller_prerequisites.namespace,
         )
-        # cafe still owns default-server, while the renamed ingress serves only its explicit host.
-        wait_and_assert_status_code(200, f"{request_url}/coffee", verify=False)
+        # The older ingress still owns default-server, while the renamed ingress serves only its explicit host.
+        wait_and_assert_status_code(200, f"{request_url}/backend1", verify=False)
         wait_and_assert_status_code(200, f"{health_url}/", "empty-host.example.com")
 
         delete_ingress(kube_apis.networking_v1, empty_host_ingress, test_namespace)
-        delete_ingress(kube_apis.networking_v1, cafe, test_namespace)
+        delete_ingress(kube_apis.networking_v1, named_host_ingress, test_namespace)
         wait_before_test()
 
         print("Step 5: delete both ingresses; the synthetic default server is restored")
@@ -188,12 +183,12 @@ class TestEmptyHostIngressValidation:
         ingress_controller,
         test_namespace,
     ):
-        create_items_from_yaml(kube_apis, empty_host_app_src, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
-                delete_items_from_yaml(kube_apis, empty_host_app_src, test_namespace)
+                delete_common_app(kube_apis, "simple", test_namespace)
 
         request.addfinalizer(fin)
 
