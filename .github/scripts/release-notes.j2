@@ -21,6 +21,7 @@
 {%- set section_data = sections.get(category, sections.get(key, [])) %}
 
 ### {{ '{{% icon ' + icons[category] + ' %}' }}{{ '}' }} {{ category }}
+{{ '' }}
 {%- for change in section_data %}
 - {{ change }}
 {%- endfor %}
@@ -28,9 +29,11 @@
 {%- endfor %}
 
 ### {{ '{{% icon download %}' }}{{ '}' }} Upgrade
+
 - For NGINX, use the {{ version }} images from our [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/tags?page=1&ordering=last_updated&name={{ version }}), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress).
 - For NGINX Plus, use the {{ version }} images from the F5 Container registry or build your own image using the {{ version }} source code.
 - For Helm, use version {{ HELM_CHART_VERSION }} of the chart.
 
-### {{ '{{% icon life-buoy %}' }}{{ '}' }} Supported Platforms
+### {{ '{{% icon life-buoy %}' }}{{ '}' }} Supported platforms
+
 We will provide technical support for NGINX Ingress Controller on any Kubernetes platform that is currently supported by its provider and that passes the Kubernetes conformance tests. This release was fully tested on the following Kubernetes versions: {{ K8S_VERSIONS }}.

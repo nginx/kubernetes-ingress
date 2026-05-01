@@ -1,36 +1,34 @@
 name: Release PR
 
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Release NIC Docs ${{ inputs.nic_version }} by @${{ github.actor }}
+
 on:
   workflow_dispatch:
     inputs:
-      current_version:
-        description: "Current version to replace"
+      nic_version:
+        description: "NIC version to release"
         required: true
-        default: "3.3.2"
-      new_version:
-        description: "Version to release"
+        default: "5.5.0"
+      current_versions:
+        description: "Current versions to replace (NIC, Helm Chart, Operator)"
         required: true
-        default: "3.4.3"
-      current_helm_version:
-        description: "Current helm version to replace"
+        default: "5.4.0, 2.5.0, 3.5.0"
+      new_versions:
+        description: "Versions to release (Helm Chart, Operator)"
         required: true
-        default: "1.0.2"
-      new_helm_version:
-        description: "Helm version to release"
-        required: true
-        default: "1.1.3"
-      current_operator_version:
-        description: "Current operator version to replace"
-        required: true
-        default: "2.3.0"
-      new_operator_version:
-        description: "Operator version to release"
-        required: true
-        default: "2.3.1"
+        default: "2.6.0, 3.6.0"
       k8s_versions:
-        description: "Kubernetes versions this release has been tested on"
-        required: true
-        default: "x.xx-x.xx"
+        description: "Kubernetes versions this release was tested on (leave empty to use tech-specs.json)"
+        required: false
+        default: ""
+      new_nginx_version:
+        description: "Nginx version to release (leave empty to use tech-specs.json)"
+        required: false
+        default: ""
+      nap_version:
+        description: "NAP versions (comma-separated: waf_version,waf_release_version) - leave empty to skip NAP update"
+        required: false
+        default: "36+5.607,5.12.0"
       release_date:
         description: "Date for this release"
         required: true
@@ -61,10 +59,51 @@ jobs:
       id-token: write
     runs-on: ubuntu-24.04
     steps:
+      - name: Parse versions
+        id: parse
+        run: |
+          IFS=',' read -r current_version current_helm_version current_operator_version <<< "${{ inputs.current_versions }}"
+          IFS=',' read -r new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          # Trim whitespace from parsed values
+          current_version=$(echo "${current_version}" | xargs)
+          current_helm_version=$(echo "${current_helm_version}" | xargs)
+          current_operator_version=$(echo "${current_operator_version}" | xargs)
+          new_version=$(echo "${{ inputs.nic_version }}" | xargs)
+          new_helm_version=$(echo "${new_helm_version}" | xargs)
+          new_operator_version=$(echo "${new_operator_version}" | xargs)
+          echo "current_version=${current_version}" >> $GITHUB_OUTPUT
+          echo "current_helm_version=${current_helm_version}" >> $GITHUB_OUTPUT
+          echo "current_operator_version=${current_operator_version}" >> $GITHUB_OUTPUT
+          echo "new_version=${new_version}" >> $GITHUB_OUTPUT
+          echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
+          echo "new_operator_version=${new_operator_version}" >> $GITHUB_OUTPUT
+
+          # Parse NGINX version (OSS / Plus format)
+          if [ -n "${{ inputs.new_nginx_version }}" ]; then
+            nginx_full="${{ inputs.new_nginx_version }}"
+            # Split on " / " to get OSS and Plus versions
+            nginx_oss=$(echo "${nginx_full}" | cut -d'/' -f1 | xargs)
+            nginx_plus=$(echo "${nginx_full}" | cut -d'/' -f2 | xargs)
+            echo "nginx_oss_version=${nginx_oss}" >> $GITHUB_OUTPUT
+            echo "nginx_plus_version=${nginx_plus}" >> $GITHUB_OUTPUT
+            echo "nginx_full_version=${nginx_full}" >> $GITHUB_OUTPUT
+            echo "Parsed NGINX versions - OSS: ${nginx_oss}, Plus: ${nginx_plus}"
+          fi
+
+          # Parse NAP versions if provided (waf_version,waf_release_version)
+          # waf_release_version is shared by compiler, config manager, and enforcer containers
+          if [ -n "${{ inputs.nap_version }}" ]; then
+            IFS=',' read -r nap_waf_version nap_waf_release_version <<< "${{ inputs.nap_version }}"
+            nap_waf_version=$(echo "${nap_waf_version}" | xargs)
+            nap_waf_release_version=$(echo "${nap_waf_release_version}" | xargs)
+            echo "nap_waf_version=${nap_waf_version}" >> $GITHUB_OUTPUT
+            echo "nap_waf_release_version=${nap_waf_release_version}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Branch
         id: branch
         run: |
-          version=${{ inputs.new_version }}
+          version=${{ steps.parse.outputs.new_version }}
           version=${version%.*}
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
@@ -92,26 +131,44 @@ jobs:
       - name: Replace
         run: |
           .github/scripts/release-version-update.sh \
-            ${{ inputs.current_version }} \
-            ${{ inputs.current_helm_version }} \
-            ${{ inputs.current_operator_version }} \
-            ${{ inputs.new_version }} \
-            ${{ inputs.new_helm_version }} \
-            ${{ inputs.new_operator_version }}
+            ${{ steps.parse.outputs.current_version }} \
+            ${{ steps.parse.outputs.current_helm_version }} \
+            ${{ steps.parse.outputs.current_operator_version }} \
+            ${{ steps.parse.outputs.new_version }} \
+            ${{ steps.parse.outputs.new_helm_version }} \
+            ${{ steps.parse.outputs.new_operator_version }}
         env:
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
+          DEBUG: ${{ inputs.debug && 'true' || 'false' }}
+
+      - name: Update tech specs JSON
+        run: |
+          python3 .github/scripts/tech-specs-update.py \
+            --json-file .github/scripts/tech-specs.json \
+            --json-only \
+            --update-json \
+            --current-nic-version "${{ steps.parse.outputs.current_version }}" \
+            --current-helm-version "${{ steps.parse.outputs.current_helm_version }}" \
+            --current-operator-version "${{ steps.parse.outputs.current_operator_version }}" \
+            ${{ steps.parse.outputs.nap_waf_release_version && format('--nap-waf-release-version "{0}"', steps.parse.outputs.nap_waf_release_version) || '' }} \
+            "${{ steps.parse.outputs.new_version }}" \
+            "${{ inputs.k8s_versions }}" \
+            "${{ inputs.new_nginx_version }}" \
+            "" \
+            ${{ steps.parse.outputs.nap_waf_version && format('"{0}"', steps.parse.outputs.nap_waf_version) || '' }}
+        env:
           DEBUG: ${{ inputs.debug && 'true' || 'false' }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           token: ${{ steps.secrets.outputs.NGINX_PAT }}
-          commit-message: Release ${{ github.event.inputs.new_version }}
-          title: Release ${{ github.event.inputs.new_version }}
-          branch: docs/release-${{ github.event.inputs.new_version }}
+          commit-message: Release ${{ steps.parse.outputs.new_version }}
+          title: Release ${{ steps.parse.outputs.new_version }}
+          branch: docs/release-${{ steps.parse.outputs.new_version }}
           author: nginx-bot <integrations@nginx.com>
           body: |
-            This automated PR updates the docs for ${{ github.event.inputs.new_version }} release.
+            This automated PR updates the docs for ${{ steps.parse.outputs.new_version }} release.
         if: ${{ ! inputs.dry_run }}
 
   docs-release-pr:
@@ -122,6 +179,27 @@ jobs:
       id-token: write
     runs-on: ubuntu-24.04
     steps:
+      - name: Parse versions
+        id: parse
+        run: |
+          IFS=',' read -r new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          new_version=$(echo "${{ inputs.nic_version }}" | xargs)
+          new_helm_version=$(echo "${new_helm_version}" | xargs)
+          new_operator_version=$(echo "${new_operator_version}" | xargs)
+          echo "new_version=${new_version}" >> $GITHUB_OUTPUT
+          echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
+          echo "new_operator_version=${new_operator_version}" >> $GITHUB_OUTPUT
+
+          # Parse NAP versions if provided (waf_version,waf_release_version)
+          # waf_release_version is shared by compiler, config manager, and enforcer containers
+          if [ -n "${{ inputs.nap_version }}" ]; then
+            IFS=',' read -r nap_waf_version nap_waf_release_version <<< "${{ inputs.nap_version }}"
+            nap_waf_version=$(echo "${nap_waf_version}" | xargs)
+            nap_waf_release_version=$(echo "${nap_waf_release_version}" | xargs)
+            echo "nap_waf_version=${nap_waf_version}" >> $GITHUB_OUTPUT
+            echo "nap_waf_release_version=${nap_waf_release_version}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -144,11 +222,14 @@ jobs:
         run: |
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
-            ${{ inputs.new_version }} \
-            ${{ inputs.new_helm_version }} \
-            ${{ inputs.new_operator_version }} \
+            "${{ steps.parse.outputs.new_version }}" \
+            "${{ steps.parse.outputs.new_helm_version }}" \
+            "${{ steps.parse.outputs.new_operator_version }}" \
             "${{ inputs.k8s_versions }}" \
-            "${{ inputs.release_date }}"
+            "${{ inputs.new_nginx_version }}" \
+            "${{ inputs.release_date }}" \
+            "${{ steps.parse.outputs.nap_waf_version }}" \
+            "${{ steps.parse.outputs.nap_waf_release_version }}"
         env:
           GITHUB_USERNAME: nginx-bot
           GITHUB_EMAIL: integrations@nginx.com

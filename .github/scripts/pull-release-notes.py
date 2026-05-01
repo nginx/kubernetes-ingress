@@ -29,8 +29,19 @@ template = env.get_template("release-notes.j2")
 github_org = os.getenv("GITHUB_ORG", "nginx")
 github_repo = os.getenv("GITHUB_REPO", "kubernetes-ingress")
 token = os.environ.get("GITHUB_TOKEN")
-docker_pr_strings = ["Docker image update", "docker group", "docker-images group", "in /build"]
-golang_pr_strings = ["go group", "go_modules group"]
+skip_pr_strings = ["pre-commit hook", "pip group"]
+docker_pr_strings = ["docker"]
+golang_pr_strings = [
+    "go group",
+    "go_modules group",
+    "Update module ",
+    "dependency go to",
+    "golang.org/",
+    "k8s.io/",
+    "kubernetes packages",
+    "aws-sdk-go",
+    "opentelemetry-go",
+]
 
 # Setup regex's
 # Matches:
@@ -135,12 +146,17 @@ for title, changes in sections.items():
             # save section title for later use as lookup key to categories dict
             dependencies_title = title
 
-            # Append Golang changes in to the go_dependencies list for later processing
-            if any(str in change_title for str in golang_pr_strings):
-                go_dependencies.append(pr)
-            # Append Docker changes in to the docker_dependencies list for later processing
-            elif any(str in change_title for str in docker_pr_strings):
+            lower_title = change_title.lower()
+            # Skip entries that are not relevant for release notes
+            if any(s in lower_title for s in skip_pr_strings):
+                continue
+            # Check Docker first — entries like "Update golang:1.26 docker digest"
+            # are Docker image updates, not Go module updates
+            if any(s in lower_title for s in docker_pr_strings):
                 docker_dependencies.append(pr)
+            # Append Go module / toolchain changes for grouping
+            elif any(s.lower() in lower_title for s in golang_pr_strings):
+                go_dependencies.append(pr)
             # Treat this change like any other ungrouped change
             else:
                 parsed_changes.append(f"{pr['details']} {pr['title']}")
