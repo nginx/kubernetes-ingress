@@ -363,6 +363,62 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithACPolicyDeny(t *testing.T) {
 	t.Log(bufString)
 }
 
+func TestExecuteTemplate_ForIngressForNGINXWithIngressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForIngressMTLS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"ssl_client_certificate /etc/nginx/secrets/default-ingress-mtls-ca-secret;",
+		"ssl_verify_client on;",
+		"ssl_verify_depth 2;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithIngressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithPolicyAnnotationForIngressMTLS)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bufString := buf.String()
+	wantedStrings := []string{
+		"ssl_client_certificate /etc/nginx/secrets/default-ingress-mtls-ca-secret;",
+		"ssl_verify_client on;",
+		"ssl_verify_depth 2;",
+	}
+
+	for _, want := range wantedStrings {
+		if !strings.Contains(bufString, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	snaps.MatchSnapshot(t, bufString)
+	t.Log(bufString)
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
 	t.Parallel()
 
@@ -2958,6 +3014,37 @@ var (
 			Namespace: "default",
 			Annotations: map[string]string{
 				"nginx.org/policies": "access-control-policy",
+			},
+		},
+	}
+
+	// Ingress Config example with IngressMTLS Policy via annotation
+	ingressCfgWithPolicyAnnotationForIngressMTLS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Locations: []Location{
+					{
+						Path:      "/tea",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					},
+				},
+				IngressMTLS: &version2.IngressMTLS{
+					ClientCert:   "/etc/nginx/secrets/default-ingress-mtls-ca-secret",
+					VerifyClient: "on",
+					VerifyDepth:  2,
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "ingress-mtls-policy",
 			},
 		},
 	}

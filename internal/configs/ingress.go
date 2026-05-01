@@ -344,6 +344,26 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		allWarnings.Add(warnings)
 	}
 
+	// Check if IngressMTLS policy is being attached to a minion Ingress
+	if ncp.isMinion {
+		for _, ref := range policyRefs {
+			ns := ref.Namespace
+			if ns == "" {
+				ns = ncp.ingEx.Ingress.Namespace
+			}
+			key := fmt.Sprintf("%s/%s", ns, ref.Name)
+			if pol, exists := ncp.ingEx.Policies[key]; exists && pol.Spec.IngressMTLS != nil {
+				allWarnings.AddWarningf(
+					ncp.ingEx.Ingress,
+					"IngressMTLS policy %s is not allowed on minion Ingress; it must be attached to the master Ingress only",
+					key,
+				)
+				policyCfg.ErrorReturn = &version2.Return{Code: 500}
+				break
+			}
+		}
+	}
+
 	apResources, appProtectWarnings := resolveIngressAppProtectResources(ncp.ingEx, ncp.apResources, policyCfg)
 	allWarnings.Add(appProtectWarnings)
 
@@ -412,6 +432,18 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
 		allWarnings.Add(warnings)
+
+		if policyCfg.IngressMTLS != nil {
+			if server.SSL {
+				server.IngressMTLS = policyCfg.IngressMTLS
+			} else {
+				allWarnings.AddWarningf(
+					ncp.ingEx.Ingress,
+					"IngressMTLS policy is ignored for host %q because TLS is not enabled for that host",
+					rule.Host,
+				)
+			}
+		}
 
 		if hasAppProtect {
 			if apResources != nil {
