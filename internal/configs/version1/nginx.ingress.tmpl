@@ -425,7 +425,7 @@ server {
 		return {{$server.DefaultServerReturn}};
 	}
 	{{- end}}
-	{{- if and $.Ingress.Name $server.GRPCOnly}}
+	{{- if $server.GRPCOnly}}
 	error_page 400 @grpcerror400;
 	error_page 401 @grpcerror401;
 	error_page 403 @grpcerror403;
@@ -440,11 +440,7 @@ server {
 	error_page 503 @grpcerror503;
 	error_page 504 @grpcerror504;
 	{{- end}}
-<<<<<<< HEAD
 	{{- if $server.HasGRPCLocations}}
-=======
-	{{- if $server.HasGRPCLocations}}
->>>>>>> 20a8877c0 (move default server from nginx.conf to conf.d folder)
 	location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
 	location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
 	location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
