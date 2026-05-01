@@ -235,7 +235,7 @@ jobs:
       tag: ${{ matrix.tags }}
       ic_version: ${{ matrix.tags }}
       target_image: ${{ matrix.image.target_image }}
-      target_tag: ${{ matrix.tags }}
+      target_tag: ${{ format('{0}-{1}', matrix.tags, needs.variables.outputs.date) }}
     permissions:
       contents: read
       id-token: write
@@ -254,7 +254,7 @@ jobs:
       nginx_registry: true
       gcr_release_registry: false
       source_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
-      target_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
+      target_tag: "${{ matrix.tag }}"
       branch: "${{ matrix.branch }}"
       dry_run: ${{ inputs.dry_run || false }}
     permissions:
