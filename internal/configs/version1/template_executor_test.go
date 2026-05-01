@@ -983,7 +983,7 @@ server {
 		return {{$server.DefaultServerReturn}};
 	}
 	{{- end}}
-	{{- if and $.Ingress.Name $server.GRPCOnly}}
+	{{- if $server.GRPCOnly}}
 	error_page 400 @grpcerror400;
 	error_page 401 @grpcerror401;
 	error_page 403 @grpcerror403;
