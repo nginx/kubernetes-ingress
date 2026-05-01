@@ -112,5 +112,53 @@
     "source_os": "ubi",
     "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-dos-nap/nginx-plus-ingress",
     "platforms": "linux/amd64"
+  },
+  {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress",
+    "source_os": "debian-agent",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress",
+    "platforms": "linux/amd64"
+  },
+  {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress",
+    "source_os": "ubi-agent",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress",
+    "platforms": "linux/amd64"
+  },
+  {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress",
+    "source_os": "ubi8-agent",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress",
+    "platforms": "linux/amd64"
+  },
+  {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap/nginx-plus-ingress",
+    "source_os": "alpine-fips-agent",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap/nginx-plus-ingress",
+    "platforms": "linux/amd64"
+  },
+  {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap-v5/nginx-plus-ingress",
+    "source_os": "debian-agent",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress",
+    "platforms": "linux/amd64"
+  },
+  {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap-v5/nginx-plus-ingress",
+    "source_os": "ubi-agent",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress",
+    "platforms": "linux/amd64"
+  },
+  {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap-v5/nginx-plus-ingress",
+    "source_os": "ubi8-agent",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress",
+    "platforms": "linux/amd64"
+  },
+  {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic-nap-v5/nginx-plus-ingress",
+    "source_os": "alpine-fips-agent",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic-nap-v5/nginx-plus-ingress",
+    "platforms": "linux/amd64"
   }
 ]
