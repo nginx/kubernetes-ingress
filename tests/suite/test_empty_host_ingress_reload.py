@@ -203,13 +203,16 @@ class TestEmptyHostIngressReload:
 
         if expect_rollback:
             # Config-safety preserves the original named-host config file.
-            assert get_ingress_nginx_template_conf(
-                kube_apis.v1,
-                test_namespace,
-                named_host_ingress,
-                ic_pod,
-                ingress_controller_prerequisites.namespace,
-            ) is not None
+            assert (
+                get_ingress_nginx_template_conf(
+                    kube_apis.v1,
+                    test_namespace,
+                    named_host_ingress,
+                    ic_pod,
+                    ingress_controller_prerequisites.namespace,
+                )
+                is not None
+            )
             assert "backend1-svc" in get_ingress_nginx_template_conf(
                 kube_apis.v1,
                 test_namespace,
