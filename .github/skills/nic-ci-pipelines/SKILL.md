@@ -9,7 +9,7 @@ description: 'CI/CD pipeline structure, GitHub Actions workflows, reusable workf
 
 The CI system uses GitHub Actions with extensive **reusable workflow** composition.
 
-```
+```text
 ci.yml (main CI orchestrator)
   -> checks (format, lint, codegen, CRDs, chart version)
   -> unit-tests
@@ -38,7 +38,7 @@ release.yml (manual dispatch)
 ## Key Workflows
 
 | Workflow | Trigger | Purpose |
-|----------|---------|---------|
+| --- | --- | --- |
 | `ci.yml` | PR to `main`/`release-*`, merge_group, workflow_dispatch | Main CI: checks + build + test |
 | `lint-format.yml` | PR to `main`, merge_group | goimports, gofumpt, golangci-lint, actionlint |
 | `regression.yml` | Daily cron (03:00 UTC), manual | Multi-K8s-version regression |
@@ -49,7 +49,7 @@ release.yml (manual dispatch)
 ### Release Sub-Workflows (called by `release.yml`)
 
 | Workflow | Purpose |
-|----------|---------|
+| --- | --- |
 | `oss-release.yml` | OSS image release |
 | `plus-release.yml` | Plus/NAP image release |
 | `publish-helm.yml` | Helm chart publishing to registry |
@@ -57,7 +57,7 @@ release.yml (manual dispatch)
 ### Reusable Build Workflows (called via `workflow_call`)
 
 | Workflow | Purpose |
-|----------|---------|
+| --- | --- |
 | `build-artifacts.yml` | Orchestrates GoReleaser binary builds + image matrix |
 | `build-oss.yml` | Builds single OSS image variant |
 | `build-plus.yml` | Builds single Plus/NAP image variant |
@@ -69,7 +69,7 @@ release.yml (manual dispatch)
 ### Security & Compliance
 
 | Workflow | Purpose |
-|----------|---------|
+| --- | --- |
 | `codeql-analysis.yml` | GitHub CodeQL scanning |
 | `scorecards.yml` | OpenSSF Scorecards |
 | `dependency-review.yml` | Dependency review for PRs |
@@ -83,6 +83,7 @@ release.yml (manual dispatch)
 ### Matrix Builds
 
 Image variants are defined in JSON under `.github/data/`:
+
 - `matrix-images-oss.json`: debian, alpine, ubi (amd64 + arm64)
 - `matrix-images-plus.json`: debian-plus, alpine-plus, alpine-plus-fips, ubi-9-plus
 - `matrix-images-nap.json`: WAF v4/v5, DoS, UBI 8/9 (amd64 only)

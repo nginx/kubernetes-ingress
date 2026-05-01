@@ -7,7 +7,7 @@ description: 'NIC architecture, resource processing pipeline, template systems, 
 
 ## Repository Layout
 
-```
+```text
 cmd/nginx-ingress/              Main binary entry point
 pkg/apis/configuration/v1/
   types.go                      CRD struct definitions (source of truth)
@@ -61,7 +61,7 @@ hack/                           update-codegen.sh, verify-codegen.sh
 
 ## Resource Processing Pipeline
 
-```
+```text
 kubectl apply -f resource.yaml
   -> K8s API Server persists resource
   -> Informer detects Add/Update/Delete event
@@ -85,7 +85,7 @@ kubectl apply -f resource.yaml
 ## Two Template Systems
 
 | Pipeline | Resources | Package | Templates |
-|----------|-----------|---------|-----------|
+| --- | --- | --- | --- |
 | Version 1 | Ingress | `internal/configs/version1/` | `nginx.ingress.tmpl`, `nginx-plus.ingress.tmpl` |
 | Version 2 | VirtualServer, VSR, TS | `internal/configs/version2/` | `nginx.virtualserver.tmpl`, `nginx-plus.virtualserver.tmpl` |
 
@@ -103,6 +103,7 @@ Policies are mutually exclusive: each Policy CR has exactly ONE non-nil field in
 **Types**: AccessControl, RateLimit, JWTAuth, ExternalAuth, BasicAuth, IngressMTLS, EgressMTLS, OIDC, WAF, APIKey, Cache, CORS.
 
 **Application levels (VirtualServer)**:
+
 - `spec.policies` -- server-level (all routes unless overridden)
 - `route.policies` -- route-level (overrides spec-level)
 - `subroute.policies` -- VirtualServerRoute subroute-level
@@ -143,7 +144,7 @@ type Policy struct {
 ### Kubebuilder Markers
 
 | Marker | Purpose |
-|--------|---------|
+| --- | --- |
 | `+kubebuilder:validation:Required` | Field must be present |
 | `+kubebuilder:validation:Optional` | Field is optional |
 | `+kubebuilder:validation:Pattern=` `` `regex` `` | Regex validation |

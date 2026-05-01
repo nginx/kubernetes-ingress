@@ -50,7 +50,7 @@ Annotations apply ONLY to Ingress objects, never to VirtualServer or VirtualServ
 ### Kubebuilder Markers
 
 | Marker | Purpose |
-|--------|---------|
+| --- | --- |
 | `+kubebuilder:validation:Required` | Field must be present |
 | `+kubebuilder:validation:Optional` | Field is optional |
 | `+kubebuilder:validation:Pattern=` `` `regex` `` | Regex validation |

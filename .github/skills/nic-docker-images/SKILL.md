@@ -9,7 +9,7 @@ description: 'Docker image build system, Dockerfile structure, image variants, b
 
 Single `build/Dockerfile` (~850 lines), heavily multi-stage. The `BUILD_OS` arg selects which base image stage is used.
 
-```
+```text
 nginx-files (scratch)           <- Collects repo files, signing keys, scripts
   |
 OS-specific base stages         <- One per variant (debian, alpine, ubi, *-plus, *-nap)
@@ -26,7 +26,7 @@ TARGET stages (final image)     <- local, container, goreleaser, debug, download
 3 OS families x 2 NGINX editions x optional NAP = ~20 variants.
 
 | OS | OSS | Plus | Plus+WAF | Plus+WAFv5 | Plus+DoS | Plus+WAF+DoS | Plus+FIPS | Plus+WAF+FIPS | Plus+WAFv5+FIPS |
-|----|-----|------|----------|------------|----------|-------------|-----------|---------------|-----------------|
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Debian | yes | yes | yes | yes | yes | yes | - | - | - |
 | Alpine | yes | yes | - | - | - | - | yes | yes | yes |
 | UBI 9 | yes | yes | yes | yes | yes | yes | - | - | - |
@@ -41,7 +41,7 @@ TARGET stages (final image)     <- local, container, goreleaser, debug, download
 All targets call `docker build --platform linux/$(ARCH) --target $(TARGET) -f build/Dockerfile`.
 
 | Target | BUILD_OS | NAP_MODULES |
-|--------|----------|-------------|
+| --- | --- | --- |
 | `debian-image` | `debian` | - |
 | `alpine-image` | `alpine` | - |
 | `ubi-image` | `ubi` | - |
@@ -70,7 +70,7 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 ### TARGET Variable
 
 | Target | Use Case |
-|--------|----------|
+| --- | --- |
 | `local` | Default -- binary pre-built on host, copied in |
 | `container` | Binary built inside Docker (multi-arch capable) |
 | `goreleaser` | Binary from GoReleaser `dist/` (CI builds) |
@@ -84,7 +84,7 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 ## Key Build Args
 
 | Arg | Purpose | Example |
-|-----|---------|---------|
+| --- | --- | --- |
 | `BUILD_OS` | Base image stage | `debian`, `alpine-plus`, `ubi-9-plus-nap` |
 | `IC_VERSION` | Ingress controller version | `5.5.0` |
 | `NGINX_PLUS_VERSION` | NGINX Plus version | `R36` |
@@ -96,7 +96,7 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 ## Build Scripts (`build/scripts/`)
 
 | Script | Purpose |
-|--------|---------|
+| --- | --- |
 | `common.sh` | Sets up directories, copies NGINX templates (v1/v2), sets file permissions (101:0), runs `setcap` on nginx binaries |
 | `agent.sh` | Configures nginx-agent ownership; creates NMS compiler symlinks for NAP v4 |
 | `nap-waf.sh` | Creates WAF directories (`/etc/nginx/waf/nac-policies`, `/opt/app_protect/`) |

@@ -8,7 +8,7 @@ description: 'Testing patterns for NIC including Go table-driven tests, snapshot
 ## Build and Test Commands
 
 | Command | Purpose |
-|---------|---------|
+| --- | --- |
 | `make test` | Run all Go tests (`-tags=aws,helmunit -shuffle=on ./...`) |
 | `make test-update-snaps` | Regenerate snapshot golden files (`UPDATE_SNAPS=always`) |
 | `make lint` | golangci-lint via Docker, diff against `origin/main` |
@@ -51,10 +51,12 @@ func TestValidateMyPolicy(t *testing.T) {
 Two conventions are in use -- both are acceptable:
 
 **Policy/transport tests** (`policy_test.go`, `transportserver_test.go`):
+
 - `TestValidate<Thing>_PassesOnValidInput`
 - `TestValidate<Thing>_FailsOnInvalidInput`
 
 **VirtualServer/general tests** (`virtualserver_test.go` and most other files):
+
 - `TestValidate<Thing>` (valid input, often with subtests)
 - `TestValidate<Thing>Fails` (invalid input)
 - `TestGenerate<Feature>`
