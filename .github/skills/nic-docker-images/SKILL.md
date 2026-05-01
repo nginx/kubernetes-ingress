@@ -111,7 +111,7 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 - All images run as **UID 101** (nginx user), with `setcap cap_net_bind_service` for ports 80/443
 - Docker BuildKit always enabled: uses `--mount=type=bind`, `--mount=type=secret`, `--mount=type=cache`
 - Plus credentials use `--secret` mounts, **never** `COPY` into layers
-- All `FROM` statements use **pinned `@sha256:` digests** for reproducibility
+- Fixed upstream base images use **pinned `@sha256:` digests** for reproducibility; some stages intentionally use build-arg/tag-selected bases (for example `BUILD_OS` or download/prebuilt images)
 - All images include `nginx-module-otel` (OpenTelemetry) and `nginx-agent` (usage reporting)
 - Plus images add `njs` and `fips-check` modules
 - Renovate manages base image digests and tool versions via `# renovate:` comments

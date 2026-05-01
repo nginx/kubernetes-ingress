@@ -14,7 +14,7 @@ Annotations apply ONLY to Ingress objects, never to VirtualServer or VirtualServ
 3. Parse it in `parseAnnotations()` in `internal/configs/annotations.go`
 4. Update `masterDenylist` / `minionDenylist` if it should not be on master/minion
 5. Apply it in `generateNginxCfg()` in `internal/configs/ingress.go`
-6. Add the NGINX directive in `version1/nginx.ingress.tmpl` and `nginx-plus.ingress.tmpl`
+6. Add the NGINX directive in `internal/configs/version1/nginx.ingress.tmpl` and `internal/configs/version1/nginx-plus.ingress.tmpl`
 7. Add validation in `internal/k8s/validation.go` annotation validation chains
 8. Add tests in `annotations_test.go` and `ingress_test.go`
 

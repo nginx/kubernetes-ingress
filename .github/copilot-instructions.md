@@ -32,8 +32,8 @@ Use the codebase as the authoritative reference for patterns and style. Plan bef
 
 | Command | Purpose |
 | --------- | --------- |
-| `make test` | Run all Go tests (`-tags=aws,helmunit -shuffle=on`) |
-| `make test-update-snaps` | Regenerate snapshot golden files |
+| `make test` | Run all Go tests via `go test -tags=aws,helmunit -shuffle=on ./...` |
+| `make test-update-snaps` | Regenerate snapshot golden files via `UPDATE_SNAPS=always go test -tags=aws,helmunit -shuffle=on ./...` |
 | `make lint` | golangci-lint via Docker against `origin/main` |
 | `make format` | goimports + gofumpt |
 | `make build` | Build `nginx-ingress` binary |

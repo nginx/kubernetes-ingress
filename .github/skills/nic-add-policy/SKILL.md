@@ -67,10 +67,10 @@ File: `internal/configs/ingress.go`
 
 ## Step 9: Add NGINX template directives
 
-- Version 2: `internal/configs/version2/nginx.virtualserver.tmpl` and `nginx-plus.virtualserver.tmpl`
-- Version 1: `internal/configs/version1/nginx.ingress.tmpl` and `nginx-plus.ingress.tmpl`
+- Version 2: `internal/configs/version2/nginx.virtualserver.tmpl` and `internal/configs/version2/nginx-plus.virtualserver.tmpl`
+- Version 1: `internal/configs/version1/nginx.ingress.tmpl` and `internal/configs/version1/nginx-plus.ingress.tmpl`
 - Use `{{- if }}` / `{{- with }}` guards around directive blocks
-- Template helpers go in `template_helper.go`
+- Template helpers go in `internal/configs/version2/template_helper.go` and/or `internal/configs/version1/template_helper.go`, matching the template version you are updating
 - HTTP-level directives (zones, maps) go BEFORE `server{}`
 - Server-level inside `server{}`, location-level inside each `location{}`
 
