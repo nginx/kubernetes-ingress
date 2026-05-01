@@ -8,6 +8,8 @@ This example works with both:
 - **NGINX One Console** (Agent 3.9.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
 
 > **Note**: Starting with NGINX Ingress Controller 5.5.0, images with the `-agent` suffix include NGINX Agent 3.9.*and are pre-configured for NGINX One Console. Images without the `-agent` suffix include NGINX Agent 2.* for NGINX Instance Manager. See the [Technical Specifications](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/) for available image variants.
+>
+> F5 WAF for NGINX v5 uses compiled bundles (`apBundle`/`apLogBundle`), which are only supported through the Policy custom resource. The `appprotect.f5.com/*` annotations used by WAF v4 are not compatible with WAF v5.
 
 ## Running the example
 
