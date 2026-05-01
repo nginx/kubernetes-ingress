@@ -3872,6 +3872,7 @@ var (
 	ingressCfgEmptyHost = IngressNginxConfig{
 		Servers: []Server{
 			{
+				Name:                "_",
 				IsDefaultServer:     true,
 				ServerTokens:        "off",
 				StatusZone:          "_",
@@ -3916,6 +3917,7 @@ var (
 	ingressCfgEmptyHostWithRootLocation = IngressNginxConfig{
 		Servers: []Server{
 			{
+				Name:                "_",
 				IsDefaultServer:     true,
 				ServerTokens:        "off",
 				StatusZone:          "_",
@@ -3957,6 +3959,7 @@ var (
 		},
 		Servers: []Server{
 			{
+				Name:                "_",
 				IsDefaultServer:     true,
 				ServerTokens:        "on",
 				StatusZone:          "_",
