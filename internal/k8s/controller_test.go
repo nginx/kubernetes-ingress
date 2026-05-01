@@ -34,18 +34,19 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-type testNginxManager struct {
+type trackingNginxManager struct {
 	*nginx.FakeManager
-
-	CreatedConfigNames []string
+	createdConfigNames []string
 }
 
-func newTestNginxManager() *testNginxManager {
-	return &testNginxManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+func newTrackingNginxManager() *trackingNginxManager {
+	return &trackingNginxManager{
+		FakeManager: nginx.NewFakeManager("/etc/nginx"),
+	}
 }
 
-func (m *testNginxManager) CreateConfig(name string, content []byte) (bool, error) {
-	m.CreatedConfigNames = append(m.CreatedConfigNames, name)
+func (m *trackingNginxManager) CreateConfig(name string, content []byte) (bool, error) {
+	m.createdConfigNames = append(m.createdConfigNames, name)
 	return m.FakeManager.CreateConfig(name, content)
 }
 
@@ -2425,8 +2426,8 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 		},
 	}
 
-	manager := newTestNginxManager()
-	cnf := createTestPolicySyncConfigurator(t, manager)
+	trackingManager := newTrackingNginxManager()
+	cnf := createTestPolicySyncConfigurator(t, trackingManager)
 
 	lbc := LoadBalancerController{
 		namespacedInformers: map[string]*namespacedInformer{
@@ -2445,12 +2446,12 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 
 	lbc.syncPolicy(task{Key: "default/test-policy"})
 
-	if len(manager.CreatedConfigNames) == 0 {
+	if len(trackingManager.createdConfigNames) == 0 {
 		t.Fatalf("expected mergeable ingress config to be created on policy update")
 	}
 
 	foundMasterConfig := false
-	for _, name := range manager.CreatedConfigNames {
+	for _, name := range trackingManager.createdConfigNames {
 		if name == "default-master-ingress" {
 			foundMasterConfig = true
 			break
@@ -2458,7 +2459,7 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 	}
 
 	if !foundMasterConfig {
-		t.Fatalf("expected config for mergeable master ingress to be updated, got configs: %v", manager.CreatedConfigNames)
+		t.Fatalf("expected config for mergeable master ingress to be updated, got configs: %v", trackingManager.createdConfigNames)
 	}
 }
 
