@@ -3019,32 +3019,32 @@ func TestParseConfigMapWithAddHeaderInherit(t *testing.T) {
 		},
 		{
 			value:       "ON",
-			expect:      "",
-			expectError: true,
+			expect:      "on",
+			expectError: false,
 			msg:         "invalid value ON (mixed case)",
 		},
 		{
 			value:       "Merge",
-			expect:      "",
-			expectError: true,
+			expect:      "merge",
+			expectError: false,
 			msg:         "invalid value Merge (mixed case)",
 		},
 		{
 			value:       "MERGE",
-			expect:      "",
-			expectError: true,
+			expect:      "merge",
+			expectError: false,
 			msg:         "invalid value MERGE (mixed case)",
 		},
 		{
 			value:       "OFF",
-			expect:      "",
-			expectError: true,
+			expect:      "off",
+			expectError: false,
 			msg:         "invalid value OFF (mixed case)",
 		},
 		{
 			value:       "oFf",
-			expect:      "",
-			expectError: true,
+			expect:      "off",
+			expectError: false,
 			msg:         "invalid value oFf (mixed case)",
 		},
 		{
@@ -3062,7 +3062,7 @@ func TestParseConfigMapWithAddHeaderInherit(t *testing.T) {
 		{
 			value:       "",
 			expect:      "",
-			expectError: false,
+			expectError: true,
 			msg:         "empty value",
 		},
 	}
@@ -3074,9 +3074,7 @@ func TestParseConfigMapWithAddHeaderInherit(t *testing.T) {
 			},
 			Data: map[string]string{},
 		}
-		if test.value != "" {
-			cm.Data["add-header-inherit"] = test.value
-		}
+		cm.Data["add-header-inherit"] = test.value
 		result, configOK := ParseConfigMap(context.Background(), cm, false, false, false, false, false, makeEventLogger())
 		if result.AddHeaderInherit != test.expect {
 			t.Errorf("ParseConfigMap() returned AddHeaderInherit=%q but expected %q for the case: %s", result.AddHeaderInherit, test.expect, test.msg)

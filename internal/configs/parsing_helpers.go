@@ -174,6 +174,7 @@ const (
 
 // ParseAddHeaderInherit validates the add_header_inherit directive mode.
 func ParseAddHeaderInherit(value string) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
 	case addHeaderInheritOn, addHeaderInheritOff, addHeaderInheritMerge:
 		return value, nil

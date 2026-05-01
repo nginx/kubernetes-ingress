@@ -723,8 +723,8 @@ func TestParseAddHeaderInherit(t *testing.T) {
 		}
 	}
 
-	if _, err := ParseAddHeaderInherit("bogus"); err == nil {
-		t.Error("TestParseAddHeaderInherit(\"bogus\") does not return an error for invalid input")
+	if _, err := ParseAddHeaderInherit(""); err == nil {
+		t.Error("TestParseAddHeaderInherit(\"\") does not return an error for invalid input")
 	}
 }
 
