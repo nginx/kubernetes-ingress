@@ -4317,6 +4317,7 @@ server {
     ssl_reject_handshake on;
 
     server_tokens off;
+
     server_name _;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -4359,19 +4360,6 @@ server {
     location / {
         return 404;
     }
-    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
-    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
-    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
-    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
-    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
-    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
-    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
-    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
-    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
-    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
-    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
-    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
-    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
 }
 
 ---
@@ -4391,7 +4379,9 @@ server {
     ssl_reject_handshake on;
 
     server_tokens "off";
+
     server_name _;
+
     status_zone _;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -4449,19 +4439,6 @@ server {
     location / {
         return 404;
     }
-    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
-    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
-    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
-    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
-    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
-    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
-    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
-    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
-    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
-    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
-    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
-    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
-    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
 }
 
 ---
@@ -4481,6 +4458,7 @@ server {
     ssl_reject_handshake on;
 
     server_tokens off;
+
     server_name _;
     set $resource_type "ingress";
     set $resource_name "webapp-ingress";
@@ -8277,7 +8255,9 @@ server {
     ssl_reject_handshake on;
 
     server_tokens "on";
+
     server_name _;
+
     status_zone _;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
