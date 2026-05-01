@@ -3,12 +3,12 @@ import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, assert_ingress_conf_not_exists, wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    create_example_app,
     create_ingress_controller,
     create_ingress_from_yaml,
-    create_items_from_yaml,
+    delete_common_app,
     delete_ingress,
     delete_ingress_controller,
-    delete_items_from_yaml,
     get_default_server_conf,
     get_events_for_object,
     get_first_pod_name,
@@ -18,10 +18,8 @@ from suite.utils.resources_utils import (
     wait_until_all_pods_are_ready,
 )
 
-empty_host_test_data_path = f"{TEST_DATA}/empty-host-ingress-reload"
-cafe_app_src = f"{empty_host_test_data_path}/cafe-app.yaml"
-cafe_ingress_src = f"{empty_host_test_data_path}/cafe-ingress.yaml"
-empty_host_app_src = f"{empty_host_test_data_path}/empty-host-app.yaml"
+empty_host_test_data_path = f"{TEST_DATA}/empty-host-ingress"
+named_host_ingress_src = f"{empty_host_test_data_path}/named-host-ingress.yaml"
 empty_host_ingress_src = f"{empty_host_test_data_path}/empty-host-ingress.yaml"
 reload_failure_buffer_size_ingress_src = (
     f"{empty_host_test_data_path}/empty-host-ingress-reload-failure-buffer-size.yaml"
@@ -52,8 +50,7 @@ class TestEmptyHostIngressReload:
         ingress_controller,
         test_namespace,
     ):
-        create_items_from_yaml(kube_apis, cafe_app_src, test_namespace)
-        create_items_from_yaml(kube_apis, empty_host_app_src, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
         wait_and_assert_status_code(
             404,
@@ -63,8 +60,7 @@ class TestEmptyHostIngressReload:
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
-                delete_items_from_yaml(kube_apis, cafe_app_src, test_namespace)
-                delete_items_from_yaml(kube_apis, empty_host_app_src, test_namespace)
+                delete_common_app(kube_apis, "simple", test_namespace)
 
         request.addfinalizer(fin)
 
@@ -103,7 +99,7 @@ class TestEmptyHostIngressReload:
 
         if expect_rollback:
             # Config-safety keeps the previous working empty-host config on disk and records rollback.
-            assert "empty-host-svc" in conf
+            assert "backend1-svc" in conf
             assert "proxy_buffer_size 16k" not in conf
             assert "rolled back to previous working config" in messages
         else:
@@ -162,11 +158,11 @@ class TestEmptyHostIngressReload:
         if expect_rollback:
             assert "server_name _" in conf
             assert "return 404" in conf
-            assert "empty-host-svc" not in conf
+            assert "backend1-svc" not in conf
             assert "proxy_buffer_size 16k" not in conf
             assert "rolled back to previous working config" in messages
         else:
-            assert "empty-host-svc" in conf
+            assert "backend1-svc" in conf
             assert "proxy_buffer_size 16k" in conf
 
         delete_ingress(kube_apis.networking_v1, invalid, test_namespace)
@@ -184,38 +180,40 @@ class TestEmptyHostIngressReload:
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         http_request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
-        print("Step 1: create a working named-host cafe ingress")
-        cafe = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, cafe_ingress_src)
+        print("Step 1: create a working named-host ingress")
+        named_host_ingress = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, named_host_ingress_src)
         wait_before_test()
-        wait_and_assert_status_code(200, f"{http_request_url}/coffee", "cafe.example.com")
+        wait_and_assert_status_code(200, f"{http_request_url}/backend1", "named-host.example.com")
 
         print("Step 2: patch the named ingress into an empty-host ingress with invalid generated config")
-        with open(cafe_ingress_src) as f:
+        with open(named_host_ingress_src) as f:
             body = yaml.safe_load(f)
         del body["spec"]["rules"][0]["host"]
         body["metadata"]["annotations"] = invalid_annotations.copy()
-        replace_ingress(kube_apis.networking_v1, cafe, test_namespace, body)
+        replace_ingress(kube_apis.networking_v1, named_host_ingress, test_namespace, body)
         wait_before_test()
 
         print("Step 3: assert the original named-host traffic/config survives the failed transition")
         # Converting a named ingress into an empty-host owner fails during apply, so the original
         # named-host traffic should continue to work.
-        wait_and_assert_status_code(200, f"{http_request_url}/coffee", "cafe.example.com")
-        messages = " ".join(event.message for event in get_events_for_object(kube_apis.v1, test_namespace, cafe))
+        wait_and_assert_status_code(200, f"{http_request_url}/backend1", "named-host.example.com")
+        messages = " ".join(
+            event.message for event in get_events_for_object(kube_apis.v1, test_namespace, named_host_ingress)
+        )
 
         if expect_rollback:
             # Config-safety preserves the original named-host config file.
             assert get_ingress_nginx_template_conf(
                 kube_apis.v1,
                 test_namespace,
-                cafe,
+                named_host_ingress,
                 ic_pod,
                 ingress_controller_prerequisites.namespace,
             ) is not None
-            assert "coffee-svc" in get_ingress_nginx_template_conf(
+            assert "backend1-svc" in get_ingress_nginx_template_conf(
                 kube_apis.v1,
                 test_namespace,
-                cafe,
+                named_host_ingress,
                 ic_pod,
                 ingress_controller_prerequisites.namespace,
             )
@@ -224,13 +222,17 @@ class TestEmptyHostIngressReload:
             # Without config-safety, the named-host config file can disappear even though runtime
             # traffic still serves from the last good config.
             assert_ingress_conf_not_exists(
-                kube_apis, ic_pod, ingress_controller_prerequisites.namespace, test_namespace, cafe
+                kube_apis,
+                ic_pod,
+                ingress_controller_prerequisites.namespace,
+                test_namespace,
+                named_host_ingress,
             )
 
         assert "but was not applied" in messages
         assert "proxy_busy_buffers_size" in messages
 
-        delete_ingress(kube_apis.networking_v1, cafe, test_namespace)
+        delete_ingress(kube_apis.networking_v1, named_host_ingress, test_namespace)
         wait_before_test()
 
     def test_empty_host_to_named_with_invalid_annotation(
@@ -269,7 +271,7 @@ class TestEmptyHostIngressReload:
 
         if expect_rollback:
             # Config-safety keeps the last working empty-host owner in _default-server.conf.
-            assert "empty-host-svc" in conf
+            assert "backend1-svc" in conf
             assert "rolled back to previous working config" in messages
         else:
             # Without config-safety, the file can revert to synthetic default even though the update failed.
@@ -301,7 +303,7 @@ class TestEmptyHostIngressStartupProtection:
         self, request, kube_apis, cli_arguments, ingress_controller_prerequisites, test_namespace
     ):
         print("Step 1: create the backend and an empty-host ingress that will fail during initial apply")
-        create_items_from_yaml(kube_apis, empty_host_app_src, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
         # This ingress exists before NIC starts. It will be accepted from the API perspective,
         # but its generated NGINX config will fail validation during initial apply.
@@ -326,7 +328,7 @@ class TestEmptyHostIngressStartupProtection:
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
                 delete_ingress(kube_apis.networking_v1, ingress_name, test_namespace)
-                delete_items_from_yaml(kube_apis, empty_host_app_src, test_namespace)
+                delete_common_app(kube_apis, "simple", test_namespace)
                 delete_ingress_controller(
                     kube_apis.apps_v1_api,
                     ic_name,
@@ -365,11 +367,11 @@ class TestEmptyHostIngressStartupProtection:
         if expect_rollback:
             # With config-safety enabled on top of PR1, NIC keeps the bootstrapped synthetic
             # default server on disk instead of leaving the failed empty-host config in place.
-            assert "empty-host-svc" not in conf
+            assert "backend1-svc" not in conf
             assert "proxy_buffer_size 16k" not in conf
             assert "rolled back to previous working config" in messages
         else:
             # Without config-safety, the failed empty-host config can still be left on disk even
             # though runtime traffic stays on the startup default server.
-            assert "empty-host-svc" in conf
+            assert "backend1-svc" in conf
             assert "proxy_buffer_size 16k" in conf
