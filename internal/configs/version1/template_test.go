@@ -2806,6 +2806,74 @@ func newNGINXMainTmpl(t *testing.T) *template.Template {
 	return tmpl
 }
 
+func TestExecuteTemplate_ForIngressWithAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(*testing.T) *template.Template
+	}{
+		{
+			name:    "nginx",
+			newTmpl: newNGINXIngressTmpl,
+		},
+		{
+			name:    "nginx-plus",
+			newTmpl: newNGINXPlusIngressTmpl,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			ingressCfg := IngressNginxConfig{
+				Ingress: Ingress{
+					Name:      "test-ingress",
+					Namespace: "default",
+				},
+				Servers: []Server{
+					{
+						Name:             "test.example.com",
+						AddHeaderInherit: "merge",
+						Locations: []Location{
+							{
+								Path:             "/tea",
+								AddHeaderInherit: "off",
+								Upstream:         testUpstream,
+								ProxyPass:        "http://test",
+							},
+						},
+					},
+				},
+			}
+
+			err := tmpl.Execute(buf, ingressCfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			ingConf := buf.String()
+			wantDirectives := []string{
+				"add_header_inherit merge;",
+				"add_header_inherit off;",
+			}
+
+			for _, want := range wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			snaps.MatchSnapshot(t, ingConf)
+			t.Log(ingConf)
+		})
+	}
+}
+
 var (
 	// Ingress Config example without added annotations
 	ingressCfg = IngressNginxConfig{

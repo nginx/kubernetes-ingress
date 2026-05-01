@@ -63,6 +63,9 @@ type VirtualServerSpec struct {
 	HTTPSnippets string `json:"http-snippets"`
 	// Sets a custom snippet in server context. Overrides the server-snippets ConfigMap key.
 	ServerSnippets string `json:"server-snippets"`
+	// Controls header inheritance behavior at the server level. Allowed values are: on, off, merge. When set to "merge", headers from this context are merged with headers in child contexts. When set to "on", standard NGINX inheritance applies. When set to "off", no headers are inherited from parent contexts.
+	// +kubebuilder:validation:Enum=on;off;merge;
+	AddHeaderInherit string `json:"add-header-inherit"`
 	// A reference to a DosProtectedResource, setting this enables DOS protection of the VirtualServer route.
 	Dos string `json:"dos"`
 	// The externalDNS configuration for a VirtualServer.
@@ -287,6 +290,9 @@ type Route struct {
 	ErrorPages []ErrorPage `json:"errorPages"`
 	// Sets a custom snippet in the location context. Overrides the location-snippets ConfigMap key.
 	LocationSnippets string `json:"location-snippets"`
+	// Controls header inheritance behavior at the location level. Allowed values are: on, off, merge. When set to "merge", headers from this context are merged with headers in child contexts. When set to "on", standard NGINX inheritance applies. When set to "off", no headers are inherited from parent contexts.
+	// +kubebuilder:validation:Enum=on;off;merge;
+	AddHeaderInherit string `json:"add-header-inherit"`
 	// A reference to a DosProtectedResource, setting this enables DOS protection of the VirtualServer route.
 	Dos string `json:"dos"`
 }

@@ -112,6 +112,7 @@ type Server struct {
 	DisableIPV6               bool
 	Gunzip                    bool
 	NGINXDebugLevel           string
+	AddHeaderInherit          string
 }
 
 // SSL defines SSL configuration for a server.
@@ -249,6 +250,7 @@ type Location struct {
 	VSRNamespace               string
 	GRPCPass                   string
 	CORSEnabled                bool
+	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string

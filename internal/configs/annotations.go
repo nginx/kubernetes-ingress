@@ -89,6 +89,9 @@ const StickyCookieServicesAnnotation = "nginx.org/sticky-cookie-services"
 // StickyCookieServicesAnnotationPlus is the annotation where the sticky cookie configuration is specified for NGINX Plus.
 const StickyCookieServicesAnnotationPlus = "nginx.com/sticky-cookie-services"
 
+// AddHeaderInheritAnnotation is the annotation where add_header inheritance behavior is specified.
+const AddHeaderInheritAnnotation = "nginx.org/add-header-inherit"
+
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
@@ -252,6 +255,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if locationSnippets, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/location-snippets", ingEx.Ingress, "\n"); exists {
 		cfgParams.LocationSnippets = locationSnippets
+	}
+
+	if addHeaderInherit, exists := ingEx.Ingress.Annotations[AddHeaderInheritAnnotation]; exists {
+		if parsedAddHeaderInherit, err := ParseAddHeaderInherit(addHeaderInherit); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value %s: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), AddHeaderInheritAnnotation, addHeaderInherit, err)
+		} else {
+			cfgParams.AddHeaderInherit = parsedAddHeaderInherit
+		}
 	}
 
 	if proxyConnectTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-connect-timeout"]; exists {

@@ -80,6 +80,7 @@ type LimitReqZone struct {
 
 // Server describes an NGINX server.
 type Server struct {
+	AddHeaderInherit       string
 	ServerSnippets         []string
 	Name                   string
 	ServerTokens           string
@@ -178,6 +179,7 @@ type LimitReq struct {
 
 // Location describes an NGINX location.
 type Location struct {
+	AddHeaderInherit        string
 	LocationSnippets        []string
 	Path                    string
 	Upstream                Upstream
@@ -273,6 +275,7 @@ type MGMTConfig struct {
 // MainConfig describe the main NGINX configuration file.
 type MainConfig struct {
 	AccessLog                          string
+	AddHeaderInherit                   string
 	DefaultServerAccessLogOff          bool
 	DefaultServerReturn                string
 	DisableIPV6                        bool

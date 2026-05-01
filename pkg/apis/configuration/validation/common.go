@@ -143,6 +143,16 @@ func validateStringWithVariables(str string, fieldPath *field.Path, specialVars 
 	return allErrs
 }
 
+func validateAddHeaderInherit(value string, fieldPath *field.Path) field.ErrorList {
+	if value == "" {
+		return nil
+	}
+	if _, err := configs.ParseAddHeaderInherit(value); err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, value, err.Error())}
+	}
+	return nil
+}
+
 func validateTime(time string, fieldPath *field.Path) field.ErrorList {
 	if time == "" {
 		return nil

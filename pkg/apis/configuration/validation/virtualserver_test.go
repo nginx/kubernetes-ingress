@@ -4765,3 +4765,46 @@ func TestValidateRouteSelector(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateAddHeaderInherit_ValidValues(t *testing.T) {
+	t.Parallel()
+
+	validValues := []string{
+		"",
+		"on",
+		"off",
+		"merge",
+	}
+	for _, value := range validValues {
+		allErrs := validateAddHeaderInherit(value, field.NewPath("add-header-inherit"))
+		if len(allErrs) != 0 {
+			t.Errorf("validateAddHeaderInherit(%q) returned errors for valid input: %v", value, allErrs)
+		}
+	}
+}
+
+func TestValidateAddHeaderInherit_InvalidValues(t *testing.T) {
+	t.Parallel()
+
+	invalidValues := []string{
+		"On",
+		"ON",
+		"Off",
+		"OFF",
+		"Merge",
+		"MERGE",
+		"invalid",
+		"yes",
+		"no",
+		"true",
+		"false",
+		"merging",
+		"onoff",
+	}
+	for _, value := range invalidValues {
+		allErrs := validateAddHeaderInherit(value, field.NewPath("add-header-inherit"))
+		if len(allErrs) == 0 {
+			t.Errorf("validateAddHeaderInherit(%q) returned no errors for invalid input", value)
+		}
+	}
+}

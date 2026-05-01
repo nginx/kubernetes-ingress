@@ -418,6 +418,17 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		cfgParams.MainHTTPSnippets = mainHTTPSnippets
 	}
 
+	if addHeaderInherit, exists := cfgm.Data["add-header-inherit"]; exists {
+		if parsed, err := ParseAddHeaderInherit(addHeaderInherit); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'add-header-inherit': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
+		} else {
+			cfgParams.AddHeaderInherit = parsed
+		}
+	}
+
 	if locationSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "location-snippets", cfgm, "\n"); exists {
 		cfgParams.LocationSnippets = locationSnippets
 	}
@@ -1176,6 +1187,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 
 	nginxCfg := &version1.MainConfig{
 		AccessLog:                          config.MainAccessLog,
+		AddHeaderInherit:                   config.AddHeaderInherit,
 		DefaultServerAccessLogOff:          config.DefaultServerAccessLogOff,
 		DefaultServerReturn:                config.DefaultServerReturn,
 		DisableIPV6:                        staticCfgParams.DisableIPV6,

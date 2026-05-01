@@ -113,6 +113,9 @@ server {
 	proxy_hide_header {{$proxyHideHeader}};{{end}}
 	{{- range $proxyPassHeader := $server.ProxyPassHeaders}}
 	proxy_pass_header {{$proxyPassHeader}};{{end}}
+	{{- if $server.AddHeaderInherit}}
+	add_header_inherit {{$server.AddHeaderInherit}};
+	{{- end}}
 
 	{{- with $server.EgressMTLS }}
 		{{- if .Certificate }}
@@ -221,6 +224,9 @@ server {
 		{{- end }}
 		{{- if gt (len $location.Deny) 0 }}
 		allow all;
+		{{- end }}
+		{{- if $location.AddHeaderInherit}}
+		add_header_inherit {{$location.AddHeaderInherit}};
 		{{- end }}
 		{{- if $location.RewriteTarget}}
 		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
