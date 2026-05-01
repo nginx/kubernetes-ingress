@@ -1,6 +1,8 @@
 package k8s
 
 import (
+	"fmt"
+
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -51,7 +53,7 @@ func createIngressLinkHandlers(lbc *LoadBalancerController) cache.ResourceEventH
 	}
 }
 
-func (lbc *LoadBalancerController) addIngressLinkHandler(handlers cache.ResourceEventHandlerFuncs, name string) {
+func (lbc *LoadBalancerController) addIngressLinkHandler(handlers cache.ResourceEventHandlerFuncs, name string) error {
 	optionsModifier := func(options *meta_v1.ListOptions) {
 		options.FieldSelector = fields.Set{"metadata.name": name}.String()
 	}
@@ -59,12 +61,15 @@ func (lbc *LoadBalancerController) addIngressLinkHandler(handlers cache.Resource
 	informer := dynamicinformer.NewFilteredDynamicInformer(lbc.dynClient, ingressLinkGVR, lbc.metadata.namespace, lbc.resync,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, optionsModifier)
 
-	informer.Informer().AddEventHandlerWithResyncPeriod(handlers, lbc.resync) //nolint:errcheck,gosec
+	if _, err := informer.Informer().AddEventHandlerWithResyncPeriod(handlers, lbc.resync); err != nil {
+		return fmt.Errorf("failed to add IngressLink event handler: %w", err)
+	}
 
 	lbc.ingressLinkInformer = informer.Informer()
 	lbc.ingressLinkLister = informer.Informer().GetStore()
 
 	lbc.cacheSyncs = append(lbc.cacheSyncs, lbc.ingressLinkInformer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncIngressLink(task task) {
