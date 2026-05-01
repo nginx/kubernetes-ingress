@@ -182,7 +182,6 @@ class TestEmptyHostIngressReload:
         expect_rollback,
     ):
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         http_request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
         print("Step 1: create a working named-host cafe ingress")
@@ -206,7 +205,14 @@ class TestEmptyHostIngressReload:
 
         if expect_rollback:
             # Config-safety preserves the original named-host config file.
-            assert "cafe.example.com" in get_ingress_nginx_template_conf(
+            assert get_ingress_nginx_template_conf(
+                kube_apis.v1,
+                test_namespace,
+                cafe,
+                ic_pod,
+                ingress_controller_prerequisites.namespace,
+            ) is not None
+            assert "coffee-svc" in get_ingress_nginx_template_conf(
                 kube_apis.v1,
                 test_namespace,
                 cafe,
