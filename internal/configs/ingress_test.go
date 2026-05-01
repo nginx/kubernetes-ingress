@@ -1358,7 +1358,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsFalseForNonGRPCDefaultBackend(t *te
 	}
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	defaultBackendUpstream := expected.Upstreams[1]
-	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHost, cafeIngressEx.Ingress.Spec.DefaultBackend)
+	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHostName, cafeIngressEx.Ingress.Spec.DefaultBackend)
 	defaultBackendLocation := expected.Servers[0].Locations[1]
 	defaultBackendLocation.Path = "/"
 	defaultBackendLocation.Upstream = defaultBackendUpstream
@@ -1407,7 +1407,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForGRPCDefaultBackend(t *testing.T)
 	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "tea-svc"
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	defaultBackendUpstream := expected.Upstreams[1]
-	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHost, cafeIngressEx.Ingress.Spec.DefaultBackend)
+	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHostName, cafeIngressEx.Ingress.Spec.DefaultBackend)
 	defaultBackendLocation := expected.Servers[0].Locations[1]
 	defaultBackendLocation.Path = "/"
 	defaultBackendLocation.Upstream = defaultBackendUpstream
@@ -1458,7 +1458,7 @@ func TestGenerateNginxCfgSetsHasGRPCLocationsForMixedIngressWithGRPCDefaultBacke
 	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "tea-svc"
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	defaultBackendUpstream := expected.Upstreams[1]
-	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHost, cafeIngressEx.Ingress.Spec.DefaultBackend)
+	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHostName, cafeIngressEx.Ingress.Spec.DefaultBackend)
 	defaultBackendLocation := expected.Servers[0].Locations[1]
 	defaultBackendLocation.Path = "/"
 	defaultBackendLocation.Upstream = defaultBackendUpstream

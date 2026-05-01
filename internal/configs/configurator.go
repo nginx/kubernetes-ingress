@@ -425,6 +425,8 @@ func (cnf *Configurator) streamUpstreamsForTransportServer(ts *conf_v1.Transport
 func GenerateDefaultServerConfig(staticCfgParams *StaticConfigParams, cfgParams *ConfigParams) version1.IngressNginxConfig {
 	return version1.IngressNginxConfig{
 		Servers: []version1.Server{{
+			Name:                emptyHostToken,
+			StatusZone:          emptyHostToken,
 			IsDefaultServer:     true,
 			Ports:               []int{staticCfgParams.DefaultHTTPListenerPort},
 			SSLPorts:            []int{staticCfgParams.DefaultHTTPSListenerPort},
@@ -1405,7 +1407,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 			if _, isExternalName := ingEx.ExternalNameSvcs[ingEx.Ingress.Spec.DefaultBackend.Service.Name]; isExternalName {
 				nl.Debugf(l, "Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", ingEx.Ingress.Spec.DefaultBackend.Service.Name)
 			} else {
-				name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.DefaultBackend)
+				name := getNameForUpstream(ingEx.Ingress, emptyHostName, ingEx.Ingress.Spec.DefaultBackend)
 				err := cnf.updateServersInPlus(name, endps, cfg)
 				if err != nil {
 					return fmt.Errorf("couldn't update the endpoints for %v: %w", name, err)
