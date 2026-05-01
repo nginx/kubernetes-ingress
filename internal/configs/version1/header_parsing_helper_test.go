@@ -1,6 +1,7 @@
 package version1
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -224,6 +225,70 @@ func TestParseAddHeaders(t *testing.T) {
 			got := ParseAddHeaders(tc.annotation)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("ParseAddHeaders(%q) mismatch (-want +got):\n%s", tc.annotation, diff)
+			}
+		})
+	}
+}
+
+func TestValidateAddHeaderName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{name: "valid simple", input: "X-Frame-Options", wantErr: false},
+		{name: "valid with numbers", input: "X-Custom-123", wantErr: false},
+		{name: "space in name", input: "X Bad", wantErr: true},
+		{name: "at sign", input: "X-He@der", wantErr: true},
+		{name: "dollar sign", input: "$bad", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			msgs := ValidateAddHeaderName(tc.input)
+			if tc.wantErr && len(msgs) == 0 {
+				t.Errorf("ValidateAddHeaderName(%q): want error messages, got none", tc.input)
+			}
+			if !tc.wantErr && len(msgs) != 0 {
+				t.Errorf("ValidateAddHeaderName(%q): want no messages, got %v", tc.input, msgs)
+			}
+		})
+	}
+}
+
+func TestValidateAddHeaderValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		wantMsgs []string // substrings that must appear in the returned messages
+	}{
+		{name: "valid plain value", input: "DENY", wantMsgs: nil},
+		{name: "valid escaped quote", input: `val\"ue`, wantMsgs: nil},
+		{name: "dollar sign", input: "$nginx_var", wantMsgs: []string{"invalid character in header value: $"}},
+		{name: "newline", input: "foo\nbar", wantMsgs: []string{"newline"}},
+		{name: "carriage return", input: "foo\rbar", wantMsgs: []string{"carriage-return"}},
+		{name: "unescaped double quote", input: `"unquoted"`, wantMsgs: []string{"must have all"}},
+		{name: "trailing backslash", input: `value\`, wantMsgs: []string{"must have all"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			msgs := ValidateAddHeaderValue(tc.input)
+			if len(tc.wantMsgs) == 0 {
+				if len(msgs) != 0 {
+					t.Errorf("ValidateAddHeaderValue(%q): want no messages, got %v", tc.input, msgs)
+				}
+				return
+			}
+			combined := strings.Join(msgs, " ")
+			for _, want := range tc.wantMsgs {
+				if !strings.Contains(combined, want) {
+					t.Errorf("ValidateAddHeaderValue(%q): want message containing %q, got %v", tc.input, want, msgs)
+				}
 			}
 		})
 	}

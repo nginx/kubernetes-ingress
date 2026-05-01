@@ -5040,6 +5040,12 @@ func TestValidateAddHeaderAnnotation(t *testing.T) {
 			expectedErrors: nil,
 		},
 
+		{
+			name:           "trailing colon produces empty flag (should be valid)",
+			value:          "X-Foo:bar:",
+			expectedErrors: nil,
+		},
+
 		// ── Invalid: $ in value ───────────────────────────────────────
 		{
 			name:  "dollar sign in value",

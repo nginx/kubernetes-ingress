@@ -1,10 +1,50 @@
 package version1
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 )
+
+const (
+	escapedStringsFmt    = `([^"\\]|\\.)*`
+	escapedStringsErrMsg = `must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash)`
+)
+
+var escapedStringsFmtRegexp = regexp.MustCompile("^" + escapedStringsFmt + "$")
+
+// ValidateAddHeaderName validates that name is a legal HTTP header name,
+// using the same rules as the nginx.org/add-header annotation.
+// Returns error messages (empty when valid).
+func ValidateAddHeaderName(name string) []string {
+	return k8svalidation.IsHTTPHeaderName(name)
+}
+
+// ValidateAddHeaderValue validates a header value for use in an NGINX
+// add_header directive. It rejects:
+//   - '$' characters (expanded by NGINX as variable references)
+//   - newline / carriage-return characters (break config line structure)
+//   - unescaped double-quotes or trailing backslashes (invalid in the quoted
+//     value the template emits via Go's %q verb)
+//
+// Returns error messages (empty when valid). Messages are intentionally
+// identical to those produced by the nginx.org/add-header annotation
+// validator so both paths behave consistently.
+func ValidateAddHeaderValue(value string) []string {
+	var msgs []string
+	if strings.ContainsAny(value, "\n\r") {
+		msgs = append(msgs, "value must not contain newline or carriage-return characters")
+	}
+	if strings.Contains(value, "$") {
+		msgs = append(msgs, "invalid character in header value: $")
+	}
+	if !escapedStringsFmtRegexp.MatchString(value) {
+		msgs = append(msgs, k8svalidation.RegexError(escapedStringsErrMsg, escapedStringsFmt))
+	}
+	return msgs
+}
 
 // ParseProxySetHeaders splits a comma-separated proxy-set-headers annotation
 // value into name/value pairs, trimming whitespace from each component.

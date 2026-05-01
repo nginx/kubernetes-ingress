@@ -10,6 +10,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	version1 "github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	common_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -608,21 +609,18 @@ func validateAddHeaderAnnotation(context *annotationValidationContext) field.Err
 			allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "empty header name"))
 			continue
 		}
-		for _, msg := range validation.IsHTTPHeaderName(name) {
+		for _, msg := range version1.ValidateAddHeaderName(name) {
 			allErrs = append(allErrs, field.Invalid(context.fieldPath, name, msg))
 		}
 		if len(parts) >= 2 {
 			value := strings.TrimSpace(parts[1])
-			if strings.Contains(value, "$") {
-				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "invalid character in header value: $"))
-			}
-			if err := ValidateEscapedString(value); err != nil {
-				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, err.Error()))
+			for _, msg := range version1.ValidateAddHeaderValue(value) {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, msg))
 			}
 		}
 		if len(parts) == 3 {
 			flag := strings.TrimSpace(parts[2])
-			if !strings.EqualFold(flag, "always") {
+			if flag != "" && !strings.EqualFold(flag, "always") {
 				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry,
 					fmt.Sprintf("invalid flag %q: must be \"always\" or empty", flag)))
 			}
