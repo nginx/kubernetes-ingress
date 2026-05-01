@@ -656,6 +656,19 @@ controller:
   ## This value will not be used if `controller.securityContext` is set
   readOnlyRootFilesystem: false
 
+  ## Sets the `sizeLimit` for the `emptyDir` volumes that are mounted when
+  ## `readOnlyRootFilesystem` (or `securityContext.readOnlyRootFilesystem`) is
+  ## enabled. The keys correspond to the volume names (without the `nginx-`
+  ## prefix). Values accept any valid Kubernetes `resource.Quantity` (for
+  ## example `"10Mi"`). Leaving a value empty omits `sizeLimit` for that
+  ## volume. Requires Kubernetes v1.22+.
+  readOnlyRootFilesystemVolumeSizes:
+    etc: ""
+    cache: ""
+    lib: ""
+    log: ""
+    state: ""
+
   ## Enable dynamic reloading of certificates
   enableSSLDynamicReload: true
 
