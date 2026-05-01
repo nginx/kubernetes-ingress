@@ -64,7 +64,12 @@ def deploy_empty_host_ingress(request, kube_apis, ingress_controller, test_names
         {
             "apiVersion": "networking.k8s.io/v1",
             "kind": "Ingress",
-            "metadata": {"name": "empty-host-ingress"},
+            "metadata": {
+                "name": "empty-host-ingress",
+                "annotations": {
+                    "nginx.org/ssl-redirect": "false",
+                },
+            },
             "spec": {
                 "ingressClassName": "nginx",
                 "rules": [{"host": ""}],
@@ -219,14 +224,12 @@ class TestDefaultServer:
     ):
         print("Ensure custom ports for default listeners return 404")
         request_url_http = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.custom_http}/"
-        resp = requests.get(request_url_http, headers={})
-        assert resp.status_code == 404
+        wait_and_assert_status_code(404, request_url_http, allow_redirects=False)
 
         request_url_https = (
             f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.custom_https}/"
         )
-        resp = requests.get(request_url_https, headers={}, verify=False)
-        assert resp.status_code == 404
+        wait_and_assert_status_code(404, request_url_https, verify=False)
 
     @pytest.mark.parametrize(
         "ingress_controller",
@@ -253,12 +256,6 @@ class TestDefaultServer:
         print("Step 2: ensure non-health traffic keeps its normal default-server behavior")
         request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/"
 
-        # The built-in default server returns 404 for HTTP requests to '/'.
-        # Once an empty-host Ingress takes ownership of the default server,
-        # the same request follows the default ssl-redirect behavior and returns 301.
-        if deploy_empty_host_ingress:
-            expected_root_status = 301
-        else:
-            expected_root_status = 404
+        expected_root_status = 404
 
         wait_and_assert_status_code(expected_root_status, request_url, allow_redirects=False)
