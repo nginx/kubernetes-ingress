@@ -479,6 +479,7 @@ func TestGenerateDefaultServerConfig(t *testing.T) {
 		t.Fatalf("GenerateDefaultServerConfig() mismatch (-want +got):\n%s", diff)
 	}
 }
+
 func TestGetVirtualServerConfigFileName(t *testing.T) {
 	t.Parallel()
 	vs := conf_v1.VirtualServer{
