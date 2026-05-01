@@ -4111,6 +4111,8 @@ var (
 
 	ingressCfgDefaultServer = IngressNginxConfig{
 		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
 			IsDefaultServer:     true,
 			Ports:               []int{80},
 			SSLPorts:            []int{443},
@@ -4126,6 +4128,8 @@ var (
 
 	ingressCfgDefaultServerHTTP2On = IngressNginxConfig{
 		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
 			IsDefaultServer:     true,
 			Ports:               []int{80},
 			SSLPorts:            []int{443},
@@ -4142,6 +4146,8 @@ var (
 
 	ingressCfgDefaultServerCustomHTTPAndHTTPSListenerPorts = IngressNginxConfig{
 		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
 			IsDefaultServer:     true,
 			Ports:               []int{8083},
 			SSLPorts:            []int{8443},
@@ -4157,6 +4163,8 @@ var (
 
 	ingressCfgDefaultServerCustomHTTPListenerPort = IngressNginxConfig{
 		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
 			IsDefaultServer:     true,
 			Ports:               []int{8083},
 			SSLPorts:            []int{443},
@@ -4172,6 +4180,8 @@ var (
 
 	ingressCfgDefaultServerCustomHTTPSListenerPort = IngressNginxConfig{
 		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
 			IsDefaultServer:     true,
 			Ports:               []int{80},
 			SSLPorts:            []int{8443},

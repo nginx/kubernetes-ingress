@@ -268,7 +268,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	allWarnings.Add(rewriteTargetWarnings)
 
 	if ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
-		name := getNameForUpstream(ncp.ingEx.Ingress, emptyHost, ncp.ingEx.Ingress.Spec.DefaultBackend)
+		name := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
 		upstream, upsWarning := createUpstream(ncp.ingEx, name, ncp.ingEx.Ingress.Spec.DefaultBackend, spServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], &cfgParams,
 			ncp.isPlus, ncp.isResolverConfigured, ncp.staticParams.EnableLatencyMetrics)
 		if upsWarning != "" {
@@ -623,7 +623,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 
 		if !rootLocation && ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
-			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHost, ncp.ingEx.Ingress.Spec.DefaultBackend)
+			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
 			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], cfgParams, ncp.staticParams)
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
@@ -1098,6 +1098,9 @@ func pathOrDefault(path string) string {
 }
 
 func getNameForUpstream(ing *networking.Ingress, host string, backend *networking.IngressBackend) string {
+	if host == emptyHostName {
+		host = emptyHostToken
+	}
 	return fmt.Sprintf("%v-%v-%v-%v-%v", ing.Namespace, ing.Name, host, backend.Service.Name, GetBackendPortAsString(backend.Service.Port))
 }
 
