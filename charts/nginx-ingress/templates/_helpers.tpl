@@ -414,14 +414,15 @@ List of volumes for controller.
 - name: agent-conf
   configMap:
     name: {{ include "nginx-ingress.agentConfigName" . }}
+- name: agent-etc
+  emptyDir: {}
 {{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 - name: dataplane-key
   secret:
     secretName: {{ .Values.nginxAgent.dataplaneKeySecretName }}
-{{- else }}
+{{- end }}
 - name: agent-dynamic
   emptyDir: {}
-{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   projected:
@@ -480,16 +481,17 @@ volumeMounts:
 {{ toYaml .Values.controller.volumeMounts }}
 {{- end }}
 {{- if .Values.nginxAgent.enable }}
+- name: agent-etc
+  mountPath: /etc/nginx-agent
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
 {{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 - name: dataplane-key
   mountPath: /etc/nginx-agent/secrets
-{{- else }}
+{{- end }}
 - name: agent-dynamic
   mountPath: /var/lib/nginx-agent
-{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   mountPath: /etc/ssl/nms
@@ -543,12 +545,18 @@ log:
 allowed_directories:
   - /etc/nginx
   - /usr/lib/nginx/modules
+{{- if .Values.controller.appprotect.enable }}
+  - /etc/app_protect
+{{- end }}
 
 features:
   - certificates
   - connection
   - metrics
   - file-watcher
+{{- if .Values.controller.appprotect.enable }}
+  - logs-nap
+{{- end }}
 
 ## command server settings
 command:
