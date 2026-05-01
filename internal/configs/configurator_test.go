@@ -449,6 +449,8 @@ func TestGenerateDefaultServerConfig(t *testing.T) {
 	got := GenerateDefaultServerConfig(staticCfg, cfg)
 	want := version1.IngressNginxConfig{
 		Servers: []version1.Server{{
+			Name:                emptyHostToken,
+			StatusZone:          emptyHostToken,
 			IsDefaultServer:     true,
 			Ports:               []int{8081},
 			SSLPorts:            []int{8444},
