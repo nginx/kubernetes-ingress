@@ -421,6 +421,64 @@ func TestSyncDefaultServerConfigReturnsErrorOnTemplateFailure(t *testing.T) {
 	}
 }
 
+func TestGenerateDefaultServerConfig(t *testing.T) {
+	t.Parallel()
+
+	staticCfg := &StaticConfigParams{
+		DefaultHTTPListenerPort:  8081,
+		DefaultHTTPSListenerPort: 8444,
+		HealthStatus:             true,
+		HealthStatusURI:          "/custom-health",
+		TLSPassthrough:           true,
+		SSLRejectHandshake:       true,
+		DisableIPV6:              true,
+		DynamicSSLReload:         true,
+		StaticSSLPath:            "/tmp/ssl",
+	}
+	cfg := &ConfigParams{
+		DefaultServerAccessLogOff: true,
+		DefaultServerReturn:       "302 https://example.com",
+		ServerTokens:              "build",
+		HTTP2:                     true,
+		ProxyProtocol:             true,
+		RealIPHeader:              "X-Forwarded-For",
+		SetRealIPFrom:             []string{"10.0.0.0/8"},
+		RealIPRecursive:           true,
+	}
+
+	got := GenerateDefaultServerConfig(staticCfg, cfg)
+	want := version1.IngressNginxConfig{
+		Servers: []version1.Server{{
+			IsDefaultServer:     true,
+			Ports:               []int{8081},
+			SSLPorts:            []int{8444},
+			SSL:                 true,
+			SSLCertificate:      DefaultServerSecretPath,
+			SSLCertificateKey:   DefaultServerSecretPath,
+			SSLRejectHandshake:  true,
+			AccessLogOff:        true,
+			DefaultServerReturn: "302 https://example.com",
+			HealthStatus:        true,
+			HealthStatusURI:     "/custom-health",
+			ServerTokens:        "build",
+			TLSPassthrough:      true,
+			HTTP2:               true,
+			GRPCOnly:            false,
+			ProxyProtocol:       true,
+			RealIPHeader:        "X-Forwarded-For",
+			SetRealIPFrom:       []string{"10.0.0.0/8"},
+			RealIPRecursive:     true,
+			DisableIPV6:         true,
+		}},
+		Ingress:                 version1.Ingress{},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           "/tmp/ssl",
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("GenerateDefaultServerConfig() mismatch (-want +got):\n%s", diff)
+	}
+}
 func TestGetVirtualServerConfigFileName(t *testing.T) {
 	t.Parallel()
 	vs := conf_v1.VirtualServer{
