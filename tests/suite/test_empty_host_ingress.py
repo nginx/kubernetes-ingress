@@ -71,13 +71,16 @@ class TestEmptyHostIngressCollisionResolution:
         # The synthetic default server still handles requests without a Host match.
         assert "return 404" in get_default_server_conf(kube_apis.v1, ic_pod, ingress_controller_prerequisites.namespace)
         # The named ingress gets its own dedicated config file.
-        assert get_ingress_nginx_template_conf(
-            kube_apis.v1,
-            test_namespace,
-            named_host_ingress,
-            ic_pod,
-            ingress_controller_prerequisites.namespace,
-        ) is not None
+        assert (
+            get_ingress_nginx_template_conf(
+                kube_apis.v1,
+                test_namespace,
+                named_host_ingress,
+                ic_pod,
+                ingress_controller_prerequisites.namespace,
+            )
+            is not None
+        )
         assert "backend1-svc" in get_ingress_nginx_template_conf(
             kube_apis.v1,
             test_namespace,
@@ -137,13 +140,16 @@ class TestEmptyHostIngressCollisionResolution:
         wait_before_test()
 
         # Once it becomes named again, it gets its own config file instead of owning default-server.
-        assert get_ingress_nginx_template_conf(
-            kube_apis.v1,
-            test_namespace,
-            empty_host_ingress,
-            ic_pod,
-            ingress_controller_prerequisites.namespace,
-        ) is not None
+        assert (
+            get_ingress_nginx_template_conf(
+                kube_apis.v1,
+                test_namespace,
+                empty_host_ingress,
+                ic_pod,
+                ingress_controller_prerequisites.namespace,
+            )
+            is not None
+        )
         assert "backend1-svc" in get_ingress_nginx_template_conf(
             kube_apis.v1,
             test_namespace,
