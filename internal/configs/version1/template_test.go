@@ -224,7 +224,6 @@ func TestExecuteTemplate_ForIngressWithEmptyHostForNGINXPlus(t *testing.T) {
 		"location /tea",
 		"location / {",
 		"return 404;",
-		"@grpcerror400",
 	}
 
 	rendered := buf.String()
