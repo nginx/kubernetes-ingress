@@ -674,7 +674,10 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens "off";
+
     server_name _;
+
+    status_zone _;
 
     
 
@@ -697,7 +700,10 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens "off";
+
     server_name _;
+
+    status_zone _;
 
     
 
@@ -720,7 +726,10 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens "off";
+
     server_name _;
+
+    status_zone _;
 
     
 
@@ -743,7 +752,10 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens "off";
+
     server_name _;
+
+    status_zone _;
 
     
 
@@ -767,7 +779,10 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens "off";
+
     server_name _;
+
+    status_zone _;
 
     
 
@@ -790,7 +805,10 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens "off";
+
     server_name _;
+
+    status_zone _;
 
     
 
@@ -813,6 +831,7 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens off;
+
     server_name _;
     location / {
         return 404;
@@ -832,6 +851,7 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens off;
+
     server_name _;
     location / {
         return 404;
@@ -851,6 +871,7 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens off;
+
     server_name _;
     location / {
         return 404;
@@ -870,6 +891,7 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens off;
+
     server_name _;
     location / {
         return 404;
@@ -890,6 +912,7 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens off;
+
     server_name _;
     location / {
         return 404;
@@ -909,6 +932,7 @@ server {
     ssl_certificate_key $secret_dir_path/default;
 
     server_tokens off;
+
     server_name _;
     location / {
         return 404;
@@ -933,6 +957,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -974,6 +999,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -1041,7 +1067,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1125,7 +1153,10 @@ server {
 server {
 
     server_tokens "off";
+
     server_name cafe.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1166,7 +1197,10 @@ server {
 server {
 
     server_tokens "off";
+
     server_name cafe.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1207,7 +1241,10 @@ server {
 server {
 
     server_tokens "off";
+
     server_name cafe.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-menu-ingress";
     set $resource_namespace "default";
@@ -1248,7 +1285,10 @@ server {
 server {
 
     server_tokens "off";
+
     server_name cafe.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1289,7 +1329,10 @@ server {
 server {
 
     server_tokens "off";
+
     server_name cafe.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1330,7 +1373,10 @@ server {
 server {
 
     server_tokens "off";
+
     server_name cafe.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1376,7 +1422,9 @@ server {
         deny all;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1423,7 +1471,9 @@ server {
         allow all;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1471,7 +1521,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1563,7 +1615,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1633,7 +1687,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1719,7 +1775,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1828,7 +1886,9 @@ upstream test {
 server {
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1878,7 +1938,9 @@ server {
 
     server_tokens "off";
     return 500;
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -1926,7 +1988,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2001,7 +2065,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2076,7 +2142,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2151,7 +2219,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2224,7 +2294,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "myingress";
@@ -2327,7 +2399,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "myingress";
@@ -2431,7 +2505,10 @@ limit_req_zone ${binary_remote_addr} zone=default/zone1_sync:10m rate=200r/s syn
 server {
 
     server_tokens "";
+
     server_name test.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -2480,7 +2557,10 @@ server {
     ssl_prefer_server_ciphers on;
 
     server_tokens "";
+
     server_name test.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -2522,7 +2602,10 @@ server {
     ssl_certificate_key ;
 
     server_tokens "";
+
     server_name test.example.com;
+
+    status_zone ;
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -2569,7 +2652,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2653,6 +2738,7 @@ server {
 server {
 
     server_tokens off;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2688,6 +2774,7 @@ server {
 server {
 
     server_tokens off;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2723,6 +2810,7 @@ server {
 server {
 
     server_tokens off;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-menu-ingress";
@@ -2758,6 +2846,7 @@ server {
 server {
 
     server_tokens off;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2793,6 +2882,7 @@ server {
 server {
 
     server_tokens off;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2828,6 +2918,7 @@ server {
 server {
 
     server_tokens off;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2869,6 +2960,7 @@ server {
         deny all;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2910,6 +3002,7 @@ server {
         allow all;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -2953,6 +3046,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3004,6 +3098,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3055,6 +3150,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3123,6 +3219,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3215,6 +3312,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3261,6 +3359,7 @@ upstream test {
 server {
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3305,6 +3404,7 @@ server {
 
     server_tokens off;
     return 500;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3339,6 +3439,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "test-ingress";
@@ -3373,6 +3474,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "test-ingress";
@@ -3407,6 +3509,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -3472,6 +3575,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "myingress";
@@ -3544,6 +3648,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "myingress";
@@ -3619,6 +3724,7 @@ server {
     ssl_prefer_server_ciphers on;
 
     server_tokens ;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "test-ingress";
@@ -3655,6 +3761,7 @@ server {
     ssl_certificate_key ;
 
     server_tokens ;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "test-ingress";
@@ -3698,6 +3805,7 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3749,6 +3857,7 @@ map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {
 server {
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3805,7 +3914,9 @@ map $http_origin $cors_origin_default_cafe_ingress_ing_default_cors_policy {
 server {
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3867,7 +3978,9 @@ server {
     ssl_certificate_key secret.pem;
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -3958,6 +4071,7 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens on;
+
     server_name example.com;
     set $resource_type "ingress";
     set $resource_name "ing";
@@ -4018,7 +4132,9 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens "on";
+
     server_name example.com;
+
     status_zone example.com;
     set $resource_type "ingress";
     set $resource_name "ing";
@@ -4085,6 +4201,7 @@ upstream test {
 server {
 
     server_tokens off;
+
     server_name test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -4125,7 +4242,9 @@ upstream test {
 server {
 
     server_tokens "off";
+
     server_name test.example.com;
+
     status_zone test.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
@@ -4174,6 +4293,7 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens on;
+
     server_name example.com;
     set $resource_type "ingress";
     set $resource_name "ing";
@@ -4223,7 +4343,9 @@ server {
     listen 80;listen [::]:80;
 
     server_tokens "on";
+
     server_name example.com;
+
     status_zone example.com;
     set $resource_type "ingress";
     set $resource_name "ing";
@@ -6198,6 +6320,7 @@ stream {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6260,6 +6383,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6327,6 +6451,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6387,6 +6512,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6447,6 +6573,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6507,6 +6634,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6581,7 +6709,9 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
+
     server_name cafe.example.com;
+
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6665,7 +6795,9 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
+
     server_name cafe.example.com;
+
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6749,7 +6881,9 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
+
     server_name cafe.example.com;
+
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6833,7 +6967,9 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
+
     server_name cafe.example.com;
+
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6917,7 +7053,9 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
+
     server_name cafe.example.com;
+
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -6987,6 +7125,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7061,7 +7200,9 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
+
     server_name cafe.example.com;
+
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7135,6 +7276,7 @@ server {
         deny all;
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7199,6 +7341,7 @@ server {
         allow all;
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7263,6 +7406,7 @@ server {
         deny all;
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7327,6 +7471,7 @@ server {
         allow all;
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7393,6 +7538,7 @@ server {
         allow all;
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7459,6 +7605,7 @@ server {
         deny all;
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7519,6 +7666,7 @@ server {
         allow all;
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7577,6 +7725,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7639,6 +7788,7 @@ server {
 server {
 
     server_tokens ;
+
     server_name cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7715,7 +7865,9 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
+
     server_name cafe.example.com;
+
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
@@ -7799,7 +7951,9 @@ server {
     ssl_certificate_key /etc/nginx/secrets/default-cafe-secret;
 
     server_tokens "on";
+
     server_name cafe.example.com;
+
     status_zone cafe.example.com;
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";

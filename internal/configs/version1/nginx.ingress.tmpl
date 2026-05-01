@@ -102,12 +102,7 @@ server {
 	return {{ .Code }};
 	{{- end }}
 
-	{{- if $server.IsDefaultServer}}
-	server_name _;
-	{{- else}}
 	server_name {{$server.Name}};
-	{{- end}}
-
 	{{- if $.Ingress.Name}}
 	set $resource_type "ingress";
 	set $resource_name "{{$.Ingress.Name}}";
