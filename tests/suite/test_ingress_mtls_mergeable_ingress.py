@@ -68,10 +68,10 @@ class TestIngressMTLSMergeableIngress:
             tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_sec_src)
             print("Create ingress-mtls policy")
             apply_and_wait_for_valid_policy(kube_apis, test_namespace, mtls_pol_src)
-            ingress_created = True
 
             pol_name = get_name_from_yaml(mtls_pol_src)
             create_items_from_yaml(kube_apis, mergeable_master_src, test_namespace)
+            ingress_created = True
 
             ensure_connection_to_public_endpoint(
                 ingress_controller_endpoint.public_ip,
@@ -157,10 +157,10 @@ class TestIngressMTLSMergeableIngress:
             tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_sec_src)
             print("Create ingress-mtls policy")
             apply_and_wait_for_valid_policy(kube_apis, test_namespace, mtls_pol_src)
-            ingress_created = True
 
             pol_name = get_name_from_yaml(mtls_pol_src)
             create_items_from_yaml(kube_apis, mergeable_minion_src, test_namespace)
+            ingress_created = True
 
             ensure_connection_to_public_endpoint(
                 ingress_controller_endpoint.public_ip,
