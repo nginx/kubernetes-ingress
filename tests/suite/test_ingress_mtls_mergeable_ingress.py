@@ -53,11 +53,14 @@ class TestIngressMTLSMergeableIngress:
 
         ingress_host = get_first_ingress_host_from_yaml(mergeable_master_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
+
         create_example_app(kube_apis, "simple", test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+
         mtls_secret_name = ""
         tls_secret_name = ""
         pol_name = ""
+        ingress_created = False
         try:
             print("Create ingress-mtls secret")
             mtls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, mtls_sec_src)
@@ -65,19 +68,25 @@ class TestIngressMTLSMergeableIngress:
             tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_sec_src)
             print("Create ingress-mtls policy")
             apply_and_wait_for_valid_policy(kube_apis, test_namespace, mtls_pol_src)
+            ingress_created = True
+
             pol_name = get_name_from_yaml(mtls_pol_src)
             create_items_from_yaml(kube_apis, mergeable_master_src, test_namespace)
+
             ensure_connection_to_public_endpoint(
                 ingress_controller_endpoint.public_ip,
                 ingress_controller_endpoint.port,
                 ingress_controller_endpoint.port_ssl,
             )
+
             policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
             session = create_sni_session()
+
             # No cert gives 400 meaning the policy is enforced at the master server block level
             resp = mock.Mock()
             resp.status_code = 502
             counter = 0
+
             while resp.status_code != 400 and counter < 10:
                 resp = session.get(
                     request_url,
@@ -110,10 +119,12 @@ class TestIngressMTLSMergeableIngress:
             assert (
                 policy_info["status"]["reason"] == "AddedOrUpdated" and policy_info["status"]["state"] == "Valid"
             ), f"Expected policy AddedOrUpdated/Valid, got {policy_info.get('status', {})}"
+
         finally:
             if pol_name:
                 delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
-            delete_items_from_yaml(kube_apis, mergeable_master_src, test_namespace)
+            if ingress_created:
+                delete_items_from_yaml(kube_apis, mergeable_master_src, test_namespace)
             if tls_secret_name:
                 delete_secret(kube_apis.v1, tls_secret_name, test_namespace)
             if mtls_secret_name:
@@ -127,15 +138,18 @@ class TestIngressMTLSMergeableIngress:
         ingress_controller_endpoint,
         test_namespace,
     ):
-        """Validates that IngressMTLS policies are only enforced when placed on the master Ingress in a mergeable setup."""
+        """Validates that an IngressMTLS policy on a minion Ingress is rejected with HTTP 500 and must be attached to the master Ingress only."""
 
         ingress_host = get_first_ingress_host_from_yaml(mergeable_minion_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
+
         create_example_app(kube_apis, "simple", test_namespace)
         wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+
         mtls_secret_name = ""
         tls_secret_name = ""
         pol_name = ""
+        ingress_created = False
         try:
             print("Create ingress-mtls secret")
             mtls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, mtls_sec_src)
@@ -143,20 +157,26 @@ class TestIngressMTLSMergeableIngress:
             tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_sec_src)
             print("Create ingress-mtls policy")
             apply_and_wait_for_valid_policy(kube_apis, test_namespace, mtls_pol_src)
+            ingress_created = True
+
             pol_name = get_name_from_yaml(mtls_pol_src)
             create_items_from_yaml(kube_apis, mergeable_minion_src, test_namespace)
+
             ensure_connection_to_public_endpoint(
                 ingress_controller_endpoint.public_ip,
                 ingress_controller_endpoint.port,
                 ingress_controller_endpoint.port_ssl,
             )
+
             policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
             session = create_sni_session()
-            # No cert gives 200, the policy on the minion is ignored, no mTLS enforcement
+
+            # IngressMTLS policy on a minion is rejected; config is not applied and HTTP 500 is returned
             resp = mock.Mock()
-            resp.status_code = 502
+            resp.status_code = 200
             counter = 0
-            while resp.status_code != 200 and counter < 10:
+
+            while resp.status_code != 500 and counter < 10:
                 resp = session.get(
                     request_url,
                     headers={"host": ingress_host},
@@ -165,18 +185,20 @@ class TestIngressMTLSMergeableIngress:
                 )
                 wait_before_test()
                 counter += 1
-            assert resp.status_code == 200, (
-                f"Expected 200 (IngressMTLS on minion should be ignored), "
+
+            assert resp.status_code == 500, (
+                f"Expected 500 (IngressMTLS on minion should be rejected), "
                 f"got {resp.status_code}. Response: {resp.text}"
             )
-            assert "Server address:" in resp.text, f"Expected backend response, got: {resp.text}"
             assert (
                 policy_info["status"]["reason"] == "AddedOrUpdated" and policy_info["status"]["state"] == "Valid"
             ), f"Expected policy AddedOrUpdated/Valid, got {policy_info.get('status', {})}"
+
         finally:
             if pol_name:
                 delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
-            delete_items_from_yaml(kube_apis, mergeable_minion_src, test_namespace)
+            if ingress_created:
+                delete_items_from_yaml(kube_apis, mergeable_minion_src, test_namespace)
             if tls_secret_name:
                 delete_secret(kube_apis.v1, tls_secret_name, test_namespace)
             if mtls_secret_name:

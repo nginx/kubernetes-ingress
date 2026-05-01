@@ -1019,6 +1019,52 @@ func TestGenerateNginxCfgForIngressMTLS(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForMergeableIngressesMinionWithIngressMTLSPolicy(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Minions[0].Ingress.Annotations[PoliciesAnnotation] = "ingress-mtls-policy"
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/ingress-mtls-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "ingress-mtls-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				IngressMTLS: &conf_v1.IngressMTLS{
+					ClientCertSecret: "ingress-mtls-secret",
+					VerifyClient:     "on",
+				},
+			},
+		},
+	}
+
+	result, resultWarnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	expectedPoliciesErrorReturn := &version2.Return{Code: 500}
+	var found bool
+	for _, loc := range result.Servers[0].Locations {
+		if loc.MinionIngress != nil && loc.MinionIngress.Name == "cafe-ingress-coffee-minion" {
+			found = true
+			if diff := cmp.Diff(expectedPoliciesErrorReturn, loc.PoliciesErrorReturn); diff != "" {
+				t.Errorf("Location.PoliciesErrorReturn mismatch for coffee minion (-want +got):\n%s", diff)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("coffee minion location not found in result")
+	}
+
+	const expectedWarning = "IngressMTLS policy default/ingress-mtls-policy is not allowed on minion Ingress"
+	if !warningsContain(resultWarnings, expectedWarning) {
+		t.Fatalf("expected warning containing %q, got %v", expectedWarning, resultWarnings)
+	}
+}
+
 // TestGenerateNginxCfgWithMissingOrInvalidPolicy verifies that a standard Ingress referencing a
 // policy that is absent from the Policies map (either deleted or excluded by validation) sets
 // Server.PoliciesErrorReturn to 500. Both missing and invalid policies converge to the same

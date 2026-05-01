@@ -344,6 +344,26 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		allWarnings.Add(warnings)
 	}
 
+	// Check if IngressMTLS policy is being attached to a minion Ingress
+	if ncp.isMinion {
+		for _, ref := range policyRefs {
+			ns := ref.Namespace
+			if ns == "" {
+				ns = ncp.ingEx.Ingress.Namespace
+			}
+			key := fmt.Sprintf("%s/%s", ns, ref.Name)
+			if pol, exists := ncp.ingEx.Policies[key]; exists && pol.Spec.IngressMTLS != nil {
+				allWarnings.AddWarningf(
+					ncp.ingEx.Ingress,
+					"IngressMTLS policy %s is not allowed on minion Ingress; it must be attached to the master Ingress only",
+					key,
+				)
+				policyCfg.ErrorReturn = &version2.Return{Code: 500}
+				break
+			}
+		}
+	}
+
 	apResources, appProtectWarnings := resolveIngressAppProtectResources(ncp.ingEx, ncp.apResources, policyCfg)
 	allWarnings.Add(appProtectWarnings)
 
