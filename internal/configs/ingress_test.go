@@ -79,6 +79,25 @@ func TestGenerateNginxCfgForAddHeaderInherit(t *testing.T) {
 	}
 }
 
+func TestGetNameForUpstreamUsesTokenForEmptyHost(t *testing.T) {
+	t.Parallel()
+
+	ing := &networking.Ingress{ObjectMeta: meta_v1.ObjectMeta{Name: "cafe-ingress", Namespace: "default"}}
+	backend := &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "tea-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+
+	got := getNameForUpstream(ing, emptyHostName, backend)
+	want := "default-cafe-ingress-_-tea-svc-80"
+
+	if got != want {
+		t.Fatalf("getNameForUpstream() = %q, want %q", got, want)
+	}
+}
+
 func TestGenerateNginxCfgForJWT(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
@@ -4940,7 +4959,7 @@ func createEmptyHostIngressEx() IngressEx {
 func createExpectedConfigForEmptyHostIngressEx(isPlus bool) version1.IngressNginxConfig {
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	server := &expected.Servers[0]
-	server.Name = ""
+	server.Name = "_"
 	server.IsDefaultServer = true
 	server.StatusZone = "_"
 	server.SSL = true
@@ -4978,7 +4997,7 @@ func createExpectedConfigForEmptyHostMergeableCafeIngress(isPlus bool) version1.
 	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
 	server := &expected.Servers[0]
 
-	server.Name = ""
+	server.Name = "_"
 	server.IsDefaultServer = true
 	server.StatusZone = "_"
 	server.SSL = true
