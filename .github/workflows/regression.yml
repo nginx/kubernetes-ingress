@@ -34,11 +34,13 @@ jobs:
       latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
       stable_tag: ${{ steps.vars.outputs.stable_tag }}
       branch: ${{ steps.vars.outputs.branch }}
+      lts_tags: ${{ steps.vars.outputs.lts_tags }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.branch && inputs.branch || github.event.repository.default_branch }}
+          fetch-depth: 0
 
       - name: Output Variables
         id: vars
@@ -64,6 +66,7 @@ jobs:
             branch=${{ inputs.branch }}
           fi
           echo "branch=${branch}" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh lts_tags >> $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
@@ -71,6 +74,7 @@ jobs:
           echo latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
           echo stable_tag: ${{ steps.vars.outputs.stable_tag }}
           echo branch: ${{ steps.vars.outputs.branch }}
+          echo lts_tags: ${{ steps.vars.outputs.lts_tags }}
 
   unit-tests:
     name: Unit Tests
@@ -258,7 +262,13 @@ jobs:
 
       - id: set-matrix
         run: |
-          echo "matrix=$(cat .github/data/matrix-regression.json | jq -c --argjson latest '${{ needs.checks.outputs.latest_kindest_node_versions }}' '.k8s += $latest'))" >> $GITHUB_OUTPUT
+          base=$(cat .github/data/matrix-regression.json | jq -c --argjson latest '${{ needs.checks.outputs.latest_kindest_node_versions }}' '.k8s += $latest')
+          lts_tags='${{ needs.checks.outputs.lts_tags }}'
+          if [ -n "$lts_tags" ] && [ "$lts_tags" != "[]" ]; then
+            lts_entries=$(echo "$lts_tags" | jq -c '[.[] | {label:"lts-regression",image:"debian-plus",type:"plus",marker:"'"'"'not upgrade and not agentv2'"'"'",platforms:"linux/arm64, linux/amd64",lts:true,lts_tag:.}]')
+            base=$(echo "$base" | jq -c --argjson lts "$lts_entries" '.images += $lts')
+          fi
+          echo "matrix=${base}" >> $GITHUB_OUTPUT
 
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
@@ -279,8 +289,13 @@ jobs:
       - name: Set image variables
         id: image_details
         run: |
-          echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
-          echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+          if ${{ matrix.images.lts == true }}; then
+            echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/lts/nginx-ic/nginx-plus-ingress" >> $GITHUB_OUTPUT
+            echo "tag=${{ matrix.images.lts_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
+            echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0

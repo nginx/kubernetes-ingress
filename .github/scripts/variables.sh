@@ -75,6 +75,10 @@ get_docs_only() {
   fi
 }
 
+get_lts_tags() {
+  git tag --sort=-version:refname | grep -E -- '-lts-r[0-9]+' | awk -F'-r' '!seen[$1]++' | head -n3 | jq -R -s -c 'split("\n")[:-1]'
+}
+
 case $INPUT in
   docker_md5)
     echo "docker_md5=$(get_docker_md5)"
@@ -102,6 +106,10 @@ case $INPUT in
 
   docs_only)
     get_docs_only
+    ;;
+
+  lts_tags)
+    echo "lts_tags=$(get_lts_tags)"
     ;;
 
   *)
