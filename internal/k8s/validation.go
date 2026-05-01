@@ -574,17 +574,14 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 			continue
 		}
 
-		for _, msg := range validation.IsHTTPHeaderName(name) {
+		for _, msg := range version1.ValidateAddHeaderName(name) {
 			allErrs = append(allErrs, field.Invalid(context.fieldPath, name, msg))
 		}
 
 		if len(parts) == 2 {
 			value := strings.TrimSpace(parts[1])
-			if strings.Contains(value, "$") {
-				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, "invalid character in value: $"))
-			}
-			if err := ValidateEscapedString(value); err != nil {
-				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, err.Error()))
+			for _, msg := range version1.ValidateAddHeaderValue(value) {
+				allErrs = append(allErrs, field.Invalid(context.fieldPath, entry, msg))
 			}
 		}
 	}

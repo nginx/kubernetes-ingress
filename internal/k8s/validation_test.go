@@ -4787,14 +4787,14 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			name:  "invalid dollar sign in value",
 			value: "X-Header: $upstream_addr",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: $upstream_addr": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: $upstream_addr": invalid character in header value: $`,
 			},
 		},
 		{
 			name:  "invalid dollar sign in value of second header",
 			value: "Header-1: ok,Header-2: $bad",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $bad": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $bad": invalid character in header value: $`,
 			},
 		},
 		{
@@ -4809,7 +4809,7 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			value: "$Header: $value",
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header": ` + headerNameErrMsg,
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header: $value": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header: $value": invalid character in header value: $`,
 			},
 		},
 
@@ -4898,8 +4898,8 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			name:  "dollar sign in values of multiple headers",
 			value: "Header-1: $val1,Header-2: $val2",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-1: $val1": invalid character in value: $`,
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $val2": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-1: $val1": invalid character in header value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $val2": invalid character in header value: $`,
 			},
 		},
 
