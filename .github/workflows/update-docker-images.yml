@@ -55,10 +55,10 @@ jobs:
           short="${tag%.*}"
           echo "short=$short" >> $GITHUB_OUTPUT
           echo "matrix=$(cat .github/data/patch-images.json | jq -c)" >> $GITHUB_OUTPUT
-          # Get the latest r* release for the last 3 LTS years. Tags are already sorted descending,
-          # so awk deduplicates by base (part before -r), keeping the first (highest) occurrence.
+          # Get the latest r* release for the last 3 LTS years via shared variables script.
           # "2028-lts-r2" "2027-lts-r4" "2026-lts-r4" -> ["2028-lts-r2", "2027-lts-r4", "2026-lts-r4"]
-          lts_tags=$(git tag --sort=-version:refname | grep -E -- '-lts-r[0-9]+' | awk -F'-r' '!seen[$1]++' | head -n3 | jq -R -s -c 'split("\n")[:-1]')
+          ./.github/scripts/variables.sh lts_tags >> $GITHUB_OUTPUT
+          lts_tags=$(grep '^lts_tags=' $GITHUB_OUTPUT | tail -n1 | cut -d= -f2-)
           # Build lts_patch_matrix as an array of {tags, image} objects by cross-combining tags with the image config
           lts_patch_matrix=$(jq -c --argjson tags "$lts_tags" '[.image as $img | $tags[] | {tags: ., image: $img}]' .github/data/patch-images-lts.json)
           echo "lts_patch_matrix=$lts_patch_matrix" >> $GITHUB_OUTPUT

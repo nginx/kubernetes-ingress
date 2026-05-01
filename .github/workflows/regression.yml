@@ -265,7 +265,8 @@ jobs:
           base=$(cat .github/data/matrix-regression.json | jq -c --argjson latest '${{ needs.checks.outputs.latest_kindest_node_versions }}' '.k8s += $latest')
           lts_tags='${{ needs.checks.outputs.lts_tags }}'
           if [ -n "$lts_tags" ] && [ "$lts_tags" != "[]" ]; then
-            lts_entries=$(echo "$lts_tags" | jq -c '[.[] | {label:"lts-regression",image:"debian-plus",type:"plus",marker:"'"'"'not upgrade and not agentv2'"'"'",platforms:"linux/arm64, linux/amd64",lts:true,lts_tag:.}]')
+            lts_marker="'not upgrade and not agentv2'"
+            lts_entries=$(echo "$lts_tags" | jq -c --arg marker "$lts_marker" '[.[] | {label:"lts-regression",image:"debian-plus",type:"plus",marker:$marker,platforms:"linux/arm64, linux/amd64",lts:true,lts_tag:.}]')
             base=$(echo "$base" | jq -c --argjson lts "$lts_entries" '.images += $lts')
           fi
           echo "matrix=${base}" >> $GITHUB_OUTPUT

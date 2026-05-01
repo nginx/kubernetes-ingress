@@ -1,4 +1,4 @@
-name: "Release NGINX Ingress Controller Plus Images"
+name: "Release NGINX Ingress Controller LTS Plus Images"
 
 on:
   workflow_dispatch:
