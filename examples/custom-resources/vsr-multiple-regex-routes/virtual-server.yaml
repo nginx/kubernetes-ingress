@@ -1,0 +1,21 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: api-gateway
+spec:
+  host: api-gateway.example.com
+  routes:
+  - path: /health
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: "OK\n"
+  - path: "~/api/v1"
+    route: vsr-api
+  - path: "~/api/v2"
+    route: vsr-api
+  - path: "~*/images/jpg"
+    route: vsr-media
+  - path: "~*/images/png"
+    route: vsr-media

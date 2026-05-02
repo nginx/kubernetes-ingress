@@ -1,0 +1,22 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: vsr-multi-regex
+spec:
+  host: vsr-multi-regex.example.com
+  routes:
+  - path: /static
+    action:
+      return:
+        code: 200
+        body: "static"
+  - path: "~/api/v1"
+    route: route-api
+  - path: "~/api/v2"
+    route: route-api
+  - path: "~/api/v3"
+    route: route-api
+  - path: "~*/images/jpg"
+    route: route-images
+  - path: "~*/images/png"
+    route: route-images

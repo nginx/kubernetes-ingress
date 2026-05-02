@@ -100,6 +100,7 @@ markers = [
     "vsr_external_name",
     "vsr_grpc",
     "vsr_redirects",
+    "vsr_multi_regex",
     "vsr_regexes",
     "vsr_rewrite",
     "vsr_routing",
