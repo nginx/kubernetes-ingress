@@ -43,7 +43,6 @@ We value community input and would love to see you at the next community call. A
 | **2026-06-15**           |
 | **2026-06-29**           |
 
-
 You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
 
 ---

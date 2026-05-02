@@ -1,4 +1,5 @@
 .github/actionlint.yaml
+.github/copilot-instructions.md
 .github/labeler.yml
 .github/PULL_REQUEST_TEMPLATE.md
 .github/release.yml
@@ -15,6 +16,7 @@
 .github/scripts/release-notes.j2
 .github/scripts/release-version-update.sh
 .github/scripts/requirements.txt
+.github/skills/*
 .github/workflows/build-base-images.yml
 .github/workflows/build-ot-dependency.yml
 .github/workflows/build-test-image.yml
