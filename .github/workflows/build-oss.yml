@@ -119,7 +119,7 @@ jobs:
         if: ${{ inputs.authenticated }}
 
       - name: Login to GCR
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -127,7 +127,7 @@ jobs:
         if: ${{ inputs.authenticated }}
 
       - name: DockerHub Login
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
@@ -182,7 +182,7 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           file: build/Dockerfile
           context: "."
@@ -206,7 +206,7 @@ jobs:
           echo "full-build: ${{ inputs.full-build }}"
 
       - name: Fetch Cached Artifacts
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
@@ -214,7 +214,7 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Docker image
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         id: build-push
         with:
           file: build/Dockerfile
@@ -244,7 +244,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@8910519cee8ac046f3ee99686b0dc6654d5ba1a7 # v1.20.3
+        uses: docker/scout-action@bacf462e8d090c09660de30a6ccc718035f961e3 # v1.20.4
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
