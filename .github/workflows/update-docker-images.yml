@@ -32,6 +32,8 @@ jobs:
       short_tag: ${{ steps.kic.outputs.short }}
       date: ${{ steps.kic.outputs.date }}
       matrix: ${{ steps.kic.outputs.matrix }}
+      lts_patch_matrix: ${{ steps.kic.outputs.lts_patch_matrix }}
+      lts_release_matrix: ${{ steps.kic.outputs.lts_release_matrix }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -53,6 +55,16 @@ jobs:
           short="${tag%.*}"
           echo "short=$short" >> $GITHUB_OUTPUT
           echo "matrix=$(cat .github/data/patch-images.json | jq -c)" >> $GITHUB_OUTPUT
+          # Get the latest r* release for the last 3 LTS years via shared variables script.
+          # "2028-lts-r2" "2027-lts-r4" "2026-lts-r4" -> ["2028-lts-r2", "2027-lts-r4", "2026-lts-r4"]
+          ./.github/scripts/variables.sh lts_tags >> $GITHUB_OUTPUT
+          lts_tags=$(grep '^lts_tags=' $GITHUB_OUTPUT | tail -n1 | cut -d= -f2-)
+          # Build lts_patch_matrix as an array of {tags, image} objects by cross-combining tags with the image config
+          lts_patch_matrix=$(jq -c --argjson tags "$lts_tags" '[.image as $img | $tags[] | {tags: ., image: $img}]' .github/data/patch-images-lts.json)
+          echo "lts_patch_matrix=$lts_patch_matrix" >> $GITHUB_OUTPUT
+          # build lts_release_matrix: [{tag: "2028-lts-r2", branch: "release-2028-lts"}, ...]
+          lts_release_matrix=$(echo "$lts_tags" | jq -c '[.[] | {tag: ., branch: ("release-" + (split("-r")[0]))}]')
+          echo "lts_release_matrix=$lts_release_matrix" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
   patch-images:
@@ -207,3 +219,66 @@ jobs:
           platforms: ""
           preflight_version: 1.17.2 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
           submit: ${{ ! inputs.dry_run || true }}
+
+  patch-images-lts:
+    name: Patch Images LTS
+    if: needs.variables.outputs.lts_release_matrix != '[]'
+    needs: [variables]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON( needs.variables.outputs.lts_patch_matrix ) }}
+    uses: ./.github/workflows/patch-image.yml
+    with:
+      platforms: ${{ matrix.image.platforms }}
+      image: ${{ matrix.image.source_image }}
+      tag: ${{ matrix.tags }}
+      ic_version: ${{ matrix.tags }}
+      target_image: ${{ matrix.image.target_image }}
+      target_tag: ${{ format('{0}-{1}', matrix.tags, needs.variables.outputs.date) }}
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit
+
+  release-plus-external-lts:
+    name: Publish Docker Plus ${{ matrix.tag }}-${{ needs.variables.outputs.date }} to external release Registries
+    if: needs.variables.outputs.lts_release_matrix != '[]'
+    needs: [variables, patch-images-lts]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON( needs.variables.outputs.lts_release_matrix ) }}
+    uses: ./.github/workflows/plus-release-lts.yml
+    with:
+      nginx_registry: true
+      gcr_release_registry: false
+      source_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
+      target_tag: "${{ matrix.tag }}"
+      branch: "${{ matrix.branch }}"
+      dry_run: ${{ inputs.dry_run || false }}
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit
+
+  release-plus-internal-lts:
+    name: Publish Docker Plus ${{ matrix.tag }}-${{ needs.variables.outputs.date }} to internal release Registries
+    if: needs.variables.outputs.lts_release_matrix != '[]'
+    needs: [variables, patch-images-lts]
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON( needs.variables.outputs.lts_release_matrix ) }}
+    uses: ./.github/workflows/plus-release-lts.yml
+    with:
+      nginx_registry: false
+      gcr_release_registry: true
+      source_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
+      target_tag: "${{ matrix.tag }}-${{ needs.variables.outputs.date }}"
+      branch: "${{ matrix.branch }}"
+      dry_run: ${{ inputs.dry_run || false }}
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit
