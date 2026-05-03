@@ -13,9 +13,19 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 )
 
+// batchConfigEntry tracks a config file written during batch mode for potential rollback.
+type batchConfigEntry struct {
+	name       string
+	configPath string
+	backup     []byte
+	hasBackup  bool
+}
+
 // ConfigRollbackManager wraps LocalManager and adds rollback protection for main and regular configs.
 type ConfigRollbackManager struct {
 	*LocalManager
+	batchMode    bool
+	batchConfigs []batchConfigEntry
 }
 
 // NewConfigRollbackManager creates a ConfigRollbackManager.
@@ -120,12 +130,98 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 
 // CreateConfig creates a configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
+// In batch mode, writes the file without per-file validation.
 func (cm *ConfigRollbackManager) CreateConfig(name string, content []byte) (bool, error) {
+	if cm.batchMode {
+		return cm.batchWriteConfig(name, cm.getFilenameForConfig(name), content)
+	}
 	return cm.createConfigWithRollback(name, cm.getFilenameForConfig(name), content, false)
 }
 
 // CreateStreamConfig creates a stream configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
+// In batch mode, writes the file without per-file validation.
 func (cm *ConfigRollbackManager) CreateStreamConfig(name string, content []byte) (bool, error) {
+	if cm.batchMode {
+		return cm.batchWriteConfig(name, cm.getFilenameForStreamConfig(name), content)
+	}
 	return cm.createConfigWithRollback(name, cm.getFilenameForStreamConfig(name), content, false)
+}
+
+// EnableBatchMode enables deferred validation. Configs written via CreateConfig/CreateStreamConfig
+// will be written to disk without per-file nginx -t testing. Call CompleteBatch to validate all
+// configs with a single nginx -t test, falling back to per-file validation on failure.
+func (cm *ConfigRollbackManager) EnableBatchMode() {
+	nl.Debugf(cm.logger, "Enabling batch config mode for deferred validation")
+	cm.batchMode = true
+	cm.batchConfigs = nil
+}
+
+// CompleteBatch validates all batch-written configs with a single nginx -t test.
+// On success, clears batch state and returns nil. On failure, restores all backups
+// (or deletes new files) and returns the validation error. Batch mode is always
+// disabled after this call regardless of outcome.
+func (cm *ConfigRollbackManager) CompleteBatch() error {
+	cm.batchMode = false
+
+	if len(cm.batchConfigs) == 0 {
+		nl.Debugf(cm.logger, "No configs written during batch mode, skipping validation")
+		cm.batchConfigs = nil
+		return nil
+	}
+
+	nl.Debugf(cm.logger, "Validating %d batch-written configs with single nginx -t test", len(cm.batchConfigs))
+
+	if err := cm.testConfig(); err != nil {
+		nl.Warnf(cm.logger, "Batch validation failed for %d configs: %v. Restoring backups.", len(cm.batchConfigs), err)
+		cm.rollbackBatch()
+		return err
+	}
+
+	nl.Debugf(cm.logger, "Batch validation passed for %d configs", len(cm.batchConfigs))
+	cm.batchConfigs = nil
+	return nil
+}
+
+// batchWriteConfig writes a config file without nginx -t validation, tracking it for
+// potential rollback. Existing file content is backed up before overwriting.
+func (cm *ConfigRollbackManager) batchWriteConfig(name, configPath string, content []byte) (bool, error) {
+	entry := batchConfigEntry{
+		name:       name,
+		configPath: configPath,
+	}
+
+	// #nosec G304 -- configPath is constructed from safe internal paths
+	if existingContent, readErr := os.ReadFile(configPath); readErr == nil {
+		if bytes.Equal(existingContent, content) {
+			nl.Debugf(cm.logger, "Batch mode: config %s unchanged, skipping write", name)
+			return false, nil
+		}
+		entry.backup = existingContent
+		entry.hasBackup = true
+	}
+
+	nl.Debugf(cm.logger, "Batch mode: writing config %s to %v (deferred validation)", name, configPath)
+	if err := createFileAndWrite(configPath, content); err != nil {
+		nl.Fatalf(cm.logger, "Failed to write config to %v: %v", configPath, err)
+	}
+
+	cm.batchConfigs = append(cm.batchConfigs, entry)
+	return true, nil
+}
+
+// rollbackBatch restores all configs written during batch mode to their previous state.
+func (cm *ConfigRollbackManager) rollbackBatch() {
+	for _, entry := range cm.batchConfigs {
+		if entry.hasBackup {
+			nl.Debugf(cm.logger, "Restoring backup for %s", entry.name)
+			if err := createFileAndWrite(entry.configPath, entry.backup); err != nil {
+				nl.Errorf(cm.logger, "Failed to restore backup for %s: %v", entry.name, err)
+			}
+		} else {
+			nl.Debugf(cm.logger, "Removing new config %s (no previous backup)", entry.name)
+			deleteConfig(cm.logger, entry.configPath)
+		}
+	}
+	cm.batchConfigs = nil
 }
