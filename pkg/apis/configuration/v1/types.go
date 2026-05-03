@@ -910,8 +910,9 @@ type JWTAuth struct {
 	// +kubebuilder:default:=false
 	SSLVerify bool `json:"sslVerify"`
 	// The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	TrustedCertSecret string `json:"trustedCertSecret"`
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 	// Sets the verification depth in the JWKS server certificates chain. The default is 1.
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default:=1
@@ -992,8 +993,9 @@ type OIDC struct {
 	// +kubebuilder:default:=false
 	SSLVerify bool `json:"sslVerify"`
 	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	TrustedCertSecret string `json:"trustedCertSecret"`
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 	// Sets the verification depth in the IDP server certificates chain. The default is 1.
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default:=1
