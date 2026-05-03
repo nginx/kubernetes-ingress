@@ -120,12 +120,22 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 
 // CreateConfig creates a configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
+// Skips testing on first iteration (configVersion == 0) to avoid O(N²) nginx -t calls during startup.
 func (cm *ConfigRollbackManager) CreateConfig(name string, content []byte) (bool, error) {
+	if cm.configVersion == 0 {
+		nl.Debugf(cm.logger, "Skipping validation on first iteration (configVersion == 0)")
+		return cm.LocalManager.CreateConfig(name, content)
+	}
 	return cm.createConfigWithRollback(name, cm.getFilenameForConfig(name), content, false)
 }
 
 // CreateStreamConfig creates a stream configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
+// Skips testing on first iteration (configVersion == 0) to avoid O(N²) nginx -t calls during startup.
 func (cm *ConfigRollbackManager) CreateStreamConfig(name string, content []byte) (bool, error) {
+	if cm.configVersion == 0 {
+		nl.Debugf(cm.logger, "Skipping validation on first iteration (configVersion == 0)")
+		return cm.LocalManager.CreateStreamConfig(name, content)
+	}
 	return cm.createConfigWithRollback(name, cm.getFilenameForStreamConfig(name), content, false)
 }
