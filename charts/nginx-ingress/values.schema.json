@@ -1963,6 +1963,64 @@
             false
           ]
         },
+        "readOnlyRootFilesystemVolumeSizes": {
+          "type": "object",
+          "default": {
+            "etc": "",
+            "cache": "",
+            "lib": "",
+            "log": "",
+            "state": ""
+          },
+          "title": "Size limits for the emptyDir volumes used with readOnlyRootFilesystem",
+          "properties": {
+            "etc": {
+              "type": "string",
+              "default": "",
+              "title": "sizeLimit for the nginx-etc emptyDir volume",
+              "examples": [
+                "",
+                "10Mi"
+              ]
+            },
+            "cache": {
+              "type": "string",
+              "default": "",
+              "title": "sizeLimit for the nginx-cache emptyDir volume",
+              "examples": [
+                "",
+                "1Gi"
+              ]
+            },
+            "lib": {
+              "type": "string",
+              "default": "",
+              "title": "sizeLimit for the nginx-lib emptyDir volume",
+              "examples": [
+                "",
+                "100Mi"
+              ]
+            },
+            "log": {
+              "type": "string",
+              "default": "",
+              "title": "sizeLimit for the nginx-log emptyDir volume",
+              "examples": [
+                "",
+                "500Mi"
+              ]
+            },
+            "state": {
+              "type": "string",
+              "default": "",
+              "title": "sizeLimit for the nginx-state emptyDir volume",
+              "examples": [
+                "",
+                "10Mi"
+              ]
+            }
+          }
+        },
         "enableSSLDynamicReload": {
           "type": "boolean",
           "default": true,
@@ -2862,6 +2920,13 @@
         "defaultHTTPListenerPort": 80,
         "defaultHTTPSListenerPort": 443,
         "readOnlyRootFilesystem": false,
+        "readOnlyRootFilesystemVolumeSizes": {
+          "etc": "",
+          "cache": "",
+          "lib": "",
+          "log": "",
+          "state": ""
+        },
         "enableSSLDynamicReload": true,
         "telemetryReporting": {
           "enable": true
