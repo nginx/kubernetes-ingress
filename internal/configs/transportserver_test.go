@@ -1522,6 +1522,101 @@ func TestGenerateTransportServerConfigForTCPWithTLS(t *testing.T) {
 	}
 }
 
+func TestGenerateTransportServerConfigForPROXY(t *testing.T) {
+	t.Parallel()
+	transportServerEx := TransportServerEx{
+		TransportServer: &conf_v1.TransportServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "proxy-server",
+				Namespace: "default",
+			},
+			Spec: conf_v1.TransportServerSpec{
+				Listener: conf_v1.TransportServerListener{
+					Name:     "proxy-listener",
+					Protocol: "PROXY",
+				},
+				Upstreams: []conf_v1.TransportServerUpstream{
+					{
+						Name:    "proxy-app",
+						Service: "proxy-app-svc",
+						Port:    5001,
+					},
+				},
+				UpstreamParameters: &conf_v1.UpstreamParameters{
+					ProxyProtocol: true,
+				},
+				Action: &conf_v1.TransportServerAction{
+					Pass: "proxy-app",
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/proxy-app-svc:5001": {
+				"10.0.0.20:5001",
+			},
+		},
+		DisableIPV6: false,
+	}
+
+	listenerPort := 2020
+
+	expected := &version2.TransportServerConfig{
+		Upstreams: []version2.StreamUpstream{
+			{
+				Name: "ts_default_proxy-server_proxy-app",
+				Servers: []version2.StreamUpstreamServer{
+					{
+						Address:     "10.0.0.20:5001",
+						MaxFails:    1,
+						FailTimeout: "10s",
+					},
+				},
+				UpstreamLabels: version2.UpstreamLabels{
+					ResourceName:      "proxy-server",
+					ResourceType:      "transportserver",
+					ResourceNamespace: "default",
+					Service:           "proxy-app-svc",
+				},
+				LoadBalancingMethod: "random two least_conn",
+			},
+		},
+		Server: version2.StreamServer{
+			Port:                     2020,
+			UDP:                      false,
+			StatusZone:               "proxy-listener",
+			ProxyProtocolListener:    true,
+			ProxyPass:                "ts_default_proxy-server_proxy-app",
+			Name:                     "proxy-server",
+			Namespace:                "default",
+			ProxyConnectTimeout:      "60s",
+			ProxyNextUpstream:        false,
+			ProxyNextUpstreamTries:   0,
+			ProxyNextUpstreamTimeout: "0s",
+			ProxyTimeout:             "10m",
+			ProxyProtocolUpstream:    true,
+			ServerSnippets:           []string{},
+			SSL:                      &version2.StreamSSL{},
+		},
+		StreamSnippets: []string{},
+		StaticSSLPath:  "/etc/nginx/secret",
+	}
+
+	result, warnings := generateTransportServerConfig(transportServerConfigParams{
+		transportServerEx:      &transportServerEx,
+		listenerPort:           listenerPort,
+		isPlus:                 true,
+		isResolverConfigured:   false,
+		isDynamicReloadEnabled: false,
+		staticSSLPath:          "/etc/nginx/secret",
+	})
+	if len(warnings) != 0 {
+		t.Errorf("want no warnings, got %v", warnings)
+	}
+	if !cmp.Equal(expected, result) {
+		t.Errorf("generateTransportServerConfig() mismatch (-want +got):\n%s", cmp.Diff(expected, result))
+	}
+}
+
 func TestGenerateUnixSocket(t *testing.T) {
 	t.Parallel()
 	transportServerEx := &TransportServerEx{
