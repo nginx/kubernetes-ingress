@@ -301,6 +301,7 @@ spec:
                               - VIOL_MANDATORY_HEADER
                               - VIOL_MANDATORY_PARAMETER
                               - VIOL_MANDATORY_REQUEST_BODY
+                              - VIOL_MALICIOUS_IP
                               - VIOL_METHOD
                               - VIOL_PARAMETER
                               - VIOL_PARAMETER_ARRAY_VALUE
@@ -1517,6 +1518,8 @@ spec:
                           type: boolean
                       type: object
                     type: array
+                  ip-intelligence:
+                    x-kubernetes-preserve-unknown-fields: true
                   json-profiles:
                     items:
                       properties:

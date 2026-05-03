@@ -51,6 +51,9 @@ const (
 	appProtectDosAgentStartCmd      = "/usr/bin/admd -d --standalone"
 	appProtectDosAgentStartDebugCmd = "/usr/bin/admd -d --standalone --log debug"
 
+	ipRepdBinaryPath = "/opt/app_protect/bin/iprepd"
+	ipRepdConfigPath = "/etc/app_protect/tools/iprepd.cfg"
+
 	defaultCAPath = "/etc/ssl/certs/ca-certificates.crt"
 )
 
@@ -101,6 +104,8 @@ type Manager interface {
 	AgentStart(agentDone chan error, logLevel string)
 	AgentQuit()
 	AgentVersion() string
+	IPRepdStart(ipRepdDone chan error)
+	IPRepdQuit()
 	GetSecretsDir() string
 	GetOSCABundlePath() (string, error)
 	UpsertSplitClientsKeyVal(zoneName string, key string, value string)
@@ -132,6 +137,7 @@ type LocalManager struct {
 	appProtectPluginPid          int
 	appProtectDosAgentPid        int
 	agentPid                     int
+	ipRepdPid                    int
 	logger                       *slog.Logger
 	nginxPlus                    bool
 }
@@ -576,6 +582,39 @@ func (lm *LocalManager) AppProtectPluginQuit() {
 	killcmd := fmt.Sprintf("kill %d", lm.appProtectPluginPid)
 	if err := shellOut(lm.logger, killcmd); err != nil {
 		nl.Fatalf(lm.logger, "Failed to quit AppProtect Plugin: %v", err)
+	}
+}
+
+// IPRepdStart starts the IP Reputation Daemon (iprepd) for App Protect IP Intelligence.
+func (lm *LocalManager) IPRepdStart(ipRepdDone chan error) {
+	if _, err := os.Stat(ipRepdBinaryPath); os.IsNotExist(err) {
+		nl.Debugf(lm.logger, "iprepd binary not found at %s, skipping IP Intelligence", ipRepdBinaryPath)
+		return
+	}
+
+	nl.Debugf(lm.logger, "Starting IP Reputation Daemon (iprepd)")
+	cmd := exec.CommandContext(context.Background(), ipRepdBinaryPath, ipRepdConfigPath) //nolint:gosec // G204: paths resolve to constants
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		nl.Fatalf(lm.logger, "Failed to start iprepd: %v", err)
+	}
+	lm.ipRepdPid = cmd.Process.Pid
+	go func() {
+		ipRepdDone <- cmd.Wait()
+	}()
+}
+
+// IPRepdQuit gracefully ends the IP Reputation Daemon.
+func (lm *LocalManager) IPRepdQuit() {
+	if lm.ipRepdPid == 0 {
+		return
+	}
+	nl.Debugf(lm.logger, "Quitting iprepd")
+	killcmd := fmt.Sprintf("kill %d", lm.ipRepdPid)
+	if err := shellOut(lm.logger, killcmd); err != nil {
+		nl.Fatalf(lm.logger, "Failed to quit iprepd: %v", err)
 	}
 }
 

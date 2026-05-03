@@ -115,6 +115,29 @@ controller:
           drop:
             - all
 
+    ## Configuration for App Protect WAF v5 IP Intelligence
+    ipIntelligence:
+      enable: false
+      image:
+        ## The image repository of the App Protect WAF v5 IP Intelligence.
+        repository: private-registry.nginx.com/nap/waf-ip-intelligence
+
+        ## The tag of the App Protect WAF v5 IP Intelligence image.
+        tag: "5.12.1"
+        ## The digest of the App Protect WAF v5 IP Intelligence image.
+        ## If digest is specified it has precedence over tag and will be used instead
+        # digest: "sha256:CHANGEME"
+
+        ## The pull policy for the App Protect WAF v5 IP Intelligence image.
+        pullPolicy: IfNotPresent
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsUser: 101 #nginx
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - all
+
   ## Support for App Protect DoS
   appprotectdos:
     ## Enable the App Protect DoS module in the Ingress Controller.

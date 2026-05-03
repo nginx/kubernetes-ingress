@@ -1832,6 +1832,8 @@ spec:
         name: app-protect-config
       - emptyDir: {}
         name: app-protect-bundles
+      - name: app-protect-ipi-db
+        emptyDir: {}
       serviceAccountName: appprotect-wafv5-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -1950,6 +1952,8 @@ spec:
         volumeMounts:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
       - name: waf-config-mgr
         image: my.private.reg/nap/waf-config-mgr:5.12.1
         imagePullPolicy: "IfNotPresent"
@@ -1964,6 +1968,24 @@ spec:
         volumeMounts:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
+          - name: app-protect-config
+            mountPath: /opt/app_protect/config
+          - name: app-protect-bundles
+            mountPath: /etc/app_protect/bundles
+      - name: waf-ip-intelligence
+        image: my.private.reg/nap/waf-ip-intelligence:5.12.1
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+      
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - all
+            runAsNonRoot: true
+            runAsUser: 101
+        volumeMounts:
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
           - name: app-protect-config
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
