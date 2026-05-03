@@ -80,6 +80,34 @@ jobs:
           go-version-file: go.mod
         if: ${{ inputs.force }}
 
+      - name: Restore secrets-gen binary cache
+        id: secrets-gen-cache
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: hack/secrets-gen/secrets-gen
+          key: nic-secrets-gen-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('hack/secrets-gen/**', 'internal/**/*.go', 'go.mod', 'go.sum') }}
+
+      - name: Setup Golang Environment for secrets-gen build
+        if: steps.secrets-gen-cache.outputs.cache-hit != 'true' && !inputs.force
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build secrets-gen binary
+        if: steps.secrets-gen-cache.outputs.cache-hit != 'true'
+        run: |
+          go build -trimpath -ldflags='-s -w' -o hack/secrets-gen/secrets-gen ./hack/secrets-gen
+        env:
+          GOPATH: ${{ inputs.go-path }}
+          GOPROXY: ${{ inputs.go-proxy }}
+
+      - name: Save secrets-gen binary to cache
+        if: steps.secrets-gen-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: hack/secrets-gen/secrets-gen
+          key: nic-secrets-gen-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('hack/secrets-gen/**', 'internal/**/*.go', 'go.mod', 'go.sum') }}
+
       - name: Setup netrc
         run: |
           cat <<EOF > $HOME/.netrc
