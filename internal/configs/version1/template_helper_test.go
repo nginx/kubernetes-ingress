@@ -45,6 +45,32 @@ func TestMakeLocationPath_WithRegexExactModifier(t *testing.T) {
 	}
 }
 
+func TestMakeLocationPath_WithExactPathAndRegexCaseSensitiveModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "= /tea"
+	got := makeLocationPath(
+		&Location{Path: "= /tea"},
+		map[string]string{"nginx.org/path-regex": "case_sensitive"},
+	)
+	if got != want {
+		t.Errorf("got: %s, want: %s", got, want)
+	}
+}
+
+func TestMakeLocationPath_WithExactPathAndRegexCaseInsensitiveModifier(t *testing.T) {
+	t.Parallel()
+
+	want := "= /tea"
+	got := makeLocationPath(
+		&Location{Path: "= /tea"},
+		map[string]string{"nginx.org/path-regex": "case_insensitive"},
+	)
+	if got != want {
+		t.Errorf("got: %s, want: %s", got, want)
+	}
+}
+
 func TestMakeLocationPath_WithBogusRegexModifier(t *testing.T) {
 	t.Parallel()
 
