@@ -44,6 +44,9 @@ const (
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
 const DefaultServerSecretPath = "/etc/nginx/secrets/default" //nolint:gosec // G101: Potential hardcoded credentials - false positive
 
+// DefaultServerConfigName is the config name used for the default server file in conf.d.
+const DefaultServerConfigName = "_default-server"
+
 // DefaultSecretPath is the full default path to where secrets are stored and accessed.
 const DefaultSecretPath = "/etc/nginx/secrets" // #nosec G101
 
@@ -418,6 +421,67 @@ func (cnf *Configurator) streamUpstreamsForTransportServer(ts *conf_v1.Transport
 	return upstreamNames
 }
 
+// GenerateDefaultServerConfig builds the fallback default server config written to conf.d.
+func GenerateDefaultServerConfig(staticCfgParams *StaticConfigParams, cfgParams *ConfigParams) version1.IngressNginxConfig {
+	return version1.IngressNginxConfig{
+		Servers: []version1.Server{{
+			Name:                emptyHostToken,
+			StatusZone:          emptyHostToken,
+			IsDefaultServer:     true,
+			Ports:               []int{staticCfgParams.DefaultHTTPListenerPort},
+			SSLPorts:            []int{staticCfgParams.DefaultHTTPSListenerPort},
+			SSL:                 true,
+			SSLCertificate:      DefaultServerSecretPath,
+			SSLCertificateKey:   DefaultServerSecretPath,
+			SSLRejectHandshake:  staticCfgParams.SSLRejectHandshake,
+			AccessLogOff:        cfgParams.DefaultServerAccessLogOff,
+			DefaultServerReturn: cfgParams.DefaultServerReturn,
+			HealthStatus:        staticCfgParams.HealthStatus,
+			HealthStatusURI:     staticCfgParams.HealthStatusURI,
+			ServerTokens:        cfgParams.ServerTokens,
+			TLSPassthrough:      staticCfgParams.TLSPassthrough,
+			HTTP2:               cfgParams.HTTP2,
+			ProxyProtocol:       cfgParams.ProxyProtocol,
+			RealIPHeader:        cfgParams.RealIPHeader,
+			SetRealIPFrom:       cfgParams.SetRealIPFrom,
+			RealIPRecursive:     cfgParams.RealIPRecursive,
+			DisableIPV6:         staticCfgParams.DisableIPV6,
+		}},
+		Ingress:                 version1.Ingress{},
+		DynamicSSLReloadEnabled: staticCfgParams.DynamicSSLReload,
+		StaticSSLPath:           staticCfgParams.StaticSSLPath,
+	}
+}
+
+func (cnf *Configurator) buildDefaultServerConfig() version1.IngressNginxConfig {
+	return GenerateDefaultServerConfig(cnf.staticCfgParams, cnf.CfgParams)
+}
+
+func (cnf *Configurator) hasActiveEmptyHostIngress() bool {
+	for _, ingEx := range cnf.ingresses {
+		if ingEx != nil && ingEx.ValidHosts[emptyHostName] {
+			return true
+		}
+	}
+	return false
+}
+
+func (cnf *Configurator) syncDefaultServerConfig() error {
+	if cnf.hasActiveEmptyHostIngress() {
+		return nil
+	}
+
+	defaultCfg := cnf.buildDefaultServerConfig()
+	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&defaultCfg)
+	if err != nil {
+		return fmt.Errorf("error generating default server config: %w", err)
+	}
+	if _, err := cnf.nginxManager.CreateConfig(DefaultServerConfigName, content); err != nil {
+		return fmt.Errorf("error writing default server config: %w", err)
+	}
+	return nil
+}
+
 // addOrUpdateIngress returns a bool that specifies if the underlying config
 // file has changed, and any warnings or errors
 func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, error) {
@@ -450,19 +514,33 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
-	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+	// Resolve the stable ingress map key and the config file to write.
+	ingressKey, configName := getIngressKeyatndConfigName(&ingEx.Ingress.ObjectMeta, ingEx.ValidHosts[emptyHostName])
+
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", configName, err)
 	}
-	configChanged, err := cnf.nginxManager.CreateConfig(name, content)
+	configChanged, err := cnf.nginxManager.CreateConfig(configName, content)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", configName, err)
 	}
 
-	cnf.ingresses[name] = ingEx
+	// If this ingress moved from its dedicated config file to the shared
+	// default-server file, remove the stale dedicated file after the new write succeeds.
+	if ingressKey != configName {
+		if current, exists := cnf.ingresses[ingressKey]; exists && !current.ValidHosts[emptyHostName] {
+			// manager API uses file names; here ingressKey is the dedicated config file name.
+			cnf.nginxManager.DeleteConfig(ingressKey)
+		}
+	}
+
+	cnf.ingresses[ingressKey] = ingEx
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(ingEx, nginxCfg.Upstreams)
+	}
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return false, warnings, fmt.Errorf("error syncing default server config for ingress %v: %w", ingressKey, err)
 	}
 	return configChanged, warnings, nil
 }
@@ -516,27 +594,41 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
-	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+	// Resolve the stable ingress map key and the config file to write.
+	ingressKey, configName := getIngressKeyatndConfigName(&mergeableIngs.Master.Ingress.ObjectMeta, mergeableIngs.Master.ValidHosts[emptyHostName])
+
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", configName, err)
 	}
-	changed, err := cnf.nginxManager.CreateConfig(name, content)
+	changed, err := cnf.nginxManager.CreateConfig(configName, content)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", configName, err)
 	}
 
-	cnf.ingresses[name] = mergeableIngs.Master
-	cnf.minions[name] = make(map[string]bool)
+	// If this ingress moved from its dedicated config file to the shared
+	// default-server file, remove the stale dedicated file after the new write succeeds.
+	if ingressKey != configName {
+		if current, exists := cnf.ingresses[ingressKey]; exists && !current.ValidHosts[emptyHostName] {
+			// manager API uses file names; here ingressKey is the dedicated config file name.
+			cnf.nginxManager.DeleteConfig(ingressKey)
+		}
+	}
+
+	cnf.ingresses[ingressKey] = mergeableIngs.Master
+	cnf.minions[ingressKey] = make(map[string]bool)
 	for _, minion := range mergeableIngs.Minions {
 		minionName := objectMetaToFileName(&minion.Ingress.ObjectMeta)
-		cnf.minions[name][minionName] = true
+		cnf.minions[ingressKey][minionName] = true
 	}
 
-	cnf.mergeableIngresses[name] = mergeableIngs
+	cnf.mergeableIngresses[ingressKey] = mergeableIngs
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(mergeableIngs.Master, nginxCfg.Upstreams)
+	}
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return false, warnings, fmt.Errorf("error syncing default server config for mergeable ingress %v: %w", ingressKey, err)
 	}
 
 	return changed, warnings, nil
@@ -1049,11 +1141,17 @@ func GenerateLicenseSecret(secret *api_v1.Secret) ([]byte, error) {
 // DeleteIngress deletes NGINX configuration for the Ingress resource.
 func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 	name := keyToFileName(key)
-	cnf.nginxManager.DeleteConfig(name)
+
+	if ingEx, exists := cnf.ingresses[name]; !exists || !ingEx.ValidHosts[emptyHostName] {
+		cnf.nginxManager.DeleteConfig(name)
+	}
 
 	delete(cnf.ingresses, name)
 	delete(cnf.minions, name)
 	delete(cnf.mergeableIngresses, name)
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return fmt.Errorf("error syncing default server config after deleting ingress %v: %w", key, err)
+	}
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.deleteIngressMetricsLabels(key)
@@ -1356,7 +1454,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 			if _, isExternalName := ingEx.ExternalNameSvcs[ingEx.Ingress.Spec.DefaultBackend.Service.Name]; isExternalName {
 				nl.Debugf(l, "Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", ingEx.Ingress.Spec.DefaultBackend.Service.Name)
 			} else {
-				name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.DefaultBackend)
+				name := getNameForUpstream(ingEx.Ingress, emptyHostName, ingEx.Ingress.Spec.DefaultBackend)
 				err := cnf.updateServersInPlus(name, endps, cfg)
 				if err != nil {
 					return fmt.Errorf("couldn't update the endpoints for %v: %w", name, err)
@@ -1516,6 +1614,10 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		} else {
 			return allWarnings, nil, err
 		}
+	}
+
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return allWarnings, nil, fmt.Errorf("error syncing default server config: %w", err)
 	}
 
 	for _, ingEx := range resources.IngressExes {
@@ -1689,6 +1791,18 @@ func keyToFileName(key string) string {
 
 func objectMetaToFileName(meta *meta_v1.ObjectMeta) string {
 	return meta.Namespace + "-" + meta.Name
+}
+
+// getIngressKeyatndConfigName returns the stable ingress map key and the config file
+// name to write for this ingress. Hostless ingresses keep their dedicated ingress key
+// in cnf.ingresses, but write to the shared default-server config file.
+func getIngressKeyatndConfigName(meta *meta_v1.ObjectMeta, isEmptyHostIngress bool) (string, string) {
+	configName := objectMetaToFileName(meta)
+	ingressKey := configName
+	if isEmptyHostIngress {
+		return ingressKey, DefaultServerConfigName
+	}
+	return ingressKey, configName
 }
 
 func generateNamespaceNameKey(objectMeta *meta_v1.ObjectMeta) string {

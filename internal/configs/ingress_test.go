@@ -47,6 +47,25 @@ func TestGenerateNginxCfg(t *testing.T) {
 	}
 }
 
+func TestGetNameForUpstreamUsesTokenForEmptyHost(t *testing.T) {
+	t.Parallel()
+
+	ing := &networking.Ingress{ObjectMeta: meta_v1.ObjectMeta{Name: "cafe-ingress", Namespace: "default"}}
+	backend := &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "tea-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+
+	got := getNameForUpstream(ing, emptyHostName, backend)
+	want := "default-cafe-ingress-_-tea-svc-80"
+
+	if got != want {
+		t.Fatalf("getNameForUpstream() = %q, want %q", got, want)
+	}
+}
+
 func TestGenerateNginxCfgForJWT(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
@@ -1113,6 +1132,256 @@ func TestGenerateNginxCfgWithIPV6Disabled(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgSetsHasGRPCLocationsFalseWithoutGRPCServices(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	cafeIngressEx := createCafeIngressEx()
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgSetsHasGRPCLocationsForMixedIngress(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].HTTP2 = true
+	expected.Servers[0].HasGRPCLocations = true
+	expected.Servers[0].Locations[0].GRPC = true
+	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgSetsHasGRPCLocationsForGRPCOnlyIngress(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc,tea-svc"
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].HTTP2 = true
+	expected.Servers[0].GRPCOnly = true
+	expected.Servers[0].HasGRPCLocations = true
+	expected.Servers[0].Locations[0].GRPC = true
+	expected.Servers[0].Locations[1].GRPC = true
+	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgSetsHasGRPCLocationsFalseForNonGRPCDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Spec.Rules[0].HTTP.Paths = nil
+	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "tea-svc",
+			Port: networking.ServiceBackendPort{
+				Number: 80,
+			},
+		},
+	}
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	defaultBackendUpstream := expected.Upstreams[1]
+	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHostName, cafeIngressEx.Ingress.Spec.DefaultBackend)
+	defaultBackendLocation := expected.Servers[0].Locations[1]
+	defaultBackendLocation.Path = "/"
+	defaultBackendLocation.Upstream = defaultBackendUpstream
+	defaultBackendLocation.ProxyPass = "http://" + defaultBackendUpstream.Name
+	expected.Upstreams = []version1.Upstream{defaultBackendUpstream}
+	expected.Servers[0].HTTP2 = true
+	expected.Servers[0].Locations = []version1.Location{defaultBackendLocation}
+	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgSetsHasGRPCLocationsForGRPCDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Spec.Rules[0].HTTP.Paths = nil
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "tea-svc",
+			Port: networking.ServiceBackendPort{
+				Number: 80,
+			},
+		},
+	}
+	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "tea-svc"
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	defaultBackendUpstream := expected.Upstreams[1]
+	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHostName, cafeIngressEx.Ingress.Spec.DefaultBackend)
+	defaultBackendLocation := expected.Servers[0].Locations[1]
+	defaultBackendLocation.Path = "/"
+	defaultBackendLocation.Upstream = defaultBackendUpstream
+	defaultBackendLocation.ProxyPass = "http://" + defaultBackendUpstream.Name
+	defaultBackendLocation.GRPC = true
+	expected.Upstreams = []version1.Upstream{defaultBackendUpstream}
+	expected.Servers[0].HTTP2 = true
+	expected.Servers[0].GRPCOnly = true
+	expected.Servers[0].HasGRPCLocations = true
+	expected.Servers[0].Locations = []version1.Location{defaultBackendLocation}
+	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgSetsHasGRPCLocationsForMixedIngressWithGRPCDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "tea-svc",
+			Port: networking.ServiceBackendPort{
+				Number: 80,
+			},
+		},
+	}
+	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "tea-svc"
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	defaultBackendUpstream := expected.Upstreams[1]
+	defaultBackendUpstream.Name = getNameForUpstream(cafeIngressEx.Ingress, emptyHostName, cafeIngressEx.Ingress.Spec.DefaultBackend)
+	defaultBackendLocation := expected.Servers[0].Locations[1]
+	defaultBackendLocation.Path = "/"
+	defaultBackendLocation.Upstream = defaultBackendUpstream
+	defaultBackendLocation.ProxyPass = "http://" + defaultBackendUpstream.Name
+	defaultBackendLocation.GRPC = true
+	expected.Upstreams = []version1.Upstream{defaultBackendUpstream, expected.Upstreams[0], expected.Upstreams[1]}
+	expected.Servers[0].HTTP2 = true
+	expected.Servers[0].HasGRPCLocations = true
+	expected.Servers[0].Locations[1].GRPC = true
+	expected.Servers[0].Locations = append(expected.Servers[0].Locations, defaultBackendLocation)
+	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
 func TestPathOrDefaultReturnDefault(t *testing.T) {
 	t.Parallel()
 	path := ""
@@ -1369,6 +1638,80 @@ func TestGenerateNginxCfgForMergeableIngresses(t *testing.T) {
 	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
 
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               false,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesSetsHasGRPCLocationsForMixedMinions(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Minions[1].Ingress.Annotations["nginx.org/grpc-services"] = mergeableIngresses.Minions[1].Ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+	expected.Servers[0].HTTP2 = true
+	expected.Servers[0].HasGRPCLocations = true
+	expected.Servers[0].Locations[1].GRPC = true
+	expected.Servers[0].Locations[1].MinionIngress.Annotations["nginx.org/grpc-services"] = "tea-svc"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               false,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesSetsGRPCOnlyForGRPCOnlyMinions(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/grpc-services"] = mergeableIngresses.Minions[0].Ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name
+	mergeableIngresses.Minions[1].Ingress.Annotations["nginx.org/grpc-services"] = mergeableIngresses.Minions[1].Ingress.Spec.Rules[0].HTTP.Paths[0].Backend.Service.Name
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+	expected.Servers[0].HTTP2 = true
+	expected.Servers[0].GRPCOnly = true
+	expected.Servers[0].HasGRPCLocations = true
+	expected.Servers[0].Locations[0].GRPC = true
+	expected.Servers[0].Locations[0].MinionIngress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+	expected.Servers[0].Locations[1].GRPC = true
+	expected.Servers[0].Locations[1].MinionIngress.Annotations["nginx.org/grpc-services"] = "tea-svc"
 
 	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
 		mergeableIngs:        mergeableIngresses,
@@ -4428,7 +4771,113 @@ func TestGenerateNginxCfgForExternalAuth(t *testing.T) {
 	if !authUpstreamFound {
 		t.Error("ExternalAuth upstream not found in upstreams")
 	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
 
+func createEmptyHostIngressEx() IngressEx {
+	ingEx := createCafeIngressEx()
+	ingEx.Ingress.Spec.TLS = nil
+	ingEx.Ingress.Spec.Rules[0].Host = ""
+	ingEx.ValidHosts = map[string]bool{"": true}
+	ingEx.SecretRefs = map[string]*secrets.SecretReference{}
+	return ingEx
+}
+
+func createExpectedConfigForEmptyHostIngressEx(isPlus bool) version1.IngressNginxConfig {
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	server := &expected.Servers[0]
+	server.Name = "_"
+	server.IsDefaultServer = true
+	server.StatusZone = "_"
+	server.SSL = true
+	server.SSLCertificate = "/etc/nginx/secrets/default"
+	server.SSLCertificateKey = "/etc/nginx/secrets/default"
+	server.SSLRejectHandshake = true
+	server.DefaultServerReturn = "404"
+	server.HealthStatus = true
+	server.HealthStatusURI = "/nginx-health"
+	// Fix upstream names and location upstream names: cafe.example.com -> _
+	for i := range expected.Upstreams {
+		expected.Upstreams[i].Name = strings.Replace(expected.Upstreams[i].Name, "cafe.example.com", "_", 1)
+	}
+	for i := range server.Locations {
+		server.Locations[i].ProxyPass = strings.Replace(server.Locations[i].ProxyPass, "cafe.example.com", "_", 1)
+		server.Locations[i].Upstream.Name = strings.Replace(server.Locations[i].Upstream.Name, "cafe.example.com", "_", 1)
+	}
+	return expected
+}
+
+func createEmptyHostMergeableCafeIngress() *MergeableIngresses {
+	mergeableIngs := createMergeableCafeIngress()
+	mergeableIngs.Master.Ingress.Spec.TLS = nil
+	mergeableIngs.Master.Ingress.Spec.Rules[0].Host = ""
+	mergeableIngs.Master.ValidHosts = map[string]bool{"": true}
+	mergeableIngs.Master.SecretRefs = map[string]*secrets.SecretReference{}
+	for _, minion := range mergeableIngs.Minions {
+		minion.Ingress.Spec.Rules[0].Host = ""
+		minion.ValidHosts = map[string]bool{"": true}
+	}
+	return mergeableIngs
+}
+
+func createExpectedConfigForEmptyHostMergeableCafeIngress(isPlus bool) version1.IngressNginxConfig {
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+	server := &expected.Servers[0]
+
+	server.Name = "_"
+	server.IsDefaultServer = true
+	server.StatusZone = "_"
+	server.SSL = true
+	server.SSLCertificate = "/etc/nginx/secrets/default"
+	server.SSLCertificateKey = "/etc/nginx/secrets/default"
+	server.SSLRejectHandshake = true
+	server.DefaultServerReturn = "404"
+	server.HealthStatus = true
+	server.HealthStatusURI = "/nginx-health"
+
+	for i := range expected.Upstreams {
+		expected.Upstreams[i].Name = strings.Replace(expected.Upstreams[i].Name, "cafe.example.com", "_", 1)
+	}
+	for i := range server.Locations {
+		server.Locations[i].ProxyPass = strings.Replace(server.Locations[i].ProxyPass, "cafe.example.com", "_", 1)
+		server.Locations[i].Upstream.Name = strings.Replace(server.Locations[i].Upstream.Name, "cafe.example.com", "_", 1)
+	}
+	return expected
+}
+
+func emptyHostStaticParams() *StaticConfigParams {
+	return &StaticConfigParams{
+		DefaultHTTPListenerPort:  80,
+		DefaultHTTPSListenerPort: 443,
+		SSLRejectHandshake:       true,
+		HealthStatus:             true,
+		HealthStatusURI:          "/nginx-health",
+	}
+}
+
+func TestGenerateNginxCfgForEmptyHost(t *testing.T) {
+	t.Parallel()
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	expected := createExpectedConfigForEmptyHostIngressEx(isPlus)
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         emptyHostStaticParams(),
+		ingEx:                new(createEmptyHostIngressEx()),
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
 	}
@@ -4562,6 +5011,34 @@ func TestGenerateNginxCfgForMergeableIngressesWithExternalAuth(t *testing.T) {
 		}
 	}
 
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesForEmptyHost(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createEmptyHostMergeableCafeIngress()
+
+	isPlus := false
+	expected := createExpectedConfigForEmptyHostMergeableCafeIngress(isPlus)
+
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               false,
+		isResolverConfigured: false,
+		staticParams:         emptyHostStaticParams(),
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
 	}

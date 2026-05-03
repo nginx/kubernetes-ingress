@@ -204,22 +204,23 @@ def assert_ingress_conf_not_exists(kube_apis, ic_pod_name, ic_namespace, ingress
     assert "No such file or directory" in response
 
 
-def wait_and_assert_status_code(code, req_url, host, **kwargs) -> None:
+def wait_and_assert_status_code(code, req_url, host=None, **kwargs) -> None:
     """
     Wait for a specific response status code.
 
     :param  code: status_code
     :param  req_url: request url
-    :param  host: request headers if any
+    :param  host: optional host header
     :paramv **kwargs: optional arguments that ``request`` takes
     :return:
     """
     counter = 0
-    resp = requests.get(req_url, headers={"host": host}, **kwargs)
+    headers = {} if host is None else {"host": host}
+    resp = requests.get(req_url, headers=headers, **kwargs)
     while not resp.status_code == code and counter <= 30:
         time.sleep(1)
         counter = counter + 1
-        resp = requests.get(req_url, headers={"host": host}, **kwargs)
+        resp = requests.get(req_url, headers=headers, **kwargs)
     assert resp.status_code == code, f"After 30 seconds the status_code is still not {code}"
 
 

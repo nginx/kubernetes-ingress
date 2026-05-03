@@ -160,6 +160,139 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressWithEmptyHostForNGINX(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgEmptyHost)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantDirectives := []string{
+		"listen 80 default_server;",
+		"server_name _;",
+		"set $resource_type \"ingress\";",
+		"set $resource_name \"cafe-ingress\";",
+		"ssl_reject_handshake on;",
+		"set $redirect 0;",
+		"if ($request_uri = /nginx-health) {",
+		"if ($redirect = 1) {",
+		"return 301 https://$host:443$request_uri;",
+		"location = /nginx-health",
+		"access_log off;",
+		"location /tea",
+		"location / {",
+		"return 404;",
+	}
+
+	rendered := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithEmptyHostForNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgEmptyHost)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantDirectives := []string{
+		"listen 80 default_server;",
+		"server_name _;",
+		"status_zone _;",
+		"set $resource_type \"ingress\";",
+		"set $redirect 0;",
+		"if ($request_uri = /nginx-health) {",
+		"if ($redirect = 1) {",
+		"return 301 https://$host:443$request_uri;",
+		"location = /nginx-health",
+		"access_log off;",
+		"location /tea",
+		"location / {",
+		"return 404;",
+	}
+
+	rendered := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressWithEmptyHostWithRootLocation(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgEmptyHostWithRootLocation)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "listen 80 default_server;") {
+		t.Error("want default_server on listen")
+	}
+	if !strings.Contains(rendered, "server_name _;") {
+		t.Error("want server_name _")
+	}
+	if !strings.Contains(rendered, "location / {") {
+		t.Error("want location / from user ingress")
+	}
+	// Fallback return should NOT render because a user-defined root location already exists.
+	if strings.Contains(rendered, "return 404;") {
+		t.Error("unwant return 404; - existing root location should suppress fallback")
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMergeableIngressWithEmptyHostForNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgEmptyHostMasterMinion)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wantDirectives := []string{
+		"listen 80 default_server;",
+		"server_name _;",
+		"location /coffee {",
+		"location /tea {",
+		"return 404;",
+	}
+
+	rendered := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 func TestExecuteTemplate_ForIngressWithCORS(t *testing.T) {
 	t.Parallel()
 
@@ -879,13 +1012,13 @@ func TestExecuteTemplate_ForMainForNGINXPlusTLSPassthroughPortDisabled(t *testin
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXMainTmpl(t)
+	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfgCustomDefaultHTTPAndHTTPSListenerPorts)
+	err := tmpl.Execute(buf, ingressCfgDefaultServerCustomHTTPAndHTTPSListenerPorts)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -908,13 +1041,13 @@ func TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPAndHTTPSListenerPor
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXPlusMainTmpl(t)
+	tmpl := newNGINXPlusIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfgCustomDefaultHTTPAndHTTPSListenerPorts)
+	err := tmpl.Execute(buf, ingressCfgDefaultServerCustomHTTPAndHTTPSListenerPorts)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -937,13 +1070,13 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPAndHTTPSListene
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXWithoutCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXWithoutCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXMainTmpl(t)
+	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfg)
+	err := tmpl.Execute(buf, ingressCfgDefaultServer)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -966,13 +1099,13 @@ func TestExecuteTemplate_ForMainForNGINXWithoutCustomDefaultHTTPAndHTTPSListener
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXPlusWithoutCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithoutCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXPlusMainTmpl(t)
+	tmpl := newNGINXPlusIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfg)
+	err := tmpl.Execute(buf, ingressCfgDefaultServer)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -995,13 +1128,13 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithoutCustomDefaultHTTPAndHTTPSList
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPListenerPort(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPListenerPort(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXMainTmpl(t)
+	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfgCustomDefaultHTTPListenerPort)
+	err := tmpl.Execute(buf, ingressCfgDefaultServerCustomHTTPListenerPort)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -1024,13 +1157,13 @@ func TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPListenerPort(t *tes
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPSListenerPort(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPSListenerPort(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXMainTmpl(t)
+	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfgCustomDefaultHTTPSListenerPort)
+	err := tmpl.Execute(buf, ingressCfgDefaultServerCustomHTTPSListenerPort)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -1053,13 +1186,13 @@ func TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPSListenerPort(t *te
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPListenerPort(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPListenerPort(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXPlusMainTmpl(t)
+	tmpl := newNGINXPlusIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfgCustomDefaultHTTPListenerPort)
+	err := tmpl.Execute(buf, ingressCfgDefaultServerCustomHTTPListenerPort)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -1082,13 +1215,13 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPListenerPort(t 
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPSListenerPort(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPSListenerPort(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXPlusMainTmpl(t)
+	tmpl := newNGINXPlusIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfgCustomDefaultHTTPSListenerPort)
+	err := tmpl.Execute(buf, ingressCfgDefaultServerCustomHTTPSListenerPort)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -1173,13 +1306,13 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom(t *testing.T) 
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXWithHTTP2On(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXWithHTTP2On(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXMainTmpl(t)
+	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfgHTTP2On)
+	err := tmpl.Execute(buf, ingressCfgDefaultServerHTTP2On)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -1212,13 +1345,13 @@ func TestExecuteTemplate_ForMainForNGINXWithHTTP2On(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXPlusWithHTTP2On(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithHTTP2On(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXPlusMainTmpl(t)
+	tmpl := newNGINXPlusIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfgHTTP2On)
+	err := tmpl.Execute(buf, ingressCfgDefaultServerHTTP2On)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -1251,13 +1384,13 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithHTTP2On(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXWithHTTP2Off(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXWithHTTP2Off(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXMainTmpl(t)
+	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfg)
+	err := tmpl.Execute(buf, ingressCfgDefaultServer)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -1288,13 +1421,13 @@ func TestExecuteTemplate_ForMainForNGINXWithHTTP2Off(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXPlusWithHTTP2Off(t *testing.T) {
+func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithHTTP2Off(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXPlusMainTmpl(t)
+	tmpl := newNGINXPlusIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, mainCfg)
+	err := tmpl.Execute(buf, ingressCfgDefaultServer)
 	t.Log(buf.String())
 
 	if err != nil {
@@ -2440,6 +2573,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2On(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	ingConf := buf.String()
 
 	wantDirectives := []string{
@@ -2451,6 +2585,92 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2On(t *testing.T) {
 	unwantDirectives := []string{
 		"listen 443 ssl http2;",
 		"listen [::]:443 ssl http2;",
+	}
+
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	for _, want := range unwantDirectives {
+		if strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndMixedGRPCLocations(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgHTTP2OnAndMixedGRPCLocations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ingConf := buf.String()
+	wantDirectives := []string{
+		"error_page 400 @grpcerror400;",
+		"location @grpcerror400 { default_type application/grpc; return 400 \"\\n\"; }",
+		"grpc_pass grpc://test;",
+	}
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndGRPCOnlyLocations(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgHTTP2OnAndGRPCOnlyLocations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ingConf := buf.String()
+	wantDirectives := []string{
+		"error_page 400 @grpcerror400;",
+		"location @grpcerror400 { default_type application/grpc; return 400 \"\\n\"; }",
+		"grpc_pass grpc://test;",
+	}
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2Off(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ingConf := buf.String()
+
+	wantDirectives := []string{
+		"listen 443 ssl;",
+		"listen [::]:443 ssl;",
+	}
+
+	unwantDirectives := []string{
+		"http2 on;",
 	}
 
 	for _, want := range wantDirectives {
@@ -2505,36 +2725,50 @@ func TestExecuteTemplate_ForIngressForNGINXWithHTTP2On(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2Off(t *testing.T) {
+func TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndMixedGRPCLocations(t *testing.T) {
 	t.Parallel()
 
-	tmpl := newNGINXPlusIngressTmpl(t)
+	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, ingressCfg)
-	t.Log(buf.String())
+	err := tmpl.Execute(buf, ingressCfgHTTP2OnAndMixedGRPCLocations)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	ingConf := buf.String()
-
 	wantDirectives := []string{
-		"listen 443 ssl;",
-		"listen [::]:443 ssl;",
+		"error_page 400 @grpcerror400;",
+		"location @grpcerror400 { default_type application/grpc; return 400 \"\\n\"; }",
+		"grpc_pass grpc://test;",
 	}
-
-	unwantDirectives := []string{
-		"http2 on;",
-	}
-
 	for _, want := range wantDirectives {
 		if !strings.Contains(ingConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
 	}
+	snaps.MatchSnapshot(t, buf.String())
+}
 
-	for _, want := range unwantDirectives {
-		if strings.Contains(ingConf, want) {
+func TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndGRPCOnlyLocations(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgHTTP2OnAndGRPCOnlyLocations)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ingConf := buf.String()
+	wantDirectives := []string{
+		"error_page 400 @grpcerror400;",
+		"location @grpcerror400 { default_type application/grpc; return 400 \"\\n\"; }",
+		"grpc_pass grpc://test;",
+	}
+	for _, want := range wantDirectives {
+		if !strings.Contains(ingConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
 	}
@@ -3427,10 +3661,7 @@ var (
 
 	mainCfg = MainConfig{
 		StaticSSLPath:                      fakeManager.GetSecretsDir(),
-		DefaultHTTPListenerPort:            80,
-		DefaultHTTPSListenerPort:           443,
 		ServerNamesHashMaxSize:             "512",
-		ServerTokens:                       "off",
 		WorkerProcesses:                    "auto",
 		WorkerCPUAffinity:                  "auto",
 		WorkerShutdownTimeout:              "1m",
@@ -3470,51 +3701,9 @@ var (
 		AccessLog:                      "/dev/stdout main",
 	}
 
-	mainCfgHTTP2On = MainConfig{
-		StaticSSLPath:                      fakeManager.GetSecretsDir(),
-		DefaultHTTPListenerPort:            80,
-		DefaultHTTPSListenerPort:           443,
-		HTTP2:                              true,
-		ServerNamesHashMaxSize:             "512",
-		ServerTokens:                       "off",
-		WorkerProcesses:                    "auto",
-		WorkerCPUAffinity:                  "auto",
-		WorkerShutdownTimeout:              "1m",
-		WorkerConnections:                  "1024",
-		WorkerRlimitNofile:                 "65536",
-		LogFormat:                          []string{"$remote_addr", "$remote_user"},
-		LogFormatEscaping:                  "default",
-		StreamSnippets:                     []string{"# comment"},
-		StreamLogFormat:                    []string{"$remote_addr", "$remote_user"},
-		StreamLogFormatEscaping:            "none",
-		ResolverAddresses:                  []string{"example.com", "127.0.0.1"},
-		ResolverIPV6:                       false,
-		ResolverValid:                      "10s",
-		ResolverTimeout:                    "15s",
-		KeepaliveTimeout:                   "65s",
-		KeepaliveRequests:                  100,
-		VariablesHashBucketSize:            256,
-		VariablesHashMaxSize:               1024,
-		NginxVersion:                       nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r33)"),
-		AppProtectLoadModule:               true,
-		AppProtectV5LoadModule:             false,
-		AppProtectV5EnforcerAddr:           "",
-		AppProtectFailureModeAction:        "pass",
-		AppProtectCompressedRequestsAction: "pass",
-		AppProtectCookieSeed:               "ABCDEFGHIJKLMNOP",
-		AppProtectCPUThresholds:            "high=low=100",
-		AppProtectPhysicalMemoryThresholds: "high=low=100",
-		AppProtectReconnectPeriod:          "10",
-		AppProtectDosLoadModule:            true,
-		AppProtectDosLogFormat:             []string{},
-		AppProtectDosArbFqdn:               "arb.test.server.com",
-		AccessLog:                          "/dev/stdout main",
-	}
-
 	mainCfgCustomTLSPassthroughPort = MainConfig{
 		StaticSSLPath:           fakeManager.GetSecretsDir(),
 		ServerNamesHashMaxSize:  "512",
-		ServerTokens:            "off",
 		WorkerProcesses:         "auto",
 		WorkerCPUAffinity:       "auto",
 		WorkerShutdownTimeout:   "1m",
@@ -3542,7 +3731,6 @@ var (
 	mainCfgWithoutTLSPassthrough = MainConfig{
 		StaticSSLPath:           fakeManager.GetSecretsDir(),
 		ServerNamesHashMaxSize:  "512",
-		ServerTokens:            "off",
 		WorkerProcesses:         "auto",
 		WorkerCPUAffinity:       "auto",
 		WorkerShutdownTimeout:   "1m",
@@ -3570,7 +3758,6 @@ var (
 	mainCfgDefaultTLSPassthroughPort = MainConfig{
 		StaticSSLPath:           fakeManager.GetSecretsDir(),
 		ServerNamesHashMaxSize:  "512",
-		ServerTokens:            "off",
 		WorkerProcesses:         "auto",
 		WorkerCPUAffinity:       "auto",
 		WorkerShutdownTimeout:   "1m",
@@ -3595,88 +3782,238 @@ var (
 		AccessLog:               "/dev/stdout main",
 	}
 
-	mainCfgCustomDefaultHTTPAndHTTPSListenerPorts = MainConfig{
-		StaticSSLPath:            fakeManager.GetSecretsDir(),
-		DefaultHTTPListenerPort:  8083,
-		DefaultHTTPSListenerPort: 8443,
-		ServerNamesHashMaxSize:   "512",
-		ServerTokens:             "off",
-		WorkerProcesses:          "auto",
-		WorkerCPUAffinity:        "auto",
-		WorkerShutdownTimeout:    "1m",
-		WorkerConnections:        "1024",
-		WorkerRlimitNofile:       "65536",
-		LogFormat:                []string{"$remote_addr", "$remote_user"},
-		LogFormatEscaping:        "default",
-		StreamSnippets:           []string{"# comment"},
-		StreamLogFormat:          []string{"$remote_addr", "$remote_user"},
-		StreamLogFormatEscaping:  "none",
-		ResolverAddresses:        []string{"example.com", "127.0.0.1"},
-		ResolverIPV6:             false,
-		ResolverValid:            "10s",
-		ResolverTimeout:          "15s",
-		KeepaliveTimeout:         "65s",
-		KeepaliveRequests:        100,
-		VariablesHashBucketSize:  256,
-		VariablesHashMaxSize:     1024,
-		NginxVersion:             nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r33)"),
-		AccessLog:                "/dev/stdout main",
+	ingressCfgDefaultServer = IngressNginxConfig{
+		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
+			IsDefaultServer:     true,
+			Ports:               []int{80},
+			SSLPorts:            []int{443},
+			SSL:                 true,
+			SSLCertificate:      "/etc/nginx/secrets/default",
+			SSLCertificateKey:   "/etc/nginx/secrets/default",
+			ServerTokens:        "off",
+			DefaultServerReturn: "404",
+		}},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
 	}
 
-	mainCfgCustomDefaultHTTPListenerPort = MainConfig{
-		StaticSSLPath:            fakeManager.GetSecretsDir(),
-		DefaultHTTPListenerPort:  8083,
-		DefaultHTTPSListenerPort: 443,
-		ServerNamesHashMaxSize:   "512",
-		ServerTokens:             "off",
-		WorkerProcesses:          "auto",
-		WorkerCPUAffinity:        "auto",
-		WorkerShutdownTimeout:    "1m",
-		WorkerConnections:        "1024",
-		WorkerRlimitNofile:       "65536",
-		LogFormat:                []string{"$remote_addr", "$remote_user"},
-		LogFormatEscaping:        "default",
-		StreamSnippets:           []string{"# comment"},
-		StreamLogFormat:          []string{"$remote_addr", "$remote_user"},
-		StreamLogFormatEscaping:  "none",
-		ResolverAddresses:        []string{"example.com", "127.0.0.1"},
-		ResolverIPV6:             false,
-		ResolverValid:            "10s",
-		ResolverTimeout:          "15s",
-		KeepaliveTimeout:         "65s",
-		KeepaliveRequests:        100,
-		VariablesHashBucketSize:  256,
-		VariablesHashMaxSize:     1024,
-		NginxVersion:             nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r33)"),
-		AccessLog:                "/dev/stdout main",
+	ingressCfgDefaultServerHTTP2On = IngressNginxConfig{
+		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
+			IsDefaultServer:     true,
+			Ports:               []int{80},
+			SSLPorts:            []int{443},
+			SSL:                 true,
+			SSLCertificate:      "/etc/nginx/secrets/default",
+			SSLCertificateKey:   "/etc/nginx/secrets/default",
+			HTTP2:               true,
+			ServerTokens:        "off",
+			DefaultServerReturn: "404",
+		}},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
 	}
 
-	mainCfgCustomDefaultHTTPSListenerPort = MainConfig{
-		StaticSSLPath:            fakeManager.GetSecretsDir(),
-		DefaultHTTPListenerPort:  80,
-		DefaultHTTPSListenerPort: 8443,
-		ServerNamesHashMaxSize:   "512",
-		ServerTokens:             "off",
-		WorkerProcesses:          "auto",
-		WorkerCPUAffinity:        "auto",
-		WorkerShutdownTimeout:    "1m",
-		WorkerConnections:        "1024",
-		WorkerRlimitNofile:       "65536",
-		LogFormat:                []string{"$remote_addr", "$remote_user"},
-		LogFormatEscaping:        "default",
-		StreamSnippets:           []string{"# comment"},
-		StreamLogFormat:          []string{"$remote_addr", "$remote_user"},
-		StreamLogFormatEscaping:  "none",
-		ResolverAddresses:        []string{"example.com", "127.0.0.1"},
-		ResolverIPV6:             false,
-		ResolverValid:            "10s",
-		ResolverTimeout:          "15s",
-		KeepaliveTimeout:         "65s",
-		KeepaliveRequests:        100,
-		VariablesHashBucketSize:  256,
-		VariablesHashMaxSize:     1024,
-		NginxVersion:             nginx.NewVersion("nginx version: nginx/1.27.2 (nginx-plus-r33)"),
-		AccessLog:                "/dev/stdout main",
+	ingressCfgDefaultServerCustomHTTPAndHTTPSListenerPorts = IngressNginxConfig{
+		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
+			IsDefaultServer:     true,
+			Ports:               []int{8083},
+			SSLPorts:            []int{8443},
+			SSL:                 true,
+			SSLCertificate:      "/etc/nginx/secrets/default",
+			SSLCertificateKey:   "/etc/nginx/secrets/default",
+			ServerTokens:        "off",
+			DefaultServerReturn: "404",
+		}},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
+	}
+
+	ingressCfgDefaultServerCustomHTTPListenerPort = IngressNginxConfig{
+		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
+			IsDefaultServer:     true,
+			Ports:               []int{8083},
+			SSLPorts:            []int{443},
+			SSL:                 true,
+			SSLCertificate:      "/etc/nginx/secrets/default",
+			SSLCertificateKey:   "/etc/nginx/secrets/default",
+			ServerTokens:        "off",
+			DefaultServerReturn: "404",
+		}},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
+	}
+
+	ingressCfgDefaultServerCustomHTTPSListenerPort = IngressNginxConfig{
+		Servers: []Server{{
+			Name:                "_",
+			StatusZone:          "_",
+			IsDefaultServer:     true,
+			Ports:               []int{80},
+			SSLPorts:            []int{8443},
+			SSL:                 true,
+			SSLCertificate:      "/etc/nginx/secrets/default",
+			SSLCertificateKey:   "/etc/nginx/secrets/default",
+			ServerTokens:        "off",
+			DefaultServerReturn: "404",
+		}},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           "/etc/nginx/secrets",
+	}
+
+	// Empty-host ingress test data — same as ingressCfg but IsDefaultServer: true, no host
+	ingressCfgEmptyHost = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:                "_",
+				IsDefaultServer:     true,
+				ServerTokens:        "off",
+				StatusZone:          "_",
+				SSL:                 true,
+				SSLCertificate:      "/etc/nginx/secrets/default",
+				SSLCertificateKey:   "/etc/nginx/secrets/default",
+				SSLRejectHandshake:  true,
+				SSLPorts:            []int{443},
+				Ports:               []int{80},
+				SSLRedirect:         true,
+				HTTPRedirectCode:    301,
+				DefaultServerReturn: "404",
+				HealthStatus:        true,
+				HealthStatusURI:     "/nginx-health",
+				AccessLogOff:        true,
+				HTTP2:               true,
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "http://test",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
+	}
+
+	// Empty-host ingress with a root location - fallback return should NOT render.
+	ingressCfgEmptyHostWithRootLocation = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:                "_",
+				IsDefaultServer:     true,
+				ServerTokens:        "off",
+				StatusZone:          "_",
+				SSL:                 true,
+				SSLCertificate:      "/etc/nginx/secrets/default",
+				SSLCertificateKey:   "/etc/nginx/secrets/default",
+				SSLRejectHandshake:  true,
+				SSLPorts:            []int{443},
+				Ports:               []int{80},
+				DefaultServerReturn: "",
+				Locations: []Location{
+					{
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "http://test",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "webapp-ingress",
+			Namespace: "default",
+		},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           fakeManager.GetSecretsDir(),
+	}
+
+	// Empty-host master with minions
+	ingressCfgEmptyHostMasterMinion = IngressNginxConfig{
+		Upstreams: []Upstream{
+			coffeeUpstreamNginxPlus,
+			teaUpstreamNGINXPlus,
+		},
+		Servers: []Server{
+			{
+				Name:                "_",
+				IsDefaultServer:     true,
+				ServerTokens:        "on",
+				StatusZone:          "_",
+				SSL:                 true,
+				SSLCertificate:      "/etc/nginx/secrets/default",
+				SSLCertificateKey:   "/etc/nginx/secrets/default",
+				SSLRejectHandshake:  true,
+				SSLPorts:            []int{443},
+				Ports:               []int{80},
+				DefaultServerReturn: "404",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						ServiceName:         "coffee-svc",
+						Upstream:            coffeeUpstreamNginxPlus,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyBuffering:      true,
+						MinionIngress: &Ingress{
+							Name:      "cafe-ingress-coffee-minion",
+							Namespace: "default",
+						},
+						ProxySSLName: "coffee-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-coffee-minion-_-coffee-svc-80",
+					},
+					{
+						Path:                "/tea",
+						ServiceName:         "tea-svc",
+						Upstream:            teaUpstreamNGINXPlus,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyBuffering:      true,
+						MinionIngress: &Ingress{
+							Name:      "cafe-ingress-tea-minion",
+							Namespace: "default",
+						},
+						ProxySSLName: "tea-svc.default.svc",
+						ProxyPass:    "http://default-cafe-ingress-tea-minion-_-tea-svc-80",
+					},
+				},
+				HealthChecks: make(map[string]HealthCheck),
+			},
+		},
+		Ingress: Ingress{
+			Name:      "cafe-ingress-master",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+			},
+		},
 	}
 
 	mainCfgWithMGMTProxyWithNoAuth = MainConfig{
@@ -4499,7 +4836,104 @@ var (
 			Namespace: "default",
 		},
 	}
-
+	ingressCfgHTTP2OnAndMixedGRPCLocations = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				HTTP2:             true,
+				HasGRPCLocations:  true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                "/grpc",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "grpc://test",
+						GRPC:                true,
+					},
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+						},
+						ProxyPass: "http://test",
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+				JWTRedirectLocations: []JWTRedirectLocation{
+					{
+						Name:     "@login_url-default-cafe-ingress",
+						LoginURL: "https://test.example.com/login",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+	ingressCfgHTTP2OnAndGRPCOnlyLocations = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				HTTP2:             true,
+				GRPCOnly:          true,
+				HasGRPCLocations:  true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                "/grpc",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "grpc://test",
+						GRPC:                true,
+					},
+				},
+				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+				JWTRedirectLocations: []JWTRedirectLocation{
+					{
+						Name:     "@login_url-default-cafe-ingress",
+						LoginURL: "https://test.example.com/login",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
 	// Ingress Config that includes a request rate limit
 	ingressCfgRequestRateLimit = IngressNginxConfig{
 		Ingress: Ingress{
