@@ -255,6 +255,374 @@ func TestExecuteTemplate_ForIngressWithHeadersOnlyNoCORS(t *testing.T) {
 	}
 }
 
+// TestExecuteMainTemplateWithAddHeaders verifies that MainConfig.AddHeaders emits
+// add_header directives inside the http {} block for both OSS and Plus templates.
+// This covers the ConfigMap "add-header" path: ConfigMap → MainAddHeaders →
+// MainConfig.AddHeaders → http {} block (global, applies to every server via NGINX
+// inheritance).
+func TestExecuteMainTemplateWithAddHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXMainTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusMainTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := mainCfg
+			// Attach headers sourced from ConfigMap "add-header". In production these
+			// flow via ConfigParams.MainAddHeaders → MainConfig.AddHeaders.
+			cfg.AddHeaders = []version2.AddHeader{
+				{Header: version2.Header{Name: "X-Frame-Options", Value: "DENY"}, Always: true},
+				{Header: version2.Header{Name: "X-Content-Type-Options", Value: "nosniff"}, Always: false},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+
+			// Both directives must appear at http level. The server template format
+			// uses `{{if $h.Always}} always{{end}};` (no trailing space before ;).
+			if !strings.Contains(out, `add_header X-Frame-Options "DENY" always;`) {
+				t.Errorf("want http-level add_header X-Frame-Options in output")
+			}
+			if !strings.Contains(out, `add_header X-Content-Type-Options "nosniff";`) {
+				t.Errorf("want http-level add_header X-Content-Type-Options in output")
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForIngressWithServerLevelAddHeaders verifies that
+// Server.AddHeaders produces add_header directives in the server {} block for
+// both OSS and Plus templates (regular Ingress, annotation/ConfigMap path).
+func TestExecuteTemplate_ForIngressWithServerLevelAddHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:         "test.example.com",
+						ServerTokens: "off",
+						StatusZone:   "test.example.com",
+						// AddHeaders is populated by parseAnnotations / configmap path.
+						// It lands in the server {} block; all locations inherit it unless
+						// they define their own add_header (NGINX inheritance rule).
+						AddHeaders: []version2.AddHeader{
+							{Header: version2.Header{Name: "X-Frame-Options", Value: "DENY"}, Always: true},
+							{Header: version2.Header{Name: "X-Content-Type-Options", Value: "nosniff"}, Always: false},
+						},
+						Locations: []Location{
+							{
+								Path:      "/tea",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
+							},
+						},
+					},
+				},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+
+			// Both headers must appear at server level.
+			if !strings.Contains(out, `add_header X-Frame-Options "DENY" always;`) {
+				t.Errorf("want server-level add_header X-Frame-Options in output")
+			}
+			if !strings.Contains(out, `add_header X-Content-Type-Options "nosniff";`) {
+				t.Errorf("want server-level add_header X-Content-Type-Options in output")
+			}
+			// No location-level add_header block should be emitted (no CORSEnabled,
+			// no Location.AddHeaders).
+			if strings.Contains(out, "if ($request_method = 'OPTIONS')") {
+				t.Errorf("did not expect CORS OPTIONS block in output")
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForMergeableIngressWithMasterOnlyAddHeaderAnnotation verifies
+// that a master-only nginx.org/add-header annotation emits add_header in the server {}
+// block only. Minion locations carry no location-level add_header for this case;
+// NGINX inheritance applies them naturally (add-header-inherit will extend this).
+func TestExecuteTemplate_ForMergeableIngressWithMasterOnlyAddHeaderAnnotation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			masterAnnotations := map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/add-header":             "X-Master:master-val:always",
+			}
+			coffeeAnnotations := map[string]string{"nginx.org/mergeable-ingress-type": "minion"}
+			teaAnnotations := map[string]string{"nginx.org/mergeable-ingress-type": "minion"}
+
+			cfg := createAddHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnotations)
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+
+			// Master header must appear exactly once — in the server block.
+			// It must NOT be duplicated inside location blocks (no Go-level injection).
+			if count := strings.Count(out, `add_header X-Master "master-val" always;`); count != 1 {
+				t.Errorf("want exactly 1 occurrence of master header (server block only), got %d", count)
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForMergeableIngressWithMinionOnlyAddHeaderAnnotation verifies
+// that a minion-only nginx.org/add-header annotation emits add_header only inside
+// that minion's location block. The other minion location and the server block are
+// unaffected (no server-level add_header, no cross-minion injection).
+func TestExecuteTemplate_ForMergeableIngressWithMinionOnlyAddHeaderAnnotation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			masterAnnotations := map[string]string{"nginx.org/mergeable-ingress-type": "master"}
+			coffeeAnnotations := map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/add-header":             "X-Coffee:espresso",
+			}
+			teaAnnotations := map[string]string{"nginx.org/mergeable-ingress-type": "minion"}
+
+			cfg := createAddHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnotations)
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+
+			// The location template emits a trailing space before ";" when Always=false:
+			//   add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
+			// Non-always headers render as `add_header X-Foo "bar" ;`.
+
+			// X-Coffee must appear exactly once — in the coffee location only.
+			// Tea location has no add-header; no server-level header is injected.
+			if count := strings.Count(out, `add_header X-Coffee "espresso" ;`); count != 1 {
+				t.Errorf("want exactly 1 occurrence of X-Coffee header (coffee location only), got %d", count)
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForMergeableIngressWithMasterAndMinionAddHeaderAnnotation verifies
+// strict context separation when both master and minion carry nginx.org/add-header:
+//   - master headers → server {} block only (no injection into location blocks)
+//   - minion headers → that minion's location {} block only (no master mixing)
+//
+// A header name shared between master and minion does NOT produce a conflict in the
+// rendered config: the two scopes are independent. add-header-inherit will later
+// provide an explicit opt-in for minion locations to also receive server-level headers.
+func TestExecuteTemplate_ForMergeableIngressWithMasterAndMinionAddHeaderAnnotation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Master sets X-Shared and X-Master-Only in the server block.
+			// Coffee minion sets X-Shared (same name as master) and X-Coffee-Only in its location.
+			// Tea minion has no add-header; its location carries no add_header directives.
+			masterAnnotations := map[string]string{
+				"nginx.org/mergeable-ingress-type": "master",
+				"nginx.org/add-header":             "X-Shared:master-val,X-Master-Only:monly",
+			}
+			coffeeAnnotations := map[string]string{
+				"nginx.org/mergeable-ingress-type": "minion",
+				"nginx.org/add-header":             "X-Shared:coffee-val,X-Coffee-Only:conly",
+			}
+			teaAnnotations := map[string]string{"nginx.org/mergeable-ingress-type": "minion"}
+
+			cfg := createAddHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnotations)
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+
+			// Non-always headers render with a trailing space: `add_header X-Foo "bar" ;`.
+
+			// Server-level template: `{{$h.Name}} {{ printf "%q" $h.Value }}{{if $h.Always}} always{{end}};`
+			// No space before ";" when Always=false → `add_header X-Foo "bar";`
+			// Location-level template: `{{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};`
+			// Space before ";" when Always=false → `add_header X-Foo "bar" ;`
+
+			// Server block: master headers present (both), server-level format (no trailing space).
+			wantServer := []string{
+				`add_header X-Shared "master-val";`,
+				`add_header X-Master-Only "monly";`,
+			}
+			for _, want := range wantServer {
+				if !strings.Contains(out, want) {
+					t.Errorf("want %q in server block", want)
+				}
+			}
+
+			// Coffee location: only the coffee minion's own headers; no master injection.
+			// Location-level format has trailing space before ";".
+			if count := strings.Count(out, `add_header X-Shared "coffee-val" ;`); count != 1 {
+				t.Errorf("want X-Shared coffee-val exactly once (coffee location), got %d", count)
+			}
+			if count := strings.Count(out, `add_header X-Coffee-Only "conly" ;`); count != 1 {
+				t.Errorf("want X-Coffee-Only exactly once (coffee location), got %d", count)
+			}
+			// X-Master-Only appears exactly once in the server block (no ";" space variant).
+			// If it appeared as `add_header X-Master-Only "monly" ;` (space), a location was injected.
+			if count := strings.Count(out, `add_header X-Master-Only "monly";`); count != 1 {
+				t.Errorf("want X-Master-Only exactly once (server block only, no location injection), got %d", count)
+			}
+			if strings.Contains(out, `add_header X-Master-Only "monly" ;`) {
+				t.Errorf("X-Master-Only must not appear at location level (server block only)")
+			}
+
+			// Tea location: no location-level add_header at all (no minion annotation,
+			// no master injection). Tea inherits server-level headers via NGINX.
+			// X-Shared at server level: exactly one occurrence in server format (no trailing space).
+			if count := strings.Count(out, `add_header X-Shared "master-val";`); count != 1 {
+				t.Errorf("want X-Shared master-val exactly once (server block), got %d", count)
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// createAddHeaderIngressConfig builds a mergeable-Ingress config that mirrors
+// the strict context separation enforced by ingress.go at runtime:
+//
+//	master annotation  → Server.AddHeaders (server {} block only)
+//	minion annotation  → Location.AddHeaders (location {} block only, no master mixing)
+//
+// There is no merging between master and minion. Minion locations that carry
+// their own add_header will not inherit server-level master headers via NGINX;
+// that behavior is addressed by add-header-inherit.
+func createAddHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnotations map[string]string) IngressNginxConfig {
+	masterAH := masterAnnotations["nginx.org/add-header"]
+	coffeeAH := coffeeAnnotations["nginx.org/add-header"]
+	teaAH := teaAnnotations["nginx.org/add-header"]
+
+	return IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name: "cafe.example.com",
+				// Master annotation goes to the server block only.
+				AddHeaders: ParseAddHeaders(masterAH),
+				Locations: []Location{
+					{
+						MinionIngress: &Ingress{
+							Name:        "cafe-ingress-coffee-minion",
+							Namespace:   "default",
+							Annotations: coffeeAnnotations,
+						},
+						// Minion annotation goes to the location block only.
+						// No master headers are injected here.
+						AddHeaders: ParseAddHeaders(coffeeAH),
+						ProxyPass:  "http://test",
+					},
+					{
+						MinionIngress: &Ingress{
+							Name:        "cafe-ingress-tea-minion",
+							Namespace:   "default",
+							Annotations: teaAnnotations,
+						},
+						AddHeaders: ParseAddHeaders(teaAH),
+						ProxyPass:  "http://test",
+					},
+				},
+			},
+		},
+		Ingress: Ingress{
+			Name:        "cafe-ingress-master",
+			Namespace:   "default",
+			Annotations: masterAnnotations,
+		},
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithACPolicyAllow(t *testing.T) {
 	t.Parallel()
 

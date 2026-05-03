@@ -389,6 +389,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			RealIPRecursive:        cfgParams.RealIPRecursive,
 			ProxyHideHeaders:       cfgParams.ProxyHideHeaders,
 			ProxyPassHeaders:       cfgParams.ProxyPassHeaders,
+			AddHeaders:             cfgParams.AddHeaders,
 			ServerSnippets:         cfgParams.ServerSnippets,
 			Ports:                  cfgParams.Ports,
 			SSLPorts:               cfgParams.SSLPorts,
@@ -1169,6 +1170,11 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		// Add acceptable master annotations to minion
 		mergeMasterAnnotationsIntoMinion(minion.Ingress.Annotations, ncp.mergeableIngs.Master.Ingress.Annotations)
 
+		// Parse the minion's add-header annotation once, outside the location loop.
+		// The parsed headers are placed directly on each loc.AddHeaders below.
+		// Parsing here avoids repeating the work once per location for multi-path minions.
+		minionAddHeaders := version1.ParseAddHeaders(minion.Ingress.Annotations[AddHeaderAnnotation])
+
 		removedAnnotations = filterMinionAnnotations(minion.Ingress.Annotations)
 		if len(removedAnnotations) != 0 {
 			nl.Errorf(l, "Ingress Resource %v/%v with the annotation 'nginx.org/mergeable-ingress-type' set to 'minion' cannot contain the %v annotation(s). They will be ignored",
@@ -1232,6 +1238,17 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 					masterAnnotation := ncp.mergeableIngs.Master.Ingress.Annotations[ProxySetHeadersAnnotation]
 					minionAnnotation := minion.Ingress.Annotations[ProxySetHeadersAnnotation]
 					loc.ProxySetHeaders = version1.MergeProxySetHeaders(masterAnnotation, minionAnnotation)
+				}
+
+				// nginx.org/add-header on a minion goes directly to the location block.
+				// Master annotation headers stay in the server block (masterServer.AddHeaders)
+				// and are not injected here
+				// Locations with their own add_header will not inherit server-level master
+				// headers via NGINX (known override rule); add-header-inherit will address that.
+				if !loc.Internal && len(minionAddHeaders) > 0 {
+					// Prepend before any CORS headers already on loc.AddHeaders so that
+					// annotation-sourced headers appear first in the location block.
+					loc.AddHeaders = append(minionAddHeaders, loc.AddHeaders...)
 				}
 
 				locations = append(locations, loc)
