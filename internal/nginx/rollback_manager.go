@@ -16,12 +16,13 @@ import (
 // ConfigRollbackManager wraps LocalManager and adds rollback protection for main and regular configs.
 type ConfigRollbackManager struct {
 	*LocalManager
+	initialDefaultServerPending bool
 }
 
 // NewConfigRollbackManager creates a ConfigRollbackManager.
 func NewConfigRollbackManager(ctx context.Context, confPath string, debug bool, mc collectors.ManagerCollector, lr *license_reporting.LicenseReporter, metadata *metadata.Metadata, timeout time.Duration, nginxPlus bool) *ConfigRollbackManager {
 	lm := NewLocalManager(ctx, confPath, debug, mc, lr, metadata, timeout, nginxPlus)
-	return &ConfigRollbackManager{LocalManager: lm}
+	return &ConfigRollbackManager{LocalManager: lm, initialDefaultServerPending: true}
 }
 
 // testConfig tests the nginx configuration for syntax errors and file accessibility.
@@ -38,8 +39,9 @@ func (cm *ConfigRollbackManager) testConfig() error {
 
 // createConfigWithRollback replaces the simple createFileAndWrite in the LocalManager flow with a
 // rollback-protected write: read existing → backup → write → validate → rollback.
-// If isMainConfig is false, the config file is deleted on unrecoverable failure.
-func (cm *ConfigRollbackManager) createConfigWithRollback(name string, configPath string, content []byte, isMainConfig bool) (bool, error) {
+// Protected configs (main config and default server) are never deleted on failure.
+func (cm *ConfigRollbackManager) createConfigWithRollback(name string, configPath string, content []byte) (bool, error) {
+	protectFromDeletion := configPath == cm.mainConfFilename || configPath == cm.defaultServerConfFilename
 	var backup []byte
 	hasBackup := false
 
@@ -73,7 +75,7 @@ func (cm *ConfigRollbackManager) createConfigWithRollback(name string, configPat
 			nl.Infof(cm.logger, "Rolling back %s to previous working configuration", name)
 			if rollbackErr := createFileAndWrite(configPath, backup); rollbackErr != nil {
 				nl.Errorf(cm.logger, "Failed to rollback %s to previous config: %v", name, rollbackErr)
-				if !isMainConfig {
+				if !protectFromDeletion {
 					deleteConfig(cm.logger, configPath)
 				}
 				return false, fmt.Errorf("configuration validation failed and rollback failed for %s: %w", name, err)
@@ -90,14 +92,14 @@ func (cm *ConfigRollbackManager) createConfigWithRollback(name string, configPat
 			}
 			testErr := cm.testConfig()
 			nl.Warnf(cm.logger, "Rollback of %s didn't resolve validation issues: %v", name, testErr)
-			if !isMainConfig {
+			if !protectFromDeletion {
 				deleteConfig(cm.logger, configPath)
 			}
 			return false, fmt.Errorf("configuration validation failed and rollback didn't resolve issues for %s: %w", name, err)
 		}
 
 		nl.Warnf(cm.logger, "No previous config to rollback to for %s", name)
-		if !isMainConfig {
+		if !protectFromDeletion {
 			deleteConfig(cm.logger, configPath)
 		}
 		return false, fmt.Errorf("configuration validation failed for %s: %w", name, err)
@@ -115,17 +117,24 @@ func (cm *ConfigRollbackManager) CreateMainConfig(content []byte) (bool, error) 
 		return cm.LocalManager.CreateMainConfig(content)
 	}
 
-	return cm.createConfigWithRollback("nginx.conf", cm.mainConfFilename, content, true)
+	return cm.createConfigWithRollback("nginx.conf", cm.mainConfFilename, content)
 }
 
 // CreateConfig creates a configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
 func (cm *ConfigRollbackManager) CreateConfig(name string, content []byte) (bool, error) {
-	return cm.createConfigWithRollback(name, cm.getFilenameForConfig(name), content, false)
+	configPath := cm.getFilenameForConfig(name)
+	if cm.initialDefaultServerPending && configPath == cm.defaultServerConfFilename {
+		cm.initialDefaultServerPending = false
+		nl.Debugf(cm.logger, "Skipping validation for initial default server config bootstrap")
+		return cm.LocalManager.CreateConfig(name, content)
+	}
+
+	return cm.createConfigWithRollback(name, configPath, content)
 }
 
 // CreateStreamConfig creates a stream configuration file after validating it won't break nginx.
 // If validation fails, attempts rollback to previous working config.
 func (cm *ConfigRollbackManager) CreateStreamConfig(name string, content []byte) (bool, error) {
-	return cm.createConfigWithRollback(name, cm.getFilenameForStreamConfig(name), content, false)
+	return cm.createConfigWithRollback(name, cm.getFilenameForStreamConfig(name), content)
 }

@@ -44,6 +44,9 @@ const (
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
 const DefaultServerSecretPath = "/etc/nginx/secrets/default" //nolint:gosec // G101: Potential hardcoded credentials - false positive
 
+// DefaultServerConfigName is the config name used for the default server file in conf.d.
+const DefaultServerConfigName = "_default-server"
+
 // DefaultSecretPath is the full default path to where secrets are stored and accessed.
 const DefaultSecretPath = "/etc/nginx/secrets" // #nosec G101
 
@@ -416,6 +419,54 @@ func (cnf *Configurator) streamUpstreamsForTransportServer(ts *conf_v1.Transport
 		upstreamNames = append(upstreamNames, un)
 	}
 	return upstreamNames
+}
+
+// GenerateDefaultServerConfig builds the fallback default server config written to conf.d.
+func GenerateDefaultServerConfig(staticCfgParams *StaticConfigParams, cfgParams *ConfigParams) version1.IngressNginxConfig {
+	return version1.IngressNginxConfig{
+		Servers: []version1.Server{{
+			Name:                emptyHostToken,
+			StatusZone:          emptyHostToken,
+			IsDefaultServer:     true,
+			Ports:               []int{staticCfgParams.DefaultHTTPListenerPort},
+			SSLPorts:            []int{staticCfgParams.DefaultHTTPSListenerPort},
+			SSL:                 true,
+			SSLCertificate:      DefaultServerSecretPath,
+			SSLCertificateKey:   DefaultServerSecretPath,
+			SSLRejectHandshake:  staticCfgParams.SSLRejectHandshake,
+			AccessLogOff:        cfgParams.DefaultServerAccessLogOff,
+			DefaultServerReturn: cfgParams.DefaultServerReturn,
+			HealthStatus:        staticCfgParams.HealthStatus,
+			HealthStatusURI:     staticCfgParams.HealthStatusURI,
+			ServerTokens:        cfgParams.ServerTokens,
+			TLSPassthrough:      staticCfgParams.TLSPassthrough,
+			HTTP2:               cfgParams.HTTP2,
+			ProxyProtocol:       cfgParams.ProxyProtocol,
+			RealIPHeader:        cfgParams.RealIPHeader,
+			SetRealIPFrom:       cfgParams.SetRealIPFrom,
+			RealIPRecursive:     cfgParams.RealIPRecursive,
+			DisableIPV6:         staticCfgParams.DisableIPV6,
+		}},
+		Ingress:                 version1.Ingress{},
+		DynamicSSLReloadEnabled: staticCfgParams.DynamicSSLReload,
+		StaticSSLPath:           staticCfgParams.StaticSSLPath,
+	}
+}
+
+func (cnf *Configurator) buildDefaultServerConfig() version1.IngressNginxConfig {
+	return GenerateDefaultServerConfig(cnf.staticCfgParams, cnf.CfgParams)
+}
+
+func (cnf *Configurator) syncDefaultServerConfig() error {
+	defaultCfg := cnf.buildDefaultServerConfig()
+	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&defaultCfg)
+	if err != nil {
+		return fmt.Errorf("error generating default server config: %w", err)
+	}
+	if _, err := cnf.nginxManager.CreateConfig(DefaultServerConfigName, content); err != nil {
+		return fmt.Errorf("error writing default server config: %w", err)
+	}
+	return nil
 }
 
 // addOrUpdateIngress returns a bool that specifies if the underlying config
@@ -1356,7 +1407,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 			if _, isExternalName := ingEx.ExternalNameSvcs[ingEx.Ingress.Spec.DefaultBackend.Service.Name]; isExternalName {
 				nl.Debugf(l, "Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", ingEx.Ingress.Spec.DefaultBackend.Service.Name)
 			} else {
-				name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.DefaultBackend)
+				name := getNameForUpstream(ingEx.Ingress, emptyHostName, ingEx.Ingress.Spec.DefaultBackend)
 				err := cnf.updateServersInPlus(name, endps, cfg)
 				if err != nil {
 					return fmt.Errorf("couldn't update the endpoints for %v: %w", name, err)
@@ -1516,6 +1567,10 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		} else {
 			return allWarnings, nil, err
 		}
+	}
+
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return allWarnings, nil, fmt.Errorf("error syncing default server config: %w", err)
 	}
 
 	for _, ingEx := range resources.IngressExes {
