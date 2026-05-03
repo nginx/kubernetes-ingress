@@ -4844,6 +4844,35 @@ func TestFindResourcesForResourceReference(t *testing.T) {
 	}
 }
 
+func TestFindResourcesForResourceReference_MultiHostIngressDedup(t *testing.T) {
+	t.Parallel()
+
+	// An Ingress with two hosts referencing the same service
+	// should appear only once in the result, not once per host.
+	multiHostIng := createTestIngress("multi-host-ingress", "host1.example.com", "host2.example.com")
+
+	configuration := createTestConfiguration()
+	configuration.AddOrUpdateIngress(multiHostIng)
+
+	rc := &testReferenceChecker{
+		resourceNamespace: "default",
+		resourceName:      "test",
+		onlyIngresses:     true,
+	}
+
+	result := configuration.findResourcesForResourceReference("default", "test", rc)
+
+	if len(result) != 1 {
+		t.Fatalf("expected 1 resource, got %d", len(result))
+	}
+	expected := []Resource{
+		configuration.hosts["host1.example.com"],
+	}
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("findResourcesForResourceReference() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
 func TestGetResources(t *testing.T) {
 	t.Parallel()
 	ing := createTestIngress("ingress", "foo.example.com", "bar.example.com")
