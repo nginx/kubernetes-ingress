@@ -710,7 +710,7 @@ server {
 	error_page 503 @grpcerror503;
 	error_page 504 @grpcerror504;
 	{{- end}}
-	{{- if $server.HTTP2}}
+	{{- if $server.HasGRPCLocations}}
 	location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
 	location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
 	location @grpcerror403 { default_type application/grpc; return 403 "\n"; }

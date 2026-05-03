@@ -93,6 +93,7 @@ type Server struct {
 	SSLRejectHandshake     bool
 	TLSPassthrough         bool
 	GRPCOnly               bool
+	HasGRPCLocations       bool
 	StatusZone             string
 	HTTP2                  bool
 	RedirectToHTTPS        bool
