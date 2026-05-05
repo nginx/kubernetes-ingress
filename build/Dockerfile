@@ -16,7 +16,7 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 
 
 ############################################# Base images containing libs for FIPS #############################################
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:83da7c38a784b4a94713e6d1cc50f9438f49c8697e525841d24d5eda8d9f930a AS ubi8-packages
+FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:ae426e3d0d4999d73c6f47343e7754ebc5449674b0116d41467036b0cdda66c3 AS ubi8-packages
 FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:8b11185aef388a55bc09a43e3c9db5c009370769715db85c7a480aa025355a1a AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
 FROM redhat/ubi9-minimal:9.7-1777857961@sha256:8d0a8fb39ec907e8ca62cdd24b62a63ca49a30fe465798a360741fde58437a23 AS ubi-minimal
