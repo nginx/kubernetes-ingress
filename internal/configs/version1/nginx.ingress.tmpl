@@ -230,7 +230,7 @@ server {
 		{{- end }}
 		{{- if $location.AddHeaderInherit}}
 		add_header_inherit {{$location.AddHeaderInherit}};
-		{{- end }}
+		{{- end}}
 		{{- if $location.RewriteTarget}}
 		rewrite {{ makeRewritePattern $location $.Ingress.Annotations }} {{$location.RewriteTarget}} break;
 		{{- end}}

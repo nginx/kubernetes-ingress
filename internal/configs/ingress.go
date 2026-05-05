@@ -518,7 +518,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 			if ncp.isMinion {
 				loc.AddHeaderInherit = cfgParams.AddHeaderInherit
-				server.AddHeaderInherit = ""
+				server.AddHeaderInherit = "" // unset to avoid writing AddHeaderInherit to server block when the ingress is a minion, since it's only relevant for master ingresses
 
 				if cfgParams.JWTKey != "" {
 					jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
