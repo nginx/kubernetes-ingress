@@ -965,7 +965,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/add-header-inherit": "on",
+				configs.AddHeaderInheritAnnotation: "on",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -979,7 +979,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/add-header-inherit": "off",
+				configs.AddHeaderInheritAnnotation: "off",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -993,7 +993,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/add-header-inherit": "merge",
+				configs.AddHeaderInheritAnnotation: "merge",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
@@ -1007,7 +1007,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
-				"nginx.org/add-header-inherit": "bogus",
+				configs.AddHeaderInheritAnnotation: "bogus",
 			},
 			specServices:          map[string]bool{},
 			isPlus:                false,
