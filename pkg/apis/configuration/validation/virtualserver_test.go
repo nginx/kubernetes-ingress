@@ -4770,10 +4770,12 @@ func TestValidateAddHeaderInherit_ValidValues(t *testing.T) {
 	t.Parallel()
 
 	validValues := []string{
-		"",
 		"on",
+		"ON",
 		"off",
+		"ofF",
 		"merge",
+		"MeRGe",
 	}
 	for _, value := range validValues {
 		allErrs := validateAddHeaderInherit(value, field.NewPath("add-header-inherit"))
@@ -4787,12 +4789,7 @@ func TestValidateAddHeaderInherit_InvalidValues(t *testing.T) {
 	t.Parallel()
 
 	invalidValues := []string{
-		"On",
-		"ON",
-		"Off",
-		"OFF",
-		"Merge",
-		"MERGE",
+		"",
 		"invalid",
 		"yes",
 		"no",
