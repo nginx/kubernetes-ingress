@@ -18,17 +18,17 @@ on:
         required: true
         default: "2.6.0, 3.6.0"
       k8s_versions:
-        description: "Kubernetes versions this release was tested on (leave empty to use tech-specs.json)"
-        required: false
-        default: ""
+        description: "Kubernetes versions this release was tested on"
+        required: true
+        default: "1.27 - 1.34"
       new_nginx_version:
-        description: "Nginx version to release (leave empty to use tech-specs.json)"
-        required: false
-        default: ""
+        description: "Nginx version to release"
+        required: true
+        default: "1.29.3 / R36"
       nap_version:
         description: "NAP versions (comma-separated: waf_version,waf_release_version) - leave empty to skip NAP update"
         required: false
-        default: "36+5.607,5.12.0"
+        default: "36+5.607.0, 5.12.0"
       release_date:
         description: "Date for this release"
         required: true
