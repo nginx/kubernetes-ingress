@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"fmt"
 	"reflect"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -42,14 +43,17 @@ func createEndpointSliceHandlers(lbc *LoadBalancerController) cache.ResourceEven
 }
 
 // addEndpointSliceHandler adds the handler for EndpointSlices to the controller
-func (nsi *namespacedInformer) addEndpointSliceHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addEndpointSliceHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.sharedInformerFactory.Discovery().V1().EndpointSlices().Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add EndpointSlice event handler: %w", err)
+	}
 	var el storeToEndpointSliceLister
 	el.Store = informer.GetStore()
 	nsi.endpointSliceLister = el
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 // nolint:gocyclo

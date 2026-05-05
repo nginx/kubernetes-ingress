@@ -98,30 +98,39 @@ func createAppProtectUserSigHandlers(lbc *LoadBalancerController) cache.Resource
 }
 
 // addAppProtectPolicyHandler creates dynamic informers for custom appprotect policy resource
-func (nsi *namespacedInformer) addAppProtectPolicyHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addAppProtectPolicyHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.dynInformerFactory.ForResource(appprotect.PolicyGVR).Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add AppProtectPolicy event handler: %w", err)
+	}
 	nsi.appProtectPolicyLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 // addAppProtectLogConfHandler creates dynamic informer for custom appprotect logging config resource
-func (nsi *namespacedInformer) addAppProtectLogConfHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addAppProtectLogConfHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.dynInformerFactory.ForResource(appprotect.LogConfGVR).Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add AppProtectLogConf event handler: %w", err)
+	}
 	nsi.appProtectLogConfLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 // addAppProtectUserSigHandler creates dynamic informer for custom appprotect user defined signature resource
-func (nsi *namespacedInformer) addAppProtectUserSigHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addAppProtectUserSigHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.dynInformerFactory.ForResource(appprotect.UserSigGVR).Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add AppProtectUserSig event handler: %w", err)
+	}
 	nsi.appProtectUserSigLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
