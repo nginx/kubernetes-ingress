@@ -152,16 +152,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
     - appprotectdos.f5.com
   resources:
     - apdospolicies
@@ -362,7 +352,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -410,8 +400,8 @@ spec:
           
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=true
           - -app-protect-dos-debug=true
           - -app-protect-dos-max-daemons=10
@@ -837,7 +827,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -886,7 +876,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/appprotect-waf-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/appprotect-waf-nginx-ingress-mgmt
@@ -1366,7 +1356,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -1424,7 +1414,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-waf-agentv2-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/app-protect-waf-agentv2-nginx-ingress-mgmt
@@ -1856,7 +1846,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -2430,8 +2420,6 @@ spec:
         name: app-protect-config
       - emptyDir: {}
         name: app-protect-bundles
-      - name: app-protect-ipi-db
-        emptyDir: {}
       - name: agent-conf
         configMap:
           name: app-protect-wafv5-agentv2-nginx-ingress-agent-config
@@ -2453,7 +2441,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -2519,7 +2507,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect-ip-intelligence=false
           - -app-protect-enforcer-address="localhost:50001"
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-wafv5-agentv2-nginx-ingress
@@ -2573,8 +2561,6 @@ spec:
         volumeMounts:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
-          - name: app-protect-ipi-db
-            mountPath: /var/IpRep
       - name: waf-config-mgr
         image: my.private.reg/nap/waf-config-mgr:5.12.1
         imagePullPolicy: "IfNotPresent"
@@ -2589,24 +2575,6 @@ spec:
         volumeMounts:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
-          - name: app-protect-config
-            mountPath: /opt/app_protect/config
-          - name: app-protect-bundles
-            mountPath: /etc/app_protect/bundles
-      - name: waf-ip-intelligence
-        image: private-registry.nginx.com/nap/waf-ip-intelligence:5.12.1
-        imagePullPolicy: "IfNotPresent"
-        securityContext:
-      
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - all
-            runAsNonRoot: true
-            runAsUser: 101
-        volumeMounts:
-          - name: app-protect-ipi-db
-            mountPath: /var/IpRep
           - name: app-protect-config
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
@@ -2669,22 +2637,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: custom-resources-nginx-ingress-mgmt
-  namespace: custom-resources
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: custom-resources
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -2792,16 +2744,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -2972,7 +2914,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -3018,13 +2960,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/custom-resources-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/custom-resources-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -3069,6 +3010,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -3112,22 +3056,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: daemonset-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: daemonset
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -3235,16 +3163,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -3436,7 +3354,7 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
       - name: nginx-ingress
-        image: localhost:5000/local/nic-plus-nap:test
+        image: nginx/nginx-ingress:5.5.0
         imagePullPolicy: "IfNotPresent"
         ports:
         - name: http
@@ -3482,13 +3400,12 @@ spec:
             memory: 128Mi
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/daemonset-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -3539,6 +3456,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -3582,22 +3502,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: daemonset-readonly-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: daemonset-readonly
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -3705,16 +3609,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -3917,7 +3811,7 @@ spec:
       dnsPolicy: ClusterFirst
       containers:
       - name: nginx-ingress
-        image: localhost:5000/local/nic-plus-nap:test
+        image: nginx/nginx-ingress:5.5.0
         imagePullPolicy: "IfNotPresent"
         ports:
         - name: http
@@ -3974,13 +3868,12 @@ spec:
             memory: 128Mi
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-readonly-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/daemonset-readonly-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -4019,7 +3912,7 @@ spec:
       
       initContainers:
       - name: init-nginx-ingress
-        image: localhost:5000/local/nic-plus-nap:test
+        image: nginx/nginx-ingress:5.5.0
         imagePullPolicy: "IfNotPresent"
         command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
         resources:
@@ -4051,6 +3944,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -4095,22 +3991,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: default-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: default
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -4218,16 +4098,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -4419,7 +4289,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -4465,13 +4335,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/default-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/default-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -4522,6 +4391,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -4565,22 +4437,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: deployment-hpa-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: deployment-hpa
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -4688,16 +4544,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -4888,7 +4734,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -4934,13 +4780,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/deployment-hpa-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/deployment-hpa-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -5024,6 +4869,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -5067,22 +4915,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: deployment-hpa-no-create-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: deployment-hpa-no-create
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -5190,16 +5022,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -5390,7 +5212,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -5436,13 +5258,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/deployment-hpa-no-create-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/deployment-hpa-no-create-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -5493,6 +5314,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -5536,22 +5360,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: global-configuration-nginx-ingress-mgmt
-  namespace: gc
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-configuration
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -5659,16 +5467,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -5860,7 +5658,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -5906,13 +5704,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/global-configuration-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/global-configuration-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -5963,6 +5760,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-globalconfiguration.yaml
 apiVersion: k8s.nginx.org/v1
@@ -6028,22 +5828,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: global-config-custom-name-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: global-config-custom-name
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -6151,16 +5935,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -6352,7 +6126,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -6398,13 +6172,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/global-config-custom-name-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/global-config-custom-name-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -6455,6 +6228,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-globalconfiguration.yaml
 apiVersion: k8s.nginx.org/v1
@@ -6517,22 +6293,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ingress-class-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: ingress-class
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -6640,16 +6400,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -6841,7 +6591,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -6887,13 +6637,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/ingress-class-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/ingress-class-nginx-ingress-mgmt
           - -ingress-class=changed
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -6946,6 +6695,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -6989,22 +6741,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: list-configs-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: list-configs
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -7112,16 +6848,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -7333,7 +7059,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -7385,13 +7111,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/list-configs-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/list-configs-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -7442,6 +7167,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -7486,22 +7214,6 @@ metadata:
 data:
   {}
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: loadbalancerclass-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
-/-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -7608,16 +7320,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -7810,7 +7512,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -7856,13 +7558,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -7912,6 +7613,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -7957,22 +7661,6 @@ metadata:
 data:
   {}
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: loadbalancerclass-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: loadbalancerclass
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
-/-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -8079,16 +7767,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -8281,7 +7959,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -8327,13 +8005,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -8384,6 +8061,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -8427,22 +8107,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: namespace-nginx-ingress-mgmt
-  namespace: nginx-ingress
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: namespace
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -8550,16 +8214,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -8751,7 +8405,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -8797,13 +8451,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/namespace-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/namespace-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -8853,6 +8506,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -8943,21 +8599,6 @@ data:
     collector:
       log:
         path: "stdout"
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: oss-agent-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: oss-agent
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -9065,16 +8706,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -9274,7 +8905,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -9326,13 +8957,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/oss-agent-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/oss-agent-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -9551,16 +9181,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - k8s.nginx.org
   resources:
   - virtualservers
@@ -9751,7 +9371,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -9799,8 +9419,8 @@ spec:
           
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-nginx-ingress-mgmt
@@ -10021,16 +9641,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - k8s.nginx.org
   resources:
   - virtualservers
@@ -10221,7 +9831,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -10279,8 +9889,8 @@ spec:
           - --
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-debug-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-debug-nginx-ingress-mgmt
@@ -10511,16 +10121,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - k8s.nginx.org
   resources:
   - virtualservers
@@ -10711,7 +10311,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -10769,8 +10369,8 @@ spec:
           
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-nginx-ingress-mgmt
@@ -10992,16 +10592,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - k8s.nginx.org
   resources:
   - virtualservers
@@ -11192,7 +10782,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -11240,8 +10830,8 @@ spec:
           
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-custom-endpoint-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-custom-endpoint-nginx-ingress-mgmt
@@ -11463,16 +11053,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - k8s.nginx.org
   resources:
   - virtualservers
@@ -11663,7 +11243,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -11711,8 +11291,8 @@ spec:
           
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-proxy-host-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-proxy-host-nginx-ingress-mgmt
@@ -11934,16 +11514,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - k8s.nginx.org
   resources:
   - virtualservers
@@ -12134,7 +11704,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -12192,8 +11762,8 @@ spec:
           
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-proxy-host-auth-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-proxy-host-auth-nginx-ingress-mgmt
@@ -12459,16 +12029,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - k8s.nginx.org
   resources:
   - virtualservers
@@ -12667,7 +12227,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -12721,8 +12281,8 @@ spec:
           
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-agent-nginx-ingress-mgmt
@@ -12989,16 +12549,6 @@ rules:
   verbs:
   - update
 - apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
-- apiGroups:
   - k8s.nginx.org
   resources:
   - virtualservers
@@ -13197,7 +12747,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -13251,8 +12801,8 @@ spec:
           
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress-mgmt
@@ -13350,22 +12900,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: startupstatus-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: startupstatus
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -13473,16 +13007,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -13674,7 +13198,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -13731,13 +13255,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/startupstatus-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/startupstatus-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -13788,6 +13311,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -13831,22 +13357,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -13954,16 +13464,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -14156,7 +13656,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -14205,13 +13705,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/statefulset-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -14276,6 +13775,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -14319,22 +13821,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-config-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-config
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -14442,16 +13928,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -14644,7 +14120,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -14693,13 +14169,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-config-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/statefulset-config-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -14765,6 +14240,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -14808,22 +14286,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-no-storageclass-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-no-storageclass
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -14931,16 +14393,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -15133,7 +14585,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -15182,13 +14634,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-no-storageclass-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/statefulset-no-storageclass-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -15253,6 +14704,9 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -15296,22 +14750,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   {}
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: statefulset-readonly-nginx-ingress-mgmt
-  namespace: default
-  labels:
-    helm.sh/chart: nginx-ingress-2.6.0
-    app.kubernetes.io/name: nginx-ingress
-    app.kubernetes.io/instance: statefulset-readonly
-    app.kubernetes.io/version: "5.5.0"
-    app.kubernetes.io/managed-by: Helm
-data:
-  license-token-secret-name: license-token
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -15419,16 +14857,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-- apiGroups:
-  - appprotect.f5.com
-  resources:
-  - appolicies
-  - aplogconfs
-  - apusersigs
-  verbs:
-  - get
-  - watch
-  - list
 - apiGroups:
   - k8s.nginx.org
   resources:
@@ -15630,7 +15058,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: localhost:5000/local/nic-plus-nap:test
+      - image: nginx/nginx-ingress:5.5.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -15687,13 +15115,12 @@ spec:
               fieldPath: metadata.name
         args:
           
-          - -nginx-plus=true
+          - -nginx-plus=false
           - -nginx-reload-timeout=60000
-          - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=true
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-readonly-nginx-ingress
-          - -mgmt-configmap=$(POD_NAMESPACE)/statefulset-readonly-nginx-ingress-mgmt
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -15732,7 +15159,7 @@ spec:
       
       initContainers:
       - name: init-nginx-ingress
-        image: localhost:5000/local/nic-plus-nap:test
+        image: nginx/nginx-ingress:5.5.0
         imagePullPolicy: "IfNotPresent"
         command: ['cp', '-vdR', '/etc/nginx/.', '/mnt/etc']
         resources:
@@ -15777,6 +15204,9 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
