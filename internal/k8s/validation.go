@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	version1 "github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	common_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
