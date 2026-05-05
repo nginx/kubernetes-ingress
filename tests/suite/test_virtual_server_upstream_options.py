@@ -522,18 +522,13 @@ class TestVirtualServerUpstreamOptionValidation:
             ingress_controller_prerequisites.namespace,
         )
         vs_file = f"{TEST_DATA}/virtual-server-upstream-options/virtual-server-with-invalid-keys-openapi.yaml"
-        try:
+        with pytest.raises(ApiException) as exc_info:
             patch_virtual_server_from_yaml(
                 kube_apis.custom_objects, virtual_server_setup.vs_name, vs_file, virtual_server_setup.namespace
             )
-        except ApiException as ex:
-            assert ex.status == 422
-            for item in invalid_fields:
-                assert item in ex.body
-        except Exception as ex:
-            pytest.fail(f"An unexpected exception is raised: {ex}")
-        else:
-            pytest.fail("Expected an exception but there was none")
+        assert exc_info.value.status == 422
+        for item in invalid_fields:
+            assert item in exc_info.value.body
 
         wait_before_test(2)
         config_new = get_vs_nginx_template_conf(
@@ -779,18 +774,13 @@ class TestOptionsSpecificForPlus:
             ingress_controller_prerequisites.namespace,
         )
         vs_file = f"{TEST_DATA}/virtual-server-upstream-options/plus-virtual-server-with-invalid-keys-openapi.yaml"
-        try:
+        with pytest.raises(ApiException) as exc_info:
             patch_virtual_server_from_yaml(
                 kube_apis.custom_objects, virtual_server_setup.vs_name, vs_file, virtual_server_setup.namespace
             )
-        except ApiException as ex:
-            assert ex.status == 422
-            for item in invalid_fields:
-                assert item in ex.body
-        except Exception as ex:
-            pytest.fail(f"An unexpected exception is raised: {ex}")
-        else:
-            pytest.fail("Expected an exception but there was none")
+        assert exc_info.value.status == 422
+        for item in invalid_fields:
+            assert item in exc_info.value.body
 
         wait_before_test(2)
         config_new = get_vs_nginx_template_conf(

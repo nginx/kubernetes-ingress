@@ -57,6 +57,7 @@ jobs:
       image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
       docker_build: ${{ steps.docker_build.outputs.docker_build }}
+      run_tests: ${{ steps.run_tests.outputs.run_tests }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -66,16 +67,7 @@ jobs:
       - name: Filter only docs changes
         id: docs
         run: |
-          files=$(git diff --name-only HEAD^ | egrep -v "^examples/" | egrep -v "^README.md")
-          docs_files=$(git diff --name-only HEAD^)
-          if [ -z "$files" ]; then
-            echo "docs_only=true" >> $GITHUB_OUTPUT
-          else
-            echo "docs_only=false" >> $GITHUB_OUTPUT
-          fi
-
-          echo $files
-          echo $docs_files
+          ./.github/scripts/variables.sh docs_only >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
         shell: bash --noprofile --norc -o pipefail {0}
 
@@ -87,15 +79,7 @@ jobs:
       - name: Configure pipeline Variables
         id: vars
         run: |
-          kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
-            | jq -r '.results[].name' \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-            | sort -rV \
-            | grep -v v1.32.1 \
-            | head -n 1 \
-            | sed 's/^.\{1\}//' \
-            | tr -d '\n')
-          echo "k8s_latest=$kindest_latest" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh k8s_latest_version >> $GITHUB_OUTPUT
           echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
           source .github/data/version.txt
           echo "ic_version=${IC_VERSION}" >> $GITHUB_OUTPUT
@@ -111,7 +95,6 @@ jobs:
           echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
 
       - name: Fetch Cached Binary Artifacts
         id: binary-cache
@@ -176,11 +159,23 @@ jobs:
             docker_build="true"
           elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
             docker_build="true"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "false" ]; then
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.binary-cache.outputs.cache-hit }}" != "true" ]; then
             docker_build="true"
           fi
           echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
+
+      - name: Check if tests should be run
+        id: run_tests
+        run: |
+          run_tests="true"
+          if [ "${{ inputs.run_tests }}" = "false" ]; then
+            run_tests="false"
+          elif [ "${{ steps.docs.outputs.docs_only }}" = "true" ]; then
+            run_tests="false"
+          elif [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.vars.outputs.stable_image_exists }}" = "true" ]; then
+            run_tests="false"
+          fi
+          echo "run_tests=${run_tests}" >> $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
@@ -201,6 +196,7 @@ jobs:
           echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
           echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
           echo 'docker_build: ${{ steps.docker_build.outputs.docker_build }}'
+          echo 'run_tests: ${{ steps.run_tests.outputs.run_tests }}'
 
   verify-codegen:
     name: Verify generated code
@@ -208,6 +204,10 @@ jobs:
     permissions:
       contents: read
     needs: checks
+    if: >-
+      inputs.force ||
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit != 'true'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -218,46 +218,26 @@ jobs:
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Setup netrc
-        run: |
-          cat <<EOF > $HOME/.netrc
-          machine azr.artifactory.f5net.com
-              login ${{ secrets.ARTIFACTORY_USER }}
-              password ${{ secrets.ARTIFACTORY_TOKEN }}
-          EOF
-          chmod 600 $HOME/.netrc
-        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
 
       - name: Check if go.mod and go.sum are up to date
         run: go mod tidy && git diff --exit-code -- go.mod go.sum
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if CRDs changed
         run: make update-crds && git diff --name-only --exit-code config/crd/bases
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if Codegen changed
         run: |
           cd ../.. && mkdir -p github.com/nginx && mv kubernetes-ingress/kubernetes-ingress github.com/nginx/ && cd github.com/nginx/kubernetes-ingress
           make update-codegen && git diff --name-only --exit-code pkg/**
           cd ../../.. && mv github.com/nginx/kubernetes-ingress kubernetes-ingress/kubernetes-ingress
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Install gofumpt
         run: go install mvdan.cc/gofumpt@v0.8.0
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
 
       - name: Check if telemetry schema changed
         run: |
           export PATH=$PATH:$(go env GOPATH)/bin
           make telemetry-schema && git diff --name-only --exit-code internal/telemetry
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' }}
-
-      - name: Cleanup netrc
-        run: rm -f $HOME/.netrc
-        if: ${{ always() }}
 
   unit-tests:
     name: Unit Tests
@@ -276,6 +256,10 @@ jobs:
         uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
         with:
           version: 'v3.18.6'
+        if: >-
+          inputs.force ||
+          needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -283,7 +267,11 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
+        if: >-
+          inputs.force ||
+          needs.checks.outputs.forked_workflow == 'false' &&
+          (needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true')
 
       - name: Setup secrets
         id: secrets
@@ -292,57 +280,113 @@ jobs:
           CODECOV_TOKEN=$(az keyvault secret show --name code-cov --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$CODECOV_TOKEN"
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
-        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
+        if: >-
+          inputs.force ||
+          needs.checks.outputs.forked_workflow == 'false' &&
+          (needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true')
 
       - name: Setup Golang Environment
         uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
           go-version-file: go.mod
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
-
-      - name: Setup netrc
-        run: |
-          cat <<EOF > $HOME/.netrc
-          machine azr.artifactory.f5net.com
-              login ${{ secrets.ARTIFACTORY_USER }}
-              password ${{ secrets.ARTIFACTORY_TOKEN }}
-          EOF
-          chmod 600 $HOME/.netrc
-        if: ${{ inputs.force || (needs.checks.outputs.binary_cache_hit != 'true' && needs.checks.outputs.forked_workflow != 'true') }}
+        if: >-
+          inputs.force ||
+          needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Generate secrets for tests
         run: |
           make secrets
+        if: >-
+          inputs.force ||
+          needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Run Tests
         run: make cover
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+        if: >-
+          inputs.force ||
+          needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+        if: >-
+          inputs.force ||
+          (needs.checks.outputs.forked_workflow == 'false' &&
+          (needs.checks.outputs.run_tests == 'true' &&
+          needs.checks.outputs.binary_cache_hit != 'true'))
 
-      - name: Run static check
+  staticcheck:
+    name: Static Check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    needs: checks
+    if: >-
+      inputs.force ||
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit != 'true'
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Generate secrets for tests
+        run: |
+          make secrets
+
+      - name: Run Static Check
         uses: dominikh/staticcheck-action@9716614d4101e79b4340dd97b10e54d68234e431 # v1.4.1
         with:
-          version: "v0.7.0"
+          version: "2026.1" # renovate: datasource=github-releases depName=dominikh/go-tools
           install-go: false
-        if: ${{ needs.checks.outputs.binary_cache_hit != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+          use-cache: true
 
-      - name: Cleanup netrc
-        run: rm -f $HOME/.netrc
-        if: ${{ always() }}
+  govulncheck:
+    name: Vulnerability Check
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    needs: checks
+    if: >-
+      inputs.force ||
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit != 'true'
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Golang Environment
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        with:
+          repo-checkout: false
+          cache: true
 
   build-artifacts:
     name: Build Artifacts
-    needs: [checks, unit-tests, verify-codegen]
+    needs: [checks, unit-tests]
     uses: ./.github/workflows/build-artifacts.yml
     with:
-      force: ${{ needs.checks.outputs.docker_build == 'true' || needs.checks.outputs.binary_cache_hit != 'true' }}
-      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow != 'true') && github.head_ref || github.ref }}
+      force: ${{ needs.checks.outputs.docker_build == 'true' }}
+      branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow == 'false') && github.head_ref || github.ref }}
       tag: ${{ needs.checks.outputs.build_tag }}
       docker-md5: ${{ needs.checks.outputs.docker_md5 }}
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
@@ -352,9 +396,9 @@ jobs:
       image-matrix-plus: ${{ needs.checks.outputs.image_matrix_plus }}
       image-matrix-nap: ${{ needs.checks.outputs.image_matrix_nap }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+      authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       runner: ubuntu-24.04
-      write-to-cache: false
+      write-to-cache: true
     permissions:
       contents: read
       actions: read
@@ -362,15 +406,6 @@ jobs:
       packages: write
       pull-requests: write # for scout report
     secrets: inherit
-
-  #  To pass the build in "Build Binaries" check
-  build-binaries:
-    name: Build Binaries
-    runs-on: ubuntu-24.04
-    needs: [build-artifacts]
-    steps:
-      - name: Report build binaries status
-        run: echo "Build binaries completed successfully via build-artifacts job"
 
   tag-target:
     name: Tag untested image with PR number
@@ -384,10 +419,15 @@ jobs:
       target_tag: ${{ needs.checks.outputs.additional_tag }}
       dry_run: false
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: >-
+      needs.checks.outputs.forked_workflow == 'false' &&
+      (needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true')
 
   package-tests:
-    if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: Package Tests
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -467,7 +507,9 @@ jobs:
         if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
 
   helm-tests:
-    if: ${{ needs.checks.outputs.docs_only != 'true' && (inputs.run_tests && inputs.run_tests || true) }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -537,7 +579,7 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
@@ -545,7 +587,7 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Check if stable image exists
         id: stable_exists
@@ -553,23 +595,23 @@ jobs:
           if docker pull ${{ matrix.image }}:${{ needs.checks.outputs.stable_tag }}; then
             echo "exists=true" >> $GITHUB_OUTPUT
           fi
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Pull build image
         run: |
           docker pull ${{ matrix.image }}:${{ needs.checks.outputs.build_tag }}
-        if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && steps.stable_exists.outputs.exists != 'true' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' && steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Fetch Cached Artifacts
         uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-        if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
@@ -587,7 +629,7 @@ jobs:
           secret-files: |
             ${{ matrix.type == 'plus' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
             ${{ matrix.type == 'plus' && 'nginx-repo.key=nginx-repo.key' || '' }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Deploy Kubernetes
         id: k8s
@@ -598,11 +640,11 @@ jobs:
             docker exec -i ${{ github.run_id }}-control-plane \
               ctr --namespace=k8s.io images import -
           echo "DEBUG: Kind setup complete!"
-        if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Create Plus Secret
         run: kubectl create secret generic license-token --from-literal=license.jwt="${{ steps.secrets.outputs.PLUS_JWT }}" --type="nginx.com/license"
-        if: ${{ matrix.type == 'plus' && steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ matrix.type == 'plus' && steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Install Chart
         run: >
@@ -616,12 +658,12 @@ jobs:
           --set controller.telemetryReporting.enable=false
           --wait
         working-directory: ${{ github.workspace }}/charts/nginx-ingress
-        if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Expose Test Ingresses
         run: |
           kubectl port-forward service/${{ matrix.type }}-nginx-ingress-controller 8080:80 8443:443 &
-        if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Test HTTP
         run: |
@@ -633,7 +675,7 @@ jobs:
             fi
             printf '.'; counter=$(($counter+1)); sleep 5;
           done
-        if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Test HTTPS
         run: |
@@ -645,7 +687,7 @@ jobs:
             fi
             printf '.'; counter=$(($counter+1)); sleep 5;
           done
-        if: ${{ steps.stable_exists.outputs.exists != 'true' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Clean up secrets
         run: |
@@ -653,7 +695,9 @@ jobs:
         if: always()
 
   setup-matrix:
-    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: Setup Matrix for Smoke Tests
     runs-on: ubuntu-24.04
     needs: [build-artifacts, checks]
@@ -683,7 +727,7 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Setup secrets
         id: secrets
@@ -695,7 +739,7 @@ jobs:
           GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$GCR_SERVICE_ACCOUNT"
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -704,7 +748,7 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
         uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
@@ -712,7 +756,7 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Check if test image exists
         id: check-image
@@ -720,7 +764,7 @@ jobs:
           docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}
         shell: bash
         continue-on-error: true
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Build Test-Runner Container
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
@@ -732,10 +776,12 @@ jobs:
           pull: true
           push: ${{ needs.checks.outputs.forked_workflow == 'false' }}
           load: false
-        if: ${{ steps.check-image.outcome == 'failure' && needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ steps.check-image.outcome == 'failure' }}
 
   smoke-tests-oss:
-    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -758,12 +804,14 @@ jobs:
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
       build-tag: ${{ needs.checks.outputs.build_tag }}
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+      authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests && inputs.run_tests || true }}
+      force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   smoke-tests-plus:
-    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -786,12 +834,14 @@ jobs:
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
       build-tag: ${{ needs.checks.outputs.build_tag }}
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+      authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests && inputs.run_tests || true }}
+      force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   smoke-tests-nap:
-    if: ${{ inputs.force || (inputs.run_tests && inputs.run_tests || true) || needs.checks.outputs.docs_only != 'true' }}
+    if: >-
+      needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true'
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -814,9 +864,9 @@ jobs:
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
       build-tag: ${{ needs.checks.outputs.build_tag }}
       stable-tag: ${{ needs.checks.outputs.stable_tag }}
-      authenticated: ${{ needs.checks.outputs.forked_workflow != 'true' }}
+      authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       k8s-version: ${{ matrix.k8s }}
-      force: ${{ inputs.run_tests && inputs.run_tests || true }}
+      force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   tag-stable:
     name: Tag tested image as stable
@@ -830,13 +880,15 @@ jobs:
       target_tag: ${{ needs.checks.outputs.stable_tag }}
       dry_run: false
     secrets: inherit
-    if: ${{ inputs.force || (needs.checks.outputs.forked_workflow == 'true' && needs.checks.outputs.docs_only == 'false') || (needs.checks.outputs.forked_workflow == 'false' && needs.checks.outputs.stable_image_exists != 'true' && needs.checks.outputs.docs_only == 'false') }}
+    if: >-
+      (needs.checks.outputs.forked_workflow == 'false' &&
+      needs.checks.outputs.stable_image_exists != 'true')
 
   final-results:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     name: Final CI Results
-    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests]
+    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
     steps:
       - run: |
           tagResult="${{ needs.tag-stable.result }}"
@@ -846,6 +898,8 @@ jobs:
           smokePlusResult="${{ needs.smoke-tests-plus.result }}"
           smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
           buildArtifactsResult="${{ needs.build-artifacts.result }}"
+          staticcheckResult="${{ needs.staticcheck.result }}"
+          govulncheckResult="${{ needs.govulncheck.result }}"
           if [[ $tagResult != "success" && $tagResult != "skipped" ]]; then
             exit 1
           fi
@@ -867,6 +921,12 @@ jobs:
           if [[ $packageResult != "success" && $packageResult != "skipped" ]]; then
             exit 1
           fi
+          if [[ $staticcheckResult != "success" && $staticcheckResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $govulncheckResult != "success" && $govulncheckResult != "skipped" ]]; then
+            exit 1
+          fi
 
   trigger-image-promotion:
     name: Promote images on Force Run
@@ -882,4 +942,4 @@ jobs:
       pull-requests: write # for scout report
     uses: ./.github/workflows/image-promotion.yml
     secrets: inherit
-    if: ${{ inputs.force }}
+    if: ${{ inputs.force && (github.ref_name == 'main' || startsWith(github.ref_name, 'release-')) }}

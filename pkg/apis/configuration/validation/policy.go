@@ -22,6 +22,7 @@ type PolicyValidationConfig struct {
 	IsPlus           bool
 	EnableOIDC       bool
 	EnableAppProtect bool
+	EnableSnippets   bool
 }
 
 // ValidatePolicy validates a Policy.
@@ -95,6 +96,13 @@ func policyFields() []policyFieldValidator {
 			isSet: func(s *v1.PolicySpec) bool { return s.EgressMTLS != nil },
 			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
 				return validateEgressMTLS(s.EgressMTLS, p.Child("egressMTLS"))
+			},
+		},
+		{
+			name:  "externalAuth",
+			isSet: func(s *v1.PolicySpec) bool { return s.ExternalAuth != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateExternalAuth(s.ExternalAuth, p.Child("externalAuth"), cfg.EnableSnippets)
 			},
 		},
 		{
@@ -181,7 +189,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
 		if cfg.IsPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
@@ -1290,4 +1298,116 @@ func containsDangerousChars(value string) bool {
 		}
 	}
 	return false
+}
+
+func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, enableSnippets bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate AuthSnippets requires enableSnippets
+	if externalAuth.AuthSnippets != "" && !enableSnippets {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("authSnippets"),
+			"snippets must be enabled via cli argument -enable-snippets to use authSnippets"))
+	}
+
+	// Validate AuthURI
+	allErrs = append(allErrs, validateAuthURI(externalAuth.AuthURI, fieldPath.Child("authURI"))...)
+
+	// Validate AuthServiceName
+	parts := strings.Split(externalAuth.AuthServiceName, "/")
+	if len(parts) > 2 || len(parts) < 1 {
+		return field.ErrorList{field.Invalid(fieldPath, externalAuth.AuthServiceName, "service reference must be in the format service-name or namespace/service-name")}
+	}
+	ns := ""
+	if len(parts) == 2 {
+		ns = parts[0]
+	}
+	name := parts[len(parts)-1]
+	if ns != "" {
+		allErrs = append(allErrs, validateDNS1123Label(ns, fieldPath.Child("authServiceName").Child("namespace"))...)
+	}
+	allErrs = append(allErrs, validateServiceName(name, fieldPath.Child("authServiceName").Child("name"))...)
+
+	// Validate AuthServicePorts
+	allErrs = append(allErrs, validateServicePorts(externalAuth.AuthServicePorts, fieldPath.Child("authServicePorts"))...)
+
+	// Validate AuthSigninURI
+	if externalAuth.AuthSigninURI != "" {
+		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninURI, fieldPath.Child("authSigninURI"))...)
+	}
+
+	// Validate AuthSigninRedirectBasePath
+	if externalAuth.AuthSigninRedirectBasePath != "" {
+		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninRedirectBasePath, fieldPath.Child("authSigninRedirectBasePath"))...)
+	}
+
+	// Validate SSL fields
+	allErrs = append(allErrs, validateExternalAuthSSLFields(externalAuth, fieldPath)...)
+
+	return allErrs
+}
+
+// validateExternalAuthSSLFields validates the SSL-related fields of an ExternalAuth policy.
+func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if externalAuth.SSLVerify && !externalAuth.SSLEnabled {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslEnabled must be true when sslVerify is true"))
+	}
+
+	if externalAuth.TrustedCertSecret != "" {
+		if !externalAuth.SSLEnabled {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslEnabled must be true when trustedCertSecret is set"))
+		}
+		if !externalAuth.SSLVerify {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslVerify must be true when trustedCertSecret is set"))
+		}
+		parts := strings.Split(externalAuth.TrustedCertSecret, "/")
+		if len(parts) > 2 || len(parts) < 1 {
+			return field.ErrorList{field.Invalid(fieldPath, externalAuth.TrustedCertSecret, "secret reference must be in the format secret-name or namespace/secret-name")}
+		}
+		ns := ""
+		if len(parts) == 2 {
+			ns = parts[0]
+		}
+		name := parts[len(parts)-1]
+		if ns != "" {
+			allErrs = append(allErrs, validateDNS1123Label(ns, fieldPath.Child("trustedCertSecret").Child("namespace"))...)
+		}
+		allErrs = append(allErrs, validateSecretName(name, fieldPath.Child("trustedCertSecret"))...)
+	}
+
+	if externalAuth.SNIName != "" && containsDangerousChars(externalAuth.SNIName) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniName"), externalAuth.SNIName, "contains invalid characters"))
+	}
+
+	if externalAuth.SSLVerifyDepth != nil {
+		if *externalAuth.SSLVerifyDepth < 0 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerifyDepth"), *externalAuth.SSLVerifyDepth, "must be a non-negative integer"))
+		}
+	}
+
+	return allErrs
+}
+
+// validateServicePorts validates the authServicePorts field to ensure it contains valid port numbers
+func validateServicePorts(ports []int, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	for i, port := range ports {
+		allErrs = append(allErrs, validatePortNumber(strconv.Itoa(port), fieldPath.Index(i))...)
+	}
+	return allErrs
+}
+
+// validateAuthURI validates that the authURI is a valid path and not empty
+func validateAuthURI(authURI string, child *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if authURI == "" {
+		return append(allErrs, field.Required(child, "authURI is required"))
+	}
+
+	allErrs = append(allErrs, validatePath(authURI, child)...)
+
+	return allErrs
 }

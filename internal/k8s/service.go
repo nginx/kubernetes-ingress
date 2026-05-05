@@ -127,12 +127,15 @@ func (a portSort) Less(i, j int) bool {
 }
 
 // addServiceHandler adds the handler for services to the controller
-func (nsi *namespacedInformer) addServiceHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addServiceHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.sharedInformerFactory.Core().V1().Services().Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add Service event handler: %w", err)
+	}
 	nsi.svcLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) error {
@@ -269,5 +272,6 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	resourceExes := lbc.createExtendedResources(resources)
 
 	warnings, updateErr := lbc.configurator.AddOrUpdateResources(resourceExes, true)
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
+	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, warnings, updateErr)
 }

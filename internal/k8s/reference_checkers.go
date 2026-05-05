@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	k8spolicies "github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	networking "k8s.io/api/networking/v1"
@@ -105,30 +106,39 @@ func (rc *secretReferenceChecker) IsReferencedByTransportServer(secretNamespace 
 
 type serviceReferenceChecker struct {
 	hasClusterIP bool
+	// policyServices maps policy keys ("namespace/name") to the raw AuthServiceName
+	// from ExternalAuth policies. This allows service/endpoint changes to be correlated
+	// back to VirtualServers that reference external auth services via policies.
+	policyServices map[string]string
 }
 
-func newServiceReferenceChecker(hasClusterIP bool) *serviceReferenceChecker {
-	return &serviceReferenceChecker{hasClusterIP}
+func newServiceReferenceChecker(hasClusterIP bool, policyServices map[string]string) *serviceReferenceChecker {
+	return &serviceReferenceChecker{hasClusterIP: hasClusterIP, policyServices: policyServices}
 }
 
 func (rc *serviceReferenceChecker) IsReferencedByIngress(svcNamespace string, svcName string, ing *networking.Ingress) bool {
-	if ing.Namespace != svcNamespace {
-		return false
-	}
+	if ing.Namespace == svcNamespace {
 
-	if ing.Spec.DefaultBackend != nil {
-		if ing.Spec.DefaultBackend.Service.Name == svcName {
-			return true
-		}
-	}
-	for _, rules := range ing.Spec.Rules {
-		if rules.IngressRuleValue.HTTP == nil {
-			continue
-		}
-		for _, p := range rules.IngressRuleValue.HTTP.Paths {
-			if p.Backend.Service.Name == svcName {
+		if ing.Spec.DefaultBackend != nil {
+			if ing.Spec.DefaultBackend.Service.Name == svcName {
 				return true
 			}
+		}
+		for _, rules := range ing.Spec.Rules {
+			if rules.HTTP == nil {
+				continue
+			}
+			for _, p := range rules.HTTP.Paths {
+				if p.Backend.Service.Name == svcName {
+					return true
+				}
+			}
+		}
+	}
+
+	if value, exists := ing.Annotations[configs.PoliciesAnnotation]; exists {
+		if rc.isPolicyServiceReferenced(svcNamespace, svcName, k8spolicies.GetPolicyRefsFromAnnotation(value, ing.Namespace), ing.Namespace) {
+			return true
 		}
 	}
 
@@ -140,15 +150,22 @@ func (rc *serviceReferenceChecker) IsReferencedByMinion(svcNamespace string, svc
 }
 
 func (rc *serviceReferenceChecker) IsReferencedByVirtualServer(svcNamespace string, svcName string, vs *conf_v1.VirtualServer) bool {
-	if vs.Namespace != svcNamespace {
-		return false
+	if vs.Namespace == svcNamespace {
+		for _, u := range vs.Spec.Upstreams {
+			if rc.hasClusterIP && u.UseClusterIP {
+				continue
+			}
+			if u.Service == svcName || u.Backup == svcName {
+				return true
+			}
+		}
 	}
 
-	for _, u := range vs.Spec.Upstreams {
-		if rc.hasClusterIP && u.UseClusterIP {
-			continue
-		}
-		if u.Service == svcName || u.Backup == svcName {
+	if rc.isPolicyServiceReferenced(svcNamespace, svcName, vs.Spec.Policies, vs.Namespace) {
+		return true
+	}
+	for _, r := range vs.Spec.Routes {
+		if rc.isPolicyServiceReferenced(svcNamespace, svcName, r.Policies, vs.Namespace) {
 			return true
 		}
 	}
@@ -157,19 +174,47 @@ func (rc *serviceReferenceChecker) IsReferencedByVirtualServer(svcNamespace stri
 }
 
 func (rc *serviceReferenceChecker) IsReferencedByVirtualServerRoute(svcNamespace string, svcName string, vsr *conf_v1.VirtualServerRoute) bool {
-	if vsr.Namespace != svcNamespace {
-		return false
+	if vsr.Namespace == svcNamespace {
+		for _, u := range vsr.Spec.Upstreams {
+			if rc.hasClusterIP && u.UseClusterIP {
+				continue
+			}
+			if u.Service == svcName {
+				return true
+			}
+		}
 	}
 
-	for _, u := range vsr.Spec.Upstreams {
-		if rc.hasClusterIP && u.UseClusterIP {
-			continue
-		}
-		if u.Service == svcName {
+	for _, sr := range vsr.Spec.Subroutes {
+		if rc.isPolicyServiceReferenced(svcNamespace, svcName, sr.Policies, vsr.Namespace) {
 			return true
 		}
 	}
 
+	return false
+}
+
+// isPolicyServiceReferenced checks if any policy in the given list references the specified service
+// via its ExternalAuth configuration.
+func (rc *serviceReferenceChecker) isPolicyServiceReferenced(svcNamespace, svcName string, policies []conf_v1.PolicyReference, ownerNamespace string) bool {
+	if len(rc.policyServices) == 0 {
+		return false
+	}
+	for _, p := range policies {
+		policyNamespace := p.Namespace
+		if policyNamespace == "" {
+			policyNamespace = ownerNamespace
+		}
+		policyKey := policyNamespace + "/" + p.Name
+		authServiceName, exists := rc.policyServices[policyKey]
+		if !exists {
+			continue
+		}
+		resolvedNs, resolvedName := configs.ParseServiceReference(authServiceName, policyNamespace)
+		if resolvedNs == svcNamespace && resolvedName == svcName {
+			return true
+		}
+	}
 	return false
 }
 

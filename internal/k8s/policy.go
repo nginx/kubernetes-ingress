@@ -47,12 +47,15 @@ func createPolicyHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 	}
 }
 
-func (nsi *namespacedInformer) addPolicyHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addPolicyHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().Policies().Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add Policy event handler: %w", err)
+	}
 	nsi.policyLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncPolicy(task task) {
@@ -75,22 +78,38 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 		if err != nil {
 			msg := fmt.Sprintf("Policy %v/%v is invalid and was rejected: %v", pol.Namespace, pol.Name, err)
-			lbc.recorder.Eventf(pol, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
+			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
 
 			if lbc.reportCustomResourceStatusEnabled() {
-				err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateInvalid, "Rejected", msg)
-				if err != nil {
-					nl.Debugf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+				// Defer policy status updates during startup to avoid serial
+				// API calls that block readiness. See flushPendingStatusesAsync().
+				if !lbc.isNginxReady {
+					lbc.pendingStatusPolicies = append(lbc.pendingStatusPolicies, pendingPolicyStatus{
+						pol: pol, state: conf_v1.StateInvalid, reason: "Rejected", message: msg,
+					})
+				} else {
+					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateInvalid, "Rejected", msg)
+					if err != nil {
+						nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+					}
 				}
 			}
 		} else {
 			msg := fmt.Sprintf("Policy %v/%v was added or updated", pol.Namespace, pol.Name)
-			lbc.recorder.Eventf(pol, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
+			lbc.recorder.Event(pol, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
 
 			if lbc.reportCustomResourceStatusEnabled() {
-				err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "AddedOrUpdated", msg)
-				if err != nil {
-					nl.Debugf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+				// Defer policy status updates during startup to avoid serial
+				// API calls that block readiness. See flushPendingStatusesAsync().
+				if !lbc.isNginxReady {
+					lbc.pendingStatusPolicies = append(lbc.pendingStatusPolicies, pendingPolicyStatus{
+						pol: pol, state: conf_v1.StateValid, reason: "AddedOrUpdated", message: msg,
+					})
+				} else {
+					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "AddedOrUpdated", msg)
+					if err != nil {
+						nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+					}
 				}
 			}
 		}
@@ -98,6 +117,19 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	// it is safe to ignore the error
 	namespace, name, _ := ParseNamespaceName(key)
+
+	// Track external auth service references so that service/endpoint changes
+	// for the auth service can be correlated back to VirtualServers that use it.
+	if polExists && lbc.HasCorrectIngressClass(obj) {
+		pol := obj.(*conf_v1.Policy)
+		if pol.Spec.ExternalAuth != nil && pol.Spec.ExternalAuth.AuthServiceName != "" {
+			lbc.configuration.UpdatePolicyServiceRef(namespace, name, pol.Spec.ExternalAuth.AuthServiceName)
+		} else {
+			lbc.configuration.DeletePolicyServiceRef(namespace, name)
+		}
+	} else {
+		lbc.configuration.DeletePolicyServiceRef(namespace, name)
+	}
 
 	resources := lbc.configuration.FindResourcesForPolicy(namespace, name)
 
@@ -122,11 +154,16 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			case pol.Spec.WAF != nil:
 				// WAF policy is supported on Ingress
 				continue
+			case pol.Spec.ExternalAuth != nil:
+				// External Auth policy is supported on Ingress
+			case pol.Spec.EgressMTLS != nil:
+				// Egress MTLS policy is supported on Ingress
+				continue
 			default: // Unsupported policy type on Ingress
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
 					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
 				nl.Error(lbc.Logger, msg)
-				lbc.recorder.Eventf(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
+				lbc.recorder.Event(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
 			}
 		default:
 			continue

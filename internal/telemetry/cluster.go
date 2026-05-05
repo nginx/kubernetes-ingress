@@ -272,6 +272,8 @@ func (c *Collector) PolicyCount() map[string]int {
 			policyCounters["Cache"]++
 		case spec.CORS != nil:
 			policyCounters["CORS"]++
+		case spec.ExternalAuth != nil:
+			policyCounters["ExternalAuth"]++
 		}
 	}
 	return policyCounters

@@ -49,12 +49,15 @@ func createTransportServerHandlers(lbc *LoadBalancerController) cache.ResourceEv
 	}
 }
 
-func (nsi *namespacedInformer) addTransportServerHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addTransportServerHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().TransportServers().Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add TransportServer event handler: %w", err)
+	}
 	nsi.transportServerLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncTransportServer(task task) {
@@ -114,7 +117,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(
 		}
 
 		msg := fmt.Sprintf("TransportServer %s was rejected %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
-		lbc.recorder.Eventf(tsConfig.TransportServer, eventType, eventTitle, msg)
+		lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
 
 		if lbc.reportCustomResourceStatusEnabled() {
 			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
@@ -153,12 +156,20 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 	}
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
-	lbc.recorder.Eventf(tsConfig.TransportServer, eventType, eventTitle, msg)
+	lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
 
 	if lbc.reportCustomResourceStatusEnabled() {
-		err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
-		if err != nil {
-			nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+		// Defer TS status updates during startup to avoid serial API calls
+		// that block readiness. See flushPendingStatusesAsync().
+		if !lbc.isNginxReady {
+			lbc.pendingStatusTSes = append(lbc.pendingStatusTSes, pendingTSStatus{
+				ts: tsConfig.TransportServer, state: state, reason: eventTitle, message: msg,
+			})
+		} else {
+			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
+			if err != nil {
+				nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+			}
 		}
 	}
 }

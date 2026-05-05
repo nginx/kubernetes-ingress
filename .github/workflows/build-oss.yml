@@ -38,6 +38,11 @@ on:
         required: false
         type: boolean
         default: false
+      read-from-cache:
+        description: Whether to read from cache when building images
+        required: false
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -214,7 +219,7 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-from: type=gha,scope=${{ inputs.image }}
+          cache-from: ${{ inputs.read-from-cache && format('type=gha,scope={0}', inputs.image) || '' }}
           cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
           target: goreleaser${{ inputs.authenticated && '-prebuilt' || '' }}
           tags: ${{ steps.meta.outputs.tags }}

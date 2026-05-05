@@ -59,7 +59,7 @@ type ExtDNSOpts struct {
 }
 
 // NewController takes external dns config and return a new External DNS Controller.
-func NewController(opts *ExtDNSOpts) *ExtDNSController {
+func NewController(opts *ExtDNSOpts) (*ExtDNSController, error) {
 	ig := make(map[string]*namespacedInformer)
 
 	rateLimiter := workqueue.DefaultTypedControllerRateLimiter[types.NamespacedName]()
@@ -80,35 +80,41 @@ func NewController(opts *ExtDNSOpts) *ExtDNSController {
 			// no initial namespaces with watched label - skip creating informers for now
 			break
 		}
-		c.newNamespacedInformer(ns)
+		if _, err := c.newNamespacedInformer(ns); err != nil {
+			return nil, fmt.Errorf("failed to create external-dns namespaced informer for namespace %s: %w", ns, err)
+		}
 	}
 
 	c.sync = SyncFnFor(c.recorder, c.client, c.informerGroup)
-	return c
+	return c, nil
 }
 
-func (c *ExtDNSController) newNamespacedInformer(ns string) *namespacedInformer {
+func (c *ExtDNSController) newNamespacedInformer(ns string) (*namespacedInformer, error) {
 	nsi := &namespacedInformer{sharedInformerFactory: k8s_nginx_informers.NewSharedInformerFactoryWithOptions(c.client, c.resync, k8s_nginx_informers.WithNamespace(ns))}
 	nsi.stopCh = make(chan struct{})
 	nsi.vsLister = nsi.sharedInformerFactory.K8s().V1().VirtualServers().Lister()
 	nsi.extdnslister = nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Lister()
 
-	nsi.sharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler( //nolint:errcheck,gosec
+	if _, err := nsi.sharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(
 		&QueuingEventHandler{
 			Queue: c.queue,
 		},
-	)
+	); err != nil {
+		return nil, fmt.Errorf("failed to add VirtualServer event handler: %w", err)
+	}
 
-	nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Informer().AddEventHandler(&BlockingEventHandler{ //nolint:errcheck,gosec
+	if _, err := nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Informer().AddEventHandler(&BlockingEventHandler{
 		WorkFunc: externalDNSHandler(c.queue),
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("failed to add DNSEndpoint event handler: %w", err)
+	}
 
 	nsi.mustSync = append(nsi.mustSync,
 		nsi.sharedInformerFactory.K8s().V1().VirtualServers().Informer().HasSynced,
 		nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Informer().HasSynced,
 	)
 	c.informerGroup[ns] = nsi
-	return nsi
+	return nsi, nil
 }
 
 // Run sets up the event handlers for types we are interested in, as well
@@ -259,10 +265,15 @@ func getNamespacedInformer(ns string, ig map[string]*namespacedInformer) *namesp
 // AddNewNamespacedInformer adds watchers for a new namespace
 func (c *ExtDNSController) AddNewNamespacedInformer(ns string) {
 	l := nl.LoggerFromContext(c.ctx)
-	nl.Debugf(l, "Adding or Updating cert-manager Watchers for Namespace: %v", ns)
+	nl.Debugf(l, "Adding or Updating external-dns Watchers for Namespace: %v", ns)
 	nsi := getNamespacedInformer(ns, c.informerGroup)
 	if nsi == nil {
-		nsi = c.newNamespacedInformer(ns)
+		var err error
+		nsi, err = c.newNamespacedInformer(ns)
+		if err != nil {
+			nl.Errorf(l, "Failed to create external-dns namespaced informer for namespace %s: %v", ns, err)
+			return
+		}
 		nsi.start()
 	}
 	if !cache.WaitForCacheSync(nsi.stopCh, nsi.mustSync...) {
@@ -273,7 +284,7 @@ func (c *ExtDNSController) AddNewNamespacedInformer(ns string) {
 // RemoveNamespacedInformer removes watchers for a namespace we are no longer watching
 func (c *ExtDNSController) RemoveNamespacedInformer(ns string) {
 	l := nl.LoggerFromContext(c.ctx)
-	nl.Debugf(l, "Deleting cert-manager Watchers for Deleted Namespace: %v", ns)
+	nl.Debugf(l, "Deleting external-dns Watchers for Deleted Namespace: %v", ns)
 	nsi := getNamespacedInformer(ns, c.informerGroup)
 	if nsi != nil {
 		nsi.lock.Lock()

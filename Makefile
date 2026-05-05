@@ -29,13 +29,13 @@ GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 REGISTRY                      ?= ## The registry where the image is located.
 PREFIX                        ?= nginx/nginx-ingress ## The name of the image. For example, nginx/nginx-ingress
 TAG                           ?= $(VERSION:v%=%) ## The tag of the image. For example, 2.0.0
-TARGET                        ?= local ## The target of the build. Possible values: local, container, download, and debug
+TARGET                        ?= local ## The target of the build. Possible values: local, container, download, goreleaser, and debug
 PLUS_REPO                     ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
 override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg PACKAGE_REPO=$(PLUS_REPO) ## The options for the docker build command. For example, --pull
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
-# renovate: datasource=docker depName=golangci/golangci-lint
+# renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.11.4 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
 GOIMPORTS_VERSION             ?= v0.44.0 ## The version of goimports to use
@@ -161,8 +161,10 @@ else ifeq ($(strip $(TARGET)),debug)
 	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
 else ifeq ($(strip $(TARGET)),container)
 # Binary is built inside Docker as part of the image build; nothing to do here.
+else ifeq ($(strip $(TARGET)),goreleaser)
+# Binary is built using GoReleaser; nothing to do here.
 else
-	$(error Unknown TARGET "$(TARGET)". Valid values: local, container, download, debug)
+	$(error Unknown TARGET "$(TARGET)". Valid values: local, container, download, goreleaser, debug)
 endif
 
 .PHONY: download-binary-docker

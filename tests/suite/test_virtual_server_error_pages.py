@@ -124,26 +124,19 @@ class TestVSErrorPages:
             ingress_controller_prerequisites.namespace,
         )
         vs_file = f"{TEST_DATA}/virtual-server-error-pages/virtual-server-invalid-openapi.yaml"
-        try:
+        with pytest.raises(ApiException) as exc_info:
             patch_virtual_server_from_yaml(
                 kube_apis.custom_objects, virtual_server_setup.vs_name, vs_file, virtual_server_setup.namespace
             )
-        except ApiException as ex:
-            assert (
-                ex.status == 422
-                and "codes in body must be of type" in ex.body
-                and "redirect.code in body must be of type" in ex.body
-                and "redirect.url in body must be of type" in ex.body
-                and "return.code in body must be of type" in ex.body
-                and "return.type in body must be of type" in ex.body
-                and "return.body in body must be of type" in ex.body
-                and "name in body must be of type" in ex.body
-                and "value in body must be of type" in ex.body
-            )
-        except Exception as ex:
-            pytest.fail(f"An unexpected exception is raised: {ex}")
-        else:
-            pytest.fail("Expected an exception but there was none")
+        assert exc_info.value.status == 422
+        assert "codes in body must be of type" in exc_info.value.body
+        assert "redirect.code in body must be of type" in exc_info.value.body
+        assert "redirect.url in body must be of type" in exc_info.value.body
+        assert "return.code in body must be of type" in exc_info.value.body
+        assert "return.type in body must be of type" in exc_info.value.body
+        assert "return.body in body must be of type" in exc_info.value.body
+        assert "name in body must be of type" in exc_info.value.body
+        assert "value in body must be of type" in exc_info.value.body
 
         wait_before_test(1)
         config_new = get_vs_nginx_template_conf(

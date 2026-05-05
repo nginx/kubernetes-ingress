@@ -46,6 +46,7 @@ func (d *NICResourceCounts) Attributes() []attribute.KeyValue {
 	attrs = append(attrs, attribute.Int64("VariablesRateLimitPolicies", d.VariablesRateLimitPolicies))
 	attrs = append(attrs, attribute.Int64("CachePolicies", d.CachePolicies))
 	attrs = append(attrs, attribute.Int64("CORSPolicies", d.CORSPolicies))
+	attrs = append(attrs, attribute.Int64("ExternalAuthPolicies", d.ExternalAuthPolicies))
 
 	return attrs
 }

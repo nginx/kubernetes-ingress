@@ -16,8 +16,9 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	k8s_validation "k8s.io/apimachinery/pkg/util/validation"
+	k8s_validation "k8s.io/apimachinery/pkg/util/validation" // still used by parseConfigMapOpenTelemetry
 )
 
 const (
@@ -96,6 +97,20 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 	if proxyPassHeaders, exists := GetMapKeyAsStringSlice(cfgm.Data, "proxy-pass-headers", cfgm, ","); exists {
 		cfgParams.ProxyPassHeaders = proxyPassHeaders
+	}
+
+	if addHeader, exists := cfgm.Data["add-header"]; exists {
+		// ConfigMap "add-header" is a global default → http {} context.
+		// Stored in MainAddHeaders so GenerateNginxMainConfig wires it into
+		// MainConfig and the main template renders it at http level.
+		if headers, err := parseAndValidateAddHeaders(addHeader); err != nil {
+			nl.Error(l, fmt.Sprintf("ConfigMap %s/%s: %s, ignoring all add-header entries", cfgm.GetNamespace(), cfgm.GetName(), err))
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue,
+				fmt.Sprintf("ConfigMap %s/%s: %s, ignoring all add-header entries", cfgm.GetNamespace(), cfgm.GetName(), err))
+			configOk = false
+		} else {
+			cfgParams.MainAddHeaders = headers
+		}
 	}
 
 	if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
@@ -393,18 +408,15 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 	// Only run balance validation if auto-adjust is enabled
 	if enableDirectiveAutoadjust {
-		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
-		if err != nil {
-			nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
-		} else {
-			cfgParams.ProxyBuffers = balancedProxyBuffers
-			cfgParams.ProxyBufferSize = balancedProxyBufferSize
-			cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
 
-			if len(modifications) > 0 {
-				for _, modification := range modifications {
-					nl.Infof(l, "Changes made to proxy values: %s", modification)
-				}
+		cfgParams.ProxyBuffers = balancedProxyBuffers
+		cfgParams.ProxyBufferSize = balancedProxyBufferSize
+		cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+
+		if len(modifications) > 0 {
+			for _, modification := range modifications {
+				nl.Infof(l, "Changes made to proxy values: %s", modification)
 			}
 		}
 	}
@@ -1179,6 +1191,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 
 	nginxCfg := &version1.MainConfig{
 		AccessLog:                          config.MainAccessLog,
+		AddHeaders:                         config.MainAddHeaders,
 		DefaultServerAccessLogOff:          config.DefaultServerAccessLogOff,
 		DefaultServerReturn:                config.DefaultServerReturn,
 		DisableIPV6:                        staticCfgParams.DisableIPV6,
@@ -1271,6 +1284,29 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		NginxVersion:            staticCfgParams.NginxVersion,
 	}
 	return nginxCfg
+}
+
+// parseAndValidateAddHeaders parses and validates a comma-separated add-header
+// ConfigMap value. Header names are validated with HTTP header name rules
+// (rendered unquoted in the NGINX template, so an invalid name would corrupt
+// the generated config). Header values are checked for '$', newline, and
+// carriage-return characters ('$' is expanded by NGINX as a variable reference;
+// newlines/carriage-returns break config line structure).
+//
+// On the first invalid entry the function returns an error describing the
+// problem and no headers are returned (all-or-nothing semantics, consistent
+// with how other multi-part ConfigMap keys are handled).
+func parseAndValidateAddHeaders(raw string) ([]version2.AddHeader, error) {
+	parsed := version1.ParseAddHeaders(raw)
+	for _, h := range parsed {
+		if msgs := version1.ValidateAddHeaderName(h.Name); len(msgs) != 0 {
+			return nil, fmt.Errorf("invalid 'add-header' header name %q: %s", h.Name, strings.Join(msgs, "; "))
+		}
+		if msgs := version1.ValidateAddHeaderValue(h.Value); len(msgs) != 0 {
+			return nil, fmt.Errorf("invalid 'add-header' value for header %q: %s", h.Name, strings.Join(msgs, "; "))
+		}
+	}
+	return parsed, nil
 }
 
 // parseStringField is a helper function to parse, validate, and optionally
