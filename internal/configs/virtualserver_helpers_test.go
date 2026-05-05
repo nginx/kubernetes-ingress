@@ -2733,7 +2733,15 @@ func TestGeneratePath(t *testing.T) {
 		},
 		{
 			path:     "=/exact/match",
-			expected: "=/exact/match",
+			expected: "= /exact/match",
+		},
+		{
+			path:     "= /exact/match",
+			expected: "= /exact/match",
+		},
+		{
+			path:     "=\t/exact/match",
+			expected: "= /exact/match",
 		},
 		{
 			path:     `~ *\\.jpg`,

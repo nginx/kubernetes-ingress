@@ -1837,6 +1837,10 @@ func generatePath(path string) string {
 	if strings.HasPrefix(path, "~") {
 		return fmt.Sprintf(`~ "%v"`, strings.TrimLeftFunc(strings.TrimPrefix(path, "~"), unicode.IsSpace))
 	}
+	// Format the exact match with a space between the modifier and the path
+	if strings.HasPrefix(path, "=") {
+		return fmt.Sprintf(`= %v`, strings.TrimLeftFunc(strings.TrimPrefix(path, "="), unicode.IsSpace))
+	}
 
 	return path
 }
