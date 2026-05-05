@@ -298,6 +298,7 @@ common-secrets/api-key-secret-example.yaml
 examples/custom-resources/api-key/api-key-secret.yaml
 common-secrets/api-key-secret.yaml
 examples/custom-resources/rate-limit-tiered-apikey/api-key-secret.yaml
+common-secrets/api-key-secret-route-selector.yaml
 examples/custom-resources/vsr-route-selector-policies/api-key-secret.yaml
 common-secrets/api-key-client-secret-2.yaml
 tests/data/apikey-auth-policy/secret/apikey-secret-2.yaml

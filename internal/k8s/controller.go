@@ -118,6 +118,49 @@ type controllerMetadata struct {
 
 // LoadBalancerController watches Kubernetes API and
 // reconfigures NGINX via NginxController when needed
+
+// Startup performance optimization
+// During the initial queue drain (!isNginxReady), status API calls for each
+// resource are deferred into pending slices instead of being made inline.
+// This avoids O(N) serial API calls that would block readiness
+// for minutes at scale. After NGINX
+// is reloaded and the pod is marked ready, flushPendingStatusesAsync()
+// dispatches all deferred updates in parallel (10 workers) in a background
+// goroutine, so status metadata propagates without blocking traffic serving.
+
+// pendingVSStatus captures deferred VirtualServer status update parameters.
+type pendingVSStatus struct {
+	vs      *conf_v1.VirtualServer
+	state   string
+	reason  string
+	message string
+}
+
+// pendingVSRStatus captures deferred VirtualServerRoute status update parameters.
+type pendingVSRStatus struct {
+	vsr          *conf_v1.VirtualServerRoute
+	state        string
+	reason       string
+	message      string
+	referencedBy []*conf_v1.VirtualServer
+}
+
+// pendingTSStatus captures deferred TransportServer status update parameters.
+type pendingTSStatus struct {
+	ts      *conf_v1.TransportServer
+	state   string
+	reason  string
+	message string
+}
+
+// pendingPolicyStatus captures deferred Policy status update parameters.
+type pendingPolicyStatus struct {
+	pol     *conf_v1.Policy
+	state   string
+	reason  string
+	message string
+}
+
 type LoadBalancerController struct {
 	client                        kubernetes.Interface
 	confClient                    k8s_nginx.Interface
@@ -189,6 +232,16 @@ type LoadBalancerController struct {
 	mgmtConfigMapName             string
 	ShuttingDown                  bool
 	endpointSliceWarnings         map[string]bool // see updateEndpointSliceWarningState
+
+	// Startup status deferral: pending slices accumulate status updates
+	// during the initial queue drain (!isNginxReady). They are snapshotted
+	// and flushed asynchronously by flushPendingStatusesAsync() once the
+	// pod is ready. See the startup block in syncQueue processing.
+	pendingStatusIngresses []networking.Ingress
+	pendingStatusVSes      []pendingVSStatus
+	pendingStatusVSRs      []pendingVSRStatus
+	pendingStatusTSes      []pendingTSStatus
+	pendingStatusPolicies  []pendingPolicyStatus
 }
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -1132,11 +1185,47 @@ func (lbc *LoadBalancerController) sync(task task) {
 	}
 
 	if !lbc.isNginxReady && lbc.syncQueue.Len() == 0 {
+		// Startup sequence: the queue is fully drained and all resources are
+		// in the in-memory model. We now perform the expensive one-time
+		// operations that were deferred during the queue drain to avoid O(N²)
+		// host rebuilds and per-resource status API calls.
+		//
+		// Step 1: CompleteStartup() performs a single rebuildHosts() that
+		// computes the definitive host→resource mapping and detects host
+		// conflicts, orphaned minions, and orphaned VSRs. processProblems()
+		// sets status to Invalid/Warning for those problematic resources.
+		_, problems := lbc.configuration.CompleteStartup()
+		lbc.processProblems(problems)
+
+		// Step 2: Generate all NGINX config files from the accumulated
+		// in-memory state and perform a single NGINX reload.
 		lbc.configurator.EnableReloads()
 		lbc.updateAllConfigs()
 
+		// Step 2b: Sync Prometheus gauges now that the configurator maps
+		// (cnf.ingresses, cnf.virtualServers, cnf.transportServers) have been
+		// populated by updateAllConfigs(). Without this, the gauges stay at 0
+		// until the first post-startup watch event triggers a per-resource
+		// metric update in syncIngress(), syncVirtualServer(), or syncTransportServer().
+		lbc.updateIngressMetrics()
+		if lbc.areCustomResourcesEnabled {
+			lbc.updateVirtualServerMetrics()
+			lbc.updateTransportServerMetrics()
+		}
+
+		// Step 3: Mark ready BEFORE flushing status updates. The pod can
+		// serve traffic as soon as NGINX is reloaded — status metadata
+		// (Ingress IP, CR state) is not required for traffic serving.
+		// This decouples readiness from status API calls, which can take
+		// minutes at scale for leader pod
 		lbc.isNginxReady = true
 		nl.Debug(lbc.Logger, "NGINX is ready")
+
+		// Step 4: Flush deferred status updates in a background goroutine
+		// using a parallel worker pool (10 concurrent API calls). Snapshot
+		// the pending slices and nil the fields so the main goroutine can
+		// safely append new statuses for resources arriving after startup.
+		lbc.flushPendingStatusesAsync()
 	}
 
 	if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
@@ -1288,6 +1377,15 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 				state = conf_v1.StateInvalid
 			}
 
+			// Problem resources (conflicts, orphans, validation failures) are never
+			// deferred into the pending slices, even during startup. The number of
+			// problem resources is bounded by misconfiguration (not total resources),
+			// so the API calls here have negligible startup-time cost.
+			// Deferring them would cause two bugs:
+			//  1. Ingress problems need ClearIngressStatus (remove LB IP), but the
+			//     pending slice only knows how to call UpdateIngressStatus (set LB IP).
+			//  2. A resource queued first as Valid then as Invalid could be applied
+			//     out-of-order by concurrent flush workers.
 			switch obj := p.Object.(type) {
 			case *networking.Ingress:
 				err := lbc.statusUpdater.ClearIngressStatus(*obj)
@@ -1586,6 +1684,13 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 			ings = append(ings, *fm.Ingress)
 		}
 
+		// Defer status updates during startup to avoid serial API calls
+		// that block readiness. See flushPendingStatusesAsync().
+		if !lbc.isNginxReady {
+			lbc.pendingStatusIngresses = append(lbc.pendingStatusIngresses, ings...)
+			return
+		}
+
 		err := lbc.statusUpdater.BulkUpdateIngressStatus(ings)
 		if err != nil {
 			nl.Errorf(lbc.Logger, "error updating ing status: %v", err)
@@ -1620,6 +1725,13 @@ func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig
 	lbc.recorder.Eventf(ingConfig.Ingress, eventType, eventTitle, msg)
 
 	if lbc.reportStatusEnabled() {
+		// Defer status updates during startup to avoid serial API calls
+		// that block readiness. See flushPendingStatusesAsync().
+		if !lbc.isNginxReady {
+			lbc.pendingStatusIngresses = append(lbc.pendingStatusIngresses, *ingConfig.Ingress)
+			return
+		}
+
 		err := lbc.statusUpdater.UpdateIngressStatus(*ingConfig.Ingress)
 		if err != nil {
 			nl.Errorf(lbc.Logger, "error updating ingress status: %v", err)
@@ -1658,9 +1770,17 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 	lbc.recorder.Eventf(vsConfig.VirtualServer, eventType, eventTitle, msg)
 
 	if lbc.reportCustomResourceStatusEnabled() {
-		err := lbc.statusUpdater.UpdateVirtualServerStatus(vsConfig.VirtualServer, state, eventTitle, msg)
-		if err != nil {
-			nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServer %v/%v: %v", vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name, err)
+		// Defer VS status updates during startup to avoid serial API calls
+		// that block readiness. See flushPendingStatusesAsync().
+		if !lbc.isNginxReady {
+			lbc.pendingStatusVSes = append(lbc.pendingStatusVSes, pendingVSStatus{
+				vs: vsConfig.VirtualServer, state: state, reason: eventTitle, message: msg,
+			})
+		} else {
+			err := lbc.statusUpdater.UpdateVirtualServerStatus(vsConfig.VirtualServer, state, eventTitle, msg)
+			if err != nil {
+				nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServer %v/%v: %v", vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name, err)
+			}
 		}
 	}
 
@@ -1689,9 +1809,16 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 
 		if lbc.reportCustomResourceStatusEnabled() {
 			vss := []*conf_v1.VirtualServer{vsConfig.VirtualServer}
-			err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(vsr, vsrState, vsrEventTitle, msg, vss)
-			if err != nil {
-				nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			// Defer VSR status updates during startup. See flushPendingStatusesAsync().
+			if !lbc.isNginxReady {
+				lbc.pendingStatusVSRs = append(lbc.pendingStatusVSRs, pendingVSRStatus{
+					vsr: vsr, state: vsrState, reason: vsrEventTitle, message: msg, referencedBy: vss,
+				})
+			} else {
+				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(vsr, vsrState, vsrEventTitle, msg, vss)
+				if err != nil {
+					nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+				}
 			}
 		}
 	}
@@ -1800,6 +1927,184 @@ func (lbc *LoadBalancerController) reportCustomResourceStatusEnabled() bool {
 	}
 
 	return true
+}
+
+// flushPendingStatuses writes all status updates that were deferred during startup.
+// statusFlushWorkers is the number of parallel goroutines used to flush
+// deferred status updates after startup. 10 workers occupy at most 10
+// concurrency seats under K8s API Priority and Fairness (APF). NIC's service-account
+// requests land in the "workload-low" priority level, which gets a proportional share
+// of those seats. 10 concurrent status writes is well within that budget and
+// will be queued (not rejected) by APF's fair-queuing if the level is busy.
+//
+// Each status update function in status.go has retry-on-conflict logic
+// (fetch fresh copy from API + retry) to handle 409 Conflict errors from
+// stale resourceVersion gracefully.
+//
+// Leader safety: when leader election is enabled, runStatusFlush polls
+// IsLeader() before writing any status. This ensures the flush waits for
+// leadership (up to leaderPollDeadline) rather than skipping CR status
+// writes and relying on OnStartedLeading to compensate.
+const statusFlushWorkers = 10
+
+// leaderPollInterval is how often runStatusFlush checks for leadership.
+const leaderPollInterval = 500 * time.Millisecond
+
+// leaderPollDeadline is the maximum time runStatusFlush will wait for
+// leadership before giving up.
+const leaderPollDeadline = 60 * time.Second
+
+// flushPendingStatusesAsync snapshots all pending status slices, nils the
+// fields on the controller (so the main goroutine can safely reuse them for
+// post-startup resources), and flushes the snapshots in a background
+// goroutine with a bounded parallel worker pool.
+//
+// This is called immediately after isNginxReady is set to true so that the
+// pod is marked Ready (can serve traffic) while status metadata propagates
+// asynchronously.
+//
+// When leader election is enabled, the background goroutine polls for
+// leadership before writing any status. This avoids the need for
+// OnStartedLeading to duplicate the flush logic — the flush goroutine
+// is the single owner of all startup status writes.
+func (lbc *LoadBalancerController) flushPendingStatusesAsync() {
+	// Snapshot and nil: after this point the main goroutine owns the nil
+	// slices and the background goroutine owns the snapshots exclusively.
+	ings := lbc.pendingStatusIngresses
+	lbc.pendingStatusIngresses = nil
+	vses := lbc.pendingStatusVSes
+	lbc.pendingStatusVSes = nil
+	vsrs := lbc.pendingStatusVSRs
+	lbc.pendingStatusVSRs = nil
+	tses := lbc.pendingStatusTSes
+	lbc.pendingStatusTSes = nil
+	pols := lbc.pendingStatusPolicies
+	lbc.pendingStatusPolicies = nil
+
+	go lbc.runStatusFlush(ings, vses, vsrs, tses, pols)
+}
+
+// runStatusFlush dispatches all deferred status updates using a bounded parallel
+// worker pool. It is run in a dedicated goroutine by flushPendingStatusesAsync.
+// When leader election is enabled, it polls for leadership before writing.
+// If the pod never becomes leader within leaderPollDeadline (follower pod),
+// the flush is skipped. OnStartedLeading will handle status whenever
+// leadership is eventually acquired.
+func (lbc *LoadBalancerController) runStatusFlush(
+	ings []networking.Ingress,
+	vses []pendingVSStatus,
+	vsrs []pendingVSRStatus,
+	tses []pendingTSStatus,
+	pols []pendingPolicyStatus,
+) {
+	if lbc.isLeaderElectionEnabled && !lbc.waitForLeadership() {
+		return
+	}
+
+	var wg sync.WaitGroup
+	// Buffered channel acts as a counting semaphore to cap concurrency.
+	sem := make(chan struct{}, statusFlushWorkers)
+
+	if lbc.reportIngressStatus && len(ings) > 0 {
+		nl.Debugf(lbc.Logger, "Flushing %d pending ingress status updates (%d workers)", len(ings), statusFlushWorkers)
+		for i := range ings {
+			ing := ings[i]
+			lbc.launchStatusWorker(sem, &wg, fmt.Sprintf("Ingress %v/%v", ing.Namespace, ing.Name), func() error {
+				return lbc.statusUpdater.UpdateIngressStatus(ing)
+			})
+		}
+	}
+
+	if lbc.areCustomResourcesEnabled {
+		lbc.flushCRStatusWorkers(sem, &wg, vses, vsrs, tses, pols)
+	}
+
+	wg.Wait()
+	nl.Debugf(lbc.Logger, "Background status flush complete: Ingress=%d VS=%d VSR=%d TS=%d Policy=%d",
+		len(ings), len(vses), len(vsrs), len(tses), len(pols))
+}
+
+// waitForLeadership polls IsLeader() every leaderPollInterval until the pod
+// becomes leader or leaderPollDeadline is exceeded. Returns true when leader,
+// false when the deadline expires (follower pod — OnStartedLeading will handle
+// status when leadership is eventually acquired).
+//
+// IsLeader() is goroutine-safe (reads under mutex in the k8s leader elector).
+func (lbc *LoadBalancerController) waitForLeadership() bool {
+	if lbc.leaderElector != nil && lbc.leaderElector.IsLeader() {
+		return true
+	}
+	nl.Debug(lbc.Logger, "Status flush waiting for leader election")
+	deadline := time.After(leaderPollDeadline)
+	ticker := time.NewTicker(leaderPollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-deadline:
+			nl.Warnf(lbc.Logger, "Status flush: leader election deadline exceeded (%v), skipping flush (follower pod). "+
+				"OnStartedLeading will handle status when leadership is acquired.", leaderPollDeadline)
+			return false
+		case <-ticker.C:
+			if lbc.leaderElector != nil && lbc.leaderElector.IsLeader() {
+				nl.Debug(lbc.Logger, "Status flush: leader confirmed, proceeding with status writes")
+				return true
+			}
+		}
+	}
+}
+
+// flushCRStatusWorkers dispatches VS, VSR, TS, and Policy status updates
+// through the shared worker pool.
+func (lbc *LoadBalancerController) flushCRStatusWorkers(
+	sem chan struct{},
+	wg *sync.WaitGroup,
+	vses []pendingVSStatus,
+	vsrs []pendingVSRStatus,
+	tses []pendingTSStatus,
+	pols []pendingPolicyStatus,
+) {
+	for i := range vses {
+		p := vses[i]
+		lbc.launchStatusWorker(sem, wg, fmt.Sprintf("VirtualServer %v/%v", p.vs.Namespace, p.vs.Name), func() error {
+			return lbc.statusUpdater.UpdateVirtualServerStatus(p.vs, p.state, p.reason, p.message)
+		})
+	}
+	for i := range vsrs {
+		p := vsrs[i]
+		lbc.launchStatusWorker(sem, wg, fmt.Sprintf("VirtualServerRoute %v/%v", p.vsr.Namespace, p.vsr.Name), func() error {
+			return lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(p.vsr, p.state, p.reason, p.message, p.referencedBy)
+		})
+	}
+	for i := range tses {
+		p := tses[i]
+		lbc.launchStatusWorker(sem, wg, fmt.Sprintf("TransportServer %v/%v", p.ts.Namespace, p.ts.Name), func() error {
+			return lbc.statusUpdater.UpdateTransportServerStatus(p.ts, p.state, p.reason, p.message)
+		})
+	}
+	for i := range pols {
+		p := pols[i]
+		lbc.launchStatusWorker(sem, wg, fmt.Sprintf("Policy %v/%v", p.pol.Namespace, p.pol.Name), func() error {
+			return lbc.statusUpdater.UpdatePolicyStatus(p.pol, p.state, p.reason, p.message)
+		})
+	}
+	if len(vses) > 0 || len(vsrs) > 0 || len(tses) > 0 || len(pols) > 0 {
+		nl.Debugf(lbc.Logger, "Flushing pending CR status updates (%d workers): VS=%d VSR=%d TS=%d Policy=%d",
+			statusFlushWorkers, len(vses), len(vsrs), len(tses), len(pols))
+	}
+}
+
+// launchStatusWorker acquires one semaphore slot, increments the WaitGroup,
+// and starts a goroutine that calls fn and logs any returned error.
+func (lbc *LoadBalancerController) launchStatusWorker(sem chan struct{}, wg *sync.WaitGroup, resource string, fn func() error) {
+	wg.Add(1)
+	sem <- struct{}{}
+	go func() {
+		defer wg.Done()
+		defer func() { <-sem }()
+		if err := fn(); err != nil {
+			nl.Errorf(lbc.Logger, "error flushing %s status: %v", resource, err)
+		}
+	}()
 }
 
 func (lbc *LoadBalancerController) syncSecret(task task) {

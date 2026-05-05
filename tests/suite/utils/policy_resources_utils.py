@@ -42,7 +42,7 @@ def create_policy_from_yaml(custom_objects: CustomObjectsApi, yaml_manifest, nam
         print(f"Policy created with name '{dep['metadata']['name']}'")
         return dep["metadata"]["name"]
     except ApiException:
-        logging.exception(f"Exception occurred while creating Policy: {dep['metadata']['name']}")
+        logging.error(f"Exception occurred while creating Policy: {dep['metadata']['name']}")
         raise
 
 
