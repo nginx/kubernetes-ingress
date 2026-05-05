@@ -47,6 +47,10 @@ http {
     {{- range $value := .HTTPSnippets}}
     {{$value}}{{- end}}
 
+    {{- range $h := .AddHeaders}}
+    add_header {{$h.Name}} {{ printf "%q" $h.Value }}{{if $h.Always}} always{{end}};
+    {{- end}}
+
     {{if .LogFormat -}}
     log_format  main {{if .LogFormatEscaping}}escape={{ .LogFormatEscaping }} {{end}}
                      {{range $i, $value := .LogFormat -}}
