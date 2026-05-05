@@ -196,14 +196,15 @@ def generate_compat_table_md(json_data, sc_row=None):
     active_rows = []
     expired_rows = []
     for row in rows:
-        eol = row.get("eol_date", "-")
-        if eol and eol != "-":
+        eots = row.get("eots_date", "-")
+        if eots and eots != "-":
             try:
-                eol_date = datetime.strptime(eol, "%b %d, %Y")
-                if now > eol_date:
-                    expired_rows.append((eol_date, row))
+                eots_date = datetime.strptime(eots, "%b %d, %Y")
+                if now > eots_date:
+                    expired_rows.append((eots_date, row))
                     continue
             except ValueError:
+                # End of Technical Support value doesn't match expected date format — keep the row rather than pruning it.
                 pass
         active_rows.append(row)
 
@@ -217,7 +218,7 @@ def generate_compat_table_md(json_data, sc_row=None):
         data_lines.append(
             f"| {row['nic_version']} | {row['k8s_versions']} "
             f"| {row['helm_version']} | {row['operator_version']} "
-            f"| {row['nginx_version']} | {row['eol_date']} |"
+            f"| {row['nginx_version']} | {row['eots_date']} |"
         )
 
     return "\n".join([header, sep, sc_row] + data_lines)
@@ -337,7 +338,7 @@ def freeze_compat_row(json_data, ic_version, current_nic, current_helm, current_
         "helm_version": current_helm,
         "operator_version": current_operator,
         "nginx_version": sr["nginx_version"],
-        "eol_date": "-",
+        "eots_date": "-",
     }
     json_data["nic_k8s"]["rows"].insert(0, frozen)
     print(f"INFO: Frozen compat row for {current_nic}")
