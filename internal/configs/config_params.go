@@ -30,6 +30,7 @@ type ConfigParams struct {
 	LBMethod                               string
 	LocationSnippets                       []string
 	MainAccessLog                          string
+	MainAddHeaders                         []version2.AddHeader
 	MainErrorLogLevel                      string
 	MainHTTPSnippets                       []string
 	MainKeepaliveRequests                  int64
@@ -78,6 +79,7 @@ type ConfigParams struct {
 	ProxyBufferSize                        string
 	ProxyBusyBuffersSize                   string
 	ProxyConnectTimeout                    string
+	AddHeaders                             []version2.AddHeader
 	ProxyHideHeaders                       []string
 	ProxyMaxTempFileSize                   string
 	ProxyPassHeaders                       []string

@@ -2987,6 +2987,132 @@ func TestParseConfigMapWithHTTPRedirectCode(t *testing.T) {
 	}
 }
 
+// TestParseAndValidateAddHeaders unit-tests the helper directly, covering all
+// validation branches without going through ParseConfigMap.
+func TestParseAndValidateAddHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		wantLen int
+		wantErr bool
+	}{
+		// Valid inputs
+		{name: "single header", raw: "X-Frame-Options:DENY", wantLen: 1},
+		{name: "header with always", raw: "X-Frame-Options:DENY:always", wantLen: 1},
+		{name: "multiple headers", raw: "X-Frame-Options:DENY, X-Content-Type-Options:nosniff", wantLen: 2},
+		{name: "empty string", raw: "", wantLen: 0},
+		// Invalid header names
+		{name: "name with space", raw: "X Bad:value", wantErr: true},
+		{name: "name with @", raw: "X-He@der:value", wantErr: true},
+		// Invalid header values
+		{name: "value with $", raw: "X-Header:$nginx_var", wantErr: true},
+		{name: "value with newline", raw: "X-Header:foo\nbar", wantErr: true},
+		{name: "value with carriage return", raw: "X-Header:foo\rbar", wantErr: true},
+		// All-or-nothing: first entry valid, second invalid → error
+		{name: "mixed valid and invalid", raw: "X-Good:ok, X-Bad:$inject", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parseAndValidateAddHeaders(tc.raw)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("want error, got nil (headers: %v)", got)
+				}
+				if len(got) != 0 {
+					t.Errorf("want no headers on error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != tc.wantLen {
+				t.Errorf("want %d headers, got %d: %v", tc.wantLen, len(got), got)
+			}
+		})
+	}
+}
+
+// TestParseConfigMapAddHeader verifies that the ConfigMap "add-header" key populates
+// ConfigParams.MainAddHeaders in the http {} context and does not populate
+// AddHeaders, which is reserved for the nginx.org/add-header annotation in server {} context.
+func TestParseConfigMapAddHeader(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		data            map[string]string
+		wantMainHeaders []string // expected header names in MainAddHeaders
+		wantNoHeaders   bool     // true when key is absent or all entries invalid
+		wantConfigOk    bool
+	}{
+		{
+			name:            "single header without always",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY"},
+			wantMainHeaders: []string{"X-Frame-Options"},
+			wantConfigOk:    true,
+		},
+		{
+			name:            "multiple headers",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY, X-Content-Type-Options:nosniff"},
+			wantMainHeaders: []string{"X-Frame-Options", "X-Content-Type-Options"},
+			wantConfigOk:    true,
+		},
+		{
+			name:          "key absent — MainAddHeaders stays nil",
+			data:          map[string]string{},
+			wantNoHeaders: true,
+			wantConfigOk:  true,
+		},
+		{
+			name:          "invalid header — configOk false, no headers set",
+			data:          map[string]string{"add-header": "X-Bad:$inject"},
+			wantNoHeaders: true,
+			wantConfigOk:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{Data: tc.data}
+			result, configOk := ParseConfigMap(context.Background(), cm,
+				false, false, false, false, false, makeEventLogger())
+
+			if configOk != tc.wantConfigOk {
+				t.Errorf("configOk: want %v, got %v", tc.wantConfigOk, configOk)
+			}
+
+			// ConfigMap "add-header" must populate MainAddHeaders (http {} context).
+			if tc.wantNoHeaders {
+				if len(result.MainAddHeaders) != 0 {
+					t.Errorf("want MainAddHeaders empty, got %v", result.MainAddHeaders)
+				}
+				return
+			}
+
+			if len(result.MainAddHeaders) != len(tc.wantMainHeaders) {
+				t.Fatalf("want %d MainAddHeaders, got %d: %v",
+					len(tc.wantMainHeaders), len(result.MainAddHeaders), result.MainAddHeaders)
+			}
+			for i, want := range tc.wantMainHeaders {
+				if got := result.MainAddHeaders[i].Name; got != want {
+					t.Errorf("MainAddHeaders[%d].Name: want %q, got %q", i, want, got)
+				}
+			}
+
+			// ConfigMap must never populate AddHeaders (annotation path → server {} context).
+			if len(result.AddHeaders) != 0 {
+				t.Errorf("ConfigMap must not populate AddHeaders (server context); got %v", result.AddHeaders)
+			}
+		})
+	}
+}
+
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
 }
