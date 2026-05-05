@@ -69,18 +69,19 @@ jobs:
           echo "::add-mask::$NGINX_PAT"
           echo "NGINX_PAT=$NGINX_PAT" >> "$GITHUB_OUTPUT"
 
-      - name: Check if Actor is a Member of one of the teams
+      - name: Check if actor is authorized for cherry-pick
         if: ${{ steps.branch.outputs.branch }}
-        uses: im-open/is-actor-team-member@6633b6e4d9bd2a6917f976b14c64626902e13805 # v1.2.0
-        with:
-          github-actor: ${{ github.actor }}
-          github-organization: ${{ github.repository_owner}}
-          github-team-slugs: |
-            [
-              "kic",
-              "nginx-docs"
-            ]
-          github-token: ${{ steps.secrets.outputs.NGINX_PAT }}
+        run: |
+          IFS=',' read -ra AUTHORIZED_USERS <<< "${{ vars.CHERRY_PICK_USERS }}"
+          for user in "${AUTHORIZED_USERS[@]}"; do
+            user=$(echo "$user" | xargs)  # trim whitespace
+            if [[ "$user" == "${{ github.actor }}" ]]; then
+              echo "Actor ${{ github.actor }} is authorized"
+              exit 0
+            fi
+          done
+          echo "::error::Actor ${{ github.actor }} is not authorized for cherry-pick"
+          exit 1
 
       - name: Cherry pick into ${{ steps.branch.outputs.branch }}
         if: ${{ steps.branch.outputs.branch }}

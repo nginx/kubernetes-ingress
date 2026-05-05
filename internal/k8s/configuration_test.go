@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -1516,7 +1517,7 @@ func TestMakeVirtualServerRouteInvalidForVirtualServer(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr2, vsr3},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {"default/virtualserverroute-3"}},
-				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0]: Invalid value: \"/\": must start with '/first'"},
+				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0].path: Invalid value: \"/\": must start with '/first'"},
 			},
 		},
 	}
@@ -6274,184 +6275,380 @@ func TestValidateDuplicateVSRPaths(t *testing.T) {
 	}
 }
 
-func TestValidateDuplicateVSRs(t *testing.T) {
+// TestClassifyAndCollectVSRsDuplicateDedup verifies that classifyAndCollectVSRs
+// deduplicates VSRs that are referenced by multiple VS routes, keeping only the
+// first occurrence and emitting a warning for subsequent references.
+// This replaces the former TestValidateDuplicateVSRs which tested a now-removed
+// post-processing step; the dedup now happens during collection.
+func TestClassifyAndCollectVSRsDuplicateDedup(t *testing.T) {
 	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "cafe"
+	)
+
+	vsr := createTestVirtualServerRoute("duplicate-vsr", namespace, host, "/duplicate")
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{Path: "/duplicate", Route: "duplicate-vsr"},
+		{Path: "/duplicate", Route: "duplicate-vsr"},
+	})
+
+	cfg := createTestConfiguration()
+	cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/duplicate-vsr": vsr,
+	}
+
+	col := cfg.classifyAndCollectVSRs(vs)
+
+	if len(col.vsrs) != 1 {
+		t.Errorf("expected 1 VSR after dedup, got %d", len(col.vsrs))
+	}
+	if col.vsrs[0].Name != "duplicate-vsr" {
+		t.Errorf("expected duplicate-vsr, got %s", col.vsrs[0].Name)
+	}
+
+	foundDupWarning := false
+	for _, w := range col.warnings {
+		if strings.Contains(w, "duplicate VirtualServerRoutes") && strings.Contains(w, "duplicate-vsr") {
+			foundDupWarning = true
+		}
+	}
+	if !foundDupWarning {
+		t.Errorf("expected duplicate VSR warning, got warnings: %v", col.warnings)
+	}
+}
+
+// TestBuildVirtualServerRoutesMultipleRegex tests the multi-regex VSR feature: a single VSR
+// may be referenced by multiple regex VS routes, and the validation checks that the VSR's
+// subroutes form an exact set match with the collected VS paths.
+func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		vsrName   = "myroute"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	makeSubroute := func(path string) conf_v1.Route {
+		return conf_v1.Route{
+			Path: path,
+			Action: &conf_v1.Action{
+				Return: &conf_v1.ActionReturn{Body: "ok"},
+			},
+		}
+	}
+
+	makeVSR := func(subroutes []conf_v1.Route) *conf_v1.VirtualServerRoute {
+		return &conf_v1.VirtualServerRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      vsrName,
+				Namespace: namespace,
+			},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				IngressClass: "nginx",
+				Host:         host,
+				Subroutes:    subroutes,
+			},
+		}
+	}
 
 	testCases := []struct {
 		name          string
-		vsName        string
-		vsNamespace   string
-		vsrs          []*conf_v1.VirtualServerRoute
-		expectedVSRs  []*conf_v1.VirtualServerRoute
+		vsRoutes      []conf_v1.Route
+		vsrSubroutes  []conf_v1.Route
+		expectedVSR   bool
 		expectedWarns []string
 	}{
 		{
-			name:        "No duplicate vsrs",
-			vsName:      "cafe",
-			vsNamespace: "default",
-			vsrs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr1",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path1",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path1"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr2",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path2",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path2"},
-								},
-							},
-						},
-					},
-				},
+			name: "two regex VS routes referencing same VSR with matching subroutes",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
+				{Path: "~/api/v2", Route: vsrName},
 			},
-			expectedVSRs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr1",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path1",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path1"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr2",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path2",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path2"},
-								},
-							},
-						},
-					},
-				},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+				makeSubroute("~/api/v2"),
 			},
+			expectedVSR:   true,
 			expectedWarns: nil,
 		},
 		{
-			name:        "Duplicate VSRs",
-			vsName:      "cafe",
-			vsNamespace: "default",
-			vsrs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
+			name: "orphaned VSR subroute not covered by any VS path is rejected",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
 			},
-			expectedVSRs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+				makeSubroute("~/api/v2"),
 			},
+			expectedVSR: false,
 			expectedWarns: []string{
-				fmt.Sprintf("VS %s has duplicate VirtualServerRoutes %s", "default/cafe", "default/duplicate-vsr"),
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes[1].path: Invalid value: "~/api/v2": subroute path '~/api/v2' is not referenced by any VS route; all VSR subroutes must be referenced`,
 			},
 		},
 		{
-			name:          "Empty VSR slice",
-			vsrs:          []*conf_v1.VirtualServerRoute{},
-			expectedVSRs:  []*conf_v1.VirtualServerRoute{},
-			expectedWarns: nil,
+			name: "VS route path not covered by any subroute is rejected",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
+				{Path: "~/api/v2", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+			},
+			expectedVSR: false,
+			expectedWarns: []string{
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes: Invalid value: "subroutes": subroute with path '~/api/v2' is missing; all VS route paths must be covered by VSR subroutes`,
+			},
+		},
+		{
+			name: "non-regex route validates eagerly while regex entry fails independently",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/prefix", Route: vsrName},
+				{Path: "~/regex", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/prefix/sub"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				`VirtualServerRoute default/myroute is invalid: [spec.subroutes: Invalid value: "subroutes": subroute with path '~/regex' is missing; all VS route paths must be covered by VSR subroutes, spec.subroutes[0].path: Invalid value: "/prefix/sub": subroute path '/prefix/sub' is not referenced by any VS route; all VSR subroutes must be referenced]`,
+			},
+		},
+		{
+			name: "duplicate non-regex VS routes referencing same VSR emit warning",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/api", Route: vsrName},
+				{Path: "/api", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/api/v1"),
+				makeSubroute("/api/v2"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				"VS default/myvs has duplicate VirtualServerRoutes default/myroute",
+			},
+		},
+		{
+			name: "duplicate non-regex routes plus regex route — non-regex wins, regex fails independently",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/prefix", Route: vsrName},
+				{Path: "/prefix", Route: vsrName},
+				{Path: "~/regex", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/prefix/sub"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				"VS default/myvs has duplicate VirtualServerRoutes default/myroute",
+				`VirtualServerRoute default/myroute is invalid: [spec.subroutes: Invalid value: "subroutes": subroute with path '~/regex' is missing; all VS route paths must be covered by VSR subroutes, spec.subroutes[0].path: Invalid value: "/prefix/sub": subroute path '/prefix/sub' is not referenced by any VS route; all VSR subroutes must be referenced]`,
+			},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			resultVSRs, warnings := validateDuplicateVSRs(testCase.vsrs, testCase.vsName, testCase.vsNamespace)
-
-			if diff := cmp.Diff(testCase.expectedVSRs, resultVSRs); diff != "" {
-				t.Errorf("validateDuplicateVSRs() returned unexpected VSRs (-want +got):\n%s", diff)
+			configuration := createTestConfiguration()
+			vsr := makeVSR(testCase.vsrSubroutes)
+			configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+				namespace + "/" + vsrName: vsr,
 			}
-			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
-				t.Errorf("validateDuplicateVSRs() returned unexpected warnings (-want +got):\n%s", diff)
+
+			vs := createTestVirtualServerWithRoutes(vsName, host, testCase.vsRoutes)
+			gotVSRs, _, gotWarnings := configuration.buildVirtualServerRoutes(vs)
+
+			wantLen := 0
+			if testCase.expectedVSR {
+				wantLen = 1
+			}
+			if len(gotVSRs) != wantLen {
+				t.Errorf("buildVirtualServerRoutes() returned %d VSRs, want %d", len(gotVSRs), wantLen)
+			} else if testCase.expectedVSR {
+				if diff := cmp.Diff(vsr, gotVSRs[0]); diff != "" {
+					t.Errorf("buildVirtualServerRoutes() returned unexpected VSR (-want +got):\n%s", diff)
+				}
+			}
+			if diff := cmp.Diff(testCase.expectedWarns, gotWarnings); diff != "" {
+				t.Errorf("buildVirtualServerRoutes() returned unexpected warnings (-want +got):\n%s", diff)
 			}
 		})
 	}
+}
+
+// TestRegexVSROutputOrderMatchesVSRouteOrder verifies that when multiple regex VSRs are
+// referenced by a VirtualServer, the output slice preserves VS route definition order.
+// This prevents config churn: without stable ordering, Go map iteration would produce
+// a non-deterministic VSR slice, causing spurious nginx reloads on every reconcile.
+//
+// The test uses two VSRs whose keys are intentionally reverse-alphabetical relative to
+// their VS route order. If the implementation sorted alphabetically (or used raw map
+// iteration), the output would be [vsrA, vsrB] instead of the correct [vsrB, vsrA].
+func TestRegexVSROutputOrderMatchesVSRouteOrder(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	makeVSRWithName := func(name string, subroutes []conf_v1.Route) *conf_v1.VirtualServerRoute {
+		return &conf_v1.VirtualServerRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				IngressClass: "nginx",
+				Host:         host,
+				Subroutes:    subroutes,
+			},
+		}
+	}
+
+	makeSubroute := func(path string) conf_v1.Route {
+		return conf_v1.Route{
+			Path: path,
+			Action: &conf_v1.Action{
+				Return: &conf_v1.ActionReturn{Body: "ok"},
+			},
+		}
+	}
+
+	// VS routes reference vsrB first, then vsrA — intentionally reverse-alphabetical.
+	vsRoutes := []conf_v1.Route{
+		{Path: "~/images/jpg", Route: "vsr-beta"},
+		{Path: "~/api/v1", Route: "vsr-alpha"},
+	}
+
+	vsrBeta := makeVSRWithName("vsr-beta", []conf_v1.Route{
+		makeSubroute("~/images/jpg"),
+	})
+	vsrAlpha := makeVSRWithName("vsr-alpha", []conf_v1.Route{
+		makeSubroute("~/api/v1"),
+	})
+
+	configuration := createTestConfiguration()
+	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/vsr-alpha": vsrAlpha,
+		namespace + "/vsr-beta":  vsrBeta,
+	}
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, vsRoutes)
+
+	// Run the test multiple times to surface non-determinism from map iteration.
+	// With random map order, at least some iterations would produce [vsrAlpha, vsrBeta].
+	for i := 0; i < 20; i++ {
+		gotVSRs, _, gotWarnings := configuration.buildVirtualServerRoutes(vs)
+
+		if len(gotVSRs) != 2 {
+			t.Fatalf("iteration %d: buildVirtualServerRoutes() returned %d VSRs, want 2", i, len(gotVSRs))
+		}
+		// VS route order: vsrBeta (~/images/jpg) at index 0, vsrAlpha (~/api/v1) at index 1.
+		if gotVSRs[0].Name != "vsr-beta" || gotVSRs[1].Name != "vsr-alpha" {
+			t.Fatalf("iteration %d: VSR order should match VS route definition order [vsr-beta, vsr-alpha], got [%s, %s]",
+				i, gotVSRs[0].Name, gotVSRs[1].Name)
+		}
+		if len(gotWarnings) != 0 {
+			t.Errorf("iteration %d: unexpected warnings: %v", i, gotWarnings)
+		}
+	}
+}
+
+// TestBuildVirtualServerRoutesRegexSelector covers the routeSelector flow with regex VS paths.
+// It verifies two scenarios:
+//
+//  1. A regex routeSelector selects a VSR normally — the VSR should be returned.
+//
+//  2. A regex routeSelector selects a VSR that is ALSO referenced by an explicit regex route:
+//     field on the same VS.  This is a duplicate reference, and a duplicate-VSR warning fires.
+func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	// --- Scenario 1: regex routeSelector, no explicit regex route ---
+	// The VSR is matched purely by label selector on a regex VS path.
+	// Expected: 1 VSR returned, no warnings.
+	t.Run("regex routeSelector selects VSR", func(t *testing.T) {
+		t.Parallel()
+
+		vsr := createTestVirtualServerRouteWithLabels(
+			"regex-vsr", namespace, host, "~/api",
+			map[string]string{"app": "regex-app"},
+		)
+		vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+			{
+				Path: "~/api",
+				RouteSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "regex-app"},
+				},
+			},
+		})
+
+		cfg := createTestConfiguration()
+		cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+			namespace + "/regex-vsr": vsr,
+		}
+
+		gotVSRs, _, _ := cfg.buildVirtualServerRoutes(vs)
+
+		if len(gotVSRs) != 1 {
+			t.Errorf("expected 1 VSR, got %d: %v", len(gotVSRs), gotVSRs)
+		}
+	})
+
+	// --- Scenario 2: regex routeSelector + explicit regex route to the same VSR ---
+	// The same VSR is matched by a label selector (on a regex path) AND referenced
+	// by an explicit regex route: field.  This is a duplicate reference, and a
+	// duplicate-VSR warning is expected.
+	t.Run("regex routeSelector plus explicit regex route to same VSR emits duplicate warning", func(t *testing.T) {
+		t.Parallel()
+
+		vsr := createTestVirtualServerRouteWithLabels(
+			"regex-vsr", namespace, host, "~/api",
+			map[string]string{"app": "regex-app"},
+		)
+		vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+			{
+				Path: "~/api",
+				RouteSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "regex-app"},
+				},
+			},
+			{
+				// Explicit regex route to the same VSR.
+				Path:  "~/api",
+				Route: namespace + "/regex-vsr",
+			},
+		})
+
+		cfg := createTestConfiguration()
+		cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+			namespace + "/regex-vsr": vsr,
+		}
+
+		_, _, gotWarnings := cfg.buildVirtualServerRoutes(vs)
+
+		duplicateWarning := false
+		for _, w := range gotWarnings {
+			if strings.Contains(w, "has duplicate VirtualServerRoutes") {
+				duplicateWarning = true
+			}
+		}
+		if !duplicateWarning {
+			t.Errorf("expected a duplicate-VSR warning for the double reference, got warnings: %v", gotWarnings)
+		}
+	})
 }

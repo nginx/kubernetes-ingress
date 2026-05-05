@@ -870,7 +870,10 @@ func ready(lbc *k8s.LoadBalancerController) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Ready")
+		if _, err := fmt.Fprintln(w, "Ready"); err != nil {
+			// Log error but don't fail the handler since status was already written
+			nl.Error(lbc.Logger, "Failed to write readiness response", err)
+		}
 	}
 }
 
@@ -1201,7 +1204,7 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 
 func logEventAndExit(ctx context.Context, eventLog record.EventRecorder, obj pkg_runtime.Object, reason string, err error) {
 	l := nl.LoggerFromContext(ctx)
-	eventLog.Eventf(obj, api_v1.EventTypeWarning, reason, err.Error())
+	eventLog.Event(obj, api_v1.EventTypeWarning, reason, err.Error())
 	time.Sleep(fatalEventFlushTime) // wait for the event to be flushed
 	nl.Fatal(l, err.Error())
 }

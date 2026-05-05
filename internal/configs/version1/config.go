@@ -106,6 +106,7 @@ type Server struct {
 	HSTSBehindProxy        bool
 	ProxyHideHeaders       []string
 	ProxyPassHeaders       []string
+	AddHeaders             []version2.AddHeader
 	Allow                  []string
 	Deny                   []string
 	PoliciesErrorReturn    *version2.Return
@@ -284,6 +285,7 @@ type MainConfig struct {
 	HealthStatusURI                    string
 	HTTP2                              bool
 	HTTPSnippets                       []string
+	AddHeaders                         []version2.AddHeader
 	KeepaliveRequests                  int64
 	KeepaliveTimeout                   string
 	LogFormat                          []string

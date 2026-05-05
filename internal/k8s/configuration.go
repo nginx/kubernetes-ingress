@@ -5,6 +5,7 @@ import (
 	"maps"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -1857,7 +1858,7 @@ func (c *Configuration) validateVSRs(r *conf_v1.Route, vsHost, vsNamespace strin
 		return vsrs, warnings
 	}
 
-	err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, r.Path)
+	err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
 	if err != nil {
 		warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
 		warnings = append(warnings, warning)
@@ -1891,7 +1892,7 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 
 	for vsrKey, vsr := range c.virtualServerRoutes {
 		if sel.Matches(labels.Set(vsr.Labels)) {
-			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, r.Path)
+			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
 				warnings = append(warnings, warning)
@@ -1945,68 +1946,221 @@ func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.V
 	return vsrs, warnings
 }
 
-func validateDuplicateVSRs(vsrs []*conf_v1.VirtualServerRoute, vsName, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
-	var warnings []string
+func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+	// Step 1: Single pass over VS routes — classify each route, collect regex
+	// entries for deferred validation, eagerly validate non-regex/selector routes,
+	// and deduplicate VSR references.
+	collected := c.classifyAndCollectVSRs(vs)
 
-	unique := make(map[string]string)
-	var vsrsToRemove []string
+	// Step 2: Validate regex VSRs with their full set of collected paths.
+	regexVsrs, regexWarnings := c.validateAndBuildRegexVSRs(collected.regexEntries, vs.Spec.Host)
+	vsrs := append(collected.vsrs, regexVsrs...)
+	collected.warnings = append(collected.warnings, regexWarnings...)
 
-	for _, vsr := range vsrs {
+	// Step 3: Remove any duplicate VSR identity that survived steps 1-2.
+	// This can occur when a selector-matched VSR and a named regex route
+	// reference the same VSR.
+	vsrs, dupWarnings := deduplicateVSRSlice(vsrs, vs.Namespace, vs.Name)
+	collected.warnings = append(collected.warnings, dupWarnings...)
 
-		vsrKey := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
-		vsrValue := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
-		if _, exists := unique[vsrKey]; exists {
-			warning := fmt.Sprintf("VS %s has duplicate VirtualServerRoutes %s", fmt.Sprintf("%s/%s", vsNamespace, vsName), vsrValue)
-			warnings = append(warnings, warning)
-			vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
-			continue
-		}
-		unique[vsrKey] = vsrValue
-	}
+	// Step 4: Remove VSRs whose subroutes have conflicting paths.
+	vsrs, pathWarnings := validateDuplicateVSRPaths(vsrs)
+	collected.warnings = append(collected.warnings, pathWarnings...)
 
-	if len(vsrsToRemove) != 0 {
-		for _, vsrToRemove := range vsrsToRemove {
-			for i, vsr := range vsrs {
-				if getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta) == vsrToRemove {
-					vsrs = removeFromVSRSlice(vsrs, i)
-					break
-				}
-			}
-		}
-	}
-	return vsrs, warnings
+	// Step 5: Sync vsrSelectors with the final VSR list.  Any VSR removed by
+	// steps 3-4 must also be removed from vsrSelectors to keep the two structures
+	// consistent.  Empty selector entries are preserved — they signal that the IC
+	// should keep watching for label changes.
+	syncVSRSelectors(collected.vsrSelectors, vsrs)
+
+	return vsrs, collected.vsrSelectors, collected.warnings
 }
 
-func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
-	var vsrs []*conf_v1.VirtualServerRoute
-	var warnings []string
-	vsrSelectors := make(map[string][]string)
+// vsrCollection holds the results of classifyAndCollectVSRs.
+type vsrCollection struct {
+	vsrs         []*conf_v1.VirtualServerRoute
+	regexEntries map[string]*regexVSREntry
+	vsrSelectors map[string][]string
+	warnings     []string
+}
 
-	for _, r := range vs.Spec.Routes {
-		if r.Route != "" {
-			validVsrs, vsrWarnings := c.validateVSRs(&r, vs.Spec.Host, vs.Namespace)
-			vsrs = append(vsrs, validVsrs...)
-			warnings = append(warnings, vsrWarnings...)
-		} else if r.RouteSelector != nil {
-			validVsrs, selectors, vsrWarnings := c.validateVSRSelectors(&r, vs.Spec.Host)
-			vsrs = append(vsrs, validVsrs...)
-			warnings = append(warnings, vsrWarnings...)
-			maps.Copy(vsrSelectors, selectors)
-		}
+// regexVSREntry holds a VSR and all the regex VS paths that reference it.
+type regexVSREntry struct {
+	vsr          *conf_v1.VirtualServerRoute
+	paths        []string // regex paths from VS routes
+	firstSeenIdx int      // index in vs.Spec.Routes of the first route referencing this VSR
+}
+
+// classifyAndCollectVSRs makes a single pass over the VS routes to:
+//   - collect regex named-route entries for deferred multi-path validation
+//   - eagerly validate non-regex named routes and all selector routes
+//   - deduplicate VSR references (same VSR from multiple routes/selectors)
+func (c *Configuration) classifyAndCollectVSRs(vs *conf_v1.VirtualServer) vsrCollection {
+	col := vsrCollection{
+		regexEntries: make(map[string]*regexVSREntry),
+		vsrSelectors: make(map[string][]string),
 	}
 
-	vsrs, duplicateVSRWarnings := validateDuplicateVSRs(vsrs, vs.Name, vs.Namespace)
-	warnings = append(warnings, duplicateVSRWarnings...)
+	regexSeenPaths := make(map[string]map[string]struct{}) // per-VSR dedup of paths
+	seenVSRs := make(map[string]bool)                      // VSR ns/name dedup
 
-	vsrs, pathWarnings := validateDuplicateVSRPaths(vsrs)
-	warnings = append(warnings, pathWarnings...)
+	for i, r := range vs.Spec.Routes {
+		isRegex := strings.HasPrefix(r.Path, "~")
 
-	return vsrs, vsrSelectors, warnings
+		switch {
+		case r.Route != "" && isRegex:
+			col.collectRegexNamedRoute(c, vs, r.Route, r.Path, i, regexSeenPaths)
+		case r.Route != "" && !isRegex:
+			col.collectNonRegexNamedRoute(c, vs, &r, seenVSRs)
+		case r.RouteSelector != nil:
+			col.collectSelectorRoute(c, vs, &r, seenVSRs)
+		}
+	}
+	return col
+}
+
+// collectRegexNamedRoute adds a regex named-route entry for deferred validation.
+// Any resulting duplicate is resolved by deduplicateVSRSlice later.
+func (col *vsrCollection) collectRegexNamedRoute(
+	c *Configuration, vs *conf_v1.VirtualServer,
+	routeName, path string, routeIdx int,
+	regexSeenPaths map[string]map[string]struct{},
+) {
+	vsrKey := routeName
+	if !nsutils.HasNamespace(vsrKey) {
+		vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, routeName)
+	}
+	vsr, exists := c.virtualServerRoutes[vsrKey]
+	if !exists {
+		col.warnings = append(col.warnings, fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey))
+		return
+	}
+	if entry, found := col.regexEntries[vsrKey]; found {
+		if _, seen := regexSeenPaths[vsrKey][path]; !seen {
+			regexSeenPaths[vsrKey][path] = struct{}{}
+			entry.paths = append(entry.paths, path)
+		}
+	} else {
+		col.regexEntries[vsrKey] = &regexVSREntry{vsr: vsr, paths: []string{path}, firstSeenIdx: routeIdx}
+		regexSeenPaths[vsrKey] = map[string]struct{}{path: {}}
+	}
+}
+
+// collectNonRegexNamedRoute validates a non-regex named route eagerly and adds
+// the resulting VSR to the collection, deduplicating by namespace/name.
+func (col *vsrCollection) collectNonRegexNamedRoute(
+	c *Configuration, vs *conf_v1.VirtualServer,
+	r *conf_v1.Route, seenVSRs map[string]bool,
+) {
+	validVsrs, vsrWarnings := c.validateVSRs(r, vs.Spec.Host, vs.Namespace)
+	col.warnings = append(col.warnings, vsrWarnings...)
+	for _, vsr := range validVsrs {
+		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		if seenVSRs[nsName] {
+			col.warnings = append(col.warnings, fmt.Sprintf(
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName))
+			continue
+		}
+		seenVSRs[nsName] = true
+		col.vsrs = append(col.vsrs, vsr)
+	}
+}
+
+// collectSelectorRoute validates a selector route eagerly and adds the
+// resulting VSRs to the collection, deduplicating by namespace/name.
+func (col *vsrCollection) collectSelectorRoute(
+	c *Configuration, vs *conf_v1.VirtualServer,
+	r *conf_v1.Route, seenVSRs map[string]bool,
+) {
+	validVsrs, selectors, vsrWarnings := c.validateVSRSelectors(r, vs.Spec.Host)
+	col.warnings = append(col.warnings, vsrWarnings...)
+	maps.Copy(col.vsrSelectors, selectors)
+	for _, vsr := range validVsrs {
+		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		if seenVSRs[nsName] {
+			col.warnings = append(col.warnings, fmt.Sprintf(
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName))
+			continue
+		}
+		seenVSRs[nsName] = true
+		col.vsrs = append(col.vsrs, vsr)
+	}
+}
+
+// deduplicateVSRSlice removes subsequent occurrences of the same VSR (by
+// namespace/name) from the slice, keeping the first occurrence and emitting a
+// warning for each duplicate dropped.  This handles the rare case where a
+// selector-matched VSR and a regex-named-route VSR turn out to be the same object.
+func deduplicateVSRSlice(vsrs []*conf_v1.VirtualServerRoute, vsNamespace, vsName string) ([]*conf_v1.VirtualServerRoute, []string) {
+	var result []*conf_v1.VirtualServerRoute
+	var warnings []string
+	seen := make(map[string]bool, len(vsrs))
+	for _, vsr := range vsrs {
+		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		if seen[nsName] {
+			warnings = append(warnings, fmt.Sprintf(
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vsNamespace, vsName, nsName))
+			continue
+		}
+		seen[nsName] = true
+		result = append(result, vsr)
+	}
+	return result, warnings
+}
+
+// syncVSRSelectors prunes vsrSelectors to only reference VSRs still present in
+// the final list.  Empty selector entries are preserved for change-tracking.
+func syncVSRSelectors(vsrSelectors map[string][]string, vsrs []*conf_v1.VirtualServerRoute) {
+	finalKeys := make(map[string]bool, len(vsrs))
+	for _, vsr := range vsrs {
+		finalKeys[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = true
+	}
+	for sel, keys := range vsrSelectors {
+		if len(keys) == 0 {
+			continue
+		}
+		var kept []string
+		for _, k := range keys {
+			if finalKeys[k] {
+				kept = append(kept, k)
+			}
+		}
+		if kept == nil {
+			vsrSelectors[sel] = []string{}
+		} else {
+			vsrSelectors[sel] = kept
+		}
+	}
 }
 
 func removeFromVSRSlice(s []*conf_v1.VirtualServerRoute, i int) []*conf_v1.VirtualServerRoute {
-	s[i] = s[len(s)-1]
-	return s[:len(s)-1]
+	return append(s[:i], s[i+1:]...)
+}
+
+func (c *Configuration) validateAndBuildRegexVSRs(entries map[string]*regexVSREntry, vsHost string) ([]*conf_v1.VirtualServerRoute, []string) {
+	type entryWithKey struct {
+		key   string
+		entry *regexVSREntry
+	}
+	sorted := make([]entryWithKey, 0, len(entries))
+	for k, e := range entries {
+		sorted = append(sorted, entryWithKey{k, e})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].entry.firstSeenIdx < sorted[j].entry.firstSeenIdx
+	})
+
+	var vsrs []*conf_v1.VirtualServerRoute
+	var warnings []string
+	for _, ek := range sorted {
+		err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(ek.entry.vsr, vsHost, ek.entry.paths)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("VirtualServerRoute %s is invalid: %v", ek.key, err))
+			continue
+		}
+		vsrs = append(vsrs, ek.entry.vsr)
+	}
+	return vsrs, warnings
 }
 
 // GetTransportServerMetrics returns metrics about TransportServers
