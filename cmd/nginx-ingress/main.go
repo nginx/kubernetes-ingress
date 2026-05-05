@@ -644,13 +644,14 @@ func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childPro
 	var ipRepdDone chan error
 
 	// Do not start AppProtect Plugins when using v5.
-	// For v5, iprepd runs in a separate sidecar container.
 	if *appProtect && !appProtectV5 {
 		aPPluginDone = make(chan error, 1)
 		nginxManager.AppProtectPluginStart(aPPluginDone, *appProtectLogLevel)
 
-		ipRepdDone = make(chan error, 1)
-		nginxManager.IPRepdStart(ipRepdDone)
+		if *appProtectIPIntelligence {
+			ipRepdDone = make(chan error, 1)
+			nginxManager.IPRepdStart(ipRepdDone)
+		}
 	}
 
 	var aPPDosAgentDone chan error

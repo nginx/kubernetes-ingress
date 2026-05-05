@@ -1519,6 +1519,7 @@ spec:
                       type: object
                     type: array
                   ip-intelligence:
+                    type: object
                     x-kubernetes-preserve-unknown-fields: true
                   json-profiles:
                     items:

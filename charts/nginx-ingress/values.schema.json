@@ -484,12 +484,12 @@
             },
             "ipIntelligence": {
               "type": "object",
-              "title": "Configuration for App Protect WAF v5 IP Intelligence",
+              "title": "Configuration for App Protect WAF IP Intelligence",
               "properties": {
                 "enable": {
                   "type": "boolean",
                   "default": false,
-                  "title": "Enable IP Intelligence for App Protect WAF v5",
+                  "title": "Enable IP Intelligence for App Protect WAF",
                   "examples": [
                     false,
                     true
