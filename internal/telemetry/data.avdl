@@ -136,5 +136,8 @@ It is the UID of the `kube-system` Namespace. */
 		/** CORSPolicies is the number of CORS policies managed by NGINX Ingress Controller */
 		long? CORSPolicies = null;
 		
+		/** ExternalAuthPolicies is the number of ExternalAuth policies managed by NGINX Ingress Controller */
+		long? ExternalAuthPolicies = null;
+		
 	}
 }

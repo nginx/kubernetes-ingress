@@ -2684,7 +2684,7 @@ func TestUpdateEndpointSliceWarningState(t *testing.T) {
 func TestUpdateEndpointSliceWarningState_WarningToClearTransition(t *testing.T) {
 	t.Parallel()
 
-	// Verifies the full lifecycle: clean → warning → clean
+	// Verifies the full lifecycle: clean -> warning -> clean
 	lbc := &LoadBalancerController{
 		endpointSliceWarnings: make(map[string]bool),
 		recorder:              record.NewFakeRecorder(10),
@@ -2695,26 +2695,26 @@ func TestUpdateEndpointSliceWarningState_WarningToClearTransition(t *testing.T) 
 	svcResources := []Resource{resource}
 	resourceExes := configs.ExtendedResources{}
 
-	// Step 1: clean → clean (no-op)
+	// Step 1: clean -> clean (no-op)
 	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 1: expected empty map, got %v", lbc.endpointSliceWarnings)
 	}
 
-	// Step 2: clean → warning
+	// Step 2: clean -> warning
 	warningCfg := configs.Warnings{&networking.Ingress{}: {"no endpoints for auth service"}}
 	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, warningCfg)
 	if !lbc.endpointSliceWarnings["Ingress/default/my-ingress"] {
 		t.Fatalf("step 2: expected warning tracked, got %v", lbc.endpointSliceWarnings)
 	}
 
-	// Step 3: warning → clean (recovery)
+	// Step 3: warning -> clean (recovery)
 	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 3: expected empty map after recovery, got %v", lbc.endpointSliceWarnings)
 	}
 
-	// Step 4: clean → clean again (should be silent)
+	// Step 4: clean -> clean again (should be silent)
 	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 4: expected empty map, got %v", lbc.endpointSliceWarnings)
@@ -2854,6 +2854,28 @@ func TestFindPoliciesForSecret(t *testing.T) {
 			},
 		},
 	}
+	extAuthPol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "external-auth-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				TrustedCertSecret: "ext-auth-secret",
+			},
+		},
+	}
+	extAuthCrossNsPol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "external-auth-cross-ns-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				TrustedCertSecret: "other-ns/ext-auth-secret",
+			},
+		},
+	}
 
 	tests := []struct {
 		policies        []*conf_v1.Policy
@@ -2959,6 +2981,41 @@ func TestFindPoliciesForSecret(t *testing.T) {
 			secretName:      "oidc-secret",
 			expected:        []*conf_v1.Policy{oidcPol},
 			msg:             "Find policy in default ns, ignore other types",
+		},
+		{
+			policies:        []*conf_v1.Policy{extAuthPol},
+			secretNamespace: "default",
+			secretName:      "ext-auth-secret",
+			expected:        []*conf_v1.Policy{extAuthPol},
+			msg:             "Find external auth policy in same namespace",
+		},
+		{
+			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
+			secretNamespace: "other-ns",
+			secretName:      "ext-auth-secret",
+			expected:        []*conf_v1.Policy{extAuthCrossNsPol},
+			msg:             "Find external auth policy with cross-namespace secret reference",
+		},
+		{
+			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
+			secretNamespace: "default",
+			secretName:      "ext-auth-secret",
+			expected:        nil,
+			msg:             "Ignore external auth policy when secret namespace does not match cross-namespace reference",
+		},
+		{
+			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
+			secretNamespace: "other-ns",
+			secretName:      "different-secret",
+			expected:        nil,
+			msg:             "Ignore external auth policy when secret name does not match",
+		},
+		{
+			policies:        []*conf_v1.Policy{jwtPol1, extAuthCrossNsPol},
+			secretNamespace: "other-ns",
+			secretName:      "ext-auth-secret",
+			expected:        []*conf_v1.Policy{extAuthCrossNsPol},
+			msg:             "Find cross-namespace external auth policy, ignore other types",
 		},
 	}
 	for _, test := range tests {
@@ -4122,7 +4179,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 	tests := []struct {
 		name              string
 		setupLBC          func(t *testing.T) *LoadBalancerController
-		defaultNamespace  string
 		policies          []*conf_v1.Policy
 		initialEndpoints  map[string][]string
 		expectedEndpoints map[string][]string
@@ -4130,30 +4186,26 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 		{
 			name:              "nil policies produces no endpoints",
 			setupLBC:          func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
-			defaultNamespace:  "default",
 			policies:          nil,
 			expectedEndpoints: map[string][]string{},
 		},
 		{
 			name:              "empty policies slice produces no endpoints",
 			setupLBC:          func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
-			defaultNamespace:  "default",
 			policies:          []*conf_v1.Policy{},
 			expectedEndpoints: map[string][]string{},
 		},
 		{
-			name:             "policy with nil ExternalAuth is skipped",
-			setupLBC:         func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
-			defaultNamespace: "default",
+			name:     "policy with nil ExternalAuth is skipped",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
 			policies: []*conf_v1.Policy{
 				{ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"}, Spec: conf_v1.PolicySpec{}},
 			},
 			expectedEndpoints: map[string][]string{},
 		},
 		{
-			name:             "policy with empty AuthServiceName is skipped",
-			setupLBC:         func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
-			defaultNamespace: "default",
+			name:     "policy with empty AuthServiceName is skipped",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
@@ -4167,7 +4219,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4183,7 +4234,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4196,9 +4246,8 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			},
 		},
 		{
-			name:             "service not found is handled gracefully",
-			setupLBC:         func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
-			defaultNamespace: "default",
+			name:     "service not found is handled gracefully",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4214,7 +4263,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{ObjectMeta: meta_v1.ObjectMeta{Name: "p-nil", Namespace: "default"}, Spec: conf_v1.PolicySpec{}},
 				{
@@ -4235,7 +4283,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-1", Namespace: "default"},
@@ -4255,7 +4302,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4292,7 +4338,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				}
 				return buildLBC(t, "custom-ns", []*api_v1.Service{svc}, []*discovery_v1.EndpointSlice{es})
 			},
-			defaultNamespace: "custom-ns",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "custom-ns"},
@@ -4342,7 +4387,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				}
 				return buildLBC(t, "default", []*api_v1.Service{svcA, svcB}, []*discovery_v1.EndpointSlice{esA, esB})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-a-pol", Namespace: "default"},
@@ -4363,7 +4407,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "good", Namespace: "default"},
@@ -4384,7 +4427,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4404,7 +4446,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4425,7 +4466,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4445,7 +4485,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4465,7 +4504,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{authSvc, multiPortSvc}, []*discovery_v1.EndpointSlice{authES80, multiPortES80, multiPortES9000})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "policy-with-ports", Namespace: "default"},
@@ -4490,7 +4528,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			setupLBC: func(t *testing.T) *LoadBalancerController {
 				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
@@ -4533,7 +4570,6 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				// Use "" as namespace key to simulate watching all namespaces (global informer)
 				return buildLBC(t, "", []*api_v1.Service{crossNsSvc}, []*discovery_v1.EndpointSlice{crossNsES})
 			},
-			defaultNamespace: "default",
 			policies: []*conf_v1.Policy{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{Name: "ext-auth-policy", Namespace: "default"},
@@ -4560,7 +4596,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				endpoints[k] = v
 			}
 
-			lbc.generateExternalAuthEndpoints(tc.policies, tc.defaultNamespace, endpoints)
+			lbc.generateExternalAuthEndpoints(tc.policies, endpoints)
 
 			if len(endpoints) != len(tc.expectedEndpoints) {
 				t.Fatalf("expected %d endpoint entries, got %d: %v", len(tc.expectedEndpoints), len(endpoints), endpoints)

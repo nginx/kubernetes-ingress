@@ -79,7 +79,7 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
                         command,
                         entrypoint="",
                         platform=platform,
-                        auto_remove=True,
+                        remove=True,
                         detach=False,
                     )
                 except (docker.errors.ContainerError, docker.errors.NotFound) as e:
@@ -89,7 +89,7 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
                         command,
                         entrypoint="",
                         platform=platform,
-                        auto_remove=True,
+                        remove=True,
                         detach=False,
                     )
                 result = re.search(regex, output.decode("utf-8").strip())

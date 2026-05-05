@@ -271,15 +271,15 @@ func applyBufferSizeConstraints(proxyBufferSizeBytes, proxyBusyBuffersBytes, buf
 //
 // This function now works with string inputs and returns string outputs.
 // Proxy buffer format is always "number size" separated by a space.
-func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, autoadjust bool) (string, string, string, []string, error) {
+func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, autoadjust bool) (string, string, string, []string) {
 	if !autoadjust {
-		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, []string{"auto adjust is turned off, no changes have been made to the proxy values"}, nil
+		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, []string{"auto adjust is turned off, no changes have been made to the proxy values"}
 	}
 
 	modifications := make([]string, 0)
 
 	if proxyBuffers == "" && proxyBufferSize == "" && proxyBusyBuffers == "" {
-		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications, nil
+		return proxyBuffers, proxyBufferSize, proxyBusyBuffers, modifications
 	}
 
 	// Parse proxy buffers or use defaults
@@ -312,21 +312,21 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 	proxyBusyBuffersStr := bytesToSizeString(proxyBusyBuffersBytes)
 
 	resultProxyBuffers := fmt.Sprintf("%d %s", bufferNumber, bufferSizeStr)
-	return resultProxyBuffers, proxyBufferSizeStr, proxyBusyBuffersStr, modifications, nil
+	return resultProxyBuffers, proxyBufferSizeStr, proxyBusyBuffersStr, modifications
 }
 
 // BalanceProxiesForUpstreams balances the proxy buffer settings for an Upstream
 // struct. The only reason for this function is to convert between the data type
 // in the Upstream struct and the data types used in the balancing logic and
 // back.
-func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
+func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) {
 	if in.ProxyBuffers == nil {
-		return nil
+		return
 	}
 
 	// When autoadjust is disabled, don't change anything - leave it broken!
 	if !autoadjust {
-		return nil
+		return
 	}
 
 	pb, err := newNumberSizeConfig(fmt.Sprintf("%d %s", in.ProxyBuffers.Number, in.ProxyBuffers.Size), autoadjust)
@@ -347,10 +347,7 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 		pbbs = "4k"
 	}
 
-	balancedPB, balancedPBS, balancedPBBS, _, err := BalanceProxyValues(pb, pbs, pbbs, autoadjust)
-	if err != nil {
-		return fmt.Errorf("error balancing proxy values: %w", err)
-	}
+	balancedPB, balancedPBS, balancedPBBS, _ := BalanceProxyValues(pb, pbs, pbbs, autoadjust)
 
 	// Parse the balanced proxy buffers string back to struct
 	if balancedPB != "" {
@@ -368,6 +365,4 @@ func BalanceProxiesForUpstreams(in *conf_v1.Upstream, autoadjust bool) error {
 
 	in.ProxyBufferSize = balancedPBS
 	in.ProxyBusyBuffersSize = balancedPBBS
-
-	return nil
 }
