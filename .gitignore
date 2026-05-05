@@ -125,6 +125,8 @@ tests/data/tls/new-tls-secret.yaml
 tests/data/virtual-server-tls/new-tls-secret.yaml
 common-secrets/tls-secret-default.yaml
 examples/shared-examples/default-server-secret/default-server-secret.yaml
+examples/ingress-resources/empty-host/default-server-secret.yaml
+examples/ingress-resources/empty-host-mergeable/default-server-secret.yaml
 tests/data/common/default-server-secret.yaml
 common-secrets/tls-secret-grpc.yaml
 tests/data/common/app/secure/secret/grpc-secret.yaml
