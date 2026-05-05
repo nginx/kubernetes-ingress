@@ -8,9 +8,9 @@ attrs==26.1.0 \
     --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309 \
     --hash=sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32
     # via -r requirements.in
-cachetools==7.0.6 \
-    --hash=sha256:4e94956cfdd3086f12042cdd29318f5ced3893014f7d0d059bf3ead3f85b7f8b \
-    --hash=sha256:e5d524d36d65703a87243a26ff08ad84f73352adbeafb1cde81e207b456aaf24
+cachetools==7.1.1 \
+    --hash=sha256:0335cd7a0952d2b22327441fb0628139e234c565559eeb91a8a4ac7551c5353d \
+    --hash=sha256:27bdf856d68fd3c71c26c01b5edc312124ed427524d1ddb31aa2b7746fe20d4b
     # via
     #   -r requirements.in
     #   google-auth
@@ -718,9 +718,9 @@ PyJWT==2.12.1 \
     --hash=sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c \
     --hash=sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b
     # via -r requirements.in
-pyOpenSSL==26.1.0 \
-    --hash=sha256:115563879b2c8ccb207975705d3e491434d8c9d7c79667c902ecbf5f3bbd2ece \
-    --hash=sha256:737f0a2275c5bc54f3b02137687e1a765931fb3949b9a92a825e4d33b9eec08b
+pyOpenSSL==26.2.0 \
+    --hash=sha256:4f9d971bc5298b8bc1fab282803da04bf000c755d4ad9d99b52de2569ca19a70 \
+    --hash=sha256:8c6fcecd1183a7fc897548dfe388b0cdb7f37e018200d8409cf33959dbe35387
     # via -r requirements.in
 pyparsing==3.3.2 \
     --hash=sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d \
