@@ -6322,6 +6322,70 @@ func TestValidateDuplicateVSRPaths(t *testing.T) {
 				"path ~ /foo has conflicting subroutes on default/vsr2 and default/vsr1",
 			},
 		},
+		{
+			name: "Longest-prefix paths differing only by whitespace are normalized duplicates",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~/static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-static"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~ /static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr2-static"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~/static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-static"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path ^~ /static has conflicting subroutes on default/vsr2 and default/vsr1",
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
