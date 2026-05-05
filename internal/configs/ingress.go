@@ -23,7 +23,10 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 )
 
-const emptyHost = ""
+const (
+	emptyHost     = ""
+	minionContext = "minion"
+)
 
 // AppProtectResources holds namespace names of App Protect resources relevant to an Ingress
 type AppProtectResources struct {
@@ -311,6 +314,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	var policyCfg policiesCfg
 	if len(policyRefs) > 0 {
 		var warnings Warnings
+		pathContext := specContext
 		ownerDetails := policyOwnerDetails{
 			owner:           ncp.ingEx.Ingress,
 			ownerName:       ncp.ingEx.Ingress.Name,
@@ -322,13 +326,14 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		if ncp.isMinion {
 			ownerDetails.parentName = ncp.mergeableIngs.Master.Ingress.Name
 			ownerDetails.parentNamespace = ncp.mergeableIngs.Master.Ingress.Namespace
+			pathContext = minionContext
 		}
 		policyCfg, warnings = generatePolicies(
 			ncp.BaseCfgParams.Context,
 			ownerDetails,
 			policyRefs,
 			ncp.ingEx.Policies,
-			"spec",
+			pathContext,
 			"",
 			policyOptions{
 				tls:             ncp.ingEx.Ingress.Spec.TLS != nil,
@@ -342,26 +347,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			bundleValidator,
 		)
 		allWarnings.Add(warnings)
-	}
-
-	// Check if IngressMTLS policy is being attached to a minion Ingress
-	if ncp.isMinion {
-		for _, ref := range policyRefs {
-			ns := ref.Namespace
-			if ns == "" {
-				ns = ncp.ingEx.Ingress.Namespace
-			}
-			key := fmt.Sprintf("%s/%s", ns, ref.Name)
-			if pol, exists := ncp.ingEx.Policies[key]; exists && pol.Spec.IngressMTLS != nil {
-				allWarnings.AddWarningf(
-					ncp.ingEx.Ingress,
-					"IngressMTLS policy %s is not allowed on minion Ingress; it must be attached to the master Ingress only",
-					key,
-				)
-				policyCfg.ErrorReturn = &version2.Return{Code: 500}
-				break
-			}
-		}
 	}
 
 	apResources, appProtectWarnings := resolveIngressAppProtectResources(ncp.ingEx, ncp.apResources, policyCfg)

@@ -1059,7 +1059,7 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithIngressMTLSPolicy(t *tes
 		t.Fatal("coffee minion location not found in result")
 	}
 
-	const expectedWarning = "IngressMTLS policy default/ingress-mtls-policy is not allowed on minion Ingress"
+	const expectedWarning = "IngressMTLS policy default/ingress-mtls-policy is not allowed in the minion context"
 	if !warningsContain(resultWarnings, expectedWarning) {
 		t.Fatalf("expected warning containing %q, got %v", expectedWarning, resultWarnings)
 	}

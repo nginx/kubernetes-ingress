@@ -427,13 +427,13 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	secretRefs map[string]*secrets.SecretReference,
 ) *validationResults {
 	res := newValidationResults()
-	if !tls {
-		res.addWarningf("TLS must be enabled for IngressMTLS policy %s", polKey)
+	if context != specContext {
+		res.addWarningf("IngressMTLS policy %s is not allowed in the %v context", polKey, context)
 		res.isError = true
 		return res
 	}
-	if context != specContext {
-		res.addWarningf("IngressMTLS policy %s is not allowed in the %v context", polKey, context)
+	if !tls {
+		res.addWarningf("TLS must be enabled for IngressMTLS policy %s", polKey)
 		res.isError = true
 		return res
 	}

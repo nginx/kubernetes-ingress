@@ -3168,6 +3168,42 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: false,
+			},
+			context: "minion",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`IngressMTLS policy default/ingress-mtls-policy is not allowed in the minion context`,
+				},
+			},
+			msg: "ingress mtls on minion ingress",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "ingress-mtls-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ingress-mtls-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "ingress-mtls-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						IngressMTLS: &conf_v1.IngressMTLS{
+							ClientCertSecret: "ingress-mtls-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				tls: false,
 				secretRefs: map[string]*secrets.SecretReference{
 					"default/ingress-mtls-secret": {
 						Secret: &api_v1.Secret{
@@ -3177,7 +3213,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					},
 				},
 			},
-			context: "route",
+			context: "spec",
 			expected: policiesCfg{
 				ErrorReturn: &version2.Return{
 					Code: 500,
