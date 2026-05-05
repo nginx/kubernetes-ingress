@@ -29,6 +29,9 @@ func TestNormalizePath(t *testing.T) {
 		{input: "=/exact", expected: "=/exact", msg: "exact without space"},
 		{input: "^~ /images", expected: "^~/images", msg: "longest prefix with space"},
 		{input: "^~/images", expected: "^~/images", msg: "longest prefix without space"},
+		{input: "~\u00a0/api", expected: "~/api", msg: "regex with non-breaking space (U+00A0)"},
+		{input: "^~\u00a0/images", expected: "^~/images", msg: "longest prefix with non-breaking space (U+00A0)"},
+		{input: "=\u00a0/exact", expected: "=/exact", msg: "exact with non-breaking space (U+00A0)"},
 	}
 
 	for _, test := range tests {
