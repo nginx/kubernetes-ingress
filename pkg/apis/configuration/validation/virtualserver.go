@@ -1708,7 +1708,7 @@ func (vsv *VirtualServerValidator) validateSubroutesExact(routes []v1.Route, fie
 	if len(routes) != 1 {
 		return field.ErrorList{field.Invalid(fieldPath, "subroutes", "must have only one subroute if exact match is being used")}
 	}
-	if routes[0].Path != vsPath {
+	if NormalizePath(routes[0].Path) != NormalizePath(vsPath) {
 		return field.ErrorList{field.Invalid(fieldPath.Index(0).Child("path"), routes[0].Path,
 			fmt.Sprintf("must have the same path as the referenced VirtualServer route path '%s'", vsPath))}
 	}
