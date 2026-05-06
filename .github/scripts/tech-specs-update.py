@@ -191,7 +191,7 @@ def generate_compat_table_md(json_data, sc_row=None):
             f"| {sr['nginx_version']} | - |"
         )
 
-    # EOL pruning
+    # EOTS pruning
     now = datetime.now()
     active_rows = []
     expired_rows = []
@@ -205,7 +205,9 @@ def generate_compat_table_md(json_data, sc_row=None):
                     continue
             except ValueError:
                 # End of Technical Support value doesn't match expected date format — keep the row rather than pruning it.
-                pass
+                print(
+                    f"WARNING: Could not parse End of Technical Support date '{eots}' for NIC version '{row.get('nic_version', 'unknown')}', keeping row"
+                )
         active_rows.append(row)
 
     # Keep the most recently expired row as a migration reference
