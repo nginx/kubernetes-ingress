@@ -119,7 +119,8 @@ func TestSync(t *testing.T) {
 				Issuer: "issuer-name", CommonName: "my-cn",
 			}),
 			CertificateLister: []runtime.Object{
-				buildCertificate("incorrect-cert",
+				buildCertificate(
+					"incorrect-cert",
 					gen.DefaultTestNamespace,
 					buildVsOwnerReferences("vs-name", gen.DefaultTestNamespace, "incorrect-cert"),
 				),
@@ -457,7 +458,8 @@ func TestSync(t *testing.T) {
 			allCMObjects = append(allCMObjects, test.CertificateLister...)
 			var expectedActions []testpkg.Action
 			for _, cr := range test.ExpectedCreate {
-				expectedActions = append(expectedActions,
+				expectedActions = append(
+					expectedActions,
 					testpkg.NewAction(coretesting.NewCreateAction(
 						cmapi.SchemeGroupVersion.WithResource("certificates"),
 						cr.Namespace,
@@ -466,7 +468,8 @@ func TestSync(t *testing.T) {
 				)
 			}
 			for _, cr := range test.ExpectedUpdate {
-				expectedActions = append(expectedActions,
+				expectedActions = append(
+					expectedActions,
 					testpkg.NewAction(coretesting.NewUpdateAction(
 						cmapi.SchemeGroupVersion.WithResource("certificates"),
 						cr.Namespace,
