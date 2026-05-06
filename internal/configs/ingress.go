@@ -23,7 +23,10 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 )
 
-const emptyHost = ""
+const (
+	emptyHost     = ""
+	minionContext = "minion"
+)
 
 // AppProtectResources holds namespace names of App Protect resources relevant to an Ingress
 type AppProtectResources struct {
@@ -311,6 +314,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	var policyCfg policiesCfg
 	if len(policyRefs) > 0 {
 		var warnings Warnings
+		pathContext := specContext
 		ownerDetails := policyOwnerDetails{
 			owner:           ncp.ingEx.Ingress,
 			ownerName:       ncp.ingEx.Ingress.Name,
@@ -322,13 +326,14 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		if ncp.isMinion {
 			ownerDetails.parentName = ncp.mergeableIngs.Master.Ingress.Name
 			ownerDetails.parentNamespace = ncp.mergeableIngs.Master.Ingress.Namespace
+			pathContext = minionContext
 		}
 		policyCfg, warnings = generatePolicies(
 			ncp.BaseCfgParams.Context,
 			ownerDetails,
 			policyRefs,
 			ncp.ingEx.Policies,
-			"spec",
+			pathContext,
 			"",
 			policyOptions{
 				tls:             ncp.ingEx.Ingress.Spec.TLS != nil,
@@ -413,6 +418,18 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
 		allWarnings.Add(warnings)
+
+		if policyCfg.IngressMTLS != nil {
+			if server.SSL {
+				server.IngressMTLS = policyCfg.IngressMTLS
+			} else {
+				allWarnings.AddWarningf(
+					ncp.ingEx.Ingress,
+					"IngressMTLS policy is ignored for host %q because TLS is not enabled for that host",
+					rule.Host,
+				)
+			}
+		}
 
 		if hasAppProtect {
 			if apResources != nil {

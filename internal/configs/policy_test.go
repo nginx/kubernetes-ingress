@@ -3168,6 +3168,42 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: false,
+			},
+			context: "minion",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`IngressMTLS policy default/ingress-mtls-policy is not allowed in the minion context`,
+				},
+			},
+			msg: "ingress mtls on minion ingress",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "ingress-mtls-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ingress-mtls-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "ingress-mtls-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						IngressMTLS: &conf_v1.IngressMTLS{
+							ClientCertSecret: "ingress-mtls-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				tls: false,
 				secretRefs: map[string]*secrets.SecretReference{
 					"default/ingress-mtls-secret": {
 						Secret: &api_v1.Secret{
@@ -3177,7 +3213,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					},
 				},
 			},
-			context: "route",
+			context: "spec",
 			expected: policiesCfg{
 				ErrorReturn: &version2.Return{
 					Code: 500,
@@ -3185,7 +3221,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`TLS must be enabled in VirtualServer for IngressMTLS policy default/ingress-mtls-policy`,
+					`TLS must be enabled for IngressMTLS policy default/ingress-mtls-policy`,
 				},
 			},
 			msg: "ingress mtls missing TLS config",
@@ -3242,6 +3278,43 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "ingress mtls ca.crl and ingressMTLS.Crl set",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "ingress-mtls-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ingress-mtls-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "ingress-mtls-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						IngressMTLS: &conf_v1.IngressMTLS{
+							ClientCertSecret: "ingress-mtls-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				tls:        true,
+				secretRefs: map[string]*secrets.SecretReference{},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`IngressMTLS policy "default/ingress-mtls-policy" references an invalid secret default/ingress-mtls-secret: secret doesn't exist`,
+				},
+			},
+			msg: "ingress mtls absent secret ref",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
