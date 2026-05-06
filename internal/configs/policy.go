@@ -104,7 +104,7 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 }
 
 // IsPolicySupportedOnIngress reports whether the given policy type is supported
-// on Ingress resources. Only AccessControl and CORS policies are supported on Ingress.
+// on Ingress resources.
 // This is the single source of truth for the Ingress policy allowlist and must be kept
 // in sync with any callers that filter policies for Ingress resources (e.g. syncPolicy).
 // To add support for a new policy type on Ingress, add its Spec field to this function.
