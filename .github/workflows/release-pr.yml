@@ -20,19 +20,19 @@ on:
       k8s_versions:
         description: "Kubernetes versions this release was tested on"
         required: true
-        default: "1.27 - 1.34"
+        default: "1.28 - 1.35"
       new_nginx_version:
         description: "Nginx version to release"
         required: true
-        default: "1.29.3 / R36"
+        default: "1.29.8 / R36 P3"
       nap_version:
-        description: "NAP versions (comma-separated: waf_version,waf_release_version) - leave empty to skip NAP update"
+        description: "NAP versions (comma-separated: waf_version, waf_release_version) - leave empty to skip NAP update"
         required: false
-        default: "36+5.607.0, 5.12.0"
+        default: "36+5.607.0, 5.12.1"
       release_date:
-        description: "Date for this release"
+        description: "Date for this release (D MMM YYYY)"
         required: true
-        default: "%d %b %Y"
+        default: "6 May 2026"
       dry_run:
         description: "Don't create any PR's"
         type: boolean
