@@ -3311,7 +3311,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`IngressMTLS policy "default/ingress-mtls-policy" references an invalid secret default/ingress-mtls-secret: secret doesn't exist`,
+					`IngressMTLS policy "default/ingress-mtls-policy" references a non-existent secret default/ingress-mtls-secret`,
 				},
 			},
 			msg: "ingress mtls absent secret ref",
