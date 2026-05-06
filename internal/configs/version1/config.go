@@ -94,6 +94,7 @@ type Server struct {
 	SSLRejectHandshake     bool
 	TLSPassthrough         bool
 	GRPCOnly               bool
+	IngressMTLS            *version2.IngressMTLS
 	StatusZone             string
 	HTTP2                  bool
 	RedirectToHTTPS        bool

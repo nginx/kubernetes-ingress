@@ -78,7 +78,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 		if err != nil {
 			msg := fmt.Sprintf("Policy %v/%v is invalid and was rejected: %v", pol.Namespace, pol.Name, err)
-			lbc.recorder.Eventf(pol, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
+			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
 
 			if lbc.reportCustomResourceStatusEnabled() {
 				// Defer policy status updates during startup to avoid serial
@@ -96,7 +96,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			}
 		} else {
 			msg := fmt.Sprintf("Policy %v/%v was added or updated", pol.Namespace, pol.Name)
-			lbc.recorder.Eventf(pol, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
+			lbc.recorder.Event(pol, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
 
 			if lbc.reportCustomResourceStatusEnabled() {
 				// Defer policy status updates during startup to avoid serial
@@ -156,6 +156,10 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				continue
 			case pol.Spec.ExternalAuth != nil:
 				// External Auth policy is supported on Ingress
+				continue
+			case pol.Spec.IngressMTLS != nil:
+				// IngressMTLS policy is supported on Ingress
+				continue
 			case pol.Spec.EgressMTLS != nil:
 				// Egress MTLS policy is supported on Ingress
 				continue
@@ -163,7 +167,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
 					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
 				nl.Error(lbc.Logger, msg)
-				lbc.recorder.Eventf(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
+				lbc.recorder.Event(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
 			}
 		default:
 			continue

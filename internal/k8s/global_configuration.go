@@ -104,7 +104,7 @@ func (lbc *LoadBalancerController) syncGlobalConfiguration(task task) {
 		}
 
 		gc := obj.(*conf_v1.GlobalConfiguration)
-		lbc.recorder.Eventf(gc, eventType, eventTitle, eventMessage)
+		lbc.recorder.Event(gc, eventType, eventTitle, eventMessage)
 	}
 
 	lbc.processProblems(problems)
