@@ -103,7 +103,8 @@ func (c *ExtDNSController) newNamespacedInformer(ns string) *namespacedInformer 
 		WorkFunc: externalDNSHandler(c.queue),
 	})
 
-	nsi.mustSync = append(nsi.mustSync,
+	nsi.mustSync = append(
+		nsi.mustSync,
 		nsi.sharedInformerFactory.K8s().V1().VirtualServers().Informer().HasSynced,
 		nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Informer().HasSynced,
 	)

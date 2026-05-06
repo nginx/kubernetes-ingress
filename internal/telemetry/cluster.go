@@ -331,7 +331,8 @@ func (c *Collector) BuildOS() string {
 
 // ConfigMapKeys gets the main ConfigMap keys from the configMapKeys function that accesses the K8s API and returns keys that are filtered and used by NIC.
 func (c *Collector) ConfigMapKeys(ctx context.Context) ([]string, error) {
-	return c.configMapKeys(ctx,
+	return c.configMapKeys(
+		ctx,
 		c.Config.MainConfigMapName,
 		configMapFilteredKeys,
 	)
@@ -339,7 +340,8 @@ func (c *Collector) ConfigMapKeys(ctx context.Context) ([]string, error) {
 
 // MGMTConfigMapKeys gets the MGMT ConfigMap keys from the configMapKeys function that accesses the K8s API and returns keys that are filtered and used by NIC.
 func (c *Collector) MGMTConfigMapKeys(ctx context.Context) ([]string, error) {
-	return c.configMapKeys(ctx,
+	return c.configMapKeys(
+		ctx,
 		c.Config.MGMTConfigMapName,
 		mgmtConfigMapFilteredKeys,
 	)

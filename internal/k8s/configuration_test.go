@@ -76,7 +76,8 @@ func setupVSRConfiguration() (*Configuration, *conf_v1.VirtualServer, *conf_v1.V
 					MatchLabels: map[string]string{"app": "route"},
 				},
 			},
-		})
+		},
+	)
 
 	configuration.AddOrUpdateVirtualServer(vs)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
@@ -1279,7 +1280,8 @@ func TestAddVirtualServerWithExistingVirtualServerRoute(t *testing.T) {
 				Path:          "/",
 				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
 			},
-		})
+		},
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -1321,7 +1323,8 @@ func TestAddSecondVirtualServerRoute(t *testing.T) {
 				Path:  "/second",
 				Route: "virtualserverroute-2",
 			},
-		})
+		},
+	)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
 
@@ -1374,7 +1377,8 @@ func TestAddThirdVirtualServerRoute(t *testing.T) {
 					MatchLabels: map[string]string{"app": "route"},
 				},
 			},
-		})
+		},
+	)
 
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
@@ -1582,7 +1586,8 @@ func TestUpdateVirtualServerHost(t *testing.T) {
 				Path:  "/second",
 				Route: "virtualserverroute-2",
 			},
-		})
+		},
+	)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
 	configuration.AddOrUpdateVirtualServerRoute(vsr2) // This will be invalid due to host mismatch
@@ -2878,7 +2883,8 @@ func TestAddGlobalConfigurationThenAddVirtualServerWithValidCustomListeners(t *t
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2903,7 +2909,8 @@ func TestAddVirtualServerWithValidCustomListenersFirstThenAddGlobalConfiguration
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2943,7 +2950,8 @@ func TestAddVirtualServerWithValidCustomListenersAndNoGlobalConfiguration(t *tes
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2971,7 +2979,8 @@ func TestAddVirtualServerWithCustomHttpListenerThatDoNotExistInGlobalConfigurati
 		"cafe",
 		"cafe.example.com",
 		"http-bogus",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2999,7 +3008,8 @@ func TestAddVirtualServerWithCustomHttpsListenerThatDoNotExistInGlobalConfigurat
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-bogus")
+		"https-bogus",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3027,7 +3037,8 @@ func TestDeleteHttpListenerFromExistingGlobalConfigurationWithVirtualServerDeplo
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3069,7 +3080,8 @@ func TestDeleteHttpsListenerFromExistingGlobalConfigurationWithVirtualServerDepl
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3109,7 +3121,8 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithValidCustomListen
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3223,7 +3236,8 @@ func TestAddVirtualServerWithCustomHttpListenerInHttpsBlock(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"http-8082")
+		"http-8082",
+	)
 
 	expectedWarningMsg := "Listener http-8082 can't be use in `listener.https` context as SSL is not enabled for that listener."
 
@@ -3253,7 +3267,8 @@ func TestAddVirtualServerWithCustomHttpsListenerInHttpBlock(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"https-8442",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedWarningMsg := "Listener https-8442 can't be use in `listener.http` context as SSL is enabled for that listener."
 
@@ -3283,7 +3298,8 @@ func TestAddVirtualServerWithNoHttpsListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"")
+		"",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3310,7 +3326,8 @@ func TestAddVirtualServerWithNoHttpListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3337,7 +3354,8 @@ func TestAddVirtualServerWithNoHttpOrHttpsListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"",
-		"")
+		"",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3364,7 +3382,8 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToFalseInGlo
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3408,7 +3427,8 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToTrueInGlob
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3452,13 +3472,15 @@ func TestAddMultipleVirtualServersWithTheSameCustomListeners(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	virtualServerFoo := createTestVirtualServerWithListeners(
 		"foo",
 		"foo.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChangesForVsCafe := []ResourceChange{
 		{
@@ -3495,7 +3517,8 @@ func TestUpdateGlobalConfigurationWithVirtualServerDeployedWithNoCustomListeners
 
 	virtualServer := createTestVirtualServer(
 		"cafe",
-		"cafe.example.com")
+		"cafe.example.com",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3525,7 +3548,8 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithNoCustomListeners
 
 	virtualServer := createTestVirtualServer(
 		"cafe",
-		"cafe.example.com")
+		"cafe.example.com",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3875,19 +3899,20 @@ func createTestChallengeIngress(name string, host string, path string, serviceNa
 		},
 	}
 
-	rules = append(rules, networking.IngressRule{
-		Host: host,
-		IngressRuleValue: networking.IngressRuleValue{
-			HTTP: &networking.HTTPIngressRuleValue{
-				Paths: []networking.HTTPIngressPath{
-					{
-						Path:    path,
-						Backend: backend,
+	rules = append(
+		rules, networking.IngressRule{
+			Host: host,
+			IngressRuleValue: networking.IngressRuleValue{
+				HTTP: &networking.HTTPIngressRuleValue{
+					Paths: []networking.HTTPIngressPath{
+						{
+							Path:    path,
+							Backend: backend,
+						},
 					},
 				},
 			},
 		},
-	},
 	)
 
 	return &networking.Ingress{
@@ -4330,7 +4355,8 @@ func TestFindResourcesForResourceReference(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "asd.example.com", "/")
 	tsPassthrough := createTestTLSPassthroughTransportServer("transportserver-passthrough", "ts.example.com")
 	listeners := []conf_v1.Listener{
@@ -4713,7 +4739,8 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "foo.example.com", "/")
 
 	vsWithUpdatedGen := vs.DeepCopy()
@@ -5211,7 +5238,8 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 				Path:          "/",
 				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
 			},
-		})
+		},
+	)
 	expectedChanges = []ResourceChange{
 		{
 			Op: AddOrUpdate,
@@ -5291,7 +5319,8 @@ func TestIsEqualForVirtualServersVSR(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRouteWithLabels("virtualserverroute", "default", "foo.example.com", "/", nil)
 
 	vsWithUpdatedGen := vs.DeepCopy()

@@ -123,14 +123,16 @@ func generateMtlsIgnoreLines(mtls []mtlsBundle) []string {
 	for _, bundle := range mtls {
 		ext := filepath.Ext(bundle.Ca.FileName)
 
-		filesToIgnore = append(filesToIgnore,
+		filesToIgnore = append(
+			filesToIgnore,
 			path.Join(realSecretDirectory, bundle.Ca.FileName),
 			path.Join(realSecretDirectory, bundle.Server.FileName),
 			path.Join(realSecretDirectory, strings.ReplaceAll(bundle.Ca.FileName, ext, "-crl"+ext)), // ignore the crl file always
 		)
 
 		if bundle.Client.FileName != "" {
-			filesToIgnore = append(filesToIgnore,
+			filesToIgnore = append(
+				filesToIgnore,
 				path.Join(realSecretDirectory, bundle.Client.FileName),
 			)
 		}
@@ -226,7 +228,8 @@ func generateIngressMtlsIgnoreLines(ingressMtls IngressMtls) []string {
 
 	// closures to add files and paths
 	addFilesToIgnore := func(paths FilePaths) {
-		filesToIgnore = append(filesToIgnore,
+		filesToIgnore = append(
+			filesToIgnore,
 			path.Join(realSecretDirectory, paths.FileName),
 		)
 
@@ -248,7 +251,8 @@ func generateIngressMtlsIgnoreLines(ingressMtls IngressMtls) []string {
 	}
 
 	// CRL
-	filesToIgnore = append(filesToIgnore,
+	filesToIgnore = append(
+		filesToIgnore,
 		path.Join(realSecretDirectory, ingressMtls.Crl.FileName),
 		path.Join(realSecretDirectory, ingressMtls.Crl.RawCRL.FileName),
 	)
@@ -274,7 +278,8 @@ func generateMgmtCMKeysIgnoreLines(bundles []MgmtCMKeysBundle) []string {
 
 	filesToIgnore = append(filesToIgnore, "\n# Management ConfigMap Keys Bundle secrets")
 	for _, bundle := range bundles {
-		filesToIgnore = append(filesToIgnore,
+		filesToIgnore = append(
+			filesToIgnore,
 			path.Join(realSecretDirectory, bundle.Client.FileName),
 			path.Join(realSecretDirectory, bundle.CaWithCrl.FileName),
 		)

@@ -768,7 +768,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 		if parentNamespace == ownerNamespace && parentName == ownerName {
 			return fmt.Sprintf("cors_origin_%s_%s_%s", rfc1123ToSnake(parentNamespace), rfc1123ToSnake(parentName), rfc1123ToSnake(parentType))
 		}
-		return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s",
+		return fmt.Sprintf(
+			"cors_origin_%s_%s_%s_%s_%s",
 			rfc1123ToSnake(parentNamespace),
 			rfc1123ToSnake(parentName),
 			rfc1123ToSnake(parentType),
@@ -778,7 +779,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 	}
 
 	if parentNamespace == ownerNamespace && parentName == ownerName {
-		return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s",
+		return fmt.Sprintf(
+			"cors_origin_%s_%s_%s_%s_%s",
 			rfc1123ToSnake(parentNamespace),
 			rfc1123ToSnake(parentName),
 			rfc1123ToSnake(parentType),
@@ -787,7 +789,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 		)
 	}
 
-	return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s_%s_%s",
+	return fmt.Sprintf(
+		"cors_origin_%s_%s_%s_%s_%s_%s_%s",
 		rfc1123ToSnake(parentNamespace),
 		rfc1123ToSnake(parentName),
 		rfc1123ToSnake(parentType),
@@ -1159,14 +1162,16 @@ func generateGroupedLimitReqZone(
 	encPath := encoder.EncodeToString([]byte(path))
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
 		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
-		lrz.PolicyValue = fmt.Sprintf("rl_%s_%s_%s_match_%s",
+		lrz.PolicyValue = fmt.Sprintf(
+			"rl_%s_%s_%s_match_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
 			strings.ToLower(rateLimitPol.Condition.JWT.Match),
 		)
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_%s_group_%s_%s_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf(
+			"$rl_%s_%s_%s_group_%s_%s_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
@@ -1186,14 +1191,16 @@ func generateGroupedLimitReqZone(
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.Variables != nil && len(*rateLimitPol.Condition.Variables) > 0 {
 		variable := (*rateLimitPol.Condition.Variables)[0]
 		lrz.GroupValue = fmt.Sprintf("\"%s\"", variable.Match)
-		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf("rl_%s_%s_%s_match_%s",
+		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf(
+			"rl_%s_%s_%s_match_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
 			strings.ToLower(policy.Name),
 		))
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_%s_variable_%s_%s_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf(
+			"$rl_%s_%s_%s_variable_%s_%s_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,

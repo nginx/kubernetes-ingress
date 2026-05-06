@@ -674,7 +674,8 @@ func validateBackup(backup string, backupPort *uint16, lbMethod string, idxPath 
 	}
 
 	if strings.Contains(lbMethod, "hash") || strings.Contains(lbMethod, "hash_ip") || strings.Contains(lbMethod, "random") {
-		allErrs = append(allErrs, field.Forbidden(idxPath.Child("backup"),
+		allErrs = append(allErrs, field.Forbidden(
+			idxPath.Child("backup"),
 			"backup cannot be used along with the 'hash', 'hash_ip' and 'random' load balancing methods",
 		))
 	}

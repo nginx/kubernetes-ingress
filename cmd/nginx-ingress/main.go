@@ -416,7 +416,8 @@ func mustCreateConfigAndKubeClient(ctx context.Context) (*rest.Config, *kubernet
 				ClusterInfo: clientcmdapi.Cluster{
 					Server: *proxyURL,
 				},
-			}).ClientConfig()
+			},
+		).ClientConfig()
 		if err != nil {
 			nl.Fatalf(l, "error creating client configuration: %v", err)
 		}
