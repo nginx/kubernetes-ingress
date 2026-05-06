@@ -206,7 +206,7 @@ alpine-image-nap-plus-fips: build ## Create Docker image for Ingress Controller 
 .PHONY: alpine-image-nap-plus-fips-agent
 alpine-image-nap-plus-fips-agent: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus, NGINX App Protect WAF, FIPS and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus-nap-fips-agent --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: alpine-image-nap-v5-plus-fips
 alpine-image-nap-v5-plus-fips: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus, NGINX App Protect WAFv5 and FIPS)
@@ -216,7 +216,7 @@ alpine-image-nap-v5-plus-fips: build ## Create Docker image for Ingress Controll
 .PHONY: alpine-image-nap-v5-plus-fips-agent
 alpine-image-nap-v5-plus-fips-agent: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus, NGINX App Protect WAFv5, FIPS and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus-nap-v5-fips-agent --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: debian-image-plus
 debian-image-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus)
@@ -232,7 +232,7 @@ debian-image-nap-plus: build ## Create Docker image for Ingress Controller (Debi
 debian-image-nap-plus-agent: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus, NGINX App Protect WAF and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap-agent --build-arg NAP_MODULES=waf \
 		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
-		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) \
+		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: debian-image-nap-v5-plus
@@ -243,7 +243,7 @@ debian-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (D
 .PHONY: debian-image-nap-v5-plus-agent
 debian-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus, NGINX App Protect WAFv5 and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap-v5-agent --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) \
+		--build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: debian-image-dos-plus
@@ -261,7 +261,7 @@ debian-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (
 debian-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus, NGINX App Protect WAF, DoS and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap-agent --build-arg NAP_MODULES=waf,dos \
 		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
-		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) \
+		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi-image
@@ -280,7 +280,7 @@ ubi-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI wit
 .PHONY: ubi-image-nap-plus-agent
 ubi-image-nap-plus-agent: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAF and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap-agent \
-		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) \
+		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi8-image-nap-plus
@@ -291,7 +291,7 @@ ubi8-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI wi
 .PHONY: ubi8-image-nap-plus-agent
 ubi8-image-nap-plus-agent: build ## Create Docker image for Ingress Controller (UBI8 with NGINX Plus, NGINX App Protect WAF and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-8-plus-nap-agent \
-		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) \
+		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi-image-nap-v5-plus
@@ -303,7 +303,7 @@ ubi-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI 
 ubi-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAFv5 and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
 		--build-arg BUILD_OS=ubi-9-plus-nap-v5-agent --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi8-image-nap-v5-plus
 ubi8-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
@@ -314,7 +314,7 @@ ubi8-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI
 ubi8-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Controller (UBI8 with NGINX Plus, NGINX App Protect WAFv5 and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
 		--build-arg BUILD_OS=ubi-8-plus-nap-v5-agent --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi-image-dos-plus
 ubi-image-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect DoS)
@@ -329,7 +329,7 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 .PHONY: ubi-image-nap-dos-plus-agent
 ubi-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAF, DoS and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap-agent \
-		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) \
+		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi10-dependency-image-local
