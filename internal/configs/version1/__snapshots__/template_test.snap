@@ -723,31 +723,24 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -863,6 +856,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -870,28 +878,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -942,6 +928,284 @@ mgmt {
     license_token /etc/nginx/secrets/license.jwt;
     enforce_initial_report off;
     deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPAndHTTPSListenerPorts - 1]
+# configuration for /
+
+
+server {
+    listen 8083 default_server;listen [::]:8083 default_server;
+    listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPListenerPort - 1]
+# configuration for /
+
+
+server {
+    listen 8083 default_server;listen [::]:8083 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPSListenerPort - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithHTTP2Off - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithHTTP2On - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    http2 on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPAndHTTPSListenerPorts - 1]
+# configuration for /
+
+
+server {
+    listen 8083 default_server;listen [::]:8083 default_server;
+    listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPListenerPort - 1]
+# configuration for /
+
+
+server {
+    listen 8083 default_server;listen [::]:8083 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPSListenerPort - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithHTTP2Off - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithHTTP2On - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    http2 on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
 }
 
 ---
@@ -3419,7 +3683,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -4585,7 +4848,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -8127,7 +8389,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8264,7 +8525,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8395,7 +8655,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
