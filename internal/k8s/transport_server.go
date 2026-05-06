@@ -49,12 +49,15 @@ func createTransportServerHandlers(lbc *LoadBalancerController) cache.ResourceEv
 	}
 }
 
-func (nsi *namespacedInformer) addTransportServerHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addTransportServerHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().TransportServers().Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add TransportServer event handler: %w", err)
+	}
 	nsi.transportServerLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncTransportServer(task task) {
@@ -114,7 +117,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(
 		}
 
 		msg := fmt.Sprintf("TransportServer %s was rejected %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
-		lbc.recorder.Eventf(tsConfig.TransportServer, eventType, eventTitle, msg)
+		lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
 
 		if lbc.reportCustomResourceStatusEnabled() {
 			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
@@ -153,7 +156,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 	}
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
-	lbc.recorder.Eventf(tsConfig.TransportServer, eventType, eventTitle, msg)
+	lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
 
 	if lbc.reportCustomResourceStatusEnabled() {
 		// Defer TS status updates during startup to avoid serial API calls
