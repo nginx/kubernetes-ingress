@@ -16,13 +16,14 @@ import (
 )
 
 type IngressMtls struct {
-	Ca         CertificateInfo `json:"ca"`
-	Crl        CertificateInfo `json:"crl"`
-	Client     FilePaths       `json:"client"`
-	Valid      ClientCerts     `json:"valid"`
-	Invalid    ClientCerts     `json:"invalid"`
-	NotRevoked ClientCerts     `json:"not-revoked"`
-	Revoked    ClientCerts     `json:"revoked"`
+	Ca           CertificateInfo `json:"ca"`
+	Crl          CertificateInfo `json:"crl"`
+	Client       FilePaths       `json:"client"`
+	Valid        ClientCerts     `json:"valid"`
+	Invalid      ClientCerts     `json:"invalid"`
+	NotRevoked   ClientCerts     `json:"not-revoked"`
+	Revoked      ClientCerts     `json:"revoked"`
+	Intermediate ClientCerts     `json:"intermediate"`
 }
 
 type CertificateInfo struct {
@@ -86,6 +87,11 @@ func generateIngressMtlsSecrets(logger *slog.Logger, details IngressMtls, filena
 	err = generateInvalidClientCert(logger, ca, details)
 	if err != nil {
 		return filenames, fmt.Errorf("generating invalid client cert: %w", err)
+	}
+
+	err = generateIntermediateClientCert(logger, ca, details)
+	if err != nil {
+		return filenames, fmt.Errorf("generating intermediate client cert: %w", err)
 	}
 
 	return filenames, nil
@@ -370,6 +376,125 @@ func generateInvalidClientCert(logger *slog.Logger, ca *JITTLSKey, details Ingre
 		return fmt.Errorf("writing invalid key %s to project root: %w", details.Invalid.Key.FileName, err)
 	}
 
+	return nil
+}
+
+// generateIntermediateClientCert creates an intermediate CA signed by the root
+// CA and then a client certificate signed by that intermediate CA. This
+// produces a two-level chain: Root CA → Intermediate CA → Client Cert.
+// NGINX will accept this client cert only when verifyDepth >= 1.
+func generateIntermediateClientCert(logger *slog.Logger, ca *JITTLSKey, details IngressMtls) error {
+	caPem, _ := pem.Decode(ca.cert)
+	caCert, err := x509.ParseCertificate(caPem.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing root CA cert: %w", err)
+	}
+
+	// Generate the intermediate CA
+	intermediateTd := TemplateData{
+		Country:            []string{"US"},
+		Organization:       []string{"NGINX"},
+		OrganizationalUnit: []string{"KIC Intermediate"},
+		Locality:           []string{"San Francisco"},
+		Province:           []string{"CA"},
+		CommonName:         "kic-intermediate.nginx.com",
+		CA:                 true,
+	}
+
+	intermediateTemplate, err := renderX509Template(intermediateTd)
+	if err != nil {
+		return fmt.Errorf("rendering intermediate CA template: %w", err)
+	}
+
+	intermediateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return fmt.Errorf("generating intermediate CA private key: %w", err)
+	}
+
+	pkBytes, _ := x509.MarshalPKIXPublicKey(&intermediateKey.PublicKey)
+	ski := sha1.Sum(pkBytes) //nolint:gosec // RFC5280 requires SHA1 for SubjectKeyIdentifier
+	intermediateTemplate.SubjectKeyId = ski[:]
+
+	// Sign the intermediate CA with the root CA
+	intermediateDER, err := x509.CreateCertificate(
+		rand.Reader,
+		&intermediateTemplate,
+		caCert,
+		&intermediateKey.PublicKey,
+		ca.privateKey,
+	)
+	if err != nil {
+		return fmt.Errorf("creating intermediate CA certificate: %w", err)
+	}
+
+	intermediateCertPEM := &bytes.Buffer{}
+	if err = pem.Encode(intermediateCertPEM, &pem.Block{Type: "CERTIFICATE", Bytes: intermediateDER}); err != nil {
+		return fmt.Errorf("encoding intermediate CA cert PEM: %w", err)
+	}
+
+	intermediateCert, err := x509.ParseCertificate(intermediateDER)
+	if err != nil {
+		return fmt.Errorf("parsing intermediate CA cert: %w", err)
+	}
+
+	// Verify the intermediate CA is signed by the root CA
+	if err = intermediateCert.CheckSignatureFrom(caCert); err != nil {
+		return fmt.Errorf("intermediate CA not signed by root: %w", err)
+	}
+
+	// Generate the client cert signed by the intermediate CA
+	clientTd := TemplateData{
+		Country:      []string{"US"},
+		Organization: []string{"NGINX"},
+		Locality:     []string{"San Francisco"},
+		Province:     []string{"CA"},
+		CommonName:   "intermediate-client.nginx.com",
+		CA:           false,
+	}
+
+	clientTemplate, err := renderX509Template(clientTd)
+	if err != nil {
+		return fmt.Errorf("rendering intermediate client cert template: %w", err)
+	}
+
+	clientTemplate.Issuer = intermediateCert.Subject
+	clientTemplate.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+	clientTemplate.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+
+	client, err := generateTLSKeyPair(clientTemplate, *intermediateCert, intermediateKey)
+	if err != nil {
+		return fmt.Errorf("generating intermediate-signed client cert: %w", err)
+	}
+
+	_, err = tls.X509KeyPair(client.cert, client.key)
+	if err != nil {
+		return fmt.Errorf("validating intermediate-signed client cert: %w", err)
+	}
+
+	clientChild, _ := pem.Decode(client.cert)
+	clientCert, err := x509.ParseCertificate(clientChild.Bytes)
+	if err != nil {
+		return fmt.Errorf("parsing intermediate-signed client cert: %w", err)
+	}
+	if err = clientCert.CheckSignatureFrom(intermediateCert); err != nil {
+		return fmt.Errorf("client cert not signed by intermediate CA: %w", err)
+	}
+
+	// Write the client cert (with intermediate CA cert appended for chain)
+	// and the client key
+	chainPEM := append(client.cert, intermediateCertPEM.Bytes()...)
+
+	err = writeFiles(logger, chainPEM, details.Intermediate.Cert.FileName, details.Intermediate.Cert.Symlinks)
+	if err != nil {
+		return fmt.Errorf("writing intermediate client certificate %s: %w", details.Intermediate.Cert.FileName, err)
+	}
+
+	err = writeFiles(logger, client.key, details.Intermediate.Key.FileName, details.Intermediate.Key.Symlinks)
+	if err != nil {
+		return fmt.Errorf("writing intermediate client key %s: %w", details.Intermediate.Key.FileName, err)
+	}
+
+	logger.Info("Generated intermediate-signed client cert", "cert", details.Intermediate.Cert.FileName)
 	return nil
 }
 

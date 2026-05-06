@@ -1110,28 +1110,28 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	if lbc.configMap != nil {
 		if isNGINXConfigValid {
 			if len(resourceErrors) > 0 {
-				lbc.recorder.Event(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError,
-					fmt.Sprintf("ConfigMap %s/%s was updated but some resource configs failed validation", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+				lbc.recorder.Eventf(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError,
+					"ConfigMap %s/%s was updated but some resource configs failed validation", lbc.configMap.GetNamespace(), lbc.configMap.GetName())
 			} else {
-				lbc.recorder.Event(lbc.configMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, fmt.Sprintf("ConfigMap %s/%s updated without error", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+				lbc.recorder.Eventf(lbc.configMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, "ConfigMap %s/%s updated without error", lbc.configMap.GetNamespace(), lbc.configMap.GetName())
 			}
 		} else {
-			lbc.recorder.Event(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, fmt.Sprintf("ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.configMap.GetNamespace(), lbc.configMap.GetName()))
+			lbc.recorder.Eventf(lbc.configMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.configMap.GetNamespace(), lbc.configMap.GetName())
 		}
 	}
 
 	if lbc.mgmtConfigMap != nil {
 		if !mgmtConfigHasWarnings {
-			lbc.recorder.Event(lbc.mgmtConfigMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, fmt.Sprintf("MGMT ConfigMap %s/%s updated without error", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName()))
+			lbc.recorder.Eventf(lbc.mgmtConfigMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, "MGMT ConfigMap %s/%s updated without error", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName())
 		} else {
-			lbc.recorder.Event(lbc.mgmtConfigMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, fmt.Sprintf("MGMT ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName()))
+			lbc.recorder.Eventf(lbc.mgmtConfigMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "MGMT ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName())
 		}
 	}
 
 	gc := lbc.configuration.GetGlobalConfiguration()
 	if gc != nil && lbc.configMap != nil {
 		key := getResourceKey(&lbc.configMap.ObjectMeta)
-		lbc.recorder.Eventf(gc, eventType, eventTitle, fmt.Sprintf("GlobalConfiguration %s was updated %s", key, eventWarningMessage))
+		lbc.recorder.Eventf(gc, eventType, eventTitle, "GlobalConfiguration %s was updated %s", key, eventWarningMessage)
 	}
 
 	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
@@ -1613,7 +1613,7 @@ func (lbc *LoadBalancerController) UpdateVirtualServerStatusAndEventsOnDelete(vs
 		}
 
 		msg := fmt.Sprintf("VirtualServer %s was rejected %s", getResourceKey(&vsConfig.VirtualServer.ObjectMeta), eventWarningMessage)
-		lbc.recorder.Eventf(vsConfig.VirtualServer, eventType, eventTitle, msg)
+		lbc.recorder.Event(vsConfig.VirtualServer, eventType, eventTitle, msg)
 
 		if lbc.reportCustomResourceStatusEnabled() {
 			err := lbc.statusUpdater.UpdateVirtualServerStatus(vsConfig.VirtualServer, state, eventTitle, msg)
@@ -1710,7 +1710,7 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 	}
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated%s", getResourceKey(&ingConfig.Ingress.ObjectMeta), eventWarningPrefixed)
-	lbc.recorder.Eventf(ingConfig.Ingress, eventType, eventTitle, msg)
+	lbc.recorder.Event(ingConfig.Ingress, eventType, eventTitle, msg)
 
 	for _, fm := range ingConfig.Minions {
 		minionEventType := api_v1.EventTypeNormal
@@ -1746,7 +1746,7 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 			minionEventWarningPrefixed = fmt.Sprintf(" %s", minionEventWarningMessage)
 		}
 		minionMsg := fmt.Sprintf("Configuration for %v/%v was added or updated%s", fm.Ingress.Namespace, fm.Ingress.Name, minionEventWarningPrefixed)
-		lbc.recorder.Eventf(fm.Ingress, minionEventType, minionEventTitle, minionMsg)
+		lbc.recorder.Event(fm.Ingress, minionEventType, minionEventTitle, minionMsg)
 	}
 
 	if lbc.reportStatusEnabled() {
@@ -1794,7 +1794,7 @@ func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig
 	}
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&ingConfig.Ingress.ObjectMeta), eventWarningMessage)
-	lbc.recorder.Eventf(ingConfig.Ingress, eventType, eventTitle, msg)
+	lbc.recorder.Event(ingConfig.Ingress, eventType, eventTitle, msg)
 
 	if lbc.reportStatusEnabled() {
 		// Defer status updates during startup to avoid serial API calls
@@ -1839,7 +1839,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 	}
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&vsConfig.VirtualServer.ObjectMeta), eventWarningMessage)
-	lbc.recorder.Eventf(vsConfig.VirtualServer, eventType, eventTitle, msg)
+	lbc.recorder.Event(vsConfig.VirtualServer, eventType, eventTitle, msg)
 
 	if lbc.reportCustomResourceStatusEnabled() {
 		// Defer VS status updates during startup to avoid serial API calls
@@ -1877,7 +1877,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 		}
 
 		msg := fmt.Sprintf("Configuration for %v/%v was added or updated%s", vsr.Namespace, vsr.Name, vsrEventWarningMessage)
-		lbc.recorder.Eventf(vsr, vsrEventType, vsrEventTitle, msg)
+		lbc.recorder.Event(vsr, vsrEventType, vsrEventTitle, msg)
 
 		if lbc.reportCustomResourceStatusEnabled() {
 			vss := []*conf_v1.VirtualServer{vsConfig.VirtualServer}
@@ -2723,6 +2723,11 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 				nl.Warnf(lbc.Logger, "%s", msg)
 				ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 			}
+		}
+		if err := lbc.addIngressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
+			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
 		if err := lbc.addEgressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
 			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
