@@ -49,6 +49,23 @@ func (m *trackingNginxManager) CreateConfig(name string, content []byte) (bool, 
 	return m.FakeManager.CreateConfig(name, content)
 }
 
+// fakeStore wraps FakeCustomStore to satisfy the cache.Store interface, which gained
+// Bookmark and LastStoreSyncResourceVersion in k8s.io/client-go v0.36.
+// FakeCustomStore was not updated upstream to implement these methods.
+type fakeStore struct {
+	cache.FakeCustomStore
+}
+
+// Bookmark tracks the latest resource version seen via bookmark events.
+// Not needed in tests — resource version tracking is not exercised here.
+func (f *fakeStore) Bookmark(_ string) {}
+
+// LastStoreSyncResourceVersion returns the latest resource version the store has seen.
+// Not needed in tests — returns empty string as a safe zero value.
+func (f *fakeStore) LastStoreSyncResourceVersion() string {
+	return ""
+}
+
 func createTestPolicySyncConfigurator(t *testing.T, manager nginx.Manager) *configs.Configurator {
 	t.Helper()
 
@@ -2110,7 +2127,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 		Spec: conf_v1.PolicySpec{},
 	}
 
-	policyLister := &cache.FakeCustomStore{
+	policyLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
 			switch key {
 			case "default/valid-policy":
@@ -2125,7 +2142,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 				return nil, false, errors.New("GetByKey error")
 			}
 		},
-	}
+	}}
 
 	nsi := make(map[string]*namespacedInformer)
 	nsi[""] = &namespacedInformer{policyLister: policyLister}
@@ -2211,7 +2228,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 		Spec: conf_v1.PolicySpec{},
 	}
 
-	policyLister := &cache.FakeCustomStore{
+	policyLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
 			switch key {
 			case "default/valid-policy":
@@ -2226,7 +2243,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 				return nil, false, errors.New("GetByKey error")
 			}
 		},
-	}
+	}}
 
 	nsi := make(map[string]*namespacedInformer)
 	// simulate a watch of the default namespace
@@ -2335,11 +2352,11 @@ func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
 	ing := createTestIngress("ing-with-missing-policy", "example.com")
 	ing.Annotations[configs.PoliciesAnnotation] = "missing-policy"
 
-	policyLister := &cache.FakeCustomStore{
+	policyLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
 			return nil, false, nil
 		},
-	}
+	}}
 
 	lbc := LoadBalancerController{
 		namespacedInformers: map[string]*namespacedInformer{
@@ -2425,20 +2442,20 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 		},
 	}
 
-	policyLister := &cache.FakeCustomStore{
+	policyLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
 			if key == "default/test-policy" {
 				return pol, true, nil
 			}
 			return nil, false, nil
 		},
-	}
+	}}
 
-	svcLister := &cache.FakeCustomStore{
+	svcLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
 			return nil, false, nil
 		},
-	}
+	}}
 
 	trackingManager := newTrackingNginxManager()
 	cnf := createTestPolicySyncConfigurator(t, trackingManager)
@@ -3619,7 +3636,7 @@ func TestAddOidcSecret(t *testing.T) {
 
 func TestPreSyncSecrets(t *testing.T) {
 	t.Parallel()
-	secretLister := &cache.FakeCustomStore{
+	secretLister := &fakeStore{cache.FakeCustomStore{
 		ListFunc: func() []interface{} {
 			return []interface{}{
 				&api_v1.Secret{
@@ -3638,7 +3655,7 @@ func TestPreSyncSecrets(t *testing.T) {
 				},
 			}
 		},
-	}
+	}}
 	nsi := make(map[string]*namespacedInformer)
 	nsi[""] = &namespacedInformer{secretLister: secretLister, isSecretsEnabledNamespace: true}
 
