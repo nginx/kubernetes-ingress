@@ -4242,14 +4242,14 @@ func TestIsPolicySupportedOnIngress(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "IngressMTLS is not supported",
+			name:     "IngressMTLS is supported",
 			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{IngressMTLS: &conf_v1.IngressMTLS{ClientCertSecret: "ca"}}},
-			expected: false,
+			expected: true,
 		},
 		{
-			name:     "EgressMTLS is not supported",
+			name:     "EgressMTLS is supported",
 			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{EgressMTLS: &conf_v1.EgressMTLS{}}},
-			expected: false,
+			expected: true,
 		},
 		{
 			name:     "RateLimit is not supported",
@@ -4277,9 +4277,9 @@ func TestIsPolicySupportedOnIngress(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "WAF is not supported",
+			name:     "WAF is supported",
 			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{}}},
-			expected: false,
+			expected: true,
 		},
 		{
 			name:     "Cache is not supported",
@@ -4311,15 +4311,12 @@ func TestGeneratePolicies_UnsupportedOnIngress(t *testing.T) {
 	policyRef := []conf_v1.PolicyReference{{Name: "test-policy", Namespace: "default"}}
 
 	unsupportedPolicies := map[string]*conf_v1.Policy{
-		"IngressMTLS": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{IngressMTLS: &conf_v1.IngressMTLS{ClientCertSecret: "ca"}}},
-		"EgressMTLS":  {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{EgressMTLS: &conf_v1.EgressMTLS{}}},
-		"RateLimit":   {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{}}},
-		"JWTAuth":     {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
-		"BasicAuth":   {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
-		"OIDC":        {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
-		"APIKey":      {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
-		"WAF":         {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{}}},
-		"Cache":       {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
+		"RateLimit": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{}}},
+		"JWTAuth":   {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
+		"BasicAuth": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
+		"OIDC":      {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
+		"APIKey":    {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
+		"Cache":     {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
 	}
 
 	for policyType, pol := range unsupportedPolicies {
