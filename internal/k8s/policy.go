@@ -103,32 +103,31 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	// Loop through the resources that reference this policy and check if the policy type is supported on the resource. If not, log an error and emit an event.
 	// Note: if we ever support all policy types on all resources, this loop can be removed.
+	var filteredResources []Resource
 	for _, res := range resources {
 		switch impl := res.(type) {
 		// We only check for Ingress resources because VirtualServer and VirtualServerRoute support all policy types.
 		//   If a new resource type is added that supports a subset of policy types, a new case should be added here to check for supported policy types on that resource.
 		case *IngressConfiguration:
 			if !polExists {
+				filteredResources = append(filteredResources, res)
 				continue
 			}
 			pol := obj.(*conf_v1.Policy)
-			switch {
-			case pol.Spec.CORS != nil:
-				// CORS policy is supported on Ingress
-				continue
-			case pol.Spec.AccessControl != nil:
-				// Access Control policy is supported on Ingress
-				continue
-			default: // Unsupported policy type on Ingress
+			if !configs.IsPolicySupportedOnIngress(pol) {
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
 					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
 				nl.Error(lbc.Logger, msg)
 				lbc.recorder.Event(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
+				// Do not add to filteredResources: skip reloading this Ingress for an unsupported policy.
+				continue
 			}
+			filteredResources = append(filteredResources, res)
 		default:
-			continue
+			filteredResources = append(filteredResources, res)
 		}
 	}
+	resources = filteredResources
 
 	resourceExes := lbc.createExtendedResources(resources)
 

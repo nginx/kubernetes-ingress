@@ -3521,6 +3521,120 @@ func TestGeneratePoliciesFails(t *testing.T) {
 	}
 }
 
+func TestIsPolicySupportedOnIngress(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		policy   *conf_v1.Policy
+		expected bool
+	}{
+		{
+			name:     "AccessControl is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{AccessControl: &conf_v1.AccessControl{Allow: []string{"127.0.0.1"}}}},
+			expected: true,
+		},
+		{
+			name:     "CORS is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{CORS: &conf_v1.CORS{}}},
+			expected: true,
+		},
+		{
+			name:     "IngressMTLS is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{IngressMTLS: &conf_v1.IngressMTLS{ClientCertSecret: "ca"}}},
+			expected: false,
+		},
+		{
+			name:     "EgressMTLS is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{EgressMTLS: &conf_v1.EgressMTLS{}}},
+			expected: false,
+		},
+		{
+			name:     "RateLimit is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{}}},
+			expected: false,
+		},
+		{
+			name:     "JWTAuth is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
+			expected: false,
+		},
+		{
+			name:     "BasicAuth is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
+			expected: false,
+		},
+		{
+			name:     "OIDC is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
+			expected: false,
+		},
+		{
+			name:     "APIKey is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
+			expected: false,
+		},
+		{
+			name:     "WAF is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{}}},
+			expected: false,
+		},
+		{
+			name:     "Cache is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
+			expected: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsPolicySupportedOnIngress(tc.policy); got != tc.expected {
+				t.Errorf("IsPolicySupportedOnIngress() = %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGeneratePolicies_UnsupportedOnIngress(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ingOwnerDetails := policyOwnerDetails{
+		owner:           nil,
+		ownerName:       "cafe-ingress",
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "cafe-ingress",
+		parentType:      "ing",
+	}
+	policyRef := []conf_v1.PolicyReference{{Name: "test-policy", Namespace: "default"}}
+
+	unsupportedPolicies := map[string]*conf_v1.Policy{
+		"IngressMTLS": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{IngressMTLS: &conf_v1.IngressMTLS{ClientCertSecret: "ca"}}},
+		"EgressMTLS":  {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{EgressMTLS: &conf_v1.EgressMTLS{}}},
+		"RateLimit":   {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{}}},
+		"JWTAuth":     {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
+		"BasicAuth":   {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
+		"OIDC":        {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
+		"APIKey":      {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
+		"WAF":         {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{}}},
+		"Cache":       {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
+	}
+
+	for policyType, pol := range unsupportedPolicies {
+		t.Run(policyType, func(t *testing.T) {
+			t.Parallel()
+			policies := map[string]*conf_v1.Policy{"default/test-policy": pol}
+			result, warnings := generatePolicies(ctx, ingOwnerDetails, policyRef, policies, "spec", "", policyOptions{}, nil)
+
+			if result.ErrorReturn == nil || result.ErrorReturn.Code != 500 {
+				t.Errorf("generatePolicies() expected ErrorReturn{500} for unsupported policy type %s on Ingress, got %v", policyType, result.ErrorReturn)
+			}
+			if len(warnings[nil]) == 0 {
+				t.Errorf("generatePolicies() expected a warning for unsupported policy type %s on Ingress", policyType)
+			}
+		})
+	}
+}
+
 func TestGenerateLRZPolicyGroupMap(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
