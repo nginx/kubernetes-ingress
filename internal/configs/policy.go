@@ -103,6 +103,14 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 	}
 }
 
+// IsPolicySupportedOnIngress reports whether the given policy type is supported
+// on Ingress resources. Only AccessControl and CORS policies are supported on Ingress.
+// This is the single source of truth for the Ingress policy allowlist and must be kept
+// in sync with any callers that filter policies for Ingress resources (e.g. syncPolicy).
+func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
+	return pol.Spec.AccessControl != nil || pol.Spec.CORS != nil
+}
+
 func (p *policiesCfg) addAccessControlConfig(accessControl *conf_v1.AccessControl) *validationResults {
 	res := newValidationResults()
 	p.Allow = append(p.Allow, accessControl.Allow...)
@@ -445,7 +453,7 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, ingressMTLS.ClientCertSecret)
 	secretRef := secretRefs[secretKey]
 	if secretRef == nil {
-		res.addWarningf("IngressMTLS policy %q references an invalid secret %s: secret doesn't exist", polKey, secretKey)
+		res.addWarningf("IngressMTLS policy %s references a secret %s that is not available", polKey, secretKey)
 		res.isError = true
 		return res
 	}
@@ -1137,6 +1145,14 @@ func generatePolicies(
 		key := fmt.Sprintf("%s/%s", polNamespace, p.Name)
 
 		if pol, exists := policies[key]; exists {
+			// Reject policy types that are not supported on Ingress resources.
+			// IsPolicySupportedOnIngress is the single source of truth for the allowlist.
+			if ownerDetails.parentType == "ing" && !IsPolicySupportedOnIngress(pol) {
+				warnings.AddWarningf(ownerDetails.owner, "Policy %s is not supported on Ingress resources", key)
+				return policiesCfg{
+					ErrorReturn: &version2.Return{Code: 500},
+				}, warnings
+			}
 			var res *validationResults
 			switch {
 			case pol.Spec.AccessControl != nil:
