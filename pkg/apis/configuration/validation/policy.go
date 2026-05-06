@@ -749,8 +749,7 @@ func validateClientID(client string, fieldPath *field.Path) field.ErrorList {
 		return field.ErrorList{field.Invalid(
 			fieldPath,
 			client,
-			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'
-		`,
+			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'`,
 		)}
 	}
 	return nil
