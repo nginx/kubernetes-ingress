@@ -1204,8 +1204,6 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		AccessLog:                          config.MainAccessLog,
 		AddHeaders:                         config.MainAddHeaders,
 		AddHeaderInherit:                   config.AddHeaderInherit,
-		DefaultServerAccessLogOff:          config.DefaultServerAccessLogOff,
-		DefaultServerReturn:                config.DefaultServerReturn,
 		DisableIPV6:                        staticCfgParams.DisableIPV6,
 		ErrorLogLevel:                      config.MainErrorLogLevel,
 		HTTP2:                              config.HTTP2,
