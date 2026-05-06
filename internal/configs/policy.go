@@ -108,7 +108,12 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 // This is the single source of truth for the Ingress policy allowlist and must be kept
 // in sync with any callers that filter policies for Ingress resources (e.g. syncPolicy).
 func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
-	return pol.Spec.AccessControl != nil || pol.Spec.CORS != nil
+	return pol.Spec.AccessControl != nil ||
+		pol.Spec.CORS != nil ||
+		pol.Spec.ExternalAuth != nil ||
+		pol.Spec.IngressMTLS != nil ||
+		pol.Spec.EgressMTLS != nil ||
+		pol.Spec.WAF != nil
 }
 
 func (p *policiesCfg) addAccessControlConfig(accessControl *conf_v1.AccessControl) *validationResults {
