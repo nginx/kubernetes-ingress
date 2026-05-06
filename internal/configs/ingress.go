@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	emptyHost     = ""
-	minionContext = "minion"
+	emptyHostName  = ""
+	emptyHostToken = "_"
+	minionContext  = "minion"
 )
 
 // AppProtectResources holds namespace names of App Protect resources relevant to an Ingress
