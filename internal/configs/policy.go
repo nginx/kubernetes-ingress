@@ -458,7 +458,7 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, ingressMTLS.ClientCertSecret)
 	secretRef := secretRefs[secretKey]
 	if secretRef == nil {
-		res.addWarningf("IngressMTLS policy %s references a secret %s that is not available", polKey, secretKey)
+		res.addWarningf("IngressMTLS policy %q references a non-existent secret %s", polKey, secretKey)
 		res.isError = true
 		return res
 	}
