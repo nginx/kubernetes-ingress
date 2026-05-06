@@ -320,7 +320,7 @@ def update_nginx_prose(md, nginx_new):
 # ---------------------------------------------------------------------------
 
 
-def freeze_compat_row(json_data, ic_version, current_nic, current_helm, current_operator):
+def freeze_compat_row(json_data, current_nic, current_helm, current_operator):
     """Freeze the current shortcode row as a historical entry in the JSON.
 
     Only called for minor/major releases.  Builds a frozen row from the
@@ -523,7 +523,7 @@ Examples:
     freeze = is_minor_or_major(args.ic_version, current_nic)
     if freeze:
         print(f"INFO: Minor/major release ({current_nic} -> {args.ic_version}), freezing rows")
-        freeze_compat_row(json_data, args.ic_version, current_nic, current_helm, current_operator)
+        freeze_compat_row(json_data, current_nic, current_helm, current_operator)
         if args.nap_waf_version:
             freeze_nap_row(json_data, current_nic)
     else:

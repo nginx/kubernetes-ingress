@@ -47,6 +47,10 @@ if [ -z "${operator_version}" ]; then
     usage
 fi
 
+if [ -z "${nginx_version}" ]; then
+    usage
+fi
+
 if [ -z "${release_date}" ]; then
     usage
 fi
@@ -341,10 +345,10 @@ if [ -n "${nginx_version}" ]; then
 
     # Stage and commit tech specs changes (skip commit in dry-run mode)
     if [ "${DRY_RUN}" == "false" ]; then
-        git add "${DOCS_FOLDER}/content/nic/technical-specifications.md"
-        git add "${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-k8s.md"
+        git add "content/nic/technical-specifications.md"
+        git add "content/includes/nic/compatibility-tables/nic-k8s.md"
         if [ -n "${NAP_WAF_VERSION}" ]; then
-            nap_table_file="${DOCS_FOLDER}/content/includes/nic/compatibility-tables/nic-nap.md"
+            nap_table_file="content/includes/nic/compatibility-tables/nic-nap.md"
             if [ -f "${nap_table_file}" ]; then
                 git add "${nap_table_file}"
             fi

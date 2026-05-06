@@ -78,18 +78,6 @@ jobs:
           echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
           echo "new_operator_version=${new_operator_version}" >> $GITHUB_OUTPUT
 
-          # Parse NGINX version (OSS / Plus format)
-          if [ -n "${{ inputs.new_nginx_version }}" ]; then
-            nginx_full="${{ inputs.new_nginx_version }}"
-            # Split on " / " to get OSS and Plus versions
-            nginx_oss=$(echo "${nginx_full}" | cut -d'/' -f1 | xargs)
-            nginx_plus=$(echo "${nginx_full}" | cut -d'/' -f2 | xargs)
-            echo "nginx_oss_version=${nginx_oss}" >> $GITHUB_OUTPUT
-            echo "nginx_plus_version=${nginx_plus}" >> $GITHUB_OUTPUT
-            echo "nginx_full_version=${nginx_full}" >> $GITHUB_OUTPUT
-            echo "Parsed NGINX versions - OSS: ${nginx_oss}, Plus: ${nginx_plus}"
-          fi
-
           # Parse NAP versions if provided (waf_version,waf_release_version)
           # waf_release_version is shared by compiler, config manager, and enforcer containers
           if [ -n "${{ inputs.nap_version }}" ]; then
