@@ -129,6 +129,12 @@ jobs:
             exit 1
           fi
           CHART_NAME="$chart_name" yq -i '.name = strenv(CHART_NAME)' kic/charts/nginx-ingress/Chart.yaml
+          if [[ "${{ inputs.ic_version }}" =~ ^20[0-9]+-lts ]]; then
+            IMAGE_REPOSITORY="private-reqistry.nginx.com/lts/nginx-ic/nginx-plus-ingress"
+            sed -i "s|^  nginxplus: false|  nginxplus: true|" kic/charts/nginx-ingress/values.yaml
+            sed -E -i "s|^(    )repository:.*|\1repository: ${IMAGE_REPOSITORY}|" kic/charts/nginx-ingress/values.yaml
+            sed -E -i "s|^(    )(# *)?tag:.*|\1tag: \"${{ inputs.ic_version }}\"|" kic/charts/nginx-ingress/values.yaml
+          fi
           output=$(helm package ${helm_versions} kic/charts/nginx-ingress)
           echo "path=$(basename -- $(echo $output | cut -d: -f2))" >> $GITHUB_OUTPUT
 
