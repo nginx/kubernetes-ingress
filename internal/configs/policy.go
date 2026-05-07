@@ -103,6 +103,22 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 	}
 }
 
+// IsPolicySupportedOnIngress reports whether the given policy type is supported
+// on Ingress resources.
+// This is the single source of truth for the Ingress policy allowlist and must be kept
+// in sync with any callers that filter policies for Ingress resources (e.g. syncPolicy).
+// To add support for a new policy type on Ingress, add its Spec field to this function.
+// Also ensure that createIngressEx() in controller.go loads any required secret or service
+// references for that policy type.
+func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
+	return pol.Spec.AccessControl != nil ||
+		pol.Spec.CORS != nil ||
+		pol.Spec.ExternalAuth != nil ||
+		pol.Spec.IngressMTLS != nil ||
+		pol.Spec.EgressMTLS != nil ||
+		pol.Spec.WAF != nil
+}
+
 func (p *policiesCfg) addAccessControlConfig(accessControl *conf_v1.AccessControl) *validationResults {
 	res := newValidationResults()
 	p.Allow = append(p.Allow, accessControl.Allow...)
@@ -445,7 +461,7 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, ingressMTLS.ClientCertSecret)
 	secretRef := secretRefs[secretKey]
 	if secretRef == nil {
-		res.addWarningf("IngressMTLS policy %q references an invalid secret %s: secret doesn't exist", polKey, secretKey)
+		res.addWarningf("IngressMTLS policy %q references a non-existent secret %s", polKey, secretKey)
 		res.isError = true
 		return res
 	}
@@ -903,7 +919,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 		if parentNamespace == ownerNamespace && parentName == ownerName {
 			return fmt.Sprintf("cors_origin_%s_%s_%s", rfc1123ToSnake(parentNamespace), rfc1123ToSnake(parentName), rfc1123ToSnake(parentType))
 		}
-		return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s",
+		return fmt.Sprintf(
+			"cors_origin_%s_%s_%s_%s_%s",
 			rfc1123ToSnake(parentNamespace),
 			rfc1123ToSnake(parentName),
 			rfc1123ToSnake(parentType),
@@ -913,7 +930,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 	}
 
 	if parentNamespace == ownerNamespace && parentName == ownerName {
-		return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s",
+		return fmt.Sprintf(
+			"cors_origin_%s_%s_%s_%s_%s",
 			rfc1123ToSnake(parentNamespace),
 			rfc1123ToSnake(parentName),
 			rfc1123ToSnake(parentType),
@@ -922,7 +940,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 		)
 	}
 
-	return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s_%s_%s",
+	return fmt.Sprintf(
+		"cors_origin_%s_%s_%s_%s_%s_%s_%s",
 		rfc1123ToSnake(parentNamespace),
 		rfc1123ToSnake(parentName),
 		rfc1123ToSnake(parentType),
@@ -1137,6 +1156,16 @@ func generatePolicies(
 		key := fmt.Sprintf("%s/%s", polNamespace, p.Name)
 
 		if pol, exists := policies[key]; exists {
+			// Reject policy types that are not supported on Ingress resources.
+			// IsPolicySupportedOnIngress is the single source of truth for the allowlist.
+			// If a new resource type with a subset of supported policy types is added,
+			// a matching parentType check must also be added in syncPolicy() in internal/k8s/policy.go.
+			if ownerDetails.parentType == "ing" && !IsPolicySupportedOnIngress(pol) {
+				warnings.AddWarningf(ownerDetails.owner, "Policy %s is not supported on Ingress resources", key)
+				return policiesCfg{
+					ErrorReturn: &version2.Return{Code: 500},
+				}, warnings
+			}
 			var res *validationResults
 			switch {
 			case pol.Spec.AccessControl != nil:
@@ -1296,14 +1325,16 @@ func generateGroupedLimitReqZone(
 	encPath := encoder.EncodeToString([]byte(path))
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
 		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
-		lrz.PolicyValue = fmt.Sprintf("rl_%s_%s_%s_match_%s",
+		lrz.PolicyValue = fmt.Sprintf(
+			"rl_%s_%s_%s_match_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
 			strings.ToLower(rateLimitPol.Condition.JWT.Match),
 		)
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_%s_group_%s_%s_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf(
+			"$rl_%s_%s_%s_group_%s_%s_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
@@ -1323,14 +1354,16 @@ func generateGroupedLimitReqZone(
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.Variables != nil && len(*rateLimitPol.Condition.Variables) > 0 {
 		variable := (*rateLimitPol.Condition.Variables)[0]
 		lrz.GroupValue = fmt.Sprintf("\"%s\"", variable.Match)
-		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf("rl_%s_%s_%s_match_%s",
+		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf(
+			"rl_%s_%s_%s_match_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
 			strings.ToLower(policy.Name),
 		))
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_%s_variable_%s_%s_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf(
+			"$rl_%s_%s_%s_variable_%s_%s_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
