@@ -19,6 +19,7 @@ from suite.utils.resources_utils import (
 empty_host_test_data_path = f"{TEST_DATA}/empty-host-ingress"
 named_host_ingress_src = f"{empty_host_test_data_path}/named-host-ingress.yaml"
 empty_host_ingress_src = f"{empty_host_test_data_path}/empty-host-ingress.yaml"
+empty_host_default_backend_ingress_src = f"{empty_host_test_data_path}/empty-host-ingress-default-backend.yaml"
 rejected_listen_ports_ingress_src = f"{empty_host_test_data_path}/empty-host-ingress-rejected-listen-ports.yaml"
 
 
@@ -215,6 +216,33 @@ class TestEmptyHostIngressValidation:
             "annotation is not supported for hostless Ingress",
             get_events_for_object(kube_apis.v1, test_namespace, ingress_name),
         )
+
+        delete_ingress(kube_apis.networking_v1, ingress_name, test_namespace)
+        wait_before_test()
+
+    def test_default_backend_without_root_path_uses_single_root_location(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        ingress_controller_endpoint,
+        empty_host_app_setup,
+        test_namespace,
+    ):
+        ingress_name = create_ingress_from_yaml(
+            kube_apis.networking_v1, test_namespace, empty_host_default_backend_ingress_src
+        )
+        wait_before_test()
+
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        conf = get_default_server_conf(kube_apis.v1, ic_pod, ingress_controller_prerequisites.namespace)
+
+        assert "backend2-svc" in conf
+        assert "return 404" not in conf
+        assert conf.count("location / {") == 1
+
+        request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
+        wait_and_assert_status_code(200, f"{request_url}/", verify=False)
+        wait_and_assert_status_code(200, f"{request_url}/backend1", verify=False)
 
         delete_ingress(kube_apis.networking_v1, ingress_name, test_namespace)
         wait_before_test()
