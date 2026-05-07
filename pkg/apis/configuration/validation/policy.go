@@ -485,7 +485,8 @@ func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 	// WAF Policy references either apPolicy or apBundle.
 	if waf.ApPolicy != "" && waf.ApBundle != "" {
 		msg := "apPolicy and apBundle fields in the WAF policy are mutually exclusive"
-		allErrs = append(allErrs,
+		allErrs = append(
+			allErrs,
 			field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg),
 			field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg),
 		)
@@ -710,7 +711,8 @@ func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode 
 
 	if logConf.ApLogConf != "" && logConf.ApLogBundle != "" {
 		msg := "apLogConf and apLogBundle fields in the securityLog are mutually exclusive"
-		allErrs = append(allErrs,
+		allErrs = append(
+			allErrs,
 			field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg),
 			field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg),
 		)
@@ -747,8 +749,8 @@ func validateClientID(client string, fieldPath *field.Path) field.ErrorList {
 		return field.ErrorList{field.Invalid(
 			fieldPath,
 			client,
-			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'
-		`)}
+			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'`,
+		)}
 	}
 	return nil
 }
