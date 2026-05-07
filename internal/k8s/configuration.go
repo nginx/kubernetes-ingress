@@ -2058,7 +2058,8 @@ func (col *vsrCollection) collectNonRegexNamedRoute(
 		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
 		if seenVSRs[nsName] {
 			col.warnings = append(col.warnings, fmt.Sprintf(
-				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName))
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName,
+			))
 			continue
 		}
 		seenVSRs[nsName] = true
@@ -2079,7 +2080,8 @@ func (col *vsrCollection) collectSelectorRoute(
 		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
 		if seenVSRs[nsName] {
 			col.warnings = append(col.warnings, fmt.Sprintf(
-				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName))
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName,
+			))
 			continue
 		}
 		seenVSRs[nsName] = true
@@ -2099,7 +2101,8 @@ func deduplicateVSRSlice(vsrs []*conf_v1.VirtualServerRoute, vsNamespace, vsName
 		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
 		if seen[nsName] {
 			warnings = append(warnings, fmt.Sprintf(
-				"VS %s/%s has duplicate VirtualServerRoutes %s", vsNamespace, vsName, nsName))
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vsNamespace, vsName, nsName,
+			))
 			continue
 		}
 		seen[nsName] = true

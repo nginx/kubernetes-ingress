@@ -2680,7 +2680,8 @@ func TestGenerateVirtualServerConfigWithCustomHttpAndHttpsListeners(t *testing.T
 	result, warnings := vsc.GenerateVirtualServerConfig(
 		&virtualServerExWithCustomHTTPAndHTTPSListeners,
 		nil,
-		nil)
+		nil,
+	)
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
@@ -2729,7 +2730,8 @@ func TestGenerateVirtualServerConfigWithCustomHttpListener(t *testing.T) {
 	result, warnings := vsc.GenerateVirtualServerConfig(
 		&virtualServerExWithCustomHTTPListener,
 		nil,
-		nil)
+		nil,
+	)
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
@@ -2778,7 +2780,8 @@ func TestGenerateVirtualServerConfigWithCustomHttpsListener(t *testing.T) {
 	result, warnings := vsc.GenerateVirtualServerConfig(
 		&virtualServerExWithCustomHTTPSListener,
 		nil,
-		nil)
+		nil,
+	)
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
@@ -2831,7 +2834,8 @@ func TestGenerateVirtualServerConfigWithCustomHttpAndHttpsIPListeners(t *testing
 	result, warnings := vsc.GenerateVirtualServerConfig(
 		&virtualServerExWithCustomHTTPAndHTTPSIPListeners,
 		nil,
-		nil)
+		nil,
+	)
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
@@ -2884,7 +2888,8 @@ func TestGenerateVirtualServerConfigWithCustomHttpIPListener(t *testing.T) {
 	result, warnings := vsc.GenerateVirtualServerConfig(
 		&virtualServerExWithCustomHTTPIPListener,
 		nil,
-		nil)
+		nil,
+	)
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
@@ -2937,7 +2942,8 @@ func TestGenerateVirtualServerConfigWithCustomHttpsIPListener(t *testing.T) {
 	result, warnings := vsc.GenerateVirtualServerConfig(
 		&virtualServerExWithCustomHTTPSIPListener,
 		nil,
-		nil)
+		nil,
+	)
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
@@ -2986,7 +2992,8 @@ func TestGenerateVirtualServerConfigWithNilListener(t *testing.T) {
 	result, warnings := vsc.GenerateVirtualServerConfig(
 		&virtualServerExWithNilListener,
 		nil,
-		nil)
+		nil,
+	)
 
 	if diff := cmp.Diff(expected, result); diff != "" {
 		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
