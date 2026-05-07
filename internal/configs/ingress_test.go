@@ -4975,6 +4975,24 @@ func createEmptyHostIngressEx() IngressEx {
 	return ingEx
 }
 
+func createEmptyHostIngressExWithRootLocation() IngressEx {
+	ingEx := createEmptyHostIngressEx()
+	ingEx.Ingress.Spec.Rules[0].HTTP.Paths = []networking.HTTPIngressPath{
+		{
+			Path: "/",
+			Backend: networking.IngressBackend{
+				Service: &networking.IngressServiceBackend{
+					Name: "coffee-svc",
+					Port: networking.ServiceBackendPort{
+						Number: 80,
+					},
+				},
+			},
+		},
+	}
+	return ingEx
+}
+
 func createExpectedConfigForEmptyHostIngressEx(isPlus bool) version1.IngressNginxConfig {
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 	server := &expected.Servers[0]
@@ -5070,6 +5088,52 @@ func TestGenerateNginxCfgForEmptyHost(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForEmptyHostWithRootLocation(t *testing.T) {
+	t.Parallel()
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         emptyHostStaticParams(),
+		ingEx:                new(createEmptyHostIngressExWithRootLocation()),
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if len(warnings) != 0 {
+		t.Fatalf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+
+	if len(result.Servers) == 0 {
+		t.Fatal("generateNginxCfg() returned no servers")
+	}
+
+	server := result.Servers[0]
+	if !server.IsDefaultServer {
+		t.Fatalf("expected default server, got IsDefaultServer=%v", server.IsDefaultServer)
+	}
+
+	if server.DefaultServerReturn != "" {
+		t.Fatalf("DefaultServerReturn = %q, want empty when root location exists", server.DefaultServerReturn)
+	}
+
+	rootLocationCount := 0
+	for _, location := range server.Locations {
+		if location.Path == "/" {
+			rootLocationCount++
+		}
+	}
+
+	if rootLocationCount != 1 {
+		t.Fatalf("expected exactly one root location, got %d", rootLocationCount)
 	}
 }
 
