@@ -303,7 +303,8 @@ func BalanceProxyValues(proxyBuffers, proxyBufferSize, proxyBusyBuffers string, 
 	maxAllowedSize := totalBufferSize - bufferSizeBytes
 
 	proxyBufferSizeBytes, proxyBusyBuffersBytes, constraintMods := applyBufferSizeConstraints(
-		proxyBufferSizeBytes, proxyBusyBuffersBytes, bufferSizeBytes, maxAllowedSize)
+		proxyBufferSizeBytes, proxyBusyBuffersBytes, bufferSizeBytes, maxAllowedSize,
+	)
 	modifications = append(modifications, constraintMods...)
 
 	// Convert results back to strings
