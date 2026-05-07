@@ -124,7 +124,7 @@ func createIngressProcessChangesController(t *testing.T, manager nginx.Manager) 
 		secretStore:  secrets.NewEmptyFakeSecretsStore(),
 		namespacedInformers: map[string]*namespacedInformer{
 			"default": {
-				ingressLister: storeToIngressLister{Store: ingressStore},
+				ingressLister: storeToIngressLister{Store: &fakeStore{FakeCustomStore: *ingressStore}},
 			},
 		},
 		Logger: nl.LoggerFromContext(context.Background()),
