@@ -28,6 +28,7 @@ const (
 	serverTokensAnnotation                = "nginx.org/server-tokens" // #nosec G101
 	serverSnippetsAnnotation              = "nginx.org/server-snippets"
 	locationSnippetsAnnotation            = "nginx.org/location-snippets"
+	addHeaderInheritAnnotation            = configs.AddHeaderInheritAnnotation
 	proxyConnectTimeoutAnnotation         = "nginx.org/proxy-connect-timeout"
 	proxyReadTimeoutAnnotation            = "nginx.org/proxy-read-timeout"
 	proxySendTimeoutAnnotation            = "nginx.org/proxy-send-timeout"
@@ -156,6 +157,10 @@ var (
 		},
 		locationSnippetsAnnotation: {
 			validateSnippetsAnnotation,
+		},
+		addHeaderInheritAnnotation: {
+			validateRequiredAnnotation,
+			validateAddHeaderInheritAnnotation,
 		},
 		proxyConnectTimeoutAnnotation: {
 			validateRequiredAnnotation,
@@ -804,6 +809,13 @@ func validateQualifiedName(context *annotationValidationContext) field.ErrorList
 func validateMergeableIngressTypeAnnotation(context *annotationValidationContext) field.ErrorList {
 	if context.value != "master" && context.value != "minion" {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, "must be one of: 'master' or 'minion'")}
+	}
+	return nil
+}
+
+func validateAddHeaderInheritAnnotation(context *annotationValidationContext) field.ErrorList {
+	if _, err := configs.ParseAddHeaderInherit(context.value); err != nil {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
 	}
 	return nil
 }

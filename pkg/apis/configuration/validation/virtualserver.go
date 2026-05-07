@@ -116,6 +116,10 @@ func (vsv *VirtualServerValidator) validateVirtualServerSpec(spec *v1.VirtualSer
 
 	allErrs = append(allErrs, vsv.validateExternalDNS(&spec.ExternalDNS, fieldPath.Child("externalDNS"))...)
 
+	if spec.AddHeaderInherit != "" {
+		allErrs = append(allErrs, validateAddHeaderInherit(spec.AddHeaderInherit, fieldPath.Child("add-header-inherit"))...)
+	}
+
 	return allErrs
 }
 
@@ -883,6 +887,10 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 		}
 
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
+	}
+
+	if route.AddHeaderInherit != "" {
+		allErrs = append(allErrs, validateAddHeaderInherit(route.AddHeaderInherit, fieldPath.Child("add-header-inherit"))...)
 	}
 
 	allErrs = append(allErrs, validateDos(vsv.isDosEnabled, route.Dos, fieldPath.Child("dos"))...)
