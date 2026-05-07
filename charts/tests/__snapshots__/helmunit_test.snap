@@ -1990,10 +1990,6 @@ spec:
         volumeMounts:
           - name: app-protect-ipi-db
             mountPath: /var/IpRep
-          - name: app-protect-config
-            mountPath: /opt/app_protect/config
-          - name: app-protect-bundles
-            mountPath: /etc/app_protect/bundles
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1

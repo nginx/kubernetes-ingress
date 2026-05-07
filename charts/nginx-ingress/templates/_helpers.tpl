@@ -553,10 +553,6 @@ volumeMounts:
   volumeMounts:
     - name: app-protect-ipi-db
       mountPath: /var/IpRep
-    - name: app-protect-config
-      mountPath: /opt/app_protect/config
-    - name: app-protect-bundles
-      mountPath: /etc/app_protect/bundles
 {{- end }}
 {{- end }}
 {{- end }}
