@@ -677,6 +677,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			} else {
 				grpcOnly = false
 			}
+
+			rootLocation = true
 		}
 
 		if len(locations) == 0 {
