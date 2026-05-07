@@ -8,7 +8,7 @@ upstream {{$upstream.Name}} {
 	{{- end}}
 	{{- range $server := $upstream.UpstreamServers}}
 	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}}
-	    {{- if $server.SlowStart}} slow_start={{$server.SlowStart}}{{end}}{{if $server.Resolve}} resolve{{end}};{{end}}
+		{{- if $server.SlowStart}} slow_start={{$server.SlowStart}}{{end}}{{if $server.Resolve}} resolve{{end}};{{end}}
 	{{- if $upstream.StickyCookie}}
 	sticky cookie {{$upstream.StickyCookie}};
 	{{- end}}
@@ -196,8 +196,8 @@ server {
 	{{- end }}
 	{{- end }}
 	{{- if $server.AddHeaderInherit}}
-    add_header_inherit {{$server.AddHeaderInherit}};
-    {{- end}}
+	add_header_inherit {{$server.AddHeaderInherit}};
+	{{- end}}
 
 	{{- if and $server.HSTS (or $server.SSL $server.HSTSBehindProxy)}}
 	set $hsts_header_val "";
