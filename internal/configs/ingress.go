@@ -427,7 +427,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			server.SSLCertificateKey = DefaultServerSecretPath
 			server.SSLRejectHandshake = ncp.staticParams.SSLRejectHandshake
 			server.AccessLogOff = cfgParams.DefaultServerAccessLogOff
-			server.DefaultServerReturn = cfgParams.DefaultServerReturn
 			server.HealthStatus = ncp.staticParams.HealthStatus
 			server.HealthStatusURI = ncp.staticParams.HealthStatusURI
 		}
@@ -681,6 +680,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		if len(locations) == 0 {
 			grpcOnly = false
+		}
+
+		if isDefaultServer && !rootLocation {
+			server.DefaultServerReturn = cfgParams.DefaultServerReturn
 		}
 
 		server.Locations = locations
