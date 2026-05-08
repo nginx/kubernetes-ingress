@@ -419,16 +419,29 @@ func TestValidateIngress(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			allowEmptyIngressHost: true,
-			expectedErrors: []string{
-				"spec.tls: Forbidden: hostless Ingress cannot configure TLS; the catch-all default server certificate is controller-owned",
-			},
-			msg: "reject hostless tls",
+			expectedErrors:        nil,
+			msg:                   "allow hostless tls without tls hosts",
 		},
 		{
 			ing: &networking.Ingress{
 				Spec: networking.IngressSpec{
-					TLS:   []networking.IngressTLS{{SecretName: "default-cert"}},
-					Rules: []networking.IngressRule{{Host: ""}},
+					TLS:   []networking.IngressTLS{{Hosts: []string{"cafe.example.com"}, SecretName: "named-cert"}},
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}, {Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow mixed named and empty hosts with named tls",
+		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					TLS:   []networking.IngressTLS{{Hosts: []string{""}, SecretName: "default-cert"}},
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}, {Host: ""}},
 				},
 			},
 			isPlus:                false,
@@ -437,9 +450,9 @@ func TestValidateIngress(t *testing.T) {
 			internalRoutesEnabled: false,
 			allowEmptyIngressHost: true,
 			expectedErrors: []string{
-				"spec.tls: Forbidden: hostless Ingress cannot configure TLS; the catch-all default server certificate is controller-owned",
+				"spec.tls[0].hosts[0]: Forbidden: empty host is not allowed in tls.hosts; TLS for the default catch-all server is configured via the -default-server-tls-secret CLI flag",
 			},
-			msg: "reject hostless tls and default backend together",
+			msg: "reject mixed named and empty hosts with empty-host tls entry",
 		},
 		{
 			ing: &networking.Ingress{

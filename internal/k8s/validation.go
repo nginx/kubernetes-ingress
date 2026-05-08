@@ -10,7 +10,7 @@ import (
 
 	"github.com/dlclark/regexp2/v2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
-	version1 "github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	common_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -728,8 +728,13 @@ func hasEmptyHostRule(spec *networking.IngressSpec) bool {
 func validateHostlessIngress(ing *networking.Ingress, specPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if len(ing.Spec.TLS) > 0 {
-		allErrs = append(allErrs, field.Forbidden(specPath.Child("tls"), "hostless Ingress cannot configure TLS; the catch-all default server certificate is controller-owned"))
+	// TLS for the default catch-all server is always provided by -default-server-tls-secret; an explicit "" in tls.hosts is therefore invalid. (tls entries with no hosts are ignored by NIC.)
+	for i, tls := range ing.Spec.TLS {
+		for j, host := range tls.Hosts {
+			if host == "" {
+				allErrs = append(allErrs, field.Forbidden(specPath.Child("tls").Index(i).Child("hosts").Index(j), "empty host is not allowed in tls.hosts; TLS for the default catch-all server is configured via the -default-server-tls-secret CLI flag"))
+			}
+		}
 	}
 
 	return allErrs
