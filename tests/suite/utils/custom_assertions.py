@@ -211,7 +211,7 @@ def wait_and_assert_status_code(code, req_url, host=None, **kwargs) -> None:
     :param  code: status_code
     :param  req_url: request url
     :param  host: optional host header
-    :paramv **kwargs: optional arguments that ``request`` takes
+    :param  kwargs: optional arguments passed to ``requests.get``
     :return:
     """
     counter = 0
