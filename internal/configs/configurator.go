@@ -514,8 +514,12 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
-	// Resolve the stable ingress map key and the config file to write.
-	ingressKey, configName := getIngressKeyatndConfigName(&ingEx.Ingress.ObjectMeta, ingEx.ValidHosts[emptyHostName])
+	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+	// Empty-host Ingresses keep their normal ingress-derived key in cnf.ingresses, but write through the shared default-server config file.
+	configName := name
+	if ingEx.ValidHosts[emptyHostName] {
+		configName = DefaultServerConfigName
+	}
 
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
@@ -525,22 +529,19 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	if err != nil {
 		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", configName, err)
 	}
-
-	// If this ingress moved from its dedicated config file to the shared
-	// default-server file, remove the stale dedicated file after the new write succeeds.
-	if ingressKey != configName {
-		if current, exists := cnf.ingresses[ingressKey]; exists && !current.ValidHosts[emptyHostName] {
-			// manager API uses file names; here ingressKey is the dedicated config file name.
-			cnf.nginxManager.DeleteConfig(ingressKey)
+	// If this ingress moved from its own config file to the shared default-server file, delete the stale dedicated file after the new write succeeds.
+	if configName != name {
+		if current, exists := cnf.ingresses[name]; exists && !current.ValidHosts[emptyHostName] {
+			cnf.nginxManager.DeleteConfig(name)
 		}
 	}
 
-	cnf.ingresses[ingressKey] = ingEx
+	cnf.ingresses[name] = ingEx
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(ingEx, nginxCfg.Upstreams)
 	}
 	if err := cnf.syncDefaultServerConfig(); err != nil {
-		return false, warnings, fmt.Errorf("error syncing default server config for ingress %v: %w", ingressKey, err)
+		return false, warnings, fmt.Errorf("error syncing default server config for ingress %v: %w", name, err)
 	}
 	return configChanged, warnings, nil
 }
@@ -594,8 +595,12 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 		ingressControllerReplicas: cnf.ingressControllerReplicas,
 	})
 
-	// Resolve the stable ingress map key and the config file to write.
-	ingressKey, configName := getIngressKeyatndConfigName(&mergeableIngs.Master.Ingress.ObjectMeta, mergeableIngs.Master.ValidHosts[emptyHostName])
+	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+	// Empty-host mergeable masters keep their normal ingress-derived key in cnf.ingresses, but write through the shared default-server config file.
+	configName := name
+	if mergeableIngs.Master.ValidHosts[emptyHostName] {
+		configName = DefaultServerConfigName
+	}
 
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
@@ -605,30 +610,27 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	if err != nil {
 		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", configName, err)
 	}
-
-	// If this ingress moved from its dedicated config file to the shared
-	// default-server file, remove the stale dedicated file after the new write succeeds.
-	if ingressKey != configName {
-		if current, exists := cnf.ingresses[ingressKey]; exists && !current.ValidHosts[emptyHostName] {
-			// manager API uses file names; here ingressKey is the dedicated config file name.
-			cnf.nginxManager.DeleteConfig(ingressKey)
+	// If this ingress moved from its own config file to the shared default-server file, delete the stale dedicated file after the new write succeeds.
+	if configName != name {
+		if current, exists := cnf.ingresses[name]; exists && !current.ValidHosts[emptyHostName] {
+			cnf.nginxManager.DeleteConfig(name)
 		}
 	}
 
-	cnf.ingresses[ingressKey] = mergeableIngs.Master
-	cnf.minions[ingressKey] = make(map[string]bool)
+	cnf.ingresses[name] = mergeableIngs.Master
+	cnf.minions[name] = make(map[string]bool)
 	for _, minion := range mergeableIngs.Minions {
 		minionName := objectMetaToFileName(&minion.Ingress.ObjectMeta)
-		cnf.minions[ingressKey][minionName] = true
+		cnf.minions[name][minionName] = true
 	}
 
-	cnf.mergeableIngresses[ingressKey] = mergeableIngs
+	cnf.mergeableIngresses[name] = mergeableIngs
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(mergeableIngs.Master, nginxCfg.Upstreams)
 	}
 	if err := cnf.syncDefaultServerConfig(); err != nil {
-		return false, warnings, fmt.Errorf("error syncing default server config for mergeable ingress %v: %w", ingressKey, err)
+		return false, warnings, fmt.Errorf("error syncing default server config for mergeable ingress %v: %w", name, err)
 	}
 
 	return changed, warnings, nil
@@ -1791,18 +1793,6 @@ func keyToFileName(key string) string {
 
 func objectMetaToFileName(meta *meta_v1.ObjectMeta) string {
 	return meta.Namespace + "-" + meta.Name
-}
-
-// getIngressKeyatndConfigName returns the stable ingress map key and the config file
-// name to write for this ingress. Hostless ingresses keep their dedicated ingress key
-// in cnf.ingresses, but write to the shared default-server config file.
-func getIngressKeyatndConfigName(meta *meta_v1.ObjectMeta, isEmptyHostIngress bool) (string, string) {
-	configName := objectMetaToFileName(meta)
-	ingressKey := configName
-	if isEmptyHostIngress {
-		return ingressKey, DefaultServerConfigName
-	}
-	return ingressKey, configName
 }
 
 func generateNamespaceNameKey(objectMeta *meta_v1.ObjectMeta) string {
