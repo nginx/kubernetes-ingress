@@ -4489,7 +4489,6 @@ server {
     server_tokens ;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";

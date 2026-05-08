@@ -521,6 +521,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			}
 
 			isGRPCService := grpcServices[path.Backend.Service.Name]
+			// hasGRPCLocations tracks whether the server must emit the named
+			// @grpcerror* locations, while grpcOnly stays true only if every rendered
+			// content location in the server proxies gRPC.
 			if isGRPCService {
 				hasGRPCLocations = true
 			} else {
@@ -671,6 +674,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			}
 
 			isGRPCService := grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name]
+			// Keep the same server-level gRPC bookkeeping for the synthesized
+			// defaultBackend root location.
 			if isGRPCService {
 				hasGRPCLocations = true
 			} else {
@@ -1311,6 +1316,9 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 				}
 
 				if !loc.Internal {
+					// Imported minion locations participate in the same server-level gRPC
+					// bookkeeping: any gRPC location requires @grpcerror* handlers, and any
+					// HTTP location makes the merged server non-gRPC-only.
 					if loc.GRPC {
 						hasGRPCLocations = true
 					} else {
