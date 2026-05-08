@@ -1845,7 +1845,6 @@ func TestGenerateNginxCfgForMergeableIngressesAddHeaderInherit(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
 	}
-
 }
 
 func TestGenerateNginxCfgForMergeableIngressesSetsHasGRPCLocationsForMixedMinions(t *testing.T) {
