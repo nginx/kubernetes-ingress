@@ -7,4 +7,4 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - {}
+    - host: ""
