@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - chore/ubi-deps
     paths:
       - build/dependencies/Dockerfile.ubi8
       - build/dependencies/Dockerfile.ubi9
@@ -76,7 +77,7 @@ jobs:
             name=${{ env.IMAGE_NAME }},enable=true
           tags: |
             type=raw,value=${{ matrix.tag }},enable=${{ github.ref_name == 'main' }}
-            type=raw,value=${{ matrix.tag }}-${{ steps.ref.outputs.name }},enable=${{ github.ref_name != 'main' }}
+            type=raw,value=${{ matrix.tag }}-${{ github.ref_name }},enable=${{ github.ref_name != 'main' }}
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
