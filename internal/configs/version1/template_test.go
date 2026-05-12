@@ -5993,20 +5993,11 @@ var testUpstream = Upstream{
 	},
 }
 
-var testUpstreamWithKeepalive = Upstream{
-	Name:             "test",
-	UpstreamZoneSize: "256k",
-	Keepalive:        "16",
-	UpstreamServers: []UpstreamServer{
-		{
-			Address:     "127.0.0.1:8181",
-			MaxFails:    0,
-			MaxConns:    0,
-			FailTimeout: "1s",
-			SlowStart:   "5s",
-		},
-	},
-}
+var testUpstreamWithKeepalive = func() Upstream {
+	u := testUpstream
+	u.Keepalive = "16"
+	return u
+}()
 
 var (
 	headers     = map[string]string{"Test-Header": "test-header-value"}
