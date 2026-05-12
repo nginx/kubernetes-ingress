@@ -42,7 +42,8 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 			Items: []conf_v1.TransportServer{
 				*ts,
 			},
-		})
+		},
+	)
 
 	tsLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 
@@ -95,7 +96,8 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 			Items: []conf_v1.TransportServer{
 				*ts,
 			},
-		})
+		},
+	)
 
 	tsLister, _ := cache.NewInformerWithOptions(
 		cache.InformerOptions{
@@ -159,7 +161,8 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 	fakeClient := fake_v1.NewClientset(
 		&conf_v1.TransportServerList{
 			Items: []conf_v1.TransportServer{},
-		})
+		},
+	)
 
 	tsLister, _ := cache.NewInformerWithOptions(
 		cache.InformerOptions{

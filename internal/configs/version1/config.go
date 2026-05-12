@@ -80,6 +80,7 @@ type LimitReqZone struct {
 
 // Server describes an NGINX server.
 type Server struct {
+	AddHeaderInherit       string
 	ServerSnippets         []string
 	Name                   string
 	ServerTokens           string
@@ -93,6 +94,7 @@ type Server struct {
 	SSLRejectHandshake     bool
 	TLSPassthrough         bool
 	GRPCOnly               bool
+	IngressMTLS            *version2.IngressMTLS
 	StatusZone             string
 	HTTP2                  bool
 	RedirectToHTTPS        bool
@@ -105,6 +107,7 @@ type Server struct {
 	HSTSBehindProxy        bool
 	ProxyHideHeaders       []string
 	ProxyPassHeaders       []string
+	AddHeaders             []version2.AddHeader
 	Allow                  []string
 	Deny                   []string
 	PoliciesErrorReturn    *version2.Return
@@ -178,6 +181,7 @@ type LimitReq struct {
 
 // Location describes an NGINX location.
 type Location struct {
+	AddHeaderInherit        string
 	LocationSnippets        []string
 	Path                    string
 	Upstream                Upstream
@@ -273,6 +277,7 @@ type MGMTConfig struct {
 // MainConfig describe the main NGINX configuration file.
 type MainConfig struct {
 	AccessLog                          string
+	AddHeaderInherit                   string
 	DefaultServerAccessLogOff          bool
 	DefaultServerReturn                string
 	DisableIPV6                        bool
@@ -283,6 +288,7 @@ type MainConfig struct {
 	HealthStatusURI                    string
 	HTTP2                              bool
 	HTTPSnippets                       []string
+	AddHeaders                         []version2.AddHeader
 	KeepaliveRequests                  int64
 	KeepaliveTimeout                   string
 	LogFormat                          []string

@@ -56,6 +56,9 @@ const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
 // ProxySetHeadersAnnotation is the annotation where the proxy set headers are specified.
 const ProxySetHeadersAnnotation = "nginx.org/proxy-set-headers"
 
+// AddHeaderAnnotation is the annotation where add_header directives are specified.
+const AddHeaderAnnotation = "nginx.org/add-header"
+
 // ProxyNextUpstreamAnnotation is the annotation where the proxy next upstream settings are specified.
 const ProxyNextUpstreamAnnotation = "nginx.org/proxy-next-upstream"
 
@@ -88,6 +91,9 @@ const StickyCookieServicesAnnotation = "nginx.org/sticky-cookie-services"
 
 // StickyCookieServicesAnnotationPlus is the annotation where the sticky cookie configuration is specified for NGINX Plus.
 const StickyCookieServicesAnnotationPlus = "nginx.com/sticky-cookie-services"
+
+// AddHeaderInheritAnnotation is the annotation where add_header inheritance behavior is specified.
+const AddHeaderInheritAnnotation = "nginx.org/add-header-inherit"
 
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
@@ -254,6 +260,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.LocationSnippets = locationSnippets
 	}
 
+	if addHeaderInherit, exists := ingEx.Ingress.Annotations[AddHeaderInheritAnnotation]; exists {
+		if parsedAddHeaderInherit, err := ParseAddHeaderInherit(addHeaderInherit); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value %s: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), AddHeaderInheritAnnotation, addHeaderInherit, err)
+		} else {
+			cfgParams.AddHeaderInherit = parsedAddHeaderInherit
+		}
+	}
+
 	if proxyConnectTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-connect-timeout"]; exists {
 		if parsedProxyConnectTimeout, err := ParseTime(proxyConnectTimeout); err != nil {
 			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-connect-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyConnectTimeout, err)
@@ -288,6 +302,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxySetHeaders, exists := ingEx.Ingress.Annotations[ProxySetHeadersAnnotation]; exists {
 		cfgParams.ProxySetHeaders = version1.ParseProxySetHeaders(proxySetHeaders)
+	}
+
+	if addHeader, exists := ingEx.Ingress.Annotations[AddHeaderAnnotation]; exists {
+		cfgParams.AddHeaders = version1.ParseAddHeaders(addHeader)
 	}
 
 	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {

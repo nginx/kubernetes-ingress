@@ -207,6 +207,7 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 		"nginx.org/hsts":                  "True",
 		"nginx.org/hsts-max-age":          "2700000",
 		"nginx.org/proxy-connect-timeout": "50s",
+		AddHeaderInheritAnnotation:        addHeaderInheritOn,
 		JWTTokenAnnotation:                "$cookie_auth_token",
 	}
 	minionAnnotations := map[string]string{
@@ -224,6 +225,29 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 	}
 	if !reflect.DeepEqual(expectedMergedAnnotations, minionAnnotations) {
 		t.Errorf("mergeMasterAnnotationsIntoMinion returned %v, but expected %v", minionAnnotations, expectedMergedAnnotations)
+	}
+}
+
+func TestParseAnnotationsAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+
+	ingEx := &IngressEx{
+		Ingress: &networking.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ingress",
+				Namespace: "default",
+				Annotations: map[string]string{
+					AddHeaderInheritAnnotation: addHeaderInheritMerge,
+				},
+			},
+		},
+	}
+
+	baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+	if result.AddHeaderInherit != addHeaderInheritMerge {
+		t.Errorf("Expected AddHeaderInherit %q, got %q", addHeaderInheritMerge, result.AddHeaderInherit)
 	}
 }
 
@@ -1405,6 +1429,73 @@ func TestHTTPRedirectCodeAnnotationBehavior(t *testing.T) {
 
 			if result.HTTPRedirectCode != tt.expectedCode {
 				t.Errorf("Test %q: expected HTTPRedirectCode %d, got %d", tt.name, tt.expectedCode, result.HTTPRedirectCode)
+			}
+		})
+	}
+}
+
+// TestParseAnnotationsAddHeader verifies that nginx.org/add-header follows the standard
+// annotation pattern: parseAnnotations() stores the parsed value in cfgParams.AddHeaders
+// (server {} context via Server.AddHeaders).
+func TestParseAnnotationsAddHeader(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		wantNames   []string // expected header names in AddHeaders; nil means no annotation
+	}{
+		{
+			name:        "single header without always",
+			annotations: map[string]string{"nginx.org/add-header": "X-Frame-Options:DENY"},
+			wantNames:   []string{"X-Frame-Options"},
+		},
+		{
+			name:        "single header with always flag",
+			annotations: map[string]string{"nginx.org/add-header": "X-Frame-Options:DENY:always"},
+			wantNames:   []string{"X-Frame-Options"},
+		},
+		{
+			name:        "multiple headers",
+			annotations: map[string]string{"nginx.org/add-header": "X-Frame-Options:DENY, X-Content-Type-Options:nosniff"},
+			wantNames:   []string{"X-Frame-Options", "X-Content-Type-Options"},
+		},
+		{
+			name:      "no annotation — AddHeaders stays nil",
+			wantNames: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tc.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+			// Annotation must populate cfgParams.AddHeaders (server {} context).
+			if len(result.AddHeaders) != len(tc.wantNames) {
+				t.Fatalf("AddHeaders: want %d headers, got %d: %v",
+					len(tc.wantNames), len(result.AddHeaders), result.AddHeaders)
+			}
+			for i, want := range tc.wantNames {
+				if got := result.AddHeaders[i].Name; got != want {
+					t.Errorf("AddHeaders[%d].Name: want %q, got %q", i, want, got)
+				}
+			}
+
+			// MainAddHeaders (http {} context) must never be touched by the annotation path.
+			if len(result.MainAddHeaders) != 0 {
+				t.Errorf("annotation must not populate MainAddHeaders (http context); got %v", result.MainAddHeaders)
 			}
 		})
 	}

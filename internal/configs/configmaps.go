@@ -16,8 +16,9 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
-	k8s_validation "k8s.io/apimachinery/pkg/util/validation"
+	k8s_validation "k8s.io/apimachinery/pkg/util/validation" // still used by parseConfigMapOpenTelemetry
 )
 
 const (
@@ -96,6 +97,20 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 	if proxyPassHeaders, exists := GetMapKeyAsStringSlice(cfgm.Data, "proxy-pass-headers", cfgm, ","); exists {
 		cfgParams.ProxyPassHeaders = proxyPassHeaders
+	}
+
+	if addHeader, exists := cfgm.Data["add-header"]; exists {
+		// ConfigMap "add-header" is a global default → http {} context.
+		// Stored in MainAddHeaders so GenerateNginxMainConfig wires it into
+		// MainConfig and the main template renders it at http level.
+		if headers, err := parseAndValidateAddHeaders(addHeader); err != nil {
+			nl.Error(l, fmt.Sprintf("ConfigMap %s/%s: %s, ignoring all add-header entries", cfgm.GetNamespace(), cfgm.GetName(), err))
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue,
+				fmt.Sprintf("ConfigMap %s/%s: %s, ignoring all add-header entries", cfgm.GetNamespace(), cfgm.GetName(), err))
+			configOk = false
+		} else {
+			cfgParams.MainAddHeaders = headers
+		}
 	}
 
 	if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
@@ -416,6 +431,17 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 
 	if mainHTTPSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "http-snippets", cfgm, "\n"); exists {
 		cfgParams.MainHTTPSnippets = mainHTTPSnippets
+	}
+
+	if addHeaderInherit, exists := cfgm.Data["add-header-inherit"]; exists {
+		if parsed, err := ParseAddHeaderInherit(addHeaderInherit); err != nil {
+			wrappedError := fmt.Errorf("ConfigMap %s/%s: invalid value for 'add-header-inherit': %w", cfgm.GetNamespace(), cfgm.GetName(), err)
+			nl.Errorf(l, "%s", wrappedError.Error())
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, wrappedError.Error())
+			configOk = false
+		} else {
+			cfgParams.AddHeaderInherit = parsed
+		}
 	}
 
 	if locationSnippets, exists := GetMapKeyAsStringSlice(cfgm.Data, "location-snippets", cfgm, "\n"); exists {
@@ -1176,6 +1202,8 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 
 	nginxCfg := &version1.MainConfig{
 		AccessLog:                          config.MainAccessLog,
+		AddHeaders:                         config.MainAddHeaders,
+		AddHeaderInherit:                   config.AddHeaderInherit,
 		DefaultServerAccessLogOff:          config.DefaultServerAccessLogOff,
 		DefaultServerReturn:                config.DefaultServerReturn,
 		DisableIPV6:                        staticCfgParams.DisableIPV6,
@@ -1268,6 +1296,29 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		NginxVersion:            staticCfgParams.NginxVersion,
 	}
 	return nginxCfg
+}
+
+// parseAndValidateAddHeaders parses and validates a comma-separated add-header
+// ConfigMap value. Header names are validated with HTTP header name rules
+// (rendered unquoted in the NGINX template, so an invalid name would corrupt
+// the generated config). Header values are checked for '$', newline, and
+// carriage-return characters ('$' is expanded by NGINX as a variable reference;
+// newlines/carriage-returns break config line structure).
+//
+// On the first invalid entry the function returns an error describing the
+// problem and no headers are returned (all-or-nothing semantics, consistent
+// with how other multi-part ConfigMap keys are handled).
+func parseAndValidateAddHeaders(raw string) ([]version2.AddHeader, error) {
+	parsed := version1.ParseAddHeaders(raw)
+	for _, h := range parsed {
+		if msgs := version1.ValidateAddHeaderName(h.Name); len(msgs) != 0 {
+			return nil, fmt.Errorf("invalid 'add-header' header name %q: %s", h.Name, strings.Join(msgs, "; "))
+		}
+		if msgs := version1.ValidateAddHeaderValue(h.Value); len(msgs) != 0 {
+			return nil, fmt.Errorf("invalid 'add-header' value for header %q: %s", h.Name, strings.Join(msgs, "; "))
+		}
+	}
+	return parsed, nil
 }
 
 // parseStringField is a helper function to parse, validate, and optionally
