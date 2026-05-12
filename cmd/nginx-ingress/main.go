@@ -228,7 +228,6 @@ func main() {
 		DynamicSSLReload:               *enableDynamicSSLReload,
 		DynamicWeightChangesReload:     *enableDynamicWeightChangesReload,
 		IsDirectiveAutoadjustEnabled:   *enableDirectiveAutoadjust,
-		AllowEmptyIngressHost:          *allowEmptyIngressHost,
 		StaticSSLPath:                  staticSSLPath,
 		NginxVersion:                   nginxVersion,
 		AppProtectBundlePath:           appProtectBundlePath,
