@@ -85,3 +85,12 @@ data:
       Warning  UpdatedWithError  10s                nginx-ingress-controller  Configuration from nginx-ingress/nginx-config was updated, but not applied: Error when parsing the main template: template: nginxTemplate:98: unexpected EOF
       Warning  UpdatedWithError  8s                 nginx-ingress-controller  Configuration from nginx-ingress/nginx-config was updated, but not applied: Error when writing main Config
     ```
+
+- If custom templates from before version 5.5 are used without updating to match the upstream versions, the Ingress
+  Controller may fail to start. The error will be reported in the Ingress Controller logs.
+
+  An example of an error from the logs:
+
+    ```text
+    Error generating NGINX main config: template: nginxTemplate:142:18: executing "nginxTemplate" at <.DefaultHTTPListenerPort>: can't evaluate field DefaultHTTPListenerPort in type *version1.MainConfig
+    ```
