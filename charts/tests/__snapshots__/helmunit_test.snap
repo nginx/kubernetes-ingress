@@ -375,6 +375,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/allow-empty-ingress-host-nginx-ingress
           - -default-server-tls-secret=default/empty-host-tls
