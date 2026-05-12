@@ -4325,7 +4325,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4368,8 +4368,7 @@ var (
 				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4386,7 +4385,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4411,8 +4410,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Maps: []version2.Map{
 			{
 				Source:   "$http_origin",
@@ -4499,7 +4497,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4516,8 +4514,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4636,7 +4633,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                 "/tea",
-						Upstream:             testUpstream,
+						Upstream:             testUpstreamWithKeepalive,
 						ProxyConnectTimeout:  "10s",
 						ProxyReadTimeout:     "10s",
 						ProxySendTimeout:     "10s",
@@ -4680,8 +4677,7 @@ var (
 				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4743,7 +4739,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4754,8 +4750,7 @@ var (
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4931,7 +4926,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4957,8 +4952,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:        "cafe-ingress",
 			Namespace:   "default",
@@ -4988,7 +4982,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -5014,8 +5008,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:        "cafe-ingress",
 			Namespace:   "default",
@@ -5045,7 +5038,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -5071,8 +5064,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:        "cafe-ingress",
 			Namespace:   "default",
@@ -5102,7 +5094,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -5128,8 +5120,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:        "cafe-ingress",
 			Namespace:   "default",
@@ -6291,7 +6282,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -6312,8 +6303,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -6609,6 +6599,21 @@ var (
 var testUpstream = Upstream{
 	Name:             "test",
 	UpstreamZoneSize: "256k",
+	UpstreamServers: []UpstreamServer{
+		{
+			Address:     "127.0.0.1:8181",
+			MaxFails:    0,
+			MaxConns:    0,
+			FailTimeout: "1s",
+			SlowStart:   "5s",
+		},
+	},
+}
+
+var testUpstreamWithKeepalive = Upstream{
+	Name:             "test",
+	UpstreamZoneSize: "256k",
+	Keepalive:        "16",
 	UpstreamServers: []UpstreamServer{
 		{
 			Address:     "127.0.0.1:8181",

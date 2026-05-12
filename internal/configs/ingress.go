@@ -842,11 +842,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 	}
 
-	var keepalive string
-	if cfgParams.Keepalive > 0 {
-		keepalive = fmt.Sprint(cfgParams.Keepalive)
-	}
-
 	return version1.IngressNginxConfig{
 		Upstreams:     upstreamMapToSlice(upstreams),
 		Servers:       servers,
@@ -1299,6 +1294,9 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 	ups.LBMethod = cfg.LBMethod
 	ups.UpstreamZoneSize = cfg.UpstreamZoneSize
 	ups.StickyCookie = stickyCookie
+	if cfg.Keepalive > 0 {
+		ups.Keepalive = fmt.Sprint(cfg.Keepalive)
+	}
 	return ups, warning
 }
 
@@ -1370,7 +1368,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	healthChecks := make(map[string]version1.HealthCheck)
 	var limitReqZones []version1.LimitReqZone
 	var maps []version2.Map
-	var keepalive string
 	var oidcProviders []version2.OIDCProvider
 
 	// replace master with a deepcopy because we will modify it
@@ -1417,10 +1414,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	upstreams = append(upstreams, masterNginxCfg.Upstreams...)
 	maps = append(maps, masterNginxCfg.Maps...)
-
-	if masterNginxCfg.Keepalive != "" {
-		keepalive = masterNginxCfg.Keepalive
-	}
 
 	if masterNginxCfg.OIDCProviders != nil {
 		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
@@ -1589,7 +1582,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	return version1.IngressNginxConfig{
 		Servers:                 []version1.Server{masterServer},
 		Upstreams:               upstreams,
-		Keepalive:               keepalive,
 		OIDCProviders:           dedupedOIDCProviders,
 		KeyValZones:             keyValZones,
 		Ingress:                 masterNginxCfg.Ingress,
