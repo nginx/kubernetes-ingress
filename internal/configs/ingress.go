@@ -132,15 +132,19 @@ var ingressWAFAnnotations = []string{
 // annotation that introduced them. The Ingress model only keeps a merged policy map,
 // so this function reconstructs which refs came from nginx.org/policies and prevents
 // Plus-only policy types from becoming effective through that annotation.
-func filterIngressPolicyRefs(policyRefs []conf_v1.PolicyReference, ingEx *IngressEx) ([]conf_v1.PolicyReference, Warnings) {
+//
+// The returned bool mirrors generatePolicies() fatal validation behavior: if true,
+// the caller must return a 500 for the Ingress because an attached policy is invalid
+// in this context.
+func filterIngressPolicyRefs(policyRefs []conf_v1.PolicyReference, ingEx *IngressEx) ([]conf_v1.PolicyReference, Warnings, bool) {
 	warnings := newWarnings()
 	if len(policyRefs) == 0 || ingEx == nil || ingEx.Ingress == nil || len(ingEx.Policies) == 0 {
-		return policyRefs, warnings
+		return policyRefs, warnings, false
 	}
 
 	policyNames, exists := ingEx.Ingress.Annotations[PoliciesAnnotation]
 	if !exists {
-		return policyRefs, warnings
+		return policyRefs, warnings, false
 	}
 
 	policyRefsFromOrgAnnotation := make(map[string]bool)
@@ -162,23 +166,18 @@ func filterIngressPolicyRefs(policyRefs []conf_v1.PolicyReference, ingEx *Ingres
 		namespace, resourceName := ParseResourceReference(resourceRef, ingEx.Ingress.Namespace)
 		key := fmt.Sprintf("%s/%s", namespace, resourceName)
 		policy, exists := ingEx.Policies[key]
-		skipPolicyRef := false
 		if exists && policyRefsFromOrgAnnotation[key] {
 			for _, requirement := range ingressPoliciesRequiringPlusAnnotation {
 				if requirement.matches(policy) {
 					warnings.AddWarningf(ingEx.Ingress, "%s policy %s is not supported in annotation %s; use %s", requirement.policyType, key, PoliciesAnnotation, PoliciesAnnotationPlus)
-					skipPolicyRef = true
-					break
+					return nil, warnings, true
 				}
 			}
-		}
-		if skipPolicyRef {
-			continue
 		}
 		filteredPolicyRefs = append(filteredPolicyRefs, ref)
 	}
 
-	return filteredPolicyRefs, warnings
+	return filteredPolicyRefs, warnings, false
 }
 
 // getIngressPolicyRefs returns the de-duplicated Policy references from Ingress policy annotations
@@ -294,7 +293,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 	// Run generate Policies
 	policyRefs := getIngressPolicyRefs(ncp.ingEx)
-	policyRefs, annotationPolicyWarnings := filterIngressPolicyRefs(policyRefs, ncp.ingEx)
+	policyRefs, annotationPolicyWarnings, annotationPolicyError := filterIngressPolicyRefs(policyRefs, ncp.ingEx)
 	allWarnings.Add(annotationPolicyWarnings)
 
 	policyAppProtectResources := newAppProtectPolicyResources()
@@ -312,7 +311,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	bundleValidator := newInternalBundleValidator(bundlePath)
 
 	var policyCfg policiesCfg
-	if len(policyRefs) > 0 {
+	if annotationPolicyError {
+		policyCfg.ErrorReturn = &version2.Return{Code: 500}
+	} else if len(policyRefs) > 0 {
 		var warnings Warnings
 		pathContext := specContext
 		ownerDetails := policyOwnerDetails{

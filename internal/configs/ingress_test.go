@@ -438,6 +438,7 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 		policies        map[string]*conf_v1.Policy
 		policyRefs      []conf_v1.PolicyReference
 		expectedRefs    []conf_v1.PolicyReference
+		expectError     bool
 		warningSubstr   string
 	}{
 		{
@@ -450,7 +451,8 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 				},
 			},
 			policyRefs:    []conf_v1.PolicyReference{{Name: "waf-policy"}},
-			expectedRefs:  []conf_v1.PolicyReference{},
+			expectedRefs:  nil,
+			expectError:   true,
 			warningSubstr: "WAF policy default/waf-policy is not supported in annotation nginx.org/policies",
 		},
 		{
@@ -464,6 +466,7 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 			},
 			policyRefs:   []conf_v1.PolicyReference{{Name: "cors-policy"}},
 			expectedRefs: []conf_v1.PolicyReference{{Name: "cors-policy"}},
+			expectError:  false,
 		},
 		{
 			name:            "keeps plus annotation ref when same policy is referenced there",
@@ -476,6 +479,7 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 			},
 			policyRefs:   []conf_v1.PolicyReference{{Name: "waf-policy"}},
 			expectedRefs: []conf_v1.PolicyReference{{Name: "waf-policy"}},
+			expectError:  false,
 		},
 	}
 
@@ -488,9 +492,12 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 			ingEx.Ingress.Annotations[PoliciesAnnotation] = test.annotationValue
 			ingEx.Policies = test.policies
 
-			result, warnings := filterIngressPolicyRefs(test.policyRefs, &ingEx)
+			result, warnings, isError := filterIngressPolicyRefs(test.policyRefs, &ingEx)
 			if diff := cmp.Diff(test.expectedRefs, result); diff != "" {
 				t.Fatalf("filterIngressPolicyRefs() returned unexpected refs (-want +got):\n%s", diff)
+			}
+			if isError != test.expectError {
+				t.Fatalf("filterIngressPolicyRefs() returned isError=%v, want %v", isError, test.expectError)
 			}
 
 			ingressWarnings := warnings[ingEx.Ingress]
@@ -787,6 +794,7 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 		annotations      map[string]string
 		expectWarning    bool
 		expectWAFApplied bool
+		expect500        bool
 	}{
 		{
 			name: "waf policy via nginx.org/policies is rejected",
@@ -795,6 +803,7 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 			},
 			expectWarning:    true,
 			expectWAFApplied: false,
+			expect500:        true,
 		},
 		{
 			name: "waf policy via both annotations is rejected",
@@ -804,6 +813,7 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 			},
 			expectWarning:    true,
 			expectWAFApplied: false,
+			expect500:        true,
 		},
 		{
 			name: "waf policy via nginx.com/policies is accepted",
@@ -812,6 +822,7 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 			},
 			expectWarning:    false,
 			expectWAFApplied: true,
+			expect500:        false,
 		},
 	}
 
@@ -868,6 +879,14 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 			hasWAF := result.Servers[0].WAF != nil
 			if hasWAF != test.expectWAFApplied {
 				t.Fatalf("expected WAF applied=%v, got %v", test.expectWAFApplied, hasWAF)
+			}
+
+			hasPolicyErrorReturn := result.Servers[0].PoliciesErrorReturn != nil
+			if hasPolicyErrorReturn != test.expect500 {
+				t.Fatalf("expected policy 500=%v, got %v", test.expect500, hasPolicyErrorReturn)
+			}
+			if test.expect500 && result.Servers[0].PoliciesErrorReturn.Code != 500 {
+				t.Fatalf("expected policy error return code 500, got %d", result.Servers[0].PoliciesErrorReturn.Code)
 			}
 		})
 	}
