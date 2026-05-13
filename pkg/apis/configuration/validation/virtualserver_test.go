@@ -2650,6 +2650,21 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 		{
 			routes: []v1.Route{
 				{
+					Path: "^~/images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"^~ /images"},
+			msg:     "valid longest prefix match with spaced VS path",
+		},
+		{
+			routes: []v1.Route{
+				{
 					Path: "~/api/v1",
 					Action: &v1.Action{
 						Pass: "test",
@@ -2880,6 +2895,27 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			},
 			vsPaths: []string{"^~/images"},
 			msg:     "longest prefix match vs path with plain prefix subroute path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~/images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "^~ /images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+			},
+			vsPaths: []string{"^~ /images"},
+			msg:     "spacing-duplicate longest prefix subroute paths",
 		},
 		{
 			routes: []v1.Route{

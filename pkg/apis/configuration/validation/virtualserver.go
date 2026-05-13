@@ -1786,18 +1786,20 @@ func (vsv *VirtualServerValidator) validateSubroutesRegex(routes []v1.Route, fie
 func (vsv *VirtualServerValidator) validateSubroutesPrefix(routes []v1.Route, fieldPath *field.Path, upstreamNames sets.Set[string], vsPath string, namespace string) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allPaths := sets.Set[string]{}
+	normVSPath := NormalizePath(vsPath)
 	for i, r := range routes {
 		idxPath := fieldPath.Index(i)
 		routeErrs := vsv.validateRoute(r, idxPath, upstreamNames, true, namespace)
-		if vsPath != "" && !strings.HasPrefix(r.Path, vsPath) {
+		normPath := NormalizePath(r.Path)
+		if normVSPath != "" && !strings.HasPrefix(normPath, normVSPath) {
 			routeErrs = append(routeErrs, field.Invalid(idxPath.Child("path"), r.Path, fmt.Sprintf("must start with '%s'", vsPath)))
 		}
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)
-		} else if allPaths.Has(r.Path) {
+		} else if allPaths.Has(normPath) {
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
-			allPaths.Insert(r.Path)
+			allPaths.Insert(normPath)
 		}
 	}
 	return allErrs
