@@ -2046,6 +2046,14 @@
             443
           ]
         },
+        "allowEmptyIngressHost": {
+          "type": "boolean",
+          "default": false,
+          "title": "The allowEmptyIngressHost",
+          "examples": [
+            false
+          ]
+        },
         "readOnlyRootFilesystem": {
           "type": "boolean",
           "default": false,

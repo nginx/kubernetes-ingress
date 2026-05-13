@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -37,6 +38,12 @@ func createTestStaticConfigParams() *StaticConfigParams {
 
 func createTestConfigurator(t *testing.T) *Configurator {
 	t.Helper()
+	manager := nginx.NewFakeManager("/etc/nginx")
+	return createTestConfiguratorWithManager(t, manager)
+}
+
+func createTestConfiguratorWithManager(t *testing.T, manager nginx.Manager) *Configurator {
+	t.Helper()
 	templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl")
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +54,6 @@ func createTestConfigurator(t *testing.T) *Configurator {
 		t.Fatal(err)
 	}
 
-	manager := nginx.NewFakeManager("/etc/nginx")
 	cnf := NewConfigurator(ConfiguratorParams{
 		NginxManager:            manager,
 		StaticCfgParams:         createTestStaticConfigParams(),
@@ -65,6 +71,17 @@ func createTestConfigurator(t *testing.T) *Configurator {
 	})
 	cnf.isReloadsEnabled = true
 	return cnf
+}
+
+type errorOnDefaultServerCreateManager struct {
+	*nginx.FakeManager
+}
+
+func (m *errorOnDefaultServerCreateManager) CreateConfig(name string, content []byte) (bool, error) {
+	if name == DefaultServerConfigName {
+		return false, fmt.Errorf("default server create failed")
+	}
+	return m.FakeManager.CreateConfig(name, content)
 }
 
 func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
@@ -94,6 +111,30 @@ func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
 	})
 	cnf.isReloadsEnabled = true
 	return cnf
+}
+
+func createHostlessCafeIngressEx() IngressEx {
+	ingEx := createCafeIngressEx()
+	ingEx.Ingress.Spec.TLS = nil
+	ingEx.Ingress.Spec.Rules[0].Host = ""
+	ingEx.ValidHosts = map[string]bool{"": true}
+	ingEx.SecretRefs = map[string]*secrets.SecretReference{}
+	return ingEx
+}
+
+func createHostlessMergeableCafeIngress() *MergeableIngresses {
+	mergeableIngress := createMergeableCafeIngress()
+	mergeableIngress.Master.Ingress.Spec.TLS = nil
+	mergeableIngress.Master.Ingress.Spec.Rules[0].Host = ""
+	mergeableIngress.Master.ValidHosts = map[string]bool{"": true}
+	mergeableIngress.Master.SecretRefs = map[string]*secrets.SecretReference{}
+
+	for _, minion := range mergeableIngress.Minions {
+		minion.Ingress.Spec.Rules[0].Host = ""
+		minion.ValidHosts = map[string]bool{"": true}
+	}
+
+	return mergeableIngress
 }
 
 func TestConfiguratorUpdatesConfigWithNilCustomMainTemplate(t *testing.T) {
@@ -303,6 +344,37 @@ func TestAddOrUpdateIngress(t *testing.T) {
 	}
 }
 
+func TestAddOrUpdateIngressFailsWithInvalidIngressTemplate(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+
+	warnings, err := cnf.AddOrUpdateIngress(new(createCafeIngressEx()))
+	if err == nil {
+		t.Errorf("AddOrUpdateIngress returned \n%v,  but expected \n%v", nil, "template execution error")
+	}
+	if len(warnings) != 0 {
+		t.Errorf("AddOrUpdateIngress returned warnings: %v", warnings)
+	}
+}
+
+func TestAddOrUpdateIngressForEmptyHostFailsWithInvalidIngressTemplate(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+	hostlessIngress := createHostlessCafeIngressEx()
+
+	warnings, err := cnf.AddOrUpdateIngress(&hostlessIngress)
+	if err == nil {
+		t.Errorf("expected AddOrUpdateIngress to fail for invalid ingress template")
+	}
+	if len(warnings) != 0 {
+		t.Errorf("AddOrUpdateIngress returned warnings: %v", warnings)
+	}
+
+	if cnf.HasIngress(hostlessIngress.Ingress) {
+		t.Errorf("empty-host ingress should not be stored when template execution fails")
+	}
+}
+
 func TestAddOrUpdateMergeableIngress(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
@@ -323,19 +395,6 @@ func TestAddOrUpdateMergeableIngress(t *testing.T) {
 	}
 }
 
-func TestAddOrUpdateIngressFailsWithInvalidIngressTemplate(t *testing.T) {
-	t.Parallel()
-	cnf := createTestConfiguratorInvalidIngressTemplate(t)
-
-	warnings, err := cnf.AddOrUpdateIngress(new(createCafeIngressEx()))
-	if err == nil {
-		t.Errorf("AddOrUpdateIngress returned \n%v,  but expected \n%v", nil, "template execution error")
-	}
-	if len(warnings) != 0 {
-		t.Errorf("AddOrUpdateIngress returned warnings: %v", warnings)
-	}
-}
-
 func TestAddOrUpdateMergeableIngressFailsWithInvalidIngressTemplate(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfiguratorInvalidIngressTemplate(t)
@@ -348,6 +407,25 @@ func TestAddOrUpdateMergeableIngressFailsWithInvalidIngressTemplate(t *testing.T
 	}
 	if len(warnings) != 0 {
 		t.Errorf("AddOrUpdateMergeableIngress returned warnings: %v", warnings)
+	}
+}
+
+func TestAddOrUpdateMergeableIngressForEmptyHostFailsWithInvalidIngressTemplate(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+
+	mergeableIngress := createHostlessMergeableCafeIngress()
+
+	warnings, err := cnf.AddOrUpdateMergeableIngress(mergeableIngress)
+	if err == nil {
+		t.Errorf("expected AddOrUpdateMergeableIngress to fail for invalid ingress template")
+	}
+	if len(warnings) != 0 {
+		t.Errorf("AddOrUpdateMergeableIngress returned warnings: %v", warnings)
+	}
+
+	if cnf.HasIngress(mergeableIngress.Master.Ingress) {
+		t.Errorf("empty-host mergeable ingress should not be stored when template execution fails")
 	}
 }
 
@@ -408,6 +486,153 @@ func TestUpdateEndpointsMergeableIngressFailsWithInvalidTemplate(t *testing.T) {
 	_, err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 	if err == nil {
 		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", nil, "template execution error")
+	}
+}
+
+func TestSyncDefaultServerConfigReturnsErrorOnTemplateFailure(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+
+	err := cnf.syncDefaultServerConfig()
+	if err == nil {
+		t.Errorf("expected syncDefaultServerConfig to fail when template execution fails")
+	}
+}
+
+func TestSyncDefaultServerConfigSuppressedByEmptyHostIngress(t *testing.T) {
+	t.Parallel()
+	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+
+	err := cnf.syncDefaultServerConfig()
+	if err == nil {
+		t.Fatal("expected syncDefaultServerConfig to fail without an active empty-host ingress")
+	}
+
+	hostlessIngress := createHostlessCafeIngressEx()
+	cnf.ingresses[objectMetaToFileName(&hostlessIngress.Ingress.ObjectMeta)] = &hostlessIngress
+
+	err = cnf.syncDefaultServerConfig()
+	if err != nil {
+		t.Fatalf("expected syncDefaultServerConfig to be skipped with an active empty-host ingress: %v", err)
+	}
+}
+
+func TestAddOrUpdateIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
+	t.Parallel()
+	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	ingress := createCafeIngressEx()
+
+	warnings, err := cnf.AddOrUpdateIngress(&ingress)
+	if len(warnings) != 0 {
+		t.Fatalf("AddOrUpdateIngress returned warnings: %v", warnings)
+	}
+	if err == nil {
+		t.Fatal("expected AddOrUpdateIngress to fail when default server sync fails")
+	}
+	if err.Error() != "error adding or updating ingress default/cafe-ingress: error syncing default server config for ingress default-cafe-ingress: error writing default server config: default server create failed" {
+		t.Fatalf("unexpected AddOrUpdateIngress error: %v", err)
+	}
+}
+
+func TestAddOrUpdateMergeableIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
+	t.Parallel()
+	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	mergeableIngress := createMergeableCafeIngress()
+
+	warnings, err := cnf.AddOrUpdateMergeableIngress(mergeableIngress)
+	if len(warnings) != 0 {
+		t.Fatalf("AddOrUpdateMergeableIngress returned warnings: %v", warnings)
+	}
+	if err == nil {
+		t.Fatal("expected AddOrUpdateMergeableIngress to fail when default server sync fails")
+	}
+	if err.Error() != "error when adding or updating ingress default/cafe-ingress-master: error syncing default server config for mergeable ingress default-cafe-ingress-master: error writing default server config: default server create failed" {
+		t.Fatalf("unexpected AddOrUpdateMergeableIngress error: %v", err)
+	}
+}
+
+func TestDeleteIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfigurator(t)
+	ingress := createCafeIngressEx()
+
+	_, err := cnf.AddOrUpdateIngress(&ingress)
+	if err != nil {
+		t.Fatalf("AddOrUpdateIngress returned error: %v", err)
+	}
+
+	cnf.nginxManager = &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+
+	err = cnf.DeleteIngress(generateNamespaceNameKey(&ingress.Ingress.ObjectMeta), true)
+	if err == nil {
+		t.Fatal("expected DeleteIngress to fail when default server sync fails")
+	}
+	if err.Error() != "error syncing default server config after deleting ingress default/cafe-ingress: error writing default server config: default server create failed" {
+		t.Fatalf("unexpected DeleteIngress error: %v", err)
+	}
+}
+
+func TestGenerateDefaultServerConfig(t *testing.T) {
+	t.Parallel()
+
+	staticCfg := &StaticConfigParams{
+		DefaultHTTPListenerPort:  8081,
+		DefaultHTTPSListenerPort: 8444,
+		HealthStatus:             true,
+		HealthStatusURI:          "/custom-health",
+		TLSPassthrough:           true,
+		SSLRejectHandshake:       true,
+		DisableIPV6:              true,
+		DynamicSSLReload:         true,
+		StaticSSLPath:            "/tmp/ssl",
+	}
+	cfg := &ConfigParams{
+		DefaultServerAccessLogOff: true,
+		DefaultServerReturn:       "302 https://example.com",
+		ServerTokens:              "build",
+		HTTP2:                     true,
+		ProxyProtocol:             true,
+		RealIPHeader:              "X-Forwarded-For",
+		SetRealIPFrom:             []string{"10.0.0.0/8"},
+		RealIPRecursive:           true,
+	}
+
+	got := GenerateDefaultServerConfig(staticCfg, cfg)
+	want := version1.IngressNginxConfig{
+		Servers: []version1.Server{{
+			Name:                emptyHostToken,
+			StatusZone:          emptyHostToken,
+			IsDefaultServer:     true,
+			Ports:               []int{8081},
+			SSLPorts:            []int{8444},
+			SSL:                 true,
+			SSLCertificate:      DefaultServerSecretPath,
+			SSLCertificateKey:   DefaultServerSecretPath,
+			SSLRejectHandshake:  true,
+			AccessLogOff:        true,
+			DefaultServerReturn: "302 https://example.com",
+			HealthStatus:        true,
+			HealthStatusURI:     "/custom-health",
+			ServerTokens:        "build",
+			TLSPassthrough:      true,
+			HTTP2:               true,
+			GRPCOnly:            false,
+			ProxyProtocol:       true,
+			RealIPHeader:        "X-Forwarded-For",
+			SetRealIPFrom:       []string{"10.0.0.0/8"},
+			RealIPRecursive:     true,
+			DisableIPV6:         true,
+		}},
+		Ingress:                 version1.Ingress{},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           "/tmp/ssl",
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("GenerateDefaultServerConfig() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -2213,58 +2438,20 @@ http {
     include oidc/oidc_common.conf;
     {{- end}}
 
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen {{ .DefaultHTTPListenerPort }} default_server{{if .ProxyProtocol}} proxy_protocol{{end}};
-        {{- if not .DisableIPV6}}listen [::]:{{ .DefaultHTTPListenerPort }} default_server{{if .ProxyProtocol}} proxy_protocol{{end}};{{end}}
-
-        {{- if .TLSPassthrough}}
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        {{- else}}
-        listen {{ .DefaultHTTPSListenerPort }} ssl default_server{{if .ProxyProtocol}} proxy_protocol{{end}};
-        {{if not .DisableIPV6}}listen [::]:{{ .DefaultHTTPSListenerPort }} ssl default_server{{if .ProxyProtocol}} proxy_protocol{{end}};{{end}}
-        {{- end}}
-
-        {{- if .HTTP2}}
-        http2 on;
-        {{- end}}
-
-        {{- if .SSLRejectHandshake}}
-        ssl_reject_handshake on;
-        {{- else}}
-        ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/default" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/default" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        {{- end}}
-
-        {{- range $setRealIPFrom := .SetRealIPFrom}}
-        set_real_ip_from {{$setRealIPFrom}};{{end}}
-        {{- if .RealIPHeader}}real_ip_header {{.RealIPHeader}};{{end}}
-        {{- if .RealIPRecursive}}real_ip_recursive on;{{end}}
-
-        server_name _;
-        server_tokens "{{.ServerTokens}}";
-        {{- if .DefaultServerAccessLogOff}}
-        access_log off;
-        {{end -}}
-
-        {{- if .HealthStatus}}
-        location {{.HealthStatusURI}} {
-            default_type text/plain;
-            return 200 "healthy\n";
-        }
-        {{end}}
-
-        location / {
-            return {{.DefaultServerReturn}};
-        }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
     }
 
     {{- if .NginxStatus}}

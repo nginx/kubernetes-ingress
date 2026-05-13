@@ -232,6 +232,13 @@ var (
 
 	enableDirectiveAutoadjust = flag.Bool("enable-directive-autoadjust", false, "Enable automatic adjustment of NGINX directives to avoid conflicting NGINX configuration. Results may vary and might not be ideal in all cases.")
 
+	allowEmptyIngressHost = flag.Bool("allow-empty-ingress-host", false,
+		`Allows Ingress resources to omit the host field. If multiple Ingress resources without a host conflict,
+	NGINX Ingress Controller resolves the collision using the winner selection algorithm. To use multiple
+	Ingress resources without a host across namespaces without conflict, use mergeable Ingress. To configure
+	TLS, use -default-server-tls-secret. To configure listener ports, use -default-http-listener-port or
+	-default-https-listener-port. Default is false.`)
+
 	startupCheckFn func() error
 )
 

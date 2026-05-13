@@ -357,6 +357,7 @@ Build the args for the service binary.
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
 - -default-http-listener-port={{ .Values.controller.defaultHTTPListenerPort}}
 - -default-https-listener-port={{ .Values.controller.defaultHTTPSListenerPort}}
+- -allow-empty-ingress-host={{ .Values.controller.allowEmptyIngressHost }}
 {{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
 {{- else if .Values.controller.globalConfiguration.customName }}

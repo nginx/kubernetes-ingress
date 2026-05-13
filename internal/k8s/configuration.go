@@ -419,6 +419,7 @@ type Configuration struct {
 	isCertManagerEnabled         bool
 	isIPV6Disabled               bool
 	isDirectiveAutoadjustEnabled bool
+	allowEmptyIngressHost        bool
 
 	// startupComplete indicates whether the initial informer cache sync and
 	// queue drain have finished. When false, rebuildHosts() is skipped in
@@ -444,6 +445,7 @@ func NewConfiguration(
 	isCertManagerEnabled bool,
 	isIPV6Disabled bool,
 	isDirectiveAutoadjustEnabled bool,
+	allowEmptyIngressHost bool,
 ) *Configuration {
 	policyServiceRefs := make(map[string]string)
 	return &Configuration{
@@ -475,6 +477,7 @@ func NewConfiguration(
 		isCertManagerEnabled:         isCertManagerEnabled,
 		isIPV6Disabled:               isIPV6Disabled,
 		isDirectiveAutoadjustEnabled: isDirectiveAutoadjustEnabled,
+		allowEmptyIngressHost:        allowEmptyIngressHost,
 	}
 }
 
@@ -490,7 +493,7 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 		delete(c.ingresses, key)
 		c.updateMinionIndex(key, nil)
 	} else {
-		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled).ToAggregate()
+		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled, c.allowEmptyIngressHost).ToAggregate()
 		if validationError != nil {
 			delete(c.ingresses, key)
 			c.updateMinionIndex(key, nil)
