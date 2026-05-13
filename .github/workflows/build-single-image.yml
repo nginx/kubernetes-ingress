@@ -139,6 +139,9 @@ jobs:
           key: nginx-ingress-${{ steps.vars.outputs.go_code_md5 }}
         if: ${{ steps.binary-cache.outputs.cache-hit != 'true' }}
 
+      - name: Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
       - name: Build Image
         run: |
           make ${{ inputs.target }}

@@ -1,69 +1,85 @@
 {
-  "image": [
-    "debian-plus-nap"
-  ],
-  "platforms": [
-    "linux/amd64"
-  ],
-  "target": [
-    "goreleaser"
-  ],
-  "nap_modules": [
-    "dos",
-    "waf",
-    "waf,dos"
-  ],
   "include": [
     {
+      "image": "debian-plus-nap",
+      "bake_target": "debian-image-dos-plus",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "dos"
+    },
+    {
+      "image": "debian-plus-nap",
+      "bake_target": "debian-image-nap-plus",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "debian-plus-nap",
+      "bake_target": "debian-image-nap-dos-plus",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf,dos"
+    },
+    {
       "image": "ubi-8-plus-nap",
+      "bake_target": "ubi8-image-nap-plus",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"
     },
     {
       "image": "ubi-8-plus-nap-v5",
+      "bake_target": "ubi8-image-nap-v5-plus",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"
     },
     {
       "image": "ubi-9-plus-nap",
+      "bake_target": "ubi-image-nap-plus",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"
     },
     {
       "image": "ubi-9-plus-nap",
+      "bake_target": "ubi-image-dos-plus",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "dos"
     },
     {
       "image": "ubi-9-plus-nap",
+      "bake_target": "ubi-image-nap-dos-plus",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf,dos"
     },
     {
       "image": "alpine-plus-nap-fips",
+      "bake_target": "alpine-image-nap-plus-fips",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"
     },
     {
       "image": "alpine-plus-nap-v5-fips",
+      "bake_target": "alpine-image-nap-v5-plus-fips",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"
     },
     {
       "image": "debian-plus-nap-v5",
+      "bake_target": "debian-image-nap-v5-plus",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"
     },
     {
       "image": "ubi-9-plus-nap-v5",
+      "bake_target": "ubi-image-nap-v5-plus",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"

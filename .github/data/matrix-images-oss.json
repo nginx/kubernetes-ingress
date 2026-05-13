@@ -1,14 +1,18 @@
 {
-  "image": [
-    "debian",
-    "alpine"
-  ],
-  "platforms": [
-    "linux/arm64, linux/amd64"
-  ],
   "include": [
     {
+      "image": "debian",
+      "bake_target": "debian-image",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "image": "alpine",
+      "bake_target": "alpine-image",
+      "platforms": "linux/arm64, linux/amd64"
+    },
+    {
       "image": "ubi",
+      "bake_target": "ubi-image",
       "platforms": "linux/arm64, linux/amd64"
     }
   ]
