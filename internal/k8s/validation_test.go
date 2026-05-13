@@ -80,7 +80,7 @@ func TestValidateIngress_WithValidPathRegexValuesForNGINXPlus(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false, false)
 			if len(allErrs) != 0 {
 				t.Errorf("want no errors, got %+v\n", allErrs)
 			}
@@ -155,7 +155,7 @@ func TestValidateIngress_WithValidPathRegexValuesForNGINX(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false, false)
 			if len(allErrs) != 0 {
 				t.Errorf("want no errors, got %+v\n", allErrs)
 			}
@@ -212,7 +212,7 @@ func TestValidateIngress_WithInvalidPathRegexValuesForNGINXPlus(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false, false)
 			if len(allErrs) == 0 {
 				t.Error("want errors on invalid path regex values")
 			}
@@ -270,7 +270,7 @@ func TestValidateIngress_WithInvalidPathRegexValuesForNGINX(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false, false)
 			if len(allErrs) == 0 {
 				t.Error("want errors on invalid path regex values")
 			}
@@ -287,6 +287,7 @@ func TestValidateIngress(t *testing.T) {
 		appProtectEnabled     bool
 		appProtectDosEnabled  bool
 		internalRoutesEnabled bool
+		allowEmptyIngressHost bool
 		expectedErrors        []string
 		msg                   string
 	}{
@@ -304,6 +305,7 @@ func TestValidateIngress(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			allowEmptyIngressHost: false,
 			expectedErrors:        nil,
 			msg:                   "valid input",
 		},
@@ -326,6 +328,7 @@ func TestValidateIngress(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			allowEmptyIngressHost: false,
 			expectedErrors: []string{
 				`annotations.nginx.org/mergeable-ingress-type: Invalid value: "invalid": must be one of: 'master' or 'minion'`,
 				"spec.rules[0].host: Required value",
@@ -390,10 +393,201 @@ func TestValidateIngress(t *testing.T) {
 			},
 			msg: "invalid minion",
 		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "valid hostless ingress when allowed",
+		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					TLS:   []networking.IngressTLS{{SecretName: "default-cert"}},
+					Rules: []networking.IngressRule{{Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow hostless tls without tls hosts",
+		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					TLS:   []networking.IngressTLS{{Hosts: []string{"cafe.example.com"}, SecretName: "named-cert"}},
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}, {Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow mixed named and empty hosts with named tls",
+		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					TLS:   []networking.IngressTLS{{Hosts: []string{""}, SecretName: "default-cert"}},
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}, {Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors: []string{
+				"spec.tls[0].hosts[0]: Forbidden: empty host is not allowed in tls.hosts; TLS for the default catch-all server is configured via the -default-server-tls-secret CLI flag",
+			},
+			msg: "reject mixed named and empty hosts with empty-host tls entry",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						listenPortsAnnotation: "80,8080",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors: []string{
+				"annotations.nginx.org/listen-ports: Forbidden: annotation is not supported for hostless Ingress",
+			},
+			msg: "reject hostless listen ports",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						listenPortsAnnotation: "80,8080",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow listen ports for non-hostless ingress",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						listenPortsAnnotation: "80,8080",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}, {Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors: []string{
+				"annotations.nginx.org/listen-ports: Forbidden: annotation is not supported for hostless Ingress",
+			},
+			msg: "reject hostless listen ports for mixed named and empty hosts",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						hstsAnnotation:             "true",
+						proxyHideHeadersAnnotation: "Server",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow hostless overrideable defaults",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						"nginx.org/mergeable-ingress-type": "master",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{
+						{
+							Host: "",
+						},
+					},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "valid hostless master ingress",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						"nginx.org/mergeable-ingress-type": "minion",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{
+						{
+							Host:             "",
+							IngressRuleValue: networking.IngressRuleValue{},
+						},
+					},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors: []string{
+				"spec.rules[0].http.paths: Required value: must include at least one path",
+			},
+			msg: "hostless minion still requires paths",
+		},
 	}
 
 	for _, test := range tests {
-		allErrs := validateIngress(test.ing, test.isPlus, test.appProtectEnabled, test.appProtectDosEnabled, test.internalRoutesEnabled, false, false)
+		allErrs := validateIngress(test.ing, test.isPlus, test.appProtectEnabled, test.appProtectDosEnabled, test.internalRoutesEnabled, false, false, test.allowEmptyIngressHost)
 		assertion := assertErrors("validateIngress()", test.msg, allErrs, test.expectedErrors)
 		if assertion != "" {
 			t.Error(assertion)
@@ -412,6 +606,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		internalRoutesEnabled bool
 		snippetsEnabled       bool
 		directiveAutoAdjust   bool
+		hostless              bool
 		expectedErrors        []string
 		msg                   string
 	}{
@@ -4278,6 +4473,57 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			},
 			msg: "invalid app-root - contains whitespace",
 		},
+		{
+			annotations: map[string]string{
+				listenPortsAnnotation: "80,8080",
+			},
+			specServices: map[string]bool{},
+			hostless:     true,
+			expectedErrors: []string{
+				"annotations.nginx.org/listen-ports: Forbidden: annotation is not supported for hostless Ingress",
+			},
+			msg: "reject hostless listen-ports",
+		},
+		{
+			annotations: map[string]string{
+				listenPortsSSLAnnotation: "443,8443",
+			},
+			specServices: map[string]bool{},
+			hostless:     true,
+			expectedErrors: []string{
+				"annotations.nginx.org/listen-ports-ssl: Forbidden: annotation is not supported for hostless Ingress",
+			},
+			msg: "reject hostless listen-ports-ssl",
+		},
+		{
+			annotations: map[string]string{
+				serverSnippetsAnnotation: "return 200;",
+			},
+			specServices:    map[string]bool{},
+			hostless:        true,
+			snippetsEnabled: true,
+			expectedErrors:  nil,
+			msg:             "allow hostless server-snippets when snippets enabled",
+		},
+		{
+			annotations: map[string]string{
+				basicAuthSecretAnnotation: "auth-secret",
+			},
+			specServices:   map[string]bool{},
+			hostless:       true,
+			expectedErrors: nil,
+			msg:            "allow hostless basic-auth",
+		},
+		{
+			annotations: map[string]string{
+				hstsAnnotation:             "true",
+				proxyHideHeadersAnnotation: "Server",
+			},
+			specServices:   map[string]bool{},
+			hostless:       true,
+			expectedErrors: nil,
+			msg:            "allow hostless overrideable defaults",
+		},
 	}
 
 	for _, test := range tests {
@@ -4290,6 +4536,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 					internalRoutesEnabled: test.internalRoutesEnabled,
 					snippetsEnabled:       test.snippetsEnabled,
 					directiveAutoAdjust:   test.directiveAutoAdjust,
+					hostless:              test.hostless,
 				},
 				test.annotations,
 				test.specServices,
@@ -4306,9 +4553,10 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 func TestValidateIngressSpec(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		spec           *networking.IngressSpec
-		expectedErrors []field.ErrorType
-		msg            string
+		spec                  *networking.IngressSpec
+		allowEmptyIngressHost bool
+		expectedErrors        []field.ErrorType
+		msg                   string
 	}{
 		{
 			spec: &networking.IngressSpec{
@@ -4551,10 +4799,38 @@ func TestValidateIngressSpec(t *testing.T) {
 			},
 			msg: "invalid backend",
 		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{{Host: ""}},
+			},
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "valid empty host when allowed",
+		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{{Host: ""}, {Host: ""}},
+			},
+			allowEmptyIngressHost: true,
+			expectedErrors: []field.ErrorType{
+				field.ErrorTypeDuplicate,
+			},
+			msg: "reject duplicate empty host rules when empty host is allowed",
+		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{{Host: ""}},
+			},
+			allowEmptyIngressHost: false,
+			expectedErrors: []field.ErrorType{
+				field.ErrorTypeRequired,
+			},
+			msg: "reject empty host when not allowed",
+		},
 	}
 
 	for _, test := range tests {
-		allErrs := validateIngressSpec(test.spec, field.NewPath("spec"))
+		allErrs := validateIngressSpec(test.spec, field.NewPath("spec"), test.allowEmptyIngressHost)
 		assertion := assertErrorTypes(test.msg, allErrs, test.expectedErrors)
 		if assertion != "" {
 			t.Error(assertion)

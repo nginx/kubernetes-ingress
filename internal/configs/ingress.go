@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	emptyHost     = ""
-	minionContext = "minion"
+	emptyHostName  = ""
+	emptyHostToken = "_"
+	minionContext  = "minion"
 )
 
 // AppProtectResources holds namespace names of App Protect resources relevant to an Ingress
@@ -267,7 +268,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	allWarnings.Add(rewriteTargetWarnings)
 
 	if ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
-		name := getNameForUpstream(ncp.ingEx.Ingress, emptyHost, ncp.ingEx.Ingress.Spec.DefaultBackend)
+		name := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
 		upstream, upsWarning := createUpstream(ncp.ingEx, name, ncp.ingEx.Ingress.Spec.DefaultBackend, spServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], &cfgParams,
 			ncp.isPlus, ncp.isResolverConfigured, ncp.staticParams.EnableLatencyMetrics)
 		if upsWarning != "" {
@@ -373,11 +374,17 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		serverName := rule.Host
 
+		isDefaultServer := rule.Host == emptyHostName
 		statusZone := rule.Host
+		if statusZone == emptyHostName {
+			serverName = emptyHostToken
+			statusZone = emptyHostToken
+		}
 
 		server := version1.Server{
 			AddHeaderInherit:       cfgParams.AddHeaderInherit,
 			Name:                   serverName,
+			IsDefaultServer:        isDefaultServer,
 			ServerTokens:           cfgParams.ServerTokens,
 			HTTP2:                  cfgParams.HTTP2,
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
@@ -413,13 +420,27 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
 		}
 
+		if isDefaultServer {
+			server.Ports = []int{ncp.staticParams.DefaultHTTPListenerPort}
+			server.SSLPorts = []int{ncp.staticParams.DefaultHTTPSListenerPort}
+			server.SSL = true
+			server.SSLCertificate = DefaultServerSecretPath
+			server.SSLCertificateKey = DefaultServerSecretPath
+			server.SSLRejectHandshake = ncp.staticParams.SSLRejectHandshake
+			server.AccessLogOff = cfgParams.DefaultServerAccessLogOff
+			server.HealthStatus = ncp.staticParams.HealthStatus
+			server.HealthStatusURI = ncp.staticParams.HealthStatusURI
+		}
+
 		if ncp.isMinion {
 			// Mergeable minions apply egress mTLS at location scope so minion policies can override the master.
 			server.EgressMTLS = nil
 		}
 
-		warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
-		allWarnings.Add(warnings)
+		if !isDefaultServer {
+			warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
+			allWarnings.Add(warnings)
+		}
 
 		if policyCfg.IngressMTLS != nil {
 			if server.SSL {
@@ -490,23 +511,24 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		rootLocation := false
 
-		grpcOnly := true
-		if len(grpcServices) > 0 {
-			for _, path := range httpIngressRuleValue.Paths {
-				if _, exists := grpcServices[path.Backend.Service.Name]; !exists {
-					grpcOnly = false
-					break
-				}
-			}
-		} else {
-			grpcOnly = false
-		}
+		grpcOnly := len(grpcServices) > 0
+		hasGRPCLocations := false
 
 		for i := range httpIngressRuleValue.Paths {
 			path := httpIngressRuleValue.Paths[i]
 			// skip invalid paths for minions
 			if ncp.isMinion && !ncp.ingEx.ValidMinionPaths[path.Path] {
 				continue
+			}
+
+			isGRPCService := grpcServices[path.Backend.Service.Name]
+			// hasGRPCLocations tracks whether the server must emit the named
+			// @grpcerror* locations, while grpcOnly stays true only if every rendered
+			// content location in the server proxies gRPC.
+			if isGRPCService {
+				hasGRPCLocations = true
+			} else {
+				grpcOnly = false
 			}
 
 			upsName := getNameForUpstream(ncp.ingEx.Ingress, rule.Host, &path.Backend)
@@ -528,7 +550,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, ncp.staticParams)
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
-				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
+				ssl, isGRPCService, proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Minion egress mTLS is rendered per location to match VirtualServer route policy behavior.
 				loc.EgressMTLS = policyCfg.EgressMTLS
@@ -630,7 +652,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 
 		if !rootLocation && ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
-			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHost, ncp.ingEx.Ingress.Spec.DefaultBackend)
+			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
 			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], cfgParams, ncp.staticParams)
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
@@ -652,14 +674,30 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				}
 			}
 
-			if _, exists := grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name]; !exists {
+			isGRPCService := grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name]
+			// Keep the same server-level gRPC bookkeeping for the synthesized
+			// defaultBackend root location.
+			if isGRPCService {
+				hasGRPCLocations = true
+			} else {
 				grpcOnly = false
 			}
+
+			rootLocation = true
+		}
+
+		if len(locations) == 0 {
+			grpcOnly = false
+		}
+
+		if isDefaultServer && !rootLocation {
+			server.DefaultServerReturn = cfgParams.DefaultServerReturn
 		}
 
 		server.Locations = locations
 		server.HealthChecks = healthChecks
 		server.GRPCOnly = grpcOnly
+		server.HasGRPCLocations = hasGRPCLocations
 
 		servers = append(servers, server)
 	}
@@ -1097,6 +1135,9 @@ func pathOrDefault(path string) string {
 }
 
 func getNameForUpstream(ing *networking.Ingress, host string, backend *networking.IngressBackend) string {
+	if host == emptyHostName {
+		host = emptyHostToken
+	}
 	return fmt.Sprintf("%v-%v-%v-%v-%v", ing.Namespace, ing.Name, host, backend.Service.Name, GetBackendPortAsString(backend.Service.Port))
 }
 
@@ -1181,6 +1222,8 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	}
 
 	minions := ncp.mergeableIngs.Minions
+	grpcOnly := true
+	hasGRPCLocations := false
 	for _, minion := range minions {
 		// replace minion with a deepcopy because we will modify it
 		originalMinion := minion.Ingress
@@ -1273,6 +1316,17 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 					loc.AddHeaders = append(minionAddHeaders, loc.AddHeaders...)
 				}
 
+				if !loc.Internal {
+					// Imported minion locations participate in the same server-level gRPC
+					// bookkeeping: any gRPC location requires @grpcerror* handlers, and any
+					// HTTP location makes the merged server non-gRPC-only.
+					if loc.GRPC {
+						hasGRPCLocations = true
+					} else {
+						grpcOnly = false
+					}
+				}
+
 				locations = append(locations, loc)
 			}
 			for hcName, healthCheck := range server.HealthChecks {
@@ -1288,6 +1342,8 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	masterServer.HealthChecks = healthChecks
 	masterServer.Locations = append(masterInternalLocations, locations...)
+	masterServer.HasGRPCLocations = hasGRPCLocations
+	masterServer.GRPCOnly = hasGRPCLocations && grpcOnly
 
 	return version1.IngressNginxConfig{
 		Servers:                 []version1.Server{masterServer},

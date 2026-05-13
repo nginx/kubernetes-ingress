@@ -83,6 +83,11 @@ type Server struct {
 	AddHeaderInherit       string
 	ServerSnippets         []string
 	Name                   string
+	IsDefaultServer        bool
+	AccessLogOff           bool
+	DefaultServerReturn    string
+	HealthStatus           bool
+	HealthStatusURI        string
 	ServerTokens           string
 	Locations              []Location
 	EgressMTLS             *version2.EgressMTLS
@@ -95,6 +100,7 @@ type Server struct {
 	TLSPassthrough         bool
 	GRPCOnly               bool
 	IngressMTLS            *version2.IngressMTLS
+	HasGRPCLocations       bool
 	StatusZone             string
 	HTTP2                  bool
 	RedirectToHTTPS        bool
@@ -278,14 +284,8 @@ type MGMTConfig struct {
 type MainConfig struct {
 	AccessLog                          string
 	AddHeaderInherit                   string
-	DefaultServerAccessLogOff          bool
-	DefaultServerReturn                string
 	DisableIPV6                        bool
-	DefaultHTTPListenerPort            int
-	DefaultHTTPSListenerPort           int
 	ErrorLogLevel                      string
-	HealthStatus                       bool
-	HealthStatusURI                    string
 	HTTP2                              bool
 	HTTPSnippets                       []string
 	AddHeaders                         []version2.AddHeader
@@ -309,16 +309,12 @@ type MainConfig struct {
 	ResolverIPV6                       bool
 	ResolverTimeout                    string
 	ResolverValid                      string
-	RealIPHeader                       string
-	RealIPRecursive                    bool
 	SetRealIPFrom                      []string
 	ServerNamesHashBucketSize          string
 	ServerNamesHashMaxSize             string
 	MapHashBucketSize                  string
 	MapHashMaxSize                     string
 	ClientBodyBufferSize               string
-	ServerTokens                       string
-	SSLRejectHandshake                 bool
 	SSLCiphers                         string
 	SSLDHParam                         string
 	SSLPreferServerCiphers             bool

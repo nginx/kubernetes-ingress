@@ -241,6 +241,7 @@ controller:
     ## The value must follow the following format: `<namespace>/<name>`.
     ## Used as an alternative to specifying a certificate and key using `controller.defaultTLS.cert` and `controller.defaultTLS.key` parameters.
     ## Note: Alternatively, omitting the default server secret completely will configure NGINX to reject TLS connections to the default server.
+    ## When controller.allowEmptyIngressHost is enabled, this secret also provides TLS for Ingress resources without a host.
     ## Format: <namespace>/<secret_name>
     secret: ""
 
@@ -668,11 +669,16 @@ controller:
   ## Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack.
   disableIPV6: false
 
-  ## Sets the port for the HTTP `default_server` listener.
+  ## Sets the port for the HTTP `default_server` listener. When controller.allowEmptyIngressHost is enabled, also configures the HTTP listener port for Ingress resources without a host.
   defaultHTTPListenerPort: 80
 
-  ## Sets the port for the HTTPS `default_server` listener.
+  ## Sets the port for the HTTPS `default_server` listener. When controller.allowEmptyIngressHost is enabled, also configures the HTTPS listener port for Ingress resources without a host.
   defaultHTTPSListenerPort: 443
+
+  ## Allows Ingress resources to omit the host field.
+  ## spec.tls is not supported on Ingress resources without a host; use controller.defaultTLS.secret instead.
+  ## nginx.org/listen-ports and nginx.org/listen-ports-ssl are not supported; use controller.defaultHTTPListenerPort and controller.defaultHTTPSListenerPort instead.
+  allowEmptyIngressHost: false
 
   ## Configure root filesystem as read-only and add volumes for temporary data.
   ## Three major releases after 3.5.x this argument will be moved to the `securityContext` section.
