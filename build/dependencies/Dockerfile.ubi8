@@ -25,7 +25,7 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
             perl-Email-Date-Format perl-IO-SessionData perl-IPC-ShareLite \
             perl-MIME-Lite perl-MIME-tools perl-Parse-RecDescent perl-SOAP-Lite \
             perl-Text-CSV_XS perl-Text-Iconv perl-UNIVERSAL-isa perl-thrift \
-            zeromq \
+            zeromq perl-libxml-perl \
         && dnf download --resolve --destdir=/rpms \
             protobuf perl-Bit-Vector perl-File-Slurp perl-IO-Socket-INET6 \
             perl-JSON perl-XML-LibXML perl-XML-Simple \
