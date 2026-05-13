@@ -16,7 +16,8 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
             --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms \
             perl-Class-Accessor perl-HTML-Tree perl-IO-String perl-IO-stringy \
             perl-JSON-XS perl-MIME-Types perl-Types-Serialiser perl-XML-Twig \
-            perl-common-sense boost-system boost-thread re2 \
+            perl-common-sense boost-system boost-thread \
+        && dnf download --resolve --destdir=/rpms re2 \
         && subscription-manager unregister \
         && createrepo_c /rpms/; \
     fi
