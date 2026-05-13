@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/dlclark/regexp2"
+	"github.com/dlclark/regexp2/v2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
@@ -138,6 +138,10 @@ func (vsv *VirtualServerValidator) validateVirtualServerSpec(spec *v1.VirtualSer
 	allErrs = append(allErrs, validateDos(vsv.isDosEnabled, spec.Dos, fieldPath.Child("dos"))...)
 
 	allErrs = append(allErrs, vsv.validateExternalDNS(&spec.ExternalDNS, fieldPath.Child("externalDNS"))...)
+
+	if spec.AddHeaderInherit != "" {
+		allErrs = append(allErrs, validateAddHeaderInherit(spec.AddHeaderInherit, fieldPath.Child("add-header-inherit"))...)
+	}
 
 	return allErrs
 }
@@ -689,7 +693,8 @@ func validateBackup(backup string, backupPort *uint16, lbMethod string, idxPath 
 	}
 
 	if strings.Contains(lbMethod, "hash") || strings.Contains(lbMethod, "hash_ip") || strings.Contains(lbMethod, "random") {
-		allErrs = append(allErrs, field.Forbidden(idxPath.Child("backup"),
+		allErrs = append(allErrs, field.Forbidden(
+			idxPath.Child("backup"),
 			"backup cannot be used along with the 'hash', 'hash_ip' and 'random' load balancing methods",
 		))
 	}
@@ -906,6 +911,10 @@ func (vsv *VirtualServerValidator) validateRoute(route v1.Route, fieldPath *fiel
 		}
 
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
+	}
+
+	if route.AddHeaderInherit != "" {
+		allErrs = append(allErrs, validateAddHeaderInherit(route.AddHeaderInherit, fieldPath.Child("add-header-inherit"))...)
 	}
 
 	allErrs = append(allErrs, validateDos(vsv.isDosEnabled, route.Dos, fieldPath.Child("dos"))...)
@@ -1445,7 +1454,7 @@ func validateRegexPath(path string, fieldPath *field.Path) field.ErrorList {
 			break
 		}
 	}
-	if _, err := regexp2.Compile(regex, 0); err != nil {
+	if _, err := regexp2.Compile(regex); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, fmt.Sprintf("must be a valid regular expression: %v", err))}
 	}
 	if err := ValidateEscapedString(regex, "*.jpg", "^/images/image_*.png$"); err != nil {

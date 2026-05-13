@@ -1,4 +1,453 @@
 
+[TestHelmNICTemplate/allowEmptyIngressHost - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: allow-empty-ingress-host-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: allow-empty-ingress-host-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - allow-empty-ingress-host-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: allow-empty-ingress-host-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: allow-empty-ingress-host-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: allow-empty-ingress-host
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: allow-empty-ingress-host
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:      
+      volumes: []
+      serviceAccountName: allow-empty-ingress-host-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.5.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE        
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/allow-empty-ingress-host-nginx-ingress
+          - -default-server-tls-secret=default/empty-host-tls
+          
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -enable-config-safety=false
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=allow-empty-ingress-host-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=allow-empty-ingress-host-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=8080
+          - -default-https-listener-port=8443
+          - -allow-empty-ingress-host=true
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+/-/-/-/
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: allow-empty-ingress-host-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.6.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.5.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
 [TestHelmNICTemplate/appProtectDOS - 1]
 /-/-/-/
 # Source: nginx-ingress/templates/controller-serviceaccount.yaml
@@ -401,6 +850,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=true
           - -app-protect-dos-debug=true
           - -app-protect-dos-max-daemons=10
@@ -438,6 +888,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -875,6 +1326,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/appprotect-waf-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/appprotect-waf-nginx-ingress-mgmt
@@ -907,6 +1359,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -1412,6 +1865,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-waf-agentv2-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/app-protect-waf-agentv2-nginx-ingress-mgmt
@@ -1444,6 +1898,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -1832,6 +2287,8 @@ spec:
         name: app-protect-config
       - emptyDir: {}
         name: app-protect-bundles
+      - name: app-protect-ipi-db
+        emptyDir: {}
       serviceAccountName: appprotect-wafv5-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -1899,6 +2356,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=true
           - -app-protect-enforcer-address="localhost:50001"
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/appprotect-wafv5-nginx-ingress
@@ -1932,6 +2390,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -1950,6 +2409,8 @@ spec:
         volumeMounts:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
       - name: waf-config-mgr
         image: my.private.reg/nap/waf-config-mgr:5.12.1
         imagePullPolicy: "IfNotPresent"
@@ -1968,6 +2429,20 @@ spec:
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
+      - name: waf-ip-intelligence
+        image: my.private.reg/nap/waf-ip-intelligence:5.12.1
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+      
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - all
+            runAsNonRoot: true
+            runAsUser: 101
+        volumeMounts:
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -2481,6 +2956,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=false
           - -app-protect-enforcer-address="localhost:50001"
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-wafv5-agentv2-nginx-ingress
@@ -2514,6 +2990,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -2936,6 +3413,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/custom-resources-nginx-ingress
           - -ingress-class=nginx
@@ -3375,6 +3853,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-nginx-ingress
           - -ingress-class=nginx
@@ -3406,6 +3885,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -3842,6 +4322,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-readonly-nginx-ingress
           - -ingress-class=nginx
@@ -3873,6 +4354,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -4308,6 +4790,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/default-nginx-ingress
           - -ingress-class=nginx
@@ -4339,6 +4822,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -4752,6 +5236,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/deployment-hpa-nginx-ingress
           - -ingress-class=nginx
@@ -4783,6 +5268,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -5229,6 +5715,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/deployment-hpa-no-create-nginx-ingress
           - -ingress-class=nginx
@@ -5260,6 +5747,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -5674,6 +6162,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/global-configuration-nginx-ingress
           - -ingress-class=nginx
@@ -5705,6 +6194,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -global-configuration=$(POD_NAMESPACE)/global-configuration-nginx-ingress-controller
           - -ready-status=true
           - -ready-status-port=8081
@@ -6141,6 +6631,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/global-config-custom-name-nginx-ingress
           - -ingress-class=nginx
@@ -6172,6 +6663,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -global-configuration=test-namespace/my-custom-global-config
           - -ready-status=true
           - -ready-status-port=8081
@@ -6605,6 +7097,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/ingress-class-nginx-ingress
           - -ingress-class=changed
@@ -6636,6 +7129,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -7078,6 +7572,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/list-configs-nginx-ingress
           - -ingress-class=nginx
@@ -7109,6 +7604,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -7524,6 +8020,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress
           - -ingress-class=nginx
@@ -7555,6 +8052,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -7970,6 +8468,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress
           - -ingress-class=nginx
@@ -8001,6 +8500,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -8415,6 +8915,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/namespace-nginx-ingress
           - -ingress-class=nginx
@@ -8446,6 +8947,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -8920,6 +9422,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/oss-agent-nginx-ingress
           - -ingress-class=nginx
@@ -8951,6 +9454,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -9379,6 +9883,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-nginx-ingress-mgmt
@@ -9411,6 +9916,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -9848,6 +10354,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-debug-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-debug-nginx-ingress-mgmt
@@ -9880,6 +10387,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -10327,6 +10835,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-nginx-ingress-mgmt
@@ -10359,6 +10868,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -10787,6 +11297,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-custom-endpoint-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-custom-endpoint-nginx-ingress-mgmt
@@ -10819,6 +11330,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -11247,6 +11759,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-proxy-host-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-proxy-host-nginx-ingress-mgmt
@@ -11279,6 +11792,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -11717,6 +12231,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-proxy-host-auth-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-proxy-host-auth-nginx-ingress-mgmt
@@ -11749,6 +12264,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -12235,6 +12751,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-agent-nginx-ingress-mgmt
@@ -12267,6 +12784,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -12754,6 +13272,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress-mgmt
@@ -12786,6 +13305,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -13209,6 +13729,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/startupstatus-nginx-ingress
           - -ingress-class=nginx
@@ -13240,6 +13761,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -13658,6 +14180,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-nginx-ingress
           - -ingress-class=nginx
@@ -13689,6 +14212,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -14121,6 +14645,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-config-nginx-ingress
           - -ingress-class=nginx
@@ -14152,6 +14677,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -14585,6 +15111,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-no-storageclass-nginx-ingress
           - -ingress-class=nginx
@@ -14616,6 +15143,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -15065,6 +15593,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-readonly-nginx-ingress
           - -ingress-class=nginx
@@ -15096,6 +15625,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
