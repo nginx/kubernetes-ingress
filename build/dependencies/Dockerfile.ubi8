@@ -20,10 +20,14 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
             boost-regex boost-system boost-thread \
         && rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
         && dnf download --resolve --destdir=/rpms \
+            --enablerepo=codeready-builder-for-rhel-8-x86_64-rpms \
             re2 perl-Config-IniFiles perl-Convert-BinHex perl-Crypt-SSLeay \
             perl-Email-Date-Format perl-IO-SessionData perl-IPC-ShareLite \
             perl-MIME-Lite perl-MIME-tools perl-Parse-RecDescent perl-SOAP-Lite \
             perl-Text-CSV_XS perl-Text-Iconv perl-UNIVERSAL-isa perl-thrift \
+        && dnf download --resolve --destdir=/rpms \
+            protobuf perl-Bit-Vector perl-File-Slurp perl-IO-Socket-INET6 \
+            perl-JSON perl-XML-LibXML perl-XML-Simple \
         && subscription-manager unregister \
         && createrepo_c /rpms/; \
     fi
