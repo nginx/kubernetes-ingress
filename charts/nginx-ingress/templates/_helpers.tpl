@@ -492,6 +492,7 @@ volumeMounts:
 {{- if .Values.nginxAgent.enable }}
 - name: agent-etc
   mountPath: /etc/nginx-agent
+  # needed for agent otel collector config
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
