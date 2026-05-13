@@ -1,0 +1,93 @@
+# syntax=docker/dockerfile:1.23
+#
+# Prebuilt image targets -- used in CI when the "common" base image has already
+# been built and pushed to a registry as PREBUILT_BASE_IMG.
+#
+# These stages have ZERO dependencies on the main Dockerfile; they only
+# reference the external PREBUILT_BASE_IMG and each other.
+#
+# Usage (CI):
+#   docker build -f build/Dockerfile.prebuilt --target goreleaser-prebuilt \
+#     --build-arg PREBUILT_BASE_IMG=<registry>/<image>:<tag> ...
+#
+# Targets:
+#   local-prebuilt             -- locally-built binary on prebuilt base
+#   goreleaser-setcap-prebuilt -- (intermediate) goreleaser binary + setcap
+#   goreleaser-prebuilt        -- goreleaser binary on prebuilt base
+#   aws-setcap-prebuilt        -- (intermediate) aws binary + setcap
+#   aws-prebuilt               -- aws marketplace binary on prebuilt base
+
+ARG PREBUILT_BASE_IMG
+
+
+############################################# Create image with nginx-ingress built locally & using prebuilt base image #############################################
+FROM ${PREBUILT_BASE_IMG} AS local-prebuilt
+ARG BUILD_OS
+
+LABEL org.nginx.kic.image.build.version="local"
+
+COPY --link --chown=101:0 nginx-ingress /
+# root is required for `setcap` invocation
+USER 0
+RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
+	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
+	&& chown -R 101:0 /*.tmpl \
+	&& chmod -R g=u /*.tmpl \
+	&& setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+# 101 is nginx, defined above
+USER 101
+
+
+############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
+# Builder image for goreleaser-prebuilt
+FROM ${PREBUILT_BASE_IMG} AS goreleaser-setcap-prebuilt
+ARG TARGETARCH
+
+COPY --link --chown=101:0 dist/kubernetes-ingress_linux_${TARGETARCH}*/nginx-ingress /
+USER 0
+RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+
+
+############################################# Create image with nginx-ingress built by GoReleaser & using prebuilt base image #############################################
+FROM ${PREBUILT_BASE_IMG} AS goreleaser-prebuilt
+ARG TARGETARCH
+ARG BUILD_OS
+
+LABEL org.nginx.kic.image.build.version="goreleaser"
+
+COPY --link --chown=101:0 --from=goreleaser-setcap-prebuilt /nginx-ingress /
+# root is required for `setcap` invocation
+USER 0
+RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
+	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
+	&& chown -R 101:0 /*.tmpl \
+	&& chmod -R g=u /*.tmpl
+USER 101
+
+
+############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
+# Builder image for aws-prebuilt
+FROM ${PREBUILT_BASE_IMG} AS aws-setcap-prebuilt
+ARG TARGETARCH
+ARG NAP_MODULES_AWS
+
+COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
+USER 0
+RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+
+
+############################################# Create image with nginx-ingress built by GoReleaser for AWS Marketplace #############################################
+FROM ${PREBUILT_BASE_IMG} AS aws-prebuilt
+ARG TARGETARCH
+ARG NAP_MODULES_AWS
+ARG BUILD_OS
+
+LABEL org.nginx.kic.image.build.version="aws"
+
+COPY --link --chown=101:0 --from=aws-setcap-prebuilt /nginx-ingress /
+USER 0
+RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
+	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
+	&& chown -R 101:0 /*.tmpl \
+	&& chmod -R g=u /*.tmpl
+USER 101

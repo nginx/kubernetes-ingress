@@ -1,4 +1,33 @@
 # syntax=docker/dockerfile:1.23
+#
+# Build chain reference -- trace any make target to its stage chain:
+#
+#   make debian-image              → local ← common ← debian              ← nginx:1.29.8 (Debian)
+#   make alpine-image              → local ← common ← alpine              ← nginx:1.29.8-alpine3.23
+#   make ubi-image                 → local ← common ← ubi                 ← ubi-minimal ← redhat/ubi9-minimal
+#   make debian-image-plus         → local ← common ← debian-plus         ← debian-plus-only ← debian:12-slim
+#   make alpine-image-plus         → local ← common ← alpine-plus         ← alpine:3.22
+#   make alpine-image-plus-fips    → local ← common ← alpine-plus-fips    ← alpine-plus ← alpine:3.22
+#   make alpine-image-nap-plus-fips    → local ← common ← alpine-plus-nap-fips    ← alpine:3.22
+#   make alpine-image-nap-v5-plus-fips → local ← common ← alpine-plus-nap-v5-fips ← alpine:3.22
+#   make debian-image-nap-plus     → local ← common ← debian-plus-nap     ← debian-plus-only ← debian:12-slim
+#   make debian-image-nap-v5-plus  → local ← common ← debian-plus-nap-v5  ← debian-plus-only ← debian:12-slim
+#   make debian-image-dos-plus     → local ← common ← debian-plus-nap (NAP_MODULES=dos)
+#   make debian-image-nap-dos-plus → local ← common ← debian-plus-nap (NAP_MODULES=waf,dos)
+#   make ubi-image-plus            → local ← common ← ubi-9-plus          ← ubi-minimal
+#   make ubi-image-nap-plus        → local ← common ← ubi-9-plus-nap      ← ubi-minimal
+#   make ubi-image-nap-v5-plus     → local ← common ← ubi-9-plus-nap-v5   ← ubi-minimal
+#   make ubi-image-dos-plus        → local ← common ← ubi-9-plus-nap (NAP_MODULES=dos)
+#   make ubi-image-nap-dos-plus    → local ← common ← ubi-9-plus-nap (NAP_MODULES=waf,dos)
+#   make ubi8-image-nap-plus       → local ← common ← ubi-8-plus-nap      ← redhat/ubi8
+#   make ubi8-image-nap-v5-plus    → local ← common ← ubi-8-plus-nap-v5   ← redhat/ubi8
+#
+# How it works:
+#   1. --build-arg BUILD_OS=<stage> selects which OS base stage feeds into "common"
+#   2. --target <stage> selects which final target to build (local, container, goreleaser, etc.)
+#   3. Prebuilt CI targets live in build/Dockerfile.prebuilt (separate file, no shared stages)
+#
+
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
 ARG NGINX_OSS_VERSION=1.29.8
@@ -10,19 +39,24 @@ ARG NGINX_AGENT_VERSION=3.9
 ARG NAP_AGENT_VERSION=2
 ARG DOWNLOAD_TAG=edge
 ARG DEBIAN_FRONTEND=noninteractive
-ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
 
 
-############################################# Base images containing libs for FIPS #############################################
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 1: DEPENDENCY STAGES (never built directly)
+#
+# Provide libraries, keys, and tools to other stages via --mount=type=bind.
+# ══════════════════════════════════════════════════════════════════════════════
+
 FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:9defd802c1f654946b7a5bf600de9061c312ce3671860e8ec6ac55cab45edb19 AS ubi8-packages
 FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:e34a86f1d78676b28e204449ef150816d72ba74db7945d44069026e6e3e7714c AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
 FROM redhat/ubi9-minimal:9.7-1778072020@sha256:b9b10f42d7eba7ad4a6d5ef26b7d34fdc892b2ffe59b8d0372ec884008569eb6 AS ubi-minimal
 FROM golang:1.26-alpine@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1 AS golang-builder
 
-############################################# NGINX files #############################################
+
+# ── nginx-files: signing keys, repo configs, build scripts ──
 FROM scratch AS nginx-files
 ARG IC_VERSION
 ARG BUILD_OS
@@ -71,22 +105,15 @@ ADD --link --chown=101:0 --chmod=0755 build/scripts/ubi-clean.sh ubi-clean.sh
 # @See https://github.com/nginx/kubernetes-ingress/issues/7360
 ADD --link --chown=101:0 --chmod=0755 build/dependencies/tracking.info.default tracking.info
 
-############################################# Patch Image #############################################
-FROM ${IMAGE_NAME} AS patched
-ARG IMAGE_NAME
-ARG IC_VERSION
 
-LABEL version="${IC_VERSION}" \
-	org.opencontainers.image.version="${IC_VERSION}"
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 2: OSS BASE IMAGES
+#
+# Install NGINX OSS + agent on a distro base.
+# Used as BUILD_OS for: make debian-image, alpine-image, ubi-image
+# ══════════════════════════════════════════════════════════════════════════════
 
-USER 0
-RUN --mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/patch-os.sh \
-	if [ -f /etc/apk/repositories ]; then sed -i -e '/nginx.com/d' /etc/apk/repositories; fi \
-	&& patch-os.sh
-USER 101
-
-
-############################################# Base image for Alpine #############################################
+# ── Alpine OSS ──                                         → make alpine-image
 FROM nginx:1.29.8-alpine3.23@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
@@ -105,7 +132,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 	&& sed -i -e '/nginx.org/d' /etc/apk/repositories
 
 
-############################################# Base image for Debian #############################################
+# ── Debian OSS ──                                         → make debian-image
 FROM nginx:1.29.8@sha256:6e23479198b998e5e25921dff8455837c7636a67111a04a635cf1bb363d199dc AS debian
 ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
@@ -131,7 +158,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& agent.sh
 
 
-############################################# Base image for UBI #############################################
+# ── UBI OSS ──                                            → make ubi-image
 FROM ubi-minimal AS ubi
 ARG IC_VERSION
 ARG NGINX_OSS_VERSION
@@ -173,7 +200,15 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& rm /etc/yum.repos.d/nginx.repo \
 	&& ubi-clean.sh
 
-############################################# Base image for Alpine with NGINX Plus ##############################################
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 3: PLUS BASE IMAGES
+#
+# Install NGINX Plus + agent. Requires --secret for repo creds.
+# Used as BUILD_OS for: make *-image-plus
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Alpine Plus ──                                        → make alpine-image-plus
 FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus
 ARG NGINX_PLUS_VERSION
 ARG PACKAGE_REPO
@@ -196,7 +231,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories
 
 
-############################################# Base image for Alpine with NGINX Plus and FIPS #############################################
+# ── Alpine Plus + FIPS ──                                 → make alpine-image-plus-fips
 FROM alpine-plus AS alpine-plus-fips
 ARG NGINX_PLUS_VERSION
 
@@ -211,7 +246,90 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info
 
 
-############################################# Base image for Alpine with NGINX Plus, App Protect WAF and FIPS #############################################
+# ── Debian Plus (intermediate: no agent) ──               (not built directly)
+FROM debian:12-slim@sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252 AS debian-plus-only
+ARG NGINX_PLUS_VERSION
+
+ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
+	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
+	--mount=type=bind,from=nginx-files,src=app-protect-security-updates.key,target=/tmp/app-protect-security-updates.key \
+	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
+	--mount=type=bind,from=nginx-files,src=debian-plus-12.sources,target=/tmp/nginx-plus.sources \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	apt-get update \
+	&& apt-get install --no-install-recommends --no-install-suggests -y gpg ca-certificates libcap2-bin libcurl4 \
+	&& groupadd --system --gid 101 nginx \
+	&& useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
+	&& gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key \
+	&& gpg --dearmor -o /usr/share/keyrings/app-protect-archive-keyring.gpg /tmp/app-protect-security-updates.key \
+	&& cp /tmp/nginx-plus.sources /etc/apt/sources.list.d/nginx-plus.sources \
+	&& apt-get update \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check \
+	&& apt-get purge --auto-remove -y gpg \
+	&& mkdir -p /etc/nginx/reporting/ \
+	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-plus.sources
+
+
+# ── Debian Plus ──                                        → make debian-image-plus
+FROM debian-plus-only AS debian-plus
+ARG NGINX_PLUS_VERSION
+ARG NGINX_AGENT_VERSION
+
+ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
+	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
+	--mount=type=bind,from=nginx-files,src=debian-agent-12.sources,target=/tmp/nginx-agent.sources \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
+	apt-get update \
+	&& cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
+	&& apt-get update \
+	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${NGINX_AGENT_VERSION}* \
+	&& agent.sh \
+	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources
+
+
+# ── UBI9 Plus ──                                          → make ubi-image-plus
+FROM ubi-minimal AS ubi-9-plus
+ARG NGINX_PLUS_VERSION
+ARG NGINX_AGENT_VERSION
+
+ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
+	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
+	--mount=type=bind,from=nginx-files,src=nginx-plus-9.repo,target=/etc/yum.repos.d/nginx-plus.repo \
+	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
+	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
+	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
+	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
+	--mount=type=bind,from=ubi9-packages,src=/,target=/ubi-bin/ \
+	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
+	&& ubi-setup.sh \
+	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
+	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent-${NGINX_AGENT_VERSION}.* \
+	&& agent.sh	\
+	&& ubi-clean.sh
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 4: NAP BASE IMAGES
+#
+# Add App Protect WAF/DoS/WAFv5 on top of Plus.
+# Used as BUILD_OS for: make *-image-nap-*, *-image-dos-*
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Alpine Plus + NAP WAF + FIPS ──                       → make alpine-image-nap-plus-fips
 FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus-nap-fips
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
@@ -249,7 +367,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	agent.sh
 
 
-############################################# Base image for Alpine with NGINX Plus, App Protect WAFv5 and FIPS #############################################
+# ── Alpine Plus + NAP WAFv5 + FIPS ──                     → make alpine-image-nap-v5-plus-fips
 FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus-nap-v5-fips
 ARG NGINX_PLUS_VERSION
 ARG PACKAGE_REPO
@@ -282,56 +400,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	agent.sh
 
 
-############################################# Base image for Debian with NGINX Plus only #############################################
-FROM debian:12-slim@sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252 AS debian-plus-only
-ARG NGINX_PLUS_VERSION
-
-ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
-	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
-	--mount=type=bind,from=nginx-files,src=app-protect-security-updates.key,target=/tmp/app-protect-security-updates.key \
-	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
-	--mount=type=bind,from=nginx-files,src=debian-plus-12.sources,target=/tmp/nginx-plus.sources \
-	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y gpg ca-certificates libcap2-bin libcurl4 \
-	&& groupadd --system --gid 101 nginx \
-	&& useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
-	&& gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key \
-	&& gpg --dearmor -o /usr/share/keyrings/app-protect-archive-keyring.gpg /tmp/app-protect-security-updates.key \
-	&& cp /tmp/nginx-plus.sources /etc/apt/sources.list.d/nginx-plus.sources \
-	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check \
-	&& apt-get purge --auto-remove -y gpg \
-	&& mkdir -p /etc/nginx/reporting/ \
-	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-plus.sources
-
-
-############################################# Base image for Debian with NGINX Plus #############################################
-FROM debian-plus-only AS debian-plus
-ARG NGINX_PLUS_VERSION
-ARG NGINX_AGENT_VERSION
-
-ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
-	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
-	--mount=type=bind,from=nginx-files,src=debian-agent-12.sources,target=/tmp/nginx-agent.sources \
-	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	apt-get update \
-	&& cp /tmp/nginx-agent.sources /etc/apt/sources.list.d/nginx-agent.sources \
-	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y nginx-agent=${NGINX_AGENT_VERSION}* \
-	&& agent.sh \
-	&& rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/nginx-agent.sources
-
-############################################# Base image for Debian with NGINX Plus and App Protect WAF/DoS #############################################
+# ── Debian Plus + NAP WAF/DoS ──                          → make debian-image-nap-plus, debian-image-dos-plus, debian-image-nap-dos-plus
 FROM debian-plus-only AS debian-plus-nap
 ARG NAP_MODULES
 ARG NGINX_PLUS_VERSION
@@ -378,7 +447,8 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	fi \
 	&& rm -rf /var/lib/apt/lists/*
 
-############################################# Base image for Debian with NGINX Plus and App Protect WAFv5 #############################################
+
+# ── Debian Plus + NAP WAFv5 ──                            → make debian-image-nap-v5-plus
 FROM debian-plus-only AS debian-plus-nap-v5
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
@@ -400,33 +470,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& agent.sh
 
 
-############################################# Base image for UBI with NGINX Plus #############################################
-FROM ubi-minimal AS ubi-9-plus
-ARG NGINX_PLUS_VERSION
-ARG NGINX_AGENT_VERSION
-
-ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
-	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
-	--mount=type=bind,from=nginx-files,src=nginx-plus-9.repo,target=/etc/yum.repos.d/nginx-plus.repo \
-	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
-	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
-	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
-	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
-	--mount=type=bind,from=ubi9-packages,src=/,target=/ubi-bin/ \
-	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	&& ubi-setup.sh \
-	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
-	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent-${NGINX_AGENT_VERSION}.* \
-	&& agent.sh	\
-	&& ubi-clean.sh
-
-
-############################################# Base image for UBI with NGINX Plus and App Protect WAF & DoS #############################################
+# ── UBI9 Plus + NAP WAF/DoS ──                            → make ubi-image-nap-plus, ubi-image-dos-plus, ubi-image-nap-dos-plus
 FROM ubi-minimal AS ubi-9-plus-nap
 ARG NAP_MODULES
 ARG BUILD_OS
@@ -483,7 +527,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& ubi-clean.sh
 
 
-############################################# Base image for UBI with NGINX Plus and App Protect WAFv5 #############################################
+# ── UBI9 Plus + NAP WAFv5 ──                              → make ubi-image-nap-v5-plus
 FROM ubi-minimal AS ubi-9-plus-nap-v5
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
@@ -517,7 +561,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& agent.sh
 
 
-############################################# Base image for UBI8 with NGINX Plus and App Protect WAF #############################################
+# ── UBI8 Plus + NAP WAF ──                                → make ubi8-image-nap-plus
 FROM redhat/ubi8@sha256:8f757bfe94700eee7d26c885cd16bf3ae9923edf38f984ef3da50d2ce937fc5e AS ubi-8-plus-nap
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
@@ -561,7 +605,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf clean all
 
 
-############################################# Base image for UBI8 with NGINX Plus and App Protect WAFv5  #############################################
+# ── UBI8 Plus + NAP WAFv5 ──                              → make ubi8-image-nap-v5-plus
 FROM redhat/ubi8@sha256:8f757bfe94700eee7d26c885cd16bf3ae9923edf38f984ef3da50d2ce937fc5e AS ubi-8-plus-nap-v5
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
@@ -594,7 +638,13 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& dnf clean all
 
 
-############################################# Create common files, permissions and setcap #############################################
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 5: COMMON FUNNEL
+#
+# FROM ${BUILD_OS} -- selected by --build-arg BUILD_OS=<stage-name-from-above>
+# Runs patch-os.sh + common.sh, sets permissions, ENTRYPOINT, USER 101.
+# ══════════════════════════════════════════════════════════════════════════════
+
 FROM ${BUILD_OS} AS common
 
 ARG BUILD_OS
@@ -626,7 +676,11 @@ LABEL org.opencontainers.image.version="${IC_VERSION}" \
 	org.nginx.kic.image.build.nginx.version="${NGINX_VERSION}"
 
 
-############################################# Build nginx-ingress in golang container #############################################
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 6: GO BINARY BUILDERS (never built directly)
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Release binary ──
 FROM golang-builder AS builder
 ARG IC_VERSION
 ARG TARGETARCH
@@ -641,7 +695,7 @@ RUN --mount=type=bind,target=/go/src/github.com/nginx/kubernetes-ingress/ --moun
 	&& setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
 
 
-############################################# Download delve #############################################
+# ── Debug binary + delve ──
 FROM golang-builder AS debug-builder
 ARG TARGETARCH
 
@@ -654,7 +708,15 @@ RUN --mount=type=bind,target=/go/src/github.com/nginx/kubernetes-ingress/ --moun
 RUN CGO_ENABLED=0 go install -ldflags "-s -w -extldflags '-static'" github.com/go-delve/delve/cmd/dlv@latest
 
 
-############################################# Create image with nginx-ingress built in container #############################################
+# ══════════════════════════════════════════════════════════════════════════════
+# SECTION 7: FINAL IMAGE TARGETS
+#
+# These are the --target values passed by Make/CI.
+# Each sits on top of "common" (which itself sits on the BUILD_OS base).
+# Prebuilt variants (CI-only, skip rebuilding common) are in Dockerfile.prebuilt.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── container: binary built inside Docker ──              --target=container
 FROM common AS container
 
 LABEL org.nginx.kic.image.build.version="container"
@@ -662,7 +724,7 @@ LABEL org.nginx.kic.image.build.version="container"
 COPY --link --from=builder --chown=101:0 /nginx-ingress /
 
 
-############################################# Create image with nginx-ingress built locally #############################################
+# ── local: binary pre-built on host ──                    --target=local (default)
 FROM common AS local
 ARG BUILD_OS
 ENV BUILD_OS=${BUILD_OS}
@@ -685,7 +747,7 @@ RUN --mount=type=bind,target=/tmp if [ -z "${BUILD_OS##*plus*}" ]; then PLUS=-pl
 USER 101
 
 
-############################################# Create image with nginx-ingress built locally #############################################
+# ── debug: local binary + delve debugger ──               --target=debug
 FROM common AS debug
 
 LABEL org.nginx.kic.image.build.version="local"
@@ -708,7 +770,7 @@ USER 101
 ENTRYPOINT ["/dlv"]
 
 
-############################################# Create image with nginx-ingress built locally #############################################
+# ── debug-container: container-built binary + delve ──    --target=debug-container
 FROM common AS debug-container
 
 LABEL org.nginx.kic.image.build.version="local"
@@ -731,26 +793,7 @@ USER 101
 ENTRYPOINT ["/dlv"]
 
 
-############################################# Create image with nginx-ingress built locally & using prebuilt base image #############################################
-FROM ${PREBUILT_BASE_IMG} AS local-prebuilt
-ARG BUILD_OS
-
-LABEL org.nginx.kic.image.build.version="local"
-
-COPY --link --chown=101:0 nginx-ingress /
-# root is required for `setcap` invocation
-USER 0
-RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
-	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
-	&& chown -R 101:0 /*.tmpl \
-	&& chmod -R g=u /*.tmpl \
-	&& setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
-# 101 is nginx, defined above
-USER 101
-
-
-############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
-# Builder image for goreleaser
+# ── goreleaser-setcap (intermediate) ──                   (not built directly)
 FROM common AS goreleaser-setcap
 ARG TARGETARCH
 
@@ -759,7 +802,7 @@ USER 0
 RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
 
 
-############################################# Create image with nginx-ingress built by GoReleaser #############################################
+# ── goreleaser ──                                         --target=goreleaser
 FROM common AS goreleaser
 ARG TARGETARCH
 
@@ -768,35 +811,7 @@ LABEL org.nginx.kic.image.build.version="goreleaser"
 COPY --link --chown=101:0 --from=goreleaser-setcap /nginx-ingress /
 
 
-############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
-# Builder image for goreleaser-prebuilt
-FROM ${PREBUILT_BASE_IMG} AS goreleaser-setcap-prebuilt
-ARG TARGETARCH
-
-COPY --link --chown=101:0 dist/kubernetes-ingress_linux_${TARGETARCH}*/nginx-ingress /
-USER 0
-RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
-
-
-############################################# Create image with nginx-ingress built by GoReleaser & using prebuilt base image #############################################
-FROM ${PREBUILT_BASE_IMG} AS goreleaser-prebuilt
-ARG TARGETARCH
-ARG BUILD_OS
-
-LABEL org.nginx.kic.image.build.version="goreleaser"
-
-COPY --link --chown=101:0 --from=goreleaser-setcap-prebuilt /nginx-ingress /
-# root is required for `setcap` invocation
-USER 0
-RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
-	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
-	&& chown -R 101:0 /*.tmpl \
-	&& chmod -R g=u /*.tmpl
-USER 101
-
-
-############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
-# Builder image for aws
+# ── aws-setcap (intermediate) ──                          (not built directly)
 FROM common AS aws-setcap
 ARG TARGETARCH
 ARG NAP_MODULES_AWS
@@ -806,7 +821,7 @@ USER 0
 RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
 
 
-############################################# Create image with nginx-ingress built by GoReleaser for AWS Marketplace #############################################
+# ── aws ──                                                --target=aws
 FROM common AS aws
 ARG TARGETARCH
 ARG NAP_MODULES_AWS
@@ -816,35 +831,7 @@ LABEL org.nginx.kic.image.build.version="aws"
 COPY --link --chown=101:0 --from=aws-setcap /nginx-ingress /
 
 
-############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
-# Builder image for aws-prebuilt
-FROM ${PREBUILT_BASE_IMG} AS aws-setcap-prebuilt
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-
-COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
-USER 0
-RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
-
-
-############################################# Create image with nginx-ingress built by GoReleaser for AWS Marketplace #############################################
-FROM ${PREBUILT_BASE_IMG} AS aws-prebuilt
-ARG TARGETARCH
-ARG NAP_MODULES_AWS
-ARG BUILD_OS
-
-LABEL org.nginx.kic.image.build.version="aws"
-
-COPY --link --chown=101:0 --from=aws-setcap-prebuilt /nginx-ingress /
-USER 0
-RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
-	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
-	&& chown -R 101:0 /*.tmpl \
-	&& chmod -R g=u /*.tmpl
-USER 101
-
-
-############################################# Create image with nginx-ingress extracted from image on Docker Hub #############################################
+# ── download: binary extracted from Docker Hub ──         --target=download
 FROM nginx/nginx-ingress:${DOWNLOAD_TAG} AS kic
 
 FROM common AS download
@@ -852,3 +839,18 @@ FROM common AS download
 LABEL org.nginx.kic.image.build.version="binaries"
 
 COPY --link --from=kic --chown=101:0 /nginx-ingress /
+
+
+# ── patched: OS patches on existing image ──              --target=patched (make patch-os)
+FROM ${IMAGE_NAME} AS patched
+ARG IMAGE_NAME
+ARG IC_VERSION
+
+LABEL version="${IC_VERSION}" \
+	org.opencontainers.image.version="${IC_VERSION}"
+
+USER 0
+RUN --mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/patch-os.sh \
+	if [ -f /etc/apk/repositories ]; then sed -i -e '/nginx.com/d' /etc/apk/repositories; fi \
+	&& patch-os.sh
+USER 101
