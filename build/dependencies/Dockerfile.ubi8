@@ -19,7 +19,11 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
             perl-common-sense boost-atomic boost-chrono boost-date-time \
             boost-regex boost-system boost-thread \
         && rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
-        && dnf download --resolve --destdir=/rpms re2 \
+        && dnf download --resolve --destdir=/rpms \
+            re2 perl-Config-IniFiles perl-Convert-BinHex perl-Crypt-SSLeay \
+            perl-Email-Date-Format perl-IO-SessionData perl-IPC-ShareLite \
+            perl-MIME-Lite perl-MIME-tools perl-Parse-RecDescent perl-SOAP-Lite \
+            perl-Text-CSV_XS perl-Text-Iconv perl-UNIVERSAL-isa perl-thrift \
         && subscription-manager unregister \
         && createrepo_c /rpms/; \
     fi
