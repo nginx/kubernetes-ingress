@@ -18,6 +18,7 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
             perl-JSON-XS perl-MIME-Types perl-Types-Serialiser perl-XML-Twig \
             perl-common-sense boost-atomic boost-chrono boost-date-time \
             boost-regex boost-system boost-thread \
+        && rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
         && dnf download --resolve --destdir=/rpms re2 \
         && subscription-manager unregister \
         && createrepo_c /rpms/; \
