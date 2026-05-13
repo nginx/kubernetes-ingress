@@ -1847,6 +1847,7 @@ spec:
         
         - name: agent-etc
           mountPath: /etc/nginx-agent
+          # needed for agent otel collector config
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
@@ -2390,6 +2391,7 @@ spec:
         
         - name: agent-etc
           mountPath: /etc/nginx-agent
+          # needed for agent otel collector config
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
@@ -3482,6 +3484,7 @@ spec:
           mountPath: /etc/app_protect/bundles
         - name: agent-etc
           mountPath: /etc/nginx-agent
+          # needed for agent otel collector config
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
@@ -4070,6 +4073,7 @@ spec:
           mountPath: /etc/app_protect/bundles
         - name: agent-etc
           mountPath: /etc/nginx-agent
+          # needed for agent otel collector config
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
@@ -10542,6 +10546,7 @@ spec:
         
         - name: agent-etc
           mountPath: /etc/nginx-agent
+          # needed for agent otel collector config
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
@@ -13879,6 +13884,7 @@ spec:
         
         - name: agent-etc
           mountPath: /etc/nginx-agent
+          # needed for agent otel collector config
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
@@ -14408,6 +14414,7 @@ spec:
         
         - name: agent-etc
           mountPath: /etc/nginx-agent
+          # needed for agent otel collector config
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
