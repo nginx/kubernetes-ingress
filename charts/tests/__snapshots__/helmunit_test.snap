@@ -1959,6 +1959,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-waf-agentv3-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/app-protect-waf-agentv3-nginx-ingress-mgmt
@@ -3636,6 +3637,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=false
           - -app-protect-enforcer-address="localhost:50001"
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-wafv5-agentv3-nginx-ingress
