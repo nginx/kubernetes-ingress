@@ -6576,6 +6576,44 @@ func TestClassifyAndCollectVSRsDuplicateDedup(t *testing.T) {
 	}
 }
 
+func TestClassifyAndCollectVSRsNormalizesRegexPaths(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "cafe"
+	)
+
+	vsr := createTestVirtualServerRoute("regex-vsr", namespace, host, "~/api")
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{Path: "~/api", Route: "regex-vsr"},
+		{Path: "~ /api", Route: "regex-vsr"},
+	})
+
+	cfg := createTestConfiguration()
+	cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/regex-vsr": vsr,
+	}
+
+	col := cfg.classifyAndCollectVSRs(vs)
+	entry, exists := col.regexEntries[namespace+"/regex-vsr"]
+	if !exists {
+		t.Fatalf("expected regex entry for %s/regex-vsr", namespace)
+	}
+
+	if diff := cmp.Diff([]string{"~/api"}, entry.paths); diff != "" {
+		t.Errorf("classifyAndCollectVSRs() collected unexpected regex paths (-want +got):\n%s", diff)
+	}
+	if entry.firstSeenIdx != 0 {
+		t.Errorf("expected firstSeenIdx 0, got %d", entry.firstSeenIdx)
+	}
+	if len(col.warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", col.warnings)
+	}
+}
+
 // TestBuildVirtualServerRoutesMultipleRegex tests the multi-regex VSR feature: a single VSR
 // may be referenced by multiple regex VS routes, and the validation checks that the VSR's
 // subroutes form an exact set match with the collected VS paths.

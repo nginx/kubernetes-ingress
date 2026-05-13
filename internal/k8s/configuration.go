@@ -2030,6 +2030,7 @@ func (col *vsrCollection) collectRegexNamedRoute(
 	routeName, path string, routeIdx int,
 	regexSeenPaths map[string]map[string]struct{},
 ) {
+	normPath := validation.NormalizePath(path)
 	vsrKey := routeName
 	if !nsutils.HasNamespace(vsrKey) {
 		vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, routeName)
@@ -2040,13 +2041,13 @@ func (col *vsrCollection) collectRegexNamedRoute(
 		return
 	}
 	if entry, found := col.regexEntries[vsrKey]; found {
-		if _, seen := regexSeenPaths[vsrKey][path]; !seen {
-			regexSeenPaths[vsrKey][path] = struct{}{}
+		if _, seen := regexSeenPaths[vsrKey][normPath]; !seen {
+			regexSeenPaths[vsrKey][normPath] = struct{}{}
 			entry.paths = append(entry.paths, path)
 		}
 	} else {
 		col.regexEntries[vsrKey] = &regexVSREntry{vsr: vsr, paths: []string{path}, firstSeenIdx: routeIdx}
-		regexSeenPaths[vsrKey] = map[string]struct{}{path: {}}
+		regexSeenPaths[vsrKey] = map[string]struct{}{normPath: {}}
 	}
 }
 
