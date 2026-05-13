@@ -47,6 +47,38 @@ func TestGenerateNginxCfg(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritMerge
+
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+	expected.Servers[0].AddHeaderInherit = addHeaderInheritMerge
+	expected.Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritMerge
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		apResources:          nil,
+		dosResource:          nil,
+		isMinion:             false,
+		isPlus:               isPlus,
+		BaseCfgParams:        configParams,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
 func TestGenerateNginxCfgForJWT(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
@@ -406,6 +438,7 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 		policies        map[string]*conf_v1.Policy
 		policyRefs      []conf_v1.PolicyReference
 		expectedRefs    []conf_v1.PolicyReference
+		expectError     bool
 		warningSubstr   string
 	}{
 		{
@@ -418,7 +451,8 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 				},
 			},
 			policyRefs:    []conf_v1.PolicyReference{{Name: "waf-policy"}},
-			expectedRefs:  []conf_v1.PolicyReference{},
+			expectedRefs:  nil,
+			expectError:   true,
 			warningSubstr: "WAF policy default/waf-policy is not supported in annotation nginx.org/policies",
 		},
 		{
@@ -432,6 +466,7 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 			},
 			policyRefs:   []conf_v1.PolicyReference{{Name: "cors-policy"}},
 			expectedRefs: []conf_v1.PolicyReference{{Name: "cors-policy"}},
+			expectError:  false,
 		},
 		{
 			name:            "keeps plus annotation ref when same policy is referenced there",
@@ -444,6 +479,7 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 			},
 			policyRefs:   []conf_v1.PolicyReference{{Name: "waf-policy"}},
 			expectedRefs: []conf_v1.PolicyReference{{Name: "waf-policy"}},
+			expectError:  false,
 		},
 	}
 
@@ -456,9 +492,12 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 			ingEx.Ingress.Annotations[PoliciesAnnotation] = test.annotationValue
 			ingEx.Policies = test.policies
 
-			result, warnings := filterIngressPolicyRefs(test.policyRefs, &ingEx)
+			result, warnings, isError := filterIngressPolicyRefs(test.policyRefs, &ingEx)
 			if diff := cmp.Diff(test.expectedRefs, result); diff != "" {
 				t.Fatalf("filterIngressPolicyRefs() returned unexpected refs (-want +got):\n%s", diff)
+			}
+			if isError != test.expectError {
+				t.Fatalf("filterIngressPolicyRefs() returned isError=%v, want %v", isError, test.expectError)
 			}
 
 			ingressWarnings := warnings[ingEx.Ingress]
@@ -755,6 +794,7 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 		annotations      map[string]string
 		expectWarning    bool
 		expectWAFApplied bool
+		expect500        bool
 	}{
 		{
 			name: "waf policy via nginx.org/policies is rejected",
@@ -763,6 +803,7 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 			},
 			expectWarning:    true,
 			expectWAFApplied: false,
+			expect500:        true,
 		},
 		{
 			name: "waf policy via both annotations is rejected",
@@ -772,6 +813,7 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 			},
 			expectWarning:    true,
 			expectWAFApplied: false,
+			expect500:        true,
 		},
 		{
 			name: "waf policy via nginx.com/policies is accepted",
@@ -780,6 +822,7 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 			},
 			expectWarning:    false,
 			expectWAFApplied: true,
+			expect500:        false,
 		},
 	}
 
@@ -836,6 +879,14 @@ func TestGenerateNginxCfgRejectsPoliciesRequiringPlusAnnotationFromNginxOrgPolic
 			hasWAF := result.Servers[0].WAF != nil
 			if hasWAF != test.expectWAFApplied {
 				t.Fatalf("expected WAF applied=%v, got %v", test.expectWAFApplied, hasWAF)
+			}
+
+			hasPolicyErrorReturn := result.Servers[0].PoliciesErrorReturn != nil
+			if hasPolicyErrorReturn != test.expect500 {
+				t.Fatalf("expected policy 500=%v, got %v", test.expect500, hasPolicyErrorReturn)
+			}
+			if test.expect500 && result.Servers[0].PoliciesErrorReturn.Code != 500 {
+				t.Fatalf("expected policy error return code 500, got %d", result.Servers[0].PoliciesErrorReturn.Code)
 			}
 		})
 	}
@@ -1472,6 +1523,48 @@ func TestGenerateNginxCfgForMergeableIngresses(t *testing.T) {
 		dosResource:          nil,
 		BaseCfgParams:        configParams,
 		isPlus:               false,
+		isResolverConfigured: false,
+		staticParams:         &StaticConfigParams{},
+		isWildcardEnabled:    false,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritMerge
+	for i, minion := range mergeableIngresses.Minions {
+		if strings.Contains(minion.Ingress.Name, "coffee") {
+			mergeableIngresses.Minions[i].Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritOff
+		}
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+	expected.Servers[0].AddHeaderInherit = addHeaderInheritMerge
+	expected.Ingress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritMerge
+	for i, location := range expected.Servers[0].Locations {
+		if location.MinionIngress.Name == "cafe-ingress-coffee-minion" {
+			expected.Servers[0].Locations[i].AddHeaderInherit = addHeaderInheritOff
+			expected.Servers[0].Locations[i].MinionIngress.Annotations[AddHeaderInheritAnnotation] = addHeaderInheritOff
+		}
+	}
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs:        mergeableIngresses,
+		apResources:          nil,
+		dosResource:          nil,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
 		isResolverConfigured: false,
 		staticParams:         &StaticConfigParams{},
 		isWildcardEnabled:    false,

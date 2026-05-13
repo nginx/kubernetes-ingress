@@ -79,6 +79,8 @@ var (
 	appProtectEnforcerAddress = flag.String("app-protect-enforcer-address", appProtectEnforcerAddrDefault,
 		`Sets address for App Protect v5 Enforcer. Requires -nginx-plus and -enable-app-protect.`)
 
+	appProtectIPIntelligence = flag.Bool("enable-app-protect-ip-intelligence", false, "Enable App Protect IP Intelligence. Requires -nginx-plus and -enable-app-protect.")
+
 	agent              = flag.Bool("agent", false, "Enable NGINX Agent")
 	agentInstanceGroup = flag.String("agent-instance-group", "nginx-ingress-controller", "Grouping used to associate NGINX Ingress Controller instances")
 
@@ -378,8 +380,8 @@ func mustValidateFlags(ctx context.Context) {
 	}
 
 	if *appProtectLogLevel != appProtectLogLevelDefault && *appProtect && *nginxPlus {
-		appProtectlogLevelValidationError := validateLogLevel(*appProtectLogLevel)
-		if appProtectlogLevelValidationError != nil {
+		appProtectLogLevelValidationError := validateLogLevel(*appProtectLogLevel)
+		if appProtectLogLevelValidationError != nil {
 			nl.Fatalf(l, "Invalid value for app-protect-log-level: %v", *appProtectLogLevel)
 		}
 	}

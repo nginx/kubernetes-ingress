@@ -401,6 +401,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=true
           - -app-protect-dos-debug=true
           - -app-protect-dos-max-daemons=10
@@ -875,6 +876,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/appprotect-waf-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/appprotect-waf-nginx-ingress-mgmt
@@ -1416,6 +1418,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-waf-agentv2-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/app-protect-waf-agentv2-nginx-ingress-mgmt
@@ -2375,6 +2378,8 @@ spec:
         name: app-protect-config
       - emptyDir: {}
         name: app-protect-bundles
+      - name: app-protect-ipi-db
+        emptyDir: {}
       serviceAccountName: appprotect-wafv5-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -2442,6 +2447,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=true
           - -app-protect-enforcer-address="localhost:50001"
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/appprotect-wafv5-nginx-ingress
@@ -2493,6 +2499,8 @@ spec:
         volumeMounts:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
       - name: waf-config-mgr
         image: my.private.reg/nap/waf-config-mgr:5.12.1
         imagePullPolicy: "IfNotPresent"
@@ -2511,6 +2519,20 @@ spec:
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
+      - name: waf-ip-intelligence
+        image: my.private.reg/nap/waf-ip-intelligence:5.12.1
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+      
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - all
+            runAsNonRoot: true
+            runAsUser: 101
+        volumeMounts:
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3028,6 +3050,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
+          - -enable-app-protect-ip-intelligence=false
           - -app-protect-enforcer-address="localhost:50001"
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/app-protect-wafv5-agentv2-nginx-ingress
@@ -4067,6 +4090,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/custom-resources-nginx-ingress
           - -ingress-class=nginx
@@ -4506,6 +4530,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-nginx-ingress
           - -ingress-class=nginx
@@ -4973,6 +4998,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-readonly-nginx-ingress
           - -ingress-class=nginx
@@ -5439,6 +5465,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/default-nginx-ingress
           - -ingress-class=nginx
@@ -5883,6 +5910,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/deployment-hpa-nginx-ingress
           - -ingress-class=nginx
@@ -6360,6 +6388,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/deployment-hpa-no-create-nginx-ingress
           - -ingress-class=nginx
@@ -6805,6 +6834,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/global-configuration-nginx-ingress
           - -ingress-class=nginx
@@ -7272,6 +7302,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/global-config-custom-name-nginx-ingress
           - -ingress-class=nginx
@@ -7736,6 +7767,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/ingress-class-nginx-ingress
           - -ingress-class=changed
@@ -8209,6 +8241,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/list-configs-nginx-ingress
           - -ingress-class=nginx
@@ -8655,6 +8688,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress
           - -ingress-class=nginx
@@ -9101,6 +9135,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress
           - -ingress-class=nginx
@@ -9546,6 +9581,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/namespace-nginx-ingress
           - -ingress-class=nginx
@@ -10059,6 +10095,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/oss-agent-nginx-ingress
           - -ingress-class=nginx
@@ -10518,6 +10555,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-nginx-ingress-mgmt
@@ -10987,6 +11025,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-debug-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-debug-nginx-ingress-mgmt
@@ -11466,6 +11505,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-nginx-ingress-mgmt
@@ -11926,6 +11966,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-custom-endpoint-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-custom-endpoint-nginx-ingress-mgmt
@@ -12386,6 +12427,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-proxy-host-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-proxy-host-nginx-ingress-mgmt
@@ -12856,6 +12898,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-proxy-host-auth-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-mgmt-proxy-host-auth-nginx-ingress-mgmt
@@ -13382,6 +13425,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-agent-nginx-ingress-mgmt
@@ -13909,6 +13953,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress-mgmt
@@ -14364,6 +14409,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/startupstatus-nginx-ingress
           - -ingress-class=nginx
@@ -14813,6 +14859,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-nginx-ingress
           - -ingress-class=nginx
@@ -15276,6 +15323,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-config-nginx-ingress
           - -ingress-class=nginx
@@ -15740,6 +15788,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-no-storageclass-nginx-ingress
           - -ingress-class=nginx
@@ -16220,6 +16269,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-readonly-nginx-ingress
           - -ingress-class=nginx

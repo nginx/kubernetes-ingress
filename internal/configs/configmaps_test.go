@@ -3116,3 +3116,100 @@ func TestParseConfigMapAddHeader(t *testing.T) {
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
 }
+
+func TestParseConfigMapWithAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		value       string
+		expect      string
+		expectError bool
+		msg         string
+	}{
+		{
+			value:       "on",
+			expect:      "on",
+			expectError: false,
+			msg:         "valid value on",
+		},
+		{
+			value:       "off",
+			expect:      "off",
+			expectError: false,
+			msg:         "valid value off",
+		},
+		{
+			value:       "merge",
+			expect:      "merge",
+			expectError: false,
+			msg:         "valid value merge",
+		},
+		{
+			value:       "ON",
+			expect:      "on",
+			expectError: false,
+			msg:         "invalid value ON (mixed case)",
+		},
+		{
+			value:       "Merge",
+			expect:      "merge",
+			expectError: false,
+			msg:         "invalid value Merge (mixed case)",
+		},
+		{
+			value:       "MERGE",
+			expect:      "merge",
+			expectError: false,
+			msg:         "invalid value MERGE (mixed case)",
+		},
+		{
+			value:       "OFF",
+			expect:      "off",
+			expectError: false,
+			msg:         "invalid value OFF (mixed case)",
+		},
+		{
+			value:       "oFf",
+			expect:      "off",
+			expectError: false,
+			msg:         "invalid value oFf (mixed case)",
+		},
+		{
+			value:       "invalid",
+			expect:      "",
+			expectError: true,
+			msg:         "invalid value",
+		},
+		{
+			value:       "yes",
+			expect:      "",
+			expectError: true,
+			msg:         "invalid value yes",
+		},
+		{
+			value:       "",
+			expect:      "",
+			expectError: true,
+			msg:         "empty value",
+		},
+	}
+	for _, test := range tests {
+		cm := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+			Data: map[string]string{},
+		}
+		cm.Data["add-header-inherit"] = test.value
+		result, configOK := ParseConfigMap(context.Background(), cm, false, false, false, false, false, makeEventLogger())
+		if result.AddHeaderInherit != test.expect {
+			t.Errorf("ParseConfigMap() returned AddHeaderInherit=%q but expected %q for the case: %s", result.AddHeaderInherit, test.expect, test.msg)
+		}
+		if test.expectError && configOK {
+			t.Errorf("ParseConfigMap() returned configOK=true but expected false for the case: %s", test.msg)
+		}
+		if !test.expectError && !configOK {
+			t.Errorf("ParseConfigMap() returned configOK=false but expected true for the case: %s", test.msg)
+		}
+	}
+}

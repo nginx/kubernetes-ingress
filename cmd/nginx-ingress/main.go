@@ -634,17 +634,25 @@ type childProcesses struct {
 	aPDosDone      chan error
 	agentEnable    bool
 	agentDone      chan error
+	ipRepdEnable   bool
+	ipRepdDone     chan error
 }
 
 // newChildProcesses starts the several child processes based on flags set.
 // AppProtect. AppProtectDos, Agent.
 func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childProcesses {
 	var aPPluginDone chan error
+	var ipRepdDone chan error
 
 	// Do not start AppProtect Plugins when using v5.
 	if *appProtect && !appProtectV5 {
 		aPPluginDone = make(chan error, 1)
 		nginxManager.AppProtectPluginStart(aPPluginDone, *appProtectLogLevel)
+
+		if *appProtectIPIntelligence {
+			ipRepdDone = make(chan error, 1)
+			nginxManager.IPRepdStart(ipRepdDone)
+		}
 	}
 
 	var aPPDosAgentDone chan error
@@ -671,6 +679,8 @@ func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childPro
 		aPDosDone:      aPPDosAgentDone,
 		agentEnable:    *agent,
 		agentDone:      agentDone,
+		ipRepdEnable:   *appProtect && !appProtectV5,
+		ipRepdDone:     ipRepdDone,
 	}
 }
 
@@ -826,6 +836,8 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 		nl.Fatalf(lbc.Logger, "AppProtectPlugin command exited unexpectedly with status: %v", err)
 	case err := <-cpcfg.aPDosDone:
 		nl.Fatalf(lbc.Logger, "AppProtectDosAgent command exited unexpectedly with status: %v", err)
+	case err := <-cpcfg.ipRepdDone:
+		nl.Fatalf(lbc.Logger, "iprepd command exited unexpectedly with status: %v", err)
 	case <-signalChan:
 		nl.Info(lbc.Logger, "Received SIGTERM, shutting down")
 		lbc.ShuttingDown = true
@@ -839,6 +851,10 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 		if cpcfg.aPDosEnable {
 			nginxManager.AppProtectDosAgentQuit()
 			<-cpcfg.aPDosDone
+		}
+		if cpcfg.ipRepdEnable {
+			nginxManager.IPRepdQuit()
+			<-cpcfg.ipRepdDone
 		}
 		listener.Stop()
 	}
