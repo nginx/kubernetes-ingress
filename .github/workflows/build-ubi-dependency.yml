@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - chore/ubi-dep-images
     paths:
       - build/dependencies/Dockerfile.ubi8
       - build/dependencies/Dockerfile.ubi9
@@ -65,6 +64,10 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Sanitize ref name
+        id: ref
+        run: echo "name=$(echo '${{ github.ref_name }}' | tr '/' '-')" >> $GITHUB_OUTPUT
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
@@ -73,7 +76,7 @@ jobs:
             name=${{ env.IMAGE_NAME }},enable=true
           tags: |
             type=raw,value=${{ matrix.tag }},enable=${{ github.ref_name == 'main' }}
-            type=raw,value=${{ matrix.tag }}-${{ github.ref_name }},enable=${{ github.ref_name != 'main' }}
+            type=raw,value=${{ matrix.tag }}-${{ steps.ref.outputs.name }},enable=${{ github.ref_name != 'main' }}
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
