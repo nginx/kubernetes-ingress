@@ -14,7 +14,7 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
         && dnf install -y --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms createrepo_c \
         && dnf download --resolve --destdir=/rpms \
             --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms \
-            perl-Class-Accessor perl-HTML-Tree perl-IO-String perl-IO-stringy \
+            perl-Class-Accessor perl-File-BaseDir perl-HTML-Tree perl-IO-String perl-IO-stringy \
             perl-JSON-XS perl-MIME-Types perl-Types-Serialiser perl-XML-Twig \
             perl-common-sense boost-system boost-thread \
         && rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
