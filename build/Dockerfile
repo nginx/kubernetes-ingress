@@ -482,7 +482,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=nginx-plus-9.repo,target=/etc/yum.repos.d/nginx-plus.repo \
 	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
@@ -496,7 +495,6 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ubi-setup.sh \
 	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
-	&& source /tmp/rhel_license \
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
 	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
@@ -550,7 +548,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=nginx-plus-8.repo,target=/etc/yum.repos.d/nginx-plus.repo,rw \
 	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
@@ -559,8 +556,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	--mount=type=bind,from=ubi8-packages,src=/,target=/ubi-bin/ \
-	source /tmp/rhel_license \
-	&& mkdir -p /etc/nginx/reporting/ \
+	mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& groupadd --system --gid 101 nginx \
 	&& useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
