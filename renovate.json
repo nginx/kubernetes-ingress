@@ -381,6 +381,18 @@
       "matchStrings": [
         "uses: golangci\\/golangci-lint-action@[a-f0-9]+[\\s\\S]*?\\s+version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
       ]
+    },
+    {
+      "customType": "regex",
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "nginx",
+      "description": "Update nginx version in Dockerfile stage Base comments",
+      "managerFilePatterns": [
+        "/^build\\/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "# Base:    nginx:(?<currentValue>[\\d.]+)"
+      ]
     }
   ],
   "timezone": "Europe/Dublin",
