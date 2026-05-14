@@ -72,9 +72,7 @@ jobs:
           echo "short_tag=${tag%.*}" >> $GITHUB_OUTPUT
           echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
           echo "go_proxy=${{ secrets.ARTIFACTORY_ENDPOINT }}" >> $GITHUB_OUTPUT
-          echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
-          echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
-          echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
+          echo "image_matrix_plus=$(cat .github/data/matrix-images-plus-lts.json | jq -c)" >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
           ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
           date=$(date "+%Y%m%d")
@@ -302,11 +300,23 @@ jobs:
               fi
             done
 
+  release-gate:
+    name: All prerequisites met
+    runs-on: ubuntu-24.04
+    needs: [binaries, release-plus-gcr-nginx, publish-helm-chart]
+    if: >-
+      cancelled() == false &&
+      needs.binaries.result == 'success' &&
+      (needs.release-plus-gcr-nginx.result == 'success' || contains(inputs.skip_step, 'release-plus')) &&
+      (needs.publish-helm-chart.result == 'success' || contains(inputs.skip_step, 'publish-helm-chart'))
+    steps:
+      - run: echo "All prerequisites met"
+
   github-release:
-    if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'github-release') }}
+    needs: [variables, release-gate]
+    if: ${{ !cancelled() && needs.release-gate.result == 'success' && !contains(inputs.skip_step, 'github-release') }}
     name: Publish release to GitHub
     runs-on: ubuntu-24.04-amd64
-    needs: [variables, binaries, release-plus-gcr-nginx]
     permissions:
       contents: write # to modify the release
       issues: write # to close milestone
