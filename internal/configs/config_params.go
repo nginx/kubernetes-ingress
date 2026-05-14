@@ -10,6 +10,7 @@ import (
 // ConfigParams holds NGINX configuration parameters that affect the main NGINX config
 // as well as configs for Ingress resources.
 type ConfigParams struct {
+	AddHeaderInherit                       string
 	AppRoot                                string
 	Context                                context.Context
 	ClientMaxBodySize                      string

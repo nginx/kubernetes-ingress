@@ -55,7 +55,7 @@ func (s *storeToIngressLister) GetByKeySafe(key string) (ing *networking.Ingress
 // List lists all Ingress' in the store.
 func (s *storeToIngressLister) List() (ing networking.IngressList, err error) {
 	for _, m := range s.Store.List() {
-		ing.Items = append(ing.Items, *(m.(*networking.Ingress)).DeepCopy())
+		ing.Items = append(ing.Items, *m.(*networking.Ingress).DeepCopy())
 	}
 	return ing, nil
 }
@@ -68,7 +68,7 @@ type storeToConfigMapLister struct {
 // List lists all Ingress' in the store.
 func (s *storeToConfigMapLister) List() (cfgm v1.ConfigMapList, err error) {
 	for _, m := range s.Store.List() {
-		cfgm.Items = append(cfgm.Items, *(m.(*v1.ConfigMap)))
+		cfgm.Items = append(cfgm.Items, *m.(*v1.ConfigMap))
 	}
 	return cfgm, nil
 }

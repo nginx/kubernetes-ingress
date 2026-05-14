@@ -39,6 +39,7 @@ func createTestConfigurationDuringStartup() *Configuration {
 	snippetsEnabled := true
 	isIPV6Disabled := false
 	isDirectiveAutoadjustEnabled := false
+	allowEmptyIngressHost := true
 	return NewConfiguration(
 		lbc.HasCorrectIngressClass,
 		isPlus,
@@ -56,6 +57,7 @@ func createTestConfigurationDuringStartup() *Configuration {
 		certManagerEnabled,
 		isIPV6Disabled,
 		isDirectiveAutoadjustEnabled,
+		allowEmptyIngressHost,
 	)
 }
 
@@ -85,7 +87,8 @@ func setupVSRConfiguration() (*Configuration, *conf_v1.VirtualServer, *conf_v1.V
 					MatchLabels: map[string]string{"app": "route"},
 				},
 			},
-		})
+		},
+	)
 
 	configuration.AddOrUpdateVirtualServer(vs)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
@@ -995,6 +998,102 @@ func TestAddIngressWithIncorrectClass(t *testing.T) {
 	}
 }
 
+func TestAddIngressEmptyHostAcceptedWhenEnabled(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	ing := createTestIngress("empty-host-ingress", "")
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &IngressConfiguration{
+				Ingress: ing,
+				ValidHosts: map[string]bool{
+					"": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateIngress(ing)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateIngress() returned unexpected problems: %v", problems)
+	}
+}
+
+func TestAddIngressEmptyHostOldestWinsAndPromotesOnDelete(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	older := createTestIngress("empty-host-older", "")
+	newer := createTestIngress("empty-host-newer", "")
+
+	baseTime := metav1.NewTime(time.Unix(1000, 0))
+	older.CreationTimestamp = baseTime
+	older.UID = "a"
+	newer.CreationTimestamp = metav1.NewTime(baseTime.Add(1 * time.Second))
+	newer.UID = "b"
+
+	_, problems := configuration.AddOrUpdateIngress(older)
+	if len(problems) != 0 {
+		t.Fatalf("expected no problems when adding oldest hostless ingress, got %v", problems)
+	}
+
+	changes, problems := configuration.AddOrUpdateIngress(newer)
+	if len(changes) != 0 {
+		t.Fatalf("expected no host changes when newer hostless ingress loses, got %v", changes)
+	}
+
+	if len(problems) != 1 {
+		t.Fatalf("expected one problem for losing hostless ingress, got %v", problems)
+	}
+
+	if problems[0].Object != newer {
+		t.Fatalf("expected problem object to be the newer ingress, got %#v", problems[0].Object)
+	}
+
+	if problems[0].Message != "All hosts are taken by other resources" {
+		t.Fatalf("expected host-taken problem, got %q", problems[0].Message)
+	}
+
+	changes, problems = configuration.DeleteIngress("default/empty-host-older")
+	expectedChanges := []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &IngressConfiguration{
+				Ingress: older,
+				ValidHosts: map[string]bool{
+					"": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+		{
+			Op: AddOrUpdate,
+			Resource: &IngressConfiguration{
+				Ingress: newer,
+				ValidHosts: map[string]bool{
+					"": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+	}
+	var expectedProblems []ConfigurationProblem
+
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("DeleteIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("DeleteIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
 func TestAddVirtualServer(t *testing.T) {
 	configuration := createTestConfiguration()
 
@@ -1288,7 +1387,8 @@ func TestAddVirtualServerWithExistingVirtualServerRoute(t *testing.T) {
 				Path:          "/",
 				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
 			},
-		})
+		},
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -1330,7 +1430,8 @@ func TestAddSecondVirtualServerRoute(t *testing.T) {
 				Path:  "/second",
 				Route: "virtualserverroute-2",
 			},
-		})
+		},
+	)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
 
@@ -1383,7 +1484,8 @@ func TestAddThirdVirtualServerRoute(t *testing.T) {
 					MatchLabels: map[string]string{"app": "route"},
 				},
 			},
-		})
+		},
+	)
 
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
@@ -1591,7 +1693,8 @@ func TestUpdateVirtualServerHost(t *testing.T) {
 				Path:  "/second",
 				Route: "virtualserverroute-2",
 			},
-		})
+		},
+	)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
 	configuration.AddOrUpdateVirtualServerRoute(vsr2) // This will be invalid due to host mismatch
@@ -2887,7 +2990,8 @@ func TestAddGlobalConfigurationThenAddVirtualServerWithValidCustomListeners(t *t
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2912,7 +3016,8 @@ func TestAddVirtualServerWithValidCustomListenersFirstThenAddGlobalConfiguration
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2952,7 +3057,8 @@ func TestAddVirtualServerWithValidCustomListenersAndNoGlobalConfiguration(t *tes
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2980,7 +3086,8 @@ func TestAddVirtualServerWithCustomHttpListenerThatDoNotExistInGlobalConfigurati
 		"cafe",
 		"cafe.example.com",
 		"http-bogus",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3008,7 +3115,8 @@ func TestAddVirtualServerWithCustomHttpsListenerThatDoNotExistInGlobalConfigurat
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-bogus")
+		"https-bogus",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3036,7 +3144,8 @@ func TestDeleteHttpListenerFromExistingGlobalConfigurationWithVirtualServerDeplo
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3078,7 +3187,8 @@ func TestDeleteHttpsListenerFromExistingGlobalConfigurationWithVirtualServerDepl
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3118,7 +3228,8 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithValidCustomListen
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3232,7 +3343,8 @@ func TestAddVirtualServerWithCustomHttpListenerInHttpsBlock(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"http-8082")
+		"http-8082",
+	)
 
 	expectedWarningMsg := "Listener http-8082 can't be use in `listener.https` context as SSL is not enabled for that listener."
 
@@ -3262,7 +3374,8 @@ func TestAddVirtualServerWithCustomHttpsListenerInHttpBlock(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"https-8442",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedWarningMsg := "Listener https-8442 can't be use in `listener.http` context as SSL is enabled for that listener."
 
@@ -3292,7 +3405,8 @@ func TestAddVirtualServerWithNoHttpsListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"")
+		"",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3319,7 +3433,8 @@ func TestAddVirtualServerWithNoHttpListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3346,7 +3461,8 @@ func TestAddVirtualServerWithNoHttpOrHttpsListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"",
-		"")
+		"",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3373,7 +3489,8 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToFalseInGlo
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3417,7 +3534,8 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToTrueInGlob
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3461,13 +3579,15 @@ func TestAddMultipleVirtualServersWithTheSameCustomListeners(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	virtualServerFoo := createTestVirtualServerWithListeners(
 		"foo",
 		"foo.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChangesForVsCafe := []ResourceChange{
 		{
@@ -3504,7 +3624,8 @@ func TestUpdateGlobalConfigurationWithVirtualServerDeployedWithNoCustomListeners
 
 	virtualServer := createTestVirtualServer(
 		"cafe",
-		"cafe.example.com")
+		"cafe.example.com",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3534,7 +3655,8 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithNoCustomListeners
 
 	virtualServer := createTestVirtualServer(
 		"cafe",
-		"cafe.example.com")
+		"cafe.example.com",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -4279,19 +4401,20 @@ func createTestChallengeIngress(name string, host string, path string, serviceNa
 		},
 	}
 
-	rules = append(rules, networking.IngressRule{
-		Host: host,
-		IngressRuleValue: networking.IngressRuleValue{
-			HTTP: &networking.HTTPIngressRuleValue{
-				Paths: []networking.HTTPIngressPath{
-					{
-						Path:    path,
-						Backend: backend,
+	rules = append(
+		rules, networking.IngressRule{
+			Host: host,
+			IngressRuleValue: networking.IngressRuleValue{
+				HTTP: &networking.HTTPIngressRuleValue{
+					Paths: []networking.HTTPIngressPath{
+						{
+							Path:    path,
+							Backend: backend,
+						},
 					},
 				},
 			},
 		},
-	},
 	)
 
 	return &networking.Ingress{
@@ -4734,7 +4857,8 @@ func TestFindResourcesForResourceReference(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "asd.example.com", "/")
 	tsPassthrough := createTestTLSPassthroughTransportServer("transportserver-passthrough", "ts.example.com")
 	listeners := []conf_v1.Listener{
@@ -5117,7 +5241,8 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "foo.example.com", "/")
 
 	vsWithUpdatedGen := vs.DeepCopy()
@@ -5615,7 +5740,8 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 				Path:          "/",
 				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
 			},
-		})
+		},
+	)
 	expectedChanges = []ResourceChange{
 		{
 			Op: AddOrUpdate,
@@ -5695,7 +5821,8 @@ func TestIsEqualForVirtualServersVSR(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRouteWithLabels("virtualserverroute", "default", "foo.example.com", "/", nil)
 
 	vsWithUpdatedGen := vs.DeepCopy()

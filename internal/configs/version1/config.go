@@ -80,8 +80,14 @@ type LimitReqZone struct {
 
 // Server describes an NGINX server.
 type Server struct {
+	AddHeaderInherit       string
 	ServerSnippets         []string
 	Name                   string
+	IsDefaultServer        bool
+	AccessLogOff           bool
+	DefaultServerReturn    string
+	HealthStatus           bool
+	HealthStatusURI        string
 	ServerTokens           string
 	Locations              []Location
 	EgressMTLS             *version2.EgressMTLS
@@ -94,6 +100,7 @@ type Server struct {
 	TLSPassthrough         bool
 	GRPCOnly               bool
 	IngressMTLS            *version2.IngressMTLS
+	HasGRPCLocations       bool
 	StatusZone             string
 	HTTP2                  bool
 	RedirectToHTTPS        bool
@@ -180,6 +187,7 @@ type LimitReq struct {
 
 // Location describes an NGINX location.
 type Location struct {
+	AddHeaderInherit        string
 	LocationSnippets        []string
 	Path                    string
 	Upstream                Upstream
@@ -275,14 +283,9 @@ type MGMTConfig struct {
 // MainConfig describe the main NGINX configuration file.
 type MainConfig struct {
 	AccessLog                          string
-	DefaultServerAccessLogOff          bool
-	DefaultServerReturn                string
+	AddHeaderInherit                   string
 	DisableIPV6                        bool
-	DefaultHTTPListenerPort            int
-	DefaultHTTPSListenerPort           int
 	ErrorLogLevel                      string
-	HealthStatus                       bool
-	HealthStatusURI                    string
 	HTTP2                              bool
 	HTTPSnippets                       []string
 	AddHeaders                         []version2.AddHeader
@@ -306,16 +309,12 @@ type MainConfig struct {
 	ResolverIPV6                       bool
 	ResolverTimeout                    string
 	ResolverValid                      string
-	RealIPHeader                       string
-	RealIPRecursive                    bool
 	SetRealIPFrom                      []string
 	ServerNamesHashBucketSize          string
 	ServerNamesHashMaxSize             string
 	MapHashBucketSize                  string
 	MapHashMaxSize                     string
 	ClientBodyBufferSize               string
-	ServerTokens                       string
-	SSLRejectHandshake                 bool
 	SSLCiphers                         string
 	SSLDHParam                         string
 	SSLPreferServerCiphers             bool

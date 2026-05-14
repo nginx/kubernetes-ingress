@@ -129,7 +129,8 @@ func generateEmbedIgnores(embeds embedCrts) []string {
 		"# Certificates and keys generated for embedding into the\n"+
 		"# `internal/k8s/secrets` package.\n")
 
-	filesToIgnore = append(filesToIgnore,
+	filesToIgnore = append(
+		filesToIgnore,
 		embeds.Ca.CertName,
 		embeds.Ca.KeyName,
 		embeds.EmptyCa.CertName,

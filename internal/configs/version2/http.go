@@ -112,6 +112,7 @@ type Server struct {
 	DisableIPV6               bool
 	Gunzip                    bool
 	NGINXDebugLevel           string
+	AddHeaderInherit          string
 }
 
 // SSL defines SSL configuration for a server.
@@ -249,6 +250,7 @@ type Location struct {
 	VSRNamespace               string
 	GRPCPass                   string
 	CORSEnabled                bool
+	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
@@ -407,7 +409,8 @@ type LimitReqZone struct {
 }
 
 func (rlz LimitReqZone) String() string {
-	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
+	return fmt.Sprintf(
+		"{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
 		rlz.Key,
 		rlz.ZoneName,
 		rlz.ZoneSize,
