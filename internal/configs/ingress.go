@@ -1032,8 +1032,6 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 		ProxyNextUpstream:        cfg.ProxyNextUpstream,
 		ProxyNextUpstreamTimeout: cfg.ProxyNextUpstreamTimeout,
 		ProxyNextUpstreamTries:   cfg.ProxyNextUpstreamTries,
-		ProxyRedirectFrom:        cfg.ProxyRedirectFrom,
-		ProxyRedirectTo:          cfg.ProxyRedirectTo,
 		LocationSnippets:         cfg.LocationSnippets,
 		ServiceName:              serviceName,
 	}
