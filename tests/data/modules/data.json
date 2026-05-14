@@ -33,7 +33,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -64,7 +64,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -110,7 +110,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -152,7 +152,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -186,7 +186,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -444,7 +444,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -475,7 +475,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -521,7 +521,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -563,7 +563,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -609,7 +609,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -651,7 +651,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -685,7 +685,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
