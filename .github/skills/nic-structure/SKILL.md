@@ -107,12 +107,13 @@ kubectl apply -f resource.yaml
   -> Configurator generates NGINX config  [internal/configs/configurator.go: AddOrUpdateVirtualServer()]
       HTTP path:   GenerateVirtualServerConfig() [virtualserver.go]    -> version2.VirtualServerConfig
                    generateNginxCfg()            [ingress.go]          -> version1.IngressNginxConfig
-      Stream path: GenerateTransportServerConfig() [transportserver.go] -> version2.StreamConf
+      Stream path: generateTransportServerConfig(...) [transportserver.go] -> *version2.TransportServerConfig
       Policies:    generatePolicies() -> add*Config() -> policiesCfg   [policy.go]
       OSS vs Plus: Configurator.isPlus flag; Plus-only policies = OIDC, WAF
                    Template level: nginx.virtualserver.tmpl vs nginx-plus.virtualserver.tmpl
   -> Template executor renders NGINX config text
-      [version1.TemplateExecutor / version2.TemplateExecutor]
+      [version1.TemplateExecutor / version2.TemplateExecutorV2;
+       TransportServer uses ExecuteTransportServerTemplate(...)]
   -> NginxManager writes files + reloads NGINX
       [internal/nginx/: Manager.CreateConfig() + Manager.Reload()]
   -> Update resource status + emit Kubernetes events  [happens AFTER reload returns]
@@ -132,7 +133,7 @@ The secret store (`internal/k8s/secrets/`) sits entirely in the controller layer
 Validates the secret via `ValidateSecret()` and stores `SecretReference{Secret, Error}` in memory. Does **not** write to disk unless a filesystem path already exists for that secret.
 
 **Phase 2 — lazy filesystem write** (`SecretStore.GetSecret()`):
-On first reference during `createVirtualServerEx()` / `createIngressEx()`, writes the validated secret to `/etc/nginx/secrets/<namespace-name>` via `SecretFileManager` (implemented by `Configurator`). Returns `SecretReference{Path, Error}`.
+On first reference during `createVirtualServerEx()` / `createIngressEx()`, materializes supported secrets under `/etc/nginx/secrets/` via `SecretFileManager` (implemented by `Configurator`). Filenames are derived from `<namespace>-<secretName>` rather than a literal path. Some secret types create multiple files (for example, CA secrets), while OIDC and API key secrets are not written to disk, so their `Path` is empty. Returns `SecretReference{Path, Error}`.
 
 **Supported secret types** (`internal/k8s/secrets/validation.go`):
 
@@ -148,7 +149,7 @@ On first reference during `createVirtualServerEx()` / `createIngressEx()`, write
 
 **Special secrets** (defaultServer TLS, wildcard TLS, license, mgmt client cert, mgmt trusted CA): handled by `handleSpecialSecretUpdate()` in the controller, which triggers an NGINX reload directly — independent of any resource re-sync.
 
-**Key invariant**: The controller resolves secrets into filesystem paths; the configurator consumes paths only. `VirtualServerEx.SecretRefs` / `IngressEx.SecretRefs` carry `map[string]*secrets.SecretReference`. Config generation reads `.Path` only — never add `SecretStore.GetSecret()` calls inside `internal/configs/`.
+**Key invariant**: The controller resolves secrets before they reach config generation. `VirtualServerEx.SecretRefs` / `IngressEx.SecretRefs` carry `map[string]*secrets.SecretReference`, and `internal/configs/` may consume the pre-resolved data on those references, including `.Path`, `.Secret.Type`, and `.Secret.Data`. Do not add `SecretStore.GetSecret()` calls or any direct Kubernetes API access inside `internal/configs/`.
 
 ---
 

@@ -121,12 +121,13 @@ Configurator generates NGINX config
   │
   │  HTTP:    GenerateVirtualServerConfig()  → version2.VirtualServerConfig
   │  Ingress: generateNginxCfg()            → version1.IngressNginxConfig
-  │  Stream:  GenerateTransportServerConfig() → version2.StreamConf
+  │  Stream:  generateTransportServerConfig(...) → *version2.TransportServerConfig
   │  Policies: generatePolicies() → add*Config() → policiesCfg
   │
   ▼
 Template executor renders config text from .tmpl files
-  │  [version1.TemplateExecutor or version2.TemplateExecutor]
+  │  [version1.TemplateExecutor or version2.TemplateExecutorV2;
+  │   TransportServer uses ExecuteTransportServerTemplate(...)]
   ▼
 NginxManager writes config file + reloads NGINX
   │  [internal/nginx/ — Manager.CreateConfig() + Manager.Reload()]
@@ -206,10 +207,13 @@ secret (avoiding leftover files for unreferenced secrets).
 
 When the controller builds an extended resource (`createVirtualServerEx()`,
 `createIngressEx()`), it calls `GetSecret()`. If the secret is valid and not yet
-on disk, the store writes it to `/etc/nginx/secrets/<namespace-name>` via the
-`SecretFileManager` interface (implemented by `Configurator`). The returned
-`SecretReference` contains the filesystem `Path` the config generation layer
-needs.
+on disk, the store materializes supported secrets under `/etc/nginx/secrets/` via the
+`SecretFileManager` interface (implemented by `Configurator`). The exact filename is
+derived from `<namespace>-<secretName>` rather than a single path, and some secret types
+create multiple files (for example, CA cert/CRL files). Secrets such as OIDC and API key
+secrets are not written to disk, so their `Path` is empty. The returned `SecretReference`
+contains the filesystem `Path` the config generation layer needs when a file-backed secret
+is used.
 
 ### Supported secret types
 
@@ -233,10 +237,13 @@ directly — independent of any resource re-sync.
 
 ### Key invariant
 
-**The controller resolves secrets into filesystem paths; the configurator
-consumes paths only.** The extended resources (`VirtualServerEx.SecretRefs`,
-`IngressEx.SecretRefs`) carry `map[string]*secrets.SecretReference`. Config
-generation reads the `.Path` field — it never calls `SecretStore.GetSecret()`.
+**The controller resolves secrets and attaches the resolved references; config
+generation consumes `secrets.SecretReference` values only.** The extended
+resources (`VirtualServerEx.SecretRefs`, `IngressEx.SecretRefs`) carry
+`map[string]*secrets.SecretReference`. Config generation may read resolved data
+from those references, including `.Path`, `.Secret.Type`, and secret payload
+from `.Secret.Data` where needed, but it must not call `SecretStore.GetSecret()`
+or the Kubernetes API directly.
 
 ---
 
