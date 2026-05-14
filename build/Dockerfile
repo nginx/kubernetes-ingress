@@ -1,11 +1,11 @@
 # syntax=docker/dockerfile:1.23
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
-ARG NGINX_OSS_VERSION=1.29.8
-ARG NGINX_PLUS_VERSION=R36
-ARG NAP_WAF_VERSION=36+5.607
-ARG NAP_WAF_COMMON_VERSION=11.644
-ARG NAP_WAF_PLUGIN_VERSION=6.28
+ARG NGINX_OSS_VERSION=1.31.0
+ARG NGINX_PLUS_VERSION=R37.0
+ARG NAP_WAF_VERSION=37.0+5.635
+ARG NAP_WAF_COMMON_VERSION=11.665
+ARG NAP_WAF_PLUGIN_VERSION=6.29
 ARG NGINX_AGENT_VERSION=3.9
 ARG NAP_AGENT_VERSION=2
 ARG DOWNLOAD_TAG=edge
@@ -87,7 +87,7 @@ USER 101
 
 
 ############################################# Base image for Alpine #############################################
-FROM nginx:1.29.8-alpine3.23@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de AS alpine
+FROM nginx:1.31.0-alpine3.23@sha256:f105e3f12187c58ddc3acd09bbe4b9e4a9ab1df855d3d0e511b641077b5e988e AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
@@ -106,7 +106,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 
 ############################################# Base image for Debian #############################################
-FROM nginx:1.29.8@sha256:1881968aff6f7cdcc4b888c00a11f4ce241ad7ec957e0cb4a9e19e93a3ff87ea AS debian
+FROM nginx:1.31.0@sha256:06aa3d7be10bc6307990c81bdca075793132e9163391abc370c015e344e23128 AS debian
 ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
 
