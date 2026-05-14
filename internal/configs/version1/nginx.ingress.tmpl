@@ -212,6 +212,14 @@ server {
 	}
 	{{- end }}
 
+	{{- if $server.ProxyRedirectFrom}}
+	{{- if or (eq $server.ProxyRedirectFrom "off") (eq $server.ProxyRedirectFrom "default")}}
+	proxy_redirect {{$server.ProxyRedirectFrom}};
+	{{- else}}
+	proxy_redirect {{$server.ProxyRedirectFrom}} {{$server.ProxyRedirectTo}};
+	{{- end}}
+	{{- end}}
+
 	{{- if $server.AccessLogOff}}
 	access_log off;
 	{{- end}}
@@ -409,6 +417,13 @@ server {
 		{{- if $location.ProxyNextUpstreamTries}}
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
+		{{- if $location.ProxyRedirectFrom}}
+		{{- if or (eq $location.ProxyRedirectFrom "off") (eq $location.ProxyRedirectFrom "default")}}
+		proxy_redirect {{$location.ProxyRedirectFrom}};
+		{{- else}}
+		proxy_redirect {{$location.ProxyRedirectFrom}} {{$location.ProxyRedirectTo}};
+		{{- end}}
+		{{- end}}
 		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
 		{{- if $location.ProxySSLVerify }}

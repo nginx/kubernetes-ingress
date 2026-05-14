@@ -95,6 +95,12 @@ const StickyCookieServicesAnnotationPlus = "nginx.com/sticky-cookie-services"
 // AddHeaderInheritAnnotation is the annotation where add_header inheritance behavior is specified.
 const AddHeaderInheritAnnotation = "nginx.org/add-header-inherit"
 
+// ProxyRedirectFromAnnotation is the annotation for the proxy_redirect "from" parameter.
+const ProxyRedirectFromAnnotation = "nginx.org/proxy-redirect-from"
+
+// ProxyRedirectToAnnotation is the annotation for the proxy_redirect "to" parameter.
+const ProxyRedirectToAnnotation = "nginx.org/proxy-redirect-to"
+
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
@@ -465,6 +471,13 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxyMaxTempFileSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-max-temp-file-size"]; exists {
 		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize
+	}
+
+	if proxyRedirectFrom, exists := ingEx.Ingress.Annotations[ProxyRedirectFromAnnotation]; exists {
+		cfgParams.ProxyRedirectFrom = proxyRedirectFrom
+	}
+	if proxyRedirectTo, exists := ingEx.Ingress.Annotations[ProxyRedirectToAnnotation]; exists {
+		cfgParams.ProxyRedirectTo = proxyRedirectTo
 	}
 
 	if isPlus {

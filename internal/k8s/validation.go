@@ -77,6 +77,8 @@ const (
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
 	httpRedirectCodeAnnotation            = "nginx.org/http-redirect-code"
 	appRootAnnotation                     = "nginx.org/app-root"
+	proxyRedirectFromAnnotation           = configs.ProxyRedirectFromAnnotation
+	proxyRedirectToAnnotation             = configs.ProxyRedirectToAnnotation
 )
 
 const (
@@ -93,6 +95,9 @@ const (
 var (
 	validAnnotationValueRegex         = regexp.MustCompile("^" + annotationValueFmt + "$")
 	validJWTTokenAnnotationValueRegex = regexp.MustCompile("^" + jwtTokenValueFmt + "$")
+	// proxyRedirectValueRegex blocks directive-injection characters while allowing $, ~, and regex metacharacters.
+	// Blocked: ; { } newline carriage-return backtick.
+	proxyRedirectValueRegex = regexp.MustCompile(`^[^;{}\x60\n\r]+$`)
 )
 
 type annotationValidationContext struct {
@@ -397,6 +402,14 @@ var (
 		appRootAnnotation: {
 			validateAppRootAnnotation,
 		},
+		proxyRedirectFromAnnotation: {
+			validateRequiredAnnotation,
+			validateProxyRedirectFromAnnotation,
+		},
+		proxyRedirectToAnnotation: {
+			validateRequiredAnnotation,
+			validateProxyRedirectToAnnotation,
+		},
 		configs.PoliciesAnnotation: {
 			validateRequiredAnnotation,
 			validateCommaSeparatedList,
@@ -501,6 +514,50 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 	}
 
 	return allErrs
+}
+
+func validateProxyRedirectFromAnnotation(context *annotationValidationContext) field.ErrorList {
+	v := context.value
+	// "off" and "default" are exact NGINX keywords
+	if v == "off" || v == "default" {
+		return nil
+	}
+	if !proxyRedirectValueRegex.MatchString(v) {
+		return field.ErrorList{field.Invalid(context.fieldPath, v,
+			"must not contain ';', '{', '}', newline, carriage return, or backtick")}
+	}
+	return nil
+}
+
+func validateProxyRedirectToAnnotation(context *annotationValidationContext) field.ErrorList {
+	if !proxyRedirectValueRegex.MatchString(context.value) {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value,
+			"must not contain ';', '{', '}', newline, carriage return, or backtick")}
+	}
+	return nil
+}
+
+// validateProxyRedirectPair enforces cross-annotation consistency:
+//   - proxy-redirect-to without proxy-redirect-from is invalid.
+//   - proxy-redirect-from with a non-keyword value (not "off" or "default") without
+//     proxy-redirect-to is invalid.
+func validateProxyRedirectPair(annotations map[string]string, fieldPath *field.Path) field.ErrorList {
+	from, hasFrom := annotations[proxyRedirectFromAnnotation]
+	_, hasTo := annotations[proxyRedirectToAnnotation]
+
+	if hasTo && !hasFrom {
+		return field.ErrorList{field.Invalid(
+			fieldPath.Child(proxyRedirectToAnnotation), "",
+			"nginx.org/proxy-redirect-to requires nginx.org/proxy-redirect-from to also be set",
+		)}
+	}
+	if hasFrom && from != "off" && from != "default" && !hasTo {
+		return field.ErrorList{field.Invalid(
+			fieldPath.Child(proxyRedirectFromAnnotation), from,
+			"nginx.org/proxy-redirect-from with a URL or regex value requires nginx.org/proxy-redirect-to to also be set",
+		)}
+	}
+	return nil
 }
 
 func validateJWTLoginURLAnnotation(context *annotationValidationContext) field.ErrorList {
@@ -696,6 +753,8 @@ func validateIngress(
 		getSpecServices(ing.Spec),
 		field.NewPath("annotations"),
 	)
+
+	allErrs = append(allErrs, validateProxyRedirectPair(ing.Annotations, field.NewPath("annotations"))...)
 
 	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"), allowEmptyHost)...)
 	if allowEmptyHost && hasEmptyHostRule(&ing.Spec) {
