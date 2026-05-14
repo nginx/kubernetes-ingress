@@ -31,25 +31,26 @@ github_repo = os.getenv("GITHUB_REPO", "kubernetes-ingress")
 token = os.environ.get("GITHUB_TOKEN")
 # For PRs that should be skipped that don't have the "skip changelog" label
 skip_pr_strings = ["pre-commit hook", "pip group"]
-# docker_pr_strings = [
-#     "docker",
-#     "images",
-# ]
-# golang_pr_strings = [
-#     "go group",
-#     "go_modules group",
-#     "Update module ",
-#     "Update dependency"
-#     "Update go to"
-#     "dependency go to",
-#     "golang.org/",
-#     "k8s.io/",
-#     "kubernetes packages",
-#     "kubernetes ecosystem",
-#     "aws sdk"
-#     "opentelemetry-go",
-#     "preflight"
-# ]
+# For PRs that should be grouped but don't have the corresponding label, we look for these strings in the title
+docker_pr_strings = [
+    "docker",
+    "ubi",
+]
+golang_pr_strings = [
+    "go group",
+    "go_modules group",
+    "Update module ",
+    "Update dependency",
+    "Update go to",
+    "dependency go to",
+    "golang.org/",
+    "k8s.io/",
+    "kubernetes packages",
+    "kubernetes ecosystem",
+    "aws sdk",
+    "opentelemetry-go",
+    "preflight",
+]
 
 # Setup regex's
 # Matches:
@@ -186,24 +187,22 @@ for title, changes in sections.items():
                     go_dependencies.append(pr)
                 else:
                     # No label type for grouping, fall back to title pattern matching
-                    if any(s in lower_title for s in ["docker", "ubi"]):
+                    if any(s in lower_title for s in docker_pr_strings):
                         docker_dependencies.append(pr)
-                    elif any(
-                        s in lower_title
-                        for s in [
-                            "Update module ",
-                            "goland",
-                            "k8s.io/",
-                            "kubernetes packages",
-                            "kubernetes ecosystem",
-                            "aws sdk",
-                            "opentelemetry-go",
-                            "preflight",
-                        ]
-                    ):
+                    elif any(s in lower_title for s in golang_pr_strings):
                         go_dependencies.append(pr)
+                    else:
+                        # PR could not be grouped as is treated as an ungrouped dependency PR
+                        parsed_changes.append(f"{pr['details']} {pr['title']}")
             else:
-                parsed_changes.append(f"{pr['details']} {pr['title']}")
+                # If there is no "dependencies" label, we will use title pattern matching in order to group the PR
+                if any(s in lower_title for s in docker_pr_strings):
+                    docker_dependencies.append(pr)
+                elif any(s in lower_title for s in golang_pr_strings):
+                    go_dependencies.append(pr)
+                else:
+                    # PR could not be grouped as is treated as an ungrouped dependency PR
+                    parsed_changes.append(f"{pr['details']} {pr['title']}")
         else:
             parsed_changes.append(f"{pr['details']} {pr['title']}")
 
