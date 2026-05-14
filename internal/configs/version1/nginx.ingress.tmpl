@@ -216,7 +216,7 @@ server {
 	{{- if eq $server.ProxyRedirectFrom "off"}}
 	proxy_redirect off;
 	{{- else if ne $server.ProxyRedirectFrom "default"}}
-	{{- /* "default" is not emitted — it is identical to NGINX's implicit behaviour when the directive is absent. */}}
+	{{- /* "default" is not emitted, The default replacement specified by the default parameter uses the parameters of the location and proxy_pass directives  */}}
 	proxy_redirect {{$server.ProxyRedirectFrom}} {{$server.ProxyRedirectTo}};
 	{{- end}}
 	{{- end}}
