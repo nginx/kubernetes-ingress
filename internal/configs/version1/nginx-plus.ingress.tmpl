@@ -278,9 +278,10 @@ server {
 	{{- end }}
 
 	{{- if $server.ProxyRedirectFrom}}
-	{{- if or (eq $server.ProxyRedirectFrom "off") (eq $server.ProxyRedirectFrom "default")}}
-	proxy_redirect {{$server.ProxyRedirectFrom}};
-	{{- else}}
+	{{- if eq $server.ProxyRedirectFrom "off"}}
+	proxy_redirect off;
+	{{- else if ne $server.ProxyRedirectFrom "default"}}
+	{{- /* "default" is not emitted, The default replacement specified by the default parameter uses the parameters of the location and proxy_pass directives  */}}
 	proxy_redirect {{$server.ProxyRedirectFrom}} {{$server.ProxyRedirectTo}};
 	{{- end}}
 	{{- end}}

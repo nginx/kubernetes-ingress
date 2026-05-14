@@ -213,9 +213,10 @@ server {
 	{{- end }}
 
 	{{- if $server.ProxyRedirectFrom}}
-	{{- if or (eq $server.ProxyRedirectFrom "off") (eq $server.ProxyRedirectFrom "default")}}
-	proxy_redirect {{$server.ProxyRedirectFrom}};
-	{{- else}}
+	{{- if eq $server.ProxyRedirectFrom "off"}}
+	proxy_redirect off;
+	{{- else if ne $server.ProxyRedirectFrom "default"}}
+	{{- /* "default" is not emitted — it is identical to NGINX's implicit behaviour when the directive is absent. */}}
 	proxy_redirect {{$server.ProxyRedirectFrom}} {{$server.ProxyRedirectTo}};
 	{{- end}}
 	{{- end}}
