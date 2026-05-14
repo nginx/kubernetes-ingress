@@ -1,4 +1,4 @@
-name: Build UBI c-ares Dependency
+name: Build UBI Dependencies
 
 on:
   push:
@@ -27,6 +27,7 @@ jobs:
     permissions:
       packages: write
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -34,6 +35,19 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Azure Login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        run: |
+          RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$RHEL_CREDS"
+          echo "$RHEL_CREDS" > rhel_license
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -50,6 +64,10 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Sanitize ref name
+        id: ref
+        run: echo "name=$(echo '${{ github.ref_name }}' | tr '/' '-')" >> $GITHUB_OUTPUT
+
       - name: Docker meta
         id: meta
         uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
@@ -57,7 +75,8 @@ jobs:
           images: |
             name=${{ env.IMAGE_NAME }},enable=true
           tags: |
-            type=raw,value=${{ matrix.tag }},enable=true
+            type=raw,value=${{ matrix.tag }},enable=${{ github.ref_name == 'main' }}
+            type=raw,value=${{ matrix.tag }}-${{ steps.ref.outputs.name }},enable=${{ github.ref_name != 'main' }}
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
@@ -73,7 +92,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha,scope=nginx-${{ matrix.tag }}
-          cache-to: type=gha,scope=nginx-${{ matrix.tag }},mode=max
           target: final
           sbom: false
           provenance: mode=max
+          secret-files: rhel_license=rhel_license
+
+      - name: Clean up secrets
+        if: always()
+        run: rm -f rhel_license
