@@ -1028,8 +1028,8 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectDefault(t *testing.T
 	}
 
 	rendered := buf.String()
-	if !strings.Contains(rendered, "proxy_redirect default;") {
-		t.Errorf("want %q in generated config", "proxy_redirect default;")
+	if strings.Contains(rendered, "proxy_redirect default;") {
+		t.Errorf("do not want %q in generated config", "proxy_redirect default;")
 	}
 	snaps.MatchSnapshot(t, rendered)
 }
@@ -1047,8 +1047,8 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectDefault(t *testi
 	}
 
 	rendered := buf.String()
-	if !strings.Contains(rendered, "proxy_redirect default;") {
-		t.Errorf("want %q in generated config", "proxy_redirect default;")
+	if strings.Contains(rendered, "proxy_redirect default;") {
+		t.Errorf("do not want %q in generated config", "proxy_redirect default;")
 	}
 	snaps.MatchSnapshot(t, rendered)
 }

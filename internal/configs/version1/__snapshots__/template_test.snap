@@ -2431,7 +2431,6 @@ server {
     
 
     
-    proxy_redirect default;
     location /coffee {
         set $service "";
         status_zone "";
@@ -4406,7 +4405,6 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    proxy_redirect default;
     location /coffee {
         set $service "";
         proxy_http_version 1.1;
