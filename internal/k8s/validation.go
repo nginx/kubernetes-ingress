@@ -10,7 +10,7 @@ import (
 
 	"github.com/dlclark/regexp2/v2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
-	version1 "github.com/nginx/kubernetes-ingress/internal/configs/version1"
+	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	common_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -100,6 +100,7 @@ type annotationValidationContext struct {
 	specServices          map[string]bool
 	name                  string
 	value                 string
+	hostless              bool
 	isPlus                bool
 	appProtectEnabled     bool
 	appProtectDosEnabled  bool
@@ -289,10 +290,12 @@ var (
 			validateJWTLoginURLAnnotation,
 		},
 		listenPortsAnnotation: {
+			validateHostlessForbiddenAnnotation,
 			validateRequiredAnnotation,
 			validatePortListAnnotation,
 		},
 		listenPortsSSLAnnotation: {
+			validateHostlessForbiddenAnnotation,
 			validateRequiredAnnotation,
 			validatePortListAnnotation,
 		},
@@ -677,6 +680,7 @@ func validateIngress(
 	internalRoutesEnabled bool,
 	snippetsEnabled bool,
 	directiveAutoAdjust bool,
+	allowEmptyHost bool,
 ) field.ErrorList {
 	allErrs := validateIngressAnnotations(
 		IngressOpts{
@@ -686,13 +690,17 @@ func validateIngress(
 			internalRoutesEnabled: internalRoutesEnabled,
 			snippetsEnabled:       snippetsEnabled,
 			directiveAutoAdjust:   directiveAutoAdjust,
+			hostless:              allowEmptyHost && hasEmptyHostRule(&ing.Spec),
 		},
 		ing.Annotations,
 		getSpecServices(ing.Spec),
 		field.NewPath("annotations"),
 	)
 
-	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"), allowEmptyHost)...)
+	if allowEmptyHost && hasEmptyHostRule(&ing.Spec) {
+		allErrs = append(allErrs, validateHostlessIngress(ing, field.NewPath("spec"))...)
+	}
 
 	if isMaster(ing) {
 		allErrs = append(allErrs, validateMasterSpec(&ing.Spec, field.NewPath("spec"))...)
@@ -702,6 +710,31 @@ func validateIngress(
 
 	if isChallengeIngress(ing) {
 		allErrs = append(allErrs, validateChallengeIngress(&ing.Spec, field.NewPath("spec"))...)
+	}
+
+	return allErrs
+}
+
+func hasEmptyHostRule(spec *networking.IngressSpec) bool {
+	for _, rule := range spec.Rules {
+		if rule.Host == "" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func validateHostlessIngress(ing *networking.Ingress, specPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// TLS for the default catch-all server is always provided by -default-server-tls-secret; an explicit "" in tls.hosts is therefore invalid. (tls entries with no hosts are ignored by NIC.)
+	for i, tls := range ing.Spec.TLS {
+		for j, host := range tls.Hosts {
+			if host == "" {
+				allErrs = append(allErrs, field.Forbidden(specPath.Child("tls").Index(i).Child("hosts").Index(j), "empty host is not allowed in tls.hosts; TLS for the default catch-all server is configured via the -default-server-tls-secret CLI flag"))
+			}
+		}
 	}
 
 	return allErrs
@@ -738,6 +771,7 @@ type IngressOpts struct {
 	internalRoutesEnabled bool
 	snippetsEnabled       bool
 	directiveAutoAdjust   bool
+	hostless              bool
 }
 
 func validateIngressAnnotations(
@@ -755,6 +789,7 @@ func validateIngressAnnotations(
 				specServices:          specServices,
 				name:                  name,
 				value:                 value,
+				hostless:              ingOpts.hostless,
 				isPlus:                ingOpts.isPlus,
 				appProtectEnabled:     ingOpts.appProtectEnabled,
 				appProtectDosEnabled:  ingOpts.appProtectDosEnabled,
@@ -796,6 +831,14 @@ func validateRelatedAnnotation(name string, validator validatorFunc) annotationV
 		}
 		return nil
 	}
+}
+
+func validateHostlessForbiddenAnnotation(context *annotationValidationContext) field.ErrorList {
+	if !context.hostless {
+		return nil
+	}
+
+	return field.ErrorList{field.Forbidden(context.fieldPath, "annotation is not supported for hostless Ingress")}
 }
 
 func validateQualifiedName(context *annotationValidationContext) field.ErrorList {
@@ -1095,7 +1138,7 @@ func validateIsValidRealm(v string) error {
 	return nil
 }
 
-func validateIngressSpec(spec *networking.IngressSpec, fieldPath *field.Path) field.ErrorList {
+func validateIngressSpec(spec *networking.IngressSpec, fieldPath *field.Path, allowEmptyHost bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if spec.DefaultBackend != nil {
@@ -1108,11 +1151,19 @@ func validateIngressSpec(spec *networking.IngressSpec, fieldPath *field.Path) fi
 		return append(allErrs, field.Required(fieldPath.Child("rules"), ""))
 	}
 
+	hasEmptyHost := false
+
 	for i, r := range spec.Rules {
 		idxRule := fieldPath.Child("rules").Index(i)
 
 		if r.Host == "" {
-			allErrs = append(allErrs, field.Required(idxRule.Child("host"), ""))
+			if !allowEmptyHost {
+				allErrs = append(allErrs, field.Required(idxRule.Child("host"), ""))
+			} else if hasEmptyHost {
+				allErrs = append(allErrs, field.Duplicate(idxRule.Child("host"), ""))
+			} else {
+				hasEmptyHost = true
+			}
 		} else if allHosts.Has(r.Host) {
 			allErrs = append(allErrs, field.Duplicate(idxRule.Child("host"), r.Host))
 		} else {
