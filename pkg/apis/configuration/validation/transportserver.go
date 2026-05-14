@@ -287,7 +287,7 @@ func validateHealthCheckMatch(match *conf_v1.TransportServerMatch, fieldPath *fi
 	}
 
 	allErrs := validateMatchExpect(match.Expect, fieldPath.Child("expect"))
-	allErrs = append(allErrs, validateMatchSend(match.Expect, fieldPath.Child("send"))...)
+	allErrs = append(allErrs, validateMatchSend(match.Send, fieldPath.Child("send"))...)
 	return allErrs
 }
 
