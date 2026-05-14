@@ -2446,6 +2446,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -4129,6 +4130,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
