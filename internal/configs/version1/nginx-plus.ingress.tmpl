@@ -526,6 +526,7 @@ server {
 		{{- if $location.ProxyNextUpstreamTries}}
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
+		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- if $location.ProxyRedirectFrom}}
 		{{- if or (eq $location.ProxyRedirectFrom "off") (eq $location.ProxyRedirectFrom "default")}}
 		proxy_redirect {{$location.ProxyRedirectFrom}};
@@ -533,7 +534,6 @@ server {
 		proxy_redirect {{$location.ProxyRedirectFrom}} {{$location.ProxyRedirectTo}};
 		{{- end}}
 		{{- end}}
-		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
 		{{- end}}
 		{{- if $location.ProxySSLVerify }}
 		proxy_ssl_verify on;

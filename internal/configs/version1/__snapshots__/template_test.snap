@@ -2496,8 +2496,8 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_redirect off;
         proxy_pass http://test;
+        proxy_redirect off;
         
     }
     
@@ -2545,8 +2545,8 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
         proxy_pass http://test;
+        proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
         
     }
     
@@ -4462,8 +4462,8 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_redirect off;
         proxy_pass http://test;
+        proxy_redirect off;
         
     }
     
@@ -4505,8 +4505,8 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
         proxy_pass http://test;
+        proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
         
     }
     
