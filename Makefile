@@ -9,7 +9,7 @@ NAP_WAF_VERSION               ?= 37.0+5.635
 NAP_WAF_COMMON_VERSION        ?= 11.665
 NAP_WAF_PLUGIN_VERSION        ?= 6.29
 NAP_AGENT_VERSION             ?= 2
-NGINX_AGENT_VERSION           ?= 3.9
+NGINX_AGENT_VERSION           ?= 3
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
