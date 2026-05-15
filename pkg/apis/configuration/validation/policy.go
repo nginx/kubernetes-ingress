@@ -825,7 +825,7 @@ func validateRateLimitZoneSize(zoneSize string, fieldPath *field.Path) field.Err
 	mbZoneSize := strings.TrimSuffix(strings.ToLower(zoneSize), "m")
 	mbZoneSizeNum, mbErr := strconv.Atoi(mbZoneSize)
 
-	if err == nil && kbZoneSizeNum < 32 || mbErr == nil && mbZoneSizeNum == 0 {
+	if (err == nil && kbZoneSizeNum < 32) || (mbErr == nil && mbZoneSizeNum == 0) {
 		allErrs = append(allErrs, field.Invalid(fieldPath, zoneSize, "must be greater than 31k"))
 	}
 	return allErrs

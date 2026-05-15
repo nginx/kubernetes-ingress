@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
@@ -1133,6 +1134,23 @@ func generateLimitReq(zoneName string, rateLimitPol *conf_v1.RateLimit) version2
 	return limitReq
 }
 
+// normalizeRateLimitZoneSize appends "k" to a bare number if its byte value
+// would be below NGINX's minimum shared memory zone size (32k).
+// Per the CRD API contract, bare numbers below 32k are treated as kilobytes.
+// Bare numbers >= 32768 are valid byte values and left unchanged.
+func normalizeRateLimitZoneSize(s string) string {
+	if len(s) == 0 {
+		return s
+	}
+	last := s[len(s)-1]
+	if last >= '0' && last <= '9' {
+		if n, err := strconv.Atoi(s); err == nil && n < 32768 {
+			return s + "k"
+		}
+	}
+	return s
+}
+
 func generateLimitReqZone(zoneName string, policy *conf_v1.Policy, podReplicas int, zoneSync bool) (version2.LimitReqZone, string) {
 	rateLimitPol := policy.Spec.RateLimit
 	rate := rateLimitPol.Rate
@@ -1148,7 +1166,7 @@ func generateLimitReqZone(zoneName string, policy *conf_v1.Policy, podReplicas i
 	return version2.LimitReqZone{
 		ZoneName: zoneName,
 		Key:      rateLimitPol.Key,
-		ZoneSize: rateLimitPol.ZoneSize,
+		ZoneSize: normalizeRateLimitZoneSize(rateLimitPol.ZoneSize),
 		Rate:     rate,
 		Sync:     zoneSync,
 	}, warningText
@@ -1177,7 +1195,7 @@ func generateGroupedLimitReqZone(
 	lrz := version2.LimitReqZone{
 		ZoneName: zoneName,
 		Key:      rateLimitPol.Key,
-		ZoneSize: rateLimitPol.ZoneSize,
+		ZoneSize: normalizeRateLimitZoneSize(rateLimitPol.ZoneSize),
 		Rate:     rate,
 		Sync:     zoneSync,
 	}
