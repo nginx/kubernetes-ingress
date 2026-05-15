@@ -114,7 +114,7 @@ full `Location` header value against the pattern and substitutes capture groups 
     kubectl apply -f ingress-redirect-regex.yaml
     ```
 
-2. The `redirect-backend` returns `301 Location: http://redirect-backend-svc/v1/coffee` 
+2. The `redirect-backend` returns `301 Location: http://redirect-backend-svc/v1/coffee`
     (`$1=1`, `$2=coffee`). NGINX applies the regex and builds the replacement:
 
     ```console

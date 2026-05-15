@@ -20,10 +20,3 @@ spec:
             name: redirect-backend-svc
             port:
               number: 80
-      - path: /tea
-        pathType: Prefix
-        backend:
-          service:
-            name: redirect-backend-svc
-            port:
-              number: 80
