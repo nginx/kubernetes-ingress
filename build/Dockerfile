@@ -19,8 +19,8 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:9defd802c1f654946b7a5bf600de9061c312ce3671860e8ec6ac55cab45edb19 AS ubi8-packages
 FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:e34a86f1d78676b28e204449ef150816d72ba74db7945d44069026e6e3e7714c AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
-FROM redhat/ubi9-minimal:9.7-1777857961@sha256:8d0a8fb39ec907e8ca62cdd24b62a63ca49a30fe465798a360741fde58437a23 AS ubi-minimal
-FROM golang:1.26-alpine@sha256:f85330846cde1e57ca9ec309382da3b8e6ae3ab943d2739500e08c86393a21b1 AS golang-builder
+FROM redhat/ubi9-minimal:9.7-1778072020@sha256:b9b10f42d7eba7ad4a6d5ef26b7d34fdc892b2ffe59b8d0372ec884008569eb6 AS ubi-minimal
+FROM golang:1.26.3-alpine@sha256:3a8f055e02fce9585d5e4ab5135d57f2e1a947a16e2a7e6a71a78e770c169e9b AS golang-builder
 
 ############################################# NGINX files #############################################
 FROM scratch AS nginx-files
@@ -240,7 +240,10 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} app-protect-attack-signatures app-protect-threat-campaigns \
+	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} \
+      app-protect-ip-intelligence \
+      app-protect-attack-signatures \
+      app-protect-threat-campaigns \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
 	&& nap-waf.sh \
 	agent.sh
@@ -358,6 +361,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	app-protect-common=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
+	app-protect-ip-intelligence \
 	app-protect-attack-signatures \
 	app-protect-threat-campaigns \
 	nginx-agent=${NAP_AGENT_VERSION}.* \
@@ -461,7 +465,10 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	rpm --import /tmp/app-protect-security-updates.key \
 	&& cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
 	&& microdnf --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms --nodocs install -y \
-	app-protect-${NAP_WAF_VERSION}* app-protect-attack-signatures app-protect-threat-campaigns \
+	app-protect-${NAP_WAF_VERSION}* \
+	app-protect-ip-intelligence \
+	app-protect-attack-signatures \
+    app-protect-threat-campaigns \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo \
 	&& nap-waf.sh \
 	&& agent.sh; \
@@ -511,7 +518,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAF #############################################
-FROM redhat/ubi8@sha256:cd1299741e13d89764de25b266c2080b355ba33294944fb54663d9bffa3a47d4 AS ubi-8-plus-nap
+FROM redhat/ubi8@sha256:8f757bfe94700eee7d26c885cd16bf3ae9923edf38f984ef3da50d2ce937fc5e AS ubi-8-plus-nap
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG BUILD_OS
@@ -544,7 +551,10 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& subscription-manager attach \
 	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
 	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
-	&& dnf --nodocs install -y app-protect-${NAP_WAF_VERSION}* app-protect-attack-signatures app-protect-threat-campaigns \
+	&& dnf --nodocs install -y app-protect-${NAP_WAF_VERSION}* \
+       app-protect-ip-intelligence \
+       app-protect-attack-signatures \
+       app-protect-threat-campaigns \
 	&& subscription-manager unregister \
 	&& nap-waf.sh \
 	&& agent.sh \
@@ -552,7 +562,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAFv5  #############################################
-FROM redhat/ubi8@sha256:cd1299741e13d89764de25b266c2080b355ba33294944fb54663d9bffa3a47d4 AS ubi-8-plus-nap-v5
+FROM redhat/ubi8@sha256:8f757bfe94700eee7d26c885cd16bf3ae9923edf38f984ef3da50d2ce937fc5e AS ubi-8-plus-nap-v5
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_AGENT_VERSION

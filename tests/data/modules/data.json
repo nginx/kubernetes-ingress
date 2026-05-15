@@ -33,7 +33,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -64,7 +64,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -95,6 +95,10 @@
           "version": "2026"
         },
         {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
+        },
+        {
           "name": "nginx-agent",
           "version": "2"
         }
@@ -110,7 +114,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -152,7 +156,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -186,7 +190,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -207,6 +211,10 @@
         {
           "name": "app-protect",
           "version": "36+5.607"
+        },
+        {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -267,7 +275,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -298,7 +306,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -329,7 +337,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -346,6 +354,10 @@
         {
           "name": "nginx-agent",
           "version": "2"
+        },
+        {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
         },
         {
           "name": "nginx-plus-module-appprotect",
@@ -375,7 +387,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-r4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -444,7 +456,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -475,7 +487,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -502,6 +514,10 @@
           "version": "36+5.607"
         },
         {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
+        },
+        {
           "name": "app-protect-attack-signatures",
           "version": "2026"
         },
@@ -521,7 +537,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -563,7 +579,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -590,6 +606,10 @@
           "version": "36+5.607"
         },
         {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
+        },
+        {
           "name": "app-protect-attack-signatures",
           "version": "2026"
         },
@@ -609,7 +629,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -651,7 +671,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -685,7 +705,7 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36-4"
+          "version": "36"
         },
         {
           "name": "nginx-plus-module-njs",
@@ -714,6 +734,10 @@
         {
           "name": "app-protect",
           "version": "36+5.607"
+        },
+        {
+          "name": "app-protect-ip-intelligence",
+          "version": "1.50.0"
         },
         {
           "name": "app-protect-attack-signatures",
