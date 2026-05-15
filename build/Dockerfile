@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1.23
+# DEPRECATED: the split build now lives in docker-bake.hcl and build/Dockerfile.*.
+# Keep this file only as a fallback while workflows and local usage migrate.
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
 ARG NGINX_OSS_VERSION=1.29.8

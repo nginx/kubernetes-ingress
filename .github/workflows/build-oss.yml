@@ -9,6 +9,9 @@ on:
       image:
         required: true
         type: string
+      bake-target:
+        required: true
+        type: string
       tag:
         required: false
         type: string
@@ -62,7 +65,6 @@ jobs:
       pull-requests: write # for scout report
     outputs:
       version: ${{ steps.meta.outputs.version }}
-      image_digest: ${{ steps.build-push.outputs.digest }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -182,20 +184,23 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
-          file: build/Dockerfile
-          context: "."
-          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
-          target: common
-          tags: ${{ steps.base_name.outputs.image }}
-          platforms: ${{ inputs.platforms }}
-          pull: true
-          push: true
-          no-cache: true
-          build-args: |
-            BUILD_OS=${{ inputs.image }}
-            IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+        env:
+          BAKE_TARGET: ${{ inputs.bake-target }}
+          BAKE_TAGS: ${{ steps.base_name.outputs.image }}
+          BAKE_PLATFORMS: ${{ inputs.platforms }}
+          BAKE_CACHE_TO: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
+          IC_VERSION: ${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+        run: |
+          args=(
+            --file docker-bake.hcl
+            --set "${BAKE_TARGET}.platform=${BAKE_PLATFORMS}"
+            --set "${BAKE_TARGET}.target=common"
+            --set "${BAKE_TARGET}.tags=${BAKE_TAGS}"
+          )
+          if [[ -n "${BAKE_CACHE_TO}" ]]; then
+            args+=(--set "${BAKE_TARGET}.cache-to=${BAKE_CACHE_TO}")
+          fi
+          docker buildx bake --push "${args[@]}" "${BAKE_TARGET}"
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Debug values
@@ -214,27 +219,41 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Docker image
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         id: build-push
-        with:
-          file: build/Dockerfile
-          context: "."
-          cache-from: ${{ inputs.read-from-cache && format('type=gha,scope={0}', inputs.image) || '' }}
-          cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
-          target: goreleaser${{ inputs.authenticated && '-prebuilt' || '' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          platforms: ${{ inputs.platforms }}
-          load: false
-          push: ${{ inputs.authenticated }}
-          pull: true
-          sbom: ${{ inputs.authenticated }}
-          provenance: false
-          build-args: |
-            BUILD_OS=${{ inputs.image }}
-            ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
-            IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+        env:
+          AUTHENTICATED: ${{ inputs.authenticated }}
+          BAKE_TARGET: ${{ inputs.bake-target }}
+          BAKE_TAGS: ${{ steps.meta.outputs.tags }}
+          BAKE_PLATFORMS: ${{ inputs.platforms }}
+          BAKE_CACHE_FROM: ${{ inputs.read-from-cache && format('type=gha,scope={0}', inputs.image) || '' }}
+          BAKE_CACHE_TO: ${{ inputs.write-to-cache && format('type=gha,scope={0},mode=max', inputs.image) || '' }}
+          PREBUILT_BASE_IMG: ${{ inputs.authenticated && steps.base_name.outputs.image || '' }}
+          IC_VERSION: ${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+        run: |
+          target_stage=goreleaser
+          if [[ "${AUTHENTICATED}" == 'true' ]]; then
+            target_stage+="-prebuilt"
+          fi
+          args=(
+            --file docker-bake.hcl
+            --set "${BAKE_TARGET}.platform=${BAKE_PLATFORMS}"
+            --set "${BAKE_TARGET}.target=${target_stage}"
+            --set "${BAKE_TARGET}.tags=${BAKE_TAGS}"
+          )
+          if [[ -n "${BAKE_CACHE_FROM}" ]]; then
+            args+=(--set "${BAKE_TARGET}.cache-from=${BAKE_CACHE_FROM}")
+          fi
+          if [[ -n "${BAKE_CACHE_TO}" ]]; then
+            args+=(--set "${BAKE_TARGET}.cache-to=${BAKE_CACHE_TO}")
+          fi
+          if [[ -n "${PREBUILT_BASE_IMG}" ]]; then
+            args+=(--set "${BAKE_TARGET}.args.PREBUILT_BASE_IMG=${PREBUILT_BASE_IMG}")
+          fi
+          if [[ "${AUTHENTICATED}" == 'true' ]]; then
+            docker buildx bake --push "${args[@]}" "${BAKE_TARGET}"
+          else
+            docker buildx bake "${args[@]}" "${BAKE_TARGET}"
+          fi
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Make directory for security scan results

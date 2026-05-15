@@ -208,6 +208,7 @@ jobs:
     with:
       platforms: ${{ matrix.platforms }}
       image: ${{ matrix.image }}
+      bake-target: ${{ matrix.bake_target }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
       authenticated: ${{ inputs.authenticated }}
@@ -236,6 +237,7 @@ jobs:
     with:
       platforms: ${{ matrix.platforms }}
       image: ${{ matrix.image }}
+      bake-target: ${{ matrix.bake_target }}
       target: ${{ matrix.target }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
@@ -263,6 +265,7 @@ jobs:
     with:
       platforms: ${{ matrix.platforms }}
       image: ${{ matrix.image }}
+      bake-target: ${{ matrix.bake_target }}
       target: ${{ matrix.target }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}

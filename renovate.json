@@ -311,6 +311,16 @@
     },
     {
       "customType": "regex",
+      "description": "Update version variables in docker-bake.hcl",
+      "managerFilePatterns": [
+        "/docker-bake\\.hcl$/"
+      ],
+      "matchStrings": [
+        "variable \\\"[A-Z0-9_]+\\\" \\{\\s+# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>.+?)(?: (?:packageName|lookupName)=(?<packageName>.+?))?(?: versioning=(?<versioning>[a-z-]+?))?\\s+default = \\\"(?<currentValue>.+?)\\\""
+      ]
+    },
+    {
+      "customType": "regex",
       "datasourceTemplate": "github-tags",
       "description": "Update Github Action references in the Markdown files",
       "managerFilePatterns": [

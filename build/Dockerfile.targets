@@ -1,0 +1,261 @@
+# syntax=docker/dockerfile:1.23
+ARG DOWNLOAD_TAG=edge
+ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
+ARG IMAGE_NAME=nginx/nginx-ingress
+
+############################################# Patch Image #############################################
+FROM ${IMAGE_NAME} AS patched
+ARG IMAGE_NAME
+ARG IC_VERSION
+
+LABEL version="${IC_VERSION}" \
+	org.opencontainers.image.version="${IC_VERSION}"
+
+USER 0
+RUN --mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/patch-os.sh \
+	if [ -f /etc/apk/repositories ]; then sed -i -e '/nginx.com/d' /etc/apk/repositories; fi \
+	&& patch-os.sh
+USER 101
+
+############################################# Create common files, permissions and setcap #############################################
+FROM build-os AS common
+
+ARG BUILD_OS
+ARG IC_VERSION
+ARG NGINX_VERSION
+ARG TARGETPLATFORM
+ARG NAP_MODULES=none
+
+ENV BUILD_OS=${BUILD_OS}
+
+RUN --mount=type=bind,target=/code \
+	--mount=type=bind,from=nginx-files,src=common.sh,target=/usr/local/bin/common.sh \
+	--mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/patch-os.sh \
+	patch-os.sh \
+	&& common.sh
+
+EXPOSE 80 443
+
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/nginx-ingress"]
+# 101 is nginx
+USER 101
+
+LABEL org.opencontainers.image.version="${IC_VERSION}" \
+	org.opencontainers.image.documentation=https://docs.nginx.com/nginx-ingress-controller \
+	org.opencontainers.image.vendor="NGINX Inc <kubernetes@nginx.com>" \
+	org.nginx.kic.image.build.target="${TARGETPLATFORM}" \
+	org.nginx.kic.image.build.os="${BUILD_OS}" \
+	org.nginx.kic.image.build.nginx.version="${NGINX_VERSION}"
+
+############################################# Build nginx-ingress in golang container #############################################
+FROM golang-builder AS builder
+ARG IC_VERSION
+ARG TARGETARCH
+
+WORKDIR /go/src/github.com/nginx/kubernetes-ingress/
+RUN apk add --no-cache git libcap
+RUN --mount=type=bind,target=/go/src/github.com/nginx/kubernetes-ingress/ --mount=type=cache,target=/root/.cache/go-build \
+	go mod download
+RUN --mount=type=bind,target=/go/src/github.com/nginx/kubernetes-ingress/ --mount=type=cache,target=/root/.cache/go-build \
+	CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -trimpath -ldflags "-s -w -X main.version=${IC_VERSION}" \
+	-o /nginx-ingress github.com/nginx/kubernetes-ingress/cmd/nginx-ingress \
+	&& setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+
+############################################# Download delve #############################################
+FROM golang-builder AS debug-builder
+ARG TARGETARCH
+
+WORKDIR /go/src/github.com/nginx/kubernetes-ingress/
+RUN apk add --no-cache git
+RUN --mount=type=bind,target=/go/src/github.com/nginx/kubernetes-ingress/ --mount=type=cache,target=/root/.cache/go-build \
+	go mod download
+RUN --mount=type=bind,target=/go/src/github.com/nginx/kubernetes-ingress/ --mount=type=cache,target=/root/.cache/go-build \
+	CGO_ENABLED=0 GOOS=linux GOARCH=$TARGETARCH go build -gcflags "all=-N -l" -o /nginx-ingress github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+RUN CGO_ENABLED=0 go install -ldflags "-s -w -extldflags '-static'" github.com/go-delve/delve/cmd/dlv@latest
+
+############################################# Create image with nginx-ingress built in container #############################################
+FROM common AS container
+
+LABEL org.nginx.kic.image.build.version="container"
+
+COPY --link --from=builder --chown=101:0 /nginx-ingress /
+
+############################################# Create image with nginx-ingress built locally #############################################
+FROM common AS local
+ARG BUILD_OS
+ENV BUILD_OS=${BUILD_OS}
+
+LABEL org.nginx.kic.image.build.version="local"
+
+COPY --link --chown=101:0 nginx-ingress /
+# root is required for `setcap` invocation
+USER 0
+RUN --mount=type=bind,target=/tmp if [ -z "${BUILD_OS##*plus*}" ]; then PLUS=-plus; fi \
+	&& cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl \
+	/tmp/internal/configs/version1/nginx$PLUS.tmpl \
+	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl \
+	/tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
+	&& if [ -z "${BUILD_OS##*plus*}" ]; then cp -a /tmp/internal/configs/version2/oidc.tmpl /; fi \
+	&& chown -R 101:0 /*.tmpl \
+	&& chmod -R g=u /*.tmpl \
+	&& setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+# 101 is nginx, defined above
+USER 101
+
+############################################# Create image with nginx-ingress built locally #############################################
+FROM common AS debug
+
+LABEL org.nginx.kic.image.build.version="local"
+
+ENV GOPATH="/work"
+ENV GOROOT="/go"
+ENV PATH="$PATH:${GOROOT}/bin:${GOPATH}/bin"
+
+COPY --link --from=debug-builder --chown=101:0 /go/bin/dlv /dlv
+COPY --link --chown=101:0 nginx-ingress /
+# root is required for `setcap` invocation
+USER 0
+RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress && \
+	setcap 'cap_net_bind_service=+ep' /dlv && setcap -v 'cap_net_bind_service=+ep' /dlv && \
+	mkdir -p /nonexistent /work /go/bin /go-build && \
+	chown 101:0 /nonexistent /work /go-build
+COPY --link --from=debug-builder --chown=101:0 /usr/local/go/bin/go /go/bin/go
+# 101 is nginx, defined above
+USER 101
+ENTRYPOINT ["/dlv"]
+
+############################################# Create image with nginx-ingress built locally #############################################
+FROM common AS debug-container
+
+LABEL org.nginx.kic.image.build.version="local"
+
+ENV GOPATH="/work"
+ENV GOROOT="/go"
+ENV PATH="$PATH:${GOROOT}/bin:${GOPATH}/bin"
+
+COPY --link --from=debug-builder --chown=101:0 /go/bin/dlv /dlv
+COPY --link --from=debug-builder --chown=101:0 /nginx-ingress /
+# root is required for `setcap` invocation
+USER 0
+RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress && \
+	setcap 'cap_net_bind_service=+ep' /dlv && setcap -v 'cap_net_bind_service=+ep' /dlv && \
+	mkdir -p /nonexistent /work /go/bin /go-build && \
+	chown 101:0 /nonexistent /work /go-build
+COPY --link --from=debug-builder --chown=101:0 /usr/local/go/bin/go /go/bin/go
+# 101 is nginx, defined above
+USER 101
+ENTRYPOINT ["/dlv"]
+
+############################################# Create image with nginx-ingress built locally & using prebuilt base image #############################################
+FROM ${PREBUILT_BASE_IMG} AS local-prebuilt
+ARG BUILD_OS
+
+LABEL org.nginx.kic.image.build.version="local"
+
+COPY --link --chown=101:0 nginx-ingress /
+# root is required for `setcap` invocation
+USER 0
+RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
+	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
+	&& chown -R 101:0 /*.tmpl \
+	&& chmod -R g=u /*.tmpl \
+	&& setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+# 101 is nginx, defined above
+USER 101
+
+############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
+# Builder image for goreleaser
+FROM common AS goreleaser-setcap
+ARG TARGETARCH
+
+COPY --link --chown=101:0 dist/kubernetes-ingress_linux_${TARGETARCH}*/nginx-ingress /
+USER 0
+RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+
+############################################# Create image with nginx-ingress built by GoReleaser #############################################
+FROM common AS goreleaser
+ARG TARGETARCH
+
+LABEL org.nginx.kic.image.build.version="goreleaser"
+
+COPY --link --chown=101:0 --from=goreleaser-setcap /nginx-ingress /
+
+############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
+# Builder image for goreleaser-prebuilt
+FROM ${PREBUILT_BASE_IMG} AS goreleaser-setcap-prebuilt
+ARG TARGETARCH
+
+COPY --link --chown=101:0 dist/kubernetes-ingress_linux_${TARGETARCH}*/nginx-ingress /
+USER 0
+RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+
+############################################# Create image with nginx-ingress built by GoReleaser & using prebuilt base image #############################################
+FROM ${PREBUILT_BASE_IMG} AS goreleaser-prebuilt
+ARG TARGETARCH
+ARG BUILD_OS
+
+LABEL org.nginx.kic.image.build.version="goreleaser"
+
+COPY --link --chown=101:0 --from=goreleaser-setcap-prebuilt /nginx-ingress /
+# root is required for `setcap` invocation
+USER 0
+RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
+	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
+	&& chown -R 101:0 /*.tmpl \
+	&& chmod -R g=u /*.tmpl
+USER 101
+
+############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
+# Builder image for aws
+FROM common AS aws-setcap
+ARG TARGETARCH
+ARG NAP_MODULES_AWS
+
+COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
+USER 0
+RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+
+############################################# Create image with nginx-ingress built by GoReleaser for AWS Marketplace #############################################
+FROM common AS aws
+ARG TARGETARCH
+ARG NAP_MODULES_AWS
+
+LABEL org.nginx.kic.image.build.version="aws"
+
+COPY --link --chown=101:0 --from=aws-setcap /nginx-ingress /
+
+############################################# Builder style stage to avoid duplicate layers for ingress and ingress with setcap #############################################
+# Builder image for aws-prebuilt
+FROM ${PREBUILT_BASE_IMG} AS aws-setcap-prebuilt
+ARG TARGETARCH
+ARG NAP_MODULES_AWS
+
+COPY --link --chown=101:0 dist/aws*${NAP_MODULES_AWS}_linux_${TARGETARCH}*/nginx-ingress /
+USER 0
+RUN setcap 'cap_net_bind_service=+ep' /nginx-ingress && setcap -v 'cap_net_bind_service=+ep' /nginx-ingress
+
+############################################# Create image with nginx-ingress built by GoReleaser for AWS Marketplace #############################################
+FROM ${PREBUILT_BASE_IMG} AS aws-prebuilt
+ARG TARGETARCH
+ARG NAP_MODULES_AWS
+ARG BUILD_OS
+
+LABEL org.nginx.kic.image.build.version="aws"
+
+COPY --link --chown=101:0 --from=aws-setcap-prebuilt /nginx-ingress /
+USER 0
+RUN --mount=type=bind,target=/tmp [ -z "${BUILD_OS##*plus*}" ] && PLUS=-plus; cp -a /tmp/internal/configs/version1/nginx$PLUS.ingress.tmpl /tmp/internal/configs/version1/nginx$PLUS.tmpl \
+	/tmp/internal/configs/version2/nginx$PLUS.virtualserver.tmpl /tmp/internal/configs/version2/nginx$PLUS.transportserver.tmpl / \
+	&& chown -R 101:0 /*.tmpl \
+	&& chmod -R g=u /*.tmpl
+USER 101
+
+############################################# Create image with nginx-ingress extracted from image on Docker Hub #############################################
+FROM nginx/nginx-ingress:${DOWNLOAD_TAG} AS kic
+
+FROM common AS download
+
+LABEL org.nginx.kic.image.build.version="binaries"
+
+COPY --link --from=kic --chown=101:0 /nginx-ingress /

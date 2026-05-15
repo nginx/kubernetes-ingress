@@ -3,15 +3,6 @@ VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
-# renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.29.8
-NGINX_PLUS_VERSION            ?= R36
-NAP_WAF_VERSION               ?= 36+5.607
-NAP_WAF_COMMON_VERSION        ?= 11.644
-NAP_WAF_PLUGIN_VERSION        ?= 6.28
-NAP_AGENT_VERSION             ?= 2
-NGINX_AGENT_VERSION           ?= 3.9
-PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
 
@@ -31,7 +22,6 @@ PREFIX                        ?= nginx/nginx-ingress ## The name of the image. F
 TAG                           ?= $(VERSION:v%=%) ## The tag of the image. For example, 2.0.0
 TARGET                        ?= local ## The target of the build. Possible values: local, container, download, goreleaser, and debug
 PLUS_REPO                     ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
-override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg PACKAGE_REPO=$(PLUS_REPO) ## The options for the docker build command. For example, --pull
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
 PLATFORM                      ?= linux/amd64 ## The platform(s) for dependency image builds. For example: linux/amd64 or linux/amd64,linux/arm64
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
@@ -58,7 +48,16 @@ BUILD_IMAGE             := $(strip $(REGISTRY))/$(strip $(PREFIX)):$(strip $(TAG
 endif
 
 # final docker build command
-DOCKER_CMD = docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUILD_OPTIONS)) --target $(strip $(TARGET)) -f build/Dockerfile -t $(BUILD_IMAGE) .
+define BAKE_CMD
+	IC_VERSION=$(VERSION) PACKAGE_REPO=$(PLUS_REPO) docker buildx bake --file docker-bake.hcl \
+		--set $(1).platform=linux/$(strip $(ARCH)) \
+		--set $(1).target=$(strip $(TARGET)) \
+		--set $(1).output=type=docker \
+		--set $(1).tags=$(BUILD_IMAGE) \
+		$(if $(strip $(DOWNLOAD_TAG)),--set $(1).args.DOWNLOAD_TAG=$(DOWNLOAD_TAG)) \
+		$(if $(strip $(PREBUILT_BASE_IMG)),--set $(1).args.PREBUILT_BASE_IMG=$(PREBUILT_BASE_IMG)) \
+		$(1)
+endef
 
 export DOCKER_BUILDKIT = 1
 
@@ -175,7 +174,6 @@ DOWNLOAD_TAG := $(shell ./hack/docker.sh $(GIT_TAG))
 ifeq ($(DOWNLOAD_TAG),fail)
 $(error unable to build with TARGET=download, this function is only available when building from a git tag or from the latest commit matching the edge image)
 endif
-override DOCKER_BUILD_OPTIONS += --build-arg DOWNLOAD_TAG=$(DOWNLOAD_TAG)
 endif
 
 .PHONY: build-goreleaser
@@ -185,53 +183,47 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 
 .PHONY: debian-image
 debian-image: build ## Create Docker image for Ingress Controller (Debian)
-	$(DOCKER_CMD) --build-arg BUILD_OS=debian --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg NGINX_AGENT_VERSION=$(NGINX_AGENT_VERSION)
+	$(call BAKE_CMD,debian-image)
 
 .PHONY: alpine-image
 alpine-image: build ## Create Docker image for Ingress Controller (Alpine)
-	$(DOCKER_CMD) --build-arg BUILD_OS=alpine --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg NGINX_AGENT_VERSION=$(NGINX_AGENT_VERSION)
+	$(call BAKE_CMD,alpine-image)
 
 .PHONY: alpine-image-plus
 alpine-image-plus: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus --build-arg NGINX_AGENT_VERSION=$(NGINX_AGENT_VERSION)
+	$(call BAKE_CMD,alpine-image-plus)
 
 .PHONY: alpine-image-plus-fips
 alpine-image-plus-fips: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus and FIPS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus-fips --build-arg NGINX_AGENT_VERSION=$(NGINX_AGENT_VERSION)
+	$(call BAKE_CMD,alpine-image-plus-fips)
 
 .PHONY: alpine-image-nap-plus-fips
 alpine-image-nap-plus-fips: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus, NGINX App Protect WAF and FIPS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus-nap-fips --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,alpine-image-nap-plus-fips)
 
 .PHONY: alpine-image-nap-v5-plus-fips
 alpine-image-nap-v5-plus-fips: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus, NGINX App Protect WAFv5 and FIPS)
-	$(DOCKER_CMD) $(PLUS_ARGS) \
-	--build-arg BUILD_OS=alpine-plus-nap-v5-fips --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,alpine-image-nap-v5-plus-fips)
 
 .PHONY: debian-image-plus
 debian-image-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus --build-arg NGINX_AGENT_VERSION=$(NGINX_AGENT_VERSION)
+	$(call BAKE_CMD,debian-image-plus)
 
 .PHONY: debian-image-nap-plus
 debian-image-nap-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect WAF)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap --build-arg NAP_MODULES=waf \
-		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
-		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,debian-image-nap-plus)
 
 .PHONY: debian-image-nap-v5-plus
 debian-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect WAFv5)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap-v5 --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,debian-image-nap-v5-plus)
 
 .PHONY: debian-image-dos-plus
 debian-image-dos-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap --build-arg NAP_MODULES=dos
+	$(call BAKE_CMD,debian-image-dos-plus)
 
 .PHONY: debian-image-nap-dos-plus
 debian-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus, NGINX App Protect WAF and DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap --build-arg NAP_MODULES=waf,dos \
-		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
-		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,debian-image-nap-dos-plus)
 
 .PHONY: ubi9-dependency-image
 ubi9-dependency-image: ## Build and push the UBI9 dependency image (c-ares + Perl/Boost RPMs + repo metadata)
@@ -279,41 +271,35 @@ ubi8-dependency-image-local: ## Build the UBI8 dependency image locally for arm6
 
 .PHONY: ubi-image
 ubi-image: build ## Create Docker image for Ingress Controller (UBI)
-	$(DOCKER_CMD) --build-arg BUILD_OS=ubi --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg NGINX_AGENT_VERSION=$(NGINX_AGENT_VERSION)
+	$(call BAKE_CMD,ubi-image)
 
 .PHONY: ubi-image-plus
 ubi-image-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-9-plus --build-arg NGINX_AGENT_VERSION=$(NGINX_AGENT_VERSION)
+	$(call BAKE_CMD,ubi-image-plus)
 
 .PHONY: ubi-image-nap-plus
 ubi-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAF)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap \
-		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,ubi-image-nap-plus)
 
 .PHONY: ubi8-image-nap-plus
 ubi8-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAF)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-8-plus-nap \
-		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,ubi8-image-nap-plus)
 
 .PHONY: ubi-image-nap-v5-plus
 ubi-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
-	--build-arg BUILD_OS=ubi-9-plus-nap-v5 --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,ubi-image-nap-v5-plus)
 
 .PHONY: ubi8-image-nap-v5-plus
 ubi8-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
-	--build-arg BUILD_OS=ubi-8-plus-nap-v5 --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,ubi8-image-nap-v5-plus)
 
 .PHONY: ubi-image-dos-plus
 ubi-image-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap \
-		--build-arg NAP_MODULES=dos
+	$(call BAKE_CMD,ubi-image-dos-plus)
 
 .PHONY: ubi-image-nap-dos-plus
 ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAF and DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap \
-		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+	$(call BAKE_CMD,ubi-image-nap-dos-plus)
 
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:
@@ -325,7 +311,11 @@ all-images:
 
 .PHONY: patch-os
 patch-os: ## Patch supplied image
-	$(DOCKER_CMD) --build-arg IMAGE_NAME=$(IMAGE)
+	IC_VERSION=$(VERSION) PACKAGE_REPO=$(PLUS_REPO) docker buildx bake --file docker-bake.hcl \
+		--set patch-os-image.output=type=docker \
+		--set patch-os-image.tags=$(BUILD_IMAGE) \
+		--set patch-os-image.args.IMAGE_NAME=$(IMAGE) \
+		patch-os-image
 
 .PHONY: push
 push: ## Docker push to PREFIX and TAG

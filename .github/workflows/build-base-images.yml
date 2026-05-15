@@ -110,20 +110,21 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
-          file: build/Dockerfile
-          context: "."
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,scope=${{ matrix.image }},mode=max
-          target: common
-          tags: ${{ steps.meta.outputs.tags }}
-          platforms: ${{ matrix.platforms }}
-          pull: true
-          push: true
-          build-args: |
-            BUILD_OS=${{ matrix.image }}
-            IC_VERSION=${{ needs.checks.outputs.ic_version }}
+        env:
+          BAKE_TARGET: ${{ matrix.bake_target }}
+          BAKE_TAGS: ${{ steps.meta.outputs.tags }}
+          BAKE_PLATFORMS: ${{ matrix.platforms }}
+          BAKE_CACHE_FROM: type=gha,scope=${{ matrix.image }}
+          BAKE_CACHE_TO: type=gha,scope=${{ matrix.image }},mode=max
+          IC_VERSION: ${{ needs.checks.outputs.ic_version }}
+        run: |
+          docker buildx bake --push --file docker-bake.hcl \
+            --set "${BAKE_TARGET}.platform=${BAKE_PLATFORMS}" \
+            --set "${BAKE_TARGET}.target=common" \
+            --set "${BAKE_TARGET}.tags=${BAKE_TAGS}" \
+            --set "${BAKE_TARGET}.cache-from=${BAKE_CACHE_FROM}" \
+            --set "${BAKE_TARGET}.cache-to=${BAKE_CACHE_TO}" \
+            "${BAKE_TARGET}"
 
   build-plus:
     name: Build Plus base images
@@ -205,23 +206,21 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
-          file: build/Dockerfile
-          context: "."
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,scope=${{ matrix.image }},mode=max
-          target: common
-          tags: ${{ steps.meta.outputs.tags }}
-          platforms: ${{ matrix.platforms }}
-          pull: true
-          push: true
-          build-args: |
-            BUILD_OS=${{ matrix.image }}
-            IC_VERSION=${{ needs.checks.outputs.ic_version }}
-          secret-files: |
-            nginx-repo.crt=nginx-repo.crt
-            nginx-repo.key=nginx-repo.key
+        env:
+          BAKE_TARGET: ${{ matrix.bake_target }}
+          BAKE_TAGS: ${{ steps.meta.outputs.tags }}
+          BAKE_PLATFORMS: ${{ matrix.platforms }}
+          BAKE_CACHE_FROM: type=gha,scope=${{ matrix.image }}
+          BAKE_CACHE_TO: type=gha,scope=${{ matrix.image }},mode=max
+          IC_VERSION: ${{ needs.checks.outputs.ic_version }}
+        run: |
+          docker buildx bake --push --file docker-bake.hcl \
+            --set "${BAKE_TARGET}.platform=${BAKE_PLATFORMS}" \
+            --set "${BAKE_TARGET}.target=common" \
+            --set "${BAKE_TARGET}.tags=${BAKE_TAGS}" \
+            --set "${BAKE_TARGET}.cache-from=${BAKE_CACHE_FROM}" \
+            --set "${BAKE_TARGET}.cache-to=${BAKE_CACHE_TO}" \
+            "${BAKE_TARGET}"
 
       - name: Clean up secrets
         run: |
@@ -315,25 +314,21 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
-        with:
-          file: build/Dockerfile
-          context: "."
-          cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }}
-          cache-to: type=gha,scope=${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }},mode=max
-          target: common
-          tags: ${{ steps.meta.outputs.tags }}
-          platforms: ${{ matrix.platforms }}
-          pull: true
-          push: true
-          build-args: |
-            BUILD_OS=${{ matrix.image }}
-            IC_VERSION=${{ needs.checks.outputs.ic_version }}
-            NAP_MODULES=${{ matrix.nap_modules }}
-          secret-files: |
-            nginx-repo.crt=nginx-repo.crt
-            nginx-repo.key=nginx-repo.key
-            ${{ contains(matrix.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
+        env:
+          BAKE_TARGET: ${{ matrix.bake_target }}
+          BAKE_TAGS: ${{ steps.meta.outputs.tags }}
+          BAKE_PLATFORMS: ${{ matrix.platforms }}
+          BAKE_CACHE_FROM: type=gha,scope=${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }}
+          BAKE_CACHE_TO: type=gha,scope=${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }},mode=max
+          IC_VERSION: ${{ needs.checks.outputs.ic_version }}
+        run: |
+          docker buildx bake --push --file docker-bake.hcl \
+            --set "${BAKE_TARGET}.platform=${BAKE_PLATFORMS}" \
+            --set "${BAKE_TARGET}.target=common" \
+            --set "${BAKE_TARGET}.tags=${BAKE_TAGS}" \
+            --set "${BAKE_TARGET}.cache-from=${BAKE_CACHE_FROM}" \
+            --set "${BAKE_TARGET}.cache-to=${BAKE_CACHE_TO}" \
+            "${BAKE_TARGET}"
 
       - name: Clean up secrets
         run: |

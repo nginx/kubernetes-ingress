@@ -1,18 +1,26 @@
 {
-  "image": [
-    "debian-plus",
-    "alpine-plus",
-    "alpine-plus-fips"
-  ],
-  "platforms": [
-    "linux/arm64, linux/amd64"
-  ],
-  "target": [
-    "goreleaser"
-  ],
   "include": [
     {
+      "image": "debian-plus",
+      "bake_target": "debian-image-plus",
+      "platforms": "linux/arm64, linux/amd64",
+      "target": "goreleaser"
+    },
+    {
+      "image": "alpine-plus",
+      "bake_target": "alpine-image-plus",
+      "platforms": "linux/arm64, linux/amd64",
+      "target": "goreleaser"
+    },
+    {
+      "image": "alpine-plus-fips",
+      "bake_target": "alpine-image-plus-fips",
+      "platforms": "linux/arm64, linux/amd64",
+      "target": "goreleaser"
+    },
+    {
       "image": "ubi-9-plus",
+      "bake_target": "ubi-image-plus",
       "platforms": "linux/arm64, linux/amd64",
       "target": "goreleaser"
     }
