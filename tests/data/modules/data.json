@@ -226,7 +226,7 @@
         },
         {
           "name": "nginx-plus-module-appprotectdos",
-          "version": "37.0+4"
+          "version": "37+4"
         },
         {
           "name": "app-protect-dos",
@@ -507,11 +507,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-ip-intelligence",
@@ -557,11 +557,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-plugin",
@@ -599,11 +599,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-ip-intelligence",
@@ -649,11 +649,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-plugin",
@@ -721,7 +721,7 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
@@ -733,7 +733,7 @@
         },
         {
           "name": "app-protect",
-          "version": "37.0.5.635"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-ip-intelligence",
