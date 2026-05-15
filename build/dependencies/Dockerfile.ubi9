@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.23
+# syntax=docker/dockerfile:1.24
 FROM redhat/ubi9:9.7-1778044007@sha256:edabf9436bb372addcca3537aa76111c7a1aba970f5e3b02e2e03bc72943612d AS rpm-build
 RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required=false \
     mkdir -p /rpms/ \
