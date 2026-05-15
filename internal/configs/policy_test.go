@@ -4854,3 +4854,32 @@ func TestAddWafConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizeRateLimitZoneSize(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{input: "", expected: ""},
+		{input: "10m", expected: "10m"},
+		{input: "10M", expected: "10M"},
+		{input: "32k", expected: "32k"},
+		{input: "32K", expected: "32K"},
+		{input: "32", expected: "32k"},
+		{input: "100", expected: "100k"},
+		{input: "31", expected: "31k"},
+		{input: "0", expected: "0k"},
+		{input: "32767", expected: "32767k"},
+		{input: "32768", expected: "32768"},
+		{input: "65536", expected: "65536"},
+		{input: "1000000", expected: "1000000"},
+	}
+
+	for _, test := range tests {
+		result := normalizeRateLimitZoneSize(test.input)
+		if result != test.expected {
+			t.Errorf("normalizeRateLimitZoneSize(%q) = %q, expected %q", test.input, result, test.expected)
+		}
+	}
+}
