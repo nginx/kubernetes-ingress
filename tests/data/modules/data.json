@@ -168,11 +168,11 @@
         },
         {
           "name": "nginx-plus-module-appprotectdos",
-          "version": "37.0+4"
+          "version": "37+4"
         },
         {
           "name": "app-protect-dos",
-          "version": "37.0+4"
+          "version": "37+4"
         }
       ],
       "system": "debian",
@@ -222,7 +222,7 @@
         },
         {
           "name": "app-protect-dos",
-          "version": "37.0+4"
+          "version": "37+4"
         },
         {
           "name": "nginx-agent",
@@ -667,11 +667,11 @@
         },
         {
           "name": "nginx-plus-module-appprotectdos",
-          "version": "37.0+4"
+          "version": "37+4"
         },
         {
           "name": "app-protect-dos",
-          "version": "37.0+4"
+          "version": "37+4"
         }
       ],
       "system": "ubi",
@@ -725,7 +725,7 @@
         },
         {
           "name": "app-protect-dos",
-          "version": "37.0+4"
+          "version": "37+4"
         }
       ],
       "system": "ubi",
