@@ -4,13 +4,13 @@ GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.29.8
-NGINX_PLUS_VERSION            ?= R36
-NAP_WAF_VERSION               ?= 36+5.607
-NAP_WAF_COMMON_VERSION        ?= 11.644
-NAP_WAF_PLUGIN_VERSION        ?= 6.28
+NGINX_OSS_VERSION             ?= 1.31.0
+NGINX_PLUS_VERSION            ?= R37.0
+NAP_WAF_VERSION               ?= 37.0+5.635
+NAP_WAF_COMMON_VERSION        ?= 11.665
+NAP_WAF_PLUGIN_VERSION        ?= 6.29
 NAP_AGENT_VERSION             ?= 2
-NGINX_AGENT_VERSION           ?= 3.9
+NGINX_AGENT_VERSION           ?= 3
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
@@ -232,50 +232,6 @@ debian-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap --build-arg NAP_MODULES=waf,dos \
 		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
 		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
-
-.PHONY: ubi9-dependency-image
-ubi9-dependency-image: ## Build and push the UBI9 dependency image (c-ares + Perl/Boost RPMs + repo metadata)
-	docker buildx inspect ubi-deps > /dev/null 2>&1 \
-		|| docker buildx create --name ubi-deps --driver docker-container --bootstrap
-	docker run --rm --privileged tonistiigi/binfmt --install all
-	docker buildx build --builder ubi-deps \
-		--secret id=rhel_license,src=rhel_license \
-		--platform $(PLATFORM) \
-		--target final \
-		-f build/dependencies/Dockerfile.ubi9 \
-		-t ghcr.io/nginx/dependencies/nginx-ubi:ubi9 \
-		--push .
-
-.PHONY: ubi9-dependency-image-local
-ubi9-dependency-image-local: ## Build the UBI9 dependency image locally for arm64 (no push, no RHSM needed)
-	docker buildx build \
-		--platform linux/arm64 \
-		--target final \
-		-f build/dependencies/Dockerfile.ubi9 \
-		-t ghcr.io/nginx/dependencies/nginx-ubi:ubi9-local \
-		--load .
-
-.PHONY: ubi8-dependency-image
-ubi8-dependency-image: ## Build and push the UBI8 dependency image (c-ares + Perl/Boost RPMs + repo metadata)
-	docker buildx inspect ubi-deps > /dev/null 2>&1 \
-		|| docker buildx create --name ubi-deps --driver docker-container --bootstrap
-	docker run --rm --privileged tonistiigi/binfmt --install all
-	docker buildx build --builder ubi-deps \
-		--secret id=rhel_license,src=rhel_license \
-		--platform $(PLATFORM) \
-		--target final \
-		-f build/dependencies/Dockerfile.ubi8 \
-		-t ghcr.io/nginx/dependencies/nginx-ubi:ubi8 \
-		--push .
-
-.PHONY: ubi8-dependency-image-local
-ubi8-dependency-image-local: ## Build the UBI8 dependency image locally for arm64 (no push, no RHSM needed)
-	docker buildx build \
-		--platform linux/arm64 \
-		--target final \
-		-f build/dependencies/Dockerfile.ubi8 \
-		-t ghcr.io/nginx/dependencies/nginx-ubi:ubi8-local \
-		--load .
 
 .PHONY: ubi-image
 ubi-image: build ## Create Docker image for Ingress Controller (UBI)
