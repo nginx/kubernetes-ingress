@@ -242,7 +242,10 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	&& cp -av /tmp/fips/etc/ssl/openssl.cnf /etc/ssl/openssl.cnf \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} app-protect-attack-signatures app-protect-threat-campaigns \
+	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} \
+      app-protect-ip-intelligence \
+      app-protect-attack-signatures \
+      app-protect-threat-campaigns \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
 	&& nap-waf.sh \
 	agent.sh
@@ -360,6 +363,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	app-protect-common=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
+	app-protect-ip-intelligence \
 	app-protect-attack-signatures \
 	app-protect-threat-campaigns \
 	nginx-agent=${NAP_AGENT_VERSION}.* \
@@ -531,7 +535,10 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& rpm --import /tmp/app-protect-security-updates.key \
 	&& printf '[local-deps]\nname=Local UBI Deps\nbaseurl=file:///ubi-bin\nenabled=1\ngpgcheck=0\n' > /etc/yum.repos.d/local-deps.repo \
 	&& dnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent-${NAP_AGENT_VERSION}.* \
-	&& dnf --nodocs install -y app-protect-${NAP_WAF_VERSION}* app-protect-attack-signatures app-protect-threat-campaigns \
+	&& dnf --nodocs install -y app-protect-${NAP_WAF_VERSION}* \
+       app-protect-ip-intelligence \
+       app-protect-attack-signatures \
+       app-protect-threat-campaigns \
 	&& nap-waf.sh \
 	&& agent.sh \
 	&& rm -f /etc/yum.repos.d/local-deps.repo \
