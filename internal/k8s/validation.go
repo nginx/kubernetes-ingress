@@ -96,8 +96,9 @@ var (
 	validAnnotationValueRegex         = regexp.MustCompile("^" + annotationValueFmt + "$")
 	validJWTTokenAnnotationValueRegex = regexp.MustCompile("^" + jwtTokenValueFmt + "$")
 	// proxyRedirectValueRegex blocks directive-injection characters while allowing $, ~, and regex metacharacters.
-	// Blocked: ; { } newline carriage-return backtick.
-	proxyRedirectValueRegex = regexp.MustCompile(`^[^;{}\x60\n\r]+$`)
+	// Blocked: ; { } newline carriage-return backtick whitespace #.
+	// Whitespace would produce multi-token NGINX directives; # starts an NGINX comment, truncating the directive.
+	proxyRedirectValueRegex = regexp.MustCompile(`^[^;{}\x60\n\r\s#]+$`)
 )
 
 type annotationValidationContext struct {
@@ -524,7 +525,23 @@ func validateProxyRedirectFromAnnotation(context *annotationValidationContext) f
 	}
 	if !proxyRedirectValueRegex.MatchString(v) {
 		return field.ErrorList{field.Invalid(context.fieldPath, v,
-			"must not contain ';', '{', '}', newline, carriage return, or backtick")}
+			"must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'")}
+	}
+	// Values starting with ~ or ~* are treated as PCRE regexes by NGINX.
+	// Pre-validate the pattern using Go's RE2 to catch obviously malformed expressions
+	// (unmatched parentheses, invalid escapes, etc.) before they reach NGINX's config test.
+	pattern := v
+	if strings.HasPrefix(pattern, "~*") {
+		pattern = pattern[2:]
+	} else if strings.HasPrefix(pattern, "~") {
+		pattern = pattern[1:]
+	}
+	if pattern != v {
+		// Only compile when we stripped a ~ prefix
+		if _, err := regexp.Compile(pattern); err != nil {
+			return field.ErrorList{field.Invalid(context.fieldPath, v,
+				"invalid regex pattern")}
+		}
 	}
 	return nil
 }
@@ -532,7 +549,7 @@ func validateProxyRedirectFromAnnotation(context *annotationValidationContext) f
 func validateProxyRedirectToAnnotation(context *annotationValidationContext) field.ErrorList {
 	if !proxyRedirectValueRegex.MatchString(context.value) {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value,
-			"must not contain ';', '{', '}', newline, carriage return, or backtick")}
+			"must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'")}
 	}
 	return nil
 }
@@ -549,6 +566,13 @@ func validateProxyRedirectPair(annotations map[string]string, fieldPath *field.P
 		return field.ErrorList{field.Invalid(
 			fieldPath.Child(proxyRedirectToAnnotation), "",
 			"nginx.org/proxy-redirect-to requires nginx.org/proxy-redirect-from to also be set",
+		)}
+	}
+	// "off" and "default" are single-token keywords; proxy_redirect off/default does not accept a replacement URL.
+	if hasFrom && (from == "off" || from == "default") && hasTo {
+		return field.ErrorList{field.Invalid(
+			fieldPath.Child(proxyRedirectToAnnotation), "",
+			fmt.Sprintf("nginx.org/proxy-redirect-to cannot be set when nginx.org/proxy-redirect-from is %q", from),
 		)}
 	}
 	if hasFrom && from != "off" && from != "default" && !hasTo {
