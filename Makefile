@@ -277,6 +277,28 @@ ubi8-dependency-image-local: ## Build the UBI8 dependency image locally for arm6
 		-t ghcr.io/nginx/dependencies/nginx-ubi:ubi8-local \
 		--load .
 
+.PHONY: ubi10-dependency-image
+ubi10-dependency-image: ## Build and push the UBI10 dependency image (c-ares + Perl/Boost RPMs + repo metadata)
+	docker buildx inspect ubi-deps > /dev/null 2>&1 \
+		|| docker buildx create --name ubi-deps --driver docker-container --bootstrap
+	docker run --rm --privileged tonistiigi/binfmt --install all
+	docker buildx build --builder ubi-deps \
+		--secret id=rhel_license,src=rhel_license \
+		--platform $(PLATFORM) \
+		--target final \
+		-f build/dependencies/Dockerfile.ubi10 \
+		-t ghcr.io/nginx/dependencies/nginx-ubi:ubi10 \
+		--push .
+
+.PHONY: ubi10-dependency-image-local
+ubi10-dependency-image-local: ## Build the UBI10 dependency image locally for arm64 (no push, no RHSM needed)
+	docker buildx build \
+		--platform linux/arm64 \
+		--target final \
+		-f build/dependencies/Dockerfile.ubi10 \
+		-t ghcr.io/nginx/dependencies/nginx-ubi:ubi10-local \
+		--load .
+
 .PHONY: ubi-image
 ubi-image: build ## Create Docker image for Ingress Controller (UBI)
 	$(DOCKER_CMD) --build-arg BUILD_OS=ubi --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg NGINX_AGENT_VERSION=$(NGINX_AGENT_VERSION)

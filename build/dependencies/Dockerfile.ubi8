@@ -29,7 +29,7 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required
         && dnf download --resolve --destdir=/rpms \
             protobuf perl-Bit-Vector perl-File-Slurp perl-IO-Socket-INET6 \
             perl-JSON perl-XML-LibXML perl-XML-Simple \
-            boost-filesystem boost-iostreams \
+            boost-filesystem boost-iostreams cjson \
         && subscription-manager unregister \
         && createrepo_c /rpms/; \
     fi
