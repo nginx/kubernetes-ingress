@@ -6,19 +6,19 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-agent",
-          "version": "3.9"
+          "version": "3"
         }
       ],
       "system": "debian",
@@ -33,23 +33,23 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
-          "version": "3.9"
+          "version": "3"
         }
       ],
       "system": "debian",
@@ -64,27 +64,27 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -96,7 +96,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.50.0"
+          "version": "1.55.0"
         },
         {
           "name": "nginx-agent",
@@ -114,31 +114,31 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.28"
+          "version": "6.29"
         },
         {
           "name": "nginx-agent",
@@ -156,27 +156,27 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
-          "version": "36+4"
+          "version": "37+4"
         },
         {
           "name": "app-protect-dos",
-          "version": "36+4"
+          "version": "37+4"
         }
       ],
       "system": "debian",
@@ -190,31 +190,31 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.50.0"
+          "version": "1.55.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -226,11 +226,11 @@
         },
         {
           "name": "nginx-plus-module-appprotectdos",
-          "version": "36+4"
+          "version": "37+4"
         },
         {
           "name": "app-protect-dos",
-          "version": "36+4"
+          "version": "37+4"
         },
         {
           "name": "nginx-agent",
@@ -248,19 +248,19 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-agent",
-          "version": "3.9"
+          "version": "3"
         }
       ],
       "system": "alpine",
@@ -275,23 +275,23 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
-          "version": "3.9"
+          "version": "3"
         }
       ],
       "system": "alpine",
@@ -306,23 +306,23 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
-          "version": "3.9"
+          "version": "3"
         }
       ],
       "system": "alpine",
@@ -337,19 +337,19 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
@@ -357,15 +357,15 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.50.0"
+          "version": "1.55.0"
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36.5.607"
+          "version": "37.0.5.635"
         },
         {
           "name": "app-protect",
-          "version": "36.5.607"
+          "version": "37.0.5.635"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -387,19 +387,19 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
@@ -407,15 +407,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36.5.607"
+          "version": "37.0.5.635"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36.5.607"
+          "version": "37.0.5.635"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.28"
+          "version": "6.29"
         }
       ],
       "system": "alpine",
@@ -429,19 +429,19 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.29.8"
+          "version": "1.31.0"
         },
         {
           "name": "nginx-agent",
-          "version": "3.9"
+          "version": "3"
         }
       ],
       "system": "ubi",
@@ -456,23 +456,23 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
-          "version": "3.9"
+          "version": "3"
         }
       ],
       "system": "ubi",
@@ -487,19 +487,19 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
@@ -507,15 +507,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.50.0"
+          "version": "1.55.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -537,19 +537,19 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
@@ -557,15 +557,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.28"
+          "version": "6.29"
         }
       ],
       "system": "ubi",
@@ -579,19 +579,19 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
@@ -599,15 +599,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.50.0"
+          "version": "1.55.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -629,19 +629,19 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-agent",
@@ -649,15 +649,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.28"
+          "version": "6.29"
         }
       ],
       "system": "ubi",
@@ -671,27 +671,27 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
-          "version": "36+4"
+          "version": "37+4"
         },
         {
           "name": "app-protect-dos",
-          "version": "36+4"
+          "version": "37+4"
         }
       ],
       "system": "ubi",
@@ -705,27 +705,27 @@
       "packages": [
         {
           "name": "nginx-plus",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-njs",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-otel",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-fips-check",
-          "version": "36"
+          "version": "37.0"
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
-          "version": "36+4"
+          "version": "37+4"
         },
         {
           "name": "nginx-agent",
@@ -733,11 +733,11 @@
         },
         {
           "name": "app-protect",
-          "version": "36+5.607"
+          "version": "37.0+5.635"
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.50.0"
+          "version": "1.55.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -749,7 +749,7 @@
         },
         {
           "name": "app-protect-dos",
-          "version": "36+4"
+          "version": "37+4"
         }
       ],
       "system": "ubi",
