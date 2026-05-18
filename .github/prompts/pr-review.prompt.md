@@ -1,0 +1,1 @@
+Review the branch diff between base & head and perform a review as if it was in a PR. Provide feedback on the changes, suggest improvements, and identify any potential issues or bugs. Consider code quality, readability, and adherence to best practices. If there are any specific areas that require attention, highlight them in your review.

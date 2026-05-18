@@ -271,6 +271,11 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-9-plus-nap \
 		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
 
+.PHONY: ubi10-dependency-image-local
+ubi10-dependency-image-local: ## Build UBI10 dependency image locally (no push). Requires rhel_license. Set PLATFORM=linux/arm64 for arm64 (default: linux/amd64).
+	docker buildx build --platform $(PLATFORM) --file build/dependencies/Dockerfile.ubi10 \
+		--secret id=rhel_license,src=rhel_license --target final --load .
+
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:
 	docker builder prune -af; \
