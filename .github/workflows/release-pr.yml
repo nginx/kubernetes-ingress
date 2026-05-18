@@ -101,6 +101,11 @@ jobs:
           ref: ${{ steps.branch.outputs.branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Checkout Release Scripts From Workflow Branch
+        run: |
+          git fetch origin docs/add-tech-specs-and-waf-table-updates-to-release-docs
+          git checkout origin/docs/add-tech-specs-and-waf-table-updates-to-release-docs -- .github/scripts/
+
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
