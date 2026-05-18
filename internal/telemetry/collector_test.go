@@ -1474,9 +1474,9 @@ func TestCollectBuildOS(t *testing.T) {
 			wantOS:  "debian-plus",
 		},
 		{
-			name:    "ubi-9 plus app protect image",
-			buildOS: "ubi-9-plus-nap",
-			wantOS:  "ubi-9-plus-nap",
+			name:    "ubi-10 plus app protect image",
+			buildOS: "ubi-10-plus-nap",
+			wantOS:  "ubi-10-plus-nap",
 		},
 		{
 			name:    "alpine oss image",
