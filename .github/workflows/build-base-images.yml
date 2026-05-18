@@ -115,7 +115,7 @@ jobs:
           file: build/Dockerfile
           context: "."
           cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}
           target: common
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
@@ -210,7 +210,7 @@ jobs:
           file: build/Dockerfile
           context: "."
           cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,scope=${{ matrix.image }},mode=max
+          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}
           target: common
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
@@ -320,7 +320,7 @@ jobs:
           file: build/Dockerfile
           context: "."
           cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }}
-          cache-to: type=gha,scope=${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }},mode=max
+          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}
           target: common
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
