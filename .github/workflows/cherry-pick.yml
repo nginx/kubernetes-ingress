@@ -21,6 +21,7 @@ jobs:
       (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
     steps:
       - name: Check PR is merged
+        id: pr
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -32,6 +33,8 @@ jobs:
             if (!pr.data.merged) {
               core.setFailed('PR is not merged');
             }
+            core.setOutput('merge_commit_sha', pr.data.merge_commit_sha);
+            core.setOutput('body', pr.data.body || '');
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -85,9 +88,25 @@ jobs:
 
       - name: Cherry pick into ${{ steps.branch.outputs.branch }}
         if: ${{ steps.branch.outputs.branch }}
-        uses: carloscastrojumo/github-cherry-pick-action@503773289f4a459069c832dc628826685b75b4b3 # v1.0.10
-        with:
-          branch: ${{ steps.branch.outputs.branch }}
-          token: ${{ steps.secrets.outputs.NGINX_PAT }}
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          title: "[cherry-pick] {old_title}"
+        env:
+          GH_TOKEN: ${{ steps.secrets.outputs.NGINX_PAT }}
+          TARGET_BRANCH: ${{ steps.branch.outputs.branch }}
+          MERGE_SHA: ${{ steps.pr.outputs.merge_commit_sha }}
+          PR_TITLE: ${{ github.event.issue.title }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          PR_BODY: ${{ steps.pr.outputs.body }}
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+
+          CHERRY_BRANCH="cherry-pick-${TARGET_BRANCH}-${MERGE_SHA}"
+          git checkout -b "${CHERRY_BRANCH}" "origin/${TARGET_BRANCH}"
+          git cherry-pick -x "${MERGE_SHA}"
+          git push origin "${CHERRY_BRANCH}"
+
+          gh pr create \
+            --title "${PR_TITLE}" \
+            --body "${PR_BODY}" \
+            --base "${TARGET_BRANCH}" \
+            --head "${CHERRY_BRANCH}"
