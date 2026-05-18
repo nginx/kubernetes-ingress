@@ -83,7 +83,7 @@ const (
 	jwtTokenValueFmt   = "\\$" + annotationValueFmt
 	// limitReqKeyFmt matches the key argument of limit_req_zone.
 	// Allowed: ${varname} variable references, text, or a combination of both.
-	// Disallowed: ; { } \ " $ (outside a variable reference), whitespace, newlines.
+	// Disallowed: ; \ " whitespace and newlines (always); { } $ outside of a ${varname} reference.
 	limitReqKeyFmt = `^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|[^;{}\\\n\r"$\s])+$`
 )
 
