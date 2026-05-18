@@ -5,8 +5,6 @@ on:
     branches:
       - main
     paths:
-      - build/dependencies/Dockerfile.ubi8
-      - build/dependencies/Dockerfile.ubi9
       - build/dependencies/Dockerfile.ubi10
       - .github/workflows/build-ubi-dependency.yml
   workflow_dispatch:
@@ -32,7 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tag: ["ubi8", "ubi9", "ubi10"]
+        tag: ["ubi10"]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
