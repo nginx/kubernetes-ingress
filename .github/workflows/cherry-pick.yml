@@ -35,6 +35,7 @@ jobs:
             }
             core.setOutput('merge_commit_sha', pr.data.merge_commit_sha);
             core.setOutput('body', pr.data.body || '');
+            core.setOutput('head_branch', pr.data.head.ref);
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -95,12 +96,14 @@ jobs:
           PR_TITLE: ${{ github.event.issue.title }}
           PR_NUMBER: ${{ github.event.issue.number }}
           PR_BODY: ${{ steps.pr.outputs.body }}
+          HEAD_BRANCH: ${{ steps.pr.outputs.head_branch }}
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
 
-          CHERRY_BRANCH="cherry-pick-${TARGET_BRANCH}-${MERGE_SHA}"
+          PREFIX=$(echo "${HEAD_BRANCH}" | grep -oE '^[a-z]+/' || echo '')
+          CHERRY_BRANCH="${PREFIX}cherry-pick-${TARGET_BRANCH}-${MERGE_SHA}"
           git checkout -b "${CHERRY_BRANCH}" "origin/${TARGET_BRANCH}"
           git cherry-pick -x "${MERGE_SHA}"
           git push origin "${CHERRY_BRANCH}"
