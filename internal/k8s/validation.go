@@ -81,7 +81,10 @@ const (
 	commaDelimiter     = ","
 	annotationValueFmt = `([^"$\\]|\\[^$])*`
 	jwtTokenValueFmt   = "\\$" + annotationValueFmt
-	limitReqKeyFmt     = `^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|\$[a-zA-Z_][a-zA-Z0-9_]*)+$`
+	// limitReqKeyFmt matches the key argument of limit_req_zone.
+	// Allowed: ${varname} variable references, text, or a combination of both.
+	// Disallowed: ; { } \ " $ (outside a variable reference), whitespace, newlines.
+	limitReqKeyFmt = `^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|[^;{}\\\n\r"$\s])+$`
 )
 
 const (
@@ -552,7 +555,7 @@ func validateJWTTokenAnnotation(context *annotationValidationContext) field.Erro
 
 func validateLimitReqKeyAnnotation(context *annotationValidationContext) field.ErrorList {
 	if !validLimitReqKeyRegex.MatchString(context.value) {
-		msg := validation.RegexError(`must consist of one or more NGINX variable references ($varname or ${varname}); must not contain ';', '"', '\', or newline characters`, limitReqKeyFmt, "$binary_remote_addr", "${request_uri}")
+		msg := validation.RegexError(`must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace`, limitReqKeyFmt, "${binary_remote_addr}", "text${binary_remote_addr}")
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, msg)}
 	}
 	return nil
