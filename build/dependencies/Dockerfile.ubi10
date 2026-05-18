@@ -5,7 +5,6 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required
     && dnf install -y subscription-manager \
     && source /tmp/rhel_license \
     && subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} \
-    && subscription-manager attach \
     && dnf download --resolve --destdir=/rpms c-ares \
     && rm -rf /rpms/*devel* \
     && if [ "$(arch)" = "x86_64" ]; then \
