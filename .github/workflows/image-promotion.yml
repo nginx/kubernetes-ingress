@@ -429,11 +429,11 @@ jobs:
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
-          ignore-base: true
           sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true
+        continue-on-error: true
 
       - name: Upload Scan Results to Github Artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -446,6 +446,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4.34.1
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
+        continue-on-error: true
 
   scan-docker-plus:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}
@@ -550,6 +551,7 @@ jobs:
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true
+        continue-on-error: true
 
       - name: Upload Scan Results to Github Artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -562,6 +564,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4.34.1
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
+        continue-on-error: true
 
   scan-docker-nap:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
@@ -673,6 +676,7 @@ jobs:
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true
+        continue-on-error: true
 
       - name: Upload Scan Results to Github Artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
