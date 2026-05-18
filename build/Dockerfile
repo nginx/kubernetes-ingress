@@ -17,7 +17,7 @@ ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:0c571
 
 
 ############################################# Base images containing libs for FIPS #############################################
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:0c571ec12a92518253bb8726a830ba6f4f44ba0e55bc0716ea96db1df4d182df AS ubi10-packages
+FROM ${UBI10_PACKAGES_IMAGE} AS ubi10-packages
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
 FROM redhat/ubi10-minimal:10.1-1778576723@sha256:145c54e19de7ea25d958b54d981f95762d1a22d17f45fa8f013a5ea07f8ad68c AS ubi-minimal
 FROM golang:1.26.3-alpine@sha256:3a8f055e02fce9585d5e4ab5135d57f2e1a947a16e2a7e6a71a78e770c169e9b AS golang-builder
