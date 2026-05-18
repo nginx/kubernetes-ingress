@@ -156,5 +156,4 @@ if [ -f "${bug_report}" ]; then
     fi
 fi
 
-make secrets
 make test-update-snaps

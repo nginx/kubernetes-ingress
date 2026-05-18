@@ -116,6 +116,10 @@ jobs:
           echo "::add-mask::$NGINX_PAT"
           echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
 
+      - name: Generate secrets for snapshot tests
+        run: |
+          make secrets
+
       - name: Replace
         run: |
           .github/scripts/release-version-update.sh \
