@@ -2855,7 +2855,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/limit-req-key: Invalid value: "$binary_remote_addr": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|[^;{}\\"$\s])+$')`,
+				fmt.Sprintf(`annotations.nginx.org/limit-req-key: Invalid value: "$binary_remote_addr": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '%s')`, limitReqKeyFmt),
 			},
 			msg: "invalid nginx.org/limit-req-key annotation, bare $varname not allowed",
 		},
@@ -2881,7 +2881,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/limit-req-key: Invalid value: "} limit_req_zone $x zone=z:1m rate=1r/s; server {": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|[^;{}\\"$\s])+$')`,
+				fmt.Sprintf(`annotations.nginx.org/limit-req-key: Invalid value: "} limit_req_zone $x zone=z:1m rate=1r/s; server {": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '%s')`, limitReqKeyFmt),
 			},
 			msg: "invalid nginx.org/limit-req-key annotation, injection attempt with semicolon and braces",
 		},
@@ -2895,7 +2895,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/limit-req-key: Invalid value: "$binary_remote_addr; evil": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|[^;{}\\"$\s])+$')`,
+				fmt.Sprintf(`annotations.nginx.org/limit-req-key: Invalid value: "$binary_remote_addr; evil": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '%s')`, limitReqKeyFmt),
 			},
 			msg: "invalid nginx.org/limit-req-key annotation, semicolon injection",
 		},
