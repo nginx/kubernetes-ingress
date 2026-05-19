@@ -151,6 +151,9 @@ type Server struct {
 
 	DisableIPV6 bool
 
+	ProxyRedirectFrom string
+	ProxyRedirectTo   string
+
 	AppRoot string
 }
 
@@ -227,6 +230,8 @@ type Location struct {
 	ProxyNextUpstream          string
 	ProxyNextUpstreamTimeout   string
 	ProxyNextUpstreamTries     *uint64
+	ProxyRedirectFrom          string
+	ProxyRedirectTo            string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
