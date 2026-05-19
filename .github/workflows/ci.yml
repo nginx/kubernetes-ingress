@@ -161,6 +161,8 @@ jobs:
             docker_build="true"
           elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.binary-cache.outputs.cache-hit }}" = "false" ]; then
             docker_build="true"
+          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ -z "${{ steps.binary-cache.outputs.cache-hit }}" ]; then
+            docker_build="true"
           fi
           echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
 
