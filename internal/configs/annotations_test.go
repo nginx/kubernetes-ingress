@@ -251,6 +251,62 @@ func TestParseAnnotationsAddHeaderInherit(t *testing.T) {
 	}
 }
 
+func TestParseAnnotationsProxyRedirect(t *testing.T) {
+	t.Parallel()
+
+	from := "http://cafe.example.com/v1/"
+	to := "http://cafe.example.com/coffee/"
+
+	ingEx := &IngressEx{
+		Ingress: &networking.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ingress",
+				Namespace: "default",
+				Annotations: map[string]string{
+					ProxyRedirectFromAnnotation: from,
+					ProxyRedirectToAnnotation:   to,
+				},
+			},
+		},
+	}
+
+	baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+	if result.ProxyRedirectFrom != from {
+		t.Errorf("Expected ProxyRedirectFrom %q, got %q", from, result.ProxyRedirectFrom)
+	}
+	if result.ProxyRedirectTo != to {
+		t.Errorf("Expected ProxyRedirectTo %q, got %q", to, result.ProxyRedirectTo)
+	}
+}
+
+func TestParseAnnotationsProxyRedirectOff(t *testing.T) {
+	t.Parallel()
+
+	ingEx := &IngressEx{
+		Ingress: &networking.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ingress",
+				Namespace: "default",
+				Annotations: map[string]string{
+					ProxyRedirectFromAnnotation: "off",
+				},
+			},
+		},
+	}
+
+	baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+
+	if result.ProxyRedirectFrom != "off" {
+		t.Errorf("Expected ProxyRedirectFrom %q, got %q", "off", result.ProxyRedirectFrom)
+	}
+	if result.ProxyRedirectTo != "" {
+		t.Errorf("Expected ProxyRedirectTo to be empty, got %q", result.ProxyRedirectTo)
+	}
+}
+
 func TestParseRateLimitAnnotations(t *testing.T) {
 	ctx := &networking.Ingress{
 		ObjectMeta: metav1.ObjectMeta{

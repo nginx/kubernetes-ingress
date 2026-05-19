@@ -1,0 +1,7 @@
+{
+  "image": {
+    "source_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/lts/nginx-ic/nginx-plus-ingress",
+    "target_image": "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress",
+    "platforms": "linux/arm64, linux/amd64"
+  }
+}

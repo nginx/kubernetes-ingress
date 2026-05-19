@@ -2,14 +2,13 @@
 FROM redhat/ubi10@sha256:936bf25d1a9b2c0c00aa67ec55f8347273763b7c64317ba7404b4b87736b2af2 AS rpm-build
 RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required=false \
     mkdir -p /rpms/ \
+    && dnf install -y subscription-manager \
+    && source /tmp/rhel_license \
+    && subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} \
     && dnf download --resolve --destdir=/rpms c-ares \
     && rm -rf /rpms/*devel* \
     && if [ "$(arch)" = "x86_64" ]; then \
-        dnf install -y subscription-manager \
-        && source /tmp/rhel_license \
-        && subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} \
-        && subscription-manager attach \
-        && dnf install -y --enablerepo=codeready-builder-for-rhel-10-x86_64-rpms createrepo_c \
+        dnf install -y --enablerepo=codeready-builder-for-rhel-10-x86_64-rpms createrepo_c \
         && dnf download --resolve --destdir=/rpms \
             --enablerepo=codeready-builder-for-rhel-10-x86_64-rpms \
             perl-Class-Accessor perl-File-BaseDir perl-HTML-Tree perl-IO-String perl-IO-stringy \
@@ -27,9 +26,9 @@ RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required
             protobuf perl-Bit-Vector perl-File-Slurp perl-IO-Socket-INET6 \
             perl-JSON perl-XML-LibXML perl-XML-Simple \
             boost-filesystem boost-iostreams cjson \
-        && subscription-manager unregister \
         && createrepo_c /rpms/; \
-    fi
+    fi \
+    && subscription-manager unregister
 
 FROM scratch AS final
 COPY --link --from=rpm-build /rpms /

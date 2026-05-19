@@ -584,6 +584,145 @@ func TestValidateIngress(t *testing.T) {
 			},
 			msg: "hostless minion still requires paths",
 		},
+
+		// proxy-redirect cross-annotation pair validation tests
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "off",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid proxy-redirect-from 'off' without proxy-redirect-to",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "default",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid proxy-redirect-from 'default' without proxy-redirect-to",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "off",
+						configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-to: Invalid value: "": nginx.org/proxy-redirect-to cannot be set when nginx.org/proxy-redirect-from is "off"`,
+			},
+			msg: "invalid proxy-redirect-to set when proxy-redirect-from is 'off'",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "default",
+						configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-to: Invalid value: "": nginx.org/proxy-redirect-to cannot be set when nginx.org/proxy-redirect-from is "default"`,
+			},
+			msg: "invalid proxy-redirect-to set when proxy-redirect-from is 'default'",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+						configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid proxy-redirect-from and proxy-redirect-to both set",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectToAnnotation: "http://cafe.example.com/coffee/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-to: Invalid value: "": nginx.org/proxy-redirect-to requires nginx.org/proxy-redirect-from to also be set`,
+			},
+			msg: "invalid proxy-redirect-to set without proxy-redirect-from",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://cafe.example.com/v1/": nginx.org/proxy-redirect-from with a URL or regex value requires nginx.org/proxy-redirect-to to also be set`,
+			},
+			msg: "invalid proxy-redirect-from URL without proxy-redirect-to",
+		},
 	}
 
 	for _, test := range tests {
@@ -4523,6 +4662,204 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			hostless:       true,
 			expectedErrors: nil,
 			msg:            "allow hostless overrideable defaults",
+		},
+
+		// nginx.org/proxy-redirect-from annotation tests
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "off",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with 'off'",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "default",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with 'default'",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with URL",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "~^http://cafe.example.com/v(\\d+)/(.*)",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/$2",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with regex and capture group",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/$1",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with dollar sign variable",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad.example.com/;drop",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://bad.example.com/;drop": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with semicolon",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad.example.com/{block}",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://bad.example.com/{block}": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with curly brace",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad.example.com/\npath",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				"annotations.nginx.org/proxy-redirect-from: Invalid value: \"http://bad.example.com/\\npath\": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'",
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with newline",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad example.com/path",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://bad example.com/path": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with whitespace",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad.example.com/path#fragment",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://bad.example.com/path#fragment": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with hash character",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: `~^http://bad.example.com/v(\d+)/(.*`,
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/$2",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "~^http://bad.example.com/v(\\d+)/(.*": invalid regex pattern`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with malformed regex",
+		},
+
+		// nginx.org/proxy-redirect-to annotation tests
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-to annotation with URL",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "~^http://cafe.example.com/(.*)",
+				configs.ProxyRedirectToAnnotation:   "http://$host/coffee/$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-to annotation with NGINX variable $host",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/;drop",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-to: Invalid value: "http://cafe.example.com/;drop": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-to annotation with semicolon",
 		},
 	}
 
