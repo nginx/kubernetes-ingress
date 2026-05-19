@@ -2799,6 +2799,109 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				"nginx.org/limit-req-key": "${binary_remote_addr}",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/limit-req-key annotation, single variable",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "${binary_remote_addr}${request_uri}",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/limit-req-key annotation, multiple variables",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "text${binary_remote_addr}",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/limit-req-key annotation, literal text prefix with variable",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "${binary_remote_addr}:${request_uri}",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/limit-req-key annotation, variables combined with literal separator",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "$binary_remote_addr",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				fmt.Sprintf(`annotations.nginx.org/limit-req-key: Invalid value: "$binary_remote_addr": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '%s')`, limitReqKeyFmt),
+			},
+			msg: "invalid nginx.org/limit-req-key annotation, bare $varname not allowed",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "not_a_variable",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/limit-req-key annotation, literal text key",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "} limit_req_zone $x zone=z:1m rate=1r/s; server {",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				fmt.Sprintf(`annotations.nginx.org/limit-req-key: Invalid value: "} limit_req_zone $x zone=z:1m rate=1r/s; server {": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '%s')`, limitReqKeyFmt),
+			},
+			msg: "invalid nginx.org/limit-req-key annotation, injection attempt with semicolon and braces",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "$binary_remote_addr; evil",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				fmt.Sprintf(`annotations.nginx.org/limit-req-key: Invalid value: "$binary_remote_addr; evil": must consist of text, ${varname} variable references, or a combination; must not contain ';', '{', '}', '"', '\', '$' (outside a variable reference), or whitespace (e.g. '${binary_remote_addr}',  or 'text${binary_remote_addr}', regex used for validation is '%s')`, limitReqKeyFmt),
+			},
+			msg: "invalid nginx.org/limit-req-key annotation, semicolon injection",
+		},
+
+		{
+			annotations: map[string]string{
 				"appprotect.f5.com/app-protect-enable": "true",
 			},
 			specServices:          map[string]bool{},
