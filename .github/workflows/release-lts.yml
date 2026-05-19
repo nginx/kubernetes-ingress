@@ -197,6 +197,7 @@ jobs:
     secrets: inherit
 
   binaries:
+    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && contains(inputs.skip_step, 'build-artifacts'))) }}
     name: Process Binaries
     runs-on: ubuntu-24.04-amd64
     needs: [variables, build-artifacts]
