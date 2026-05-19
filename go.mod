@@ -5,7 +5,7 @@ go 1.26.3
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
 	github.com/aws/aws-sdk-go-v2/service/marketplacemetering v1.36.5
-	github.com/cert-manager/cert-manager v1.19.3
+	github.com/cert-manager/cert-manager v1.20.2
 	github.com/dlclark/regexp2/v2 v2.0.3
 	github.com/gkampitakis/go-snaps v0.5.21
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -85,6 +85,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.6 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
+	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
@@ -212,7 +213,8 @@ require (
 	k8s.io/kube-openapi v0.0.0-20260427204847-8949caaa1199 // indirect
 	k8s.io/streaming v0.36.1 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
-	sigs.k8s.io/gateway-api v1.4.0 // indirect
+	sigs.k8s.io/controller-runtime v0.23.1 // indirect
+	sigs.k8s.io/gateway-api v1.5.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 )
