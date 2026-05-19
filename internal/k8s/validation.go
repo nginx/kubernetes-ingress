@@ -59,6 +59,7 @@ const (
 	maxFailsAnnotation                    = "nginx.org/max-fails"
 	maxConnsAnnotation                    = "nginx.org/max-conns"
 	failTimeoutAnnotation                 = "nginx.org/fail-timeout"
+	limitReqKeyAnnotation                 = "nginx.org/limit-req-key"
 	appProtectEnableAnnotation            = "appprotect.f5.com/app-protect-enable"
 	appProtectSecurityLogEnableAnnotation = "appprotect.f5.com/app-protect-security-log-enable"
 	appProtectPolicyAnnotation            = "appprotect.f5.com/app-protect-policy"
@@ -85,6 +86,7 @@ const (
 	commaDelimiter     = ","
 	annotationValueFmt = `([^"$\\]|\\[^$])*`
 	jwtTokenValueFmt   = "\\$" + annotationValueFmt
+	limitReqKeyFmt     = `^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|\$[a-zA-Z_][a-zA-Z0-9_]*)+$`
 )
 
 const (
@@ -95,6 +97,7 @@ const (
 var (
 	validAnnotationValueRegex         = regexp.MustCompile("^" + annotationValueFmt + "$")
 	validJWTTokenAnnotationValueRegex = regexp.MustCompile("^" + jwtTokenValueFmt + "$")
+	validLimitReqKeyRegex             = regexp.MustCompile(limitReqKeyFmt)
 	// proxyRedirectValueRegex blocks directive-injection characters while allowing $, ~, and regex metacharacters.
 	// Blocked: ; { } newline carriage-return backtick whitespace #.
 	// Whitespace would produce multi-token NGINX directives; # starts an NGINX comment, truncating the directive.
@@ -320,6 +323,10 @@ var (
 		failTimeoutAnnotation: {
 			validateRequiredAnnotation,
 			validateTimeAnnotation,
+		},
+		limitReqKeyAnnotation: {
+			validateRequiredAnnotation,
+			validateLimitReqKeyAnnotation,
 		},
 		appProtectEnableAnnotation: {
 			validateAppProtectOnlyAnnotation,
@@ -627,6 +634,14 @@ func validateJWTRealm(context *annotationValidationContext) field.ErrorList {
 func validateJWTTokenAnnotation(context *annotationValidationContext) field.ErrorList {
 	if !validJWTTokenAnnotationValueRegex.MatchString(context.value) {
 		msg := validation.RegexError(jwtTokenValueFmtErrMsg, jwtTokenValueFmt, "$http_token", "$cookie_auth_token")
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, msg)}
+	}
+	return nil
+}
+
+func validateLimitReqKeyAnnotation(context *annotationValidationContext) field.ErrorList {
+	if !validLimitReqKeyRegex.MatchString(context.value) {
+		msg := validation.RegexError(`must consist of one or more NGINX variable references ($varname or ${varname}); must not contain ';', '"', '\', or newline characters`, limitReqKeyFmt, "$binary_remote_addr", "${request_uri}")
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, msg)}
 	}
 	return nil
