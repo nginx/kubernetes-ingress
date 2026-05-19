@@ -1,15 +1,4 @@
 {
-  "image": [
-    "debian",
-    "alpine"
-  ],
-  "platforms": [
-    "linux/arm64, linux/amd64"
-  ],
-  "include": [
-    {
-      "image": "ubi",
-      "platforms": "linux/arm64, linux/amd64"
-    }
-  ]
+  "image": [],
+  "platforms": []
 }
