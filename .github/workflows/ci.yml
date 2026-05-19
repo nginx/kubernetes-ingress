@@ -145,7 +145,7 @@ jobs:
         id: stable_exists
         run: |
           exists=false
-          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress-plus:${{ steps.vars.outputs.stable_tag }}; then
+          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:${{ steps.vars.outputs.stable_tag }}; then
             exists=true
           fi
           echo "exists=${exists}" >> $GITHUB_OUTPUT
@@ -174,7 +174,7 @@ jobs:
             run_tests="false"
           elif [ "${{ steps.docs.outputs.docs_only }}" = "true" ]; then
             run_tests="false"
-          elif [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.vars.outputs.stable_image_exists }}" = "true" ]; then
+          elif [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "true" ]; then
             run_tests="false"
           fi
           echo "run_tests=${run_tests}" >> $GITHUB_OUTPUT
@@ -194,11 +194,11 @@ jobs:
           echo forked_workflow: ${{ steps.vars.outputs.forked_workflow }}
           echo stable_image_exists: ${{ steps.stable_exists.outputs.exists }}
           echo additional_tag: ${{ steps.vars.outputs.additional_tag }}
-          echo 'image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}'
-          echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
-          echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
-          echo 'docker_build: ${{ steps.docker_build.outputs.docker_build }}'
-          echo 'run_tests: ${{ steps.run_tests.outputs.run_tests }}'
+          echo image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
+          echo image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
+          echo image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
+          echo docker_build: ${{ steps.docker_build.outputs.docker_build }}
+          echo run_tests: ${{ steps.run_tests.outputs.run_tests }}
 
   verify-codegen:
     name: Verify generated code

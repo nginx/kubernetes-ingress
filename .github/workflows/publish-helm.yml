@@ -128,11 +128,7 @@ jobs:
             echo "Invalid chart_name: must match Helm chart name pattern ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$" >&2
             exit 1
           fi
-          if [[ ! -x /usr/bin/yq ]]; then
-            echo "/usr/bin/yq not found"
-            exit 1
-          fi
-          CHART_NAME="$chart_name" /usr/bin/yq -i '.name = strenv(CHART_NAME)' kic/charts/nginx-ingress/Chart.yaml
+          sed -i "s|^name:.*|name: ${chart_name}|" kic/charts/nginx-ingress/Chart.yaml
           if [[ "${{ inputs.ic_version }}" =~ ^20[0-9]+-lts ]]; then
             IMAGE_REPOSITORY="private-registry.nginx.com/lts/nginx-ic/nginx-plus-ingress"
             sed -i "s|^  nginxplus: false|  nginxplus: true|" kic/charts/nginx-ingress/values.yaml
