@@ -90,6 +90,8 @@ type ConfigParams struct {
 	ProxyNextUpstream                      string
 	ProxyNextUpstreamTimeout               string
 	ProxyNextUpstreamTries                 *uint64
+	ProxyRedirectFrom                      string
+	ProxyRedirectTo                        string
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
 	ResolverAddresses                      []string

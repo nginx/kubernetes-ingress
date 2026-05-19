@@ -389,7 +389,9 @@
   "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
-    "release-5.4"
+    "release-5.4",
+    "release-5.5",
+    "release-2026-lts"
   ],
   "commitBodyTable": true,
   "configMigration": true,

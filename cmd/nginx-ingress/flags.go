@@ -79,6 +79,8 @@ var (
 	appProtectEnforcerAddress = flag.String("app-protect-enforcer-address", appProtectEnforcerAddrDefault,
 		`Sets address for App Protect v5 Enforcer. Requires -nginx-plus and -enable-app-protect.`)
 
+	appProtectIPIntelligence = flag.Bool("enable-app-protect-ip-intelligence", false, "Enable App Protect IP Intelligence. Requires -nginx-plus and -enable-app-protect.")
+
 	agent              = flag.Bool("agent", false, "Enable NGINX Agent")
 	agentInstanceGroup = flag.String("agent-instance-group", "nginx-ingress-controller", "Grouping used to associate NGINX Ingress Controller instances")
 
@@ -230,6 +232,13 @@ var (
 
 	enableDirectiveAutoadjust = flag.Bool("enable-directive-autoadjust", false, "Enable automatic adjustment of NGINX directives to avoid conflicting NGINX configuration. Results may vary and might not be ideal in all cases.")
 
+	allowEmptyIngressHost = flag.Bool("allow-empty-ingress-host", false,
+		`Allows Ingress resources to omit the host field. If multiple Ingress resources without a host conflict,
+	NGINX Ingress Controller resolves the collision using the winner selection algorithm. To use multiple
+	Ingress resources without a host across namespaces without conflict, use mergeable Ingress. To configure
+	TLS, use -default-server-tls-secret. To configure listener ports, use -default-http-listener-port or
+	-default-https-listener-port. Default is false.`)
+
 	startupCheckFn func() error
 )
 
@@ -378,8 +387,8 @@ func mustValidateFlags(ctx context.Context) {
 	}
 
 	if *appProtectLogLevel != appProtectLogLevelDefault && *appProtect && *nginxPlus {
-		appProtectlogLevelValidationError := validateLogLevel(*appProtectLogLevel)
-		if appProtectlogLevelValidationError != nil {
+		appProtectLogLevelValidationError := validateLogLevel(*appProtectLogLevel)
+		if appProtectLogLevelValidationError != nil {
 			nl.Fatalf(l, "Invalid value for app-protect-log-level: %v", *appProtectLogLevel)
 		}
 	}

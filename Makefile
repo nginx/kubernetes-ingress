@@ -4,13 +4,13 @@ GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.29.8
-NGINX_PLUS_VERSION            ?= R36
-NAP_WAF_VERSION               ?= 36+5.607
-NAP_WAF_COMMON_VERSION        ?= 11.644
-NAP_WAF_PLUGIN_VERSION        ?= 6.28
+NGINX_OSS_VERSION             ?= 1.31.0
+NGINX_PLUS_VERSION            ?= R37.0
+NAP_WAF_VERSION               ?= 37.0+5.635
+NAP_WAF_COMMON_VERSION        ?= 11.665
+NAP_WAF_PLUGIN_VERSION        ?= 6.29
 NAP_AGENT_VERSION             ?= 2
-NGINX_AGENT_VERSION           ?= 3.9
+NGINX_AGENT_VERSION           ?= 3
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
@@ -23,7 +23,7 @@ GOVULNCHECK_VERSION ?= v1.1.4
 
 GO_DOCKER_IMAGE_NAME    ?= golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.26.2-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.26.3-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
 REGISTRY                      ?= ## The registry where the image is located.
@@ -33,12 +33,13 @@ TARGET                        ?= local ## The target of the build. Possible valu
 PLUS_REPO                     ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
 override DOCKER_BUILD_OPTIONS += --build-arg IC_VERSION=$(VERSION) --build-arg PACKAGE_REPO=$(PLUS_REPO) ## The options for the docker build command. For example, --pull
 ARCH                          ?= amd64 ## The architecture of the image or binary. For example: amd64, arm64, ppc64le, s390x. Not all architectures are supported for all targets
+PLATFORM                      ?= linux/amd64 ## The platform(s) for dependency image builds. For example: linux/amd64 or linux/amd64,linux/arm64
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.12.2 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.44.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.45.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.10.0 ## The version of gofumpt to use
 
@@ -242,33 +243,38 @@ ubi-image-plus: build ## Create Docker image for Ingress Controller (UBI with NG
 
 .PHONY: ubi-image-nap-plus
 ubi-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAF)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap \
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-9-plus-nap \
 		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
 
 .PHONY: ubi8-image-nap-plus
 ubi8-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAF)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-8-plus-nap \
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-8-plus-nap \
 		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
 
 .PHONY: ubi-image-nap-v5-plus
 ubi-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
+	$(DOCKER_CMD) $(PLUS_ARGS) \
 	--build-arg BUILD_OS=ubi-9-plus-nap-v5 --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
 
 .PHONY: ubi8-image-nap-v5-plus
 ubi8-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
+	$(DOCKER_CMD) $(PLUS_ARGS) \
 	--build-arg BUILD_OS=ubi-8-plus-nap-v5 --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
 
 .PHONY: ubi-image-dos-plus
 ubi-image-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap \
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-9-plus-nap \
 		--build-arg NAP_MODULES=dos
 
 .PHONY: ubi-image-nap-dos-plus
 ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAF and DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap \
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-9-plus-nap \
 		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_AGENT_VERSION=$(NAP_AGENT_VERSION)
+
+.PHONY: ubi10-dependency-image-local
+ubi10-dependency-image-local: ## Build UBI10 dependency image locally (no push). Requires rhel_license. Set PLATFORM=linux/arm64 for arm64 (default: linux/amd64).
+	docker buildx build --platform $(PLATFORM) --file build/dependencies/Dockerfile.ubi10 \
+		--secret id=rhel_license,src=rhel_license --target final --load .
 
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:

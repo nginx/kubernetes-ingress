@@ -21,6 +21,7 @@ jobs:
       (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
     steps:
       - name: Check PR is merged
+        id: pr
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
@@ -32,6 +33,18 @@ jobs:
             if (!pr.data.merged) {
               core.setFailed('PR is not merged');
             }
+            core.setOutput('merge_commit_sha', pr.data.merge_commit_sha);
+            core.setOutput('body', pr.data.body || '');
+            core.setOutput('head_branch', pr.data.head.ref);
+            core.setOutput('base_ref', pr.data.base.ref);
+
+            const commits = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 250,
+            });
+            core.setOutput('commit_count', commits.data.length);
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -85,9 +98,64 @@ jobs:
 
       - name: Cherry pick into ${{ steps.branch.outputs.branch }}
         if: ${{ steps.branch.outputs.branch }}
-        uses: carloscastrojumo/github-cherry-pick-action@503773289f4a459069c832dc628826685b75b4b3 # v1.0.10
-        with:
-          branch: ${{ steps.branch.outputs.branch }}
-          token: ${{ steps.secrets.outputs.NGINX_PAT }}
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          title: "[cherry-pick] {old_title}"
+        env:
+          GH_TOKEN: ${{ steps.secrets.outputs.NGINX_PAT }}
+          TARGET_BRANCH: ${{ steps.branch.outputs.branch }}
+          MERGE_SHA: ${{ steps.pr.outputs.merge_commit_sha }}
+          PR_TITLE: ${{ github.event.issue.title }}
+          PR_BODY: ${{ steps.pr.outputs.body }}
+          HEAD_BRANCH: ${{ steps.pr.outputs.head_branch }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          PR_COMMIT_COUNT: ${{ steps.pr.outputs.commit_count }}
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+
+          PREFIX=$(echo "${HEAD_BRANCH}" | grep -oE '^[a-z]+/' || echo '')
+          CHERRY_BRANCH="${PREFIX}cherry-pick-${TARGET_BRANCH}-${MERGE_SHA}"
+          git checkout -b "${CHERRY_BRANCH}" "origin/${TARGET_BRANCH}"
+
+          # Detect merge strategy from the commit's parent count and apply
+          # the correct cherry-pick invocation:
+          #   2+ parents  → merge commit   → cherry-pick -m 1
+          #   1 parent on base → squash    → cherry-pick directly
+          #   1 parent NOT on base → rebase → cherry-pick full range
+          PARENT_COUNT=$(git cat-file -p "${MERGE_SHA}" | grep -c '^parent ')
+
+          if [ "${PARENT_COUNT}" -ge 2 ]; then
+            echo "Detected merge commit — using -m 1"
+            git cherry-pick -x -m 1 "${MERGE_SHA}"
+          elif git merge-base --is-ancestor "${MERGE_SHA}^" "origin/${BASE_REF}" 2>/dev/null; then
+            echo "Detected squash merge (or single-commit rebase)"
+            git cherry-pick -x "${MERGE_SHA}"
+          else
+            echo "Detected rebase merge with ${PR_COMMIT_COUNT} commit(s)"
+            git cherry-pick -x "${MERGE_SHA}~${PR_COMMIT_COUNT}..${MERGE_SHA}"
+          fi
+
+          # Push the branch, force-updating if a previous run already created it
+          if git ls-remote --exit-code --heads origin "${CHERRY_BRANCH}" > /dev/null 2>&1; then
+            git fetch origin "${CHERRY_BRANCH}"
+            git push --force-with-lease origin "${CHERRY_BRANCH}"
+          else
+            git push origin "${CHERRY_BRANCH}"
+          fi
+
+          # Create a PR only if one doesn't already exist for this branch
+          EXISTING_PR=$(gh pr list \
+            --head "${CHERRY_BRANCH}" \
+            --base "${TARGET_BRANCH}" \
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')
+
+          if [ -n "${EXISTING_PR}" ]; then
+            echo "Cherry-pick PR already exists: ${EXISTING_PR}"
+          else
+            gh pr create \
+              --title "[cherry-pick to ${TARGET_BRANCH}] ${PR_TITLE}" \
+              --body "${PR_BODY}" \
+              --base "${TARGET_BRANCH}" \
+              --head "${CHERRY_BRANCH}"
+          fi

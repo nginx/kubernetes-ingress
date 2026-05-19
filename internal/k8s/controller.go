@@ -288,6 +288,7 @@ type NewLoadBalancerControllerInput struct {
 	IsTLSPassthroughEnabled      bool
 	TLSPassthroughPort           int
 	SnippetsEnabled              bool
+	AllowEmptyIngressHost        bool
 	CertManagerEnabled           bool
 	ExternalDNSEnabled           bool
 	IsIPV6Disabled               bool
@@ -459,6 +460,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		input.CertManagerEnabled,
 		input.IsIPV6Disabled,
 		input.IsDirectiveAutoadjustEnabled,
+		input.AllowEmptyIngressHost,
 	)
 
 	lbc.appProtectConfiguration = appprotect.NewConfiguration(lbc.Logger)
