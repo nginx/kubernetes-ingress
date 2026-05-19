@@ -398,7 +398,7 @@ jobs:
       ic-version: ${{ needs.checks.outputs.ic_version }}
       authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
       runner: ubuntu-24.04
-      write-to-cache: true
+      write-to-cache: ${{ github.ref_name == github.event.repository.default_branch && true || false }}
     permissions:
       contents: read
       actions: read
