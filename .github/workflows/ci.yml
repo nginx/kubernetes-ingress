@@ -519,10 +519,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - base-os: debian
-            image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress
-            tag: ${{ needs.checks.outputs.build_tag }}
-            type: oss
           - base-os: debian-plus
             image: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
             tag: ${{ needs.checks.outputs.build_tag }}
