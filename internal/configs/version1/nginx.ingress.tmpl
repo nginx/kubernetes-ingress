@@ -212,6 +212,15 @@ server {
 	}
 	{{- end }}
 
+	{{- if $server.ProxyRedirectFrom}}
+	{{- if eq $server.ProxyRedirectFrom "off"}}
+	proxy_redirect off;
+	{{- else if ne $server.ProxyRedirectFrom "default"}}
+	{{- /* "default" is not emitted, The default replacement specified by the default parameter uses the parameters of the location and proxy_pass directives  */}}
+	proxy_redirect {{$server.ProxyRedirectFrom}} {{$server.ProxyRedirectTo}};
+	{{- end}}
+	{{- end}}
+
 	{{- if $server.AccessLogOff}}
 	access_log off;
 	{{- end}}
@@ -410,6 +419,13 @@ server {
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
 		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
+		{{- if $location.ProxyRedirectFrom}}
+		{{- if or (eq $location.ProxyRedirectFrom "off") (eq $location.ProxyRedirectFrom "default")}}
+		proxy_redirect {{$location.ProxyRedirectFrom}};
+		{{- else}}
+		proxy_redirect {{$location.ProxyRedirectFrom}} {{$location.ProxyRedirectTo}};
+		{{- end}}
+		{{- end}}
 		{{- end}}
 		{{- if $location.ProxySSLVerify }}
 		proxy_ssl_verify on;

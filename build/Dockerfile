@@ -16,10 +16,12 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 
 
 ############################################# Base images containing libs for FIPS #############################################
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:9defd802c1f654946b7a5bf600de9061c312ce3671860e8ec6ac55cab45edb19 AS ubi8-packages
-FROM ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:e34a86f1d78676b28e204449ef150816d72ba74db7945d44069026e6e3e7714c AS ubi9-packages
+ARG UBI8_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:734dfa9dc40945e052760f9d9d327b74e6ccb75097cc834a61d9cf77c78b48e8
+ARG UBI9_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:0c571ec12a92518253bb8726a830ba6f4f44ba0e55bc0716ea96db1df4d182df
+FROM ${UBI8_PACKAGES_IMAGE} AS ubi8-packages
+FROM ${UBI9_PACKAGES_IMAGE} AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
-FROM redhat/ubi9-minimal:9.7-1778072020@sha256:b9b10f42d7eba7ad4a6d5ef26b7d34fdc892b2ffe59b8d0372ec884008569eb6 AS ubi-minimal
+FROM redhat/ubi9-minimal:9.7-1778562320@sha256:12db9874bd753eb98b1ab3d840e75de5d6842ac0604fbd68c012adefe97140be AS ubi-minimal
 FROM golang:1.26.3-alpine@sha256:3a8f055e02fce9585d5e4ab5135d57f2e1a947a16e2a7e6a71a78e770c169e9b AS golang-builder
 
 ############################################# NGINX files #############################################
@@ -92,7 +94,7 @@ USER 101
 
 
 ############################################# Base image for Alpine #############################################
-FROM nginx:1.31.0-alpine3.23@sha256:f105e3f12187c58ddc3acd09bbe4b9e4a9ab1df855d3d0e511b641077b5e988e AS alpine
+FROM nginx:1.31.0-alpine3.23@sha256:dc48b7a872a79fb541ba5081d320b11b549231bc63ba465a7495afaa7d2ebcb8 AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG NGINX_AGENT_VERSION
@@ -288,7 +290,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 
 
 ############################################# Base image for Debian with NGINX Plus only #############################################
-FROM debian:12-slim@sha256:f9c6a2fd2ddbc23e336b6257a5245e31f996953ef06cd13a59fa0a1df2d5c252 AS debian-plus-only
+FROM debian:12-slim@sha256:67b30a61dc87758f0caf819646104f29ecbda97d920aaf5edc834128ac8493d3 AS debian-plus-only
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -443,7 +445,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=nginx-plus-9.repo,target=/etc/yum.repos.d/nginx-plus.repo \
 	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
@@ -459,21 +460,16 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ubi-setup.sh \
-    && rpm -Uvh /ubi-bin/c-ares-*.rpm \
+	&& printf '[local-deps]\nname=Local UBI Deps\nbaseurl=file:///ubi-bin\nenabled=1\ngpgcheck=0\n' > /etc/yum.repos.d/local-deps.repo \
 	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check nginx-plus-module-otel nginx-agent-${NAP_AGENT_VERSION}.* \
-	&& source /tmp/rhel_license \
-	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
-	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
-	&& subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} --name ${BUILD_OS}-$(uname -m) || true \
-	&& subscription-manager attach \
 	&& if [ -z "${NAP_MODULES##*waf*}" ]; then \
 	rpm --import /tmp/app-protect-security-updates.key \
 	&& cp /tmp/app-protect-9.repo /etc/yum.repos.d/app-protect-9.repo \
-	&& microdnf --enablerepo=codeready-builder-for-rhel-9-x86_64-rpms --nodocs install -y \
-	app-protect-${NAP_WAF_VERSION}* \
-	app-protect-ip-intelligence \
-	app-protect-attack-signatures \
-    app-protect-threat-campaigns \
+	&& microdnf --nodocs install -y \
+		app-protect-${NAP_WAF_VERSION}* \
+		app-protect-ip-intelligence \
+		app-protect-attack-signatures \
+		app-protect-threat-campaigns \
 	&& rm -f /etc/yum.repos.d/app-protect-9.repo \
 	&& nap-waf.sh \
 	&& agent.sh; \
@@ -484,7 +480,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& rm -f /etc/yum.repos.d/app-protect-dos-9.repo \
 	&& nap-dos.sh; \
 	fi \
-	&& subscription-manager unregister \
+	&& rm -f /etc/yum.repos.d/local-deps.repo \
 	&& ubi-clean.sh
 
 
@@ -498,7 +494,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=nginx-plus-9.repo,target=/etc/yum.repos.d/nginx-plus.repo \
 	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
@@ -512,7 +507,6 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& ubi-setup.sh \
 	&& microdnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-fips-check \
-	&& source /tmp/rhel_license \
 	&& rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
 	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
 	&& microdnf --nodocs install -y ca-certificates shadow-utils subscription-manager \
@@ -523,7 +517,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAF #############################################
-FROM redhat/ubi8@sha256:8f757bfe94700eee7d26c885cd16bf3ae9923edf38f984ef3da50d2ce937fc5e AS ubi-8-plus-nap
+FROM redhat/ubi8@sha256:1551c9a922dbb31c5688380fd955ef57f0f00b395bacb36856bc386eba82897b AS ubi-8-plus-nap
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG BUILD_OS
@@ -533,7 +527,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=nginx-plus-8.repo,target=/etc/yum.repos.d/nginx-plus.repo,rw \
 	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
@@ -544,30 +537,24 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	--mount=type=bind,from=ubi8-packages,src=/,target=/ubi-bin/ \
 	mkdir -p /etc/nginx/reporting/ && cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
-	&& source /tmp/rhel_license \
 	&& groupadd --system --gid 101 nginx \
 	&& useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
 	&& rpm --import /tmp/nginx_signing.key \
 	&& rpm --import /tmp/app-protect-security-updates.key \
-	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
+	&& printf '[local-deps]\nname=Local UBI Deps\nbaseurl=file:///ubi-bin\nenabled=1\ngpgcheck=0\n' > /etc/yum.repos.d/local-deps.repo \
 	&& dnf --nodocs install -y nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check nginx-agent-${NAP_AGENT_VERSION}.* \
-	&& sed -i 's/\(def in_container():\)/\1\n    return False/g' /usr/lib64/python*/*-packages/rhsm/config.py \
-	&& subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} --name ${BUILD_OS}-$(uname -m) || true \
-	&& subscription-manager attach \
-	&& dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms \
-	&& dnf --nodocs install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
 	&& dnf --nodocs install -y app-protect-${NAP_WAF_VERSION}* \
        app-protect-ip-intelligence \
        app-protect-attack-signatures \
        app-protect-threat-campaigns \
-	&& subscription-manager unregister \
 	&& nap-waf.sh \
 	&& agent.sh \
+	&& rm -f /etc/yum.repos.d/local-deps.repo \
 	&& dnf clean all
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAFv5  #############################################
-FROM redhat/ubi8@sha256:8f757bfe94700eee7d26c885cd16bf3ae9923edf38f984ef3da50d2ce937fc5e AS ubi-8-plus-nap-v5
+FROM redhat/ubi8@sha256:1551c9a922dbb31c5688380fd955ef57f0f00b395bacb36856bc386eba82897b AS ubi-8-plus-nap-v5
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_AGENT_VERSION
@@ -576,7 +563,6 @@ ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
-	--mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644 \
 	--mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=nginx-plus-8.repo,target=/etc/yum.repos.d/nginx-plus.repo,rw \
 	--mount=type=bind,from=nginx-files,src=nginx-agent.repo,target=/etc/yum.repos.d/nginx-agent.repo,rw \
@@ -585,8 +571,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	--mount=type=bind,from=ubi8-packages,src=/,target=/ubi-bin/ \
-	source /tmp/rhel_license \
-	&& mkdir -p /etc/nginx/reporting/ \
+	mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& groupadd --system --gid 101 nginx \
 	&& useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
