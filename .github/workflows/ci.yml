@@ -768,8 +768,9 @@ jobs:
 
   smoke-tests-oss:
     if: >-
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'
+      (needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true') &&
+      fromJSON(needs.setup-matrix.outputs.matrix_oss).images[0] != null
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -828,8 +829,9 @@ jobs:
 
   smoke-tests-nap:
     if: >-
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'
+      (needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true') &&
+      fromJSON(needs.setup-matrix.outputs.matrix_nap).image[0] != null
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
