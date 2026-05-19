@@ -145,7 +145,7 @@ jobs:
         id: stable_exists
         run: |
           exists=false
-          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.stable_tag }}; then
+          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress-plus:${{ steps.vars.outputs.stable_tag }}; then
             exists=true
           fi
           echo "exists=${exists}" >> $GITHUB_OUTPUT
