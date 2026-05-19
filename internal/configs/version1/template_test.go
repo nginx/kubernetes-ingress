@@ -939,6 +939,197 @@ func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectOff(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectOff)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect off;") {
+		t.Errorf("want %q in generated config", "proxy_redirect off;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectOff(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectOff)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect off;") {
+		t.Errorf("want %q in generated config", "proxy_redirect off;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectPair(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectPair)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;") {
+		t.Errorf("want %q in generated config", "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectPair(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectPair)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;") {
+		t.Errorf("want %q in generated config", "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectDefault(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectDefault)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if strings.Contains(rendered, "proxy_redirect default;") {
+		t.Errorf("do not want %q in generated config", "proxy_redirect default;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectDefault(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectDefault)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if strings.Contains(rendered, "proxy_redirect default;") {
+		t.Errorf("do not want %q in generated config", "proxy_redirect default;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectMinionOff(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectMinionOff)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	// directive must appear inside the location block, not in the server block
+	if !strings.Contains(rendered, "proxy_redirect off;") {
+		t.Errorf("want %q in generated config", "proxy_redirect off;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectMinionOff(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectMinionOff)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect off;") {
+		t.Errorf("want %q in generated config", "proxy_redirect off;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectMinionPair(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectMinionPair)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;") {
+		t.Errorf("want %q in generated config", "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectMinionPair(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectMinionPair)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;") {
+		t.Errorf("want %q in generated config", "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithServiceBeforeRedirect(t *testing.T) {
 	t.Parallel()
 
@@ -3949,6 +4140,153 @@ var (
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with proxy_redirect off annotation (standard/master — server context)
+	ingressCfgWithProxyRedirectOff = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "cafe.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "cafe.example.com",
+				ProxyRedirectFrom: "off",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with explicit proxy_redirect from/to pair annotation (standard/master — server context)
+	ingressCfgWithProxyRedirectPair = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "cafe.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "cafe.example.com",
+				ProxyRedirectFrom: "http://cafe.example.com/v1/",
+				ProxyRedirectTo:   "http://cafe.example.com/coffee/",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with proxy_redirect default annotation (standard/master — server context)
+	ingressCfgWithProxyRedirectDefault = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "cafe.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "cafe.example.com",
+				ProxyRedirectFrom: "default",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with proxy_redirect off annotation (minion — location context)
+	ingressCfgWithProxyRedirectMinionOff = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "cafe.example.com",
+				ServerTokens: "off",
+				StatusZone:   "cafe.example.com",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyRedirectFrom:   "off",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with explicit proxy_redirect pair annotation (minion — location context)
+	ingressCfgWithProxyRedirectMinionPair = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "cafe.example.com",
+				ServerTokens: "off",
+				StatusZone:   "cafe.example.com",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyRedirectFrom:   "http://cafe.example.com/v1/",
+						ProxyRedirectTo:     "http://cafe.example.com/coffee/",
+						ProxyPass:           "http://test",
+					},
+				},
 			},
 		},
 		Upstreams: []Upstream{testUpstream},

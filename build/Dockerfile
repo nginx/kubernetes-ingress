@@ -21,7 +21,7 @@ ARG UBI9_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:0c571ec
 FROM ${UBI8_PACKAGES_IMAGE} AS ubi8-packages
 FROM ${UBI9_PACKAGES_IMAGE} AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
-FROM redhat/ubi9-minimal:9.7-1778072020@sha256:b9b10f42d7eba7ad4a6d5ef26b7d34fdc892b2ffe59b8d0372ec884008569eb6 AS ubi-minimal
+FROM redhat/ubi9-minimal:9.7-1778562320@sha256:12db9874bd753eb98b1ab3d840e75de5d6842ac0604fbd68c012adefe97140be AS ubi-minimal
 FROM golang:1.26.3-alpine@sha256:3a8f055e02fce9585d5e4ab5135d57f2e1a947a16e2a7e6a71a78e770c169e9b AS golang-builder
 
 ############################################# NGINX files #############################################
@@ -517,7 +517,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAF #############################################
-FROM redhat/ubi8@sha256:8f757bfe94700eee7d26c885cd16bf3ae9923edf38f984ef3da50d2ce937fc5e AS ubi-8-plus-nap
+FROM redhat/ubi8@sha256:1551c9a922dbb31c5688380fd955ef57f0f00b395bacb36856bc386eba82897b AS ubi-8-plus-nap
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG BUILD_OS
@@ -554,7 +554,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 
 
 ############################################# Base image for UBI8 with NGINX Plus and App Protect WAFv5  #############################################
-FROM redhat/ubi8@sha256:8f757bfe94700eee7d26c885cd16bf3ae9923edf38f984ef3da50d2ce937fc5e AS ubi-8-plus-nap-v5
+FROM redhat/ubi8@sha256:1551c9a922dbb31c5688380fd955ef57f0f00b395bacb36856bc386eba82897b AS ubi-8-plus-nap-v5
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_AGENT_VERSION

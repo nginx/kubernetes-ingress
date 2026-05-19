@@ -412,6 +412,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
 			SpiffeCerts:            cfgParams.SpiffeServerCerts,
 			DisableIPV6:            ncp.staticParams.DisableIPV6,
+			ProxyRedirectFrom:      cfgParams.ProxyRedirectFrom,
+			ProxyRedirectTo:        cfgParams.ProxyRedirectTo,
 			AppRoot:                cfgParams.AppRoot,
 			Allow:                  policyCfg.Allow,
 			Deny:                   policyCfg.Deny,
@@ -557,6 +559,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			}
 
 			if ncp.isMinion {
+
+				loc.ProxyRedirectFrom = cfgParams.ProxyRedirectFrom
+				loc.ProxyRedirectTo = cfgParams.ProxyRedirectTo
+
 				loc.AddHeaderInherit = cfgParams.AddHeaderInherit
 				server.AddHeaderInherit = "" // unset to avoid writing AddHeaderInherit to server block when the ingress is a minion, since it's only relevant for master ingresses
 
