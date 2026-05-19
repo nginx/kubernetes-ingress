@@ -1,14 +1,13 @@
 # WAF
 
-This example describes how to deploy the NGINX Plus Ingress Controller with [NGINX App
-Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) in order to integrate with NGINX Security Monitoring. It involves deploying a simple web application, then configure load balancing and WAF protection for the application using the VirtualServer resource. Afterwards, we configure NGINX App Protect to send logs to the NGINX Agent syslog listener, which is then sent to the Security Monitoring dashboard.
+This example describes how to deploy the NGINX Plus Ingress Controller with [NGINX App Protect](https://www.nginx.com/products/nginx-app-protect/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) in order to integrate with NGINX Security Monitoring. It involves deploying a simple web application, then configure load balancing and WAF protection for the application using the VirtualServer resource. Afterwards, we configure NGINX App Protect to send logs to the NGINX Agent syslog listener, which is then sent to the Security Monitoring dashboard.
 
 This example works with both:
 
 - **NGINX Instance Manager** (Agent 2.*) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
 - **NGINX One Console** (Agent 3.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
 
-> **Note**: Starting with NGINX Ingress Controller 5.5.0, images with the `-agent` suffix include NGINX Agent 3.* and are pre-configured for NGINX One Console. Images without the `-agent` suffix include NGINX Agent 2.* for NGINX Instance Manager. See the [Technical Specifications](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/) for available image variants.
+> **Note**: Starting with NGINX Ingress Controller 5.5.0, images with the `-agent` suffix include NGINX Agent 3.*and are pre-configured for NGINX One Console. Images without the `-agent` suffix include NGINX Agent 2.* for NGINX Instance Manager. See the [Technical Specifications](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/) for available image variants.
 
 ## Prerequisites
 

@@ -115,7 +115,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 	&& sed -i -e '/nginx.org/d' /etc/apk/repositories
 
 
-############################################# NGINX OSS on Debian 12 #############################################
+############################################# NGINX OSS on Debian 13 #############################################
 # Base:    nginx:1.31.0 (official NGINX OSS Debian image, OSS pre-installed)
 # Adds:    nginx-module-otel + nginx-agent v3
 # Used as: BUILD_OS=debian (default)
