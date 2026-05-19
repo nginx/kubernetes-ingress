@@ -77,6 +77,8 @@ const (
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
 	httpRedirectCodeAnnotation            = "nginx.org/http-redirect-code"
 	appRootAnnotation                     = "nginx.org/app-root"
+	proxyRedirectFromAnnotation           = configs.ProxyRedirectFromAnnotation
+	proxyRedirectToAnnotation             = configs.ProxyRedirectToAnnotation
 )
 
 const (
@@ -93,6 +95,10 @@ const (
 var (
 	validAnnotationValueRegex         = regexp.MustCompile("^" + annotationValueFmt + "$")
 	validJWTTokenAnnotationValueRegex = regexp.MustCompile("^" + jwtTokenValueFmt + "$")
+	// proxyRedirectValueRegex blocks directive-injection characters while allowing $, ~, and regex metacharacters.
+	// Blocked: ; { } newline carriage-return backtick whitespace #.
+	// Whitespace would produce multi-token NGINX directives; # starts an NGINX comment, truncating the directive.
+	proxyRedirectValueRegex = regexp.MustCompile(`^[^;{}\x60\n\r\s#]+$`)
 )
 
 type annotationValidationContext struct {
@@ -397,6 +403,14 @@ var (
 		appRootAnnotation: {
 			validateAppRootAnnotation,
 		},
+		proxyRedirectFromAnnotation: {
+			validateRequiredAnnotation,
+			validateProxyRedirectFromAnnotation,
+		},
+		proxyRedirectToAnnotation: {
+			validateRequiredAnnotation,
+			validateProxyRedirectToAnnotation,
+		},
 		configs.PoliciesAnnotation: {
 			validateRequiredAnnotation,
 			validateCommaSeparatedList,
@@ -501,6 +515,73 @@ func validateAppRootAnnotation(context *annotationValidationContext) field.Error
 	}
 
 	return allErrs
+}
+
+func validateProxyRedirectFromAnnotation(context *annotationValidationContext) field.ErrorList {
+	v := context.value
+	// "off" and "default" are exact NGINX keywords
+	if v == "off" || v == "default" {
+		return nil
+	}
+	if !proxyRedirectValueRegex.MatchString(v) {
+		return field.ErrorList{field.Invalid(context.fieldPath, v,
+			"must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'")}
+	}
+	// Values starting with ~ or ~* are treated as PCRE regexes by NGINX.
+	// Pre-validate the pattern using Go's RE2 to catch obviously malformed expressions
+	// (unmatched parentheses, invalid escapes, etc.) before they reach NGINX's config test.
+	pattern := v
+	if strings.HasPrefix(pattern, "~*") {
+		pattern = pattern[2:]
+	} else if strings.HasPrefix(pattern, "~") {
+		pattern = pattern[1:]
+	}
+	if pattern != v {
+		// Only compile when we stripped a ~ prefix
+		if _, err := regexp.Compile(pattern); err != nil {
+			return field.ErrorList{field.Invalid(context.fieldPath, v,
+				"invalid regex pattern")}
+		}
+	}
+	return nil
+}
+
+func validateProxyRedirectToAnnotation(context *annotationValidationContext) field.ErrorList {
+	if !proxyRedirectValueRegex.MatchString(context.value) {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value,
+			"must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'")}
+	}
+	return nil
+}
+
+// validateProxyRedirectPair enforces cross-annotation consistency:
+//   - proxy-redirect-to without proxy-redirect-from is invalid.
+//   - proxy-redirect-from with a non-keyword value (not "off" or "default") without
+//     proxy-redirect-to is invalid.
+func validateProxyRedirectPair(annotations map[string]string, fieldPath *field.Path) field.ErrorList {
+	from, hasFrom := annotations[proxyRedirectFromAnnotation]
+	_, hasTo := annotations[proxyRedirectToAnnotation]
+
+	if hasTo && !hasFrom {
+		return field.ErrorList{field.Invalid(
+			fieldPath.Child(proxyRedirectToAnnotation), "",
+			"nginx.org/proxy-redirect-to requires nginx.org/proxy-redirect-from to also be set",
+		)}
+	}
+	// "off" and "default" are single-token keywords; proxy_redirect off/default does not accept a replacement URL.
+	if hasFrom && (from == "off" || from == "default") && hasTo {
+		return field.ErrorList{field.Invalid(
+			fieldPath.Child(proxyRedirectToAnnotation), "",
+			fmt.Sprintf("nginx.org/proxy-redirect-to cannot be set when nginx.org/proxy-redirect-from is %q", from),
+		)}
+	}
+	if hasFrom && from != "off" && from != "default" && !hasTo {
+		return field.ErrorList{field.Invalid(
+			fieldPath.Child(proxyRedirectFromAnnotation), from,
+			"nginx.org/proxy-redirect-from with a URL or regex value requires nginx.org/proxy-redirect-to to also be set",
+		)}
+	}
+	return nil
 }
 
 func validateJWTLoginURLAnnotation(context *annotationValidationContext) field.ErrorList {
@@ -696,6 +777,8 @@ func validateIngress(
 		getSpecServices(ing.Spec),
 		field.NewPath("annotations"),
 	)
+
+	allErrs = append(allErrs, validateProxyRedirectPair(ing.Annotations, field.NewPath("annotations"))...)
 
 	allErrs = append(allErrs, validateIngressSpec(&ing.Spec, field.NewPath("spec"), allowEmptyHost)...)
 	if allowEmptyHost && hasEmptyHostRule(&ing.Spec) {

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.24
-FROM redhat/ubi9:9.7-1778044007@sha256:edabf9436bb372addcca3537aa76111c7a1aba970f5e3b02e2e03bc72943612d AS rpm-build
+FROM redhat/ubi9:9.7-1778576335@sha256:8ca59004c1c505bdabadd5202bd3363986f5bf873fcfb36f60561d7362fe52a7 AS rpm-build
 RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required=false \
     mkdir -p /rpms/ \
     && dnf install rpm-build gcc make cmake -y \
