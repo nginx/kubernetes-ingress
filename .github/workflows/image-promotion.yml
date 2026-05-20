@@ -429,11 +429,11 @@ jobs:
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
-          ignore-base: true
           sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true
+        continue-on-error: true
 
       - name: Upload Scan Results to Github Artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -441,11 +441,13 @@ jobs:
           name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
           path: "${{ steps.directory.outputs.directory }}/"
           overwrite: true
+        if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4.34.1
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
+        if: ${{ steps.docker-scout.outcome == 'success' }}
 
   scan-docker-plus:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}
@@ -545,11 +547,11 @@ jobs:
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
-          ignore-base: true
           sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true
+        continue-on-error: true
 
       - name: Upload Scan Results to Github Artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -557,11 +559,13 @@ jobs:
           name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
           path: "${{ steps.directory.outputs.directory }}/"
           overwrite: true
+        if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4.34.1
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
+        if: ${{ steps.docker-scout.outcome == 'success' }}
 
   scan-docker-nap:
     name: Scan ${{ matrix.image }}-${{ matrix.target }}-${{ matrix.nap_modules }}
@@ -668,11 +672,11 @@ jobs:
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
-          ignore-base: true
           sarif-file: "${{ steps.directory.outputs.directory }}/scout.sarif"
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true
+        continue-on-error: true
 
       - name: Upload Scan Results to Github Artifacts
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
@@ -680,12 +684,13 @@ jobs:
           name: "${{ github.ref_name }}-${{ steps.directory.outputs.directory }}"
           path: "${{ steps.directory.outputs.directory }}/"
           overwrite: true
+        if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4.34.1
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
-        continue-on-error: true
+        if: ${{ steps.docker-scout.outcome == 'success' }}
 
   update-release-draft:
     name: Update Release Draft
