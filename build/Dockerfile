@@ -181,7 +181,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& ubi-clean.sh
 
 ############################################# Base image for Alpine with NGINX Plus ##############################################
-FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus
+FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS alpine-plus
 ARG NGINX_PLUS_VERSION
 ARG PACKAGE_REPO
 ARG NGINX_AGENT_VERSION
@@ -219,7 +219,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 
 
 ############################################# Base image for Alpine with NGINX Plus, App Protect WAF and FIPS #############################################
-FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus-nap-fips
+FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS alpine-plus-nap-fips
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG PACKAGE_REPO
@@ -254,7 +254,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 
 
 ############################################# Base image for Alpine with NGINX Plus, App Protect WAFv5 and FIPS #############################################
-FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus-nap-v5-fips
+FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS alpine-plus-nap-v5-fips
 ARG NGINX_PLUS_VERSION
 ARG PACKAGE_REPO
 ARG NAP_WAF_VERSION
