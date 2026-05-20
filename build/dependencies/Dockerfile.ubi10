@@ -33,9 +33,9 @@ RUN --mount=type=bind,from=nginx-files,src=nginx-plus-10.repo,target=/tmp/nginx-
             app-protect \
             app-protect-dos \
             app-protect-ip-intelligence \
-        && ls /rpms/ | grep -E "app-protect|nginx" | xargs -I {} rm -f /rpms/{} \
+        && ls /rpms/ | grep -E "app-protect|nginx" | xargs -I {} rm -f /rpms/{}; \
     fi \
-    && createrepo_c /rpms/; \
+    && createrepo_c /rpms/ \
     && subscription-manager unregister
 
 FROM scratch AS final
