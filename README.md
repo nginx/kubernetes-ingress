@@ -4,7 +4,7 @@
 [![FOSSA Status](https://app.fossa.com/api/projects/custom%2B5618%2Fgithub.com%2Fnginx%2Fkubernetes-ingress.svg?type=shield)](https://app.fossa.com/projects/custom%2B5618%2Fgithub.com%2Fnginx%2Fkubernetes-ingress?ref=badge_shield)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nginx/kubernetes-ingress)](https://goreportcard.com/report/github.com/nginx/kubernetes-ingress)
-[![codecov](https://codecov.io/gh/nginx/kubernetes-ingress/branch/main/graph/badge.svg?token=snCn7Y0zC7)](https://codecov.io/gh/nginx/kubernetes-ingress)
+[![codecov](https://codecov.io/gh/nginx/kubernetes-ingress/branch/release-2026-lts/graph/badge.svg?token=snCn7Y0zC7)](https://codecov.io/gh/nginx/kubernetes-ingress)
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/nginx/kubernetes-ingress?logo=github&sort=semver)](https://github.com/nginx/kubernetes-ingress/releases/latest)
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/nginx/kubernetes-ingress?logo=go)
 [![Docker Pulls](https://img.shields.io/docker/pulls/nginx/nginx-ingress?logo=docker&logoColor=white)](https://hub.docker.com/r/nginx/nginx-ingress)
@@ -106,7 +106,7 @@ In the case of NGINX, the Ingress Controller is deployed in a pod along with the
 
 > **Note**
 >
-> All documentation should only be used with the latest stable release, indicated on [the releases
+> All documentation should only be used with the latest LTS release, indicated on [the releases
 > page](https://github.com/nginx/kubernetes-ingress/releases) of the GitHub repository.
 
 1. Install NGINX Ingress Controller using the [Helm
@@ -114,11 +114,11 @@ In the case of NGINX, the Ingress Controller is deployed in a pod along with the
    [manifests](https://docs.nginx.com/nginx-ingress-controller/install/manifests/).
 1. Configure load balancing for a simple web application:
     - Use the Ingress resource. See the [Cafe
-      example](https://github.com/nginx/kubernetes-ingress/tree/main/examples/ingress-resources/complete-example).
+      example](https://github.com/nginx/kubernetes-ingress/tree/release-2026-lts/examples/ingress-resources/complete-example).
     - Or the VirtualServer resource. See the [Basic
-      configuration](https://github.com/nginx/kubernetes-ingress/tree/main/examples/custom-resources/basic-configuration)
+      configuration](https://github.com/nginx/kubernetes-ingress/tree/release-2026-lts/examples/custom-resources/basic-configuration)
       example.
-1. See additional configuration [examples](https://github.com/nginx/kubernetes-ingress/tree/main/examples).
+1. See additional configuration [examples](https://github.com/nginx/kubernetes-ingress/tree/release-2026-lts/examples).
 1. Learn more about all available configuration and customization in the
    [docs](https://docs.nginx.com/nginx-ingress-controller/).
 
@@ -127,12 +127,8 @@ In the case of NGINX, the Ingress Controller is deployed in a pod along with the
 We publish NGINX Ingress Controller releases on GitHub. See our [releases
 page](https://github.com/nginx/kubernetes-ingress/releases).
 
-The latest stable release is [2026-lts-r1](https://github.com/nginx/kubernetes-ingress/releases/tag/2026-lts-r1). For production
-use, we recommend that you choose the latest stable release.
-
-The edge version is useful for experimenting with new features that are not yet published in a stable release. To use
-it, choose the *edge* version built from the [latest
-commit](https://github.com/nginx/kubernetes-ingress/commits/main) from the main branch.
+The latest LTS release is [2026-lts-r1](https://github.com/nginx/kubernetes-ingress/releases/tag/2026-lts-r1). For production
+use, we recommend that you choose the latest LTS release.
 
 To use NGINX Ingress Controller, you need to have access to:
 
@@ -147,8 +143,8 @@ your links to the correct versions:
 
 | Version | Description | Image for NGINX | Image for NGINX Plus | Installation Manifests and Helm Chart | Documentation and Examples |
 | ------- | ----------- | --------------- | -------------------- | --------------------------------------- | -------------------------- |
-| Latest stable release | For production use | Use the 2026-lts-r1 images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | Use the 2026-lts-r1 images from the [F5 Container Registry](https://docs.nginx.com/nginx-ingress-controller/install/images/registry-download/) or [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/2026-lts-r1/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/2026-lts-r1/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller/). [Examples](https://docs.nginx.com/nginx-ingress-controller/configuration/configuration-examples/). |
-| Edge/Nightly | For testing and experimenting | Use the edge or nightly images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/main/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/main/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller). [Examples](https://github.com/nginx/kubernetes-ingress/tree/main/examples). |
+| Latest LTS release | For production use | Use the 2026-lts-r1 images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | Use the 2026-lts-r1 images from the [F5 Container Registry](https://docs.nginx.com/nginx-ingress-controller/install/images/registry-download/) or [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/2026-lts-r1/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/2026-lts-r1/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller/). [Examples](https://docs.nginx.com/nginx-ingress-controller/configuration/configuration-examples/). |
+| Edge/Nightly | For testing and experimenting | Use the edge or nightly images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/release-2026-lts/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/release-2026-lts/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller). [Examples](https://github.com/nginx/kubernetes-ingress/tree/release-2026-lts/examples). |
 
 ## SBOM (Software Bill of Materials)
 
