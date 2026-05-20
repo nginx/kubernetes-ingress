@@ -24,6 +24,7 @@ Session.vim
 # Ingress Controller binaries
 osx-nginx-ingress
 nginx-ingress
+nginx-ingress-*
 !nginx-ingress/
 osx-nginx-plus-ingress
 nginx-plus-ingress

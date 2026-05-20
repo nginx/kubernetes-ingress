@@ -189,6 +189,7 @@ jobs:
       docker-md5: ${{ needs.checks.outputs.docker_md5 }}
       runner: "ubuntu-24.04-amd64"
       write-to-cache: true
+      read-from-cache: false
     secrets: inherit
     permissions:
       contents: read
@@ -477,7 +478,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress
           flavor: |
-            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
+            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
@@ -600,7 +601,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.image, 'v5') && '-v5' || '' }}/nginx-plus-ingress
           flavor: |
-            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
+            suffix=${{ contains(matrix.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.image, 'fips') && '-fips' || ''}}
           tags: |
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 

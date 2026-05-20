@@ -44,6 +44,11 @@ on:
         required: false
         type: boolean
         default: false
+      read-from-cache:
+        description: Whether to read from cache when building images
+        required: false
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -164,7 +169,7 @@ jobs:
           images: |
             name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(inputs.nap-modules, 'dos') && '-dos' || '' }}${{ contains(inputs.nap-modules, 'waf') && '-nap' || '' }}${{ contains(inputs.image, 'v5') && '-v5' || '' }}/nginx-plus-ingress
           flavor: |
-            suffix=${{ contains(inputs.image, 'ubi-9') && '-ubi' || '' }}${{ contains(inputs.image, 'ubi-8') && '-ubi8' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}
+            suffix=${{ contains(inputs.image, 'ubi-9') && '-ubi' || '' }}${{ contains(inputs.image, 'ubi-8') && '-ubi8' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}
           tags: |
             type=raw,value=${{ inputs.tag }}
           labels: |
@@ -242,7 +247,7 @@ jobs:
         with:
           file: build/Dockerfile
           context: "."
-          cache-from: type=gha,scope=${{ inputs.image }}${{ steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' }}
+          cache-from: ${{ inputs.read-from-cache && format('type=gha,scope={0}{1}', inputs.image, steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' ) || '' }}
           cache-to: ${{ inputs.write-to-cache && format('type=gha,scope={0}{1},mode=max', inputs.image, steps.nap_modules.outputs.name != '' && format('-{0}', steps.nap_modules.outputs.name) || '' ) || '' }}
           target: ${{ inputs.target }}${{ inputs.authenticated && '-prebuilt' || '' }}
           tags: ${{ steps.meta.outputs.tags }}

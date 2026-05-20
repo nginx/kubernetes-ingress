@@ -1,4 +1,5 @@
 import pytest
+import requests
 from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.custom_resources_utils import create_ts_from_yaml, delete_ts, patch_ts_from_yaml
@@ -289,12 +290,24 @@ class TestTransportServerWithBackupService:
         assert "least_conn;" in result_conf
         assert f"server {ts_externalname_setup.external_host}:8443 resolve backup;" in result_conf
 
-        resp_after_scale = session.get(
-            req_url,
-            headers={"host": transport_server_tls_passthrough_setup.ts_host},
-            verify=False,
-        )
+        # Use a fresh session to avoid reusing a stale pooled connection from before the scale-down.
+        # Retry to allow time for NGINX to activate the backup upstream after the primary is gone.
+        resp_after_scale = None
+        with create_sni_session() as backup_session:
+            for attempt in range(30):
+                try:
+                    resp_after_scale = backup_session.get(
+                        req_url,
+                        headers={"host": transport_server_tls_passthrough_setup.ts_host},
+                        verify=False,
+                        timeout=10,
+                    )
+                    if resp_after_scale.status_code == 200:
+                        break
+                except requests.exceptions.RequestException as e:
+                    print(f"Attempt {attempt + 1}/30: request failed ({e}), retrying in 1s...")
+                wait_before_test(1)
 
-        assert resp_after_scale.status_code == 200
+        assert resp_after_scale is not None and resp_after_scale.status_code == 200
 
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "secure-app", test_namespace, 1)

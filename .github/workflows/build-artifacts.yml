@@ -47,6 +47,10 @@ on:
         description: Whether to write built images to cache
         type: boolean
         default: false
+      read-from-cache:
+        description: Whether to read from cache when building images
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -196,6 +200,7 @@ jobs:
 
   build-docker:
     name: Build Docker OSS
+    if: ${{ fromJSON(inputs.image-matrix-oss).image[0] != null }}
     needs: [binaries]
     strategy:
       fail-fast: false
@@ -213,6 +218,7 @@ jobs:
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
+      read-from-cache: ${{ inputs.read-from-cache }}
     permissions:
       contents: read
       actions: read
@@ -241,6 +247,7 @@ jobs:
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
+      read-from-cache: ${{ inputs.read-from-cache }}
     permissions:
       contents: read
       id-token: write
@@ -249,6 +256,7 @@ jobs:
 
   build-docker-nap:
     name: Build Docker NAP
+    if: ${{ fromJSON(inputs.image-matrix-nap).image[0] != null }}
     needs: [binaries]
     strategy:
       fail-fast: false
@@ -268,6 +276,7 @@ jobs:
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
+      read-from-cache: ${{ inputs.read-from-cache }}
     permissions:
       contents: read
       id-token: write # gcr login

@@ -229,8 +229,6 @@ var (
 	enableDynamicWeightChangesReload = flag.Bool(dynamicWeightChangesParam, false, "Enable changing weights of split clients without reloading NGINX. Requires -nginx-plus")
 
 	enableDirectiveAutoadjust = flag.Bool("enable-directive-autoadjust", false, "Enable automatic adjustment of NGINX directives to avoid conflicting NGINX configuration. Results may vary and might not be ideal in all cases.")
-
-	startupCheckFn func() error
 )
 
 //gocyclo:ignore
@@ -281,14 +279,6 @@ func initValidate(ctx context.Context) {
 
 func mustValidateInitialChecks(ctx context.Context) {
 	l := nl.LoggerFromContext(ctx)
-
-	if startupCheckFn != nil {
-		err := startupCheckFn()
-		if err != nil {
-			nl.Fatalf(l, "Failed startup check: %v", err)
-		}
-		l.Info("AWS startup check passed")
-	}
 
 	l.Info(fmt.Sprintf("Starting with flags: %+q", os.Args[1:]))
 

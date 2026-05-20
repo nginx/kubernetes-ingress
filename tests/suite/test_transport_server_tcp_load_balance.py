@@ -535,7 +535,7 @@ class TestTransportServerTcpLoadBalance:
             patch_src,
             transport_server_setup.namespace,
         )
-        # 4s includes 3s timeout for a health check to fail in case of a connection timeout to a backend pod
+        # Wait for NGINX to reload with the new config
         wait_before_test(4)
 
         result_conf = get_ts_nginx_template_conf(
@@ -554,6 +554,11 @@ class TestTransportServerTcpLoadBalance:
         assert 'send "health"' in result_conf
         assert 'expect  "unmatched"' in result_conf
 
+        # Wait for health checks to run and mark backends as unhealthy.
+        # The health check interval is 5s, so we need to wait at least one full cycle
+        # after the config has been confirmed applied above.
+        wait_before_test(6)
+
         # Step 2 - confirm load balancing doesn't work
 
         port = transport_server_setup.public_endpoint.tcp_server_port
@@ -564,11 +569,16 @@ class TestTransportServerTcpLoadBalance:
         client.sendall(b"connect")
 
         try:
-            client.recv(4096)  # must return ConnectionResetError
+            data = client.recv(4096)
             client.close()
-            pytest.fail("We expected an error here, but didn't get it. Exiting...")
+            # When all upstreams are unhealthy NGINX Plus closes the connection;
+            # depending on timing it may send RST (ConnectionResetError) or FIN
+            # (empty recv). Both indicate the connection was rejected.
+            if data:
+                pytest.fail("We expected a rejected connection here, but got data back. Exiting...")
+            print("Connection was closed by NGINX (all upstreams unhealthy)")
         except ConnectionResetError as ex:
-            # expected error
+            # expected error: NGINX sent RST
             print(f"There was an expected exception {str(ex)}")
 
         # Step 3 - restore
