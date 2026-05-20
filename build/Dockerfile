@@ -17,7 +17,7 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 
 ############################################# External dependency images #############################################
 ARG UBI8_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi8@sha256:734dfa9dc40945e052760f9d9d327b74e6ccb75097cc834a61d9cf77c78b48e8
-ARG UBI9_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:0c571ec12a92518253bb8726a830ba6f4f44ba0e55bc0716ea96db1df4d182df
+ARG UBI9_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi9@sha256:0b6228a89f6d91bdbd509b3491391994a3a786960d1ad50ed94d02cb7ee8b190
 FROM ${UBI8_PACKAGES_IMAGE} AS ubi8-packages
 FROM ${UBI9_PACKAGES_IMAGE} AS ubi9-packages
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
