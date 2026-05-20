@@ -19,7 +19,6 @@ RUN --mount=type=bind,from=nginx-files,src=nginx-plus-10.repo,target=/tmp/nginx-
     --mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
     --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required=false \
     mkdir -p /rpms/ \
-    && dnf update  \
     && dnf install -y subscription-manager \
     && source /tmp/rhel_license \
     && subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} \
@@ -34,6 +33,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx-plus-10.repo,target=/tmp/nginx-
             app-protect \
             app-protect-dos \
             app-protect-ip-intelligence \
+            file \
         && ls /rpms/ | grep -E "app-protect|nginx" | xargs -I {} rm -f /rpms/{} \
         && createrepo_c /rpms/; \
     fi \
