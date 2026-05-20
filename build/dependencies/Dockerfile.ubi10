@@ -22,21 +22,20 @@ RUN --mount=type=bind,from=nginx-files,src=nginx-plus-10.repo,target=/tmp/nginx-
     && dnf install -y subscription-manager \
     && source /tmp/rhel_license \
     && subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} \
+    && dnf install -y --enablerepo=codeready-builder-for-rhel-10-$(uname -r)-rpms createrepo_c
     && dnf download --resolve --destdir=/rpms c-ares \
     && rm -rf /rpms/*devel* \
     && if [ "$(arch)" = "x86_64" ]; then \
         cp /tmp/*.repo /etc/yum.repos.d/ \
-        && dnf install -y --enablerepo=codeready-builder-for-rhel-10-x86_64-rpms createrepo_c \
         && rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
         && dnf download --resolve --destdir=/rpms \
             --enablerepo=codeready-builder-for-rhel-10-x86_64-rpms \
             app-protect \
             app-protect-dos \
             app-protect-ip-intelligence \
-            file \
         && ls /rpms/ | grep -E "app-protect|nginx" | xargs -I {} rm -f /rpms/{} \
-        && createrepo_c /rpms/; \
     fi \
+    && createrepo_c /rpms/; \
     && subscription-manager unregister
 
 FROM scratch AS final
