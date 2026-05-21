@@ -51,16 +51,16 @@ jobs:
           echo "$RHEL_CREDS" > rhel_license
           PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$PLUS_CREDS"
-          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
+          IFS=@ CERT=$(echo "$PLUS_CREDS" | jq -r '.crt')
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${CERT}"
-          echo $CERT > nginx-repo.crt
-          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
+          echo "$CERT" > nginx-repo.crt
+          IFS=@ KEY=$(echo "$PLUS_CREDS" | jq -r '.key')
           while read -r line; do
             echo "::add-mask::${line}"
           done <<< "${KEY}"
-          echo $KEY > nginx-repo.key
+          echo "$KEY" > nginx-repo.key
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -115,4 +115,4 @@ jobs:
 
       - name: Clean up secrets
         if: always()
-        run: rm -f rhel_license
+        run: rm -f rhel_license nginx-repo.*
