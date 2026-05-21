@@ -12,7 +12,7 @@ controller:
   annotations: {}
 
   ## Deploys the Ingress Controller for NGINX Plus.
-  nginxplus: false
+  nginxplus: true
 
   ## Configures NGINX mgmt block for NGINX Plus
   mgmt:
@@ -51,82 +51,6 @@ controller:
 
   ## Timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start.
   nginxReloadTimeout: 60000
-
-  ## Support for App Protect WAF
-  appprotect:
-    ## Enable the App Protect WAF module in the Ingress Controller.
-    enable: false
-    ## Enables App Protect WAF v5.
-    v5: false
-    ## Sets log level for App Protect WAF. Allowed values: fatal, error, warn, info, debug, trace
-    # logLevel: fatal
-
-    # Volumes for App Protect WAF v5
-    # Required volumes are: app-protect-bd-config, app-protect-config, and app-protect-bundles
-    volumes:
-      - name: app-protect-bd-config
-        emptyDir: {}
-      - name: app-protect-config
-        emptyDir: {}
-      - name: app-protect-bundles
-        emptyDir: {}
-
-    ## Configuration for App Protect WAF v5 Enforcer
-    enforcer:
-      # Host that the App Protect WAF v5 Enforcer runs on.
-      # This will normally be "127.0.0.1" as the Enforcer container
-      # will run in the same pod as the Ingress Controller container.
-      host: "127.0.0.1"
-      # Port that the App Protect WAF v5 Enforcer runs on.
-      port: 50000
-      image:
-        ## The image repository of the App Protect WAF v5 Enforcer.
-        repository: private-registry.nginx.com/nap/waf-enforcer
-
-        ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.13.0"
-        ## The digest of the App Protect WAF v5 Enforcer image.
-        ## If digest is specified it has precedence over tag and will be used instead
-        # digest: "sha256:CHANGEME"
-
-        ## The pull policy for the App Protect WAF v5 Enforcer image.
-        pullPolicy: IfNotPresent
-      securityContext: {}
-
-    ## Configuration for App Protect WAF v5 Configuration Manager
-    configManager:
-      image:
-        ## The image repository of the App Protect WAF v5 Configuration Manager.
-        repository: private-registry.nginx.com/nap/waf-config-mgr
-
-        ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.13.0"
-        ## The digest of the App Protect WAF v5 Configuration Manager image.
-        ## If digest is specified it has precedence over tag and will be used instead
-        # digest: "sha256:CHANGEME"
-
-        ## The pull policy for the App Protect WAF v5 Configuration Manager image.
-        pullPolicy: IfNotPresent
-      securityContext:
-        allowPrivilegeEscalation: false
-        runAsUser: 101 #nginx
-        runAsNonRoot: true
-        capabilities:
-          drop:
-            - all
-
-  ## Support for App Protect DoS
-  appprotectdos:
-    ## Enable the App Protect DoS module in the Ingress Controller.
-    enable: false
-    ## Enable debugging for App Protect DoS.
-    debug: false
-    ## Max number of nginx processes to support.
-    maxWorkers: 0
-    ## Max number of ADMD instances.
-    maxDaemons: 0
-    ## RAM memory size to consume in MB.
-    memory: 0
 
   ## Enables the Ingress Controller pods to use the host's network namespace.
   hostNetwork: false
@@ -176,10 +100,10 @@ controller:
 
   image:
     ## The image repository of the Ingress Controller.
-    repository: nginx/nginx-ingress
+    repository: private-registry.nginx.com/lts/nginx-ic/nginx-plus-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "2026-lts-r1"
+    tag: "2026-lts-r1"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"

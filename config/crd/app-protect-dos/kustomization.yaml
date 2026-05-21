@@ -1,6 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-- ../bases/appprotectdos.f5.com_apdoslogconfs.yaml
-- ../bases/appprotectdos.f5.com_apdospolicy.yaml
-- ../bases/appprotectdos.f5.com_dosprotectedresources.yaml
