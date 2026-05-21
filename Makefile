@@ -72,7 +72,7 @@ help: Makefile ## Display this help
 	@grep -E '^(override )?[a-zA-Z0-9_-]+ \??\+?= .*? ## .*$$' $< | sort | awk 'BEGIN {FS = " \\??\\+?= .*? ## "; printf "\nVariables:\n\n"}; {gsub(/override /, "", $$1); printf "    \033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 .PHONY: all
-all: test lint verify-codegen update-crds debian-image
+all: test lint verify-codegen update-crds debian-image-plus
 
 .PHONY: lint
 lint: ## Run linter
