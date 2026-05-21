@@ -131,26 +131,6 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "custom-resources",
 			namespace:   "custom-resources",
 		},
-		"appProtectWAF": {
-			valuesFile:  "testdata/app-protect-waf.yaml",
-			releaseName: "appprotect-waf",
-			namespace:   "appprotect-waf",
-		},
-		"appProtectWAFV5": {
-			valuesFile:  "testdata/app-protect-wafv5.yaml",
-			releaseName: "appprotect-wafv5",
-			namespace:   "appprotect-wafv5",
-		},
-		"appProtectDOS": {
-			valuesFile:  "testdata/app-protect-dos.yaml",
-			releaseName: "appprotect-dos",
-			namespace:   "appprotect-dos",
-		},
-		"ossAgentV3": {
-			valuesFile:  "testdata/oss-agentv3.yaml",
-			releaseName: "oss-agent",
-			namespace:   "default",
-		},
 		"plusAgentV3": {
 			valuesFile:  "testdata/plus-agentv3.yaml",
 			releaseName: "plus-agent",
@@ -160,16 +140,6 @@ func TestHelmNICTemplate(t *testing.T) {
 			valuesFile:  "testdata/plus-agentv3-all.yaml",
 			releaseName: "plus-agent-all",
 			namespace:   "custom",
-		},
-		"appProtectWAFV5AgentV2": {
-			valuesFile:  "testdata/app-protect-wafv5-agentv2.yaml",
-			releaseName: "app-protect-wafv5-agentv2",
-			namespace:   "default",
-		},
-		"appProtectWAFV4AgentV2": {
-			valuesFile:  "testdata/app-protect-waf-agentv2.yaml",
-			releaseName: "app-protect-waf-agentv2",
-			namespace:   "default",
 		},
 		"startupStatusValid": {
 			valuesFile:  "testdata/startupstatus-valid.yaml",

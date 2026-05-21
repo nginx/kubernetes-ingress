@@ -1,3 +1,0 @@
-nginxAgent:
-  enable: true
-  dataplaneKeySecretName: "dataplane-key" # secret ref
