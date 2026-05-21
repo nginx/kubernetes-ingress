@@ -339,7 +339,7 @@ jobs:
       contents: read
       id-token: write
       security-events: write
-    if: ${{ !cancelled() && !failure() }}
+    if: ${{ !cancelled() && !failure() && fromJSON(needs.checks.outputs.image_matrix_oss).image[0] != null }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
@@ -571,7 +571,7 @@ jobs:
       contents: read
       id-token: write
       security-events: write
-    if: ${{ !cancelled() && !failure() }}
+    if: ${{ !cancelled() && !failure() && fromJSON(needs.checks.outputs.image_matrix_nap).image[0] != null }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
