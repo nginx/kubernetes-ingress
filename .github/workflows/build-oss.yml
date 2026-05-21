@@ -253,4 +253,5 @@ jobs:
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true
+        continue-on-error: true
         if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
