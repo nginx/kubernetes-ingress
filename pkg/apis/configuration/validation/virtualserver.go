@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/dlclark/regexp2/v2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -16,6 +17,28 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
+
+const (
+	// PathModifierExact is the NGINX exact match modifier.
+	PathModifierExact = "="
+	// PathModifierLongestPrefix is the NGINX longest prefix match modifier.
+	PathModifierLongestPrefix = "^~"
+	// PathModifierRegex is the NGINX case-sensitive regex match modifier.
+	PathModifierRegex = "~"
+	// PathModifierRegexIC is the NGINX case-insensitive regex match modifier.
+	PathModifierRegexIC = "~*"
+)
+
+// NormalizePath removes optional whitespace between a location modifier and its URI.
+// For example, "~ /api" and "~  /api" both normalize to "~/api".
+func NormalizePath(path string) string {
+	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex, PathModifierLongestPrefix, PathModifierExact} {
+		if strings.HasPrefix(path, mod) {
+			return mod + strings.TrimLeftFunc(strings.TrimPrefix(path, mod), unicode.IsSpace)
+		}
+	}
+	return path
+}
 
 // VsvOption defines the signature of our VirtualServerValidator option functions.
 type VsvOption func(*VirtualServerValidator)
@@ -800,12 +823,13 @@ func (vsv *VirtualServerValidator) validateVirtualServerRoutes(routes []v1.Route
 
 		isRouteFieldForbidden := false
 		routeErrs := vsv.validateRoute(r, idxPath, upstreamNames, isRouteFieldForbidden, namespace)
+		normPath := NormalizePath(r.Path)
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)
-		} else if allPaths.Has(r.Path) {
+		} else if allPaths.Has(normPath) {
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
-			allPaths.Insert(r.Path)
+			allPaths.Insert(normPath)
 		}
 
 		if r.Route != "" {
@@ -1403,13 +1427,13 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 
 	allErrs := field.ErrorList{}
 	if strings.HasPrefix(path, "^~") {
-		allErrs = append(allErrs, validatePath(strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "), fieldPath)...)
+		allErrs = append(allErrs, validatePath(strings.TrimLeftFunc(strings.TrimPrefix(path, "^~"), unicode.IsSpace), fieldPath)...)
 	} else if strings.HasPrefix(path, "~") {
 		allErrs = append(allErrs, validateRegexPath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "/") {
 		allErrs = append(allErrs, validatePath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "=") {
-		allErrs = append(allErrs, validatePath(strings.TrimPrefix(path, "="), fieldPath)...)
+		allErrs = append(allErrs, validatePath(strings.TrimLeftFunc(strings.TrimPrefix(path, "="), unicode.IsSpace), fieldPath)...)
 	} else {
 		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~, = or ^~"))
 	}
@@ -1419,11 +1443,21 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 // validateRegexPath validates correctness of the string representing the path.
 //
 // Internally it uses Perl5 compatible regexp2 package.
+// validateRegexPath validates correctness of the string representing the path.
+// The modifier (~, ~*) and any separator whitespace are stripped before
+// compilation so we validate only the regex portion that nginx will parse.
 func validateRegexPath(path string, fieldPath *field.Path) field.ErrorList {
-	if _, err := regexp2.Compile(path); err != nil {
+	regex := path
+	for _, mod := range []string{PathModifierRegexIC, PathModifierRegex} {
+		if strings.HasPrefix(regex, mod) {
+			regex = strings.TrimLeftFunc(strings.TrimPrefix(regex, mod), unicode.IsSpace)
+			break
+		}
+	}
+	if _, err := regexp2.Compile(regex); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, fmt.Sprintf("must be a valid regular expression: %v", err))}
 	}
-	if err := ValidateEscapedString(path, "*.jpg", "^/images/image_*.png$"); err != nil {
+	if err := ValidateEscapedString(regex, "*.jpg", "^/images/image_*.png$"); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, err.Error())}
 	}
 	return nil
@@ -1666,12 +1700,13 @@ func (vsv *VirtualServerValidator) validateSubroutesStandalone(routes []v1.Route
 	for i, r := range routes {
 		idxPath := fieldPath.Index(i)
 		routeErrs := vsv.validateRoute(r, idxPath, upstreamNames, true, namespace)
+		normPath := NormalizePath(r.Path)
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)
-		} else if allPaths.Has(r.Path) {
+		} else if allPaths.Has(normPath) {
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
-			allPaths.Insert(r.Path)
+			allPaths.Insert(normPath)
 		}
 	}
 	return allErrs
@@ -1683,7 +1718,7 @@ func (vsv *VirtualServerValidator) validateSubroutesExact(routes []v1.Route, fie
 	if len(routes) != 1 {
 		return field.ErrorList{field.Invalid(fieldPath, "subroutes", "must have only one subroute if exact match is being used")}
 	}
-	if routes[0].Path != vsPath {
+	if NormalizePath(routes[0].Path) != NormalizePath(vsPath) {
 		return field.ErrorList{field.Invalid(fieldPath.Index(0).Child("path"), routes[0].Path,
 			fmt.Sprintf("must have the same path as the referenced VirtualServer route path '%s'", vsPath))}
 	}
@@ -1696,32 +1731,33 @@ func (vsv *VirtualServerValidator) validateSubroutesExact(routes []v1.Route, fie
 func (vsv *VirtualServerValidator) validateSubroutesRegex(routes []v1.Route, fieldPath *field.Path, upstreamNames sets.Set[string], vsPaths []string, namespace string) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	// Duplicate check: exact string match.
+	// Duplicate check: normalized path comparison.
 	allPaths := sets.Set[string]{}
 	for i, r := range routes {
-		if allPaths.Has(r.Path) {
+		normPath := NormalizePath(r.Path)
+		if allPaths.Has(normPath) {
 			allErrs = append(allErrs, field.Duplicate(fieldPath.Index(i).Child("path"), r.Path))
 		} else {
-			allPaths.Insert(r.Path)
+			allPaths.Insert(normPath)
 		}
 	}
 	if len(allErrs) > 0 {
 		return allErrs
 	}
 
-	// Build sets for bidirectional coverage check.
+	// Build sets for bidirectional coverage check (normalize for comparison).
 	subrouteSet := sets.New[string]()
 	for _, r := range routes {
-		subrouteSet.Insert(r.Path)
+		subrouteSet.Insert(NormalizePath(r.Path))
 	}
 	vsPathSet := sets.New[string]()
 	for _, p := range vsPaths {
-		vsPathSet.Insert(p)
+		vsPathSet.Insert(NormalizePath(p))
 	}
 
 	// Every VS path must have a matching subroute.
 	for _, p := range vsPaths {
-		if !subrouteSet.Has(p) {
+		if !subrouteSet.Has(NormalizePath(p)) {
 			allErrs = append(allErrs, field.Invalid(fieldPath, "subroutes",
 				fmt.Sprintf("subroute with path '%s' is missing; all VS route paths must be covered by VSR subroutes", p)))
 		}
@@ -1729,7 +1765,7 @@ func (vsv *VirtualServerValidator) validateSubroutesRegex(routes []v1.Route, fie
 
 	// Every subroute must be referenced by a VS path.
 	for i, r := range routes {
-		if !vsPathSet.Has(r.Path) {
+		if !vsPathSet.Has(NormalizePath(r.Path)) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i).Child("path"), r.Path,
 				fmt.Sprintf("subroute path '%s' is not referenced by any VS route; all VSR subroutes must be referenced", r.Path)))
 		}
@@ -1750,18 +1786,20 @@ func (vsv *VirtualServerValidator) validateSubroutesRegex(routes []v1.Route, fie
 func (vsv *VirtualServerValidator) validateSubroutesPrefix(routes []v1.Route, fieldPath *field.Path, upstreamNames sets.Set[string], vsPath string, namespace string) field.ErrorList {
 	allErrs := field.ErrorList{}
 	allPaths := sets.Set[string]{}
+	normVSPath := NormalizePath(vsPath)
 	for i, r := range routes {
 		idxPath := fieldPath.Index(i)
 		routeErrs := vsv.validateRoute(r, idxPath, upstreamNames, true, namespace)
-		if vsPath != "" && !strings.HasPrefix(r.Path, vsPath) {
+		normPath := NormalizePath(r.Path)
+		if normVSPath != "" && !strings.HasPrefix(normPath, normVSPath) {
 			routeErrs = append(routeErrs, field.Invalid(idxPath.Child("path"), r.Path, fmt.Sprintf("must start with '%s'", vsPath)))
 		}
 		if len(routeErrs) > 0 {
 			allErrs = append(allErrs, routeErrs...)
-		} else if allPaths.Has(r.Path) {
+		} else if allPaths.Has(normPath) {
 			allErrs = append(allErrs, field.Duplicate(idxPath.Child("path"), r.Path))
 		} else {
-			allPaths.Insert(r.Path)
+			allPaths.Insert(normPath)
 		}
 	}
 	return allErrs

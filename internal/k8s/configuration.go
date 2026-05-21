@@ -1920,7 +1920,8 @@ func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.V
 
 	for _, vsr := range vsrs {
 		for _, subroute := range vsr.Spec.Subroutes {
-			if path, exists := paths[subroute.Path]; exists {
+			normPath := validation.NormalizePath(subroute.Path)
+			if path, exists := paths[normPath]; exists {
 				subRoutes := fmt.Sprintf("%s and %s", fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name), path)
 				if fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name) == path {
 					// both subroutes are from the same VSR
@@ -1931,7 +1932,7 @@ func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.V
 
 				vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
 			} else {
-				paths[subroute.Path] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+				paths[normPath] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
 			}
 		}
 	}
@@ -2029,6 +2030,7 @@ func (col *vsrCollection) collectRegexNamedRoute(
 	routeName, path string, routeIdx int,
 	regexSeenPaths map[string]map[string]struct{},
 ) {
+	normPath := validation.NormalizePath(path)
 	vsrKey := routeName
 	if !nsutils.HasNamespace(vsrKey) {
 		vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, routeName)
@@ -2039,13 +2041,13 @@ func (col *vsrCollection) collectRegexNamedRoute(
 		return
 	}
 	if entry, found := col.regexEntries[vsrKey]; found {
-		if _, seen := regexSeenPaths[vsrKey][path]; !seen {
-			regexSeenPaths[vsrKey][path] = struct{}{}
+		if _, seen := regexSeenPaths[vsrKey][normPath]; !seen {
+			regexSeenPaths[vsrKey][normPath] = struct{}{}
 			entry.paths = append(entry.paths, path)
 		}
 	} else {
 		col.regexEntries[vsrKey] = &regexVSREntry{vsr: vsr, paths: []string{path}, firstSeenIdx: routeIdx}
-		regexSeenPaths[vsrKey] = map[string]struct{}{path: {}}
+		regexSeenPaths[vsrKey] = map[string]struct{}{normPath: {}}
 	}
 }
 

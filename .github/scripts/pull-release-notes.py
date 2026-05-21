@@ -29,8 +29,28 @@ template = env.get_template("release-notes.j2")
 github_org = os.getenv("GITHUB_ORG", "nginx")
 github_repo = os.getenv("GITHUB_REPO", "kubernetes-ingress")
 token = os.environ.get("GITHUB_TOKEN")
-docker_pr_strings = ["Docker image update", "docker group", "docker-images group", "in /build"]
-golang_pr_strings = ["go group", "go_modules group"]
+# For PRs that should be skipped that don't have the "skip changelog" label
+skip_pr_strings = ["pre-commit hook", "pip group"]
+# For PRs that should be grouped but don't have the corresponding label, we look for these strings in the title
+docker_pr_strings = [
+    "docker",
+    "ubi",
+]
+golang_pr_strings = [
+    "go group",
+    "go_modules group",
+    "Update module ",
+    "Update dependency",
+    "Update go to",
+    "dependency go to",
+    "golang.org/",
+    "k8s.io/",
+    "kubernetes packages",
+    "kubernetes ecosystem",
+    "aws sdk",
+    "opentelemetry-go",
+    "preflight",
+]
 
 # Setup regex's
 # Matches:
@@ -95,16 +115,26 @@ def get_github_release(version, github_org, github_repo, token):
         if rel.tag_name == f"v{version}":
             release = rel
             break
-    g.close()
     if release is not None:
-        return release.body
+        return release.body, repo
     print(f"ERROR: Release v{NIC_VERSION} not found in {github_org}/{github_repo}.")
-    return None
+    g.close()
+    return None, None
+
+
+# Get PR labels
+def get_pr_labels(repo, pr_number):
+    try:
+        pr_obj = repo.get_pull(int(pr_number))
+        return {label.name.lower() for label in pr_obj.labels}
+    except Exception as e:
+        print(f"ERROR: Could not fetch labels for PR #{pr_number}: {e}")
+        return set()
 
 
 ## Main section of script
 
-release_body = get_github_release(NIC_VERSION, github_org, github_repo, token)
+release_body, repo = get_github_release(NIC_VERSION, github_org, github_repo, token)
 if release_body is None:
     print("ERROR: Cannot get release from Github.  Exiting...")
     sys.exit(1)
@@ -135,15 +165,44 @@ for title, changes in sections.items():
             # save section title for later use as lookup key to categories dict
             dependencies_title = title
 
-            # Append Golang changes in to the go_dependencies list for later processing
-            if any(str in change_title for str in golang_pr_strings):
-                go_dependencies.append(pr)
-            # Append Docker changes in to the docker_dependencies list for later processing
-            elif any(str in change_title for str in docker_pr_strings):
-                docker_dependencies.append(pr)
-            # Treat this change like any other ungrouped change
+            # Use PR labels from GitHub API for classification
+            labels = get_pr_labels(repo, pr_number)
+            lower_title = change_title.lower()
+
+            # Skip PRs tagged with "skip changelog"
+            if "skip changelog" in labels:
+                continue
+
+            # Skip PRs without "skip changelog" label that should still be excluded
+            if any(s in lower_title for s in skip_pr_strings):
+                continue
+
+            # Check if the PR has a "dependencies" label"
+            if "dependencies" in labels:
+                # Check if the PR has a "docker" label, if so add to docker dependencies group
+                if "docker" in labels:
+                    docker_dependencies.append(pr)
+                # Check if the PR has "go", "python" or "github_actions" label, if so add to go dependencies group
+                elif any(label in labels for label in ["go", "github_actions"]):
+                    go_dependencies.append(pr)
+                else:
+                    # No label type for grouping, fall back to title pattern matching
+                    if any(s in lower_title for s in docker_pr_strings):
+                        docker_dependencies.append(pr)
+                    elif any(s in lower_title for s in golang_pr_strings):
+                        go_dependencies.append(pr)
+                    else:
+                        # PR could not be grouped as is treated as an ungrouped dependency PR
+                        parsed_changes.append(f"{pr['details']} {pr['title']}")
             else:
-                parsed_changes.append(f"{pr['details']} {pr['title']}")
+                # If there is no "dependencies" label, we will use title pattern matching in order to group the PR
+                if any(s in lower_title for s in docker_pr_strings):
+                    docker_dependencies.append(pr)
+                elif any(s in lower_title for s in golang_pr_strings):
+                    go_dependencies.append(pr)
+                else:
+                    # PR could not be grouped as is treated as an ungrouped dependency PR
+                    parsed_changes.append(f"{pr['details']} {pr['title']}")
         else:
             parsed_changes.append(f"{pr['details']} {pr['title']}")
 
@@ -151,8 +210,10 @@ for title, changes in sections.items():
 
 # Add grouped dependencies to the Dependencies category
 if dependencies_title:
-    categories[dependencies_title].append(format_pr_groups(docker_dependencies, "Bump Docker dependencies"))
-    categories[dependencies_title].append(format_pr_groups(go_dependencies, "Bump Go dependencies"))
+    if docker_dependencies:
+        categories[dependencies_title].append(format_pr_groups(docker_dependencies, "Bump Docker dependencies"))
+    if go_dependencies:
+        categories[dependencies_title].append(format_pr_groups(go_dependencies, "Bump Go dependencies"))
     categories[dependencies_title].reverse()
 
 # Populates the data needed for rendering the template

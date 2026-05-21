@@ -6385,6 +6385,134 @@ func TestValidateDuplicateVSRPaths(t *testing.T) {
 			expectedVSRs:  []*conf_v1.VirtualServerRoute{},
 			expectedWarns: nil,
 		},
+		{
+			name: "Paths differing only by whitespace after modifier are normalized duplicates",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~/foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-foo"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~ /foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr2-foo"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~/foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-foo"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path ~ /foo has conflicting subroutes on default/vsr2 and default/vsr1",
+			},
+		},
+		{
+			name: "Longest-prefix paths differing only by whitespace are normalized duplicates",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~/static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-static"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~ /static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr2-static"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~/static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-static"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path ^~ /static has conflicting subroutes on default/vsr2 and default/vsr1",
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -6445,6 +6573,44 @@ func TestClassifyAndCollectVSRsDuplicateDedup(t *testing.T) {
 	}
 	if !foundDupWarning {
 		t.Errorf("expected duplicate VSR warning, got warnings: %v", col.warnings)
+	}
+}
+
+func TestClassifyAndCollectVSRsNormalizesRegexPaths(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "cafe"
+	)
+
+	vsr := createTestVirtualServerRoute("regex-vsr", namespace, host, "~/api")
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{Path: "~/api", Route: "regex-vsr"},
+		{Path: "~ /api", Route: "regex-vsr"},
+	})
+
+	cfg := createTestConfiguration()
+	cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/regex-vsr": vsr,
+	}
+
+	col := cfg.classifyAndCollectVSRs(vs)
+	entry, exists := col.regexEntries[namespace+"/regex-vsr"]
+	if !exists {
+		t.Fatalf("expected regex entry for %s/regex-vsr", namespace)
+	}
+
+	if diff := cmp.Diff([]string{"~/api"}, entry.paths); diff != "" {
+		t.Errorf("classifyAndCollectVSRs() collected unexpected regex paths (-want +got):\n%s", diff)
+	}
+	if entry.firstSeenIdx != 0 {
+		t.Errorf("expected firstSeenIdx 0, got %d", entry.firstSeenIdx)
+	}
+	if len(col.warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", col.warnings)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
@@ -1863,14 +1864,18 @@ func generateBool(s *bool, defaultS bool) bool {
 func generatePath(path string) string {
 	// Format the longest prefix match with a space between the modifier and the path
 	if strings.HasPrefix(path, "^~") {
-		return fmt.Sprintf(`^~ %v`, strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "))
+		return fmt.Sprintf(`^~ %v`, strings.TrimLeftFunc(strings.TrimPrefix(path, "^~"), unicode.IsSpace))
 	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
-		return fmt.Sprintf(`~* "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~*"), " "))
+		return fmt.Sprintf(`~* "%v"`, strings.TrimLeftFunc(strings.TrimPrefix(path, "~*"), unicode.IsSpace))
 	}
 	if strings.HasPrefix(path, "~") {
-		return fmt.Sprintf(`~ "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~"), " "))
+		return fmt.Sprintf(`~ "%v"`, strings.TrimLeftFunc(strings.TrimPrefix(path, "~"), unicode.IsSpace))
+	}
+	// Format the exact match with a space between the modifier and the path
+	if strings.HasPrefix(path, "=") {
+		return fmt.Sprintf(`= %v`, strings.TrimLeftFunc(strings.TrimPrefix(path, "="), unicode.IsSpace))
 	}
 
 	return path
@@ -2055,7 +2060,7 @@ func generateLocationForRedirect(
 	}
 
 	return version2.Location{
-		Path:                 path,
+		Path:                 generatePath(path),
 		Snippets:             locationSnippets,
 		ProxyInterceptErrors: true,
 		InternalProxyPass:    fmt.Sprintf("http://%s", nginx418Server),
@@ -2093,7 +2098,7 @@ func generateLocationForReturn(path string, locationSnippets []string, actionRet
 	retLocName := fmt.Sprintf("@return_%d", retLocIndex)
 
 	return version2.Location{
-			Path:                 path,
+			Path:                 generatePath(path),
 			Snippets:             locationSnippets,
 			ProxyInterceptErrors: true,
 			InternalProxyPass:    fmt.Sprintf("http://%s", nginx418Server),

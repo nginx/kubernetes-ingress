@@ -71,6 +71,14 @@
       "nap_modules": "waf",
       "marker": "agentv2",
       "platforms": "linux/amd64"
+    },
+    {
+      "label": "AGENT_V3_NAP 1/1",
+      "image": "debian-plus-nap-agent",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "agentv3",
+      "platforms": "linux/amd64"
     }
   ],
   "k8s": []

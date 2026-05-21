@@ -1379,6 +1379,51 @@ func TestGenerateLocationForRedirect(t *testing.T) {
 	}
 }
 
+func TestGenerateLocationForReturnRegexPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		path         string
+		expectedPath string
+		msg          string
+	}{
+		{path: "~/api", expectedPath: `~ "/api"`, msg: "regex path is quoted"},
+		{path: "~ /api", expectedPath: `~ "/api"`, msg: "regex path with space is normalized and quoted"},
+		{path: "~*/img", expectedPath: `~* "/img"`, msg: "case-insensitive regex path is quoted"},
+		{path: "/prefix", expectedPath: "/prefix", msg: "prefix path is unchanged"},
+	}
+	snippets := []string{}
+	actionReturn := &conf_v1.ActionReturn{Body: "ok"}
+
+	for _, test := range tests {
+		location, _ := generateLocationForReturn(test.path, snippets, actionReturn, 1)
+		if location.Path != test.expectedPath {
+			t.Errorf("generateLocationForReturn() path = %q, want %q (%s)", location.Path, test.expectedPath, test.msg)
+		}
+	}
+}
+
+func TestGenerateLocationForRedirectRegexPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		path         string
+		expectedPath string
+		msg          string
+	}{
+		{path: "~/api", expectedPath: `~ "/api"`, msg: "regex path is quoted"},
+		{path: "~ /api", expectedPath: `~ "/api"`, msg: "regex path with space is normalized and quoted"},
+		{path: "~*/img", expectedPath: `~* "/img"`, msg: "case-insensitive regex path is quoted"},
+		{path: "/prefix", expectedPath: "/prefix", msg: "prefix path is unchanged"},
+	}
+	redirect := &conf_v1.ActionRedirect{URL: "http://nginx.org"}
+
+	for _, test := range tests {
+		result := generateLocationForRedirect(test.path, []string{}, redirect)
+		if result.Path != test.expectedPath {
+			t.Errorf("generateLocationForRedirect() path = %q, want %q (%s)", result.Path, test.expectedPath, test.msg)
+		}
+	}
+}
+
 func TestGenerateSSLConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -2688,7 +2733,15 @@ func TestGeneratePath(t *testing.T) {
 		},
 		{
 			path:     "=/exact/match",
-			expected: "=/exact/match",
+			expected: "= /exact/match",
+		},
+		{
+			path:     "= /exact/match",
+			expected: "= /exact/match",
+		},
+		{
+			path:     "=\t/exact/match",
+			expected: "= /exact/match",
 		},
 		{
 			path:     `~ *\\.jpg`,
@@ -2709,6 +2762,18 @@ func TestGeneratePath(t *testing.T) {
 		{
 			path:     "^~  /images",
 			expected: "^~ /images",
+		},
+		{
+			path:     "~\t/api",
+			expected: `~ "/api"`,
+		},
+		{
+			path:     "~*\t\t/bar",
+			expected: `~* "/bar"`,
+		},
+		{
+			path:     "^~\t/static",
+			expected: "^~ /static",
 		},
 	}
 
