@@ -526,9 +526,9 @@ jinja2==3.1.6 \
     # via
     #   -r requirements.in
     #   pytest-html
-kubernetes==35.0.0 \
-    --hash=sha256:39e2b33b46e5834ef6c3985ebfe2047ab39135d41de51ce7641a7ca5b372a13d \
-    --hash=sha256:3d00d344944239821458b9efd484d6df9f011da367ecb155dadf9513f05f09ee
+kubernetes==36.0.0 \
+    --hash=sha256:027b606bb8032e6c6464a53236bdd9bd9a94c237e1063bc45a303c25b304ced9 \
+    --hash=sha256:a766433357ec9f90db7565cccf52e28e7fca40b0ef366c80a6022adbc0ac0425
     # via -r requirements.in
 MarkupSafe==3.0.3 \
     --hash=sha256:0303439a41979d9e74d18ff5e2dd8c43ed6c6001fd40e5bf2e43f7bd9bbc523f \
