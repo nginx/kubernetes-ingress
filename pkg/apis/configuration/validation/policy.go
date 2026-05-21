@@ -1165,8 +1165,9 @@ func validateCORSAllowHeaders(headers []string, fieldPath *field.Path) field.Err
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
-		// '*' is a valid standalone wildcard for Access-Control-Allow-Headers
-		// (applies to non-credentialed requests per MDN spec).
+		// '*' is accepted here as a valid standalone wildcard value for
+		// Access-Control-Allow-Headers. Browser handling may differ when
+		// credentials are used, but that is not enforced by this validator.
 		if header == "*" {
 			continue
 		}
@@ -1227,8 +1228,10 @@ func validateCORSExposeHeaders(headers []string, fieldPath *field.Path) field.Er
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
-		// '*' is a valid standalone wildcard for Access-Control-Expose-Headers
-		// (applies to non-credentialed requests per MDN spec).
+		// '*' is accepted here as a valid standalone wildcard for
+		// Access-Control-Expose-Headers. Browsers apply additional CORS
+		// semantics for credentialed requests; that behavior is not enforced
+		// by this validator.
 		if header == "*" {
 			continue
 		}
