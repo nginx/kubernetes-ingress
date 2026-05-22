@@ -5,7 +5,6 @@ on:
     branches:
       - chore/test-app-token
 
-
 defaults:
   run:
     shell: bash
@@ -28,29 +27,26 @@ jobs:
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
+      - name: Get secrets from vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@refs/heads/main
+        with:
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-helm-app-client-id, nginx-bot-helm-app-private-key"
+          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+      - name: Decode private key
+        id: decode
         run: |
-          NGINX_APP_ID=$(az keyvault secret show --name nginx-bot-helm-app-id --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_APP_ID"
-          echo "NGINX_APP_ID=$NGINX_APP_ID" >> $GITHUB_OUTPUT
-          NGINX_APP_PRIVATE_KEY_B64=$(az keyvault secret show --name nginx-bot-helm-app-private-key --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_APP_PRIVATE_KEY_B64"
-          NGINX_APP_PRIVATE_KEY=$(echo "$NGINX_APP_PRIVATE_KEY_B64" | base64 -d)
-          while IFS= read -r line; do
-            echo "::add-mask::$line"
-          done <<< "$NGINX_APP_PRIVATE_KEY"
-          delimiter=$(openssl rand -hex 8)
-          echo "NGINX_APP_PRIVATE_KEY<<${delimiter}" >> $GITHUB_OUTPUT
-          echo "$NGINX_APP_PRIVATE_KEY" >> $GITHUB_OUTPUT
-          echo "${delimiter}" >> $GITHUB_OUTPUT
+          private_key=$(echo "$APP_PRIVATE_KEY_B64" | base64 -d | awk 'BEGIN {ORS="\\n"} {print}' | sed 's/\\n$//')
+          echo "::add-mask::$private_key"
+          echo "private-key=$private_key" >> "$GITHUB_OUTPUT"
 
       - name: Generate GitHub App token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          app-id: ${{ steps.secrets.outputs.NGINX_APP_ID }}
-          private-key: ${{ steps.secrets.outputs.NGINX_APP_PRIVATE_KEY }}
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.decode.outputs.private-key }}
           owner: nginxinc
           repositories: helm-charts
 
