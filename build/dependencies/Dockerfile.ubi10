@@ -1,33 +1,37 @@
 # syntax=docker/dockerfile:1.24
+FROM scratch AS nginx-files
+
+ADD --link --chown=101:0 https://cs.nginx.com/static/files/plus-10.repo nginx-plus-10.repo
+ADD --link --chown=101:0 https://cs.nginx.com/static/files/app-protect-10.repo app-protect-10.repo
+ADD --link --chown=101:0 https://cs.nginx.com/static/files/app-protect-dos-10.repo app-protect-dos-10.repo
+ADD --link --chown=101:0 https://cs.nginx.com/static/files/dependencies.repo dependencies.repo
+
 FROM redhat/ubi10@sha256:936bf25d1a9b2c0c00aa67ec55f8347273763b7c64317ba7404b4b87736b2af2 AS rpm-build
-RUN --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required=false \
+RUN --mount=type=bind,from=nginx-files,src=nginx-plus-10.repo,target=/tmp/nginx-plus.repo \
+    --mount=type=bind,from=nginx-files,src=app-protect-10.repo,target=/tmp/app-protect-10.repo \
+    --mount=type=bind,from=nginx-files,src=app-protect-dos-10.repo,target=/tmp/app-protect-dos-10.repo \
+    --mount=type=bind,from=nginx-files,src=dependencies.repo,target=/tmp/dependencies.repo \
+    --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644,required=false \
+    --mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644,required=false \
+    --mount=type=secret,id=rhel_license,dst=/tmp/rhel_license,mode=0644,required=false \
     mkdir -p /rpms/ \
     && dnf install -y subscription-manager \
     && source /tmp/rhel_license \
     && subscription-manager register --org=${RHEL_ORGANIZATION} --activationkey=${RHEL_ACTIVATION_KEY} \
+    && dnf install -y --enablerepo=codeready-builder-for-rhel-10-$(uname -m)-rpms createrepo_c \
     && dnf download --resolve --destdir=/rpms c-ares \
     && rm -rf /rpms/*devel* \
     && if [ "$(arch)" = "x86_64" ]; then \
-        dnf install -y --enablerepo=codeready-builder-for-rhel-10-x86_64-rpms createrepo_c \
-        && dnf download --resolve --destdir=/rpms \
-            --enablerepo=codeready-builder-for-rhel-10-x86_64-rpms \
-            perl-Class-Accessor perl-File-BaseDir perl-HTML-Tree perl-IO-String perl-IO-stringy \
-            perl-JSON-XS perl-MIME-Types perl-Types-Serialiser perl-XML-Twig \
-            perl-common-sense boost-system boost-thread \
+        cp /tmp/*.repo /etc/yum.repos.d/ \
         && rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm \
         && dnf download --resolve --destdir=/rpms \
             --enablerepo=codeready-builder-for-rhel-10-x86_64-rpms \
-            re2 perl-Config-IniFiles perl-Convert-BinHex perl-Crypt-SSLeay \
-            perl-Email-Date-Format perl-IO-SessionData perl-IPC-ShareLite \
-            perl-MIME-Lite perl-MIME-tools perl-Parse-RecDescent perl-SOAP-Lite \
-            perl-Text-CSV_XS perl-Text-Iconv perl-UNIVERSAL-isa perl-thrift \
-            zeromq \
-        && dnf download --resolve --destdir=/rpms \
-            protobuf perl-Bit-Vector perl-File-Slurp perl-IO-Socket-INET6 \
-            perl-JSON perl-XML-LibXML perl-XML-Simple \
-            boost-filesystem boost-iostreams cjson \
-        && createrepo_c /rpms/; \
+            app-protect \
+            app-protect-dos \
+            app-protect-ip-intelligence \
+        && find /rpms -maxdepth 1 -type f \( -name '*app-protect*' -o -name '*nginx*' \) -exec rm -f {} +; \
     fi \
+    && createrepo_c /rpms/ \
     && subscription-manager unregister
 
 FROM scratch AS final
