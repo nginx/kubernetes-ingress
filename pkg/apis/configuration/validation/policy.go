@@ -1165,11 +1165,18 @@ func validateCORSAllowHeaders(headers []string, fieldPath *field.Path) field.Err
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard value for
+		// Access-Control-Allow-Headers. Browser handling may differ when
+		// credentials are used, but that is not enforced by this validator.
+		if header == "*" {
+			continue
+		}
+
 		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
 
-		// Check for wildcard
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
 		if strings.Contains(header, "*") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
 		}
 
 		// Check for forbidden request headers that cannot be set by JavaScript
@@ -1221,11 +1228,19 @@ func validateCORSExposeHeaders(headers []string, fieldPath *field.Path) field.Er
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard for
+		// Access-Control-Expose-Headers. Browsers apply additional CORS
+		// semantics for credentialed requests; that behavior is not enforced
+		// by this validator.
+		if header == "*" {
+			continue
+		}
+
 		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
 
-		// Check for wildcard
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
 		if strings.Contains(header, "*") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names for exposeHeaders"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
 		}
 
 		// Check for forbidden response headers that cannot be exposed
