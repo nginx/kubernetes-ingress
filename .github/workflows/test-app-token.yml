@@ -3,7 +3,7 @@ name: Test GitHub App Token
 on:
   push:
     branches:
-      - chore/test-app-token
+      - chore/helm-release
 
 defaults:
   run:
