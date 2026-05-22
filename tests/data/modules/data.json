@@ -6,15 +6,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-agent",
@@ -248,15 +248,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-agent",
@@ -429,15 +429,15 @@
       "packages": [
         {
           "name": "nginx",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-module-njs",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-module-otel",
-          "version": "1.31.0"
+          "version": "1.31.1"
         },
         {
           "name": "nginx-agent",
