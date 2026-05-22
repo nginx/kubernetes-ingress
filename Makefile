@@ -3,7 +3,7 @@ VER = $(shell grep IC_VERSION .github/data/version.txt | cut -d '=' -f 2)
 GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.0
+NGINX_OSS_VERSION             ?= 1.31.1
 NGINX_PLUS_VERSION            ?= R37.0
 NAP_WAF_VERSION               ?= 37.0+5.635
 NAP_WAF_COMMON_VERSION        ?= 11.665
