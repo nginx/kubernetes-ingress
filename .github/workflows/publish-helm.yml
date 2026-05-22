@@ -89,9 +89,7 @@ jobs:
           DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$DOCKER_PASSWORD"
           echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
-          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_PAT"
-          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -123,12 +121,38 @@ jobs:
           helm push ${{ steps.package.outputs.path }} oci://ghcr.io/nginx/charts
           helm push ${{ steps.package.outputs.path }} oci://registry-1.docker.io/nginxcharts
 
+      - name: Get GitHub App secrets from vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@refs/heads/main
+        with:
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-helm-app-client-id, nginx-bot-helm-app-private-key"
+          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+        if: ${{ inputs.nginx_helm_repo }}
+
+      - name: Decode GitHub App private key
+        id: app-key
+        run: |
+          private_key=$(echo "$APP_PRIVATE_KEY_B64" | base64 -d | awk 'BEGIN {ORS="\\n"} {print}' | sed 's/\\n$//')
+          echo "::add-mask::$private_key"
+          echo "private-key=$private_key" >> "$GITHUB_OUTPUT"
+        if: ${{ inputs.nginx_helm_repo }}
+
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.app-key.outputs.private-key }}
+          owner: nginxinc
+          repositories: helm-charts
+        if: ${{ inputs.nginx_helm_repo }}
+
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: nginxinc/helm-charts
           fetch-depth: 1
-          token: ${{ steps.secrets.outputs.NGINX_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
           path: helm-charts
         if: ${{ inputs.nginx_helm_repo }}
 
