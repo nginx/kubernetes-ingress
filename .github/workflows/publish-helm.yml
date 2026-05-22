@@ -130,7 +130,7 @@ jobs:
           fi
           sed -i "s|^name:.*|name: ${chart_name}|" kic/charts/nginx-ingress/Chart.yaml
           if [[ "${{ inputs.ic_version }}" =~ ^20[0-9]+-lts ]]; then
-            IMAGE_REPOSITORY="private-registry.nginx.com/lts/nginx-ic/nginx-plus-ingress"
+            IMAGE_REPOSITORY="private-registry.nginx.com/nginx-ic/lts/nginx-plus-ingress"
             sed -i "s|^  nginxplus: false|  nginxplus: true|" kic/charts/nginx-ingress/values.yaml
             sed -E -i "s|^(    )repository:.*|\1repository: ${IMAGE_REPOSITORY}|" kic/charts/nginx-ingress/values.yaml
             sed -E -i "s|^(    )(# *)?tag:.*|\1tag: \"${{ inputs.ic_version }}\"|" kic/charts/nginx-ingress/values.yaml
