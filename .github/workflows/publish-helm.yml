@@ -117,7 +117,7 @@ jobs:
           helm push ${{ steps.package.outputs.path }} oci://registry-1.docker.io/nginxcharts
 
       - name: Decode GitHub App private key
-        id: app-key
+        id: app_key
         run: |
           private_key=$(echo "$APP_PRIVATE_KEY_B64" | base64 -d | awk 'BEGIN {ORS="\\n"} {print}' | sed 's/\\n$//')
           echo "::add-mask::$private_key"
@@ -129,7 +129,7 @@ jobs:
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ env.APP_CLIENT_ID }}
-          private-key: ${{ steps.app-key.outputs.private_key }}
+          private-key: ${{ steps.app_key.outputs.private_key }}
           owner: nginxinc
           repositories: helm-charts
         if: ${{ inputs.nginx_helm_repo }}
