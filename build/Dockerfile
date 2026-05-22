@@ -166,7 +166,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& rpm -qa --queryformat "%{NAME}\n" | sort > pkgs-installed \
 	&& microdnf --nodocs --setopt=install_weak_deps=0 install -y diffutils dnf \
 	&& rpm -qa --queryformat "%{NAME}\n" | sort > pkgs-new \
-	&& dnf install -y /ubi-bin/*.rpm \
+	&& rpm -Uvh /ubi-bin/c-ares-*.rpm \
 	&& dnf -q repoquery --resolve --requires --recursive --whatrequires nginx --queryformat "%{NAME}" > pkgs-nginx \
 	&& dnf --setopt=protected_packages= remove -y $(comm -13 pkgs-installed pkgs-new | comm -13 pkgs-nginx -) \
 	&& rm pkgs-installed pkgs-new pkgs-nginx \
