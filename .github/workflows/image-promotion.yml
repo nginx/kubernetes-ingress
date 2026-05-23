@@ -99,7 +99,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -161,7 +161,7 @@ jobs:
           fi
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         if: steps.check-sarif.outputs.sarif_has_results == 'true'
         with:
           sarif_file: govulncheck.sarif
@@ -355,7 +355,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           context: workflow
           images: |
@@ -410,14 +410,14 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: DockerHub Login for Docker Scout
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
@@ -443,7 +443,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}
@@ -473,7 +473,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           context: workflow
           images: |
@@ -528,14 +528,14 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: DockerHub Login for Docker Scout
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
@@ -561,7 +561,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}
@@ -598,7 +598,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           context: workflow
           images: |
@@ -653,14 +653,14 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: DockerHub Login for Docker Scout
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
@@ -686,7 +686,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4.36.0
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}
