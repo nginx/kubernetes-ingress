@@ -712,10 +712,11 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
-					ClientCert:   mTLSCertPath,
-					ClientCrl:    mTLSCrlPath,
-					VerifyClient: "off",
-					VerifyDepth:  1,
+					ClientCert:     mTLSCertPath,
+					ClientCrl:      mTLSCrlPath,
+					ClientCertHash: "8085a4cfe04579ef59523f8ca09e9a2bb5d6053242979e645bd16eaa11b87c88",
+					VerifyClient:   "off",
+					VerifyDepth:    1,
 				},
 			},
 			msg: "ingressMTLS reference with ca.crl field in secret",
@@ -3265,10 +3266,11 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				IngressMTLS: &version2.IngressMTLS{
-					ClientCert:   ingressMTLSCertPath,
-					ClientCrl:    ingressMTLSCrlPath,
-					VerifyClient: "on",
-					VerifyDepth:  1,
+					ClientCert:     ingressMTLSCertPath,
+					ClientCrl:      ingressMTLSCrlPath,
+					ClientCertHash: "8085a4cfe04579ef59523f8ca09e9a2bb5d6053242979e645bd16eaa11b87c88",
+					VerifyClient:   "on",
+					VerifyDepth:    1,
 				},
 				ErrorReturn: nil,
 			},

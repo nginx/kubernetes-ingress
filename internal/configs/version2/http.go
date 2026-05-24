@@ -125,10 +125,18 @@ type SSL struct {
 
 // IngressMTLS defines TLS configuration for a server. This is a subset of TLS specifically for clients auth.
 type IngressMTLS struct {
-	ClientCert   string
-	ClientCrl    string
-	VerifyClient string
-	VerifyDepth  int
+	ClientCert string
+	ClientCrl  string
+	// ClientCertHash is a stable digest of the CA secret data. It is rendered
+	// as a comment alongside ssl_client_certificate so that rotating the CA
+	// secret causes the rendered NGINX config to differ, which triggers a
+	// reload. Without this, NGINX would continue to use the CA cert it
+	// loaded into memory at config-load time until an unrelated event
+	// produced a reload, since only the file contents (not the path) change
+	// across rotations.
+	ClientCertHash string
+	VerifyClient   string
+	VerifyDepth    int
 }
 
 // EgressMTLS defines upstream TLS configuration applied at server or location scope.

@@ -494,25 +494,43 @@ func (p *policiesCfg) addIngressMTLSConfig(
 		res.addWarningf("Both ca.crl in the Secret and ingressMTLS.crlFileName fields cannot be used. ca.crl in %s will be ignored and %s will be applied", secretKey, polKey)
 	}
 
+	// Fingerprint the exact bytes that feed ssl_client_certificate / ssl_crl
+	// so that secret rotations cause the rendered config to change and
+	// trigger an NGINX reload. Hash only the keys we actually consume — never
+	// the whole Secret.Data map — so unrelated entries cannot leak into the
+	// rendered config as a side-channel fingerprint. If neither key is
+	// present we leave the hash empty so the template skips rendering the
+	// fingerprint comment (matches the existing "render only when non-empty"
+	// gate and keeps test fixtures with empty Secret.Data unaffected).
+	caCert := secretRef.Secret.Data[secrets.CAKey]
+	caCrl := secretRef.Secret.Data[CACrlKey]
+	var clientCertHash string
+	if len(caCert) > 0 || len(caCrl) > 0 {
+		clientCertHash = secrets.ComputeContentHash(caCert, caCrl)
+	}
+
 	if ingressMTLS.CrlFileName != "" {
 		p.IngressMTLS = &version2.IngressMTLS{
-			ClientCert:   caFields[0],
-			ClientCrl:    fmt.Sprintf("%s/%s", DefaultSecretPath, ingressMTLS.CrlFileName),
-			VerifyClient: verifyClient,
-			VerifyDepth:  verifyDepth,
+			ClientCert:     caFields[0],
+			ClientCrl:      fmt.Sprintf("%s/%s", DefaultSecretPath, ingressMTLS.CrlFileName),
+			ClientCertHash: clientCertHash,
+			VerifyClient:   verifyClient,
+			VerifyDepth:    verifyDepth,
 		}
 	} else if _, hasCrlKey := secretRef.Secret.Data[CACrlKey]; hasCrlKey {
 		p.IngressMTLS = &version2.IngressMTLS{
-			ClientCert:   caFields[0],
-			ClientCrl:    caFields[1],
-			VerifyClient: verifyClient,
-			VerifyDepth:  verifyDepth,
+			ClientCert:     caFields[0],
+			ClientCrl:      caFields[1],
+			ClientCertHash: clientCertHash,
+			VerifyClient:   verifyClient,
+			VerifyDepth:    verifyDepth,
 		}
 	} else {
 		p.IngressMTLS = &version2.IngressMTLS{
-			ClientCert:   caFields[0],
-			VerifyClient: verifyClient,
-			VerifyDepth:  verifyDepth,
+			ClientCert:     caFields[0],
+			ClientCertHash: clientCertHash,
+			VerifyClient:   verifyClient,
+			VerifyDepth:    verifyDepth,
 		}
 	}
 	return res
