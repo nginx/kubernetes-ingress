@@ -1035,6 +1035,11 @@ def get_nginx_template_conf(v1: CoreV1Api, ic_namespace, ic_pod_name=None, print
     return get_file_contents(v1, file_path, ic_pod_name, ic_namespace, print_log)
 
 
+def get_default_server_conf(v1: CoreV1Api, pod_name, pod_namespace, print_log=False) -> str:
+    """Get the contents of _default-server.conf from the IC pod."""
+    return get_file_contents(v1, "/etc/nginx/conf.d/_default-server.conf", pod_name, pod_namespace, print_log)
+
+
 def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_name, pod_name, pod_namespace) -> str:
     """
     Get contents of /etc/nginx/conf.d/{namespace}-{ingress_name}.conf in the pod.

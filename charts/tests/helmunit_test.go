@@ -166,9 +166,19 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "app-protect-wafv5-agentv2",
 			namespace:   "default",
 		},
+		"appProtectWAFV5AgentV3": {
+			valuesFile:  "testdata/app-protect-wafv5-agentv3.yaml",
+			releaseName: "app-protect-wafv5-agentv3",
+			namespace:   "default",
+		},
 		"appProtectWAFV4AgentV2": {
 			valuesFile:  "testdata/app-protect-waf-agentv2.yaml",
 			releaseName: "app-protect-waf-agentv2",
+			namespace:   "default",
+		},
+		"appProtectWAFV4AgentV3": {
+			valuesFile:  "testdata/app-protect-waf-agentv3.yaml",
+			releaseName: "app-protect-waf-agentv3",
 			namespace:   "default",
 		},
 		"startupStatusValid": {
@@ -184,6 +194,11 @@ func TestHelmNICTemplate(t *testing.T) {
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",
+			namespace:   "default",
+		},
+		"allowEmptyIngressHost": {
+			valuesFile:  "testdata/allow-empty-ingress-host.yaml",
+			releaseName: "allow-empty-ingress-host",
 			namespace:   "default",
 		},
 	}

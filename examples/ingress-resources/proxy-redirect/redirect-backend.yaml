@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redirect-backend-config
+data:
+  default.conf: |-
+    server {
+        listen 8080;
+
+        # Every request is answered with a 301 whose Location header uses
+        # the internal service name.  This simulates a backend that issues
+        # redirects to its own hostname, proxy_redirect is needed to rewrite the
+        # Location header before it reaches the client.
+        location /coffee {
+            return 301 http://redirect-backend-svc/v1/coffee;
+        }
+
+        location /tea {
+            return 301 http://redirect-backend-svc/v1/tea;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redirect-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redirect-backend
+  template:
+    metadata:
+      labels:
+        app: redirect-backend
+    spec:
+      containers:
+        - name: redirect-backend
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config-volume
+          configMap:
+            name: redirect-backend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redirect-backend-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: redirect-backend

@@ -485,7 +485,8 @@ func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 	// WAF Policy references either apPolicy or apBundle.
 	if waf.ApPolicy != "" && waf.ApBundle != "" {
 		msg := "apPolicy and apBundle fields in the WAF policy are mutually exclusive"
-		allErrs = append(allErrs,
+		allErrs = append(
+			allErrs,
 			field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg),
 			field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg),
 		)
@@ -710,7 +711,8 @@ func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode 
 
 	if logConf.ApLogConf != "" && logConf.ApLogBundle != "" {
 		msg := "apLogConf and apLogBundle fields in the securityLog are mutually exclusive"
-		allErrs = append(allErrs,
+		allErrs = append(
+			allErrs,
 			field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg),
 			field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg),
 		)
@@ -747,8 +749,8 @@ func validateClientID(client string, fieldPath *field.Path) field.ErrorList {
 		return field.ErrorList{field.Invalid(
 			fieldPath,
 			client,
-			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'
-		`)}
+			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'`,
+		)}
 	}
 	return nil
 }
@@ -1163,11 +1165,18 @@ func validateCORSAllowHeaders(headers []string, fieldPath *field.Path) field.Err
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard value for
+		// Access-Control-Allow-Headers. Browser handling may differ when
+		// credentials are used, but that is not enforced by this validator.
+		if header == "*" {
+			continue
+		}
+
 		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
 
-		// Check for wildcard
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
 		if strings.Contains(header, "*") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
 		}
 
 		// Check for forbidden request headers that cannot be set by JavaScript
@@ -1219,11 +1228,19 @@ func validateCORSExposeHeaders(headers []string, fieldPath *field.Path) field.Er
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard for
+		// Access-Control-Expose-Headers. Browsers apply additional CORS
+		// semantics for credentialed requests; that behavior is not enforced
+		// by this validator.
+		if header == "*" {
+			continue
+		}
+
 		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
 
-		// Check for wildcard
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
 		if strings.Contains(header, "*") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names for exposeHeaders"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
 		}
 
 		// Check for forbidden response headers that cannot be exposed

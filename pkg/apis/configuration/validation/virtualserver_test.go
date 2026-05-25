@@ -10,6 +10,38 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+func TestNormalizePath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input    string
+		expected string
+		msg      string
+	}{
+		{input: "/foo", expected: "/foo", msg: "plain prefix unchanged"},
+		{input: "~ /api", expected: "~/api", msg: "regex with space"},
+		{input: "~  /api", expected: "~/api", msg: "regex with double space"},
+		{input: "~\t/api", expected: "~/api", msg: "regex with tab"},
+		{input: "~/api", expected: "~/api", msg: "regex without space"},
+		{input: "~* /bar", expected: "~*/bar", msg: "regex-ic with space"},
+		{input: "~*  /bar", expected: "~*/bar", msg: "regex-ic with double space"},
+		{input: "~*/bar", expected: "~*/bar", msg: "regex-ic without space"},
+		{input: "= /exact", expected: "=/exact", msg: "exact with space"},
+		{input: "=/exact", expected: "=/exact", msg: "exact without space"},
+		{input: "^~ /images", expected: "^~/images", msg: "longest prefix with space"},
+		{input: "^~/images", expected: "^~/images", msg: "longest prefix without space"},
+		{input: "~\u00a0/api", expected: "~/api", msg: "regex with non-breaking space (U+00A0)"},
+		{input: "^~\u00a0/images", expected: "^~/images", msg: "longest prefix with non-breaking space (U+00A0)"},
+		{input: "=\u00a0/exact", expected: "=/exact", msg: "exact with non-breaking space (U+00A0)"},
+	}
+
+	for _, test := range tests {
+		result := NormalizePath(test.input)
+		if result != test.expected {
+			t.Errorf("NormalizePath(%q) = %q, want %q for case: %s", test.input, result, test.expected, test.msg)
+		}
+	}
+}
+
 func TestValidateVirtualServer(t *testing.T) {
 	t.Parallel()
 
@@ -967,6 +999,20 @@ func TestValidateVirtualServerRoutes(t *testing.T) {
 			},
 			msg: "valid route",
 		},
+		{
+			routes: []v1.Route{
+				{
+					Path:  "~ /regex-one",
+					Route: "default/my-vsr",
+				},
+				{
+					Path:  "~* /regex-two",
+					Route: "default/my-vsr",
+				},
+			},
+			upstreamNames: map[string]sets.Empty{},
+			msg:           "multiple regex routes referencing the same VSR",
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
@@ -1017,6 +1063,48 @@ func TestValidateVirtualServerRoutesFails(t *testing.T) {
 			},
 			upstreamNames: map[string]sets.Empty{},
 			msg:           "invalid route",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path:  "~ /regex",
+					Route: "default/my-vsr",
+				},
+				{
+					Path:  "/prefix",
+					Route: "default/my-vsr",
+				},
+			},
+			upstreamNames: map[string]sets.Empty{},
+			msg:           "mixed modifier types referencing the same VSR",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path:  "= /exact",
+					Route: "default/my-vsr",
+				},
+				{
+					Path:  "~ /regex",
+					Route: "default/my-vsr",
+				},
+			},
+			upstreamNames: map[string]sets.Empty{},
+			msg:           "exact and regex referencing the same VSR",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path:  "~ /regex",
+					Route: "my-vsr",
+				},
+				{
+					Path:  "/prefix",
+					Route: "default/my-vsr",
+				},
+			},
+			upstreamNames: map[string]sets.Empty{},
+			msg:           "mixed types with implicit and explicit namespace referencing same VSR",
 		},
 	}
 
@@ -1635,6 +1723,14 @@ func TestValidateRegexPath(t *testing.T) {
 			regexPath: "~ ^/coffee/(?!.*\\/latte)(?!.*\\/americano)(.*)",
 			msg:       "regex with backtracking",
 		},
+		{
+			regexPath: "~  ^/foo.*\\.jpg",
+			msg:       "case sensitive regexp with extra space after modifier",
+		},
+		{
+			regexPath: "~*\t^/Bar.*\\.jpg",
+			msg:       "case insensitive regexp with tab after modifier",
+		},
 	}
 
 	for _, test := range tests {
@@ -1666,6 +1762,10 @@ func TestValidateRegexPathFails(t *testing.T) {
 		{
 			regexPath: `~ /foo\`,
 			msg:       "ending in backslash",
+		},
+		{
+			regexPath: "~ +",
+			msg:       "bare + after modifier is nothing to repeat",
 		},
 	}
 
@@ -2406,7 +2506,7 @@ func TestValidateVirtualServerRouteForVirtualServer(t *testing.T) {
 
 	vsv := &VirtualServerValidator{isPlus: false}
 
-	err := vsv.ValidateVirtualServerRouteForVirtualServer(&virtualServerRoute, virtualServerHost, pathPrefix)
+	err := vsv.ValidateVirtualServerRouteForVirtualServer(&virtualServerRoute, virtualServerHost, []string{pathPrefix})
 	if err != nil {
 		t.Errorf("ValidateVirtualServerRouteForVirtualServer() returned error %v for valid input %v", err, virtualServerRoute)
 	}
@@ -2436,13 +2536,13 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 	tests := []struct {
 		routes        []v1.Route
 		upstreamNames sets.Set[string]
-		vsPath        string
+		vsPaths       []string
 		msg           string
 	}{
 		{
 			routes:        []v1.Route{},
 			upstreamNames: sets.Set[string]{},
-			vsPath:        "/",
+			vsPaths:       []string{"/"},
 			msg:           "no routes",
 		},
 		{
@@ -2457,8 +2557,8 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test": {},
 			},
-			vsPath: "/",
-			msg:    "valid prefix route",
+			vsPaths: []string{"/"},
+			msg:     "valid prefix route",
 		},
 		{
 			routes: []v1.Route{
@@ -2478,8 +2578,8 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test": {},
 			},
-			vsPath: "/",
-			msg:    "valid route prefix with two paths",
+			vsPaths: []string{"/"},
+			msg:     "valid route prefix with two paths",
 		},
 		{
 			routes: []v1.Route{
@@ -2493,8 +2593,8 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test": {},
 			},
-			vsPath: "~/test",
-			msg:    "valid regex route",
+			vsPaths: []string{"~/test"},
+			msg:     "valid regex route",
 		},
 		{
 			routes: []v1.Route{
@@ -2508,8 +2608,8 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test": {},
 			},
-			vsPath: "~ /regex1/?(.*)",
-			msg:    "valid regex route",
+			vsPaths: []string{"~ /regex1/?(.*)"},
+			msg:     "valid regex route with space",
 		},
 		{
 			routes: []v1.Route{
@@ -2523,8 +2623,8 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test": {},
 			},
-			vsPath: "=/test",
-			msg:    "valid exact route",
+			vsPaths: []string{"=/test"},
+			msg:     "valid exact route",
 		},
 		{
 			routes: []v1.Route{
@@ -2544,8 +2644,50 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test": {},
 			},
-			vsPath: "^~/images",
-			msg:    "valid longest prefix match with multiple subroutes",
+			vsPaths: []string{"^~/images"},
+			msg:     "valid longest prefix match with multiple subroutes",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~/images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"^~ /images"},
+			msg:     "valid longest prefix match with spaced VS path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "~/api/v1",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+				{
+					Path: "~/api/v2",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+				{
+					Path: "~/api/v3",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"~/api/v1", "~/api/v2", "~/api/v3"},
+			msg:     "valid multiple regex subroutes matching multiple VS paths",
 		},
 	}
 
@@ -2553,7 +2695,7 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 
 	for _, test := range tests {
 		allErrs := vsv.validateVirtualServerRouteSubroutes(test.routes, field.NewPath("subroutes"), test.upstreamNames,
-			test.vsPath, "default")
+			test.vsPaths, "default")
 		if len(allErrs) > 0 {
 			t.Errorf("validateVirtualServerRouteSubroutes() returned errors %v for valid input for the case of %s", allErrs, test.msg)
 		}
@@ -2565,7 +2707,7 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 	tests := []struct {
 		routes        []v1.Route
 		upstreamNames sets.Set[string]
-		vsPath        string
+		vsPaths       []string
 		msg           string
 	}{
 		{
@@ -2587,8 +2729,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 				"test-1": {},
 				"test-2": {},
 			},
-			vsPath: "/",
-			msg:    "duplicated paths",
+			vsPaths: []string{"/"},
+			msg:     "duplicated paths",
 		},
 		{
 			routes: []v1.Route{
@@ -2598,7 +2740,7 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 				},
 			},
 			upstreamNames: map[string]sets.Empty{},
-			vsPath:        "",
+			vsPaths:       nil,
 			msg:           "invalid route",
 		},
 		{
@@ -2613,8 +2755,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "/abc",
-			msg:    "invalid prefix",
+			vsPaths: []string{"/abc"},
+			msg:     "invalid prefix",
 		},
 		{
 			routes: []v1.Route{
@@ -2634,8 +2776,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "/abc",
-			msg:    "prefix vs path with both matching prefix and mismatching regex subroute path",
+			vsPaths: []string{"/abc"},
+			msg:     "prefix vs path with both matching prefix and mismatching regex subroute path",
 		},
 		{
 			routes: []v1.Route{
@@ -2649,8 +2791,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "/test",
-			msg:    "prefix vs path with matching regex subroute path",
+			vsPaths: []string{"/test"},
+			msg:     "prefix vs path with matching regex subroute path",
 		},
 		{
 			routes: []v1.Route{
@@ -2664,8 +2806,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "/test",
-			msg:    "prefix vs path with matching exact subroute path",
+			vsPaths: []string{"/test"},
+			msg:     "prefix vs path with matching exact subroute path",
 		},
 		{
 			routes: []v1.Route{
@@ -2679,8 +2821,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "=/test",
-			msg:    "exact vs path with prefix subroute path",
+			vsPaths: []string{"=/test"},
+			msg:     "exact vs path with prefix subroute path",
 		},
 		{
 			routes: []v1.Route{
@@ -2694,8 +2836,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "~/test",
-			msg:    "regex vs path with exact subroute path",
+			vsPaths: []string{"~/test"},
+			msg:     "regex vs path with exact subroute path",
 		},
 		{
 			routes: []v1.Route{
@@ -2715,8 +2857,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "/abc",
-			msg:    "prefix vs path with both exact and matching prefix subroute path",
+			vsPaths: []string{"/abc"},
+			msg:     "prefix vs path with both exact and matching prefix subroute path",
 		},
 		{
 			routes: []v1.Route{
@@ -2736,8 +2878,8 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "/test",
-			msg:    "prefix vs path with both regex and matching prefix subroute path",
+			vsPaths: []string{"/test"},
+			msg:     "prefix vs path with both regex and matching prefix subroute path",
 		},
 		{
 			routes: []v1.Route{
@@ -2751,8 +2893,107 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			upstreamNames: map[string]sets.Empty{
 				"test-1": {},
 			},
-			vsPath: "^~/images",
-			msg:    "longest prefix match vs path with plain prefix subroute path",
+			vsPaths: []string{"^~/images"},
+			msg:     "longest prefix match vs path with plain prefix subroute path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~/images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "^~ /images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+			},
+			vsPaths: []string{"^~ /images"},
+			msg:     "spacing-duplicate longest prefix subroute paths",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "~/api/v1",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+			},
+			vsPaths: []string{"~/api/v1", "~/api/v2"},
+			msg:     "regex subroute missing coverage for VS path ~/api/v2",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "~/api/v1",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "~/api/v2",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "~/api/v3",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+			},
+			vsPaths: []string{"~/api/v1", "~/api/v2"},
+			msg:     "orphaned regex subroute ~/api/v3 not referenced by any VS path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "~/api/v1",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "~ /api/v1",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+			},
+			vsPaths: []string{"~/api/v1"},
+			msg:     "spacing-duplicate regex subroute paths",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "~/api/v1",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+			},
+			vsPaths: []string{"~/api/v1", "=/exact"},
+			msg:     "mixed modifier types in vsPaths",
 		},
 	}
 
@@ -2760,7 +3001,7 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 
 	for _, test := range tests {
 		allErrs := vsv.validateVirtualServerRouteSubroutes(test.routes, field.NewPath("subroutes"), test.upstreamNames,
-			test.vsPath, "default")
+			test.vsPaths, "default")
 		if len(allErrs) == 0 {
 			t.Errorf("validateVirtualServerRouteSubroutes() returned no errors for the case of %s", test.msg)
 		}
@@ -3507,38 +3748,6 @@ func TestValidateRedirectStatusCodeFails(t *testing.T) {
 		allErrs := validateRedirectStatusCode(test.code, field.NewPath("code"))
 		if len(allErrs) == 0 {
 			t.Errorf("validateRedirectStatusCode(%v) returned no errors for invalid input", test.code)
-		}
-	}
-}
-
-func TestIsRegexOrExactMatch(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		path     string
-		expected bool
-	}{
-		{
-			path:     "/path",
-			expected: false,
-		},
-		{
-			path:     "~ .*\\.jpg",
-			expected: true,
-		},
-		{
-			path:     "=/exact/match",
-			expected: true,
-		},
-		{
-			path:     "^~/images",
-			expected: false,
-		},
-	}
-
-	for _, test := range tests {
-		result := isRegexOrExactMatch(test.path)
-		if result != test.expected {
-			t.Errorf("isRegexOrExactMatch(%v) returned %v but expected %v", test.path, result, test.expected)
 		}
 	}
 }
@@ -4762,6 +4971,46 @@ func TestValidateRouteSelector(t *testing.T) {
 		}
 		if !test.valid && len(allErrs) == 0 {
 			t.Errorf("tc(%s) validateRouteSelector(%v) returned no errors for invalid input", test.name, test.selector)
+		}
+	}
+}
+
+func TestValidateAddHeaderInherit_ValidValues(t *testing.T) {
+	t.Parallel()
+
+	validValues := []string{
+		"on",
+		"ON",
+		"off",
+		"ofF",
+		"merge",
+		"MeRGe",
+	}
+	for _, value := range validValues {
+		allErrs := validateAddHeaderInherit(value, field.NewPath("add-header-inherit"))
+		if len(allErrs) != 0 {
+			t.Errorf("validateAddHeaderInherit(%q) returned errors for valid input: %v", value, allErrs)
+		}
+	}
+}
+
+func TestValidateAddHeaderInherit_InvalidValues(t *testing.T) {
+	t.Parallel()
+
+	invalidValues := []string{
+		"",
+		"invalid",
+		"yes",
+		"no",
+		"true",
+		"false",
+		"merging",
+		"onoff",
+	}
+	for _, value := range invalidValues {
+		allErrs := validateAddHeaderInherit(value, field.NewPath("add-header-inherit"))
+		if len(allErrs) == 0 {
+			t.Errorf("validateAddHeaderInherit(%q) returned no errors for invalid input", value)
 		}
 	}
 }

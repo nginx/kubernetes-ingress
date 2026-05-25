@@ -80,7 +80,7 @@ func TestValidateIngress_WithValidPathRegexValuesForNGINXPlus(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false, false)
 			if len(allErrs) != 0 {
 				t.Errorf("want no errors, got %+v\n", allErrs)
 			}
@@ -155,7 +155,7 @@ func TestValidateIngress_WithValidPathRegexValuesForNGINX(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false, false)
 			if len(allErrs) != 0 {
 				t.Errorf("want no errors, got %+v\n", allErrs)
 			}
@@ -212,7 +212,7 @@ func TestValidateIngress_WithInvalidPathRegexValuesForNGINXPlus(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false, false)
 			if len(allErrs) == 0 {
 				t.Error("want errors on invalid path regex values")
 			}
@@ -270,7 +270,7 @@ func TestValidateIngress_WithInvalidPathRegexValuesForNGINX(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false)
+			allErrs := validateIngress(tc.ingress, tc.isPlus, false, false, false, false, false, false)
 			if len(allErrs) == 0 {
 				t.Error("want errors on invalid path regex values")
 			}
@@ -287,6 +287,7 @@ func TestValidateIngress(t *testing.T) {
 		appProtectEnabled     bool
 		appProtectDosEnabled  bool
 		internalRoutesEnabled bool
+		allowEmptyIngressHost bool
 		expectedErrors        []string
 		msg                   string
 	}{
@@ -304,6 +305,7 @@ func TestValidateIngress(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			allowEmptyIngressHost: false,
 			expectedErrors:        nil,
 			msg:                   "valid input",
 		},
@@ -326,6 +328,7 @@ func TestValidateIngress(t *testing.T) {
 			appProtectEnabled:     false,
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
+			allowEmptyIngressHost: false,
 			expectedErrors: []string{
 				`annotations.nginx.org/mergeable-ingress-type: Invalid value: "invalid": must be one of: 'master' or 'minion'`,
 				"spec.rules[0].host: Required value",
@@ -390,10 +393,340 @@ func TestValidateIngress(t *testing.T) {
 			},
 			msg: "invalid minion",
 		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "valid hostless ingress when allowed",
+		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					TLS:   []networking.IngressTLS{{SecretName: "default-cert"}},
+					Rules: []networking.IngressRule{{Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow hostless tls without tls hosts",
+		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					TLS:   []networking.IngressTLS{{Hosts: []string{"cafe.example.com"}, SecretName: "named-cert"}},
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}, {Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow mixed named and empty hosts with named tls",
+		},
+		{
+			ing: &networking.Ingress{
+				Spec: networking.IngressSpec{
+					TLS:   []networking.IngressTLS{{Hosts: []string{""}, SecretName: "default-cert"}},
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}, {Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors: []string{
+				"spec.tls[0].hosts[0]: Forbidden: empty host is not allowed in tls.hosts; TLS for the default catch-all server is configured via the -default-server-tls-secret CLI flag",
+			},
+			msg: "reject mixed named and empty hosts with empty-host tls entry",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						listenPortsAnnotation: "80,8080",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors: []string{
+				"annotations.nginx.org/listen-ports: Forbidden: annotation is not supported for hostless Ingress",
+			},
+			msg: "reject hostless listen ports",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						listenPortsAnnotation: "80,8080",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow listen ports for non-hostless ingress",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						listenPortsAnnotation: "80,8080",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}, {Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors: []string{
+				"annotations.nginx.org/listen-ports: Forbidden: annotation is not supported for hostless Ingress",
+			},
+			msg: "reject hostless listen ports for mixed named and empty hosts",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						hstsAnnotation:             "true",
+						proxyHideHeadersAnnotation: "Server",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: ""}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "allow hostless overrideable defaults",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						"nginx.org/mergeable-ingress-type": "master",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{
+						{
+							Host: "",
+						},
+					},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "valid hostless master ingress",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						"nginx.org/mergeable-ingress-type": "minion",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{
+						{
+							Host:             "",
+							IngressRuleValue: networking.IngressRuleValue{},
+						},
+					},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			allowEmptyIngressHost: true,
+			expectedErrors: []string{
+				"spec.rules[0].http.paths: Required value: must include at least one path",
+			},
+			msg: "hostless minion still requires paths",
+		},
+
+		// proxy-redirect cross-annotation pair validation tests
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "off",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid proxy-redirect-from 'off' without proxy-redirect-to",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "default",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid proxy-redirect-from 'default' without proxy-redirect-to",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "off",
+						configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-to: Invalid value: "": nginx.org/proxy-redirect-to cannot be set when nginx.org/proxy-redirect-from is "off"`,
+			},
+			msg: "invalid proxy-redirect-to set when proxy-redirect-from is 'off'",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "default",
+						configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-to: Invalid value: "": nginx.org/proxy-redirect-to cannot be set when nginx.org/proxy-redirect-from is "default"`,
+			},
+			msg: "invalid proxy-redirect-to set when proxy-redirect-from is 'default'",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+						configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid proxy-redirect-from and proxy-redirect-to both set",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectToAnnotation: "http://cafe.example.com/coffee/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-to: Invalid value: "": nginx.org/proxy-redirect-to requires nginx.org/proxy-redirect-from to also be set`,
+			},
+			msg: "invalid proxy-redirect-to set without proxy-redirect-from",
+		},
+		{
+			ing: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Annotations: map[string]string{
+						configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+					},
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{{Host: "cafe.example.com"}},
+				},
+			},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://cafe.example.com/v1/": nginx.org/proxy-redirect-from with a URL or regex value requires nginx.org/proxy-redirect-to to also be set`,
+			},
+			msg: "invalid proxy-redirect-from URL without proxy-redirect-to",
+		},
 	}
 
 	for _, test := range tests {
-		allErrs := validateIngress(test.ing, test.isPlus, test.appProtectEnabled, test.appProtectDosEnabled, test.internalRoutesEnabled, false, false)
+		allErrs := validateIngress(test.ing, test.isPlus, test.appProtectEnabled, test.appProtectDosEnabled, test.internalRoutesEnabled, false, false, test.allowEmptyIngressHost)
 		assertion := assertErrors("validateIngress()", test.msg, allErrs, test.expectedErrors)
 		if assertion != "" {
 			t.Error(assertion)
@@ -412,6 +745,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		internalRoutesEnabled bool
 		snippetsEnabled       bool
 		directiveAutoAdjust   bool
+		hostless              bool
 		expectedErrors        []string
 		msg                   string
 	}{
@@ -962,6 +1296,64 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			directiveAutoAdjust:   false,
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/location-snippets annotation, multi-value",
+		},
+		{
+			annotations: map[string]string{
+				configs.AddHeaderInheritAnnotation: "on",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			snippetsEnabled:       true,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/add-header-inherit annotation with on",
+		},
+		{
+			annotations: map[string]string{
+				configs.AddHeaderInheritAnnotation: "off",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			snippetsEnabled:       true,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/add-header-inherit annotation with off",
+		},
+		{
+			annotations: map[string]string{
+				configs.AddHeaderInheritAnnotation: "merge",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			snippetsEnabled:       true,
+			directiveAutoAdjust:   false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/add-header-inherit annotation with merge",
+		},
+		{
+			annotations: map[string]string{
+				configs.AddHeaderInheritAnnotation: "bogus",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			snippetsEnabled:       true,
+			directiveAutoAdjust:   false,
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header-inherit: Invalid value: "bogus": must be one of: 'on', 'off' or 'merge'`,
+			},
+			msg: "invalid nginx.org/add-header-inherit annotation",
 		},
 		{
 			annotations: map[string]string{
@@ -2799,6 +3191,85 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				"nginx.org/limit-req-key": "$binary_remote_addr",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/limit-req-key annotation, simple variable",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "${binary_remote_addr}",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/limit-req-key annotation, braced variable",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "$binary_remote_addr$request_uri",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/limit-req-key annotation, multiple variables",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "} limit_req_zone $x zone=z:1m rate=1r/s; server {",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/limit-req-key: Invalid value: "} limit_req_zone $x zone=z:1m rate=1r/s; server {": must consist of one or more NGINX variable references ($varname or ${varname}); must not contain ';', '"', '\', or newline characters (e.g. '$binary_remote_addr',  or '${request_uri}', regex used for validation is '^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|\$[a-zA-Z_][a-zA-Z0-9_]*)+$')`,
+			},
+			msg: "invalid nginx.org/limit-req-key annotation, injection attempt with semicolon and braces",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "$binary_remote_addr; evil",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/limit-req-key: Invalid value: "$binary_remote_addr; evil": must consist of one or more NGINX variable references ($varname or ${varname}); must not contain ';', '"', '\', or newline characters (e.g. '$binary_remote_addr',  or '${request_uri}', regex used for validation is '^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|\$[a-zA-Z_][a-zA-Z0-9_]*)+$')`,
+			},
+			msg: "invalid nginx.org/limit-req-key annotation, semicolon injection",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/limit-req-key": "not_a_variable",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/limit-req-key: Invalid value: "not_a_variable": must consist of one or more NGINX variable references ($varname or ${varname}); must not contain ';', '"', '\', or newline characters (e.g. '$binary_remote_addr',  or '${request_uri}', regex used for validation is '^(\$\{[a-zA-Z_][a-zA-Z0-9_]*\}|\$[a-zA-Z_][a-zA-Z0-9_]*)+$')`,
+			},
+			msg: "invalid nginx.org/limit-req-key annotation, no NGINX variable",
+		},
+
+		{
+			annotations: map[string]string{
 				"appprotect.f5.com/app-protect-enable": "true",
 			},
 			specServices:          map[string]bool{},
@@ -4220,6 +4691,255 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			},
 			msg: "invalid app-root - contains whitespace",
 		},
+		{
+			annotations: map[string]string{
+				listenPortsAnnotation: "80,8080",
+			},
+			specServices: map[string]bool{},
+			hostless:     true,
+			expectedErrors: []string{
+				"annotations.nginx.org/listen-ports: Forbidden: annotation is not supported for hostless Ingress",
+			},
+			msg: "reject hostless listen-ports",
+		},
+		{
+			annotations: map[string]string{
+				listenPortsSSLAnnotation: "443,8443",
+			},
+			specServices: map[string]bool{},
+			hostless:     true,
+			expectedErrors: []string{
+				"annotations.nginx.org/listen-ports-ssl: Forbidden: annotation is not supported for hostless Ingress",
+			},
+			msg: "reject hostless listen-ports-ssl",
+		},
+		{
+			annotations: map[string]string{
+				serverSnippetsAnnotation: "return 200;",
+			},
+			specServices:    map[string]bool{},
+			hostless:        true,
+			snippetsEnabled: true,
+			expectedErrors:  nil,
+			msg:             "allow hostless server-snippets when snippets enabled",
+		},
+		{
+			annotations: map[string]string{
+				basicAuthSecretAnnotation: "auth-secret",
+			},
+			specServices:   map[string]bool{},
+			hostless:       true,
+			expectedErrors: nil,
+			msg:            "allow hostless basic-auth",
+		},
+		{
+			annotations: map[string]string{
+				hstsAnnotation:             "true",
+				proxyHideHeadersAnnotation: "Server",
+			},
+			specServices:   map[string]bool{},
+			hostless:       true,
+			expectedErrors: nil,
+			msg:            "allow hostless overrideable defaults",
+		},
+
+		// nginx.org/proxy-redirect-from annotation tests
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "off",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with 'off'",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "default",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with 'default'",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with URL",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "~^http://cafe.example.com/v(\\d+)/(.*)",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/$2",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with regex and capture group",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/$1",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-from annotation with dollar sign variable",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad.example.com/;drop",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://bad.example.com/;drop": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with semicolon",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad.example.com/{block}",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://bad.example.com/{block}": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with curly brace",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad.example.com/\npath",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				"annotations.nginx.org/proxy-redirect-from: Invalid value: \"http://bad.example.com/\\npath\": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'",
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with newline",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad example.com/path",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://bad example.com/path": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with whitespace",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://bad.example.com/path#fragment",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "http://bad.example.com/path#fragment": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with hash character",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: `~^http://bad.example.com/v(\d+)/(.*`,
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/$2",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-from: Invalid value: "~^http://bad.example.com/v(\\d+)/(.*": invalid regex pattern`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-from annotation with malformed regex",
+		},
+
+		// nginx.org/proxy-redirect-to annotation tests
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/coffee/",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-to annotation with URL",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "~^http://cafe.example.com/(.*)",
+				configs.ProxyRedirectToAnnotation:   "http://$host/coffee/$1",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/proxy-redirect-to annotation with NGINX variable $host",
+		},
+		{
+			annotations: map[string]string{
+				configs.ProxyRedirectFromAnnotation: "http://cafe.example.com/v1/",
+				configs.ProxyRedirectToAnnotation:   "http://cafe.example.com/;drop",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-redirect-to: Invalid value: "http://cafe.example.com/;drop": must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'`,
+			},
+			msg: "invalid nginx.org/proxy-redirect-to annotation with semicolon",
+		},
 	}
 
 	for _, test := range tests {
@@ -4232,6 +4952,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 					internalRoutesEnabled: test.internalRoutesEnabled,
 					snippetsEnabled:       test.snippetsEnabled,
 					directiveAutoAdjust:   test.directiveAutoAdjust,
+					hostless:              test.hostless,
 				},
 				test.annotations,
 				test.specServices,
@@ -4248,9 +4969,10 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 func TestValidateIngressSpec(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		spec           *networking.IngressSpec
-		expectedErrors []field.ErrorType
-		msg            string
+		spec                  *networking.IngressSpec
+		allowEmptyIngressHost bool
+		expectedErrors        []field.ErrorType
+		msg                   string
 	}{
 		{
 			spec: &networking.IngressSpec{
@@ -4493,10 +5215,38 @@ func TestValidateIngressSpec(t *testing.T) {
 			},
 			msg: "invalid backend",
 		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{{Host: ""}},
+			},
+			allowEmptyIngressHost: true,
+			expectedErrors:        nil,
+			msg:                   "valid empty host when allowed",
+		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{{Host: ""}, {Host: ""}},
+			},
+			allowEmptyIngressHost: true,
+			expectedErrors: []field.ErrorType{
+				field.ErrorTypeDuplicate,
+			},
+			msg: "reject duplicate empty host rules when empty host is allowed",
+		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{{Host: ""}},
+			},
+			allowEmptyIngressHost: false,
+			expectedErrors: []field.ErrorType{
+				field.ErrorTypeRequired,
+			},
+			msg: "reject empty host when not allowed",
+		},
 	}
 
 	for _, test := range tests {
-		allErrs := validateIngressSpec(test.spec, field.NewPath("spec"))
+		allErrs := validateIngressSpec(test.spec, field.NewPath("spec"), test.allowEmptyIngressHost)
 		assertion := assertErrorTypes(test.msg, allErrs, test.expectedErrors)
 		if assertion != "" {
 			t.Error(assertion)
@@ -4787,14 +5537,14 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			name:  "invalid dollar sign in value",
 			value: "X-Header: $upstream_addr",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: $upstream_addr": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "X-Header: $upstream_addr": invalid character in header value: $`,
 			},
 		},
 		{
 			name:  "invalid dollar sign in value of second header",
 			value: "Header-1: ok,Header-2: $bad",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $bad": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $bad": invalid character in header value: $`,
 			},
 		},
 		{
@@ -4809,7 +5559,7 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			value: "$Header: $value",
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header": ` + headerNameErrMsg,
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header: $value": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$Header: $value": invalid character in header value: $`,
 			},
 		},
 
@@ -4898,8 +5648,8 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			name:  "dollar sign in values of multiple headers",
 			value: "Header-1: $val1,Header-2: $val2",
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-1: $val1": invalid character in value: $`,
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $val2": invalid character in value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-1: $val1": invalid character in header value: $`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header-2: $val2": invalid character in header value: $`,
 			},
 		},
 
@@ -4981,6 +5731,161 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			}
 			allErrs := validateProxySetHeaderAnnotation(ctx)
 			assertion := assertErrors("validateProxySetHeaderAnnotation()", tc.name, allErrs, tc.expectedErrors)
+			if assertion != "" {
+				t.Error(assertion)
+			}
+		})
+	}
+}
+
+func TestValidateAddHeaderAnnotation(t *testing.T) {
+	t.Parallel()
+
+	headerNameErrMsg := `a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`
+
+	tests := []struct {
+		name           string
+		value          string
+		expectedErrors []string
+	}{
+		// ── Valid inputs ──────────────────────────────────────────────
+		{
+			name:           "valid Name:Value",
+			value:          "X-Frame-Options:DENY",
+			expectedErrors: nil,
+		},
+		{
+			name:           "valid Name:Value:always",
+			value:          "X-Frame-Options:DENY:always",
+			expectedErrors: nil,
+		},
+		{
+			name:           "always flag is case-insensitive uppercase",
+			value:          "X-Custom:value:ALWAYS",
+			expectedErrors: nil,
+		},
+		{
+			name:           "always flag is case-insensitive mixed",
+			value:          "X-Custom:value:Always",
+			expectedErrors: nil,
+		},
+		{
+			name:           "multiple headers comma-separated",
+			value:          "X-Frame-Options:DENY, X-Content-Type:nosniff",
+			expectedErrors: nil,
+		},
+		{
+			name:           "header with name only (empty value)",
+			value:          "X-Header:",
+			expectedErrors: nil,
+		},
+		{
+			name:           "header with whitespace around parts",
+			value:          "  X-Header  :  myvalue  :  always  ",
+			expectedErrors: nil,
+		},
+		{
+			name:           "header with escaped double quote in value",
+			value:          `X-Header:val\"ue`,
+			expectedErrors: nil,
+		},
+
+		{
+			name:           "trailing colon produces empty flag (should be valid)",
+			value:          "X-Foo:bar:",
+			expectedErrors: nil,
+		},
+
+		// ── Invalid: $ in value ───────────────────────────────────────
+		{
+			name:  "dollar sign in value",
+			value: "X-Header:$upstream_addr",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Header:$upstream_addr": invalid character in header value: $`,
+			},
+		},
+		{
+			name:  "dollar sign in value of second header",
+			value: "X-Good:ok,X-Bad:$bad",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Bad:$bad": invalid character in header value: $`,
+			},
+		},
+
+		// ── Invalid: bad header name ──────────────────────────────────
+		{
+			name:  "dollar sign in header name",
+			value: "$bad-header:value",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "$bad-header": ` + headerNameErrMsg,
+			},
+		},
+		{
+			name:  "empty header name (colon-only entry)",
+			value: ":value",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: ":value": empty header name`,
+			},
+		},
+
+		// ── Invalid: bad always flag ──────────────────────────────────
+		{
+			name:  "invalid flag string",
+			value: "X-Header:value:badFlag",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Header:value:badFlag": invalid flag "badFlag": must be "always" or empty`,
+			},
+		},
+		{
+			name:  "numeric flag",
+			value: "X-Header:value:1",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Header:value:1": invalid flag "1": must be "always" or empty`,
+			},
+		},
+
+		// ── Invalid: empty entries ────────────────────────────────────
+		{
+			name:  "empty entry from consecutive commas",
+			value: "X-Header:val,,X-Other:val2",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "": empty entry in add-header annotation`,
+			},
+		},
+		{
+			name:  "leading comma produces empty entry",
+			value: ",X-Header:val",
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "": empty entry in add-header annotation`,
+			},
+		},
+
+		// ── Invalid: unescaped characters in value ────────────────────
+		{
+			name:  "unescaped double quote in value",
+			value: `X-Bad:"unquoted"`,
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Bad:\"unquoted\"": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
+		{
+			name:  "unescaped backslash at end of value",
+			value: `X-Bad:value\`,
+			expectedErrors: []string{
+				`annotations.nginx.org/add-header: Invalid value: "X-Bad:value\\": must have all '"' (double quotes) escaped and must not end with an unescaped '\' (backslash) (regex used for validation is '([^"\\]|\\.)*')`,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := &annotationValidationContext{
+				value:     tc.value,
+				fieldPath: field.NewPath("annotations").Child(configs.AddHeaderAnnotation),
+			}
+			allErrs := validateAddHeaderAnnotation(ctx)
+			assertion := assertErrors("validateAddHeaderAnnotation()", tc.name, allErrs, tc.expectedErrors)
 			if assertion != "" {
 				t.Error(assertion)
 			}

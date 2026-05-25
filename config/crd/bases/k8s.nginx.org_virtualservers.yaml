@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: virtualservers.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -63,6 +63,17 @@ spec:
           spec:
             description: VirtualServerSpec is the spec of the VirtualServer resource.
             properties:
+              add-header-inherit:
+                description: 'Controls header inheritance behavior at the server level.
+                  Allowed values are: on, off, merge. When set to "merge", headers
+                  from this context are merged with headers in child contexts. When
+                  set to "on", standard NGINX inheritance applies. When set to "off",
+                  no headers are inherited from parent contexts.'
+                enum:
+                - "on"
+                - "off"
+                - merge
+                type: string
               dos:
                 description: A reference to a DosProtectedResource, setting this enables
                   DOS protection of the VirtualServer route.
@@ -305,6 +316,17 @@ spec:
                               type: string
                           type: object
                       type: object
+                    add-header-inherit:
+                      description: 'Controls header inheritance behavior at the location
+                        level. Allowed values are: on, off, merge. When set to "merge",
+                        headers from this context are merged with headers in child
+                        contexts. When set to "on", standard NGINX inheritance applies.
+                        When set to "off", no headers are inherited from parent contexts.'
+                      enum:
+                      - "on"
+                      - "off"
+                      - merge
+                      type: string
                     dos:
                       description: A reference to a DosProtectedResource, setting
                         this enables DOS protection of the VirtualServer route.

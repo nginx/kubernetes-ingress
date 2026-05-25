@@ -1,4 +1,4 @@
-name: Build UBI c-ares Dependency
+name: Build UBI Dependencies
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - build/dependencies/Dockerfile.ubi8
       - build/dependencies/Dockerfile.ubi9
+      - build/dependencies/Dockerfile.ubi10
       - .github/workflows/build-ubi-dependency.yml
   workflow_dispatch:
 
@@ -27,13 +28,39 @@ jobs:
     permissions:
       packages: write
       contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
-        tag: ["ubi8", "ubi9"]
+        tag: ["ubi8", "ubi9", "ubi10"]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Azure Login
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+
+      - name: Setup secrets
+        run: |
+          RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$RHEL_CREDS"
+          echo "$RHEL_CREDS" > rhel_license
+          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PLUS_CREDS"
+          IFS=@ CERT=$(echo "$PLUS_CREDS" | jq -r '.crt')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${CERT}"
+          echo "$CERT" > nginx-repo.crt
+          IFS=@ KEY=$(echo "$PLUS_CREDS" | jq -r '.key')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${KEY}"
+          echo "$KEY" > nginx-repo.key
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
@@ -44,11 +71,15 @@ jobs:
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sanitize ref name
+        id: ref
+        run: echo "name=$(echo '${{ github.ref_name }}' | tr '/' '-')" >> $GITHUB_OUTPUT
 
       - name: Docker meta
         id: meta
@@ -57,12 +88,13 @@ jobs:
           images: |
             name=${{ env.IMAGE_NAME }},enable=true
           tags: |
-            type=raw,value=${{ matrix.tag }},enable=true
+            type=raw,value=${{ matrix.tag }},enable=${{ github.ref_name == 'main' }}
+            type=raw,value=${{ matrix.tag }}-${{ steps.ref.outputs.name }},enable=${{ github.ref_name != 'main' }}
         env:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
       - name: Build and push
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           file: ./build/dependencies/Dockerfile.${{ matrix.tag }}
           context: "."
@@ -73,7 +105,14 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha,scope=nginx-${{ matrix.tag }}
-          cache-to: type=gha,scope=nginx-${{ matrix.tag }},mode=max
           target: final
           sbom: false
           provenance: mode=max
+          secret-files: |
+            rhel_license=rhel_license
+            nginx-repo.crt=nginx-repo.crt
+            nginx-repo.key=nginx-repo.key
+
+      - name: Clean up secrets
+        if: always()
+        run: rm -f rhel_license nginx-repo.*

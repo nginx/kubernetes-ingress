@@ -34,11 +34,13 @@ jobs:
       latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
       stable_tag: ${{ steps.vars.outputs.stable_tag }}
       branch: ${{ steps.vars.outputs.branch }}
+      lts_tags: ${{ steps.vars.outputs.lts_tags }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: ${{ inputs.branch && inputs.branch || github.event.repository.default_branch }}
+          fetch-depth: 0
 
       - name: Output Variables
         id: vars
@@ -64,6 +66,7 @@ jobs:
             branch=${{ inputs.branch }}
           fi
           echo "branch=${branch}" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh lts_tags >> $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
@@ -71,6 +74,7 @@ jobs:
           echo latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
           echo stable_tag: ${{ steps.vars.outputs.stable_tag }}
           echo branch: ${{ steps.vars.outputs.branch }}
+          echo lts_tags: ${{ steps.vars.outputs.lts_tags }}
 
   unit-tests:
     name: Unit Tests
@@ -106,7 +110,7 @@ jobs:
           version: 'v3.18.6'
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: go.mod
 
@@ -114,7 +118,7 @@ jobs:
         run: make cover
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0
+        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
@@ -181,7 +185,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -258,7 +262,14 @@ jobs:
 
       - id: set-matrix
         run: |
-          echo "matrix=$(cat .github/data/matrix-regression.json | jq -c --argjson latest '${{ needs.checks.outputs.latest_kindest_node_versions }}' '.k8s += $latest'))" >> $GITHUB_OUTPUT
+          base=$(cat .github/data/matrix-regression.json | jq -c --argjson latest '${{ needs.checks.outputs.latest_kindest_node_versions }}' '.k8s += $latest')
+          lts_tags='${{ needs.checks.outputs.lts_tags }}'
+          if [ -n "$lts_tags" ] && [ "$lts_tags" != "[]" ]; then
+            lts_marker="'not upgrade and not agentv2'"
+            lts_entries=$(echo "$lts_tags" | jq -c --arg marker "$lts_marker" '[.[] | {label:"lts-regression",image:"debian-plus",type:"plus",marker:$marker,platforms:"linux/arm64, linux/amd64",lts:true,lts_tag:.}]')
+            base=$(echo "$base" | jq -c --argjson lts "$lts_entries" '.images += $lts')
+          fi
+          echo "matrix=${base}" >> $GITHUB_OUTPUT
 
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
@@ -279,8 +290,13 @@ jobs:
       - name: Set image variables
         id: image_details
         run: |
-          echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
-          echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+          if ${{ matrix.images.lts == true }}; then
+            echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/lts/nginx-ic/nginx-plus-ingress" >> $GITHUB_OUTPUT
+            echo "tag=${{ matrix.images.lts_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
+            echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -314,7 +330,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -355,7 +371,7 @@ jobs:
           plus-jwt: ${{ steps.secrets.outputs.PLUS_JWT }}
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.regression-tests.outputs.test-results-name }}
           path: ${{ steps.regression-tests.outputs.test-results-path }}
