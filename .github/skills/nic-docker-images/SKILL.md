@@ -25,8 +25,8 @@ TARGET stages (final image)     <- local, container, goreleaser, debug, download
 
 3 OS families x 2 NGINX editions x optional NAP = ~20 variants.
 
-| OS     | OSS | Plus | Plus+WAF | Plus+WAFv5 | Plus+DoS | Plus+WAF+DoS | Plus+FIPS | Plus+WAF+FIPS | Plus+WAFv5+FIPS |
-|--------| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| OS | OSS | Plus | Plus+WAF | Plus+WAFv5 | Plus+DoS | Plus+WAF+DoS | Plus+FIPS | Plus+WAF+FIPS | Plus+WAFv5+FIPS |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Debian | yes | yes | yes | yes | yes | yes | - | - | - |
 | Alpine | yes | yes | - | - | - | - | yes | yes | yes |
 | UBI 10 | yes | yes | yes | yes | yes | yes | - | - | - |
@@ -39,28 +39,28 @@ TARGET stages (final image)     <- local, container, goreleaser, debug, download
 
 All targets call `docker build --platform linux/$(ARCH) --target $(TARGET) -f build/Dockerfile`.
 
-| Target | BUILD_OS                      | NAP_MODULES |
-| --- |-------------------------------| --- |
-| `debian-image` | `debian`                      | - |
-| `alpine-image` | `alpine`                      | - |
-| `ubi-image` | `ubi`                         | - |
-| `debian-image-plus` | `debian-plus`                 | - |
-| `alpine-image-plus` | `alpine-plus`                 | - |
-| `alpine-image-plus-fips` | `alpine-plus-fips`            | - |
-| `alpine-image-nap-plus-fips` | `alpine-plus-nap-fips`        | `waf` |
-| `alpine-image-nap-v5-plus-fips` | `alpine-plus-nap-v5-fips`     | `waf` |
-| `ubi-image-plus` | `ubi-10-plus`                 | - |
-| `debian-image-nap-plus` | `debian-plus-nap`             | `waf` |
-| `debian-image-nap-v5-plus` | `debian-plus-nap-v5`          | `waf` |
-| `debian-image-dos-plus` | `debian-plus-nap`             | `dos` |
-| `debian-image-nap-dos-plus` | `debian-plus-nap`             | `waf,dos` |
-| `ubi-image-nap-plus` | `ubi-10-plus-nap`             | `waf` |
-| `ubi-image-nap-v5-plus` | `ubi-10-plus-nap-v5`          | `waf` |
-| `ubi-image-dos-plus` | `ubi-10-plus-nap`             | `dos` |
-| `ubi-image-nap-dos-plus` | `ubi-10-plus-nap`             | `waf,dos` |
-| `all-images` | Builds 18 variants            | - |
+| Target | BUILD_OS | NAP_MODULES |
+| --- | --- | --- |
+| `debian-image` | `debian` | - |
+| `alpine-image` | `alpine` | - |
+| `ubi-image` | `ubi` | - |
+| `debian-image-plus` | `debian-plus` | - |
+| `alpine-image-plus` | `alpine-plus` | - |
+| `alpine-image-plus-fips` | `alpine-plus-fips` | - |
+| `alpine-image-nap-plus-fips` | `alpine-plus-nap-fips` | `waf` |
+| `alpine-image-nap-v5-plus-fips` | `alpine-plus-nap-v5-fips` | `waf` |
+| `ubi-image-plus` | `ubi-10-plus` | - |
+| `debian-image-nap-plus` | `debian-plus-nap` | `waf` |
+| `debian-image-nap-v5-plus` | `debian-plus-nap-v5` | `waf` |
+| `debian-image-dos-plus` | `debian-plus-nap` | `dos` |
+| `debian-image-nap-dos-plus` | `debian-plus-nap` | `waf,dos` |
+| `ubi-image-nap-plus` | `ubi-10-plus-nap` | `waf` |
+| `ubi-image-nap-v5-plus` | `ubi-10-plus-nap-v5` | `waf` |
+| `ubi-image-dos-plus` | `ubi-10-plus-nap` | `dos` |
+| `ubi-image-nap-dos-plus` | `ubi-10-plus-nap` | `waf,dos` |
+| `all-images` | Builds 18 variants | - |
 | `push` | `docker push` to `PREFIX:TAG` | - |
-| `patch-os` | OS patches existing image     | - |
+| `patch-os` | OS patches existing image | - |
 
 Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=nginx-repo.key`.
 
@@ -80,13 +80,13 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 
 ## Key Build Args
 
-| Arg | Purpose | Example                                    |
-| --- | --- |--------------------------------------------|
+| Arg | Purpose | Example |
+| --- | --- | --- |
 | `BUILD_OS` | Base image stage | `debian`, `alpine-plus`, `ubi-10-plus-nap` |
-| `IC_VERSION` | Ingress controller version | `5.5.0`                                    |
-| `NGINX_PLUS_VERSION` | NGINX Plus version | `R36`                                      |
-| `NAP_MODULES` | App Protect modules | `waf`, `dos`, `waf,dos`                    |
-| `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref                              |
+| `IC_VERSION` | Ingress controller version | `5.5.0` |
+| `NGINX_PLUS_VERSION` | NGINX Plus version | `R36` |
+| `NAP_MODULES` | App Protect modules | `waf`, `dos`, `waf,dos` |
+| `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref |
 
 ---
 
