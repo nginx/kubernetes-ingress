@@ -676,7 +676,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 ############################################# NGINX Plus + App Protect WAF v5 + Agent v2 on Red Hat UBI 10 #############################################
 # Base:     ubi-10-plus-nap-v5-base (NGINX Plus + NAP WAF v5)
 # Adds:     nginx-agent v2
-# Used as:  BUILD_OS=ubi-10-plus-nap-v5-agent
+# Used as:  BUILD_OS=ubi-10-plus-nap-v5
 FROM ubi-10-plus-nap-v5-base AS ubi-10-plus-nap-v5
 ARG AGENT_V2_VERSION
 
@@ -708,7 +708,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 ############################################# NGINX Plus + Agent v3 on Red Hat UBI 10 #############################################
 # Base:     ubi-minimal (Red Hat UBI 10 minimal)
 # Adds:     nginx-plus, nginx-plus-module-njs/otel/fips-check, nginx-agent v3
-# Used as:  BUILD_OS=ubi-10-plus
+# Used as:  BUILD_OS=ubi-10-plus-agent
 FROM ubi-minimal AS ubi-10-plus-agent
 ARG NGINX_PLUS_VERSION
 ARG AGENT_V3_VERSION
@@ -753,7 +753,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 ############################################# NGINX Plus + App Protect WAF/DoS v4 + Agent v3 on Red Hat UBI 10 #############################################
 # Base:     ubi-10-plus-nap-base (NGINX Plus + NAP WAF/DoS v4)
 # Adds:     nginx-agent v3
-# Used as:  BUILD_OS=ubi-10-plus-nap
+# Used as:  BUILD_OS=ubi-10-plus-nap-agent
 FROM ubi-10-plus-nap-base AS ubi-10-plus-nap-agent
 ARG AGENT_V3_VERSION
 
