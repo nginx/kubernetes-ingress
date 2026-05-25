@@ -28,7 +28,7 @@ on:
       nap_version:
         description: "NAP versions (comma-separated: waf_version, waf_release_version) - leave empty to skip NAP update"
         required: false
-        default: "36+5.607.0, 5.13.1"
+        default: "37.0+5.635.1, 5.13.1"
       release_date:
         description: "Date for this release (D MMM YYYY)"
         required: true
