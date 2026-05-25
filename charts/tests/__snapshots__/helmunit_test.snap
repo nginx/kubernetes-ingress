@@ -2977,7 +2977,7 @@ spec:
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
       - name: waf-ip-intelligence
-        image: my.private.reg/nap/waf-ip-intelligence:5.12.1
+        image: my.private.reg/nap/waf-ip-intelligence:5.13.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
       
@@ -4140,7 +4140,7 @@ spec:
           - -agent=true
       
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.12.1
+        image: my.private.reg/nap/waf-enforcer:5.13.1
         imagePullPolicy: "IfNotPresent"
         env:
           - name: ENFORCER_PORT
@@ -4151,7 +4151,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.12.1
+        image: my.private.reg/nap/waf-config-mgr:5.13.1
         imagePullPolicy: "IfNotPresent"
         securityContext:
       
