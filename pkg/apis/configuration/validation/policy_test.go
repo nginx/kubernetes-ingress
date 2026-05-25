@@ -3274,6 +3274,63 @@ func TestValidateCORS(t *testing.T) {
 			expectErr: true,
 			errMsg:    "HEAD method should not be explicitly listed",
 		},
+		{
+			name: "Valid allowHeaders wildcard standalone",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"*"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid exposeHeaders wildcard standalone",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"*"},
+			},
+			expectErr: false,
+		},
+		{
+			// "*" covers non-credentialed requests; Authorization must be listed
+			// explicitly for credentialed requests because "*" is treated as a
+			// literal header name in that context (MDN spec).
+			name: "Valid allowHeaders wildcard with explicit Authorization for credentialed requests",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				AllowHeaders:     []string{"*", "Authorization"},
+				AllowCredentials: new(true),
+			},
+			expectErr: false,
+		},
+		{
+			// Same reasoning as allowHeaders: "*" is literal in credentialed context,
+			// so Authorization can be listed explicitly alongside it.
+			name: "Valid exposeHeaders wildcard with explicit Authorization for credentialed requests",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				ExposeHeaders:    []string{"*", "Authorization"},
+				AllowCredentials: new(true),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid allowHeaders embedded wildcard",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"X-*-Header"},
+			},
+			expectErr: true,
+			errMsg:    "wildcard '*' may only be used as a standalone value",
+		},
+		{
+			name: "Invalid exposeHeaders embedded wildcard",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"X-*-Header"},
+			},
+			expectErr: true,
+			errMsg:    "wildcard '*' may only be used as a standalone value",
+		},
 	}
 
 	for _, test := range tests {
