@@ -24,15 +24,15 @@ on:
       new_nginx_version:
         description: "Nginx version to release"
         required: true
-        default: "1.29.8 / R36 P3"
+        default: "1.31.1 / R37.0.1.1"
       nap_version:
         description: "NAP versions (comma-separated: waf_version, waf_release_version) - leave empty to skip NAP update"
         required: false
-        default: "36+5.607.0, 5.12.1"
+        default: "37.0+5.635.1, 5.13.1"
       release_date:
         description: "Date for this release (D MMM YYYY)"
         required: true
-        default: "6 May 2026"
+        default: "22 May 2026"
       dry_run:
         description: "Don't create any PR's"
         type: boolean

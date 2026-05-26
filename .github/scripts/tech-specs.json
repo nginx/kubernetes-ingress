@@ -2,7 +2,7 @@
   "nic_k8s": {
     "shortcode_row": {
       "k8s_versions": "1.28 - 1.35",
-      "nginx_version": "1.31.0 / R37.0"
+      "nginx_version": "1.31.1 / R37.0"
     },
     "rows": [
       {
