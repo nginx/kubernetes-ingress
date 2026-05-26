@@ -381,7 +381,7 @@ server {
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
 		{{- end}}
-		# Use X-Forwarded-Host if present (from Azure App Gateway), otherwise use $host
+		# Use X-Forwarded-Host if present  otherwise use $host
 		set $best_http_host $host;
 		if ($http_x_forwarded_host != "") {
 			set $best_http_host $http_x_forwarded_host;
