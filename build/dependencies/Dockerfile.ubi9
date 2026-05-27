@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.24
-FROM redhat/ubi9:9.8-1779374378@sha256:151fc1b2c976f198779d740851436544fdf4e9449ccb4a47e2d0faad34f1733b AS rpm-build
+FROM redhat/ubi9:9.8-1779808651@sha256:8942b73866f8434571d6fc4c10cbebd48982995d2249c39302e4d71e7df3afd9 AS rpm-build
 RUN mkdir -p /rpms/ \
     && dnf install rpm-build gcc make cmake -y \
     && rpmbuild --rebuild --nodebuginfo https://mirror.stream.centos.org/9-stream/BaseOS/source/tree/Packages/c-ares-1.19.1-2.el9.src.rpm \
