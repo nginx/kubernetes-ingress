@@ -810,6 +810,11 @@ func (lbc *LoadBalancerController) Run() {
 
 	lbc.preSyncSecrets()
 
+	// Enable batch mode during startup: config writes skip per-file nginx -t validation.
+	// All configs are validated with a single nginx -t in updateAllConfigs() → CompleteBatch()
+	// after the queue drains. This reduces startup validation cost from O(N²) to O(N).
+	lbc.configurator.EnableBatchMode()
+
 	nl.Debugf(lbc.Logger, "Starting the queue with %d initial elements", lbc.syncQueue.Len())
 
 	go lbc.syncQueue.Run(time.Second, lbc.ctx.Done())
@@ -1287,13 +1292,35 @@ func (lbc *LoadBalancerController) sync(task task) {
 			lbc.updateTransportServerMetrics()
 		}
 
-		// Step 3: Mark ready BEFORE flushing status updates. The pod can
-		// serve traffic as soon as NGINX is reloaded — status metadata
-		// (Ingress IP, CR state) is not required for traffic serving.
-		// This decouples readiness from status API calls, which can take
-		// minutes at scale for leader pod
-		lbc.isNginxReady = true
-		nl.Debug(lbc.Logger, "NGINX is ready")
+		// Step 3: Conditional readiness gate. If config safety batch validation
+		// excluded ALL resources, do NOT mark the pod Ready — it serves zero
+		// useful traffic. Marking it Ready would let K8s terminate working
+		// replicas during a rolling update, causing a complete outage.
+		// If only some resources were excluded (partial failure), mark Ready —
+		// the pod genuinely serves the valid subset.
+		exclusions := lbc.configurator.GetBatchExclusions()
+		totalResources := len(lbc.configuration.GetResources())
+
+		if len(exclusions) > 0 && len(exclusions) >= totalResources {
+			nl.Warnf(lbc.Logger, "Config safety: ALL %d resource(s) excluded at startup — pod NOT marked ready (shared-input failure suspected). "+
+				"Fix the shared input (e.g., ConfigMap server-snippets) and restart the pod.", len(exclusions))
+		} else {
+			lbc.isNginxReady = true
+			nl.Debug(lbc.Logger, "NGINX is ready")
+		}
+
+		// Log any resources excluded by config safety batch validation.
+		// These resources had invalid NGINX config and were removed during startup
+		// isolation. Their K8s objects already received AddedOrUpdatedWithError events
+		// via the resourceErrors path in updateAllConfigs().
+		if len(exclusions) > 0 {
+			var msgs []string
+			for _, excl := range exclusions {
+				msgs = append(msgs, fmt.Sprintf("  - %s (%s): %v", excl.ConfigPath, excl.ResourceName, excl.Error))
+			}
+			nl.Infof(lbc.Logger, "Config safety: startup batch excluded %d resource(s) due to invalid configuration:\n%s",
+				len(exclusions), strings.Join(msgs, "\n"))
+		}
 
 		// Step 4: Flush deferred status updates in a background goroutine
 		// using a parallel worker pool (10 concurrent API calls). Snapshot
