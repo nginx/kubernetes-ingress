@@ -837,6 +837,32 @@ spec:
                   enable:
                     description: Enables NGINX App Protect WAF.
                     type: boolean
+                  apBundleSource:
+                    description: The remote source for fetching the App Protect WAF
+                      policy bundle. Mutually exclusive with apPolicy and apBundle.
+                    properties:
+                      pollInterval:
+                        default: 1m
+                        description: |-
+                          PollInterval defines how frequently to check for bundle updates via ETag.
+                          Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+                        pattern: ^[0-9]+(s|m|h)$
+                        type: string
+                      tlsSecret:
+                        description: |-
+                          TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
+                          The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
+                          to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                      url:
+                        description: URL is the HTTPS endpoint to fetch the bundle
+                          tarball from.
+                        pattern: ^https://
+                        type: string
+                    required:
+                      - url
+                    type: object
                   securityLog:
                     description: SecurityLog defines the security log of a WAF policy.
                     properties:
@@ -856,6 +882,33 @@ spec:
                           accepted variables are syslog:server=<ip-address>; localhost;
                           fqdn>:<port>, stderr, <absolute path to file>.
                         type: string
+                      apLogBundleSource:
+                        description: The remote source for fetching the App Protect
+                          WAF log bundle. Mutually exclusive with apLogBundle and
+                          apLogConf.
+                        properties:
+                          pollInterval:
+                            default: 1m
+                            description: |-
+                              PollInterval defines how frequently to check for bundle updates via ETag.
+                              Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+                            pattern: ^[0-9]+(s|m|h)$
+                            type: string
+                          tlsSecret:
+                            description: |-
+                              TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
+                              The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
+                              to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                          url:
+                            description: URL is the HTTPS endpoint to fetch the bundle
+                              tarball from.
+                            pattern: ^https://
+                            type: string
+                        required:
+                          - url
+                        type: object
                     type: object
                   securityLogs:
                     items:
@@ -877,6 +930,33 @@ spec:
                             accepted variables are syslog:server=<ip-address>; localhost;
                             fqdn>:<port>, stderr, <absolute path to file>.
                           type: string
+                        apLogBundleSource:
+                          description: The remote source for fetching the App Protect
+                            WAF log bundle. Mutually exclusive with apLogBundle and
+                            apLogConf.
+                          properties:
+                            pollInterval:
+                              default: 1m
+                              description: |-
+                                PollInterval defines how frequently to check for bundle updates via ETag.
+                                Default: 1m. Format: Go duration string (e.g., "30s", "2m", "1h").
+                              pattern: ^[0-9]+(s|m|h)$
+                              type: string
+                            tlsSecret:
+                              description: |-
+                                TLSSecret is a reference to a kubernetes.io/tls Secret for mTLS authentication.
+                                The secret must contain tls.crt and tls.key. An optional ca.crt entry is used
+                                to verify the remote server's certificate. It must be in the same namespace as the Policy resource.
+                              pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                              type: string
+                            url:
+                              description: URL is the HTTPS endpoint to fetch the bundle
+                                tarball from.
+                              pattern: ^https://
+                              type: string
+                          required:
+                            - url
+                          type: object
                       type: object
                     type: array
                 type: object
