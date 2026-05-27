@@ -65,14 +65,16 @@ After changing `types.go`, always run `make update-codegen` then `make update-cr
 
 ## Skills
 
-| Skill | When to load |
-| ------- | -------------- |
-| `nic-structure` | Exploring the codebase, tracing data flow, debugging config generation |
-| `nic-add-feature` | Adding Ingress annotations, VirtualServer/VSR fields, or Helm values |
-| `nic-add-policy` | Adding or extending a Policy CRD type |
-| `nic-ci-pipelines` | Working on CI workflows, build matrices, or release pipeline |
-| `nic-docker-images` | Building container images, modifying Dockerfile, adding image variants |
-| `nic-testing` | Writing unit, snapshot, Helm, or Python integration tests |
+| Skill | SDLC Stage | When to load |
+| ------- | ---------- | -------------- |
+| `nic-planning` | Plan | Starting any non-trivial task, creating implementation plans |
+| `nic-structure` | Plan + Dev | Exploring the codebase, tracing data flow, understanding architecture |
+| `nic-add-feature` | Dev | Adding Ingress annotations, VirtualServer/VSR fields, or Helm values |
+| `nic-add-policy` | Dev | Adding or extending a Policy CRD type |
+| `nic-docker-images` | Dev | Building container images, modifying Dockerfile, adding image variants |
+| `nic-testing` | Test | Writing unit, snapshot, Helm, or Python integration tests |
+| `nic-debugging` | Bugfix | Diagnosing failures, NGINX reload errors, config generation bugs |
+| `nic-ci-pipelines` | Review | Working on CI workflows, build matrices, or release pipeline |
 
 ---
 
@@ -113,3 +115,7 @@ Comment only at >80% confidence. Be concise and actionable.
 - Helm values changes without schema updates
 - OSS template updated but Plus template missed (or vice versa)
 - Version 1 (Ingress) support forgotten when adding Version 2 (VS) features
+
+### Markdown (for skill/doc authoring)
+
+- Table separator rows must use `| --- | --- |` style — never bare `|---|---|` (MD060)
