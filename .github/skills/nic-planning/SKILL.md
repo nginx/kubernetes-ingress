@@ -41,7 +41,7 @@ For any change, ask:
 ## Scope Assessment
 
 | Scope | Indicators | Action |
-|-------|-----------|--------|
+| --- | --- | --- |
 | Trivial | Typo, docs, comment fix | Fix directly, no plan needed |
 | Small | Single layer, <50 lines, no API change | Brief plan → implement → test |
 | Medium | 2-3 layers, new field or annotation | Detailed plan → implement layer by layer → test each |

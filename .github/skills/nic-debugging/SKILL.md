@@ -63,7 +63,7 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
 ## Log Locations
 
 | Context | Location | What to look for |
-|---------|----------|------------------|
+| --- | --- | --- |
 | Controller logs | Pod stdout/stderr | Sync errors, reload status, validation failures |
 | NGINX error log | `/var/log/nginx/error.log` in container | Config syntax errors, upstream failures |
 | NGINX access log | `/var/log/nginx/access.log` in container | Request routing verification |
@@ -71,7 +71,7 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
 ## Validation and Diagnostic Tools
 
 | Tool | Command | Purpose |
-|------|---------|---------|
+| --- | --- | --- |
 | Config test | `nginx -t` (inside container) | Validate NGINX config syntax |
 | CRD status | `kubectl get vs,vsr,ts,pol -A` | Check resource state |
 | Controller logs | `kubectl logs <pod> -n nginx-ingress` | Runtime errors |

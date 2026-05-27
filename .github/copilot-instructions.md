@@ -115,3 +115,7 @@ Comment only at >80% confidence. Be concise and actionable.
 - Helm values changes without schema updates
 - OSS template updated but Plus template missed (or vice versa)
 - Version 1 (Ingress) support forgotten when adding Version 2 (VS) features
+
+### Markdown (for skill/doc authoring)
+
+- Table separator rows must use `| --- | --- |` style — never bare `|---|---|` (MD060)
