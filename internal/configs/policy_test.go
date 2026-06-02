@@ -52,6 +52,16 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 				Path: mTLSCertAndCrlPath,
 			},
+			"default/ingress-mtls-secret-cert-and-crl": {
+				Secret: &api_v1.Secret{
+					Type: secrets.SecretTypeCA,
+					Data: map[string][]byte{
+						"ca.crt": []byte("base64cert"),
+						"ca.crl": []byte("base64crl"),
+					},
+				},
+				Path: mTLSCertAndCrlPath,
+			},
 			"default/egress-mtls-secret": {
 				Secret: &api_v1.Secret{
 					Type: api_v1.SecretTypeTLS,
@@ -754,6 +764,40 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			msg: "ingressMTLS reference with crl field in policy",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "ingress-mtls-policy-cert-and-crl-secret",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ingress-mtls-policy-cert-and-crl-secret": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "ingress-mtls-policy-cert-and-crl-secret",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						IngressMTLS: &conf_v1.IngressMTLS{
+							ClientCertSecret: "ingress-mtls-secret-cert-and-crl",
+							VerifyClient:     "off",
+						},
+					},
+				},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				Context: ctx,
+				IngressMTLS: &version2.IngressMTLS{
+					ClientCert:     mTLSCertPath,
+					ClientCrl:      mTLSCrlPath,
+					ClientCertHash: secrets.ComputeContentHash([]byte("base64cert"), []byte("base64crl")),
+					VerifyClient:   "off",
+					VerifyDepth:    1,
+				},
+			},
+			msg: "ingressMTLS with in-secret ca.crl includes ca.crl bytes in hash",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3280,6 +3324,61 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "ingress mtls ca.crl and ingressMTLS.Crl set",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "ingress-mtls-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ingress-mtls-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "ingress-mtls-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						IngressMTLS: &conf_v1.IngressMTLS{
+							ClientCertSecret: "ingress-mtls-secret",
+							CrlFileName:      "default-ingress-mtls-secret-ca.crl",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				tls: true,
+				secretRefs: map[string]*secrets.SecretReference{
+					"default/ingress-mtls-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeCA,
+							Data: map[string][]byte{
+								"ca.crt": []byte("base64cert"),
+								"ca.crl": []byte("base64crl"),
+							},
+						},
+						Path: ingressMTLSCertPath,
+					},
+				},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				Context: ctx,
+				IngressMTLS: &version2.IngressMTLS{
+					ClientCert:     ingressMTLSCertPath,
+					ClientCrl:      ingressMTLSCrlPath,
+					ClientCertHash: secrets.ComputeContentHash([]byte("base64cert")),
+					VerifyClient:   "on",
+					VerifyDepth:    1,
+				},
+				ErrorReturn: nil,
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Both ca.crl in the Secret and ingressMTLS.crlFileName fields cannot be used. ca.crl in default/ingress-mtls-secret will be ignored and default/ingress-mtls-policy will be applied`,
+				},
+			},
+			msg: "ingress mtls CrlFileName set excludes ca.crl bytes from hash",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{

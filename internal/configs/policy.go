@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
@@ -520,11 +521,8 @@ func (p *policiesCfg) addIngressMTLSConfig(
 		hashInputs = append(hashInputs, caCrl)
 	}
 	var clientCertHash string
-	for _, b := range hashInputs {
-		if len(b) > 0 {
-			clientCertHash = secrets.ComputeContentHash(hashInputs...)
-			break
-		}
+	if slices.ContainsFunc(hashInputs, func(b []byte) bool { return len(b) > 0 }) {
+		clientCertHash = secrets.ComputeContentHash(hashInputs...)
 	}
 
 	switch {
