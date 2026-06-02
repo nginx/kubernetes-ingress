@@ -111,7 +111,7 @@ When the generated NGINX config is wrong:
 - Secret-related failures often show as "file not found" in NGINX logs (secret not written to filesystem yet)
 - Policy ordering matters — first matching policy wins, check `generatePolicies()` logic
 - Plus-only features will work in Plus template but silently produce invalid config in OSS template
-- `containsDangerousChars()` rejections appear as validation warnings, not hard errors — check the warnings map
+- `containsDangerousChars()` failures are validation errors and typically result in `status.state: Invalid` — check the CRD status message and controller logs
 
 ## Security-Sensitive Debugging
 
