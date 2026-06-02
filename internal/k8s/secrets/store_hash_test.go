@@ -7,18 +7,21 @@ import (
 	"testing"
 )
 
-func TestComputeContentHash_NoArgsAndEmpty(t *testing.T) {
+func TestComputeContentHash_NoArgs(t *testing.T) {
 	t.Parallel()
 	emptyDigest := sha256.Sum256(nil)
 	want := hex.EncodeToString(emptyDigest[:])
 	if got := ComputeContentHash(); got != want {
 		t.Errorf("ComputeContentHash() with no args: got %q, want %q", got, want)
 	}
+}
 
+func TestComputeContentHash_NoArgsDiffersFromEmptySlice(t *testing.T) {
+	t.Parallel()
 	// A single zero-length slice still contributes its 8-byte length prefix
 	// (all zeros), so it must differ from the no-args case.
-	if got := ComputeContentHash(nil); got == want {
-		t.Errorf("ComputeContentHash(nil) should differ from ComputeContentHash(): both = %q", got)
+	if ComputeContentHash() == ComputeContentHash(nil) {
+		t.Fatalf("expected ComputeContentHash() and ComputeContentHash(nil) to differ")
 	}
 }
 

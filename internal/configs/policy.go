@@ -498,18 +498,20 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	// so that secret rotations cause the rendered config to change and
 	// trigger an NGINX reload. Hash only the keys we actually consume — never
 	// the whole Secret.Data map — so unrelated entries cannot leak into the
-	// rendered config as a side-channel fingerprint. If neither key is
-	// present we leave the hash empty so the template skips rendering the
-	// fingerprint comment (matches the existing "render only when non-empty"
-	// gate and keeps test fixtures with empty Secret.Data unaffected).
+	// rendered config as a side-channel fingerprint. The CRL bytes are only
+	// included when the in-secret ca.crl is the one actually rendered; when
+	// ingressMTLS.CrlFileName is set the CRL is read from a separate file
+	// that we do not have access to here, so we fingerprint only the CA
+	// bundle. If no CA bytes are present we leave the hash empty so the
+	// template skips rendering the fingerprint comment.
 	caCert := secretRef.Secret.Data[secrets.CAKey]
 	caCrl := secretRef.Secret.Data[CACrlKey]
-	var clientCertHash string
-	if len(caCert) > 0 || len(caCrl) > 0 {
-		clientCertHash = secrets.ComputeContentHash(caCert, caCrl)
-	}
 
 	if ingressMTLS.CrlFileName != "" {
+		var clientCertHash string
+		if len(caCert) > 0 {
+			clientCertHash = secrets.ComputeContentHash(caCert)
+		}
 		p.IngressMTLS = &version2.IngressMTLS{
 			ClientCert:     caFields[0],
 			ClientCrl:      fmt.Sprintf("%s/%s", DefaultSecretPath, ingressMTLS.CrlFileName),
@@ -518,6 +520,10 @@ func (p *policiesCfg) addIngressMTLSConfig(
 			VerifyDepth:    verifyDepth,
 		}
 	} else if _, hasCrlKey := secretRef.Secret.Data[CACrlKey]; hasCrlKey {
+		var clientCertHash string
+		if len(caCert) > 0 || len(caCrl) > 0 {
+			clientCertHash = secrets.ComputeContentHash(caCert, caCrl)
+		}
 		p.IngressMTLS = &version2.IngressMTLS{
 			ClientCert:     caFields[0],
 			ClientCrl:      caFields[1],
@@ -526,6 +532,10 @@ func (p *policiesCfg) addIngressMTLSConfig(
 			VerifyDepth:    verifyDepth,
 		}
 	} else {
+		var clientCertHash string
+		if len(caCert) > 0 {
+			clientCertHash = secrets.ComputeContentHash(caCert)
+		}
 		p.IngressMTLS = &version2.IngressMTLS{
 			ClientCert:     caFields[0],
 			ClientCertHash: clientCertHash,
