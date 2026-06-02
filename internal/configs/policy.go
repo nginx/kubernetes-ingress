@@ -490,7 +490,10 @@ func (p *policiesCfg) addIngressMTLSConfig(
 
 	caFields := strings.Fields(secretRef.Path)
 
-	if _, hasCrlKey := secretRef.Secret.Data[CACrlKey]; hasCrlKey && ingressMTLS.CrlFileName != "" {
+	caCert := secretRef.Secret.Data[secrets.CAKey]
+	caCrl, hasCrlKey := secretRef.Secret.Data[CACrlKey]
+
+	if hasCrlKey && ingressMTLS.CrlFileName != "" {
 		res.addWarningf("Both ca.crl in the Secret and ingressMTLS.crlFileName fields cannot be used. ca.crl in %s will be ignored and %s will be applied", secretKey, polKey)
 	}
 
@@ -499,19 +502,33 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	// trigger an NGINX reload. Hash only the keys we actually consume — never
 	// the whole Secret.Data map — so unrelated entries cannot leak into the
 	// rendered config as a side-channel fingerprint. The CRL bytes are only
-	// included when the in-secret ca.crl is the one actually rendered; when
-	// ingressMTLS.CrlFileName is set the CRL is read from a separate file
-	// that we do not have access to here, so we fingerprint only the CA
-	// bundle. If no CA bytes are present we leave the hash empty so the
+	// included when the in-secret ca.crl is the one actually rendered.
+	//
+	// Known gap: when ingressMTLS.CrlFileName is set, the CRL is read from a
+	// separate file under DefaultSecretPath that this code has no handle on,
+	// so we fingerprint only the CA bundle. As a result, rotating only the
+	// CRL file (without touching the CA bundle) will not change the rendered
+	// config and therefore will not trigger a reload through this mechanism.
+	// This asymmetry is documented on the IngressMTLS.CrlFileName API field;
+	// users who need reload-on-CRL-rotation should store the CRL under the
+	// ca.crl key of clientCertSecret instead.
+	//
+	// If no relevant bytes are present we leave the hash empty so the
 	// template skips rendering the fingerprint comment.
-	caCert := secretRef.Secret.Data[secrets.CAKey]
-	caCrl := secretRef.Secret.Data[CACrlKey]
-
-	if ingressMTLS.CrlFileName != "" {
-		var clientCertHash string
-		if len(caCert) > 0 {
-			clientCertHash = secrets.ComputeContentHash(caCert)
+	hashInputs := [][]byte{caCert}
+	if ingressMTLS.CrlFileName == "" && hasCrlKey {
+		hashInputs = append(hashInputs, caCrl)
+	}
+	var clientCertHash string
+	for _, b := range hashInputs {
+		if len(b) > 0 {
+			clientCertHash = secrets.ComputeContentHash(hashInputs...)
+			break
 		}
+	}
+
+	switch {
+	case ingressMTLS.CrlFileName != "":
 		p.IngressMTLS = &version2.IngressMTLS{
 			ClientCert:     caFields[0],
 			ClientCrl:      fmt.Sprintf("%s/%s", DefaultSecretPath, ingressMTLS.CrlFileName),
@@ -519,11 +536,7 @@ func (p *policiesCfg) addIngressMTLSConfig(
 			VerifyClient:   verifyClient,
 			VerifyDepth:    verifyDepth,
 		}
-	} else if _, hasCrlKey := secretRef.Secret.Data[CACrlKey]; hasCrlKey {
-		var clientCertHash string
-		if len(caCert) > 0 || len(caCrl) > 0 {
-			clientCertHash = secrets.ComputeContentHash(caCert, caCrl)
-		}
+	case hasCrlKey:
 		p.IngressMTLS = &version2.IngressMTLS{
 			ClientCert:     caFields[0],
 			ClientCrl:      caFields[1],
@@ -531,11 +544,7 @@ func (p *policiesCfg) addIngressMTLSConfig(
 			VerifyClient:   verifyClient,
 			VerifyDepth:    verifyDepth,
 		}
-	} else {
-		var clientCertHash string
-		if len(caCert) > 0 {
-			clientCertHash = secrets.ComputeContentHash(caCert)
-		}
+	default:
 		p.IngressMTLS = &version2.IngressMTLS{
 			ClientCert:     caFields[0],
 			ClientCertHash: clientCertHash,

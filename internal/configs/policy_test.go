@@ -3268,7 +3268,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				IngressMTLS: &version2.IngressMTLS{
 					ClientCert:     ingressMTLSCertPath,
 					ClientCrl:      ingressMTLSCrlPath,
-					ClientCertHash: "8085a4cfe04579ef59523f8ca09e9a2bb5d6053242979e645bd16eaa11b87c88",
+					ClientCertHash: "",
 					VerifyClient:   "on",
 					VerifyDepth:    1,
 				},
