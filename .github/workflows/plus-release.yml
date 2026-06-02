@@ -312,7 +312,7 @@ jobs:
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           aws-region: us-east-1
           role-to-assume: ${{ steps.secrets.outputs.AWS_ROLE_MARKETPLACE }}
