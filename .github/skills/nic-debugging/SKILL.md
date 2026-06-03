@@ -81,15 +81,20 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
 ## Debugging Workflow
 
 1. **Reproduce** — Get the exact error. Is it a reload failure? Wrong routing? Crash?
-2. **Locate the layer** — Use logs and status to determine:
+2. **Assess security impact** — Before diving into the fix, ask:
+   - Is this bug exploitable? (Can external input trigger it?)
+   - Does the failure expose sensitive data in logs or error messages?
+   - Could an attacker craft input to reach this code path?
+   - If exploitable: flag for security review BEFORE fixing
+3. **Locate the layer** — Use logs and status to determine:
    - Validation layer? → `status.state: Invalid` with reason
    - Config generation? → Generated config has wrong directives
    - Template? → Snapshot test shows the issue
    - Controller? → Sync error in logs, resource not processed
-3. **Isolate** — Find minimum CRD/annotation that triggers the issue
-4. **Fix** — Make the change in the correct layer (don't fix templates for validation bugs)
-5. **Verify** — `make test` passes, snapshot output is correct
-6. **Prevent** — Add a test case that would catch this regression
+4. **Isolate** — Find minimum CRD/annotation that triggers the issue
+5. **Fix** — Make the change in the correct layer (don't fix templates for validation bugs)
+6. **Verify** — `make test` passes, snapshot output is correct
+7. **Prevent** — Add a test case that would catch this regression (include negative/malicious input tests if the bug was in a validation path)
 
 ## Config Generation Debugging
 
@@ -106,4 +111,14 @@ When the generated NGINX config is wrong:
 - Secret-related failures often show as "file not found" in NGINX logs (secret not written to filesystem yet)
 - Policy ordering matters — first matching policy wins, check `generatePolicies()` logic
 - Plus-only features will work in Plus template but silently produce invalid config in OSS template
-- `containsDangerousChars()` rejections appear as validation warnings, not hard errors — check the warnings map
+- `containsDangerousChars()` failures are validation errors and typically result in `status.state: Invalid` — check the CRD status message and controller logs
+
+## Security-Sensitive Debugging
+
+When debugging an issue that involves user-provided input reaching NGINX config:
+
+1. **Trace the input path** — From CRD field / annotation → validation → config struct → template → NGINX config file. Identify every point where sanitization SHOULD happen.
+2. **Check for injection** — Can crafted input inject NGINX directives? Look for `;`, `{`, `}`, `$`, newlines, backticks in the user-controlled value.
+3. **Verify the guard** — Does `containsDangerousChars()` or `ValidateEscapedString()` cover this path? If not, the bug is a security vulnerability.
+4. **Never log secrets** — When debugging TLS/JWT/OIDC issues, mask credential values. Log key names and paths, not contents.
+5. **Check RBAC** — If the issue involves unauthorized access, verify ServiceAccount permissions and RBAC role bindings before looking at code.
