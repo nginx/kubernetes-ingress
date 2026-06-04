@@ -14,8 +14,6 @@
 
 ---
 
-## Contents
-
 - [Why NGINX Ingress Controller?](#why-nginx-ingress-controller)
 - [Features](#features)
 - [Quick Start](#quick-start)
