@@ -2,6 +2,8 @@
 
 # NGINX Ingress Controller
 
+![logo_1000px.png](docs/img/logo_1000px.png)
+
 **A production-grade Ingress Controller for Kubernetes, powered by NGINX and NGINX Plus.**
 
 [![Latest Release](https://img.shields.io/github/v/release/nginx/kubernetes-ingress?logo=github&sort=semver)](https://github.com/nginx/kubernetes-ingress/releases/latest)
