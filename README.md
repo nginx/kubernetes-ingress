@@ -30,8 +30,8 @@ NGINX Ingress Controller manages traffic into your Kubernetes cluster — routin
 services based on rules you define. Built by the team behind NGINX, it gives you the reliability and performance of
 NGINX with native Kubernetes integration.
 
-> **Note**: This project is different from the community
-> [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) controller.
+> **Note**: Coming from the community
+> [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) controller? Check out the [NGINX Kubernetes Hub](https://kubernetes.nginx.org) for details on how to migrate to the NGINX Ingress Controller.
 
 ## Features
 
@@ -146,8 +146,11 @@ docker buildx imagetools inspect nginx/nginx-ingress:edge --format '{{ json (ind
 We'd love to hear from you! Here's how to get involved:
 
 - **[Community Forum](https://community.nginx.org)** — Ask questions and share knowledge
-- **[GitHub Issues](https://github.com/nginx/kubernetes-ingress/issues)** — Report bugs or request features
+- **[Issues](https://github.com/nginx/kubernetes-ingress/issues)** — Report bugs or request features
+- **[Discussions](https://github.com/nginx/kubernetes-ingress/discussions)** — Talk about NGINX Ingress Controller, share ideas, and connect with other users
 - **[Contributing Guide](CONTRIBUTING.md)** — Learn how to contribute
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** — Our commitment to a welcoming community
+- **[Security Policy](SECURITY.md)** — How to report security issues
 - **Community Calls** — Every other Monday at 16:00 GMT ([convert to your timezone](https://dateful.com/convert/gmt?t=16))
 
 ### Upcoming community call dates
