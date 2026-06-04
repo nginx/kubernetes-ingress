@@ -2,7 +2,7 @@
 
 # NGINX Ingress Controller
 
-![logo_1000px.png](docs/img/logo_1000px.png)
+![logo](docs/img/logo.png)
 
 **A production-grade Ingress Controller for Kubernetes, powered by NGINX and NGINX Plus.**
 
