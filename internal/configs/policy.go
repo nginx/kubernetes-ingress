@@ -1136,11 +1136,17 @@ func (p *policiesCfg) addCORSConfig(
 func (p *policiesCfg) addHSTSConfig(
 	hsts *conf_v1.HSTS,
 	polKey string,
+	tls bool,
 ) *validationResults {
 	res := newValidationResults()
+	if !tls && !hsts.BehindProxy {
+		res.addWarningf("TLS must be enabled for HSTS policy %s", polKey)
+		res.isError = true
+		return res
+	}
 
 	if p.HSTS != nil {
-		res.addWarningf("Multiple HSTS policies in the same context is not valid. HSTS policy %s will be ignored", polKey)
+		res.addWarningf("Multiple HSTS policies in the same context are not valid. HSTS policy %s will be ignored", polKey)
 		return res
 	}
 
@@ -1234,7 +1240,7 @@ func generatePolicies(
 			case pol.Spec.CORS != nil:
 				res = config.addCORSConfig(pol.Spec.CORS, key, ownerDetails)
 			case pol.Spec.HSTS != nil:
-				res = config.addHSTSConfig(pol.Spec.HSTS, key)
+				res = config.addHSTSConfig(pol.Spec.HSTS, key, policyOpts.tls)
 			default:
 				res = newValidationResults()
 			}

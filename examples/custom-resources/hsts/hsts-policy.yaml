@@ -8,5 +8,5 @@ spec:
     maxAge: 2592000
     # extends the policy to all subdomains of the host
     includeSubDomains: true
-    # sets the HSTS headers based on the X-Forwarded-Proto header
+    # when behindProxy is true, the HSTS headers are set based on the X-Forwarded-Proto header
     behindProxy: false

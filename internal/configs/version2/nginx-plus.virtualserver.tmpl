@@ -372,7 +372,7 @@ server {
     proxy_ssl_name {{ .SSLName }};
     {{- end }}
 
-    {{- if and $s.HSTS (or $s.SSL $s.HSTS.BehindProxy)}}
+    {{- if $s.HSTS }}
     set $hsts_header_val "";
     proxy_hide_header Strict-Transport-Security;
     {{- if $s.HSTS.BehindProxy}}

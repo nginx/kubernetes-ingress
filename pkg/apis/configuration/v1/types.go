@@ -1327,9 +1327,10 @@ type ExternalAuth struct {
 	SNIName string `json:"sniName,omitempty"`
 }
 
-// HSTS defines a HTTP Strict Transport Security policy for enforcing secure connections to the server.
+// HSTS defines an HTTP Strict Transport Security policy for enforcing secure connections to the server.
 type HSTS struct {
 	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=0
 	// MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy.
 	MaxAge *int `json:"maxAge"`
 	// +kubebuilder:validation:Optional

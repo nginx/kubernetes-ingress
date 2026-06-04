@@ -2,6 +2,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: cafe-ingress
+  annotations:
+    nginx.org/policies: "ingress-mtls-policy"
 spec:
   ingressClassName: nginx
   tls:
