@@ -985,6 +985,104 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersHSTSAtServerLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("Strict-Transport-Security")) {
+		t.Error("want Strict-Transport-Security directive, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=2592000")) {
+		t.Error("want max-age=2592000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSBehindProxy(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSBehindProxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("http_x_forwarded_proto")) {
+		t.Error("want X-Forwarded-Proto condition, got none")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSAtLocationLevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(got)
+	locationIdx := strings.Index(content, "location /")
+	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
+	if hstsIdx == -1 {
+		t.Error("want Strict-Transport-Security inside location block, got none")
+	}
+	snaps.MatchSnapshot(t, content)
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtServerLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("Strict-Transport-Security")) {
+		t.Error("want Strict-Transport-Security directive, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=2592000")) {
+		t.Error("want max-age=2592000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSBehindProxy(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSBehindProxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("http_x_forwarded_proto")) {
+		t.Error("want X-Forwarded-Proto condition, got none")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtLocationLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSAtLocationLevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(got)
+	locationIdx := strings.Index(content, "location /")
+	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
+	if hstsIdx == -1 {
+		t.Error("want Strict-Transport-Security inside location block, got none")
+	}
+	snaps.MatchSnapshot(t, content)
+}
+
 func TestExecuteVirtualServerTemplateWithNGINXDebugLevelDebug(t *testing.T) {
 	t.Parallel()
 
@@ -3058,7 +3156,61 @@ var (
 			},
 		},
 	}
-
+	virtualServerCfgWithHSTS = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{
+				MaxAge:            2592000,
+				IncludeSubDomains: true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSBehindProxy = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			HSTS: &HSTS{
+				MaxAge:      2592000,
+				BehindProxy: true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSAtLocationLevel = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "upstream",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.1:8080"},
+				},
+			},
+		},
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{MaxAge: 2592000},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://upstream",
+					AddHeaders: []AddHeader{
+						{Header: Header{Name: "X-Custom", Value: "value"}, Always: true},
+					},
+					HSTS: &HSTS{MaxAge: 2592000},
+				},
+			},
+		},
+	}
 	virtualServerCfgWithCachePolicyNGINXPlus = VirtualServerConfig{
 		CacheZones: []CacheZone{
 			{

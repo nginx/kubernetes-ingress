@@ -1,0 +1,12 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: hsts-policy
+spec:
+  hsts:
+    # sets how long in seconds the browser should cache and enforce the HSTS policy
+    maxAge: 2592000
+    # extends the policy to all subdomains of the host
+    includeSubDomains: true
+    # sets the HSTS headers based on the X-Forwarded-Proto header
+    behindProxy: false

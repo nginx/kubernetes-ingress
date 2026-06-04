@@ -812,6 +812,8 @@ type PolicySpec struct {
 	CORS *CORS `json:"cors"`
 	// The ExternalAuth policy configures NGINX to authenticate client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server.
 	ExternalAuth *ExternalAuth `json:"externalAuth"`
+	// The HSTS policy configures HTTP Strict Transport Security headers
+	HSTS *HSTS `json:"hsts"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1323,4 +1325,19 @@ type ExternalAuth struct {
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)*$`
 	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
 	SNIName string `json:"sniName,omitempty"`
+}
+
+// HSTS defines a HTTP Strict Transport Security policy for enforcing secure connections to the server.
+type HSTS struct {
+	// +kubebuilder:validation:Required
+	// MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy.
+	MaxAge *int `json:"maxAge"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// IncludeSubDomains extends the HSTS policy to all subdomains of the host.
+	IncludeSubDomains bool `json:"includeSubDomains,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable.
+	BehindProxy bool `json:"behindProxy,omitempty"`
 }

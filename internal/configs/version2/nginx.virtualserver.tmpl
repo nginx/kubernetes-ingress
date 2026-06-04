@@ -242,6 +242,20 @@ server {
     proxy_ssl_name {{ .SSLName }};
     {{- end }}
 
+    {{- if and $s.HSTS (or $s.SSL $s.HSTS.BehindProxy)}}
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    {{- if $s.HSTS.BehindProxy}}
+    if ($http_x_forwarded_proto = 'https') {
+    {{- else}}
+    if ($https = on) {
+    {{- end}}
+        set $hsts_header_val "max-age={{$s.HSTS.MaxAge}}; {{if $s.HSTS.IncludeSubDomains}}includeSubDomains; {{end}}preload";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+    {{- end}}
+
     {{- if $s.ExternalAuth }}
     auth_request {{ $s.ExternalAuth.URI.InternalPath }};
     {{- end }}
@@ -560,6 +574,19 @@ server {
             return 204;
         }
         {{- end }}
+
+        {{- if $l.HSTS}}
+        set $hsts_header_val "";
+        proxy_hide_header Strict-Transport-Security;
+        {{- if $l.HSTS.BehindProxy}}
+        if ($http_x_forwarded_proto = 'https') {
+        {{- else}}
+        if ($https = on) {
+        {{- end}}
+            set $hsts_header_val "max-age={{$l.HSTS.MaxAge}}; {{if $l.HSTS.IncludeSubDomains}}includeSubDomains; {{end}}preload";
+        }
+        add_header Strict-Transport-Security "$hsts_header_val" always;
+        {{- end}}
 
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};

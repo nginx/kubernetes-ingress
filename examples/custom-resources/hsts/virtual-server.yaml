@@ -1,0 +1,23 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: hsts-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+    - path: /test
+      action:
+        pass: webapp
+      policies:
+        - name: cors-policy

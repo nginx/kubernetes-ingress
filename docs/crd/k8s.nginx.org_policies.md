@@ -84,6 +84,10 @@ The `.spec` object supports the following fields:
 | `externalAuth.sslVerify` | `boolean` | SSLVerify enables verification of the external authentication server's SSL certificate. Default is false. |
 | `externalAuth.sslVerifyDepth` | `integer` | SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1. |
 | `externalAuth.trustedCertSecret` | `string` | TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt. |
+| `hsts` | `object` | The HSTS policy configures HTTP Strict Transport Security headers |
+| `hsts.behindProxy` | `boolean` | BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable. |
+| `hsts.includeSubDomains` | `boolean` | IncludeSubDomains extends the HSTS policy to all subdomains of the host. |
+| `hsts.maxAge` | `integer` | MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy. |
 | `ingressClassName` | `string` | Specifies which instance of NGINX Ingress Controller must handle the Policy resource. |
 | `ingressMTLS` | `object` | The IngressMTLS policy configures client certificate verification. |
 | `ingressMTLS.clientCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid. |

@@ -96,6 +96,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.HeaderApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("HealthCheck"):
 		return &applyconfigurationconfigurationv1.HealthCheckApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("HSTS"):
+		return &applyconfigurationconfigurationv1.HSTSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("IngressMTLS"):
 		return &applyconfigurationconfigurationv1.IngressMTLSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("JWTAuth"):
