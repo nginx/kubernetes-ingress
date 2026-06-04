@@ -23,18 +23,18 @@ NGINX with native Kubernetes integration.
 > **Note**: This project is different from the community
 > [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) controller.
 
-## ✨ Features
+## Features
 
-- 🔀 **Content-based routing** — Host and path-based routing via standard Ingress resources
-- 🔒 **TLS/SSL termination** — Automatic certificate handling per hostname
-- ⚡ **Advanced traffic management** — Traffic splitting, A/B testing, and canary deployments via [VirtualServer/VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/) CRDs
-- 🌐 **TCP/UDP/gRPC load balancing** — Via [TransportServer](https://docs.nginx.com/nginx-ingress-controller/configuration/transportserver-resource/) CRD
-- 🛡️ **Security policies** — Rate limiting, JWT auth, WAF (NGINX App Protect), mTLS, OIDC, and more
-- 📊 **Prometheus metrics** — Built-in monitoring and observability
-- 🔧 **Highly configurable** — [Annotations](https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/), [ConfigMap](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/), and CRDs for fine-grained control
-- 🏢 **Commercial support** — Available for NGINX Plus users
+- **Content-based routing** — Host and path-based routing via standard Ingress resources
+- **TLS/SSL termination** — Automatic certificate handling per hostname
+- **Advanced traffic management** — Traffic splitting, A/B testing, and canary deployments via [VirtualServer/VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/) CRDs
+- **TCP/UDP/gRPC load balancing** — Via [TransportServer](https://docs.nginx.com/nginx-ingress-controller/configuration/transportserver-resource/) CRD
+- **Security policies** — Rate limiting, JWT auth, WAF (NGINX App Protect), mTLS, OIDC, and more
+- **Prometheus metrics** — Built-in monitoring and observability
+- **Highly configurable** — [Annotations](https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/), [ConfigMap](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/), and CRDs for fine-grained control
+- **Commercial support** — Available for NGINX Plus users
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Install with Helm (recommended)
 
@@ -51,7 +51,7 @@ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5
 # See the full manifest installation guide for all required resources:
 ```
 
-📖 **[Full Installation Guide →](https://docs.nginx.com/nginx-ingress-controller/install/)**
+**[Full Installation Guide →](https://docs.nginx.com/nginx-ingress-controller/install/)**
 
 ### Try It Out
 
@@ -65,7 +65,7 @@ kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5
 
 See more [examples](https://github.com/nginx/kubernetes-ingress/tree/main/examples) to explore all capabilities.
 
-## 📖 Documentation
+## Documentation
 
 | Resource | Link |
 | --- | --- |
@@ -74,7 +74,7 @@ See more [examples](https://github.com/nginx/kubernetes-ingress/tree/main/exampl
 | NGINX Plus features | [NGINX Plus overview](https://docs.nginx.com/nginx-ingress-controller/overview/nginx-plus/) |
 | Helm chart | [charts/nginx-ingress](https://github.com/nginx/kubernetes-ingress/tree/main/charts/nginx-ingress) |
 
-## 🐳 Docker Images
+## Docker Images
 
 Official NGINX Ingress Controller images are available from multiple registries:
 
@@ -88,7 +88,7 @@ Official NGINX Ingress Controller images are available from multiple registries:
 
 You can also [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/).
 
-## 📦 Releases
+## Releases
 
 The latest stable release is **[5.5.0](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.5.0)**. For
 production use, we recommend the latest stable release.
@@ -108,10 +108,6 @@ LTS images are available from the following registries:
 
 | Registry | Link |
 | --- | --- |
-| Docker Hub | [nginx/nginx-ingress](https://hub.docker.com/r/nginx/nginx-ingress/) |
-| GitHub Container Registry | [ghcr.io/nginx/kubernetes-ingress](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress) |
-| Amazon ECR Public Gallery | [public.ecr.aws/nginx/nginx-ingress](https://gallery.ecr.aws/nginx/nginx-ingress) |
-| Quay.io | [quay.io/nginx/nginx-ingress](https://quay.io/repository/nginx/nginx-ingress) |
 | F5 Container Registry | [See registry docs](https://docs.nginx.com/nginx-ingress-controller/install/images/registry-download/) |
 
 #### Container images & installation resources
@@ -135,14 +131,14 @@ Example — retrieve and analyze the SBOM for `linux/amd64`:
 docker buildx imagetools inspect nginx/nginx-ingress:edge --format '{{ json (index .SBOM "linux/amd64").SPDX }}' | grype
 ```
 
-## 🤝 Community
+## Community
 
 We'd love to hear from you! Here's how to get involved:
 
-- 💬 **[Community Forum](https://community.nginx.org)** — Ask questions and share knowledge
-- 🐛 **[GitHub Issues](https://github.com/nginx/kubernetes-ingress/issues)** — Report bugs or request features
-- 📝 **[Contributing Guide](CONTRIBUTING.md)** — Learn how to contribute
-- 📅 **Community Calls** — Every other Monday at 16:00 GMT ([convert to your timezone](https://dateful.com/convert/gmt?t=16))
+- **[Community Forum](https://community.nginx.org)** — Ask questions and share knowledge
+- **[GitHub Issues](https://github.com/nginx/kubernetes-ingress/issues)** — Report bugs or request features
+- **[Contributing Guide](CONTRIBUTING.md)** — Learn how to contribute
+- **Community Calls** — Every other Monday at 16:00 GMT ([convert to your timezone](https://dateful.com/convert/gmt?t=16))
 
 ### Upcoming community call dates
 
@@ -153,7 +149,7 @@ We'd love to hear from you! Here's how to get involved:
 
 Join via **[Zoom](https://f5.zoom.us/j/98544055687?pwd=q4sGaaeWM0DawJTePBGbCngtfLJxgq.1&from=addon)** — Meeting ID: `985 4405 5687`, Passcode: `982193`
 
-## 📜 License
+## License
 
 [Apache License 2.0](LICENSE)
 
