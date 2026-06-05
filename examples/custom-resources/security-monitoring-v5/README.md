@@ -2,6 +2,11 @@
 
 This example describes how to deploy NGINX Plus Ingress Controller with [F5 WAF for NGINX v5](https://docs.nginx.com/waf/) and [NGINX Agent](https://docs.nginx.com/nginx-agent/overview/) to integrate with NGINX Security Monitoring. It deploys a simple web application and configures WAF protection using compiled policy and log bundles, forwarding security logs to the Security Monitoring dashboard via syslog.
 
+WAF policy bundles can be sourced in two ways:
+
+- **Filesystem bundles** (`apBundle`) — manually compile and copy `.tgz` bundles to the pod volume. See Steps 2–4 below.
+- **Remote bundle sources** (`apBundleSource`) — NIC automatically fetches bundles from NGINX One Console (N1C), NGINX Instance Manager (NIM), or any HTTPS endpoint. See [WAF with Remote Bundle Sources](../app-protect-waf-v5-bundle-source/) for all source types, or use `waf-n1c.yaml` in Step 4 below.
+
 This example works with both:
 
 - **NGINX Instance Manager** (Agent 2.*) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
@@ -45,7 +50,9 @@ Create the application deployment and service:
 kubectl apply -f webapp.yaml
 ```
 
-## Step 2 - Create and Deploy the WAF Policy and Log Bundles
+## Step 2 - Create and Deploy the WAF Policy and Log Bundles (filesystem bundles only)
+
+> **Skip this step** if using remote bundle sources (`waf-n1c.yaml`) — NIC fetches bundles automatically.
 
 1. Compile your WAF policy and log configuration into bundles (`.tgz` files) using the `waf-compiler` image. See [Compile WAF Policy from JSON to Bundle](https://docs.nginx.com/nginx-ingress-controller/install/waf-helm/#compile-waf-policy-from-json-to-bundle) for compilation steps.
 
@@ -70,21 +77,41 @@ If you are using Agent (3.*) (NGINX One Console), skip this step. NGINX Agent 3.
 
 ## Step 4 - Deploy the WAF Policy
 
-Create the WAF policy referencing the compiled bundles. Choose the file that matches your agent version:
+Create the WAF policy referencing the compiled bundles. Choose the file that matches your setup:
 
-**Agent 2.* (NGINX Instance Manager)** — logs sent to the syslog service:
+**Agent 2.* (NGINX Instance Manager)** — filesystem bundles, logs sent to the syslog service:
 
 ```console
 kubectl apply -f waf.yaml
 ```
 
-**Agent 3.* (NGINX One Console)** — logs sent directly to the local NGINX Agent listener:
+**Agent 3.* (NGINX One Console)** — filesystem bundles, logs sent to the local NGINX Agent listener:
 
 ```console
 kubectl apply -f waf-agent-v3.yaml
 ```
 
-Note the log bundle referenced in the `apLogBundle` field must be compiled from a log profile that matches the format required by NGINX Security Monitoring.
+**Agent 3.* (NGINX One Console) with remote bundle pulling** — bundles fetched from N1C via `apBundleSource`, no manual file copy needed:
+
+```console
+kubectl create secret generic n1c-credentials \
+  --type=nginx.com/waf-bundle \
+  --from-literal=token=<Your API Token>
+kubectl apply -f waf-n1c.yaml
+```
+
+Edit `waf-n1c.yaml` and replace `<tenant>` and `<policy_name>` with your NGINX One Console values. The API token is generated from the [F5 Distributed Cloud Console](https://console.ves.volterra.io) under **Account Settings > Credentials > Add Credentials > API Token**. See [Managing User Credentials](https://docs.cloud.f5.com/docs/how-to/user-mgmt/credentials) for details.
+
+> When using `waf-n1c.yaml`, skip Step 2 (manual bundle compilation and copy) — NIC fetches bundles directly from NGINX One Console.
+
+Verify the policy status:
+
+```console
+kubectl describe policy waf-policy
+```
+
+The policy should show `State: Valid`. If the bundle source is unreachable, the status will be
+`Warning` with reason `BundleFetchFailed`. NIC retries on the next `pollInterval`.
 
 ## Step 5 - Configure Load Balancing
 

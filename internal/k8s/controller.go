@@ -52,6 +52,7 @@ import (
 
 	cm_controller "github.com/nginx/kubernetes-ingress/internal/certmanager"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
 	ed_controller "github.com/nginx/kubernetes-ingress/internal/externaldns"
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 
@@ -233,6 +234,11 @@ type LoadBalancerController struct {
 	ShuttingDown                  bool
 	endpointSliceWarnings         map[string]bool // see updateEndpointSliceWarningState
 
+	// WAF bundle polling.
+	bundlePollerMgr      wafbundle.Manager
+	appProtectVersion    string
+	appProtectBundlePath string
+
 	// Startup status deferral: pending slices accumulate status updates
 	// during the initial queue drain (!isNginxReady). They are snapshotted
 	// and flushed asynchronously by flushPendingStatusesAsync() once the
@@ -301,6 +307,7 @@ type NewLoadBalancerControllerInput struct {
 	DynamicWeightChangesReload   bool
 	InstallationFlags            []string
 	ShuttingDown                 bool
+	AppProtectBundlePath         string
 }
 
 // NewLoadBalancerController creates a controller
@@ -348,6 +355,26 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		mgmtConfigMapName:            input.MGMTConfigMap,
 		ShuttingDown:                 input.ShuttingDown,
 		endpointSliceWarnings:        make(map[string]bool),
+		appProtectVersion:            input.AppProtectVersion,
+		appProtectBundlePath:         input.AppProtectBundlePath,
+	}
+
+	if input.AppProtectEnabled && input.AppProtectBundlePath != "" {
+		fetcher := wafbundle.NewHTTPFetcher()
+		lbc.bundlePollerMgr = wafbundle.NewPollerManager(
+			fetcher,
+			input.AppProtectBundlePath,
+			func(polKey string) {
+				parts := strings.SplitN(polKey, "/", 2)
+				if len(parts) == 2 {
+					lbc.AddSyncQueue(&conf_v1.Policy{
+						ObjectMeta: meta_v1.ObjectMeta{Namespace: parts[0], Name: parts[1]},
+					})
+					nl.Debugf(lbc.Logger, "Enqueued policy %s for re-sync due to bundle update", polKey)
+				}
+			},
+			nl.LoggerFromContext(input.LoggerContext),
+		)
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
@@ -3685,10 +3712,29 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 			}
 		} else if pol.Spec.APIKey != nil && pol.Spec.APIKey.ClientSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
+		} else if pol.Spec.WAF != nil && wafBundleUsesSecret(pol, secretNamespace, secretName) {
+			res = append(res, pol)
 		}
 	}
 
 	return res
+}
+
+// wafBundleUsesSecret reports whether any BundleSource on a WAF Policy references
+// the given secret, so that secret rotation triggers a re-sync.
+func wafBundleUsesSecret(pol *conf_v1.Policy, secretNamespace, secretName string) bool {
+	if pol.Namespace != secretNamespace {
+		return false
+	}
+	if bs := pol.Spec.WAF.ApBundleSource; bs != nil && bs.Secret == secretName {
+		return true
+	}
+	for _, sl := range pol.Spec.WAF.SecurityLogs {
+		if sl != nil && sl.ApLogBundleSource != nil && sl.ApLogBundleSource.Secret == secretName {
+			return true
+		}
+	}
+	return false
 }
 
 func (lbc *LoadBalancerController) getTransportServerBackupEndpointsAndKey(transportServer *conf_v1.TransportServer, u conf_v1.TransportServerUpstream, externalNameSvcs map[string]bool) ([]string, string) {

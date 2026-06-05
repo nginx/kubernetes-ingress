@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: waf-policy
+spec:
+  waf:
+    enable: true
+    apBundleSource:
+      url: "https://bundle-server.default.svc.cluster.local/bundles/attack-signatures-blocking.tgz"
+      secret: "bundle-client-tls"
+      pollInterval: "1m"
+    securityLogs:
+    - enable: true
+      apLogBundleSource:
+        url: "https://bundle-server.default.svc.cluster.local/bundles/log-default.tgz"
+        secret: "bundle-client-tls"
+      logDest: "stderr"

@@ -343,6 +343,7 @@ func main() {
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
 		ShuttingDown:                 false,
+		AppProtectBundlePath:         appProtectBundlePath,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)

@@ -1,10 +1,15 @@
 package k8s
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
+	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
@@ -112,6 +117,23 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 					}
 				}
 			}
+		}
+	}
+
+	// WAF bundle source management — initial fetch + poller reconciliation.
+	// Failures are isolated to this policy and never block other resources.
+	if lbc.bundlePollerMgr != nil {
+		if polExists && lbc.HasCorrectIngressClass(obj) {
+			pol := obj.(*conf_v1.Policy)
+			if pol.Spec.WAF != nil && pol.Spec.WAF.ApBundleSource != nil {
+				lbc.syncWAFBundleSource(pol)
+			} else {
+				lbc.bundlePollerMgr.StopPoller(key)
+				lbc.cleanupFetchedBundles(key)
+			}
+		} else {
+			lbc.bundlePollerMgr.StopPoller(key)
+			lbc.cleanupFetchedBundles(key)
 		}
 	}
 
@@ -228,4 +250,221 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	}
 
 	// Note: updating the status of a policy based on a reload is not needed.
+}
+
+// syncWAFBundleSource performs initial bundle fetches (if files are absent on disk)
+// and reconciles the background poller for the given WAF policy.
+func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
+	polKey := pol.Namespace + "/" + pol.Name
+	bs := pol.Spec.WAF.ApBundleSource
+
+	auth, err := lbc.resolveWAFBundleAuth(bs, pol.Namespace)
+	if err != nil {
+		msg := fmt.Sprintf("WAF bundle secret resolution failed: %v", err)
+		lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
+		if lbc.reportCustomResourceStatusEnabled() {
+			if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
+				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+			}
+		}
+		return
+	}
+
+	policyFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy")
+	policyPath := filepath.Join(lbc.appProtectBundlePath, policyFilename)
+	if _, statErr := os.Stat(policyPath); os.IsNotExist(statErr) {
+		lbc.performInitialFetch(pol, bs, auth, policyPath, wafbundle.PolicyBundle)
+	}
+
+	for idx, sl := range pol.Spec.WAF.SecurityLogs {
+		if sl == nil || sl.ApLogBundleSource == nil {
+			continue
+		}
+		logAuth, logErr := lbc.resolveWAFBundleAuth(sl.ApLogBundleSource, pol.Namespace)
+		if logErr != nil {
+			nl.Warnf(lbc.Logger, "WAF log bundle secret error for policy %s log %d: %v", polKey, idx, logErr)
+			continue
+		}
+		logFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx))
+		logPath := filepath.Join(lbc.appProtectBundlePath, logFilename)
+		if _, statErr := os.Stat(logPath); os.IsNotExist(statErr) {
+			lbc.performInitialFetch(pol, sl.ApLogBundleSource, logAuth, logPath, wafbundle.LogProfileBundle)
+		}
+	}
+
+	lbc.bundlePollerMgr.ReconcilePoller(polKey, lbc.buildPollSources(pol, auth))
+}
+
+// performInitialFetch synchronously fetches a single bundle and writes it to destPath.
+// On failure it sets a Warning status; the poller will retry on the next interval.
+func (lbc *LoadBalancerController) performInitialFetch(
+	pol *conf_v1.Policy,
+	bs *conf_v1.BundleSource,
+	auth *wafbundle.BundleAuth,
+	destPath string,
+	kind wafbundle.BundleType,
+) {
+	polKey := pol.Namespace + "/" + pol.Name
+	req := lbc.buildFetchRequest(bs, auth, kind)
+
+	timeout := wafbundle.DefaultTimeout
+	if bs.Timeout != nil && bs.Timeout.Duration > 0 {
+		timeout = bs.Timeout.Duration
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	fetcher := wafbundle.NewHTTPFetcher()
+	var result wafbundle.Result
+	var fetchErr error
+	if kind == wafbundle.LogProfileBundle {
+		result, fetchErr = fetcher.FetchLogProfileBundle(ctx, &req)
+	} else {
+		result, fetchErr = fetcher.FetchPolicyBundle(ctx, &req)
+	}
+
+	if fetchErr != nil {
+		msg := fmt.Sprintf("WAF bundle not active: initial fetch failed: %v", fetchErr)
+		nl.Warnf(lbc.Logger, "Initial WAF bundle fetch failed for policy %s (will retry): %v", polKey, fetchErr)
+		lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonBundleFetchFailed, msg)
+		if lbc.reportCustomResourceStatusEnabled() {
+			if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonBundleFetchFailed, msg); updateErr != nil {
+				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+			}
+		}
+		return
+	}
+	if result.Unchanged {
+		return
+	}
+	if err := wafbundle.WriteAtomicBundle(destPath, result.Data); err != nil {
+		msg := "WAF bundle not active: failed to write bundle to disk"
+		nl.Errorf(lbc.Logger, "Failed to write WAF bundle for policy %s: %v", polKey, err)
+		lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonBundleFetchFailed, msg)
+		if lbc.reportCustomResourceStatusEnabled() {
+			if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonBundleFetchFailed, msg); updateErr != nil {
+				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+			}
+		}
+	}
+}
+
+// buildPollSources constructs the PollSource slice for a policy's bundle sources.
+func (lbc *LoadBalancerController) buildPollSources(pol *conf_v1.Policy, policyAuth *wafbundle.BundleAuth) []wafbundle.PollSource {
+	var sources []wafbundle.PollSource
+
+	bs := pol.Spec.WAF.ApBundleSource
+	sources = append(sources, wafbundle.PollSource{
+		Filename: wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"),
+		Kind:     wafbundle.PolicyBundle,
+		Req:      lbc.buildFetchRequest(bs, policyAuth, wafbundle.PolicyBundle),
+		Interval: effectivePollInterval(bs),
+	})
+
+	for idx, sl := range pol.Spec.WAF.SecurityLogs {
+		if sl == nil || sl.ApLogBundleSource == nil {
+			continue
+		}
+		logAuth, err := lbc.resolveWAFBundleAuth(sl.ApLogBundleSource, pol.Namespace)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Skipping log bundle poller for %s/%s log %d: %v", pol.Namespace, pol.Name, idx, err)
+			continue
+		}
+		sources = append(sources, wafbundle.PollSource{
+			Filename: wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx)),
+			Kind:     wafbundle.LogProfileBundle,
+			Req:      lbc.buildFetchRequest(sl.ApLogBundleSource, logAuth, wafbundle.LogProfileBundle),
+			Interval: effectivePollInterval(sl.ApLogBundleSource),
+		})
+	}
+
+	return sources
+}
+
+// buildFetchRequest constructs a wafbundle.Request from a BundleSource and resolved auth.
+func (lbc *LoadBalancerController) buildFetchRequest(bs *conf_v1.BundleSource, auth *wafbundle.BundleAuth, kind wafbundle.BundleType) wafbundle.Request {
+	srcType := wafbundle.SourceTypeHTTPS
+	switch bs.Type {
+	case conf_v1.BundleSourceTypeN1C:
+		srcType = wafbundle.SourceTypeN1C
+	case conf_v1.BundleSourceTypeNIM:
+		srcType = wafbundle.SourceTypeNIM
+	}
+	req := wafbundle.Request{
+		Type:            srcType,
+		BundleKind:      kind,
+		URL:             bs.URL,
+		Auth:            auth,
+		PolicyName:      bs.PolicyName,
+		PolicyNamespace: bs.PolicyNamespace,
+		NAPRelease:      lbc.appProtectVersion,
+		VerifyChecksum:  bs.VerifyChecksum,
+	}
+	if bs.Timeout != nil {
+		req.Timeout = bs.Timeout.Duration
+	}
+	if bs.RetryAttempts != nil {
+		req.RetryAttempts = *bs.RetryAttempts
+	}
+	return req
+}
+
+// resolveWAFBundleAuth resolves authentication credentials from the referenced Secret.
+func (lbc *LoadBalancerController) resolveWAFBundleAuth(bs *conf_v1.BundleSource, namespace string) (*wafbundle.BundleAuth, error) {
+	if bs.Secret == "" {
+		return nil, nil
+	}
+	secretKey := namespace + "/" + bs.Secret
+	ref := lbc.secretStore.GetSecret(secretKey)
+	if ref == nil || ref.Error != nil {
+		var msg string
+		if ref != nil {
+			msg = ref.Error.Error()
+		}
+		return nil, fmt.Errorf("secret %s not found or invalid: %s", secretKey, msg)
+	}
+	data := ref.Secret.Data
+
+	switch bs.Type {
+	case conf_v1.BundleSourceTypeN1C:
+		tok := string(data["token"])
+		if tok == "" {
+			return nil, fmt.Errorf("N1C secret %s must contain a 'token' field (type nginx.com/waf-bundle)", secretKey)
+		}
+		return &wafbundle.BundleAuth{APIToken: tok}, nil
+	case conf_v1.BundleSourceTypeNIM:
+		// NIM: 'token' for bearer auth, or 'username'+'password' for basic auth.
+		if tok := string(data["token"]); tok != "" {
+			return &wafbundle.BundleAuth{BearerToken: tok}, nil
+		}
+		if usr := string(data["username"]); usr != "" {
+			return &wafbundle.BundleAuth{Username: usr, Password: string(data["password"])}, nil
+		}
+		return nil, fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password' (type nginx.com/waf-bundle)", secretKey)
+	default: // HTTPS
+		return &wafbundle.BundleAuth{
+			TLSCert: data["tls.crt"],
+			TLSKey:  data["tls.key"],
+			TLSCA:   data["ca.crt"],
+		}, nil
+	}
+}
+
+// cleanupFetchedBundles removes any fetched bundle files for the given polKey.
+func (lbc *LoadBalancerController) cleanupFetchedBundles(polKey string) {
+	if lbc.appProtectBundlePath == "" {
+		return
+	}
+	ns, name, _ := ParseNamespaceName(polKey)
+	_ = os.Remove(filepath.Join(lbc.appProtectBundlePath, wafbundle.FetchedBundleFilename(ns, name, "policy")))
+	for i := range 10 {
+		_ = os.Remove(filepath.Join(lbc.appProtectBundlePath, wafbundle.FetchedBundleFilename(ns, name, fmt.Sprintf("log_%d", i))))
+	}
+}
+
+func effectivePollInterval(bs *conf_v1.BundleSource) time.Duration {
+	if bs.PollInterval != nil && bs.PollInterval.Duration > 0 {
+		return bs.PollInterval.Duration
+	}
+	return wafbundle.DefaultPollInterval
 }

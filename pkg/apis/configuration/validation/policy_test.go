@@ -3,8 +3,10 @@ package validation
 import (
 	"strings"
 	"testing"
+	"time"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -4104,5 +4106,137 @@ func TestValidateExternalAuth_SSLFields(t *testing.T) {
 				t.Errorf("validateExternalAuth() returned errors %v for case: %v", allErrs, test.msg)
 			}
 		})
+	}
+}
+
+func TestValidateBundleSource_HTTPS_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://bundles.example.com/policy.tgz"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_HTTPS_PolicyName_Forbidden(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://bundles.example.com/p.tgz", PolicyName: "Foo"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for policyName on HTTPS source")
+	}
+}
+
+func TestValidateBundleSource_N1C_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{
+		Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io",
+		PolicyName: "StrictPolicy", PolicyNamespace: "default", Secret: "dataplane-key",
+	}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_N1C_MissingPolicyName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io", PolicyNamespace: "default"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for missing policyName on N1C")
+	}
+}
+
+func TestValidateBundleSource_N1C_MissingPolicyNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io", PolicyName: "P"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for missing policyNamespace on N1C")
+	}
+}
+
+func TestValidateBundleSource_URL_HTTP_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "http://example.com/p.tgz"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for http:// URL")
+	}
+}
+
+func TestValidateBundleSource_URL_DangerousChars(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p;rm -rf"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for dangerous chars in URL")
+	}
+}
+
+func TestValidateBundleSource_PollInterval_TooShort(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 5 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for pollInterval < 10s")
+	}
+}
+
+func TestValidateBundleSource_PollInterval_Valid(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 30 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_NIM_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", PolicyName: "TestPolicy"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors for valid NIM source: %v", errs)
+	}
+}
+
+func TestValidateWAF_MutualExclusivity_AllThree(t *testing.T) {
+	t.Parallel()
+	waf := &v1.WAF{
+		Enable: true, ApPolicy: "some/policy", ApBundle: "bundle.tgz",
+		ApBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz"},
+	}
+	if errs := validateWAF(waf, field.NewPath("waf")); len(errs) == 0 {
+		t.Error("expected error when all three WAF source fields set")
+	}
+}
+
+func TestValidateWAF_ApBundleSource_N1C_Valid(t *testing.T) {
+	t.Parallel()
+	waf := &v1.WAF{
+		Enable: true,
+		ApBundleSource: &v1.BundleSource{
+			Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io",
+			PolicyName: "Strict", PolicyNamespace: "default",
+		},
+	}
+	if errs := validateWAF(waf, field.NewPath("waf")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateLogConf_ApLogBundleSource_RequiresBundleMode(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	if errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), false); len(errs) == 0 {
+		t.Error("expected error: apLogBundleSource requires bundle mode")
+	}
+}
+
+func TestValidateLogConf_ApLogBundleSource_BundleMode_Valid(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	if errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), true); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
 	}
 }
