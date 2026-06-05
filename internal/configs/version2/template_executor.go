@@ -3,8 +3,20 @@ package version2
 import (
 	"bytes"
 	"path"
+	"sync"
 	"text/template"
 )
+
+// bufPool reuses bytes.Buffer instances across template executions to avoid
+// repeated growSlice allocations. Pre-grown to 32 KB which covers most
+// VirtualServer configs without further growth.
+var bufPool = sync.Pool{
+	New: func() any {
+		buf := new(bytes.Buffer)
+		buf.Grow(32 * 1024)
+		return buf
+	},
+}
 
 // #nosec G101
 const tlsPassthroughHostsTemplateString = `# mapping between TLS Passthrough hosts and unix sockets
@@ -81,20 +93,32 @@ func (te *TemplateExecutor) UpdateTransportServerTemplate(templateString *string
 
 // ExecuteVirtualServerTemplate generates the content of an NGINX configuration file for a VirtualServer resource.
 func (te *TemplateExecutor) ExecuteVirtualServerTemplate(cfg *VirtualServerConfig) ([]byte, error) {
-	var configBuffer bytes.Buffer
-	if err := te.virtualServerTemplate.Execute(&configBuffer, cfg); err != nil {
+	buf := bufPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bufPool.Put(buf)
+	}()
+	if err := te.virtualServerTemplate.Execute(buf, cfg); err != nil {
 		return nil, err
 	}
-	return configBuffer.Bytes(), nil
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	return out, nil
 }
 
 // ExecuteTransportServerTemplate generates the content of an NGINX configuration file for a TransportServer resource.
 func (te *TemplateExecutor) ExecuteTransportServerTemplate(cfg *TransportServerConfig) ([]byte, error) {
-	var configBuffer bytes.Buffer
-	if err := te.transportServerTemplate.Execute(&configBuffer, cfg); err != nil {
+	buf := bufPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bufPool.Put(buf)
+	}()
+	if err := te.transportServerTemplate.Execute(buf, cfg); err != nil {
 		return nil, err
 	}
-	return configBuffer.Bytes(), nil
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	return out, nil
 }
 
 // UseOriginalVStemplate updates template executor to
@@ -112,18 +136,30 @@ func (te *TemplateExecutor) UseOriginalTStemplate() {
 // ExecuteTLSPassthroughHostsTemplate generates the content of an NGINX configuration file for mapping between
 // TLS Passthrough hosts and the corresponding unix sockets.
 func (te *TemplateExecutor) ExecuteTLSPassthroughHostsTemplate(cfg *TLSPassthroughHostsConfig) ([]byte, error) {
-	var configBuffer bytes.Buffer
-	if err := te.tlsPassthroughHostsTemplate.Execute(&configBuffer, cfg); err != nil {
+	buf := bufPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bufPool.Put(buf)
+	}()
+	if err := te.tlsPassthroughHostsTemplate.Execute(buf, cfg); err != nil {
 		return nil, err
 	}
-	return configBuffer.Bytes(), nil
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	return out, nil
 }
 
 // ExecuteOIDCTemplate generates the content of an OIDC configuration file.
 func (te *TemplateExecutor) ExecuteOIDCTemplate(cfg *OIDC) ([]byte, error) {
-	var configBuffer bytes.Buffer
-	if err := te.oidcTemplate.Execute(&configBuffer, cfg); err != nil {
+	buf := bufPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		bufPool.Put(buf)
+	}()
+	if err := te.oidcTemplate.Execute(buf, cfg); err != nil {
 		return nil, err
 	}
-	return configBuffer.Bytes(), nil
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	return out, nil
 }

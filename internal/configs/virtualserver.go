@@ -113,7 +113,7 @@ func (vsx *VirtualServerEx) String() string {
 		return "VirtualServerEx has no VirtualServer"
 	}
 
-	return fmt.Sprintf("%s/%s", vsx.VirtualServer.Namespace, vsx.VirtualServer.Name)
+	return vsx.VirtualServer.Namespace + "/" + vsx.VirtualServer.Name
 }
 
 // appProtectPolicyResources holds file names of APPolicy and APLogConf resources referenced by policies.
@@ -136,10 +136,11 @@ func GenerateEndpointsKey(
 	subselector map[string]string,
 	port uint16,
 ) string {
+	portStr := strconv.FormatUint(uint64(port), 10)
 	if len(subselector) > 0 {
-		return fmt.Sprintf("%s/%s_%s:%d", serviceNamespace, serviceName, labels.Set(subselector).String(), port)
+		return serviceNamespace + "/" + serviceName + "_" + labels.Set(subselector).String() + ":" + portStr
 	}
-	return fmt.Sprintf("%s/%s:%d", serviceNamespace, serviceName, port)
+	return serviceNamespace + "/" + serviceName + ":" + portStr
 }
 
 // ParseServiceReference returns the namespace and name from a service reference.
@@ -168,7 +169,7 @@ type upstreamNamer struct {
 //nolint:revive
 func NewUpstreamNamerForVirtualServer(virtualServer *conf_v1.VirtualServer) *upstreamNamer {
 	return &upstreamNamer{
-		prefix:    fmt.Sprintf("vs_%s_%s", virtualServer.Namespace, virtualServer.Name),
+		prefix:    "vs_" + virtualServer.Namespace + "_" + virtualServer.Name,
 		namespace: virtualServer.Namespace,
 	}
 }
@@ -178,13 +179,7 @@ func NewUpstreamNamerForVirtualServer(virtualServer *conf_v1.VirtualServer) *ups
 //nolint:revive
 func NewUpstreamNamerForVirtualServerRoute(virtualServer *conf_v1.VirtualServer, virtualServerRoute *conf_v1.VirtualServerRoute) *upstreamNamer {
 	return &upstreamNamer{
-		prefix: fmt.Sprintf(
-			"vs_%s_%s_vsr_%s_%s",
-			virtualServer.Namespace,
-			virtualServer.Name,
-			virtualServerRoute.Namespace,
-			virtualServerRoute.Name,
-		),
+		prefix:    "vs_" + virtualServer.Namespace + "_" + virtualServer.Name + "_vsr_" + virtualServerRoute.Namespace + "_" + virtualServerRoute.Name,
 		namespace: virtualServerRoute.Namespace,
 	}
 }
@@ -197,11 +192,11 @@ func (namer *upstreamNamer) GetNameForUpstreamFromAction(action *conf_v1.Action)
 		upstream = action.Pass
 	}
 
-	return fmt.Sprintf("%s_%s", namer.prefix, upstream)
+	return namer.prefix + "_" + upstream
 }
 
 func (namer *upstreamNamer) GetNameForUpstream(upstream string) string {
-	return fmt.Sprintf("%s_%s", namer.prefix, upstream)
+	return namer.prefix + "_" + upstream
 }
 
 // VariableNamer is a namer which generates unique variable names for a VirtualServer.
@@ -1694,7 +1689,7 @@ func generateSessionCookie(sc *conf_v1.SessionCookie) *version2.SessionCookie {
 }
 
 func generateStatusMatchName(upstreamName string) string {
-	return fmt.Sprintf("%s_match", upstreamName)
+	return upstreamName + "_match"
 }
 
 func generateUpstreamStatusMatch(upstreamName string, status string) version2.StatusMatch {
@@ -1706,7 +1701,7 @@ func generateUpstreamStatusMatch(upstreamName string, status string) version2.St
 
 // GenerateExternalNameSvcKey returns the key to identify an ExternalName service.
 func GenerateExternalNameSvcKey(namespace string, service string) string {
-	return fmt.Sprintf("%v/%v", namespace, service)
+	return namespace + "/" + service
 }
 
 func generateLBMethod(method string, defaultMethod string) string {
@@ -1784,10 +1779,10 @@ func generateProxyPassRewrite(path string, proxy *conf_v1.ActionProxy, internal 
 }
 
 func generateProxyPass(tlsEnabled bool, upstreamName string, internal bool, proxy *conf_v1.ActionProxy) string {
-	proxyPass := fmt.Sprintf("%v://%v", generateProxyPassProtocol(tlsEnabled), upstreamName)
+	proxyPass := generateProxyPassProtocol(tlsEnabled) + "://" + upstreamName
 
 	if internal && (proxy == nil || proxy.RewritePath == "") {
-		return fmt.Sprintf("%v$request_uri", proxyPass)
+		return proxyPass + "$request_uri"
 	}
 
 	return proxyPass
@@ -1801,13 +1796,11 @@ func generateProxyPassProtocol(enableTLS bool) string {
 }
 
 func generateGRPCPass(grpcEnabled bool, tlsEnabled bool, upstreamName string) string {
-	grpcPass := fmt.Sprintf("%v://%v", generateGRPCPassProtocol(tlsEnabled), upstreamName)
-
 	if !grpcEnabled {
 		return ""
 	}
 
-	return grpcPass
+	return generateGRPCPassProtocol(tlsEnabled) + "://" + upstreamName
 }
 
 func generateGRPCPassProtocol(enableTLS bool) string {
@@ -2846,7 +2839,7 @@ func generateErrorPageLocations(errPageIndex int, errorPages []conf_v1.ErrorPage
 }
 
 func generateProxySSLName(svcName, ns string) string {
-	return fmt.Sprintf("%s.%s.svc", svcName, ns)
+	return svcName + "." + ns + ".svc"
 }
 
 // isTLSEnabled checks whether TLS is enabled for the given upstream, taking into account the configuration

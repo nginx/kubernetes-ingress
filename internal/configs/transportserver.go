@@ -34,12 +34,12 @@ func (tsEx *TransportServerEx) String() string {
 	if tsEx.TransportServer == nil {
 		return "TransportServerEx has no TransportServer"
 	}
-	return fmt.Sprintf("%s/%s", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
+	return tsEx.TransportServer.Namespace + "/" + tsEx.TransportServer.Name
 }
 
 func newUpstreamNamerForTransportServer(transportServer *conf_v1.TransportServer) *upstreamNamer {
 	return &upstreamNamer{
-		prefix: fmt.Sprintf("ts_%s_%s", transportServer.Namespace, transportServer.Name),
+		prefix: "ts_" + transportServer.Namespace + "_" + transportServer.Name,
 	}
 }
 
