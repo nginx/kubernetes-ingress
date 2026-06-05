@@ -4,6 +4,8 @@ package v1
 
 // HSTSApplyConfiguration represents a declarative configuration of the HSTS type for use
 // with apply.
+//
+// HSTS defines an HTTP Strict Transport Security policy for enforcing secure connections to the server.
 type HSTSApplyConfiguration struct {
 	// MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy.
 	MaxAge *int `json:"maxAge,omitempty"`

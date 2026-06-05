@@ -556,6 +556,7 @@ spec:
                   maxAge:
                     description: MaxAge defines how long (in seconds) the browser
                       should cache and enforce the HSTS policy.
+                    minimum: 0
                     type: integer
                 required:
                 - maxAge
