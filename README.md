@@ -57,12 +57,14 @@ helm install nginx-ingress nginx-ingress/nginx-ingress --namespace nginx-ingress
 
 ### Install with Manifests
 
+```shell
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ns-and-sa.yaml
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/rbac/rbac.yaml
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/nginx-config.yaml
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/deployment/nginx-ingress.yaml
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/service/loadbalancer.yaml
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ingress-class.yaml
+```
 
 **[Full Installation Guide →](https://docs.nginx.com/nginx-ingress-controller/install/)**
 
