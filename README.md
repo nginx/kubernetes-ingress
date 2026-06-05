@@ -4,7 +4,7 @@
 
 ![logo](docs/img/logo.png)
 
-**A production-grade Ingress Controller for Kubernetes, powered by NGINX and NGINX Plus.**
+**A production-grade Ingress Controller for Kubernetes, powered by NGINX or NGINX Plus.**
 
 [![Latest Release](https://img.shields.io/github/v/release/nginx/kubernetes-ingress?logo=github&sort=semver)](https://github.com/nginx/kubernetes-ingress/releases/latest)
 [![Docker Pulls](https://img.shields.io/docker/pulls/nginx/nginx-ingress?logo=docker&logoColor=white)](https://hub.docker.com/r/nginx/nginx-ingress)
@@ -57,10 +57,12 @@ helm install nginx-ingress nginx-ingress/nginx-ingress --namespace nginx-ingress
 
 ### Install with Manifests
 
-```bash
-kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ns-and-sa.yaml
-# See the full manifest installation guide for all required resources:
-```
+    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ns-and-sa.yaml
+    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/rbac/rbac.yaml
+    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/nginx-config.yaml
+    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/deployment/nginx-ingress.yaml
+    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/service/loadbalancer.yaml
+    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ingress-class.yaml
 
 **[Full Installation Guide →](https://docs.nginx.com/nginx-ingress-controller/install/)**
 
