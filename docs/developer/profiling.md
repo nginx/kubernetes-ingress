@@ -191,6 +191,12 @@ Served on the same `:6060` port at `/debug/api-stats`.
 ### Viewing stats
 
 ```shell
+# Launch the pprof web UI on port 8088 (may take some time to come up, depends on cluster size and activity)
+> go tool pprof -http=:8088 "http://localhost:6060"
+Fetching profile over HTTP from http://localhost:6060/debug/pprof/profile
+```
+
+```shell
 # Human-readable table: per-verb, per-resource call counts, error rates, and latencies
 # Shows e.g.: LIST pods (156 calls, avg 12ms), WATCH ingresses (12 calls), etc.
 curl http://localhost:6060/debug/api-stats?format=text

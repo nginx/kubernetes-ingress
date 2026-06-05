@@ -109,6 +109,9 @@ govulncheck: ## Run govulncheck linter
 test: ## Run GoLang tests
 	go test -tags=aws,helmunit -shuffle=on ./...
 
+test-profile: ## Run GoLang tests with profiling
+	PROF_BENCH_ONLY=0 hack/profile.sh
+
 .PHONY: test-update-snaps
 test-update-snaps:
 	UPDATE_SNAPS=always go test -tags=aws,helmunit -shuffle=on ./...
