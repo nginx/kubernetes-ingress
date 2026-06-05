@@ -426,6 +426,8 @@ func mustCreateConfigAndKubeClient(ctx context.Context) (*rest.Config, *kubernet
 		}
 	}
 
+	wrapTransportWithDebugTracking(config)
+
 	kubeClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		nl.Fatalf(l, "Failed to create client: %v.", err)

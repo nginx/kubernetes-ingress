@@ -149,6 +149,12 @@ $(BINARY_NAME)-$(ARCH): $(GO_SRCS)
 	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -trimpath -ldflags "$(GO_LINKER_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
 	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
 
+.PHONY: build-debug
+build-debug: ## Build Ingress Controller binary with debug flags and pprof on :6060
+	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
+	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -tags debug -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
+
 .PHONY: build
 build: ## Build Ingress Controller binary
 ifeq ($(strip $(TARGET)),local)
@@ -159,7 +165,7 @@ else ifeq ($(strip $(TARGET)),download)
 else ifeq ($(strip $(TARGET)),debug)
 # Debug builds run unconditionally (no incremental file target) since they are infrequent.
 	@go version || (code=$$?; printf "\033[0;31mError\033[0m: unable to build locally, try using the parameter TARGET=container or TARGET=download\n"; exit $$code)
-	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
+	CGO_ENABLED=0 GOOS=$(strip $(GOOS)) GOARCH=$(strip $(ARCH)) go build -tags debug -ldflags "$(DEBUG_GO_LINKER_FLAGS)" -gcflags "$(DEBUG_GO_GC_FLAGS)" -o $(BINARY_NAME)-$(ARCH) github.com/nginx/kubernetes-ingress/cmd/nginx-ingress
 	@cp $(BINARY_NAME)-$(ARCH) $(BINARY_NAME)
 else ifeq ($(strip $(TARGET)),container)
 # Binary is built inside Docker as part of the image build; nothing to do here.
@@ -183,6 +189,10 @@ endif
 build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 	@goreleaser -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with GoReleaser. Follow the docs to install it https://goreleaser.com/install\n"; exit $$code)
 	GOOS=$(strip $(GOOS)) GOPATH=$(shell go env GOPATH) GOARCH=$(strip $(ARCH)) goreleaser build --clean --snapshot --id kubernetes-ingress --single-target
+
+.PHONY: debian-image-profiling
+debian-image-profiling: build-debug ## Create Docker image for profiling (Debian + pprof on :6060, includes Delve)
+	docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUILD_OPTIONS)) --target profiling -f build/Dockerfile -t $(BUILD_IMAGE) . --build-arg BUILD_OS=debian --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: debian-image
 debian-image: build ## Create Docker image for Ingress Controller (Debian)
