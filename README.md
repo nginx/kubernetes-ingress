@@ -32,8 +32,7 @@ NGINX Ingress Controller manages traffic into your Kubernetes cluster — routin
 services based on rules you define. Built by the team behind NGINX, it gives you the reliability and performance of
 NGINX with native Kubernetes integration.
 
-> **Note**: Coming from the community
-> [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) controller? Check out the [NGINX Kubernetes Hub](https://kubernetes.nginx.org) for details on how to migrate to the NGINX Ingress Controller.
+> **Note**: Coming from the community-supported [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) controller? Check out the [NGINX Kubernetes Hub](https://kubernetes.nginx.org) for details on how to migrate to the NGINX Ingress Controller.
 
 ## Features
 
@@ -41,7 +40,7 @@ NGINX with native Kubernetes integration.
 - **TLS/SSL termination** — Automatic certificate handling per hostname
 - **Advanced traffic management** — Traffic splitting, A/B testing, and canary deployments via [VirtualServer/VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/) CRDs
 - **TCP/UDP/gRPC load balancing** — Via [TransportServer](https://docs.nginx.com/nginx-ingress-controller/configuration/transportserver-resource/) CRD
-- **Security policies** — Rate limiting, JWT auth, WAF (NGINX App Protect), mTLS, OIDC, and more
+- **Security policies** — Rate limiting, JWT auth, WAF (via F5 WAF for NGINX), mTLS, OIDC, and more
 - **Prometheus metrics** — Built-in monitoring and observability
 - **Highly configurable** — [Annotations](https://docs.nginx.com/nginx-ingress-controller/configuration/ingress-resources/advanced-configuration-with-annotations/), [ConfigMap](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/), and CRDs for fine-grained control
 - **Commercial support** — Available for NGINX Plus users
@@ -120,8 +119,8 @@ The **edge** version is built from the [latest commit](https://github.com/nginx/
 LTS (Long Term Support) releases receive extended maintenance, including critical bug fixes and security patches, for customers who need stability over an extended period. LTS images are NGINX Plus only.
 
 | LTS Release | Base Version | Release Date | Tag |
-| --- | --- | --- | --- |
-| 2026 LTS R1 | 5.4.3 | May 2026 | `2026-lts-r1` |
+| --- | --- | ------------- | --- |
+| 2026 LTS R1 | 5.4.3 | 4 June 2026 | `2026-lts-r1` |
 
 LTS images are available from the following registries:
 
@@ -129,7 +128,7 @@ LTS images are available from the following registries:
 | --- | --- |
 | F5 Container Registry | [See registry docs](https://docs.nginx.com/nginx-ingress-controller/lts/install/images/registry-download/) |
 
-#### SBOM (Software Bill of Materials)
+### SBOM (Software Bill of Materials)
 
 We generate SBOMs for the binaries and the Docker images.
 
