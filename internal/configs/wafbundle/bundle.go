@@ -74,19 +74,21 @@ type BundleAuth struct {
 
 // Request carries all parameters needed to fetch a single bundle.
 type Request struct {
-	Type            SourceType
-	BundleKind      BundleType
-	URL             string
-	Auth            *BundleAuth
-	PolicyName      string
-	PolicyNamespace string
-	NAPRelease      string
-	Timeout         time.Duration
-	RetryAttempts   int
-	VerifyChecksum  bool
-	ETag            string
-	LastModified    string
-	LastHash        string
+	Type               SourceType
+	BundleKind         BundleType
+	URL                string
+	Auth               *BundleAuth
+	TLSCA              []byte
+	InsecureSkipVerify bool
+	PolicyName         string
+	PolicyNamespace    string
+	NAPRelease         string
+	Timeout            time.Duration
+	RetryAttempts      int
+	VerifyChecksum     bool
+	ETag               string
+	LastModified       string
+	LastHash           string
 }
 
 // Result is the outcome of a successful fetch.

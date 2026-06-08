@@ -10,6 +10,7 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
@@ -391,14 +392,18 @@ func (lbc *LoadBalancerController) buildFetchRequest(bs *conf_v1.BundleSource, a
 		srcType = wafbundle.SourceTypeNIM
 	}
 	req := wafbundle.Request{
-		Type:            srcType,
-		BundleKind:      kind,
-		URL:             bs.URL,
-		Auth:            auth,
-		PolicyName:      bs.PolicyName,
-		PolicyNamespace: bs.PolicyNamespace,
-		NAPRelease:      lbc.appProtectVersion,
-		VerifyChecksum:  bs.VerifyChecksum,
+		Type:               srcType,
+		BundleKind:         kind,
+		URL:                bs.URL,
+		Auth:               auth,
+		PolicyName:         bs.PolicyName,
+		PolicyNamespace:    bs.PolicyNamespace,
+		NAPRelease:         lbc.appProtectVersion,
+		InsecureSkipVerify: bs.InsecureSkipVerify,
+		VerifyChecksum:     bs.VerifyChecksum,
+	}
+	if auth != nil {
+		req.TLSCA = auth.TLSCA
 	}
 	if bs.Timeout != nil {
 		req.Timeout = bs.Timeout.Duration
@@ -411,43 +416,66 @@ func (lbc *LoadBalancerController) buildFetchRequest(bs *conf_v1.BundleSource, a
 
 // resolveWAFBundleAuth resolves authentication credentials from the referenced Secret.
 func (lbc *LoadBalancerController) resolveWAFBundleAuth(bs *conf_v1.BundleSource, namespace string) (*wafbundle.BundleAuth, error) {
-	if bs.Secret == "" {
+	auth := &wafbundle.BundleAuth{}
+
+	if bs.Secret == "" && bs.TrustedCertSecret == "" {
 		return nil, nil
 	}
-	secretKey := namespace + "/" + bs.Secret
-	ref := lbc.secretStore.GetSecret(secretKey)
-	if ref == nil || ref.Error != nil {
-		var msg string
-		if ref != nil {
-			msg = ref.Error.Error()
-		}
-		return nil, fmt.Errorf("secret %s not found or invalid: %s", secretKey, msg)
-	}
-	data := ref.Secret.Data
 
-	switch bs.Type {
-	case conf_v1.BundleSourceTypeN1C:
-		tok := string(data["token"])
-		if tok == "" {
-			return nil, fmt.Errorf("N1C secret %s must contain a 'token' field (type nginx.com/waf-bundle)", secretKey)
+	if bs.Secret != "" {
+		secretKey := namespace + "/" + bs.Secret
+		ref := lbc.secretStore.GetSecret(secretKey)
+		if ref == nil || ref.Error != nil {
+			var msg string
+			if ref != nil {
+				msg = ref.Error.Error()
+			}
+			return nil, fmt.Errorf("secret %s not found or invalid: %s", secretKey, msg)
 		}
-		return &wafbundle.BundleAuth{APIToken: tok}, nil
-	case conf_v1.BundleSourceTypeNIM:
-		// NIM: 'token' for bearer auth, or 'username'+'password' for basic auth.
-		if tok := string(data["token"]); tok != "" {
-			return &wafbundle.BundleAuth{BearerToken: tok}, nil
+		data := ref.Secret.Data
+		auth.TLSCA = data[secrets.CAKey]
+
+		switch bs.Type {
+		case conf_v1.BundleSourceTypeN1C:
+			tok := string(data["token"])
+			if tok == "" {
+				return nil, fmt.Errorf("N1C secret %s must contain a 'token' field (type nginx.com/waf-bundle)", secretKey)
+			}
+			auth.APIToken = tok
+		case conf_v1.BundleSourceTypeNIM:
+			// NIM: 'token' for bearer auth, or 'username'+'password' for basic auth.
+			if tok := string(data["token"]); tok != "" {
+				auth.BearerToken = tok
+			} else if usr := string(data["username"]); usr != "" {
+				auth.Username = usr
+				auth.Password = string(data["password"])
+			} else {
+				return nil, fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password' (type nginx.com/waf-bundle)", secretKey)
+			}
+		default: // HTTPS
+			auth.TLSCert = data["tls.crt"]
+			auth.TLSKey = data["tls.key"]
 		}
-		if usr := string(data["username"]); usr != "" {
-			return &wafbundle.BundleAuth{Username: usr, Password: string(data["password"])}, nil
-		}
-		return nil, fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password' (type nginx.com/waf-bundle)", secretKey)
-	default: // HTTPS
-		return &wafbundle.BundleAuth{
-			TLSCert: data["tls.crt"],
-			TLSKey:  data["tls.key"],
-			TLSCA:   data["ca.crt"],
-		}, nil
 	}
+
+	if bs.TrustedCertSecret != "" {
+		caSecretKey := namespace + "/" + bs.TrustedCertSecret
+		caRef := lbc.secretStore.GetSecret(caSecretKey)
+		if caRef == nil || caRef.Error != nil {
+			var msg string
+			if caRef != nil {
+				msg = caRef.Error.Error()
+			}
+			return nil, fmt.Errorf("trusted cert secret %s not found or invalid: %s", caSecretKey, msg)
+		}
+		auth.TLSCA = caRef.Secret.Data[secrets.CAKey]
+	}
+
+	if auth.APIToken == "" && auth.BearerToken == "" && auth.Username == "" && auth.TLSCert == nil && auth.TLSKey == nil && auth.TLSCA == nil {
+		return nil, nil
+	}
+
+	return auth, nil
 }
 
 // cleanupFetchedBundles removes any fetched bundle files for the given polKey.

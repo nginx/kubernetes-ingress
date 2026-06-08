@@ -89,7 +89,56 @@ The policy should show `State: Valid`.
 
 ### Option C - NGINX Instance Manager (NIM)
 
-NIM support is not yet implemented. See `waf-n1c.yaml` for a reference of the expected format.
+> **Note**: The NIM policy and log profile referenced by `policyName` must be compiled before applying `waf-nim.yaml`. If no compiled bundle exists, the Policy status will show `BundleFetchFailed`.
+
+Create the credentials secret with a bearer token:
+
+```console
+kubectl create secret generic nim-credentials \
+  --type=nginx.com/waf-bundle \
+  --from-literal=token=<Your NIM Token>
+```
+
+Or with username and password:
+
+```console
+kubectl create secret generic nim-credentials \
+  --type=nginx.com/waf-bundle \
+  --from-literal=username=<NIM Username> \
+  --from-literal=password=<NIM Password>
+```
+
+If your NIM instance uses a self-signed or private CA certificate, configure TLS trust in
+`waf-nim.yaml` using one of the following options:
+
+- **Recommended** — provide a CA secret of type `nginx.org/ca` containing `ca.crt`:
+
+  ```yaml
+  apBundleSource:
+    trustedCertSecret: nim-ca
+  ```
+
+- **Lab/testing only** — skip certificate verification (not for production):
+
+  ```yaml
+  apBundleSource:
+    insecureSkipVerify: true
+  ```
+
+Edit `waf-nim.yaml` and replace `<nim_host>`, `<policy_name>`, and `<log_profile_name>` with
+your values, then apply:
+
+```console
+kubectl apply -f waf-nim.yaml
+```
+
+Verify the policy status:
+
+```console
+kubectl describe policy waf-policy
+```
+
+The policy should show `State: Valid`.
 
 ## Step 3. Configure Load Balancing
 

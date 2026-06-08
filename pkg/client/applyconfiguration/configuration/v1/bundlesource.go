@@ -29,6 +29,10 @@ type BundleSourceApplyConfiguration struct {
 	// For N1C/NIM: nginx.com/waf-bundle Secret with a 'token' field containing the management plane API token.
 	// For NIM: Opaque Secret with username+password or token field.
 	Secret *string `json:"secret,omitempty"`
+	// TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+	// for verifying the remote endpoint TLS certificate. The secret must be in the same
+	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	PolicyName *string `json:"policyName,omitempty"`
 	// PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only.
@@ -39,6 +43,9 @@ type BundleSourceApplyConfiguration struct {
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 	// RetryAttempts is the number of retry attempts on transient failure. Range 1–10.
 	RetryAttempts *int `json:"retryAttempts,omitempty"`
+	// InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+	// Not recommended for production use.
+	InsecureSkipVerify *bool `json:"insecureSkipVerify,omitempty"`
 	// VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only.
 	VerifyChecksum *bool `json:"verifyChecksum,omitempty"`
 }
@@ -70,6 +77,14 @@ func (b *BundleSourceApplyConfiguration) WithURL(value string) *BundleSourceAppl
 // If called multiple times, the Secret field is set to the value of the last call.
 func (b *BundleSourceApplyConfiguration) WithSecret(value string) *BundleSourceApplyConfiguration {
 	b.Secret = &value
+	return b
+}
+
+// WithTrustedCertSecret sets the TrustedCertSecret field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TrustedCertSecret field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithTrustedCertSecret(value string) *BundleSourceApplyConfiguration {
+	b.TrustedCertSecret = &value
 	return b
 }
 
@@ -110,6 +125,14 @@ func (b *BundleSourceApplyConfiguration) WithTimeout(value metav1.Duration) *Bun
 // If called multiple times, the RetryAttempts field is set to the value of the last call.
 func (b *BundleSourceApplyConfiguration) WithRetryAttempts(value int) *BundleSourceApplyConfiguration {
 	b.RetryAttempts = &value
+	return b
+}
+
+// WithInsecureSkipVerify sets the InsecureSkipVerify field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the InsecureSkipVerify field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithInsecureSkipVerify(value bool) *BundleSourceApplyConfiguration {
+	b.InsecureSkipVerify = &value
 	return b
 }
 

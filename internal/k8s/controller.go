@@ -3726,12 +3726,16 @@ func wafBundleUsesSecret(pol *conf_v1.Policy, secretNamespace, secretName string
 	if pol.Namespace != secretNamespace {
 		return false
 	}
-	if bs := pol.Spec.WAF.ApBundleSource; bs != nil && bs.Secret == secretName {
-		return true
+	if bs := pol.Spec.WAF.ApBundleSource; bs != nil {
+		if bs.Secret == secretName || bs.TrustedCertSecret == secretName {
+			return true
+		}
 	}
 	for _, sl := range pol.Spec.WAF.SecurityLogs {
-		if sl != nil && sl.ApLogBundleSource != nil && sl.ApLogBundleSource.Secret == secretName {
-			return true
+		if sl != nil && sl.ApLogBundleSource != nil {
+			if sl.ApLogBundleSource.Secret == secretName || sl.ApLogBundleSource.TrustedCertSecret == secretName {
+				return true
+			}
 		}
 	}
 	return false

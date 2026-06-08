@@ -1006,6 +1006,11 @@ spec:
                       ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
                       Mutually exclusive with ApPolicy and ApBundle.
                     properties:
+                      insecureSkipVerify:
+                        description: |-
+                          InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                          Not recommended for production use.
+                        type: boolean
                       policyName:
                         description: PolicyName is the policy name on the management
                           plane. Required for NIM and N1C; forbidden for HTTPS.
@@ -1037,6 +1042,13 @@ spec:
                       timeout:
                         description: Timeout is the per-request HTTP timeout. Default
                           60s.
+                        type: string
+                      trustedCertSecret:
+                        description: |-
+                          TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                          for verifying the remote endpoint TLS certificate. The secret must be in the same
+                          namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
                       type:
                         default: HTTPS
@@ -1080,6 +1092,11 @@ spec:
                           ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
                           Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
                         properties:
+                          insecureSkipVerify:
+                            description: |-
+                              InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                              Not recommended for production use.
+                            type: boolean
                           policyName:
                             description: PolicyName is the policy name on the management
                               plane. Required for NIM and N1C; forbidden for HTTPS.
@@ -1111,6 +1128,13 @@ spec:
                           timeout:
                             description: Timeout is the per-request HTTP timeout.
                               Default 60s.
+                            type: string
+                          trustedCertSecret:
+                            description: |-
+                              TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                              for verifying the remote endpoint TLS certificate. The secret must be in the same
+                              namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                             type: string
                           type:
                             default: HTTPS
@@ -1164,6 +1188,11 @@ spec:
                             ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
                             Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
                           properties:
+                            insecureSkipVerify:
+                              description: |-
+                                InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                                Not recommended for production use.
+                              type: boolean
                             policyName:
                               description: PolicyName is the policy name on the management
                                 plane. Required for NIM and N1C; forbidden for HTTPS.
@@ -1195,6 +1224,13 @@ spec:
                             timeout:
                               description: Timeout is the per-request HTTP timeout.
                                 Default 60s.
+                              type: string
+                            trustedCertSecret:
+                              description: |-
+                                TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                                for verifying the remote endpoint TLS certificate. The secret must be in the same
+                                namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                              pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                               type: string
                             type:
                               default: HTTPS

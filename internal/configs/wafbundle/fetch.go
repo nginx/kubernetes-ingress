@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,8 +37,7 @@ func (f *HTTPFetcher) FetchPolicyBundle(ctx context.Context, req *Request) (Resu
 	case SourceTypeN1C:
 		return fetchN1CPolicyBundle(ctx, client, req)
 	case SourceTypeNIM:
-		// TODO: expand NIM implementation here
-		return Result{}, &nonTransientError{fmt.Errorf("NIM source type is not yet implemented")}
+		return fetchNIMPolicyBundle(ctx, client, req)
 	default: // HTTPS
 		return fetchHTTPSBundle(ctx, client, req)
 	}
@@ -53,8 +53,7 @@ func (f *HTTPFetcher) FetchLogProfileBundle(ctx context.Context, req *Request) (
 	case SourceTypeN1C:
 		return fetchN1CLogProfileBundle(ctx, client, req)
 	case SourceTypeNIM:
-		// TODO: expand NIM implementation here
-		return Result{}, &nonTransientError{fmt.Errorf("NIM source type is not yet implemented")}
+		return fetchNIMLogProfileBundle(ctx, client, req)
 	default: // HTTPS
 		return fetchHTTPSBundle(ctx, client, req)
 	}
@@ -63,12 +62,15 @@ func (f *HTTPFetcher) FetchLogProfileBundle(ctx context.Context, req *Request) (
 // buildClient constructs an *http.Client with TLS configured for the request.
 func (f *HTTPFetcher) buildClient(req *Request) (*http.Client, error) {
 	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	tlsCfg.InsecureSkipVerify = req.InsecureSkipVerify //nolint:gosec // configurable for test or private environments.
+
+	if req.TLSCA != nil {
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(req.TLSCA)
+		tlsCfg.RootCAs = pool
+	}
+
 	if req.Auth != nil {
-		if req.Auth.TLSCA != nil {
-			pool := x509.NewCertPool()
-			pool.AppendCertsFromPEM(req.Auth.TLSCA)
-			tlsCfg.RootCAs = pool
-		}
 		if req.Auth.TLSCert != nil && req.Auth.TLSKey != nil {
 			cert, err := tls.X509KeyPair(req.Auth.TLSCert, req.Auth.TLSKey)
 			if err != nil {
@@ -87,7 +89,7 @@ func (f *HTTPFetcher) buildClient(req *Request) (*http.Client, error) {
 	}, nil
 }
 
-// HTTPS source implementation
+// HTTPS source
 func fetchHTTPSBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, req.URL, nil)
 	if err != nil {
@@ -176,7 +178,7 @@ func doHTTPSFetch(client *http.Client, req *http.Request, bundleReq *Request) (r
 	}, nil
 }
 
-// NGINX One Console (N1C) implementation
+// NGINX One Console (N1C)
 type n1cPagedResult[T any] struct {
 	Items []T `json:"items"`
 	Total int `json:"total"`
@@ -462,5 +464,244 @@ func buildN1CLogProfileCompileURL(baseURL, ns, profileObjID, napRelease string) 
 		params.Set("nap_release", napRelease)
 	}
 	params.Set("download", "true")
+	return u + "?" + params.Encode()
+}
+
+// NGINX Instance Manager (NIM)
+
+// nimBundleItem is a single entry in the NIM bundles API response.
+type nimBundleItem struct {
+	Content  string `json:"content"`
+	Metadata struct {
+		Hash      string `json:"hash"`
+		Created   string `json:"created"`
+		PolicyUID string `json:"policyUID"`
+	} `json:"metadata"`
+}
+
+// nimResponse is the JSON envelope returned by the NIM bundles API.
+type nimResponse struct {
+	Items []nimBundleItem `json:"items"`
+}
+
+// nimCompilerVersionResponse is returned by the NIM compiler version endpoint.
+type nimCompilerVersionResponse struct {
+	Version string `json:"version"`
+}
+
+// nimLogProfileBundleResponse is returned by the NIM log profile bundle endpoint.
+type nimLogProfileBundleResponse struct {
+	CompiledBundle string `json:"compiledBundle"`
+}
+
+// unixEpochRFC3339 is sent as startTime to retrieve all policies regardless of age.
+// NIM defaults startTime to now-24h when omitted, which silently excludes older compilations.
+var unixEpochRFC3339 = time.Unix(0, 0).UTC().Format(time.RFC3339)
+
+// fetchNIMPolicyBundle resolves the latest compilation for the named policy, then
+// downloads the full bundle content by policyUID.
+func fetchNIMPolicyBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
+	auth := nimAuth(req)
+
+	policyUID, err := resolveLatestNIMPolicyUID(ctx, client, req.URL, req.PolicyName, auth)
+	if err != nil {
+		return Result{}, err
+	}
+
+	bundleURL := buildNIMBundlesURL(req.URL, "", policyUID, true)
+	body, err := nimGet(ctx, client, bundleURL, auth)
+	if err != nil {
+		return Result{}, fmt.Errorf("failed to fetch NIM bundle: %w", err)
+	}
+
+	var resp nimResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return Result{}, fmt.Errorf("failed to parse NIM response: %w", err)
+	}
+	if len(resp.Items) == 0 {
+		return Result{}, &nonTransientError{fmt.Errorf("NIM response contains no items for policy UID %q", policyUID)}
+	}
+
+	item := resp.Items[0]
+	data, err := base64.StdEncoding.DecodeString(item.Content)
+	if err != nil {
+		return Result{}, fmt.Errorf("failed to base64-decode NIM bundle: %w", err)
+	}
+
+	checksum := ComputeChecksum(data)
+
+	if item.Metadata.Hash != "" && checksum != strings.ToLower(item.Metadata.Hash) {
+		return Result{}, &nonTransientError{
+			fmt.Errorf("NIM bundle integrity check failed: expected %s, got %s", item.Metadata.Hash, checksum),
+		}
+	}
+
+	if checksum == req.LastHash {
+		return Result{Unchanged: true}, nil
+	}
+
+	return Result{Data: data, Checksum: checksum}, nil
+}
+
+// fetchNIMLogProfileBundle fetches a compiled log profile bundle from NIM.
+// It first looks up the latest compiler version, then fetches the log profile for that version.
+func fetchNIMLogProfileBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
+	auth := nimAuth(req)
+
+	compilerVersionURL := strings.TrimRight(req.URL, "/") + "/api/platform/v1/security/nap-compiler/versions/latest"
+	body, err := nimGet(ctx, client, compilerVersionURL, auth)
+	if err != nil {
+		return Result{}, fmt.Errorf("failed to fetch NIM compiler version: %w", err)
+	}
+
+	var versionResp nimCompilerVersionResponse
+	if err := json.Unmarshal(body, &versionResp); err != nil {
+		return Result{}, fmt.Errorf("failed to parse NIM compiler version response: %w", err)
+	}
+
+	logProfileURL := fmt.Sprintf("%s/api/platform/v1/security/logprofiles/%s/%s/bundle",
+		strings.TrimRight(req.URL, "/"), url.PathEscape(req.PolicyName), url.PathEscape(versionResp.Version))
+	body, err = nimGet(ctx, client, logProfileURL, auth)
+	if err != nil {
+		return Result{}, fmt.Errorf("failed to fetch NIM log profile bundle: %w", err)
+	}
+
+	var logResp nimLogProfileBundleResponse
+	if err := json.Unmarshal(body, &logResp); err != nil {
+		return Result{}, fmt.Errorf("failed to parse NIM log profile response: %w", err)
+	}
+
+	data, err := base64.StdEncoding.DecodeString(logResp.CompiledBundle)
+	if err != nil {
+		return Result{}, fmt.Errorf("failed to base64-decode NIM log profile bundle: %w", err)
+	}
+
+	checksum := ComputeChecksum(data)
+	if checksum == req.LastHash {
+		return Result{Unchanged: true}, nil
+	}
+
+	return Result{Data: data, Checksum: checksum}, nil
+}
+
+// resolveLatestNIMPolicyUID performs a metadata-only request to find all compilations
+// for the given policy name, then returns the policyUID of the most recently compiled bundle.
+func resolveLatestNIMPolicyUID(ctx context.Context, client *http.Client, baseURL, policyName string, auth *BundleAuth) (string, error) {
+	metadataURL := buildNIMBundlesURL(baseURL, policyName, "", false)
+	body, err := nimGet(ctx, client, metadataURL, auth)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch NIM bundle metadata: %w", err)
+	}
+
+	var resp nimResponse
+	if err := json.Unmarshal(body, &resp); err != nil {
+		return "", fmt.Errorf("failed to parse NIM metadata response: %w", err)
+	}
+	if len(resp.Items) == 0 {
+		return "", &nonTransientError{fmt.Errorf("NIM policy %q not found", policyName)}
+	}
+
+	latest := latestNIMItem(resp.Items)
+	if latest.Metadata.PolicyUID == "" {
+		return "", fmt.Errorf("NIM metadata contains no policyUID for policy %q", policyName)
+	}
+
+	return latest.Metadata.PolicyUID, nil
+}
+
+// latestNIMItem returns the item with the most recent metadata.created timestamp.
+// Falls back to the last item if no timestamps are parseable.
+func latestNIMItem(items []nimBundleItem) nimBundleItem {
+	best := len(items) - 1
+	var bestTime time.Time
+
+	for i, item := range items {
+		t, err := time.Parse(time.RFC3339Nano, item.Metadata.Created)
+		if err != nil {
+			continue
+		}
+		if t.After(bestTime) {
+			bestTime = t
+			best = i
+		}
+	}
+
+	return items[best]
+}
+
+// setNIMAuth applies authentication credentials to an HTTP request.
+func setNIMAuth(req *http.Request, auth *BundleAuth) {
+	if auth == nil {
+		return
+	}
+	switch {
+	case auth.BearerToken != "":
+		req.Header.Set("Authorization", "Bearer "+auth.BearerToken)
+	case auth.Username != "":
+		req.SetBasicAuth(auth.Username, auth.Password)
+	}
+}
+
+// nimGet performs an HTTP GET with NIM authentication (Bearer token or Basic Auth).
+func nimGet(ctx context.Context, client *http.Client, targetURL string, auth *BundleAuth) (data []byte, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("building NIM request: %w", err)
+	}
+	setNIMAuth(req, auth)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("NIM request failed: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
+	}()
+
+	switch {
+	case resp.StatusCode == http.StatusOK:
+	case resp.StatusCode == http.StatusNotFound:
+		return nil, &nonTransientError{fmt.Errorf("NIM resource not found (404)")}
+	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
+		return nil, &nonTransientError{fmt.Errorf("NIM auth failure (%d)", resp.StatusCode)}
+	case resp.StatusCode >= 400 && resp.StatusCode < 500:
+		return nil, &nonTransientError{fmt.Errorf("NIM client error %d", resp.StatusCode)}
+	default:
+		return nil, fmt.Errorf("NIM server error %d", resp.StatusCode)
+	}
+
+	data, err = io.ReadAll(io.LimitReader(resp.Body, MaxBundleSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("reading NIM response: %w", err)
+	}
+	if int64(len(data)) > MaxBundleSize {
+		return nil, &nonTransientError{fmt.Errorf("NIM response exceeds maximum size")}
+	}
+	return data, nil
+}
+
+// nimAuth extracts auth credentials from the request.
+func nimAuth(req *Request) *BundleAuth {
+	return req.Auth
+}
+
+// buildNIMBundlesURL constructs the NIM bundles API URL.
+// When includeBundleContent is true, the response includes base64-encoded bundle content.
+// Exactly one of policyName or policyUID must be non-empty.
+func buildNIMBundlesURL(baseURL, policyName, policyUID string, includeBundleContent bool) string {
+	u := strings.TrimRight(baseURL, "/") + "/api/platform/v1/security/policies/bundles"
+	params := url.Values{}
+	if includeBundleContent {
+		params.Set("includeBundleContent", "true")
+	} else {
+		params.Set("includeBundleContent", "false")
+	}
+	params.Set("startTime", unixEpochRFC3339)
+	if policyUID != "" {
+		params.Set("policyUID", policyUID)
+	} else {
+		params.Set("policyName", policyName)
+	}
 	return u + "?" + params.Encode()
 }

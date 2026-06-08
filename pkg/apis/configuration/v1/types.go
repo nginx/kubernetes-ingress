@@ -1014,7 +1014,6 @@ const (
 	// BundleSourceTypeHTTPS fetches a pre-compiled .tgz bundle from any HTTPS endpoint.
 	BundleSourceTypeHTTPS BundleSourceType = "HTTPS"
 	// BundleSourceTypeNIM fetches a managed policy bundle from NGINX Instance Manager.
-	// TODO: expand NIM implementation here
 	BundleSourceTypeNIM BundleSourceType = "NIM"
 	// BundleSourceTypeN1C fetches a managed policy bundle from NGINX One Console.
 	BundleSourceTypeN1C BundleSourceType = "N1C"
@@ -1050,6 +1049,13 @@ type BundleSource struct {
 	// +optional
 	Secret string `json:"secret,omitempty"`
 
+	// TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+	// for verifying the remote endpoint TLS certificate. The secret must be in the same
+	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +optional
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
+
 	// PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
@@ -1074,6 +1080,11 @@ type BundleSource struct {
 	// +optional
 	RetryAttempts *int `json:"retryAttempts,omitempty"`
 
+	// InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+	// Not recommended for production use.
+	// +optional
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+
 	// VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only.
 	// +optional
 	VerifyChecksum bool `json:"verifyChecksum,omitempty"`
@@ -1093,7 +1104,7 @@ type WAF struct {
 	// +optional
 	ApBundleSource *BundleSource `json:"apBundleSource,omitempty"`
 	// Deprecated: use SecurityLogs instead.
-	SecurityLog *SecurityLog `json:"securityLog"`
+	SecurityLog  *SecurityLog   `json:"securityLog"`
 	SecurityLogs []*SecurityLog `json:"securityLogs"`
 }
 

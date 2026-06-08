@@ -94,6 +94,19 @@ kubectl apply -f cafe.yaml
     kubectl apply -f waf.yaml
     ```
 
+    **Agent 2.* (NGINX Instance Manager) with remote bundle pulling** — bundles fetched from NIM via `apBundleSource`, no manual file copy needed:
+
+    ```console
+    kubectl create secret generic nim-credentials \
+      --type=nginx.com/waf-bundle \
+      --from-literal=token=<Your NIM Token>
+    kubectl apply -f waf-nim.yaml
+    ```
+
+    Edit `waf-nim.yaml` and replace `<nim_host>`, `<policy_name>`, and `<log_profile_name>` with your NGINX Instance Manager values.
+
+    > When using `waf-nim.yaml`, skip Step 3 (manual bundle compilation and copy) — NIC fetches bundles directly from NGINX Instance Manager.
+
     **Agent 3.* (NGINX One Console)** — filesystem bundles, logs sent to the local NGINX Agent listener:
 
     ```console

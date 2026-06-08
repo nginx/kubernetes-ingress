@@ -649,11 +649,11 @@ func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childPro
 	// Do not start AppProtect Plugins when using v5.
 	if *appProtect && !appProtectV5 {
 		aPPluginDone = make(chan error, 1)
-		go nginxManager.AppProtectPluginStart(aPPluginDone, *appProtectLogLevel)
+		nginxManager.AppProtectPluginStart(aPPluginDone, *appProtectLogLevel)
 
 		if *appProtectIPIntelligence {
 			ipRepdDone = make(chan error, 1)
-			go nginxManager.IPRepdStart(ipRepdDone)
+			nginxManager.IPRepdStart(ipRepdDone)
 		}
 	}
 
@@ -661,7 +661,7 @@ func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childPro
 
 	if *appProtectDos {
 		aPPDosAgentDone = make(chan error, 1)
-		go nginxManager.AppProtectDosAgentStart(aPPDosAgentDone, *appProtectDosDebug, *appProtectDosMaxDaemons, *appProtectDosMaxWorkers, *appProtectDosMemory)
+		nginxManager.AppProtectDosAgentStart(aPPDosAgentDone, *appProtectDosDebug, *appProtectDosMaxDaemons, *appProtectDosMaxWorkers, *appProtectDosMemory)
 	}
 
 	nginxDone := make(chan error, 1)
@@ -670,7 +670,7 @@ func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childPro
 	var agentDone chan error
 	if *agent {
 		agentDone = make(chan error, 1)
-		go nginxManager.AgentStart(agentDone, *agentInstanceGroup)
+		nginxManager.AgentStart(agentDone, *agentInstanceGroup)
 	}
 
 	return childProcesses{

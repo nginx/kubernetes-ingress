@@ -2,7 +2,10 @@ package wafbundle
 
 import (
 	"context"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -145,6 +148,60 @@ func TestFetchHTTPS_EmptyBody_NonTransient(t *testing.T) {
 	_, err := f.FetchPolicyBundle(context.Background(), &Request{Type: SourceTypeHTTPS, URL: srv.URL})
 	if err == nil || !isNonTransient(err) {
 		t.Error("empty body should be non-transient error")
+	}
+}
+
+func TestFetchHTTPS_InsecureSkipVerify(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	f := NewHTTPFetcher()
+
+	_, err := f.FetchPolicyBundle(context.Background(), &Request{Type: SourceTypeHTTPS, URL: srv.URL})
+	if err == nil {
+		t.Fatal("expected TLS verification error with self-signed cert")
+	}
+
+	res, err := f.FetchPolicyBundle(context.Background(), &Request{Type: SourceTypeHTTPS, URL: srv.URL, InsecureSkipVerify: true})
+	if err != nil {
+		t.Fatalf("expected success with InsecureSkipVerify=true, got: %v", err)
+	}
+	if string(res.Data) != "ok" {
+		t.Fatalf("unexpected body: %q", string(res.Data))
+	}
+}
+
+func TestFetchHTTPS_CustomTLSCA(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	leaf := srv.Certificate()
+	if leaf == nil {
+		t.Fatal("expected tls server certificate")
+	}
+
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leaf.Raw})
+	if _, err := x509.ParseCertificate(leaf.Raw); err != nil {
+		t.Fatalf("failed to parse test server cert: %v", err)
+	}
+
+	f := NewHTTPFetcher()
+	res, err := f.FetchPolicyBundle(context.Background(), &Request{Type: SourceTypeHTTPS, URL: srv.URL, TLSCA: caPEM})
+	if err != nil {
+		t.Fatalf("expected success with custom CA, got: %v", err)
+	}
+	if string(res.Data) != "ok" {
+		t.Fatalf("unexpected body: %q", string(res.Data))
 	}
 }
 
@@ -502,15 +559,253 @@ func TestN1CFetch_401_NonTransient(t *testing.T) {
 	}
 }
 
-func TestNIM_ReturnsNotImplemented(t *testing.T) {
-	t.Parallel()
-	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(),
-		&Request{Type: SourceTypeNIM, URL: "https://nim.example.com", PolicyName: "P"})
-	if err == nil || !isNonTransient(err) {
-		t.Error("NIM should return non-transient not-implemented error")
+// NIM source tests
+
+const (
+	testNIMPolicyName = "ngfBlocking"
+	testNIMPolicyUID  = "uid-abc-123"
+	testNIMToken      = "test-nim-bearer-token"
+	testNIMBundleB64  = "ZmFrZS1uaW0tYnVuZGxl" // base64("fake-nim-bundle")
+)
+
+func nimTestRequest(srvURL string) *Request {
+	return &Request{
+		Type:       SourceTypeNIM,
+		URL:        srvURL,
+		PolicyName: testNIMPolicyName,
+		Auth:       &BundleAuth{BearerToken: testNIMToken},
 	}
-	if !strings.Contains(err.Error(), "not yet implemented") {
-		t.Errorf("error should say 'not yet implemented': %v", err)
+}
+
+func TestNIMFetch_FullFlow(t *testing.T) {
+	t.Parallel()
+	bundleData := "fake-nim-bundle"
+	bundleB64 := base64.StdEncoding.EncodeToString([]byte(bundleData))
+	bundleHash := ComputeChecksum([]byte(bundleData))
+
+	bundlesPath := "/api/platform/v1/security/policies/bundles"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer "+testNIMToken {
+			t.Errorf("wrong auth header: %q", got)
+		}
+		if r.URL.Path != bundlesPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.URL.Query().Get("includeBundleContent") == "false" {
+			// Metadata-only request
+			_ = json.NewEncoder(w).Encode(nimResponse{
+				Items: []nimBundleItem{{
+					Metadata: struct {
+						Hash      string `json:"hash"`
+						Created   string `json:"created"`
+						PolicyUID string `json:"policyUID"`
+					}{Hash: bundleHash, Created: "2026-01-01T00:00:00Z", PolicyUID: testNIMPolicyUID},
+				}},
+			})
+			return
+		}
+		// Full content request
+		_ = json.NewEncoder(w).Encode(nimResponse{
+			Items: []nimBundleItem{{
+				Content: bundleB64,
+				Metadata: struct {
+					Hash      string `json:"hash"`
+					Created   string `json:"created"`
+					PolicyUID string `json:"policyUID"`
+				}{Hash: bundleHash, Created: "2026-01-01T00:00:00Z", PolicyUID: testNIMPolicyUID},
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	req := nimTestRequest(srv.URL)
+	result, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result.Data) != bundleData {
+		t.Errorf("got data %q, want %q", result.Data, bundleData)
+	}
+	if result.Checksum != bundleHash {
+		t.Errorf("checksum mismatch")
+	}
+}
+
+func TestNIMFetch_PolicyNotFound(t *testing.T) {
+	t.Parallel()
+	bundlesPath := "/api/platform/v1/security/policies/bundles"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == bundlesPath {
+			_ = json.NewEncoder(w).Encode(nimResponse{Items: []nimBundleItem{}})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	req := nimTestRequest(srv.URL)
+	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
+	if err == nil || !isNonTransient(err) {
+		t.Error("expected non-transient error for empty items")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention 'not found': %v", err)
+	}
+}
+
+func TestNIMFetch_MultipleCompilations_PicksLatest(t *testing.T) {
+	t.Parallel()
+	bundleData := "latest-bundle"
+	bundleB64 := base64.StdEncoding.EncodeToString([]byte(bundleData))
+	bundleHash := ComputeChecksum([]byte(bundleData))
+
+	bundlesPath := "/api/platform/v1/security/policies/bundles"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != bundlesPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.URL.Query().Get("includeBundleContent") == "false" {
+			_ = json.NewEncoder(w).Encode(nimResponse{
+				Items: []nimBundleItem{
+					{Metadata: struct {
+						Hash      string `json:"hash"`
+						Created   string `json:"created"`
+						PolicyUID string `json:"policyUID"`
+					}{Hash: "old", Created: "2025-01-01T00:00:00Z", PolicyUID: "uid-old"}},
+					{Metadata: struct {
+						Hash      string `json:"hash"`
+						Created   string `json:"created"`
+						PolicyUID string `json:"policyUID"`
+					}{Hash: bundleHash, Created: "2026-06-01T00:00:00Z", PolicyUID: "uid-latest"}},
+					{Metadata: struct {
+						Hash      string `json:"hash"`
+						Created   string `json:"created"`
+						PolicyUID string `json:"policyUID"`
+					}{Hash: "middle", Created: "2026-03-01T00:00:00Z", PolicyUID: "uid-middle"}},
+				},
+			})
+			return
+		}
+		// Full content — should be called with uid-latest
+		if r.URL.Query().Get("policyUID") != "uid-latest" {
+			t.Errorf("expected policyUID=uid-latest, got %s", r.URL.Query().Get("policyUID"))
+		}
+		_ = json.NewEncoder(w).Encode(nimResponse{
+			Items: []nimBundleItem{{
+				Content: bundleB64,
+				Metadata: struct {
+					Hash      string `json:"hash"`
+					Created   string `json:"created"`
+					PolicyUID string `json:"policyUID"`
+				}{Hash: bundleHash, PolicyUID: "uid-latest"},
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	req := nimTestRequest(srv.URL)
+	result, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result.Data) != bundleData {
+		t.Errorf("got data %q, want %q", result.Data, bundleData)
+	}
+}
+
+func TestNIMFetch_LogProfile(t *testing.T) {
+	t.Parallel()
+	logData := "log-profile-bundle"
+	logB64 := base64.StdEncoding.EncodeToString([]byte(logData))
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/nap-compiler/versions/latest"):
+			_ = json.NewEncoder(w).Encode(nimCompilerVersionResponse{Version: "5.13.1"})
+		case strings.Contains(r.URL.Path, "/logprofiles/"):
+			_ = json.NewEncoder(w).Encode(nimLogProfileBundleResponse{CompiledBundle: logB64})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	req := &Request{
+		Type:       SourceTypeNIM,
+		URL:        srv.URL,
+		PolicyName: "log_all",
+		Auth:       &BundleAuth{BearerToken: testNIMToken},
+	}
+	result, err := NewHTTPFetcher().FetchLogProfileBundle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result.Data) != logData {
+		t.Errorf("got %q, want %q", result.Data, logData)
+	}
+}
+
+func TestNIMFetch_BasicAuth(t *testing.T) {
+	t.Parallel()
+	bundleData := "basic-auth-bundle"
+	bundleB64 := base64.StdEncoding.EncodeToString([]byte(bundleData))
+	bundleHash := ComputeChecksum([]byte(bundleData))
+
+	bundlesPath := "/api/platform/v1/security/policies/bundles"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "admin" || pass != "secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.URL.Path == bundlesPath {
+			_ = json.NewEncoder(w).Encode(nimResponse{
+				Items: []nimBundleItem{{
+					Content: bundleB64,
+					Metadata: struct {
+						Hash      string `json:"hash"`
+						Created   string `json:"created"`
+						PolicyUID string `json:"policyUID"`
+					}{Hash: bundleHash, Created: "2026-01-01T00:00:00Z", PolicyUID: "uid-1"},
+				}},
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	req := &Request{
+		Type:       SourceTypeNIM,
+		URL:        srv.URL,
+		PolicyName: testNIMPolicyName,
+		Auth:       &BundleAuth{Username: "admin", Password: "secret"},
+	}
+	result, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(result.Data) != bundleData {
+		t.Errorf("got %q, want %q", result.Data, bundleData)
+	}
+}
+
+func TestNIMFetch_401_NonTransient(t *testing.T) {
+	t.Parallel()
+	bundlesPath := "/api/platform/v1/security/policies/bundles"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("unauthorized"))
+	}))
+	defer srv.Close()
+
+	_ = bundlesPath
+	req := nimTestRequest(srv.URL)
+	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
+	if err == nil || !isNonTransient(err) {
+		t.Error("401 should be non-transient")
 	}
 }
 
