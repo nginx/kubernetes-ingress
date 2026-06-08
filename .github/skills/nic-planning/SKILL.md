@@ -8,7 +8,13 @@ description: 'Task planning and approach strategy for NIC. Use when starting any
 ## Before Writing Code
 
 1. **Read the requirement** — Understand what's being asked. Check linked issues, specs, or PRs for full context.
-2. **Identify affected layers** — Determine which architectural layers are touched:
+2. **Write acceptance criteria** — Before implementing, state what "done" looks like in testable terms. What should work? What should be rejected? What must NOT break?
+3. **Identify security impact** — Does this change:
+   - Accept new external/untrusted input? → Requires input validation at the trust boundary
+   - Touch credential or secret paths? → Requires human review
+   - Generate config from user data? → Must pass through `containsDangerousChars()`
+   - Change RBAC or access control? → Requires security review
+4. **Identify affected layers** — Determine which architectural layers are touched:
    - Data Model (`pkg/apis/configuration/v1/types.go`)
    - Validation (`pkg/apis/configuration/validation/`)
    - Controller (`internal/k8s/`)
@@ -16,27 +22,30 @@ description: 'Task planning and approach strategy for NIC. Use when starting any
    - Templates (`internal/configs/version1/` or `version2/`)
    - Process Management (`internal/nginx/`)
    - Helm Chart (`charts/nginx-ingress/`)
-3. **Check invariants** — Review the Key Invariants section in AGENTS.md:
+5. **Check invariants** — Review the Key Invariants section in AGENTS.md:
    - Security: `containsDangerousChars()` on user strings reaching NGINX config
    - Codegen: Never edit `zz_generated.deepcopy.go` manually
    - Templates: Always update BOTH OSS and Plus variants
    - CRD fields: Every new field needs kubebuilder markers + validation + template + tests
-4. **Identify test surface** — What tests need adding or updating?
+6. **Identify test surface** — What tests need adding or updating?
    - Unit tests for validation logic
+   - Negative tests for input rejection (security)
    - Snapshot tests for template output
    - Helm tests if chart changes
    - Integration tests if behaviour changes
-5. **Produce a plan** — State your approach before coding. List files to change in order.
+7. **Produce a plan** — State your approach before coding. List files to change in order. Include what this change must NOT break.
 
 ## Layer Impact Checklist
 
 For any change, ask:
 
+- [ ] Does it accept new external input? → Add validation with `containsDangerousChars()` or appropriate sanitizer
 - [ ] Does it touch `types.go`? → Run `make update-codegen` then `make update-crds`
 - [ ] Does it add a template directive? → Update BOTH `nginx.ingress.tmpl` AND `nginx-plus.ingress.tmpl` (or v2 equivalents)
 - [ ] Does it add a CRD field? → Add kubebuilder markers, validation, template struct, rendering, tests
 - [ ] Does it touch Helm values? → Update `values.yaml`, `values.schema.json`, and helmunit tests
 - [ ] Does it affect config generation? → Run `make test-update-snaps` after implementation
+- [ ] Does user-controlled data reach NGINX config? → Verify sanitization path exists and is tested
 
 ## Scope Assessment
 
@@ -56,6 +65,8 @@ For any change, ask:
 - Adding Helm values without updating the JSON schema
 - Not checking if the feature already exists as an annotation when adding a CRD field
 - Skipping snapshot regeneration after template changes
+- Not identifying where untrusted input enters — a new CRD field IS user input that reaches NGINX config
+- Skipping negative tests — only testing the happy path leaves injection vectors undiscovered
 
 ## Ordering Rules for Multi-Layer Changes
 
