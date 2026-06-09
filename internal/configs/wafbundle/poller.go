@@ -214,21 +214,3 @@ func pollSourcesEqual(a, b []PollSource) bool {
 	}
 	return true
 }
-
-// authEqual compares two BundleAuth values for equality so that secret rotation
-// causes pollers to be restarted with fresh credentials.
-func authEqual(a, b *BundleAuth) bool {
-	if a == nil && b == nil {
-		return true
-	}
-	if a == nil || b == nil {
-		return false
-	}
-	return a.APIToken == b.APIToken &&
-		a.BearerToken == b.BearerToken &&
-		a.Username == b.Username &&
-		a.Password == b.Password &&
-		string(a.TLSCert) == string(b.TLSCert) &&
-		string(a.TLSKey) == string(b.TLSKey) &&
-		string(a.TLSCA) == string(b.TLSCA)
-}

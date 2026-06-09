@@ -16,7 +16,7 @@ type WAFApplyConfiguration struct {
 	Enable *bool `json:"enable,omitempty"`
 	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource.
 	ApPolicy *string `json:"apPolicy,omitempty"`
-	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy.
+	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundleSource.
 	ApBundle *string `json:"apBundle,omitempty"`
 	// ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
 	// Mutually exclusive with ApPolicy and ApBundle.

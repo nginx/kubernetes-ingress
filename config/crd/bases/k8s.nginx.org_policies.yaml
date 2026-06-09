@@ -828,7 +828,7 @@ spec:
                 properties:
                   apBundle:
                     description: The App Protect WAF policy bundle. Mutually exclusive
-                      with apPolicy.
+                      with apPolicy and apBundleSource.
                     type: string
                   apBundleSource:
                     description: |-
