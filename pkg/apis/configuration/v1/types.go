@@ -1031,11 +1031,11 @@ const (
 type BundleSource struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
 	// +kubebuilder:default=HTTPS
-	// +kubebuilder:validation:MaxLength=5
 	// +optional
 	Type BundleSourceType `json:"type,omitempty"`
 
 	// URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
+	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=2083
 	// +kubebuilder:validation:Pattern=`^https://`
@@ -1043,8 +1043,8 @@ type BundleSource struct {
 
 	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
 	// For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
-	// For N1C/NIM: nginx.com/waf-bundle Secret with a 'token' field containing the management plane API token.
-	// For NIM: Opaque Secret with username+password or token field.
+	// For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+	// For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	// +optional
 	Secret string `json:"secret,omitempty"`
@@ -1102,10 +1102,9 @@ type WAF struct {
 	// ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
 	// Mutually exclusive with ApPolicy and ApBundle.
 	// +optional
-	ApBundleSource *BundleSource `json:"apBundleSource,omitempty"`
-	// Deprecated: use SecurityLogs instead.
-	SecurityLog  *SecurityLog   `json:"securityLog"`
-	SecurityLogs []*SecurityLog `json:"securityLogs"`
+	ApBundleSource *BundleSource  `json:"apBundleSource,omitempty"`
+	SecurityLog    *SecurityLog   `json:"securityLog"`
+	SecurityLogs   []*SecurityLog `json:"securityLogs"`
 }
 
 // SecurityLog defines the security log of a WAF policy.
@@ -1114,10 +1113,8 @@ type SecurityLog struct {
 	// Enables security log.
 	Enable bool `json:"enable"`
 	// The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy.
-	// +kubebuilder:validation:MaxLength=253
 	ApLogConf string `json:"apLogConf"`
 	// The App Protect WAF log bundle resource. Only works with apBundle.
-	// +kubebuilder:validation:MaxLength=253
 	ApLogBundle string `json:"apLogBundle"`
 	// ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
 	// Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.

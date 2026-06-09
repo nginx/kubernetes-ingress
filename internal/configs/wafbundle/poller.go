@@ -205,9 +205,31 @@ func pollSourcesEqual(a, b []PollSource) bool {
 			a[i].Req.URL != b[i].Req.URL ||
 			a[i].Req.Type != b[i].Req.Type ||
 			a[i].Req.PolicyName != b[i].Req.PolicyName ||
-			a[i].Req.PolicyNamespace != b[i].Req.PolicyNamespace {
+			a[i].Req.PolicyNamespace != b[i].Req.PolicyNamespace ||
+			a[i].Req.Timeout != b[i].Req.Timeout ||
+			a[i].Req.RetryAttempts != b[i].Req.RetryAttempts ||
+			a[i].Req.InsecureSkipVerify != b[i].Req.InsecureSkipVerify ||
+			!authEqual(a[i].Req.Auth, b[i].Req.Auth) {
 			return false
 		}
 	}
 	return true
+}
+
+// authEqual compares two BundleAuth values for equality so that secret rotation
+// causes pollers to be restarted with fresh credentials.
+func authEqual(a, b *BundleAuth) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.APIToken == b.APIToken &&
+		a.BearerToken == b.BearerToken &&
+		a.Username == b.Username &&
+		a.Password == b.Password &&
+		string(a.TLSCert) == string(b.TLSCert) &&
+		string(a.TLSKey) == string(b.TLSKey) &&
+		string(a.TLSCA) == string(b.TLSCA)
 }

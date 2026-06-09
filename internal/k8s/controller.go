@@ -236,6 +236,7 @@ type LoadBalancerController struct {
 
 	// WAF bundle polling.
 	bundlePollerMgr      wafbundle.Manager
+	bundleFetcher        wafbundle.Fetcher
 	appProtectVersion    string
 	appProtectBundlePath string
 
@@ -361,6 +362,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 
 	if input.AppProtectEnabled && input.AppProtectBundlePath != "" {
 		fetcher := wafbundle.NewHTTPFetcher()
+		lbc.bundleFetcher = fetcher
 		lbc.bundlePollerMgr = wafbundle.NewPollerManager(
 			fetcher,
 			input.AppProtectBundlePath,
@@ -846,6 +848,9 @@ func (lbc *LoadBalancerController) Run() {
 // Stop shutsdown the load balancer controller
 func (lbc *LoadBalancerController) Stop() {
 	lbc.cancel()
+	if lbc.bundlePollerMgr != nil {
+		lbc.bundlePollerMgr.StopAll()
+	}
 	for _, nif := range lbc.namespacedInformers {
 		nif.stop()
 	}

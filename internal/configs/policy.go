@@ -1576,9 +1576,9 @@ func rfc1123ToSnake(rfc1123String string) string {
 
 // splitPolKey splits "namespace/name" into its two components.
 func splitPolKey(polKey string) (ns, name string) {
-	parts := strings.SplitN(polKey, "/", 2)
-	if len(parts) == 2 {
-		return parts[0], parts[1]
+	ns, name, found := strings.Cut(polKey, "/")
+	if !found {
+		return "", polKey
 	}
-	return "", polKey
+	return ns, name
 }

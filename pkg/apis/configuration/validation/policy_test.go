@@ -4240,3 +4240,117 @@ func TestValidateLogConf_ApLogBundleSource_BundleMode_Valid(t *testing.T) {
 		t.Errorf("unexpected errors: %v", errs)
 	}
 }
+
+func TestValidateBundleSource_NIM_MissingPolicyName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for missing policyName on NIM")
+	}
+}
+
+func TestValidateBundleSource_NIM_ForbiddenPolicyNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", PolicyName: "TestPolicy", PolicyNamespace: "nope"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for policyNamespace on NIM")
+	}
+}
+
+func TestValidateBundleSource_EmptyURL(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: ""}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for empty URL")
+	}
+}
+
+func TestValidateBundleSource_NegativeTimeout(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: -5 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", Timeout: &dur}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for negative timeout")
+	}
+}
+
+func TestValidateBundleSource_ZeroTimeout(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 0}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", Timeout: &dur}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for zero timeout")
+	}
+}
+
+func TestValidateBundleSource_TrustedCertSecretValidated(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", TrustedCertSecret: "INVALID_NAME"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for invalid trustedCertSecret name")
+	}
+}
+
+func TestValidateBundleSource_TrustedCertSecretValid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", TrustedCertSecret: "my-ca-secret"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_VerifyChecksum_NIM_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", PolicyName: "P", VerifyChecksum: true}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for verifyChecksum on NIM type")
+	}
+}
+
+func TestValidateBundleSource_VerifyChecksum_N1C_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://example.com", PolicyName: "P", PolicyNamespace: "ns", VerifyChecksum: true}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for verifyChecksum on N1C type")
+	}
+}
+
+func TestValidateBundleSource_DangerousPolicyName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", PolicyName: "bad;policy"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for dangerous chars in policyName")
+	}
+}
+
+func TestValidateBundleSource_DangerousPolicyNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://example.com", PolicyName: "P", PolicyNamespace: "ns{bad}"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for dangerous chars in policyNamespace")
+	}
+}
+
+func TestValidateLogConf_ThreeWayMutualExclusivity(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogConf:         "some/logconf",
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), true)
+	if len(errs) == 0 {
+		t.Error("expected error when both apLogConf and apLogBundleSource are set")
+	}
+}

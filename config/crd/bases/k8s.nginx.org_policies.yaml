@@ -828,7 +828,7 @@ spec:
                 properties:
                   apBundle:
                     description: The App Protect WAF policy bundle. Mutually exclusive
-                      with apPolicy and apBundleSource.
+                      with apPolicy.
                     type: string
                   apBundleSource:
                     description: |-
@@ -864,8 +864,8 @@ spec:
                         description: |-
                           Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
                           For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
-                          For N1C/NIM: nginx.com/waf-bundle Secret with a 'token' field containing the management plane API token.
-                          For NIM: Opaque Secret with username+password or token field.
+                          For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                          For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
                         pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                         type: string
                       timeout:
@@ -887,7 +887,6 @@ spec:
                         - HTTPS
                         - NIM
                         - N1C
-                        maxLength: 5
                         type: string
                       url:
                         description: URL is the full bundle URL for HTTPS type, or
@@ -900,6 +899,8 @@ spec:
                         description: VerifyChecksum enables SHA-256 verification of
                           the downloaded bundle. HTTPS type only.
                         type: boolean
+                    required:
+                    - url
                     type: object
                   apPolicy:
                     description: The App Protect WAF policy of the WAF. Accepts an
@@ -909,12 +910,13 @@ spec:
                     description: Enables NGINX App Protect WAF.
                     type: boolean
                   securityLog:
-                    description: 'Deprecated: use SecurityLogs instead.'
+                    description: |-
+                      SecurityLog defines the security log of a WAF policy.
+                      Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer.
                     properties:
                       apLogBundle:
                         description: The App Protect WAF log bundle resource. Only
                           works with apBundle.
-                        maxLength: 253
                         type: string
                       apLogBundleSource:
                         description: |-
@@ -950,8 +952,8 @@ spec:
                             description: |-
                               Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
                               For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
-                              For N1C/NIM: nginx.com/waf-bundle Secret with a 'token' field containing the management plane API token.
-                              For NIM: Opaque Secret with username+password or token field.
+                              For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                              For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
                             pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                             type: string
                           timeout:
@@ -973,7 +975,6 @@ spec:
                             - HTTPS
                             - NIM
                             - N1C
-                            maxLength: 5
                             type: string
                           url:
                             description: URL is the full bundle URL for HTTPS type,
@@ -986,11 +987,12 @@ spec:
                             description: VerifyChecksum enables SHA-256 verification
                               of the downloaded bundle. HTTPS type only.
                             type: boolean
+                        required:
+                        - url
                         type: object
                       apLogConf:
                         description: The App Protect WAF log conf resource. Accepts
                           an optional namespace. Only works with apPolicy.
-                        maxLength: 253
                         type: string
                       enable:
                         description: Enables security log.
@@ -1010,7 +1012,6 @@ spec:
                         apLogBundle:
                           description: The App Protect WAF log bundle resource. Only
                             works with apBundle.
-                          maxLength: 253
                           type: string
                         apLogBundleSource:
                           description: |-
@@ -1046,8 +1047,8 @@ spec:
                               description: |-
                                 Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
                                 For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
-                                For N1C/NIM: nginx.com/waf-bundle Secret with a 'token' field containing the management plane API token.
-                                For NIM: Opaque Secret with username+password or token field.
+                                For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                                For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
                               pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                               type: string
                             timeout:
@@ -1069,7 +1070,6 @@ spec:
                               - HTTPS
                               - NIM
                               - N1C
-                              maxLength: 5
                               type: string
                             url:
                               description: URL is the full bundle URL for HTTPS type,
@@ -1082,11 +1082,12 @@ spec:
                               description: VerifyChecksum enables SHA-256 verification
                                 of the downloaded bundle. HTTPS type only.
                               type: boolean
+                          required:
+                          - url
                           type: object
                         apLogConf:
                           description: The App Protect WAF log conf resource. Accepts
                             an optional namespace. Only works with apPolicy.
-                          maxLength: 253
                           type: string
                         enable:
                           description: Enables security log.

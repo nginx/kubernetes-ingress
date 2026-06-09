@@ -70,6 +70,10 @@ data:
             ssl_certificate_key /etc/nginx/ssl/tls.key;
             ssl_protocols       TLSv1.2 TLSv1.3;
 
+            # Require client certificates (mTLS).
+            ssl_client_certificate /etc/nginx/ssl/ca.crt;
+            ssl_verify_client on;
+
             location /health {
                 return 200 "ok\n";
             }
@@ -137,7 +141,16 @@ spec:
           mountPath: /etc/nginx/nginx.conf
           subPath: nginx.conf
         - name: tls
-          mountPath: /etc/nginx/ssl
+          mountPath: /etc/nginx/ssl/tls.crt
+          subPath: tls.crt
+          readOnly: true
+        - name: tls
+          mountPath: /etc/nginx/ssl/tls.key
+          subPath: tls.key
+          readOnly: true
+        - name: ca
+          mountPath: /etc/nginx/ssl/ca.crt
+          subPath: ca.crt
           readOnly: true
         livenessProbe:
           httpGet:
@@ -165,6 +178,9 @@ spec:
       - name: tls
         secret:
           secretName: bundle-server-tls
+      - name: ca
+        secret:
+          secretName: bundle-server-ca
 ---
 apiVersion: v1
 kind: Service

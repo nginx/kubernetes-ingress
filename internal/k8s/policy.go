@@ -126,7 +126,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	if lbc.bundlePollerMgr != nil {
 		if polExists && lbc.HasCorrectIngressClass(obj) {
 			pol := obj.(*conf_v1.Policy)
-			if pol.Spec.WAF != nil && pol.Spec.WAF.ApBundleSource != nil {
+			if pol.Spec.WAF != nil && hasBundleSource(pol) {
 				lbc.syncWAFBundleSource(pol)
 			} else {
 				lbc.bundlePollerMgr.StopPoller(key)
@@ -253,28 +253,49 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	// Note: updating the status of a policy based on a reload is not needed.
 }
 
+// hasBundleSource reports whether a Policy has any bundle source fields that require
+// fetching: either a top-level apBundleSource or any securityLogs entry with an apLogBundleSource.
+func hasBundleSource(pol *conf_v1.Policy) bool {
+	if pol.Spec.WAF == nil {
+		return false
+	}
+	if pol.Spec.WAF.ApBundleSource != nil {
+		return true
+	}
+	for _, sl := range pol.Spec.WAF.SecurityLogs {
+		if sl != nil && sl.ApLogBundleSource != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // syncWAFBundleSource performs initial bundle fetches (if files are absent on disk)
 // and reconciles the background poller for the given WAF policy.
 func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	polKey := pol.Namespace + "/" + pol.Name
 	bs := pol.Spec.WAF.ApBundleSource
 
-	auth, err := lbc.resolveWAFBundleAuth(bs, pol.Namespace)
-	if err != nil {
-		msg := fmt.Sprintf("WAF bundle secret resolution failed: %v", err)
-		lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
-		if lbc.reportCustomResourceStatusEnabled() {
-			if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
-				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+	var auth *wafbundle.BundleAuth
+	if bs != nil {
+		var err error
+		auth, err = lbc.resolveWAFBundleAuth(bs, pol.Namespace)
+		if err != nil {
+			msg := fmt.Sprintf("WAF bundle secret resolution failed: %v", err)
+			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
+			if lbc.reportCustomResourceStatusEnabled() {
+				if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
+					nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+				}
 			}
+			return
 		}
-		return
-	}
 
-	policyFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy")
-	policyPath := filepath.Join(lbc.appProtectBundlePath, policyFilename)
-	if _, statErr := os.Stat(policyPath); os.IsNotExist(statErr) {
-		lbc.performInitialFetch(pol, bs, auth, policyPath, wafbundle.PolicyBundle)
+		policyFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy")
+		policyPath := filepath.Join(lbc.appProtectBundlePath, policyFilename)
+		if _, statErr := os.Stat(policyPath); os.IsNotExist(statErr) {
+			lbc.performInitialFetch(pol, bs, auth, policyPath, wafbundle.PolicyBundle)
+		}
 	}
 
 	for idx, sl := range pol.Spec.WAF.SecurityLogs {
@@ -315,13 +336,12 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	fetcher := wafbundle.NewHTTPFetcher()
 	var result wafbundle.Result
 	var fetchErr error
 	if kind == wafbundle.LogProfileBundle {
-		result, fetchErr = fetcher.FetchLogProfileBundle(ctx, &req)
+		result, fetchErr = lbc.bundleFetcher.FetchLogProfileBundle(ctx, &req)
 	} else {
-		result, fetchErr = fetcher.FetchPolicyBundle(ctx, &req)
+		result, fetchErr = lbc.bundleFetcher.FetchPolicyBundle(ctx, &req)
 	}
 
 	if fetchErr != nil {
@@ -354,13 +374,14 @@ func (lbc *LoadBalancerController) performInitialFetch(
 func (lbc *LoadBalancerController) buildPollSources(pol *conf_v1.Policy, policyAuth *wafbundle.BundleAuth) []wafbundle.PollSource {
 	var sources []wafbundle.PollSource
 
-	bs := pol.Spec.WAF.ApBundleSource
-	sources = append(sources, wafbundle.PollSource{
-		Filename: wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"),
-		Kind:     wafbundle.PolicyBundle,
-		Req:      lbc.buildFetchRequest(bs, policyAuth, wafbundle.PolicyBundle),
-		Interval: effectivePollInterval(bs),
-	})
+	if bs := pol.Spec.WAF.ApBundleSource; bs != nil {
+		sources = append(sources, wafbundle.PollSource{
+			Filename: wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"),
+			Kind:     wafbundle.PolicyBundle,
+			Req:      lbc.buildFetchRequest(bs, policyAuth, wafbundle.PolicyBundle),
+			Interval: effectivePollInterval(bs),
+		})
+	}
 
 	for idx, sl := range pol.Spec.WAF.SecurityLogs {
 		if sl == nil || sl.ApLogBundleSource == nil {
@@ -416,59 +437,22 @@ func (lbc *LoadBalancerController) buildFetchRequest(bs *conf_v1.BundleSource, a
 
 // resolveWAFBundleAuth resolves authentication credentials from the referenced Secret.
 func (lbc *LoadBalancerController) resolveWAFBundleAuth(bs *conf_v1.BundleSource, namespace string) (*wafbundle.BundleAuth, error) {
-	auth := &wafbundle.BundleAuth{}
-
 	if bs.Secret == "" && bs.TrustedCertSecret == "" {
 		return nil, nil
 	}
 
-	if bs.Secret != "" {
-		secretKey := namespace + "/" + bs.Secret
-		ref := lbc.secretStore.GetSecret(secretKey)
-		if ref == nil || ref.Error != nil {
-			var msg string
-			if ref != nil {
-				msg = ref.Error.Error()
-			}
-			return nil, fmt.Errorf("secret %s not found or invalid: %s", secretKey, msg)
-		}
-		data := ref.Secret.Data
-		auth.TLSCA = data[secrets.CAKey]
+	auth := &wafbundle.BundleAuth{}
 
-		switch bs.Type {
-		case conf_v1.BundleSourceTypeN1C:
-			tok := string(data["token"])
-			if tok == "" {
-				return nil, fmt.Errorf("N1C secret %s must contain a 'token' field (type nginx.com/waf-bundle)", secretKey)
-			}
-			auth.APIToken = tok
-		case conf_v1.BundleSourceTypeNIM:
-			// NIM: 'token' for bearer auth, or 'username'+'password' for basic auth.
-			if tok := string(data["token"]); tok != "" {
-				auth.BearerToken = tok
-			} else if usr := string(data["username"]); usr != "" {
-				auth.Username = usr
-				auth.Password = string(data["password"])
-			} else {
-				return nil, fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password' (type nginx.com/waf-bundle)", secretKey)
-			}
-		default: // HTTPS
-			auth.TLSCert = data["tls.crt"]
-			auth.TLSKey = data["tls.key"]
+	if bs.Secret != "" {
+		if err := lbc.resolveWAFBundleSecret(bs, namespace, auth); err != nil {
+			return nil, err
 		}
 	}
 
 	if bs.TrustedCertSecret != "" {
-		caSecretKey := namespace + "/" + bs.TrustedCertSecret
-		caRef := lbc.secretStore.GetSecret(caSecretKey)
-		if caRef == nil || caRef.Error != nil {
-			var msg string
-			if caRef != nil {
-				msg = caRef.Error.Error()
-			}
-			return nil, fmt.Errorf("trusted cert secret %s not found or invalid: %s", caSecretKey, msg)
+		if err := lbc.resolveWAFTrustedCert(bs.TrustedCertSecret, namespace, auth); err != nil {
+			return nil, err
 		}
-		auth.TLSCA = caRef.Secret.Data[secrets.CAKey]
 	}
 
 	if auth.APIToken == "" && auth.BearerToken == "" && auth.Username == "" && auth.TLSCert == nil && auth.TLSKey == nil && auth.TLSCA == nil {
@@ -478,6 +462,65 @@ func (lbc *LoadBalancerController) resolveWAFBundleAuth(bs *conf_v1.BundleSource
 	return auth, nil
 }
 
+// resolveWAFBundleSecret resolves the primary auth secret into the given BundleAuth.
+func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSource, namespace string, auth *wafbundle.BundleAuth) error {
+	secretKey := namespace + "/" + bs.Secret
+	ref := lbc.secretStore.GetSecret(secretKey)
+	if ref == nil || ref.Error != nil {
+		var msg string
+		if ref != nil {
+			msg = ref.Error.Error()
+		}
+		return fmt.Errorf("secret %s not found or invalid: %s", secretKey, msg)
+	}
+
+	if bs.Type == conf_v1.BundleSourceTypeN1C || bs.Type == conf_v1.BundleSourceTypeNIM {
+		if err := secrets.ValidateWAFBundleSecret(ref.Secret); err != nil {
+			return fmt.Errorf("secret %s: %w", secretKey, err)
+		}
+	}
+
+	data := ref.Secret.Data
+	auth.TLSCA = data[secrets.CAKey]
+
+	switch bs.Type {
+	case conf_v1.BundleSourceTypeN1C:
+		tok := string(data["token"])
+		if tok == "" {
+			return fmt.Errorf("N1C secret %s must contain a 'token' field (type nginx.com/waf-bundle)", secretKey)
+		}
+		auth.APIToken = tok
+	case conf_v1.BundleSourceTypeNIM:
+		if tok := string(data["token"]); tok != "" {
+			auth.BearerToken = tok
+		} else if usr := string(data["username"]); usr != "" {
+			auth.Username = usr
+			auth.Password = string(data["password"])
+		} else {
+			return fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password' (type nginx.com/waf-bundle)", secretKey)
+		}
+	default: // HTTPS
+		auth.TLSCert = data["tls.crt"]
+		auth.TLSKey = data["tls.key"]
+	}
+	return nil
+}
+
+// resolveWAFTrustedCert resolves the trusted CA certificate secret.
+func (lbc *LoadBalancerController) resolveWAFTrustedCert(secretName, namespace string, auth *wafbundle.BundleAuth) error {
+	caSecretKey := namespace + "/" + secretName
+	caRef := lbc.secretStore.GetSecret(caSecretKey)
+	if caRef == nil || caRef.Error != nil {
+		var msg string
+		if caRef != nil {
+			msg = caRef.Error.Error()
+		}
+		return fmt.Errorf("trusted cert secret %s not found or invalid: %s", caSecretKey, msg)
+	}
+	auth.TLSCA = caRef.Secret.Data[secrets.CAKey]
+	return nil
+}
+
 // cleanupFetchedBundles removes any fetched bundle files for the given polKey.
 func (lbc *LoadBalancerController) cleanupFetchedBundles(polKey string) {
 	if lbc.appProtectBundlePath == "" {
@@ -485,8 +528,12 @@ func (lbc *LoadBalancerController) cleanupFetchedBundles(polKey string) {
 	}
 	ns, name, _ := ParseNamespaceName(polKey)
 	_ = os.Remove(filepath.Join(lbc.appProtectBundlePath, wafbundle.FetchedBundleFilename(ns, name, "policy")))
-	for i := range 10 {
-		_ = os.Remove(filepath.Join(lbc.appProtectBundlePath, wafbundle.FetchedBundleFilename(ns, name, fmt.Sprintf("log_%d", i))))
+
+	// Glob for all log bundles belonging to this policy to avoid a hardcoded upper limit.
+	pattern := filepath.Join(lbc.appProtectBundlePath, fmt.Sprintf("fetched_%s_%s_log_*.tgz", ns, name))
+	matches, _ := filepath.Glob(pattern)
+	for _, m := range matches {
+		_ = os.Remove(m)
 	}
 }
 

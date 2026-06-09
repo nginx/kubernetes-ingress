@@ -66,7 +66,9 @@ func (f *HTTPFetcher) buildClient(req *Request) (*http.Client, error) {
 
 	if req.TLSCA != nil {
 		pool := x509.NewCertPool()
-		pool.AppendCertsFromPEM(req.TLSCA)
+		if !pool.AppendCertsFromPEM(req.TLSCA) {
+			return &http.Client{}, fmt.Errorf("failed to parse CA certificate bundle")
+		}
 		tlsCfg.RootCAs = pool
 	}
 
@@ -80,7 +82,6 @@ func (f *HTTPFetcher) buildClient(req *Request) (*http.Client, error) {
 		}
 	}
 	return &http.Client{
-		Timeout:   effectiveTimeout(req),
 		Transport: &http.Transport{TLSClientConfig: tlsCfg},
 		// Refuse redirects to prevent SSRF.
 		CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -91,31 +92,13 @@ func (f *HTTPFetcher) buildClient(req *Request) (*http.Client, error) {
 
 // HTTPS source
 func fetchHTTPSBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, req.URL, nil)
-	if err != nil {
-		return Result{}, fmt.Errorf("building request: %w", err)
-	}
-
-	if req.Auth != nil {
-		switch {
-		case req.Auth.APIToken != "":
-			httpReq.Header.Set("Authorization", "APIToken "+req.Auth.APIToken)
-		case req.Auth.BearerToken != "":
-			httpReq.Header.Set("Authorization", "Bearer "+req.Auth.BearerToken)
-		case req.Auth.Username != "":
-			httpReq.SetBasicAuth(req.Auth.Username, req.Auth.Password)
-		}
-	}
-	if req.ETag != "" {
-		httpReq.Header.Set("If-None-Match", req.ETag)
-	}
-	if req.LastModified != "" {
-		httpReq.Header.Set("If-Modified-Since", req.LastModified)
-	}
-
 	var result Result
 	var fetchErr error
 	for attempt := 0; attempt < effectiveRetries(req); attempt++ {
+		httpReq, err := newHTTPSRequest(ctx, req)
+		if err != nil {
+			return Result{}, err
+		}
 		result, fetchErr = doHTTPSFetch(client, httpReq, req)
 		if fetchErr == nil || isNonTransient(fetchErr) {
 			break
@@ -135,6 +118,31 @@ func fetchHTTPSBundle(ctx context.Context, client *http.Client, req *Request) (R
 	return result, fetchErr
 }
 
+// newHTTPSRequest builds a fresh *http.Request for an HTTPS bundle fetch.
+func newHTTPSRequest(ctx context.Context, req *Request) (*http.Request, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, req.URL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("building request: %w", err)
+	}
+	if req.Auth != nil {
+		switch {
+		case req.Auth.APIToken != "":
+			httpReq.Header.Set("Authorization", "APIToken "+req.Auth.APIToken)
+		case req.Auth.BearerToken != "":
+			httpReq.Header.Set("Authorization", "Bearer "+req.Auth.BearerToken)
+		case req.Auth.Username != "":
+			httpReq.SetBasicAuth(req.Auth.Username, req.Auth.Password)
+		}
+	}
+	if req.ETag != "" {
+		httpReq.Header.Set("If-None-Match", req.ETag)
+	}
+	if req.LastModified != "" {
+		httpReq.Header.Set("If-Modified-Since", req.LastModified)
+	}
+	return httpReq, nil
+}
+
 func doHTTPSFetch(client *http.Client, req *http.Request, bundleReq *Request) (result Result, err error) {
 	resp, err := client.Do(req)
 	if err != nil {
@@ -146,26 +154,16 @@ func doHTTPSFetch(client *http.Client, req *http.Request, bundleReq *Request) (r
 		}
 	}()
 
-	switch {
-	case resp.StatusCode == http.StatusNotModified:
-		return Result{Unchanged: true}, nil
-	case resp.StatusCode == http.StatusOK:
-		// fall through
-	case resp.StatusCode >= 400 && resp.StatusCode < 500:
-		return Result{}, &nonTransientError{fmt.Errorf("HTTP %d from %s", resp.StatusCode, bundleReq.URL)}
-	default:
-		return Result{}, fmt.Errorf("HTTP %d from %s", resp.StatusCode, bundleReq.URL)
+	if r, statusErr := checkHTTPSStatus(resp, bundleReq.URL); statusErr != nil || r != nil {
+		if r != nil {
+			return *r, nil
+		}
+		return Result{}, statusErr
 	}
 
-	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxBundleSize+1))
+	data, err := readBundleBody(resp, bundleReq.URL)
 	if err != nil {
-		return Result{}, fmt.Errorf("reading response: %w", err)
-	}
-	if int64(len(data)) > MaxBundleSize {
-		return Result{}, &nonTransientError{fmt.Errorf("bundle exceeds maximum size of %d bytes", MaxBundleSize)}
-	}
-	if len(data) == 0 {
-		return Result{}, &nonTransientError{fmt.Errorf("empty response from %s", bundleReq.URL)}
+		return Result{}, err
 	}
 
 	checksum := ComputeChecksum(data)
@@ -176,6 +174,38 @@ func doHTTPSFetch(client *http.Client, req *http.Request, bundleReq *Request) (r
 		Data: data, Checksum: checksum,
 		ETag: resp.Header.Get("ETag"), LastModified: resp.Header.Get("Last-Modified"),
 	}, nil
+}
+
+// checkHTTPSStatus returns a non-nil *Result for 304 (unchanged) or a non-nil error for non-200 codes.
+// Both nil means "200 OK, continue reading the body".
+func checkHTTPSStatus(resp *http.Response, reqURL string) (*Result, error) {
+	switch {
+	case resp.StatusCode == http.StatusNotModified:
+		return &Result{Unchanged: true}, nil
+	case resp.StatusCode == http.StatusOK:
+		return nil, nil
+	case resp.StatusCode >= 300 && resp.StatusCode < 400:
+		return nil, &nonTransientError{fmt.Errorf("HTTP %d redirect from %s (redirects are not followed)", resp.StatusCode, reqURL)}
+	case resp.StatusCode >= 400 && resp.StatusCode < 500:
+		return nil, &nonTransientError{fmt.Errorf("HTTP %d from %s", resp.StatusCode, reqURL)}
+	default:
+		return nil, fmt.Errorf("HTTP %d from %s", resp.StatusCode, reqURL)
+	}
+}
+
+// readBundleBody reads and validates the response body.
+func readBundleBody(resp *http.Response, reqURL string) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxBundleSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+	if int64(len(data)) > MaxBundleSize {
+		return nil, &nonTransientError{fmt.Errorf("bundle exceeds maximum size of %d bytes", MaxBundleSize)}
+	}
+	if len(data) == 0 {
+		return nil, &nonTransientError{fmt.Errorf("empty response from %s", reqURL)}
+	}
+	return data, nil
 }
 
 // NGINX One Console (N1C)
@@ -257,7 +287,8 @@ func fetchN1CLogProfileBundle(ctx context.Context, client *http.Client, req *Req
 }
 
 func findN1CPolicy(ctx context.Context, client *http.Client, baseURL, ns, name, token string) (n1cPolicyItem, error) {
-	item, found, err := paginatedSearch(ctx, client, token,
+	item, found, err := paginatedSearch(
+		ctx, client, token,
 		func(pageToken string, pageSize int) string {
 			return buildN1CPoliciesURL(baseURL, ns, pageToken, pageSize)
 		},
@@ -273,7 +304,8 @@ func findN1CPolicy(ctx context.Context, client *http.Client, baseURL, ns, name, 
 }
 
 func findN1CLogProfile(ctx context.Context, client *http.Client, baseURL, ns, name, token string) (string, error) {
-	item, found, err := paginatedSearch(ctx, client, token,
+	item, found, err := paginatedSearch(
+		ctx, client, token,
 		func(pageToken string, pageSize int) string {
 			return buildN1CLogProfilesURL(baseURL, ns, pageToken, pageSize)
 		},
@@ -298,6 +330,7 @@ func paginatedSearch[T any](
 	const pageSize = 100
 	var zero T
 	pageToken := ""
+	offset := 0
 
 	for {
 		body, err := n1cGet(ctx, client, urlFn(pageToken, pageSize), token)
@@ -316,12 +349,13 @@ func paginatedSearch[T any](
 		if len(page.Items) < pageSize {
 			return zero, false, nil
 		}
-		pageToken = strconv.Itoa(len(page.Items))
+		offset += len(page.Items)
+		pageToken = strconv.Itoa(offset)
 	}
 }
 
 func pollN1CCompileStatus(ctx context.Context, client *http.Client, statusURL, token string) (n1cCompileStatus, error) {
-	for {
+	for attempt := 0; attempt < maxN1CCompilePolls; attempt++ {
 		body, err := n1cGet(ctx, client, statusURL, token)
 		if err != nil {
 			return n1cCompileStatus{}, err
@@ -346,6 +380,7 @@ func pollN1CCompileStatus(ctx context.Context, client *http.Client, statusURL, t
 		case <-time.After(n1cCompilePollInterval):
 		}
 	}
+	return n1cCompileStatus{}, &nonTransientError{fmt.Errorf("N1C policy compilation did not complete after %d polls", maxN1CCompilePolls)}
 }
 
 func n1cDownload(ctx context.Context, client *http.Client, downloadURL, token string) ([]byte, error) {

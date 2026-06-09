@@ -32,6 +32,10 @@ const (
 
 	// n1cCompilePollInterval is how often to re-check the N1C compile status endpoint.
 	n1cCompilePollInterval = 10 * time.Second
+
+	// maxN1CCompilePolls is the maximum number of compile status polls before giving up.
+	// With n1cCompilePollInterval=10s this gives a 5-minute ceiling.
+	maxN1CCompilePolls = 30
 )
 
 // BundleType distinguishes policy bundles from log profile bundles.
