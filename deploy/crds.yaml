@@ -1006,6 +1006,13 @@ spec:
                       ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
                       Mutually exclusive with ApPolicy and ApBundle.
                     properties:
+                      enablePolling:
+                        description: |-
+                          EnablePolling enables background polling to automatically detect and fetch
+                          updated bundles at the configured PollInterval. When false, the bundle is
+                          fetched once on policy creation or update; subsequent updates require
+                          modifying the Policy resource to trigger a new fetch.
+                        type: boolean
                       insecureSkipVerify:
                         description: |-
                           InsecureSkipVerify disables TLS certificate verification when fetching bundles.
@@ -1022,8 +1029,9 @@ spec:
                         maxLength: 63
                         type: string
                       pollInterval:
-                        description: PollInterval is how often to re-fetch the bundle.
-                          Minimum 10s. Default 1m.
+                        description: |-
+                          PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                          Minimum 10s. Default 1m. Ignored when enablePolling is false.
                         type: string
                       retryAttempts:
                         description: RetryAttempts is the number of retry attempts
@@ -1071,6 +1079,7 @@ spec:
                           the downloaded bundle. HTTPS type only.
                         type: boolean
                     required:
+                    - enablePolling
                     - url
                     type: object
                   apPolicy:
@@ -1094,6 +1103,13 @@ spec:
                           ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
                           Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
                         properties:
+                          enablePolling:
+                            description: |-
+                              EnablePolling enables background polling to automatically detect and fetch
+                              updated bundles at the configured PollInterval. When false, the bundle is
+                              fetched once on policy creation or update; subsequent updates require
+                              modifying the Policy resource to trigger a new fetch.
+                            type: boolean
                           insecureSkipVerify:
                             description: |-
                               InsecureSkipVerify disables TLS certificate verification when fetching bundles.
@@ -1110,8 +1126,9 @@ spec:
                             maxLength: 63
                             type: string
                           pollInterval:
-                            description: PollInterval is how often to re-fetch the
-                              bundle. Minimum 10s. Default 1m.
+                            description: |-
+                              PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                              Minimum 10s. Default 1m. Ignored when enablePolling is false.
                             type: string
                           retryAttempts:
                             description: RetryAttempts is the number of retry attempts
@@ -1159,6 +1176,7 @@ spec:
                               of the downloaded bundle. HTTPS type only.
                             type: boolean
                         required:
+                        - enablePolling
                         - url
                         type: object
                       apLogConf:
@@ -1189,6 +1207,13 @@ spec:
                             ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
                             Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
                           properties:
+                            enablePolling:
+                              description: |-
+                                EnablePolling enables background polling to automatically detect and fetch
+                                updated bundles at the configured PollInterval. When false, the bundle is
+                                fetched once on policy creation or update; subsequent updates require
+                                modifying the Policy resource to trigger a new fetch.
+                              type: boolean
                             insecureSkipVerify:
                               description: |-
                                 InsecureSkipVerify disables TLS certificate verification when fetching bundles.
@@ -1205,8 +1230,9 @@ spec:
                               maxLength: 63
                               type: string
                             pollInterval:
-                              description: PollInterval is how often to re-fetch the
-                                bundle. Minimum 10s. Default 1m.
+                              description: |-
+                                PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                                Minimum 10s. Default 1m. Ignored when enablePolling is false.
                               type: string
                             retryAttempts:
                               description: RetryAttempts is the number of retry attempts
@@ -1254,6 +1280,7 @@ spec:
                                 of the downloaded bundle. HTTPS type only.
                               type: boolean
                           required:
+                          - enablePolling
                           - url
                           type: object
                         apLogConf:

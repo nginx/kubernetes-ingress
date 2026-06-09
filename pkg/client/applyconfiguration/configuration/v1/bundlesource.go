@@ -37,7 +37,13 @@ type BundleSourceApplyConfiguration struct {
 	PolicyName *string `json:"policyName,omitempty"`
 	// PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only.
 	PolicyNamespace *string `json:"policyNamespace,omitempty"`
-	// PollInterval is how often to re-fetch the bundle. Minimum 10s. Default 1m.
+	// EnablePolling enables background polling to automatically detect and fetch
+	// updated bundles at the configured PollInterval. When false, the bundle is
+	// fetched once on policy creation or update; subsequent updates require
+	// modifying the Policy resource to trigger a new fetch.
+	EnablePolling *bool `json:"enablePolling,omitempty"`
+	// PollInterval is how often to re-fetch the bundle when enablePolling is true.
+	// Minimum 10s. Default 1m. Ignored when enablePolling is false.
 	PollInterval *metav1.Duration `json:"pollInterval,omitempty"`
 	// Timeout is the per-request HTTP timeout. Default 60s.
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
@@ -101,6 +107,14 @@ func (b *BundleSourceApplyConfiguration) WithPolicyName(value string) *BundleSou
 // If called multiple times, the PolicyNamespace field is set to the value of the last call.
 func (b *BundleSourceApplyConfiguration) WithPolicyNamespace(value string) *BundleSourceApplyConfiguration {
 	b.PolicyNamespace = &value
+	return b
+}
+
+// WithEnablePolling sets the EnablePolling field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the EnablePolling field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithEnablePolling(value bool) *BundleSourceApplyConfiguration {
+	b.EnablePolling = &value
 	return b
 }
 

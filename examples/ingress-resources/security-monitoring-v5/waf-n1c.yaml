@@ -11,6 +11,7 @@ spec:
       policyName: "<policy_name>"
       policyNamespace: "default"
       secret: "n1c-credentials"
+      enablePolling: true
       pollInterval: "5m"
     securityLogs:
     - enable: true
@@ -20,4 +21,6 @@ spec:
         policyName: "secops_dashboard"
         policyNamespace: "default"
         secret: "n1c-credentials"
+        enablePolling: true
+        pollInterval: "5m"
       logDest: "syslog:server=127.0.0.1:1514"

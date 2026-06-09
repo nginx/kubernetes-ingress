@@ -4168,19 +4168,28 @@ func TestValidateBundleSource_URL_DangerousChars(t *testing.T) {
 	}
 }
 
-func TestValidateBundleSource_PollInterval_TooShort(t *testing.T) {
+func TestValidateBundleSource_PollInterval_TooShort_WhenPollingEnabled(t *testing.T) {
 	t.Parallel()
 	dur := metav1.Duration{Duration: 5 * time.Second}
-	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", PollInterval: &dur}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: true, PollInterval: &dur}
 	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
-		t.Error("expected error for pollInterval < 10s")
+		t.Error("expected error for pollInterval < 10s when enablePolling is true")
+	}
+}
+
+func TestValidateBundleSource_PollInterval_TooShort_IgnoredWhenPollingDisabled(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 5 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: false, PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("expected no error for short pollInterval when enablePolling is false, got: %v", errs)
 	}
 }
 
 func TestValidateBundleSource_PollInterval_Valid(t *testing.T) {
 	t.Parallel()
 	dur := metav1.Duration{Duration: 30 * time.Second}
-	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", PollInterval: &dur}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: true, PollInterval: &dur}
 	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
 		t.Errorf("unexpected errors: %v", errs)
 	}

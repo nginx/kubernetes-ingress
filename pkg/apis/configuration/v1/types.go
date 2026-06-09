@@ -1066,7 +1066,15 @@ type BundleSource struct {
 	// +optional
 	PolicyNamespace string `json:"policyNamespace,omitempty"`
 
-	// PollInterval is how often to re-fetch the bundle. Minimum 10s. Default 1m.
+	// EnablePolling enables background polling to automatically detect and fetch
+	// updated bundles at the configured PollInterval. When false, the bundle is
+	// fetched once on policy creation or update; subsequent updates require
+	// modifying the Policy resource to trigger a new fetch.
+	// +kubebuilder:validation:Required
+	EnablePolling bool `json:"enablePolling"`
+
+	// PollInterval is how often to re-fetch the bundle when enablePolling is true.
+	// Minimum 10s. Default 1m. Ignored when enablePolling is false.
 	// +optional
 	PollInterval *metav1.Duration `json:"pollInterval,omitempty"`
 

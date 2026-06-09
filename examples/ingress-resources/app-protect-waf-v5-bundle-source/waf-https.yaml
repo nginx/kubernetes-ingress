@@ -8,10 +8,13 @@ spec:
     apBundleSource:
       url: "https://bundle-server.default.svc.cluster.local/bundles/attack-signatures-blocking.tgz"
       secret: "bundle-client-tls"
+      enablePolling: true
       pollInterval: "1m"
     securityLogs:
     - enable: true
       apLogBundleSource:
         url: "https://bundle-server.default.svc.cluster.local/bundles/log-default.tgz"
         secret: "bundle-client-tls"
+        enablePolling: true
+        pollInterval: "1m"
       logDest: "stderr"

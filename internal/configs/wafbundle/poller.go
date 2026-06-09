@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sync"
 	"time"
 
@@ -194,22 +195,20 @@ func writeAtomic(dst string, data []byte) error {
 	return nil
 }
 
+// pollSourcesEqual compares two PollSource slices for config equality.
+// Runtime-mutable fields (LastHash, ETag, LastModified) are zeroed before
+// comparison so that only config changes trigger a poller restart.
+// Uses reflect.DeepEqual so new fields are automatically included.
 func pollSourcesEqual(a, b []PollSource) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i := range a {
-		if a[i].Filename != b[i].Filename ||
-			a[i].Kind != b[i].Kind ||
-			a[i].Interval != b[i].Interval ||
-			a[i].Req.URL != b[i].Req.URL ||
-			a[i].Req.Type != b[i].Req.Type ||
-			a[i].Req.PolicyName != b[i].Req.PolicyName ||
-			a[i].Req.PolicyNamespace != b[i].Req.PolicyNamespace ||
-			a[i].Req.Timeout != b[i].Req.Timeout ||
-			a[i].Req.RetryAttempts != b[i].Req.RetryAttempts ||
-			a[i].Req.InsecureSkipVerify != b[i].Req.InsecureSkipVerify ||
-			!authEqual(a[i].Req.Auth, b[i].Req.Auth) {
+		copyA, copyB := a[i], b[i]
+		copyA.Req.LastHash, copyB.Req.LastHash = "", ""
+		copyA.Req.ETag, copyB.Req.ETag = "", ""
+		copyA.Req.LastModified, copyB.Req.LastModified = "", ""
+		if !reflect.DeepEqual(copyA, copyB) {
 			return false
 		}
 	}

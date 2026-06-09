@@ -314,7 +314,12 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 		}
 	}
 
-	lbc.bundlePollerMgr.ReconcilePoller(polKey, lbc.buildPollSources(pol, auth))
+	sources := lbc.buildPollSources(pol, auth)
+	if len(sources) > 0 {
+		lbc.bundlePollerMgr.ReconcilePoller(polKey, sources)
+	} else {
+		lbc.bundlePollerMgr.StopPoller(polKey)
+	}
 }
 
 // performInitialFetch synchronously fetches a single bundle and writes it to destPath.
@@ -374,7 +379,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 func (lbc *LoadBalancerController) buildPollSources(pol *conf_v1.Policy, policyAuth *wafbundle.BundleAuth) []wafbundle.PollSource {
 	var sources []wafbundle.PollSource
 
-	if bs := pol.Spec.WAF.ApBundleSource; bs != nil {
+	if bs := pol.Spec.WAF.ApBundleSource; bs != nil && bs.EnablePolling {
 		sources = append(sources, wafbundle.PollSource{
 			Filename: wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"),
 			Kind:     wafbundle.PolicyBundle,
@@ -384,7 +389,7 @@ func (lbc *LoadBalancerController) buildPollSources(pol *conf_v1.Policy, policyA
 	}
 
 	for idx, sl := range pol.Spec.WAF.SecurityLogs {
-		if sl == nil || sl.ApLogBundleSource == nil {
+		if sl == nil || sl.ApLogBundleSource == nil || !sl.ApLogBundleSource.EnablePolling {
 			continue
 		}
 		logAuth, err := lbc.resolveWAFBundleAuth(sl.ApLogBundleSource, pol.Namespace)

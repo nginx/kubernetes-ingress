@@ -150,4 +150,6 @@ type NICResourceCounts struct {
 	CORSPolicies int64
 	// ExternalAuthPolicies is the number of ExternalAuth policies managed by NGINX Ingress Controller
 	ExternalAuthPolicies int64
+	// WAFBundleSourceTypes is the deduplicated list of WAF bundle source types in use (e.g. "HTTPS", "NIM", "N1C").
+	WAFBundleSourceTypes []string
 }

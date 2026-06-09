@@ -140,10 +140,11 @@ The `.spec` object supports the following fields:
 | `waf` | `object` | The WAF policy configures WAF and log configuration policies for NGINX AppProtect |
 | `waf.apBundle` | `string` | The App Protect WAF policy bundle. Mutually exclusive with apPolicy. |
 | `waf.apBundleSource` | `object` | ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApPolicy and ApBundle. |
+| `waf.apBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.apBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
 | `waf.apBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
 | `waf.apBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
-| `waf.apBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle. Minimum 10s. Default 1m. |
+| `waf.apBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 10s. Default 1m. Ignored when enablePolling is false. |
 | `waf.apBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.apBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
 | `waf.apBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |
@@ -156,10 +157,11 @@ The `.spec` object supports the following fields:
 | `waf.securityLog` | `object` | SecurityLog defines the security log of a WAF policy. Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer. |
 | `waf.securityLog.apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle. |
 | `waf.securityLog.apLogBundleSource` | `object` | ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF. |
+| `waf.securityLog.apLogBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.securityLog.apLogBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
 | `waf.securityLog.apLogBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
 | `waf.securityLog.apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
-| `waf.securityLog.apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle. Minimum 10s. Default 1m. |
+| `waf.securityLog.apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 10s. Default 1m. Ignored when enablePolling is false. |
 | `waf.securityLog.apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.securityLog.apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
 | `waf.securityLog.apLogBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |
@@ -173,10 +175,11 @@ The `.spec` object supports the following fields:
 | `waf.securityLogs` | `array` | List of configuration values. |
 | `waf.securityLogs[].apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle. |
 | `waf.securityLogs[].apLogBundleSource` | `object` | ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF. |
+| `waf.securityLogs[].apLogBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.securityLogs[].apLogBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
 | `waf.securityLogs[].apLogBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
 | `waf.securityLogs[].apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
-| `waf.securityLogs[].apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle. Minimum 10s. Default 1m. |
+| `waf.securityLogs[].apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 10s. Default 1m. Ignored when enablePolling is false. |
 | `waf.securityLogs[].apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.securityLogs[].apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
 | `waf.securityLogs[].apLogBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |

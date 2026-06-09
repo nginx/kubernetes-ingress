@@ -10,6 +10,7 @@ spec:
       url: "https://<nim_host>"
       policyName: "<policy_name>"
       secret: "nim-credentials"
+      enablePolling: true
       pollInterval: "5m"
     securityLogs:
     - enable: true
@@ -18,4 +19,6 @@ spec:
         url: "https://<nim_host>"
         policyName: "<log_profile_name>"
         secret: "nim-credentials"
+        enablePolling: true
+        pollInterval: "5m"
       logDest: "stderr"

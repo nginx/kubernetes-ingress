@@ -574,9 +574,10 @@ func validateBundleSource(bs *v1.BundleSource, fieldPath *field.Path) field.Erro
 	if bs.TrustedCertSecret != "" {
 		allErrs = append(allErrs, validateSecretName(bs.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
 	}
-	if bs.PollInterval != nil && bs.PollInterval.Duration < minBundlePollInterval {
+
+	if bs.EnablePolling && bs.PollInterval != nil && bs.PollInterval.Duration < minBundlePollInterval {
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("pollInterval"), bs.PollInterval,
-			fmt.Sprintf("pollInterval must be at least %s", minBundlePollInterval)))
+			fmt.Sprintf("pollInterval must be at least %s when enablePolling is true", minBundlePollInterval)))
 	}
 	if bs.Timeout != nil && bs.Timeout.Duration <= 0 {
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("timeout"), bs.Timeout, "timeout must be positive"))
