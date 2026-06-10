@@ -3855,6 +3855,48 @@ func TestAddHSTSToLocationsWithAddHeaders(t *testing.T) {
 				{Path: "/coffee"},
 			},
 		},
+		{
+			name: "location with AddHeaderInherit set to 'on' - HSTS not set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOn},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOn},
+			},
+		},
+		{
+			name: "location with AddHeaderInherit set to 'merge' - HSTS not set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritMerge},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritMerge},
+			},
+		},
+		{
+			name: "location with AddHeaderInherit set to 'off' - HSTS set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOff},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOff, HSTS: hsts},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

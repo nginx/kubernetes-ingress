@@ -1421,6 +1421,23 @@ func validateHSTS(hsts *v1.HSTS, fieldPath *field.Path) field.ErrorList {
 	}
 
 	allErrs = append(allErrs, validatePositiveIntOrZero(*hsts.MaxAge, fieldPath.Child("maxAge"))...)
+
+	if hsts.Preload {
+		if !hsts.IncludeSubDomains {
+			allErrs = append(allErrs, field.Invalid(
+				fieldPath.Child("preload"), hsts.Preload,
+				"preload requires includeSubDomains to be enabled",
+			))
+		}
+
+		if *hsts.MaxAge < 31536000 {
+			allErrs = append(allErrs, field.Invalid(
+				fieldPath.Child("preload"), hsts.Preload,
+				"preload requires maxAge to be at least 31536000 (one year)",
+			))
+		}
+	}
+
 	return allErrs
 }
 

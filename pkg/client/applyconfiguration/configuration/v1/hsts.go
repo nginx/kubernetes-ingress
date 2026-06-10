@@ -13,6 +13,8 @@ type HSTSApplyConfiguration struct {
 	IncludeSubDomains *bool `json:"includeSubDomains,omitempty"`
 	// BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable.
 	BehindProxy *bool `json:"behindProxy,omitempty"`
+	// Preload indicates that the domain should be included in browsers' HSTS preload lists.
+	Preload *bool `json:"preload,omitempty"`
 }
 
 // HSTSApplyConfiguration constructs a declarative configuration of the HSTS type for use with
@@ -42,5 +44,13 @@ func (b *HSTSApplyConfiguration) WithIncludeSubDomains(value bool) *HSTSApplyCon
 // If called multiple times, the BehindProxy field is set to the value of the last call.
 func (b *HSTSApplyConfiguration) WithBehindProxy(value bool) *HSTSApplyConfiguration {
 	b.BehindProxy = &value
+	return b
+}
+
+// WithPreload sets the Preload field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Preload field is set to the value of the last call.
+func (b *HSTSApplyConfiguration) WithPreload(value bool) *HSTSApplyConfiguration {
+	b.Preload = &value
 	return b
 }

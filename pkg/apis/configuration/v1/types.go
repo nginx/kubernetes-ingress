@@ -1328,6 +1328,8 @@ type ExternalAuth struct {
 }
 
 // HSTS defines an HTTP Strict Transport Security policy for enforcing secure connections to the server.
+// +kubebuilder:validation:XValidation:rule="!self.preload || self.includeSubDomains",message="preload requires includeSubDomains to be enabled"
+// +kubebuilder:validation:XValidation:rule="!self.preload || (has(self.maxAge) && self.maxAge >= 31536000)",message="preload requires maxAge to be at least 31536000 (one year)"
 type HSTS struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum=0
@@ -1341,4 +1343,8 @@ type HSTS struct {
 	// +kubebuilder:default:=false
 	// BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable.
 	BehindProxy bool `json:"behindProxy,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// Preload indicates that the domain should be included in browsers' HSTS preload lists.
+	Preload bool `json:"preload,omitempty"`
 }

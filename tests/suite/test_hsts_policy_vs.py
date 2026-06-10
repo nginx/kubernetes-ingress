@@ -15,10 +15,12 @@ tls_sec_src = f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
 hsts_pol_src = f"{TEST_DATA}/hsts/policies/hsts-policy.yaml"
 hsts_pol_subdomains_src = f"{TEST_DATA}/hsts/policies/hsts-policy-subdomains.yaml"
 hsts_pol_behind_proxy_src = f"{TEST_DATA}/hsts/policies/hsts-policy-behind-proxy.yaml"
+hsts_pol_preload_src = f"{TEST_DATA}/hsts/policies/hsts-policy-preload.yaml"
 
 hsts_vs_spec_src = f"{TEST_DATA}/hsts/spec/virtual-server-hsts-spec.yaml"
 hsts_vs_spec_subdomains_src = f"{TEST_DATA}/hsts/spec/virtual-server-hsts-subdomains-spec.yaml"
 hsts_vs_spec_behind_proxy_src = f"{TEST_DATA}/hsts/spec/virtual-server-hsts-behind-proxy-spec.yaml"
+hsts_vs_spec_preload_src = f"{TEST_DATA}/hsts/spec/virtual-server-hsts-preload-spec.yaml"
 
 
 def setup_policy(kube_apis, test_namespace, policy_src, tls_secret_src):
@@ -61,6 +63,7 @@ class TestHSTSPolicyVS:
     def test_hsts_header_present_on_https(
         self,
         kube_apis,
+        ingress_controller_prerequisites,
         crd_ingress_controller,
         virtual_server_setup,
         test_namespace,
@@ -206,3 +209,41 @@ class TestHSTSPolicyVS:
 
         assert "Strict-Transport-Security" in resp_xfp_https.headers
         assert "Strict-Transport-Security" not in resp_xfp_http.headers
+
+    def test_hsts_preload(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+    ):
+        """HSTS header includes the preload directive when preload is enabled."""
+        tls_secret_name, pol_name = setup_policy(kube_apis, test_namespace, hsts_pol_preload_src, tls_sec_src)
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            hsts_vs_spec_preload_src,
+            virtual_server_setup.namespace,
+        )
+        wait_before_test()
+
+        resp = requests.get(
+            virtual_server_setup.backend_1_url_ssl,
+            headers={"host": virtual_server_setup.vs_host},
+            allow_redirects=False,
+            verify=False,
+        )
+        print(f"Response headers: {resp.headers}")
+
+        vs_res = read_vs(kube_apis.custom_objects, test_namespace, virtual_server_setup.vs_name)
+        teardown_policy(kube_apis, test_namespace, tls_secret_name, pol_name)
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects, virtual_server_setup.vs_name, std_vs_src, test_namespace
+        )
+
+        assert "Strict-Transport-Security" in resp.headers
+        assert "max-age=31536000" in resp.headers["Strict-Transport-Security"]
+        assert "includeSubDomains" in resp.headers["Strict-Transport-Security"]
+        assert "preload" in resp.headers["Strict-Transport-Security"]
+        assert vs_res["status"]["state"] == "Valid"

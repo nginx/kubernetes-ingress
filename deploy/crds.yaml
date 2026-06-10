@@ -729,9 +729,19 @@ spec:
                       should cache and enforce the HSTS policy.
                     minimum: 0
                     type: integer
+                  preload:
+                    default: false
+                    description: Preload indicates that the domain should be included
+                      in browsers' HSTS preload lists.
+                    type: boolean
                 required:
                 - maxAge
                 type: object
+                x-kubernetes-validations:
+                - message: preload requires includeSubDomains to be enabled
+                  rule: '!self.preload || self.includeSubDomains'
+                - message: preload requires maxAge to be at least 31536000 (one year)
+                  rule: '!self.preload || (has(self.maxAge) && self.maxAge >= 31536000)'
               ingressClassName:
                 description: Specifies which instance of NGINX Ingress Controller
                   must handle the Policy resource.

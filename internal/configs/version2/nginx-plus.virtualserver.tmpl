@@ -380,7 +380,7 @@ server {
     {{- else}}
     if ($https = on) {
     {{- end}}
-        set $hsts_header_val "max-age={{$s.HSTS.MaxAge}}; {{if $s.HSTS.IncludeSubDomains}}includeSubDomains; {{end}}preload";
+        set $hsts_header_val "max-age={{$s.HSTS.MaxAge}}; {{if $s.HSTS.IncludeSubDomains}}includeSubDomains{{end}}{{if $s.HSTS.Preload}}; preload{{end}}";
     }
 
     add_header Strict-Transport-Security "$hsts_header_val" always;

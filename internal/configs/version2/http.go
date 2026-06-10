@@ -492,6 +492,7 @@ type HSTS struct {
 	MaxAge            int
 	IncludeSubDomains bool
 	BehindProxy       bool
+	Preload           bool
 }
 
 // AuthURI defines the components of an AuthURI

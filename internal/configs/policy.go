@@ -1160,6 +1160,7 @@ func (p *policiesCfg) addHSTSConfig(
 		MaxAge:            *hsts.MaxAge,
 		IncludeSubDomains: hsts.IncludeSubDomains,
 		BehindProxy:       hsts.BehindProxy,
+		Preload:           hsts.Preload,
 	}
 
 	return res

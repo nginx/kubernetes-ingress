@@ -88,6 +88,7 @@ The `.spec` object supports the following fields:
 | `hsts.behindProxy` | `boolean` | BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable. |
 | `hsts.includeSubDomains` | `boolean` | IncludeSubDomains extends the HSTS policy to all subdomains of the host. |
 | `hsts.maxAge` | `integer` | MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy. |
+| `hsts.preload` | `boolean` | Preload indicates that the domain should be included in browsers' HSTS preload lists. |
 | `ingressClassName` | `string` | Specifies which instance of NGINX Ingress Controller must handle the Policy resource. |
 | `ingressMTLS` | `object` | The IngressMTLS policy configures client certificate verification. |
 | `ingressMTLS.clientCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid. |

@@ -1512,7 +1512,9 @@ func addHSTSToLocationsWithAddHeaders(hsts *version2.HSTS, locations []version2.
 		return
 	}
 	for i := range locations {
-		if len(locations[i].AddHeaders) > 0 {
+		if len(locations[i].AddHeaders) > 0 &&
+			locations[i].AddHeaderInherit != "on" &&
+			locations[i].AddHeaderInherit != "merge" {
 			locations[i].HSTS = hsts
 		}
 	}

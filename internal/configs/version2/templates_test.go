@@ -1017,6 +1017,25 @@ func TestExecuteVirtualServerTemplate_RendersHSTSBehindProxy(t *testing.T) {
 	snaps.MatchSnapshot(t, string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersHSTSPreload(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSPreload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("preload")) {
+		t.Error("want preload in header value, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=31536000")) {
+		t.Error("want max-age=31536000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
 func TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
@@ -1062,6 +1081,25 @@ func TestExecuteVirtualServerTemplate_RendersPlusHSTSBehindProxy(t *testing.T) {
 	}
 	if !bytes.Contains(got, []byte("http_x_forwarded_proto")) {
 		t.Error("want X-Forwarded-Proto condition, got none")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSPreload(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSPreload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("preload")) {
+		t.Error("want preload in header value, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=31536000")) {
+		t.Error("want max-age=31536000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
 	}
 	snaps.MatchSnapshot(t, string(got))
 }
@@ -3178,6 +3216,22 @@ var (
 			HSTS: &HSTS{
 				MaxAge:      2592000,
 				BehindProxy: true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSPreload = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{
+				MaxAge:            31536000,
+				IncludeSubDomains: true,
+				Preload:           true,
 			},
 			Locations: []Location{{Path: "/"}},
 		},
