@@ -1,0 +1,66 @@
+{
+  "files": [
+    {
+      "file": "internal/configs/version1/nginx-plus.ingress.tmpl",
+      "variant": "plus",
+      "pair": "ingress.tmpl"
+    },
+    {
+      "file": "internal/configs/version1/nginx-plus.tmpl",
+      "variant": "plus",
+      "pair": "tmpl"
+    },
+    {
+      "file": "internal/configs/version1/nginx.ingress.tmpl",
+      "variant": "oss",
+      "pair": "ingress.tmpl"
+    },
+    {
+      "file": "internal/configs/version1/nginx.tmpl",
+      "variant": "oss",
+      "pair": "tmpl"
+    },
+    {
+      "file": "internal/configs/version2/nginx-plus.transportserver.tmpl",
+      "variant": "plus",
+      "pair": "transportserver.tmpl"
+    },
+    {
+      "file": "internal/configs/version2/nginx-plus.virtualserver.tmpl",
+      "variant": "plus",
+      "pair": "virtualserver.tmpl"
+    },
+    {
+      "file": "internal/configs/version2/nginx.transportserver.tmpl",
+      "variant": "oss",
+      "pair": "transportserver.tmpl"
+    },
+    {
+      "file": "internal/configs/version2/nginx.virtualserver.tmpl",
+      "variant": "oss",
+      "pair": "virtualserver.tmpl"
+    },
+    {
+      "file": "internal/configs/version2/oidc.tmpl",
+      "variant": "unknown"
+    }
+  ],
+  "pairs": {
+    "ingress.tmpl": [
+      "internal/configs/version1/nginx-plus.ingress.tmpl",
+      "internal/configs/version1/nginx.ingress.tmpl"
+    ],
+    "tmpl": [
+      "internal/configs/version1/nginx-plus.tmpl",
+      "internal/configs/version1/nginx.tmpl"
+    ],
+    "transportserver.tmpl": [
+      "internal/configs/version2/nginx-plus.transportserver.tmpl",
+      "internal/configs/version2/nginx.transportserver.tmpl"
+    ],
+    "virtualserver.tmpl": [
+      "internal/configs/version2/nginx-plus.virtualserver.tmpl",
+      "internal/configs/version2/nginx.virtualserver.tmpl"
+    ]
+  }
+}

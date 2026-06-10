@@ -1,0 +1,148 @@
+{
+  "github.com/nginx/kubernetes-ingress/internal/certmanager": [
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/certmanager/test_files": [
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/common_cluster_info": null,
+  "github.com/nginx/kubernetes-ingress/internal/configs": [
+    "github.com/nginx/kubernetes-ingress/internal/configs/version1",
+    "github.com/nginx/kubernetes-ingress/internal/configs/version2",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/policies",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/secrets",
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/internal/metrics/collectors",
+    "github.com/nginx/kubernetes-ingress/internal/nginx",
+    "github.com/nginx/kubernetes-ingress/internal/nsutils",
+    "github.com/nginx/kubernetes-ingress/internal/validation",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers": null,
+  "github.com/nginx/kubernetes-ingress/internal/configs/version1": [
+    "github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers",
+    "github.com/nginx/kubernetes-ingress/internal/configs/version2",
+    "github.com/nginx/kubernetes-ingress/internal/nginx"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/configs/version2": [
+    "github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/externaldns": [
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/healthcheck": [
+    "github.com/nginx/kubernetes-ingress/internal/configs",
+    "github.com/nginx/kubernetes-ingress/internal/logger"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/k8s": [
+    "github.com/nginx/kubernetes-ingress/internal/certmanager",
+    "github.com/nginx/kubernetes-ingress/internal/configs",
+    "github.com/nginx/kubernetes-ingress/internal/configs/version1",
+    "github.com/nginx/kubernetes-ingress/internal/externaldns",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/appprotect",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/policies",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/secrets",
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/internal/metrics/collectors",
+    "github.com/nginx/kubernetes-ingress/internal/nsutils",
+    "github.com/nginx/kubernetes-ingress/internal/telemetry",
+    "github.com/nginx/kubernetes-ingress/internal/validation",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/k8s/appprotect": [
+    "github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon",
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon": [
+    "github.com/nginx/kubernetes-ingress/internal/nsutils"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos": [
+    "github.com/nginx/kubernetes-ingress/internal/configs",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon",
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/internal/nsutils",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/dos/validation"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/k8s/policies": [
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/k8s/secrets": null,
+  "github.com/nginx/kubernetes-ingress/internal/license_reporting": [
+    "github.com/nginx/kubernetes-ingress/internal/common_cluster_info",
+    "github.com/nginx/kubernetes-ingress/internal/logger"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/logger": [
+    "github.com/nginx/kubernetes-ingress/internal/logger/glog",
+    "github.com/nginx/kubernetes-ingress/internal/logger/levels"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/logger/glog": [
+    "github.com/nginx/kubernetes-ingress/internal/logger/levels"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/logger/levels": null,
+  "github.com/nginx/kubernetes-ingress/internal/metadata": [
+    "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/metrics": [
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/metrics/collectors": [
+    "github.com/nginx/kubernetes-ingress/internal/logger"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/nginx": [
+    "github.com/nginx/kubernetes-ingress/internal/license_reporting",
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/internal/logger/glog",
+    "github.com/nginx/kubernetes-ingress/internal/logger/levels",
+    "github.com/nginx/kubernetes-ingress/internal/metadata",
+    "github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/nsutils": null,
+  "github.com/nginx/kubernetes-ingress/internal/telemetry": [
+    "github.com/nginx/kubernetes-ingress/internal/common_cluster_info",
+    "github.com/nginx/kubernetes-ingress/internal/configs",
+    "github.com/nginx/kubernetes-ingress/internal/k8s/secrets",
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+  ],
+  "github.com/nginx/kubernetes-ingress/internal/validation": [
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+  ],
+  "github.com/nginx/kubernetes-ingress/pkg/apis/configuration": null,
+  "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1": [
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration"
+  ],
+  "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation": [
+    "github.com/nginx/kubernetes-ingress/internal/configs",
+    "github.com/nginx/kubernetes-ingress/internal/logger",
+    "github.com/nginx/kubernetes-ingress/internal/nsutils",
+    "github.com/nginx/kubernetes-ingress/internal/validation",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+  ],
+  "github.com/nginx/kubernetes-ingress/pkg/apis/dos": null,
+  "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1": [
+    "github.com/nginx/kubernetes-ingress/pkg/apis/dos"
+  ],
+  "github.com/nginx/kubernetes-ingress/pkg/apis/dos/validation": [
+    "github.com/nginx/kubernetes-ingress/internal/validation",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation",
+    "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
+  ],
+  "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns": null,
+  "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1": [
+    "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns"
+  ],
+  "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/validation": [
+    "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+  ]
+}

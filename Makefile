@@ -136,6 +136,14 @@ update-crds: ## Update CRDs
 	kustomize build config/crd/app-protect-waf --load-restrictor='LoadRestrictionsNone' >deploy/crds-nap-waf.yaml
 	$(MAKE) update-crd-docs
 
+.PHONY: codegraph
+codegraph: ## Regenerate the .codegraph/ static code index for AI agents and humans
+	go run ./hack/codegraph build
+
+.PHONY: codegraph-check
+codegraph-check: ## Fail if .codegraph/ is stale (run in CI + pre-commit)
+	go run ./hack/codegraph check
+
 .PHONY: telemetry-schema
 telemetry-schema: ## Generate the telemetry Schema
 	go generate internal/telemetry/exporter.go
