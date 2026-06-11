@@ -129,10 +129,10 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
-    nginx=${NGINX_VERSION}* \
-    nginx-module-njs=${NGINX_VERSION}* \
-	nginx-module-otel=${NGINX_VERSION}* \
-	nginx-agent=${AGENT_VERSION}* \
+      nginx=${NGINX_VERSION}* \
+      nginx-module-njs=${NGINX_VERSION}* \
+      nginx-module-otel=${NGINX_VERSION}* \
+      nginx-agent=${AGENT_VERSION}* \
 	&& apt-get purge --auto-remove -y gpg \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
 	&& agent.sh
