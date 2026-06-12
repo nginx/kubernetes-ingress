@@ -110,7 +110,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
         with:
-          version: 'v3.18.6'
+          version: 'v3.21.0'
 
       - name: Package
         id: package
