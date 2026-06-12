@@ -6,10 +6,14 @@
     "doc": "Package certmanager provides a controller for creating and managing certificates for VS resources.",
     "go_files": [
       "internal/certmanager/cm_controller.go",
+      "internal/certmanager/cm_controller_test.go",
       "internal/certmanager/helper.go",
-      "internal/certmanager/sync.go"
+      "internal/certmanager/helper_test.go",
+      "internal/certmanager/sync.go",
+      "internal/certmanager/sync_test.go"
     ],
     "imports": [
+      "github.com/nginx/kubernetes-ingress/internal/certmanager/test_files",
       "github.com/nginx/kubernetes-ingress/internal/logger",
       "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
     ]
@@ -37,18 +41,34 @@
     "name": "configs",
     "go_files": [
       "internal/configs/annotations.go",
+      "internal/configs/annotations_test.go",
       "internal/configs/bundle_validator.go",
       "internal/configs/common.go",
       "internal/configs/config_params.go",
+      "internal/configs/config_params_test.go",
       "internal/configs/configmaps.go",
+      "internal/configs/configmaps_test.go",
       "internal/configs/configurator.go",
+      "internal/configs/configurator_bench_test.go",
+      "internal/configs/configurator_test.go",
       "internal/configs/dos.go",
+      "internal/configs/dos_test.go",
       "internal/configs/ingress.go",
+      "internal/configs/ingress_test.go",
       "internal/configs/parsing_helpers.go",
+      "internal/configs/parsing_helpers_test.go",
       "internal/configs/policy.go",
+      "internal/configs/policy_test.go",
       "internal/configs/transportserver.go",
+      "internal/configs/transportserver_test.go",
       "internal/configs/validation_results.go",
       "internal/configs/virtualserver.go",
+      "internal/configs/virtualserver_config_test.go",
+      "internal/configs/virtualserver_helpers_test.go",
+      "internal/configs/virtualserver_policy_test.go",
+      "internal/configs/virtualserver_ratelimit_groups_test.go",
+      "internal/configs/virtualserver_routing_test.go",
+      "internal/configs/virtualserver_test_common_test.go",
       "internal/configs/warnings.go"
     ],
     "imports": [
@@ -57,6 +77,8 @@
       "github.com/nginx/kubernetes-ingress/internal/k8s/policies",
       "github.com/nginx/kubernetes-ingress/internal/k8s/secrets",
       "github.com/nginx/kubernetes-ingress/internal/logger",
+      "github.com/nginx/kubernetes-ingress/internal/logger/glog",
+      "github.com/nginx/kubernetes-ingress/internal/logger/levels",
       "github.com/nginx/kubernetes-ingress/internal/metrics/collectors",
       "github.com/nginx/kubernetes-ingress/internal/nginx",
       "github.com/nginx/kubernetes-ingress/internal/nsutils",
@@ -71,7 +93,8 @@
     "name": "commonhelpers",
     "doc": "Package commonhelpers contains template helpers used in v1 and v2",
     "go_files": [
-      "internal/configs/commonhelpers/common_template_helpers.go"
+      "internal/configs/commonhelpers/common_template_helpers.go",
+      "internal/configs/commonhelpers/common_template_helpers_test.go"
     ]
   },
   {
@@ -81,8 +104,13 @@
     "go_files": [
       "internal/configs/version1/config.go",
       "internal/configs/version1/header_parsing_helper.go",
+      "internal/configs/version1/header_parsing_helper_test.go",
       "internal/configs/version1/template_executor.go",
-      "internal/configs/version1/template_helper.go"
+      "internal/configs/version1/template_executor_test.go",
+      "internal/configs/version1/template_helper.go",
+      "internal/configs/version1/template_helper_test.go",
+      "internal/configs/version1/template_test.go",
+      "internal/configs/version1/template_waf_policy_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers",
@@ -98,7 +126,10 @@
       "internal/configs/version2/http.go",
       "internal/configs/version2/stream.go",
       "internal/configs/version2/template_executor.go",
-      "internal/configs/version2/template_helper.go"
+      "internal/configs/version2/template_executor_test.go",
+      "internal/configs/version2/template_helper.go",
+      "internal/configs/version2/template_helper_test.go",
+      "internal/configs/version2/templates_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
@@ -111,9 +142,11 @@
     "doc": "Package externaldns implements External DNS controller for Virtual Server.",
     "go_files": [
       "internal/externaldns/controller.go",
+      "internal/externaldns/controller_test.go",
       "internal/externaldns/doc.go",
       "internal/externaldns/handlers.go",
-      "internal/externaldns/sync.go"
+      "internal/externaldns/sync.go",
+      "internal/externaldns/sync_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/logger",
@@ -135,34 +168,57 @@
     ]
   },
   {
+    "import_path": "github.com/nginx/kubernetes-ingress/internal/healthcheck_test",
+    "dir": "internal/healthcheck",
+    "name": "healthcheck_test",
+    "go_files": [
+      "internal/healthcheck/healthcheck_test.go"
+    ],
+    "imports": [
+      "github.com/nginx/kubernetes-ingress/internal/healthcheck",
+      "github.com/nginx/kubernetes-ingress/internal/logger/glog",
+      "github.com/nginx/kubernetes-ingress/internal/logger/levels"
+    ]
+  },
+  {
     "import_path": "github.com/nginx/kubernetes-ingress/internal/k8s",
     "dir": "internal/k8s",
     "name": "k8s",
     "go_files": [
       "internal/k8s/appprotect_dos.go",
       "internal/k8s/appprotect_waf.go",
+      "internal/k8s/appprotect_waf_test.go",
       "internal/k8s/configmap.go",
       "internal/k8s/configuration.go",
+      "internal/k8s/configuration_test.go",
       "internal/k8s/controller.go",
+      "internal/k8s/controller_test.go",
       "internal/k8s/endpoint_slice.go",
       "internal/k8s/global_configuration.go",
       "internal/k8s/handlers.go",
+      "internal/k8s/handlers_test.go",
       "internal/k8s/ingress_link.go",
       "internal/k8s/leader.go",
       "internal/k8s/namespace.go",
+      "internal/k8s/namespaced_informer_test.go",
       "internal/k8s/policy.go",
       "internal/k8s/reference_checkers.go",
+      "internal/k8s/reference_checkers_test.go",
       "internal/k8s/service.go",
+      "internal/k8s/service_test.go",
       "internal/k8s/status.go",
+      "internal/k8s/status_test.go",
       "internal/k8s/task_queue.go",
       "internal/k8s/transport_server.go",
       "internal/k8s/utils.go",
-      "internal/k8s/validation.go"
+      "internal/k8s/validation.go",
+      "internal/k8s/validation_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/certmanager",
       "github.com/nginx/kubernetes-ingress/internal/configs",
       "github.com/nginx/kubernetes-ingress/internal/configs/version1",
+      "github.com/nginx/kubernetes-ingress/internal/configs/version2",
       "github.com/nginx/kubernetes-ingress/internal/externaldns",
       "github.com/nginx/kubernetes-ingress/internal/k8s/appprotect",
       "github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon",
@@ -170,7 +226,10 @@
       "github.com/nginx/kubernetes-ingress/internal/k8s/policies",
       "github.com/nginx/kubernetes-ingress/internal/k8s/secrets",
       "github.com/nginx/kubernetes-ingress/internal/logger",
+      "github.com/nginx/kubernetes-ingress/internal/logger/glog",
+      "github.com/nginx/kubernetes-ingress/internal/logger/levels",
       "github.com/nginx/kubernetes-ingress/internal/metrics/collectors",
+      "github.com/nginx/kubernetes-ingress/internal/nginx",
       "github.com/nginx/kubernetes-ingress/internal/nsutils",
       "github.com/nginx/kubernetes-ingress/internal/telemetry",
       "github.com/nginx/kubernetes-ingress/internal/validation",
@@ -184,11 +243,14 @@
     "dir": "internal/k8s/appprotect",
     "name": "appprotect",
     "go_files": [
-      "internal/k8s/appprotect/app_protect_configuration.go"
+      "internal/k8s/appprotect/app_protect_configuration.go",
+      "internal/k8s/appprotect/app_protect_configuration_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/k8s/appprotectcommon",
       "github.com/nginx/kubernetes-ingress/internal/logger",
+      "github.com/nginx/kubernetes-ingress/internal/logger/glog",
+      "github.com/nginx/kubernetes-ingress/internal/logger/levels",
       "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
     ]
   },
@@ -197,7 +259,8 @@
     "dir": "internal/k8s/appprotectcommon",
     "name": "appprotectcommon",
     "go_files": [
-      "internal/k8s/appprotectcommon/app_protect_common_resources.go"
+      "internal/k8s/appprotectcommon/app_protect_common_resources.go",
+      "internal/k8s/appprotectcommon/app_protect_common_resources_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/nsutils"
@@ -208,7 +271,8 @@
     "dir": "internal/k8s/appprotectdos",
     "name": "appprotectdos",
     "go_files": [
-      "internal/k8s/appprotectdos/app_protect_dos_configuration.go"
+      "internal/k8s/appprotectdos/app_protect_dos_configuration.go",
+      "internal/k8s/appprotectdos/app_protect_dos_configuration_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/configs",
@@ -236,7 +300,9 @@
     "name": "secrets",
     "go_files": [
       "internal/k8s/secrets/store.go",
-      "internal/k8s/secrets/validation.go"
+      "internal/k8s/secrets/store_test.go",
+      "internal/k8s/secrets/validation.go",
+      "internal/k8s/secrets/validation_test.go"
     ]
   },
   {
@@ -244,11 +310,14 @@
     "dir": "internal/license_reporting",
     "name": "licensereporting",
     "go_files": [
-      "internal/license_reporting/license_reporting.go"
+      "internal/license_reporting/license_reporting.go",
+      "internal/license_reporting/license_reporting_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/common_cluster_info",
-      "github.com/nginx/kubernetes-ingress/internal/logger"
+      "github.com/nginx/kubernetes-ingress/internal/logger",
+      "github.com/nginx/kubernetes-ingress/internal/logger/glog",
+      "github.com/nginx/kubernetes-ingress/internal/logger/levels"
     ]
   },
   {
@@ -269,7 +338,8 @@
     "dir": "internal/logger/glog",
     "name": "glog",
     "go_files": [
-      "internal/logger/glog/handler.go"
+      "internal/logger/glog/handler.go",
+      "internal/logger/glog/handler_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/logger/levels"
@@ -288,7 +358,8 @@
     "dir": "internal/metadata",
     "name": "metadata",
     "go_files": [
-      "internal/metadata/metadata.go"
+      "internal/metadata/metadata.go",
+      "internal/metadata/metadata_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
@@ -315,6 +386,7 @@
       "internal/metrics/collectors/collectors.go",
       "internal/metrics/collectors/controller.go",
       "internal/metrics/collectors/latency.go",
+      "internal/metrics/collectors/latency_test.go",
       "internal/metrics/collectors/manager.go",
       "internal/metrics/collectors/processes.go",
       "internal/metrics/collectors/workqueue.go"
@@ -330,9 +402,11 @@
     "go_files": [
       "internal/nginx/fake_manager.go",
       "internal/nginx/manager.go",
+      "internal/nginx/manager_test.go",
       "internal/nginx/rollback_manager.go",
       "internal/nginx/utils.go",
       "internal/nginx/verify.go",
+      "internal/nginx/verify_test.go",
       "internal/nginx/version.go"
     ],
     "imports": [
@@ -345,11 +419,23 @@
     ]
   },
   {
+    "import_path": "github.com/nginx/kubernetes-ingress/internal/nginx_test",
+    "dir": "internal/nginx",
+    "name": "nginx_test",
+    "go_files": [
+      "internal/nginx/version_test.go"
+    ],
+    "imports": [
+      "github.com/nginx/kubernetes-ingress/internal/nginx"
+    ]
+  },
+  {
     "import_path": "github.com/nginx/kubernetes-ingress/internal/nsutils",
     "dir": "internal/nsutils",
     "name": "nsutils",
     "go_files": [
-      "internal/nsutils/utils.go"
+      "internal/nsutils/utils.go",
+      "internal/nsutils/utils_test.go"
     ]
   },
   {
@@ -371,12 +457,32 @@
     ]
   },
   {
+    "import_path": "github.com/nginx/kubernetes-ingress/internal/telemetry_test",
+    "dir": "internal/telemetry",
+    "name": "telemetry_test",
+    "go_files": [
+      "internal/telemetry/cluster_test.go",
+      "internal/telemetry/collector_test.go"
+    ],
+    "imports": [
+      "github.com/nginx/kubernetes-ingress/internal/configs",
+      "github.com/nginx/kubernetes-ingress/internal/configs/version1",
+      "github.com/nginx/kubernetes-ingress/internal/configs/version2",
+      "github.com/nginx/kubernetes-ingress/internal/k8s/secrets",
+      "github.com/nginx/kubernetes-ingress/internal/nginx",
+      "github.com/nginx/kubernetes-ingress/internal/telemetry",
+      "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+    ]
+  },
+  {
     "import_path": "github.com/nginx/kubernetes-ingress/internal/validation",
     "dir": "internal/validation",
     "name": "validation",
     "go_files": [
       "internal/validation/data_types.go",
-      "internal/validation/validation.go"
+      "internal/validation/data_types_test.go",
+      "internal/validation/validation.go",
+      "internal/validation/validation_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -411,15 +517,24 @@
     "go_files": [
       "pkg/apis/configuration/validation/appprotect.go",
       "pkg/apis/configuration/validation/appprotect_common.go",
+      "pkg/apis/configuration/validation/appprotect_common_test.go",
+      "pkg/apis/configuration/validation/appprotect_test.go",
       "pkg/apis/configuration/validation/common.go",
+      "pkg/apis/configuration/validation/common_test.go",
       "pkg/apis/configuration/validation/globalconfiguration.go",
+      "pkg/apis/configuration/validation/globalconfiguration_test.go",
       "pkg/apis/configuration/validation/policy.go",
+      "pkg/apis/configuration/validation/policy_test.go",
       "pkg/apis/configuration/validation/transportserver.go",
-      "pkg/apis/configuration/validation/virtualserver.go"
+      "pkg/apis/configuration/validation/transportserver_test.go",
+      "pkg/apis/configuration/validation/virtualserver.go",
+      "pkg/apis/configuration/validation/virtualserver_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/configs",
       "github.com/nginx/kubernetes-ingress/internal/logger",
+      "github.com/nginx/kubernetes-ingress/internal/logger/glog",
+      "github.com/nginx/kubernetes-ingress/internal/logger/levels",
       "github.com/nginx/kubernetes-ingress/internal/nsutils",
       "github.com/nginx/kubernetes-ingress/internal/validation",
       "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -452,7 +567,8 @@
     "dir": "pkg/apis/dos/validation",
     "name": "validation",
     "go_files": [
-      "pkg/apis/dos/validation/dos.go"
+      "pkg/apis/dos/validation/dos.go",
+      "pkg/apis/dos/validation/dos_test.go"
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/internal/validation",
@@ -493,6 +609,18 @@
     ],
     "imports": [
       "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+    ]
+  },
+  {
+    "import_path": "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/validation_test",
+    "dir": "pkg/apis/externaldns/validation",
+    "name": "validation_test",
+    "go_files": [
+      "pkg/apis/externaldns/validation/externaldns_test.go"
+    ],
+    "imports": [
+      "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1",
+      "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/validation"
     ]
   }
 ]

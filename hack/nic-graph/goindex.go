@@ -1,4 +1,4 @@
-package main
+package nicgraph
 
 import (
 	"bytes"
@@ -74,7 +74,7 @@ func buildGoIndex(cfg Config) (*GoIndex, error) {
 			packages.NeedTypesInfo | packages.NeedSyntax | packages.NeedTypesSizes |
 			packages.NeedModule,
 		Dir:   cfg.Root,
-		Tests: false,
+		Tests: true, // include _test.go files so test symbols + refs are indexed
 	}
 	pkgs, err := packages.Load(loadCfg, cfg.GoLoadPatterns()...)
 	if err != nil {
@@ -90,12 +90,22 @@ func buildGoIndex(cfg Config) (*GoIndex, error) {
 	}
 
 	// First pass: collect packages + symbols. Filter excluded packages.
+	// With Tests:true, go/packages returns up to three variants per package
+	// (base, in-package test variant, external xxx_test). Skip the synthetic
+	// "*.test" main binary; prefer the variant with the most syntax files
+	// (typically the test variant, which also includes the non-test files).
 	indexed := make(map[string]*packages.Package) // import path -> pkg (kept)
 	for _, p := range pkgs {
 		if IsExcludedPackage(p.PkgPath) {
 			continue
 		}
-		indexed[p.PkgPath] = p
+		if strings.HasSuffix(p.PkgPath, ".test") {
+			continue
+		}
+		existing, ok := indexed[p.PkgPath]
+		if !ok || len(p.Syntax) > len(existing.Syntax) {
+			indexed[p.PkgPath] = p
+		}
 	}
 
 	for _, p := range sortedPackages(indexed) {
@@ -146,7 +156,28 @@ func buildGoIndex(cfg Config) (*GoIndex, error) {
 		gi.Imports[p.PkgPath] = info.Imports
 	}
 
-	// Build symbol key set for ref filtering.
+	// Dedupe symbols. With Tests:true, the in-package test variant re-parses
+	// every non-test .go file, so each non-test symbol would otherwise be
+	// indexed twice. Dedupe by (file, line, name, kind).
+	if len(gi.Symbols) > 0 {
+		type sk struct {
+			f, n, k string
+			l       int
+		}
+		seen := make(map[sk]struct{}, len(gi.Symbols))
+		out := gi.Symbols[:0]
+		for _, s := range gi.Symbols {
+			key := sk{s.File, s.Name, s.Kind, s.Line}
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
+			out = append(out, s)
+		}
+		gi.Symbols = out
+	}
+
+	// Build symbol key set for ref filtering (after dedup).
 	for _, s := range gi.Symbols {
 		gi.SymbolKeys[symbolKey(s)] = struct{}{}
 	}

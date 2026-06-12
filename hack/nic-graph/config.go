@@ -1,4 +1,4 @@
-package main
+package nicgraph
 
 import (
 	"path/filepath"
@@ -18,7 +18,7 @@ func (c Config) GoLoadPatterns() []string {
 }
 
 // ModulePath is the Go module path for this repo. Hardcoded to avoid
-// re-parsing go.mod on every run; codegraph is only used from this repo.
+// re-parsing go.mod on every run; nic-graph is only used from this repo.
 const ModulePath = "github.com/nginx/kubernetes-ingress"
 
 // MaxCallersPerSymbol caps the number of caller edges retained per callee in

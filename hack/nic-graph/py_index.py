@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Index pytest files under tests/suite/ for the codegraph tool.
+"""Index pytest files under tests/suite/ for the nic-graph tool.
 
 Writes a single JSON document to stdout. Uses only the stdlib (ast).
 """

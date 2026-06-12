@@ -1,0 +1,39 @@
+# Domain-map heuristic overrides for the nic-graph tool.
+#
+# The domain-map generator infers validator/config/test bindings by matching
+# file paths and symbol names against each CRD. When that misses shared
+# entry points (e.g. VirtualServerRoute is validated by the same function
+# as VirtualServer), patch the gap here. Per-CRD `add` and `remove` blocks
+# are applied last and always win.
+#
+# Schema:
+#   entries:
+#     - crd: <Kind>
+#       add:
+#         validators: ["<pkg>.<FuncName>"]
+#         configs:    ["<pkg>.<StructOrFunc>"]
+#         tests:      ["<relative/path/to_file_test.go>"]
+#         sources:    ["<relative/path/to/file.go>"]
+#         templates:  ["<relative/path/to.tmpl>"]
+#       remove:
+#         configs: ["<pkg>.<falsePositive>"]
+
+entries:
+  # VSR has no dedicated validator function — it's validated by
+  # NewVirtualServerValidator alongside its parent VirtualServer.
+  # The primary render structs are also shared with VirtualServer.
+  - crd: VirtualServerRoute
+    add:
+      validators:
+        - pkg/apis/configuration/validation.NewVirtualServerValidator
+      configs:
+        - internal/configs.VirtualServerEx
+        - internal/configs/version2.VirtualServerConfig
+
+  # GlobalConfiguration's runtime config struct lives in config_params.go,
+  # outside the globalconfiguration-named files the matcher picks up.
+  - crd: GlobalConfiguration
+    add:
+      configs:
+        - internal/configs.GlobalConfigParams
+

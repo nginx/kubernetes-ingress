@@ -1,40 +1,9 @@
-package main
+package nicgraph
 
 import (
 	"fmt"
 	"log"
 )
-
-// runBuild executes every phase and writes the artifacts to disk.
-func runBuild(cfg Config) error {
-	arts, err := generate(cfg)
-	if err != nil {
-		return err
-	}
-	if err := arts.writeAll(cfg.OutDir); err != nil {
-		return fmt.Errorf("write artifacts: %w", err)
-	}
-	return nil
-}
-
-// runCheck regenerates in-memory and diffs against disk. Returns (ok, err).
-func runCheck(cfg Config) (bool, error) {
-	arts, err := generate(cfg)
-	if err != nil {
-		return false, err
-	}
-	stale, err := arts.diffAll(cfg.OutDir)
-	if err != nil {
-		return false, err
-	}
-	if len(stale) == 0 {
-		return true, nil
-	}
-	for _, s := range stale {
-		fmt.Printf("  stale: %s\n", s)
-	}
-	return false, nil
-}
 
 // generate runs every phase and assembles all artifacts.
 func generate(cfg Config) (*Artifacts, error) {
