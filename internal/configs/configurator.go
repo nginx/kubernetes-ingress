@@ -39,6 +39,12 @@ const (
 	appProtectDosPolicyFolder       = "/etc/nginx/dos/policies/"
 	appProtectDosLogConfFolder      = "/etc/nginx/dos/logconfs/"
 	appProtectDosAllowListFolder    = "/etc/nginx/dos/allowlist/"
+
+	// sharedInputFailureThreshold is the number of consecutive per-resource config
+	// validation failures that triggers early exit from UpdateConfig's resource loop.
+	// When reached, it indicates a shared input (e.g., bad server-snippets from ConfigMap)
+	// is causing all resources to fail, and continuing would waste O(N) reloads.
+	sharedInputFailureThreshold = 2
 )
 
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
@@ -1521,6 +1527,42 @@ func (cnf *Configurator) DisableReloads() {
 	cnf.isReloadsEnabled = false
 }
 
+// EnableBatchMode enables batch mode on the underlying ConfigRollbackManager, if config safety is active.
+// In batch mode, CreateConfig/CreateStreamConfig writes are deferred from per-file nginx -t validation.
+// This is used during startup to avoid O(N²) validation cost and all configs are written directly,
+// then validated with a single nginx -t in CompleteBatch().
+func (cnf *Configurator) EnableBatchMode() {
+	if rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager); ok {
+		rm.EnableBatchMode()
+	}
+}
+
+// CompleteBatch finalises batch mode on the underlying ConfigRollbackManager.
+// Runs a single nginx -t against the full config tree. On failure, isolates and excludes
+// bad configs. Returns the list of excluded resources (nil if all valid) and an error
+// if isolation completely failed (caller should fall back to per-file replay).
+func (cnf *Configurator) CompleteBatch() ([]nginx.BatchExclusion, error) {
+	rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	if !ok {
+		return nil, nil
+	}
+	if err := rm.CompleteBatch(); err != nil {
+		return rm.BatchExclusions(), err
+	}
+	return rm.BatchExclusions(), nil
+}
+
+// GetBatchExclusions returns the list of resources excluded during the most recent
+// CompleteBatch() call. Used by the controller to log excluded resources after pod ready.
+// Returns nil if no batch exclusions occurred or if config safety is not active.
+func (cnf *Configurator) GetBatchExclusions() []nginx.BatchExclusion {
+	rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	if !ok {
+		return nil
+	}
+	return rm.BatchExclusions()
+}
+
 // Reload reloads nginx if reloads is enabled
 func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 	if !cnf.isReloadsEnabled {
@@ -1553,7 +1595,15 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	allWarnings := newWarnings()
 	allWeightUpdates := []WeightUpdate{}
 	resourceErrors := make(ResourceErrors)
-	_, isRollbackManager := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	rm, isRollbackManager := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+
+	// Post-startup shared-input early exit: when not in batch mode (post-startup),
+	// track consecutive per-resource failures. If 2+ consecutive resources fail,
+	// it indicates a shared input (e.g., bad server-snippets from ConfigMap) is the
+	// root cause. Break early to avoid O(N²) nginx -t + O(N) reloads.
+	isPostStartupRollback := isRollbackManager && !rm.IsBatchMode()
+	var consecutiveFailures int
+	var sharedInputFailure bool
 
 	if cnf.CfgParams.MainServerSSLDHParamFileContent != nil {
 		fileName, err := cnf.nginxManager.CreateDHParam(*cnf.CfgParams.MainServerSSLDHParamFileContent)
@@ -1623,54 +1673,196 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	}
 
 	for _, ingEx := range resources.IngressExes {
+		if sharedInputFailure {
+			break
+		}
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
 			if isRollbackManager {
 				key := MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
 				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				if isPostStartupRollback {
+					consecutiveFailures++
+					if consecutiveFailures >= sharedInputFailureThreshold {
+						sharedInputFailure = true
+					}
+				}
 				continue
 			}
 			return allWarnings, nil, err
 		}
+		consecutiveFailures = 0
 		allWarnings.Add(warnings)
 	}
 	for _, mergeableIng := range resources.MergeableIngresses {
+		if sharedInputFailure {
+			break
+		}
 		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
 		if err != nil {
 			if isRollbackManager {
 				key := MakeResourceErrorKey("Ingress", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
 				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				if isPostStartupRollback {
+					consecutiveFailures++
+					if consecutiveFailures >= sharedInputFailureThreshold {
+						sharedInputFailure = true
+					}
+				}
 				continue
 			}
 			return allWarnings, nil, err
 		}
+		consecutiveFailures = 0
 		allWarnings.Add(warnings)
 	}
 	for _, vsEx := range resources.VirtualServerExes {
+		if sharedInputFailure {
+			break
+		}
 		_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
 		if err != nil {
 			if isRollbackManager {
 				key := MakeResourceErrorKey("VirtualServer", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
 				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				if isPostStartupRollback {
+					consecutiveFailures++
+					if consecutiveFailures >= sharedInputFailureThreshold {
+						sharedInputFailure = true
+					}
+				}
 				continue
 			}
 			return allWarnings, nil, err
 		}
+		consecutiveFailures = 0
 		allWarnings.Add(warnings)
 		allWeightUpdates = append(allWeightUpdates, weightUpdates...)
 	}
 
 	for _, tsEx := range resources.TransportServerExes {
+		if sharedInputFailure {
+			break
+		}
 		_, warnings, err := cnf.addOrUpdateTransportServer(tsEx)
 		if err != nil {
 			if isRollbackManager {
 				key := MakeResourceErrorKey("TransportServer", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
 				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+				if isPostStartupRollback {
+					consecutiveFailures++
+					if consecutiveFailures >= sharedInputFailureThreshold {
+						sharedInputFailure = true
+					}
+				}
 				continue
 			}
 			return allWarnings, nil, err
 		}
+		consecutiveFailures = 0
 		allWarnings.Add(warnings)
+	}
+
+	// If running under ConfigRollbackManager in batch mode, validate the entire config tree
+	// with a single nginx -t before reloading. On failure, CompleteBatch isolates bad configs
+	// and reports them as resource errors. On total failure, fall back to per-file replay.
+	if rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager); ok && rm.IsBatchMode() {
+		// Build a reverse map from config filename → resource error key.
+		// This fixes the key format mismatch: batchFiles stores objectMetaToFileName format
+		// ("namespace-name") but the controller looks up with GetKeyWithKind ("Kind/namespace/name").
+		filenameToErrorKey := make(map[string]string)
+		for _, ingEx := range resources.IngressExes {
+			name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+			filenameToErrorKey[name] = MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
+		}
+		for _, mergeableIng := range resources.MergeableIngresses {
+			name := objectMetaToFileName(&mergeableIng.Master.Ingress.ObjectMeta)
+			filenameToErrorKey[name] = MakeResourceErrorKey("Ingress", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
+		}
+		for _, vsEx := range resources.VirtualServerExes {
+			name := getFileNameForVirtualServer(vsEx.VirtualServer)
+			filenameToErrorKey[name] = MakeResourceErrorKey("VirtualServer", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
+		}
+		for _, tsEx := range resources.TransportServerExes {
+			name := getFileNameForTransportServer(tsEx.TransportServer)
+			filenameToErrorKey[name] = MakeResourceErrorKey("TransportServer", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
+		}
+
+		// Startup: isolate individual bad configs via two-tier strategy.
+		exclusions, batchErr := cnf.CompleteBatch()
+
+		// Record excluded resources as errors using the kind-qualified key format
+		// that matches r.GetKeyWithKind() in the controller's event emission loop.
+		for _, excl := range exclusions {
+			if errorKey, ok := filenameToErrorKey[excl.ResourceName]; ok {
+				resourceErrors[errorKey] = fmt.Errorf("config safety: excluded due to invalid configuration: %w", excl.Error)
+			} else {
+				// Fallback: use raw name if mapping not found (shouldn't happen)
+				resourceErrors[excl.ResourceName] = fmt.Errorf("config safety: excluded due to invalid configuration: %w", excl.Error)
+			}
+		}
+
+		if batchErr != nil {
+			// Nuclear fallback: CompleteBatch could not isolate. All batch files removed/restored.
+			// Fall back to per-file validation by re-running resource writes with batch mode off.
+			l := nl.LoggerFromContext(cnf.CfgParams.Context)
+			nl.Warnf(l, "Batch validation failed completely (%v), falling back to per-file validation", batchErr)
+			resourceErrors = make(ResourceErrors)
+			allWarnings = newWarnings()
+			allWeightUpdates = nil
+			for _, ingEx := range resources.IngressExes {
+				_, warnings, err := cnf.addOrUpdateIngress(ingEx)
+				if err != nil {
+					key := MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
+					resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+					continue
+				}
+				allWarnings.Add(warnings)
+			}
+			for _, mergeableIng := range resources.MergeableIngresses {
+				_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
+				if err != nil {
+					key := MakeResourceErrorKey("Ingress", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
+					resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+					continue
+				}
+				allWarnings.Add(warnings)
+			}
+			for _, vsEx := range resources.VirtualServerExes {
+				_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
+				if err != nil {
+					key := MakeResourceErrorKey("VirtualServer", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
+					resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+					continue
+				}
+				allWarnings.Add(warnings)
+				allWeightUpdates = append(allWeightUpdates, weightUpdates...)
+			}
+			for _, tsEx := range resources.TransportServerExes {
+				_, warnings, err := cnf.addOrUpdateTransportServer(tsEx)
+				if err != nil {
+					key := MakeResourceErrorKey("TransportServer", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
+					resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
+					continue
+				}
+				allWarnings.Add(warnings)
+			}
+		}
+	}
+
+	// Shared-input early exit: if consecutive failures detected a shared-input problem
+	// (e.g., bad server-snippets from ConfigMap), skip the final reload. All failed files
+	// were already rolled back to previous-good by createConfigWithRollback, and NGINX was
+	// reloaded to the previous-good state during rollback. No further action needed.
+	if sharedInputFailure {
+		l := nl.LoggerFromContext(cnf.CfgParams.Context)
+		nl.Warnf(l, "Shared-input failure detected: %d consecutive resource configs failed validation. "+
+			"Likely cause is a bad ConfigMap snippet (e.g., server-snippets). "+
+			"Skipping remaining %d resource(s) and final reload — NGINX continues serving previous-good config.",
+			consecutiveFailures,
+			len(resources.IngressExes)+len(resources.MergeableIngresses)+
+				len(resources.VirtualServerExes)+len(resources.TransportServerExes)-consecutiveFailures)
+		return allWarnings, resourceErrors, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
