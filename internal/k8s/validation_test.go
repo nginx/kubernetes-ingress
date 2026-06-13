@@ -6129,8 +6129,11 @@ func TestValidateIllegalKeywords(t *testing.T) {
 
 	invalidPaths := []string{
 		"/root",
+		"/root/",
+		"/root/.ssh",
 		"/etc/nginx/secrets",
 		"/etc/passwd",
+		"/var",
 		"/var/run/secrets",
 		`\n`,
 		`\r`,
@@ -6139,7 +6142,27 @@ func TestValidateIllegalKeywords(t *testing.T) {
 	for _, path := range invalidPaths {
 		allErrs := validateIllegalKeywords(path, field.NewPath("path"))
 		if len(allErrs) == 0 {
-			t.Errorf("validateCurlyBraces(%q) returned no errors for invalid input", path)
+			t.Errorf("validateIllegalKeywords(%q) returned no errors for invalid input", path)
+		}
+	}
+
+	validPaths := []string{
+		"/variables",
+		"/var-config",
+		"/manager/variables",
+		"/api/variables/list",
+		"/rootpage",
+		"/root-cause",
+		"/tree/root",
+		"/etcetera",
+		"/etcd",
+		"/fetch",
+	}
+
+	for _, path := range validPaths {
+		allErrs := validateIllegalKeywords(path, field.NewPath("path"))
+		if len(allErrs) != 0 {
+			t.Errorf("validateIllegalKeywords(%q) returned errors %v for valid input", path, allErrs)
 		}
 	}
 }
