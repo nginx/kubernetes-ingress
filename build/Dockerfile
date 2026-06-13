@@ -89,6 +89,53 @@ RUN --mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/pat
 	&& patch-os.sh
 USER 101
 
+############################################### NGINX OSS - Alpine #############################################
+FROM alpine:3.23 AS alpine-oss
+ARG NGINX_OSS_VERSION
+ARG AGENT_V3_VERSION
+
+RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
+	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
+	apk add --no-cache openssl curl ca-certificates libcap libstdc++ \
+    && apk add -X "https://nginx.org/packages/mainline/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+        nginx~${NGINX_OSS_VERSION} \
+        nginx-module-njs~${NGINX_OSS_VERSION} \
+        nginx-module-otel~${NGINX_OSS_VERSION} \
+    && apk add -X "http://packages.nginx.org/nginx-agent/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+        nginx-agent~${AGENT_V3_VERSION} \
+	&& export $(cat /tmp/user_agent) \
+	&& ldconfig /usr/local/lib/ \
+	&& agent.sh \
+	&& sed -i -e '/nginx.org/d' /etc/apk/repositories
+
+
+############################################### NGINX OSS - Debian #############################################
+FROM debian:trixie-slim AS debian-oss
+ARG NGINX_OSS_VERSION
+ARG AGENT_V3_VERSION
+
+RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
+	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
+	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
+	apt-get update \
+	&& apt-get install --no-install-recommends --no-install-suggests -y \
+	gpg libcap2-bin ca-certificates lsb-release debian-archive-keyring \
+	&& gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key \
+	&& echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
+	http://packages.nginx.org/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
+    && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
+    http://packages.nginx.org/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
+	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
+	&& apt-get update \
+	&& apt-get install --no-install-recommends --no-install-suggests -y \
+      nginx=${NGINX_OSS_VERSION}* \
+      nginx-module-njs=${NGINX_OSS_VERSION}* \
+      nginx-module-otel=${NGINX_OSS_VERSION}* \
+      nginx-agent=${AGENT_V3_VERSION}* \
+	&& apt-get purge --auto-remove -y gpg \
+	&& rm -rf /var/lib/apt/lists/* /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
+	&& agent.sh
 
 ############################################# NGINX OSS on Alpine Linux #############################################
 # Base:    nginx:1.31.1-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
