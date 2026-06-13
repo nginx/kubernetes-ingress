@@ -79,6 +79,9 @@ server {
 	{{- end}}
 
 	{{- with $server.IngressMTLS }}
+	{{- if .ClientCertHash }}
+	# ssl_client_certificate content-hash: {{ .ClientCertHash }}
+	{{- end }}
 	ssl_client_certificate {{ .ClientCert }};
 	{{- if .ClientCrl }}
 	ssl_crl {{ .ClientCrl }};

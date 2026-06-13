@@ -1,6 +1,9 @@
 package secrets
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 
 	api_v1 "k8s.io/api/core/v1"
@@ -12,6 +15,32 @@ type SecretReference struct {
 	Secret *api_v1.Secret
 	Path   string
 	Error  error
+}
+
+// ComputeContentHash returns a stable hex-encoded SHA-256 digest of the supplied
+// byte slices, with each slice length-prefixed so that two distinct positional
+// sequences (e.g. {"ab", ""} vs {"a", "b"}) hash to different digests. The
+// argument order is part of the input — callers should pass values in a fixed
+// order tied to the consuming NGINX directive.
+//
+// It exists so directives that reference secret-backed files via static paths
+// (e.g. ssl_client_certificate, ssl_trusted_certificate, auth_jwt_key_file,
+// auth_basic_user_file) can embed a fingerprint of the specific bytes they
+// consume into the rendered config. That makes the rendered config differ
+// whenever the referenced data rotates, which triggers an NGINX reload via
+// the existing configsChanged detection path. Hashing only the consumed bytes
+// (rather than the full Secret.Data map) avoids fingerprinting unrelated
+// entries that might appear in the Secret.
+func ComputeContentHash(values ...[]byte) string {
+	h := sha256.New()
+	var lenBuf [8]byte
+	for _, v := range values {
+		binary.BigEndian.PutUint64(lenBuf[:], uint64(len(v)))
+		// hash.Hash.Write never returns an error; discards satisfy errcheck.
+		_, _ = h.Write(lenBuf[:])
+		_, _ = h.Write(v)
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // SecretFileManager manages secrets on the file system.
