@@ -116,7 +116,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 # Base:    nginx:1.31.1 (official NGINX OSS Debian image, OSS pre-installed)
 # Adds:    nginx-module-otel + nginx-agent v3
 # Used as: BUILD_OS=debian (default)
-FROM nginx:1.31.1@sha256:1df1a963b5b8a3315c81c9d3c6fbd3324479a16c5e266bc6642c080be636145f AS debian
+FROM nginx:1.31.1@sha256:608a100c71651bf5b773c89083b4a1ad7ef4b2bd05d7a7e552271e03123692ad AS debian
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
