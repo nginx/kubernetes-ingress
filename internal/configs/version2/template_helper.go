@@ -187,7 +187,7 @@ func makeTransportListener(s StreamServer) string {
 		ipAddress:     s.IPv4,
 		port:          port,
 		tls:           s.SSL.Enabled,
-		proxyProtocol: false,
+		proxyProtocol: s.ProxyProtocolListener,
 		udp:           s.UDP,
 		ipType:        ipv4,
 	})
@@ -198,7 +198,7 @@ func makeTransportListener(s StreamServer) string {
 			ipAddress:     s.IPv6,
 			port:          port,
 			tls:           s.SSL.Enabled,
-			proxyProtocol: false,
+			proxyProtocol: s.ProxyProtocolListener,
 			udp:           s.UDP,
 			ipType:        ipv6,
 		})
