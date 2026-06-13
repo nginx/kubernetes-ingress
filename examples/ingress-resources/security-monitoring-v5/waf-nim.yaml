@@ -1,0 +1,24 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: waf-policy
+spec:
+  waf:
+    enable: true
+    apBundleSource:
+      type: NIM
+      url: "https://<nim_host>"
+      policyName: "<policy_name>"
+      secret: "nim-credentials"
+      enablePolling: true
+      pollInterval: "5m"
+    securityLogs:
+    - enable: true
+      apLogBundleSource:
+        type: NIM
+        url: "https://<nim_host>"
+        policyName: "<log_profile_name>"
+        secret: "nim-credentials"
+        enablePolling: true
+        pollInterval: "5m"
+      logDest: "syslog:server=syslog-svc.default:514"

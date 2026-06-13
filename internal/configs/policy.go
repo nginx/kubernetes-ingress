@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
@@ -850,6 +851,19 @@ func (p *policiesCfg) addWAFConfig(
 		p.WAF.ApBundle = bundlePath
 	}
 
+	if waf.ApBundleSource != nil {
+		// Bundle was written to disk by syncPolicy() before config generation runs.
+		ns, name := splitPolKey(polKey)
+		filename := wafbundle.FetchedBundleFilename(ns, name, "policy")
+		bundlePath, err := p.BundleValidator.validate(filename)
+		if err != nil {
+			res.addWarningf("WAF policy %s: bundle not yet available (%s) — WAF inactive until bundle is fetched", polKey, filename)
+			res.isError = true
+		} else {
+			p.WAF.ApBundle = bundlePath
+		}
+	}
+
 	if waf.SecurityLog != nil && waf.SecurityLogs == nil {
 		nl.Debug(l, "the field securityLog is deprecated and will be removed in future releases. Use field securityLogs instead")
 		waf.SecurityLogs = append(waf.SecurityLogs, waf.SecurityLog)
@@ -858,7 +872,7 @@ func (p *policiesCfg) addWAFConfig(
 	if waf.SecurityLogs != nil {
 		p.WAF.ApSecurityLogEnable = true
 		p.WAF.ApLogConf = []string{}
-		for _, loco := range waf.SecurityLogs {
+		for idx, loco := range waf.SecurityLogs {
 			logDest := generateString(loco.LogDest, defaultLogOutput)
 
 			if loco.ApLogConf != "" {
@@ -878,6 +892,18 @@ func (p *policiesCfg) addWAFConfig(
 				logBundle, err := p.BundleValidator.validate(loco.ApLogBundle)
 				if err != nil {
 					res.addWarningf("WAF policy %s references an invalid or non-existing log config bundle %s", polKey, logBundle)
+					res.isError = true
+				} else {
+					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
+				}
+			}
+
+			if loco.ApLogBundleSource != nil {
+				ns, name := splitPolKey(polKey)
+				filename := wafbundle.FetchedBundleFilename(ns, name, fmt.Sprintf("log_%d", idx))
+				logBundle, err := p.BundleValidator.validate(filename)
+				if err != nil {
+					res.addWarningf("WAF policy %s: log bundle %d not yet available (%s) — log profile inactive", polKey, idx, filename)
 					res.isError = true
 				} else {
 					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
@@ -1546,4 +1572,13 @@ func generateCacheConfig(cache *conf_v1.Cache, ownerDetails policyOwnerDetails) 
 
 func rfc1123ToSnake(rfc1123String string) string {
 	return strings.ReplaceAll(rfc1123String, "-", "_")
+}
+
+// splitPolKey splits "namespace/name" into its two components.
+func splitPolKey(polKey string) (ns, name string) {
+	ns, name, found := strings.Cut(polKey, "/")
+	if !found {
+		return "", polKey
+	}
+	return ns, name
 }
