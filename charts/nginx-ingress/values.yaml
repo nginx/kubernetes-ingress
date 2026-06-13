@@ -518,7 +518,7 @@ controller:
     loadBalancerSourceRanges: []
 
     ## Whether to automatically allocate NodePorts (only for LoadBalancers).
-    # allocateLoadBalancerNodePorts: false
+    # allocateLoadBalancerNodePorts: true
 
     ## Dual stack preference.
     ## Valid values: SingleStack, PreferDualStack, RequireDualStack

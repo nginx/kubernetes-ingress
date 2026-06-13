@@ -1443,7 +1443,7 @@
               ]
             },
             "allocateLoadBalancerNodePorts": {
-              "default": false,
+              "default": true,
               "title": "The allocateLoadBalancerNodePorts Schema",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
             },
