@@ -1693,6 +1693,202 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel - 1]
+
+upstream upstream {
+    zone upstream ;
+    server 10.0.0.1:8080 max_fails=0 fail_timeout= max_conns=0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    ssl_certificate example.pem;
+    ssl_certificate_key example.pem;
+
+    server_tokens "";
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    if ($https = on) {
+        set $hsts_header_val "max-age=2592000; ";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+
+    
+
+    
+    location / {
+        set $service "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        add_header X-Custom "value" always;
+        set $hsts_header_val "";
+        proxy_hide_header Strict-Transport-Security;
+        if ($https = on) {
+            set $hsts_header_val "max-age=2592000; preload";
+        }
+        add_header Strict-Transport-Security "$hsts_header_val" always;
+        proxy_pass http://upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+        
+    
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersHSTSAtServerLevel - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    ssl_certificate example.pem;
+    ssl_certificate_key example.pem;
+
+    server_tokens "";
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    if ($https = on) {
+        set $hsts_header_val "max-age=2592000; includeSubDomains";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+
+    
+
+    
+    location / {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+        
+    
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersHSTSBehindProxy - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    if ($http_x_forwarded_proto = 'https') {
+        set $hsts_header_val "max-age=2592000; ";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+
+    
+
+    
+    location / {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersHSTSPreload - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    ssl_certificate example.pem;
+    ssl_certificate_key example.pem;
+
+    server_tokens "";
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    if ($https = on) {
+        set $hsts_header_val "max-age=31536000; includeSubDomains; preload";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+
+    
+
+    
+    location / {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+        
+    
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2Off - 1]
 
 server {
@@ -1818,6 +2014,210 @@ server {
     }
 
     
+    
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersPlusHSTSAtLocationLevel - 1]
+
+upstream upstream {
+    zone upstream ;
+    server 10.0.0.1:8080 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    ssl_certificate example.pem;
+    ssl_certificate_key example.pem;
+
+    server_tokens "";
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    if ($https = on) {
+        set $hsts_header_val "max-age=2592000; ";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        add_header X-Custom "value" always;
+        set $hsts_header_val "";
+        proxy_hide_header Strict-Transport-Security;
+        if ($https = on) {
+            set $hsts_header_val "max-age=2592000; preload";
+        }
+        add_header Strict-Transport-Security "$hsts_header_val" always;
+        proxy_pass http://upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+        
+    
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersPlusHSTSAtServerLevel - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    ssl_certificate example.pem;
+    ssl_certificate_key example.pem;
+
+    server_tokens "";
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    if ($https = on) {
+        set $hsts_header_val "max-age=2592000; includeSubDomains";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+        
+    
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersPlusHSTSBehindProxy - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    if ($http_x_forwarded_proto = 'https') {
+        set $hsts_header_val "max-age=2592000; ";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersPlusHSTSPreload - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    ssl_certificate example.pem;
+    ssl_certificate_key example.pem;
+
+    server_tokens "";
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    if ($https = on) {
+        set $hsts_header_val "max-age=31536000; includeSubDomains; preload";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+        
     
 }
 

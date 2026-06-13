@@ -163,6 +163,13 @@ func policyFields() []policyFieldValidator {
 				return validateCORS(s.CORS, p.Child("cors"))
 			},
 		},
+		{
+			name:  "hsts",
+			isSet: func(s *v1.PolicySpec) bool { return s.HSTS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateHSTS(s.HSTS, p.Child("hsts"))
+			},
+		},
 	}
 }
 
@@ -1400,6 +1407,34 @@ func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *fie
 	if externalAuth.SSLVerifyDepth != nil {
 		if *externalAuth.SSLVerifyDepth < 0 {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerifyDepth"), *externalAuth.SSLVerifyDepth, "must be a non-negative integer"))
+		}
+	}
+
+	return allErrs
+}
+
+func validateHSTS(hsts *v1.HSTS, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if hsts.MaxAge == nil {
+		return append(allErrs, field.Required(fieldPath.Child("maxAge"), "maxAge is required for HSTS policy"))
+	}
+
+	allErrs = append(allErrs, validatePositiveIntOrZero(*hsts.MaxAge, fieldPath.Child("maxAge"))...)
+
+	if hsts.Preload {
+		if !hsts.IncludeSubDomains {
+			allErrs = append(allErrs, field.Invalid(
+				fieldPath.Child("preload"), hsts.Preload,
+				"preload requires includeSubDomains to be enabled",
+			))
+		}
+
+		if *hsts.MaxAge < 31536000 {
+			allErrs = append(allErrs, field.Invalid(
+				fieldPath.Child("preload"), hsts.Preload,
+				"preload requires maxAge to be at least 31536000 (one year)",
+			))
 		}
 	}
 

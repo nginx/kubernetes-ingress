@@ -3416,6 +3416,87 @@ func TestCORSMDNCompliance(t *testing.T) {
 	}
 }
 
+func TestValidateHSTS_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		hsts *v1.HSTS
+	}{
+		{
+			name: "valid hsts with maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            new(2592000),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+		},
+		{
+			name: "valid hsts with maxAge value of zero",
+			hsts: &v1.HSTS{
+				MaxAge:            new(0),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("hsts")
+			allErrs := validateHSTS(test.hsts, fieldPath)
+			if len(allErrs) > 0 {
+				t.Errorf("validateHSTS() returned errors %v for valid input for the case of %v", allErrs, test.name)
+			}
+		})
+	}
+}
+
+func TestValidateHSTS_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		hsts     *v1.HSTS
+		errCount int
+	}{
+		{
+			name: "invalid hsts with negative maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            new(-123),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+			errCount: 1,
+		},
+		{
+			name: "invalid hsts with nil maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            nil,
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+			errCount: 1,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("hsts")
+			allErrs := validateHSTS(test.hsts, fieldPath)
+			if len(allErrs) == 0 {
+				t.Errorf("validateHSTS() returned no errors for invalid input for the case of %v", test.name)
+			} else if test.errCount > 0 && len(allErrs) != test.errCount {
+				t.Errorf("validateHSTS() returned %d errors, expected %d errors for the case of %v. Errors: %v", len(allErrs), test.errCount, test.name, allErrs)
+			}
+		})
+	}
+}
+
 func TestValidateExternalAuth_PassesOnValidInput(t *testing.T) {
 	t.Parallel()
 
