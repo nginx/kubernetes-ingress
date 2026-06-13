@@ -1399,11 +1399,11 @@ func ValidateEscapedString(body string, examples ...string) error {
 }
 
 const (
-	illegalKeywordFmt    = `/etc/|/root|/var|\\n|\\r`
+	illegalKeywordFmt    = `^(?:/etc(?:/|$)|/root(?:/|$)|/var(?:/|$))|\\n|\\r`
 	illegalKeywordErrMsg = `must not contain invalid paths`
 )
 
-var illegalKeywordFmtRegexp = regexp.MustCompile("^" + illegalKeywordFmt + "$")
+var illegalKeywordFmtRegexp = regexp.MustCompile(illegalKeywordFmt)
 
 func validateIllegalKeywords(path string, fieldPath *field.Path) field.ErrorList {
 	if illegalKeywordFmtRegexp.MatchString(path) {
