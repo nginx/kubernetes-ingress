@@ -546,10 +546,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -671,11 +667,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -1022,10 +1029,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -1147,11 +1150,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -1538,10 +1552,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -1663,11 +1673,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -2581,10 +2602,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -2706,11 +2723,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -3162,10 +3190,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -3287,11 +3311,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -4279,10 +4314,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -4373,11 +4404,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -4698,10 +4740,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -4813,11 +4851,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -5145,10 +5194,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -5260,11 +5305,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -5635,10 +5691,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -5750,11 +5802,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -6082,10 +6145,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -6197,11 +6256,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -6561,10 +6631,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -6676,11 +6742,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -7007,10 +7084,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -7122,11 +7195,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -7476,10 +7560,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -7591,11 +7671,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -7942,10 +8033,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -8057,11 +8144,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -8391,10 +8489,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -8506,11 +8600,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -8864,10 +8969,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -8979,11 +9080,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -9760,10 +9872,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -9875,11 +9983,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -10253,10 +10372,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -10368,11 +10483,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -10737,10 +10863,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -10852,11 +10974,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -11198,10 +11331,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -11313,11 +11442,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -11679,10 +11819,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -11794,11 +11930,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -12151,10 +12298,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -12266,11 +12409,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -12613,10 +12767,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -12728,11 +12878,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -13075,10 +13236,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -13190,11 +13347,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -13591,10 +13759,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -13706,11 +13870,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -14121,10 +14296,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -14236,11 +14407,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -14590,10 +14772,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -14705,11 +14883,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -15048,10 +15237,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -15163,11 +15348,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -15513,10 +15709,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -15628,11 +15820,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -15979,10 +16182,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -16094,11 +16293,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
@@ -16444,10 +16654,6 @@ rules:
   - get
   - list
   - watch
-  - create
-  - update
-  - patch
-  - delete
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -16559,11 +16765,22 @@ rules:
   - configmaps
   - pods
   - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - services
   verbs:
   - get
   - list
   - watch
+  - create
+  - update
+  - patch
+  - delete
 - apiGroups:
     - ""
   resources:
