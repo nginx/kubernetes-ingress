@@ -1056,7 +1056,7 @@ func validateCORSOrigins(origins []string, fieldPath *field.Path) field.ErrorLis
 		}
 
 		// Check for dangerous characters that could cause nginx injection
-		if containsDangerousChars(origin) {
+		if ContainsDangerousChars(origin) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), origin, "origin contains dangerous characters that could cause nginx configuration injection"))
 		}
 	}
@@ -1197,7 +1197,7 @@ func validateCORSMethods(methods []string, fieldPath *field.Path) field.ErrorLis
 
 	for i, method := range methods {
 		// Check for dangerous characters
-		if containsDangerousChars(method) {
+		if ContainsDangerousChars(method) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), method, "method contains dangerous characters that could cause nginx configuration injection"))
 		}
 
@@ -1261,7 +1261,7 @@ func validateHeaderName(header string, fieldPath *field.Path) field.ErrorList {
 	}
 
 	// Check for dangerous characters that could cause nginx injection
-	if containsDangerousChars(header) {
+	if ContainsDangerousChars(header) {
 		allErrs = append(allErrs, field.Invalid(fieldPath, header, "header name contains dangerous characters that could cause nginx configuration injection"))
 	}
 
@@ -1296,8 +1296,8 @@ func isForbiddenResponseHeader(header string) bool {
 	return lower == "set-cookie" || lower == "set-cookie2"
 }
 
-// containsDangerousChars checks if a string contains characters that could cause nginx injection
-func containsDangerousChars(value string) bool {
+// ContainsDangerousChars checks if a string contains characters that could cause nginx injection
+func ContainsDangerousChars(value string) bool {
 	// Map of dangerous characters for O(1) lookup per character
 	dangerousChars := map[rune]bool{
 		';':  true, // End nginx directive - NEVER ALLOWED
@@ -1393,7 +1393,7 @@ func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *fie
 		allErrs = append(allErrs, validateSecretName(name, fieldPath.Child("trustedCertSecret"))...)
 	}
 
-	if externalAuth.SNIName != "" && containsDangerousChars(externalAuth.SNIName) {
+	if externalAuth.SNIName != "" && ContainsDangerousChars(externalAuth.SNIName) {
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniName"), externalAuth.SNIName, "contains invalid characters"))
 	}
 
