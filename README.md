@@ -185,3 +185,5 @@ If you'd like to contribute to the project, please read our [Contributing guide]
 ## Support
 
 For NGINX Plus customers NGINX Ingress Controller (when used with NGINX Plus) is covered by the support contract.
+
+This is a change so I can demo something and precommit doesn't complain about trailing newlines.
