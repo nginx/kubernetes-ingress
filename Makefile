@@ -196,9 +196,13 @@ oss-alpine-image: ## Build OSS Alpine-based image
 .PHONY: oss-debian-image
 oss-debian-image: ## Build OSS Debian-based image
 	$(DOCKER_CMD) \
-		--build-arg BUILD_OS=debian \
+		--build-arg BUILD_OS=debian-oss \
 		--build-arg NGINX_VERSION=$(NGINX_OSS_VERSION) \
 		--build-arg AGENT_VERSION=$(AGENT_V3_VERSION)
+
+.PHONY: ubi-image
+ubi-image: build ## Create Docker image for Ingress Controller (UBI)
+	$(DOCKER_CMD) --build-arg BUILD_OS=ubi --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 ########################################################
 
@@ -282,10 +286,6 @@ debian-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Contro
 		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
 		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
-
-.PHONY: ubi-image
-ubi-image: build ## Create Docker image for Ingress Controller (UBI)
-	$(DOCKER_CMD) --build-arg BUILD_OS=ubi --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi-image-plus
 ubi-image-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus)
