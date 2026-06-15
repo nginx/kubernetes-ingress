@@ -184,7 +184,7 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 	@goreleaser -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with GoReleaser. Follow the docs to install it https://goreleaser.com/install\n"; exit $$code)
 	GOOS=$(strip $(GOOS)) GOPATH=$(shell go env GOPATH) GOARCH=$(strip $(ARCH)) goreleaser build --clean --snapshot --id kubernetes-ingress --single-target
 
-###### OSS Images (built from scratch) ######
+###### NIC + NGINX OSS Images (built from scratch) ######
 
 .PHONY: oss-alpine-image
 oss-alpine-image: ## Build OSS Alpine-based image
@@ -201,19 +201,25 @@ oss-debian-image: ## Build OSS Debian-based image
 		--build-arg AGENT_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi-image
-ubi-image: build ## Create Docker image for Ingress Controller (UBI)
-	$(DOCKER_CMD) --build-arg BUILD_OS=ubi --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
+ubi-image: build ## Create OSS UBI-based image
+	$(DOCKER_CMD) \
+		--build-arg BUILD_OS=ubi \
+		--build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE) \
+		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
-########################################################
-
+###### NIC + NGINX OSS Debian Image (built from official nginx DockerHub image) ######
 .PHONY: debian-image
 debian-image: build ## Create Docker image for Ingress Controller (Debian)
 	$(DOCKER_CMD) --build-arg BUILD_OS=debian --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
+###### NIC + NGINX OSS Alpine Image (built from official nginx DockerHub image) ######
 .PHONY: alpine-image
 alpine-image: build ## Create Docker image for Ingress Controller (Alpine)
 	$(DOCKER_CMD) --build-arg BUILD_OS=alpine --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
+
+###### NIC + NGINX PLUS Images ######
 .PHONY: alpine-image-plus
 alpine-image-plus: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
