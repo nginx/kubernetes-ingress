@@ -90,7 +90,7 @@ RUN --mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/pat
 USER 101
 
 ############################################### NGINX OSS - Alpine #############################################
-FROM alpine:3.23 AS alpine-oss
+FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS alpine-oss
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
@@ -111,7 +111,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 
 ############################################### NGINX OSS - Debian #############################################
-FROM debian:trixie-slim AS debian-oss
+FROM debian:trixie-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e AS debian-oss
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
