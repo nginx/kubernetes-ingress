@@ -3,6 +3,7 @@
 
 Writes a single JSON document to stdout. Uses only the stdlib (ast).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -14,12 +15,12 @@ from pathlib import Path
 from typing import List
 
 
-def _decorator_names(decorators: List[ast.expr]) -> List[str]:
-    out: List[str] = []
+def _decorator_names(decorators: list[ast.expr]) -> list[str]:
+    out: list[str] = []
     for d in decorators:
         # @pytest.mark.foo or @pytest.mark.foo(...)
         node = d.func if isinstance(d, ast.Call) else d
-        parts: List[str] = []
+        parts: list[str] = []
         while isinstance(node, ast.Attribute):
             parts.append(node.attr)
             node = node.value
@@ -34,7 +35,7 @@ def _is_pytest_marker(name: str) -> bool:
     return name.startswith("pytest.mark.") or name.startswith("mark.")
 
 
-def _fixtures_from_args(args: ast.arguments) -> List[str]:
+def _fixtures_from_args(args: ast.arguments) -> list[str]:
     return [a.arg for a in args.args if a.arg not in ("self", "cls")]
 
 
@@ -45,8 +46,8 @@ def index_file(path: Path, repo_root: Path) -> dict | None:
         return None
     rel = str(path.relative_to(repo_root)).replace(os.sep, "/")
     out: dict = {"file": rel}
-    classes: List[dict] = []
-    top_tests: List[dict] = []
+    classes: list[dict] = []
+    top_tests: list[dict] = []
     file_markers: set[str] = set()
     fixtures: set[str] = set()
 
@@ -94,7 +95,7 @@ def main() -> int:
 
     root = Path(args.root)
     repo_root = Path(args.repo_root)
-    files: List[dict] = []
+    files: list[dict] = []
     for path in sorted(root.rglob("*.py")):
         if any(part.startswith(".") for part in path.parts):
             continue
