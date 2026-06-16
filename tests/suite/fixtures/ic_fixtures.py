@@ -3,6 +3,7 @@
 import os
 import subprocess
 import time
+from typing import Optional
 
 import pytest
 from kubernetes.client.rest import ApiException
@@ -23,7 +24,110 @@ from suite.utils.resources_utils import (
     wait_until_all_pods_are_ready,
 )
 
-"""Fixtures for creating Ingress Controller instances"""
+# ---------------------------------------------------------------------------
+# Session-scoped IC Pool
+# ---------------------------------------------------------------------------
+
+
+class ICPool:
+    """Manages a single IC deployment across test classes, reusing it when the config matches.
+
+    The pool tracks the currently-running IC's configuration key (derived from
+    the ``type`` and ``extra_args`` parameters). When a test class requests an IC
+    with the same key, the existing deployment is reused. When the key differs,
+    the old IC is torn down and a new one is created.
+    """
+
+    def __init__(self, kube_apis, cli_arguments, prerequisites, endpoint):
+        self._kube_apis = kube_apis
+        self._cli_arguments = cli_arguments
+        self._prerequisites = prerequisites
+        self._endpoint = endpoint
+        self._current_key: Optional[tuple] = None
+        self._name: Optional[str] = None
+
+    @staticmethod
+    def _config_key(params: dict) -> tuple:
+        """Derive a hashable key from IC params."""
+        extra_args = tuple(sorted(params.get("extra_args") or []))
+        return extra_args
+
+    def ensure(self, params: dict) -> str:
+        """Ensure an IC with the requested configuration is running.
+
+        If the currently-running IC matches the requested config, it is reused.
+        Otherwise the existing IC is torn down and a new one is created.
+
+        :param params: the fixture request.param dict
+        :return: the IC deployment name
+        """
+        key = self._config_key(params)
+        namespace = self._prerequisites.namespace
+
+        if self._current_key == key and self._name is not None:
+            print(f"------------------------- Reuse IC (key={key}) -----------------------------------")
+            ensure_connection_to_public_endpoint(
+                self._endpoint.public_ip,
+                self._endpoint.port,
+                self._endpoint.port_ssl,
+            )
+            return self._name
+
+        # Tear down the old IC if one exists with a different config
+        if self._name is not None:
+            print(
+                f"------------------------- Recycle IC (old key={self._current_key}) -----------------------------------"
+            )
+            delete_ingress_controller(
+                self._kube_apis.apps_v1_api, self._name, self._cli_arguments["deployment-type"], namespace
+            )
+            self._name = None
+            self._current_key = None
+
+        print(f"------------------------- Create IC (key={key}) -----------------------------------")
+        self._name = create_ingress_controller(
+            self._kube_apis.v1,
+            self._kube_apis.apps_v1_api,
+            self._cli_arguments,
+            namespace,
+            params.get("extra_args", None),
+        )
+        self._current_key = key
+        ensure_connection_to_public_endpoint(
+            self._endpoint.public_ip,
+            self._endpoint.port,
+            self._endpoint.port_ssl,
+        )
+        return self._name
+
+    def teardown(self) -> None:
+        """Tear down the currently-running IC (called at session end)."""
+        if self._name is not None:
+            namespace = self._prerequisites.namespace
+            print("------------------------- Teardown IC Pool -----------------------------------")
+            delete_ingress_controller(
+                self._kube_apis.apps_v1_api, self._name, self._cli_arguments["deployment-type"], namespace
+            )
+            self._name = None
+            self._current_key = None
+
+
+@pytest.fixture(scope="session")
+def ic_pool(kube_apis, cli_arguments, ingress_controller_prerequisites, ingress_controller_endpoint, request):
+    """Session-scoped IC pool that reuses IC deployments with matching configurations."""
+    pool = ICPool(kube_apis, cli_arguments, ingress_controller_prerequisites, ingress_controller_endpoint)
+
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            pool.teardown()
+
+    request.addfinalizer(fin)
+    return pool
+
+
+# ---------------------------------------------------------------------------
+# Fixtures for creating Ingress Controller instances
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="class")
@@ -65,10 +169,14 @@ def ingress_controller(cli_arguments, kube_apis, ingress_controller_prerequisite
 
 @pytest.fixture(scope="class")
 def crd_ingress_controller(
-    cli_arguments, kube_apis, ingress_controller_prerequisites, ingress_controller_endpoint, request, crds
+    cli_arguments, kube_apis, ingress_controller_prerequisites, ingress_controller_endpoint, request, crds, ic_pool
 ) -> None:
     """
-    Create an Ingress Controller with CRD enabled.
+    Create or reuse an Ingress Controller with CRD enabled via the session IC pool.
+
+    The IC pool keeps a running IC alive across test classes that share the same
+    configuration (extra_args). Only when a class requests different args does the
+    pool recycle the IC.
 
     :param crds: the common ingress controller crds.
     :param cli_arguments: pytest context
@@ -76,48 +184,33 @@ def crd_ingress_controller(
     :param ingress_controller_prerequisites
     :param ingress_controller_endpoint:
     :param request: pytest fixture to parametrize this method
-        {type: complete|rbac-without-vs,
+        {type: complete|rbac-without-vs|tls-passthrough-custom-port,
         'extra_args': list of IC cli arguments }
+    :param ic_pool: session-scoped IC pool
     :return:
     """
-    namespace = ingress_controller_prerequisites.namespace
-    name = "nginx-ingress"
     orig_port = 0
 
     try:
-        print("------------------------- Update ClusterRole -----------------------------------")
         if request.param["type"] == "rbac-without-vs":
+            print("------------------------- Update ClusterRole -----------------------------------")
             patch_rbac(kube_apis.rbac_v1, f"{TEST_DATA}/virtual-server/rbac-without-vs.yaml")
-        print("------------------------- Create IC -----------------------------------")
-        name = create_ingress_controller(
-            kube_apis.v1,
-            kube_apis.apps_v1_api,
-            cli_arguments,
-            namespace,
-            request.param.get("extra_args", None),
-        )
+
+        ic_pool.ensure(request.param)
+
         if request.param["type"] == "tls-passthrough-custom-port":
             orig_port = ingress_controller_endpoint.port_ssl
             ingress_controller_endpoint.port_ssl = ingress_controller_endpoint.custom_ssl_port
-        ensure_connection_to_public_endpoint(
-            ingress_controller_endpoint.public_ip,
-            ingress_controller_endpoint.port,
-            ingress_controller_endpoint.port_ssl,
-        )
     except ApiException:
-        # Finalizer method doesn't start if fixture creation was incomplete, ensure clean up here
         print("Restore the ClusterRole:")
         patch_rbac(kube_apis.rbac_v1, f"{DEPLOYMENTS}/rbac/rbac.yaml")
-        print("Remove the IC:")
-        delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
         pytest.fail("IC setup failed")
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
-            print("Restore the ClusterRole:")
-            patch_rbac(kube_apis.rbac_v1, f"{DEPLOYMENTS}/rbac/rbac.yaml")
-            print("Remove the IC:")
-            delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
+            if request.param["type"] == "rbac-without-vs":
+                print("Restore the ClusterRole:")
+                patch_rbac(kube_apis.rbac_v1, f"{DEPLOYMENTS}/rbac/rbac.yaml")
             if request.param["type"] == "tls-passthrough-custom-port":
                 ingress_controller_endpoint.port_ssl = orig_port
 
