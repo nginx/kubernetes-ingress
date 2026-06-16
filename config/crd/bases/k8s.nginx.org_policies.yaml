@@ -828,22 +828,186 @@ spec:
                 properties:
                   apBundle:
                     description: The App Protect WAF policy bundle. Mutually exclusive
-                      with apPolicy.
+                      with apPolicy and apBundleSource.
                     type: string
+                  apBundleSource:
+                    description: |-
+                      ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
+                      Mutually exclusive with ApPolicy and ApBundle.
+                    properties:
+                      enablePolling:
+                        description: |-
+                          EnablePolling enables background polling to automatically detect and fetch
+                          updated bundles at the configured PollInterval. When false, the bundle is
+                          fetched once on policy creation or update; subsequent updates require
+                          modifying the Policy resource to trigger a new fetch.
+                        type: boolean
+                      insecureSkipVerify:
+                        description: |-
+                          InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                          Not recommended for production use.
+                        type: boolean
+                      policyName:
+                        description: PolicyName is the policy name on the management
+                          plane. Required for NIM and N1C; forbidden for HTTPS.
+                        maxLength: 63
+                        type: string
+                      policyNamespace:
+                        description: PolicyNamespace is the namespace/tenant on the
+                          management plane. Required for N1C only.
+                        maxLength: 63
+                        type: string
+                      pollInterval:
+                        description: |-
+                          PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                          Minimum 10s. Default 1m. Ignored when enablePolling is false.
+                        type: string
+                      retryAttempts:
+                        description: RetryAttempts is the number of retry attempts
+                          on transient failure. Range 1–10.
+                        maximum: 10
+                        minimum: 1
+                        type: integer
+                      secret:
+                        description: |-
+                          Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
+                          For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
+                          For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                          For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                      timeout:
+                        description: Timeout is the per-request HTTP timeout. Default
+                          60s.
+                        type: string
+                      trustedCertSecret:
+                        description: |-
+                          TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                          for verifying the remote endpoint TLS certificate. The secret must be in the same
+                          namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                      type:
+                        default: HTTPS
+                        description: Type is the bundle source backend. Defaults to
+                          HTTPS.
+                        enum:
+                        - HTTPS
+                        - NIM
+                        - N1C
+                        type: string
+                      url:
+                        description: URL is the full bundle URL for HTTPS type, or
+                          the API base URL for NIM/N1C. Must use https://.
+                        maxLength: 2083
+                        minLength: 1
+                        pattern: ^https://
+                        type: string
+                      verifyChecksum:
+                        description: VerifyChecksum enables SHA-256 verification of
+                          the downloaded bundle. HTTPS type only.
+                        type: boolean
+                    required:
+                    - enablePolling
+                    - url
+                    type: object
                   apPolicy:
                     description: The App Protect WAF policy of the WAF. Accepts an
-                      optional namespace. Mutually exclusive with apBundle.
+                      optional namespace. Mutually exclusive with apBundle and apBundleSource.
                     type: string
                   enable:
                     description: Enables NGINX App Protect WAF.
                     type: boolean
                   securityLog:
-                    description: SecurityLog defines the security log of a WAF policy.
+                    description: |-
+                      SecurityLog defines the security log of a WAF policy.
+                      Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer.
                     properties:
                       apLogBundle:
                         description: The App Protect WAF log bundle resource. Only
                           works with apBundle.
                         type: string
+                      apLogBundleSource:
+                        description: |-
+                          ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
+                          Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
+                        properties:
+                          enablePolling:
+                            description: |-
+                              EnablePolling enables background polling to automatically detect and fetch
+                              updated bundles at the configured PollInterval. When false, the bundle is
+                              fetched once on policy creation or update; subsequent updates require
+                              modifying the Policy resource to trigger a new fetch.
+                            type: boolean
+                          insecureSkipVerify:
+                            description: |-
+                              InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                              Not recommended for production use.
+                            type: boolean
+                          policyName:
+                            description: PolicyName is the policy name on the management
+                              plane. Required for NIM and N1C; forbidden for HTTPS.
+                            maxLength: 63
+                            type: string
+                          policyNamespace:
+                            description: PolicyNamespace is the namespace/tenant on
+                              the management plane. Required for N1C only.
+                            maxLength: 63
+                            type: string
+                          pollInterval:
+                            description: |-
+                              PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                              Minimum 10s. Default 1m. Ignored when enablePolling is false.
+                            type: string
+                          retryAttempts:
+                            description: RetryAttempts is the number of retry attempts
+                              on transient failure. Range 1–10.
+                            maximum: 10
+                            minimum: 1
+                            type: integer
+                          secret:
+                            description: |-
+                              Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
+                              For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
+                              For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                              For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                          timeout:
+                            description: Timeout is the per-request HTTP timeout.
+                              Default 60s.
+                            type: string
+                          trustedCertSecret:
+                            description: |-
+                              TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                              for verifying the remote endpoint TLS certificate. The secret must be in the same
+                              namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                          type:
+                            default: HTTPS
+                            description: Type is the bundle source backend. Defaults
+                              to HTTPS.
+                            enum:
+                            - HTTPS
+                            - NIM
+                            - N1C
+                            type: string
+                          url:
+                            description: URL is the full bundle URL for HTTPS type,
+                              or the API base URL for NIM/N1C. Must use https://.
+                            maxLength: 2083
+                            minLength: 1
+                            pattern: ^https://
+                            type: string
+                          verifyChecksum:
+                            description: VerifyChecksum enables SHA-256 verification
+                              of the downloaded bundle. HTTPS type only.
+                            type: boolean
+                        required:
+                        - enablePolling
+                        - url
+                        type: object
                       apLogConf:
                         description: The App Protect WAF log conf resource. Accepts
                           an optional namespace. Only works with apPolicy.
@@ -859,12 +1023,95 @@ spec:
                     type: object
                   securityLogs:
                     items:
-                      description: SecurityLog defines the security log of a WAF policy.
+                      description: |-
+                        SecurityLog defines the security log of a WAF policy.
+                        Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer.
                       properties:
                         apLogBundle:
                           description: The App Protect WAF log bundle resource. Only
                             works with apBundle.
                           type: string
+                        apLogBundleSource:
+                          description: |-
+                            ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
+                            Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
+                          properties:
+                            enablePolling:
+                              description: |-
+                                EnablePolling enables background polling to automatically detect and fetch
+                                updated bundles at the configured PollInterval. When false, the bundle is
+                                fetched once on policy creation or update; subsequent updates require
+                                modifying the Policy resource to trigger a new fetch.
+                              type: boolean
+                            insecureSkipVerify:
+                              description: |-
+                                InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                                Not recommended for production use.
+                              type: boolean
+                            policyName:
+                              description: PolicyName is the policy name on the management
+                                plane. Required for NIM and N1C; forbidden for HTTPS.
+                              maxLength: 63
+                              type: string
+                            policyNamespace:
+                              description: PolicyNamespace is the namespace/tenant
+                                on the management plane. Required for N1C only.
+                              maxLength: 63
+                              type: string
+                            pollInterval:
+                              description: |-
+                                PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                                Minimum 10s. Default 1m. Ignored when enablePolling is false.
+                              type: string
+                            retryAttempts:
+                              description: RetryAttempts is the number of retry attempts
+                                on transient failure. Range 1–10.
+                              maximum: 10
+                              minimum: 1
+                              type: integer
+                            secret:
+                              description: |-
+                                Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
+                                For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
+                                For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                                For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+                              pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                              type: string
+                            timeout:
+                              description: Timeout is the per-request HTTP timeout.
+                                Default 60s.
+                              type: string
+                            trustedCertSecret:
+                              description: |-
+                                TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                                for verifying the remote endpoint TLS certificate. The secret must be in the same
+                                namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                              pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                              type: string
+                            type:
+                              default: HTTPS
+                              description: Type is the bundle source backend. Defaults
+                                to HTTPS.
+                              enum:
+                              - HTTPS
+                              - NIM
+                              - N1C
+                              type: string
+                            url:
+                              description: URL is the full bundle URL for HTTPS type,
+                                or the API base URL for NIM/N1C. Must use https://.
+                              maxLength: 2083
+                              minLength: 1
+                              pattern: ^https://
+                              type: string
+                            verifyChecksum:
+                              description: VerifyChecksum enables SHA-256 verification
+                                of the downloaded bundle. HTTPS type only.
+                              type: boolean
+                          required:
+                          - enablePolling
+                          - url
+                          type: object
                         apLogConf:
                           description: The App Protect WAF log conf resource. Accepts
                             an optional namespace. Only works with apPolicy.

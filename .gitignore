@@ -216,6 +216,14 @@ examples/ingress-resources/external-auth-mergeable/external-auth-server-tls-secr
 examples/custom-resources/external-auth/external-auth-server-tls-secret.yaml
 examples/custom-resources/external-auth-oauth2/external-auth-server-tls-secret.yaml
 tests/data/external-auth/backend/external-auth-server-tls-secret.yaml
+common-secrets/bundle-server-ca-secret.yaml
+common-secrets/bundle-server-tls-secret.yaml
+common-secrets/bundle-server-ca-secret-crl.yaml
+common-secrets/bundle-client-tls-secret.yaml
+examples/shared-examples/waf-bundle-server/bundle-server-ca-secret.yaml
+examples/shared-examples/waf-bundle-server/bundle-server-ca-secret-crl.yaml
+examples/shared-examples/waf-bundle-server/bundle-client-tls-secret.yaml
+examples/shared-examples/waf-bundle-server/bundle-server-tls-secret.yaml
 
 # TLS Certificate secrets
 common-secrets/cafe-passwd-basic-auth-secret.yaml
