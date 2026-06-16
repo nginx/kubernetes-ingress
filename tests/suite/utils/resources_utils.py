@@ -357,11 +357,11 @@ def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None
     print(f"waiting for all pods in {namespace} namespace to be Ready...")
     counter = 0
     while not are_all_pods_in_ready_state(v1, namespace):
-        print("There are pods that are not Ready. Wait ...", end="\r")
+        print(".", end="")
         wait_before_test()
         counter = counter + 1
-        if counter * 3 >= timeout:
-            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}' to be Ready")
+        if counter * 3 >= 3:
+            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}'")
     print("All pods are Ready" + " " * 40)
     pods = v1.list_namespaced_pod(namespace)
     for pod in pods.items:

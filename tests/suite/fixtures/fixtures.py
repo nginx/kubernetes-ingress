@@ -18,7 +18,7 @@ from kubernetes.client import (
 )
 from kubernetes.client.rest import ApiException
 from settings import ALLOWED_DEPLOYMENT_TYPES, ALLOWED_IC_TYPES, ALLOWED_SERVICE_TYPES, CRDS, DEPLOYMENTS, TEST_DATA
-from suite.utils.custom_resources_utils import cleanup_crd, create_crd_from_yaml, delete_crd
+from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.kube_config_utils import ensure_context_in_config, get_current_context_name
 from suite.utils.resources_utils import (
     are_all_pods_in_ready_state,
@@ -381,12 +381,12 @@ def crds(kube_apis, request) -> None:
     ts_crd_name = get_name_from_yaml(f"{CRDS}/k8s.nginx.org_transportservers.yaml")
     gc_crd_name = get_name_from_yaml(f"{CRDS}/k8s.nginx.org_globalconfigurations.yaml")
 
-    print("------------------------- Clean up any pre-existing CRDs -----------------------------------")
-    cleanup_crd(kube_apis.api_extensions_v1, vs_crd_name)
-    cleanup_crd(kube_apis.api_extensions_v1, vsr_crd_name)
-    cleanup_crd(kube_apis.api_extensions_v1, pol_crd_name)
-    cleanup_crd(kube_apis.api_extensions_v1, ts_crd_name)
-    cleanup_crd(kube_apis.api_extensions_v1, gc_crd_name)
+    # print("------------------------- Clean up any pre-existing CRDs -----------------------------------")
+    # cleanup_crd(kube_apis.api_extensions_v1, vs_crd_name)
+    # cleanup_crd(kube_apis.api_extensions_v1, vsr_crd_name)
+    # cleanup_crd(kube_apis.api_extensions_v1, pol_crd_name)
+    # cleanup_crd(kube_apis.api_extensions_v1, ts_crd_name)
+    # cleanup_crd(kube_apis.api_extensions_v1, gc_crd_name)
 
     try:
         print("------------------------- Register CRDs -----------------------------------")

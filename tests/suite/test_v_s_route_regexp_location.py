@@ -369,12 +369,12 @@ class TestVSRSelectorRegexpLocation:
             vsr_src_yaml,
             v_s_route_selector_setup.route_s.namespace,
         )
-        wait_before_test(1)
+        wait_before_test()
 
         for item in test_data["expected_results"]:
             uri = item
             expected_code = test_data["expected_results"][uri]
-            ensure_response_from_backend(f"{req_url}{uri}", v_s_route_selector_setup.vs_host)
+            ensure_response_from_backend(f"{req_url}{uri}", v_s_route_selector_setup.vs_host, check404=True)
             resp = requests.get(f"{req_url}{uri}", headers={"host": v_s_route_selector_setup.vs_host})
             if expected_code == 200:
                 assert resp.status_code == expected_code and "Server name: backend2-" in resp.text

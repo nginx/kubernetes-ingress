@@ -4,7 +4,6 @@ import pytest
 from settings import CRDS, TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.custom_resources_utils import (
-    cleanup_crd,
     create_crd_from_yaml,
     create_gc_from_yaml,
     create_ts_from_yaml,
@@ -59,10 +58,10 @@ def ap_crds(kube_apis, request) -> None:
     ap_log_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_aplogconfs.yaml")
     ap_uds_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_apusersigs.yaml")
 
-    print("------------------------- Clean up any pre-existing AP CRDs -----------------------------------")
-    cleanup_crd(kube_apis.api_extensions_v1, ap_pol_crd_name)
-    cleanup_crd(kube_apis.api_extensions_v1, ap_log_crd_name)
-    cleanup_crd(kube_apis.api_extensions_v1, ap_uds_crd_name)
+    # print("------------------------- Clean up any pre-existing AP CRDs -----------------------------------")
+    # cleanup_crd(kube_apis.api_extensions_v1, ap_pol_crd_name)
+    # cleanup_crd(kube_apis.api_extensions_v1, ap_log_crd_name)
+    # cleanup_crd(kube_apis.api_extensions_v1, ap_uds_crd_name)
 
     try:
         print("------------------------- Register AP CRDs -----------------------------------")
@@ -117,10 +116,10 @@ def dos_crds(kube_apis, request) -> None:
     dos_log_crd_name = get_name_from_yaml(f"{CRDS}/appprotectdos.f5.com_apdoslogconfs.yaml")
     dos_protected_crd_name = get_name_from_yaml(f"{CRDS}/appprotectdos.f5.com_dosprotectedresources.yaml")
 
-    print("------------------------- Clean up any pre-existing DoS CRDs -----------------------------------")
-    cleanup_crd(kube_apis.api_extensions_v1, dos_pol_crd_name)
-    cleanup_crd(kube_apis.api_extensions_v1, dos_log_crd_name)
-    cleanup_crd(kube_apis.api_extensions_v1, dos_protected_crd_name)
+    # print("------------------------- Clean up any pre-existing DoS CRDs -----------------------------------")
+    # cleanup_crd(kube_apis.api_extensions_v1, dos_pol_crd_name)
+    # cleanup_crd(kube_apis.api_extensions_v1, dos_log_crd_name)
+    # cleanup_crd(kube_apis.api_extensions_v1, dos_protected_crd_name)
 
     try:
         print("------------------------- Register DoS CRDs -----------------------------------")
@@ -181,8 +180,8 @@ def ed_crds(kube_apis, request) -> None:
     """
     external_dns_crd_name = get_name_from_yaml(f"{CRDS}/externaldns.nginx.org_dnsendpoints.yaml")
 
-    print("---------------------- Clean up any pre-existing DNSEndpoint CRD ------------------------------")
-    cleanup_crd(kube_apis.api_extensions_v1, external_dns_crd_name)
+    # print("---------------------- Clean up any pre-existing DNSEndpoint CRD ------------------------------")
+    # cleanup_crd(kube_apis.api_extensions_v1, external_dns_crd_name)
 
     try:
         print("---------------------- Register DNSEndpoint CRD ------------------------------")
