@@ -242,7 +242,7 @@ def teardown_ext_auth(kube_apis, namespace, secret_names, policy_names, *, tls=F
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def ext_auth_setup(request, kube_apis, test_namespace):
     """Parametrized fixture that deploys the external auth backend and policies.
 
@@ -292,7 +292,7 @@ def ext_auth_setup(request, kube_apis, test_namespace):
     return secret_names, policy_names
 
 
-@pytest.fixture
+@pytest.fixture(scope="class")
 def ext_auth_ingress(
     request,
     kube_apis,
@@ -329,7 +329,7 @@ def ext_auth_ingress(
     return ing
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def ext_auth_restore_vs(kube_apis, virtual_server_setup):
     """Restore the standard VirtualServer spec after each test.
 
