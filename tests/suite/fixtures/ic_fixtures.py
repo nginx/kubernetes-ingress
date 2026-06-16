@@ -227,9 +227,10 @@ def crd_ingress_controller_with_ap(
     crds,
     ap_crds,
     ap_rbac,
+    ic_pool,
 ) -> None:
     """
-    Create an Ingress Controller with AppProtect CRD enabled.
+    Create or reuse an Ingress Controller with AppProtect CRD enabled via the session IC pool.
 
     CRD registration and RBAC are managed by the session-scoped ap_crds and ap_rbac fixtures.
 
@@ -243,35 +244,14 @@ def crd_ingress_controller_with_ap(
     :param request: pytest fixture to parametrize this method
         {extra_args: }
         'extra_args' list of IC arguments
+    :param ic_pool: session-scoped IC pool
     :return:
     """
-    namespace = ingress_controller_prerequisites.namespace
-    name = "nginx-ingress"
     try:
-        print("------------------------- Create IC -----------------------------------")
-        name = create_ingress_controller(
-            kube_apis.v1,
-            kube_apis.apps_v1_api,
-            cli_arguments,
-            namespace,
-            request.param.get("extra_args", None),
-        )
-        ensure_connection_to_public_endpoint(
-            ingress_controller_endpoint.public_ip,
-            ingress_controller_endpoint.port,
-            ingress_controller_endpoint.port_ssl,
-        )
+        ic_pool.ensure(request.param)
     except Exception as ex:
         print(f"Failed to complete AP IC fixture: {ex}\nClean up the cluster as much as possible.")
-        delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
         pytest.fail("IC setup failed")
-
-    def fin():
-        if request.config.getoption("--skip-fixture-teardown") == "no":
-            print("Remove the IC:")
-            delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
-
-    request.addfinalizer(fin)
 
 
 @pytest.fixture(scope="class")
@@ -397,11 +377,13 @@ def crd_ingress_controller_with_dos(
     crds,
     dos_crds,
     dos_rbac,
+    ic_pool,
 ) -> None:
     """
-    Create an Ingress Controller with DoS CRDs enabled.
+    Create an Ingress Controller with DoS CRDs enabled via the session IC pool.
 
     CRD registration and RBAC are managed by the session-scoped dos_crds and dos_rbac fixtures.
+    Syslog, accesslog, and DoS arbitrator are class-scoped ancillary resources.
 
     :param crds: the common IC crds (session-scoped).
     :param dos_crds: the DoS CRDs (session-scoped).
@@ -413,10 +395,10 @@ def crd_ingress_controller_with_dos(
     :param request: pytest fixture to parametrize this method
         {extra_args: }
         'extra_args' list of IC arguments
+    :param ic_pool: session-scoped IC pool
     :return:
     """
     namespace = ingress_controller_prerequisites.namespace
-    name = "nginx-ingress"
 
     try:
         print("------------------------- Create syslog svc -----------------------")
@@ -441,23 +423,10 @@ def crd_ingress_controller_with_dos(
             f"{DEPLOYMENTS}/service/appprotect-dos-arb-svc.yaml",
         )
 
-        print("------------------------- Create IC -----------------------------------")
-        name = create_ingress_controller(
-            kube_apis.v1,
-            kube_apis.apps_v1_api,
-            cli_arguments,
-            namespace,
-            request.param.get("extra_args", None),
-        )
-        ensure_connection_to_public_endpoint(
-            ingress_controller_endpoint.public_ip,
-            ingress_controller_endpoint.port,
-            ingress_controller_endpoint.port_ssl,
-        )
+        ic_pool.ensure(request.param)
     except Exception as ex:
         print(f"Failed to complete DoS IC fixture: {ex}\nClean up the cluster as much as possible.")
         delete_dos_arbitrator(kube_apis.v1, kube_apis.apps_v1_api, dos_arbitrator_name, namespace)
-        delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
         delete_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
         delete_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
         pytest.fail("IC setup failed")
@@ -466,8 +435,6 @@ def crd_ingress_controller_with_dos(
         if request.config.getoption("--skip-fixture-teardown") == "no":
             print("Remove dos arbitrator:")
             delete_dos_arbitrator(kube_apis.v1, kube_apis.apps_v1_api, dos_arbitrator_name, namespace)
-            print("Remove the IC:")
-            delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
             print("Remove the syslog svc:")
             delete_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
             print("Remove the accesslog svc:")
@@ -478,10 +445,17 @@ def crd_ingress_controller_with_dos(
 
 @pytest.fixture(scope="class")
 def crd_ingress_controller_with_ed(
-    cli_arguments, kube_apis, ingress_controller_prerequisites, ingress_controller_endpoint, request, crds, ed_crds
+    cli_arguments,
+    kube_apis,
+    ingress_controller_prerequisites,
+    ingress_controller_endpoint,
+    request,
+    crds,
+    ed_crds,
+    ic_pool,
 ) -> None:
     """
-    Create an Ingress Controller with ExternalDNS CRD enabled.
+    Create or reuse an Ingress Controller with ExternalDNS CRD enabled via the session IC pool.
 
     CRD registration is managed by the session-scoped ed_crds fixture.
 
@@ -494,25 +468,11 @@ def crd_ingress_controller_with_ed(
     :param request: pytest fixture to parametrize this method
         {extra_args: }
         'extra_args' list of IC cli arguments
+    :param ic_pool: session-scoped IC pool
     :return:
     """
-    namespace = ingress_controller_prerequisites.namespace
-    name = "nginx-ingress"
-
     try:
-        print("------------------------- Create IC -----------------------------------")
-        name = create_ingress_controller(
-            kube_apis.v1,
-            kube_apis.apps_v1_api,
-            cli_arguments,
-            namespace,
-            request.param.get("extra_args", None),
-        )
-        ensure_connection_to_public_endpoint(
-            ingress_controller_endpoint.public_ip,
-            ingress_controller_endpoint.port,
-            ingress_controller_endpoint.port_ssl,
-        )
+        ic_pool.ensure(request.param)
         print("---------------- Replace ConfigMap with external-status-address --------------------")
         replace_configmap_from_yaml(
             kube_apis.v1,
@@ -521,8 +481,6 @@ def crd_ingress_controller_with_ed(
             f"{TEST_DATA}/virtual-server-external-dns/nginx-config.yaml",
         )
     except ApiException:
-        print("Remove the IC:")
-        delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
         replace_configmap_from_yaml(
             kube_apis.v1,
             ingress_controller_prerequisites.config_map["metadata"]["name"],
@@ -533,8 +491,6 @@ def crd_ingress_controller_with_ed(
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
-            print("Remove the IC:")
-            delete_ingress_controller(kube_apis.apps_v1_api, name, cli_arguments["deployment-type"], namespace)
             replace_configmap_from_yaml(
                 kube_apis.v1,
                 ingress_controller_prerequisites.config_map["metadata"]["name"],
