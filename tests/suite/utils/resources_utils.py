@@ -354,7 +354,7 @@ def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None
     :param timeout: maximum seconds to wait before raising (default 600)
     :return:
     """
-    print(f"waiting for all pods in {namespace.metadata.name} namespace to be Ready...")
+    print(f"waiting for all pods in {namespace} namespace to be Ready...")
     counter = 0
     while not are_all_pods_in_ready_state(v1, namespace):
         print("There are pods that are not Ready. Wait ...", end="\r")
