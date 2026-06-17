@@ -195,6 +195,10 @@ def pytest_collection_modifyitems(config, items) -> None:
         for item in items:
             if "appprotect_waf_v5" in item.keywords:
                 item.add_marker(appprotect_v5)
+        appprotect_bundle = pytest.mark.skip(reason="Skip WAF bundle source test in non-AP WAF v5 image")
+        for item in items:
+            if "appprotect_waf_bundle_source" in item.keywords:
+                item.add_marker(appprotect_bundle)
     if "-dos" not in config.getoption("--image"):
         dos = pytest.mark.skip(reason="Skip DOS test in non-DOS image")
         for item in items:
