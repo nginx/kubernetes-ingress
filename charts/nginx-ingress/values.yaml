@@ -103,7 +103,7 @@ controller:
     repository: private-registry.nginx.com/nginx-ic/lts/nginx-plus-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    tag: "2026-lts-r1"
+    tag: "2026-lts-r2"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
