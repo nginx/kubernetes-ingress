@@ -7,7 +7,7 @@ This example works with both:
 - **NGINX Instance Manager** (Agent 2.*) - See the [Security Monitoring tutorial](https://docs.nginx.com/nginx-ingress-controller/tutorials/security-monitoring/) for agent configuration.
 - **NGINX One Console** (Agent 3.*) - See the [Connect NGINX Ingress Controller to NGINX One Console](https://docs.nginx.com/nginx-one-console/k8s/add-nic/) guide for agent configuration.
 
-> **Note**: Starting with NGINX Ingress Controller 5.5.0, images with the `-agent` suffix include NGINX Agent (3.*) and are pre-configured for NGINX One Console. Images without the `-agent` suffix include NGINX Agent (2.*) for NGINX Instance Manager. See the [Technical Specifications](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/) for available image variants.
+> **Note**: Starting with NGINX Ingress Controller 5.5.1, images with the `-agent` suffix include NGINX Agent (3.*) and are pre-configured for NGINX One Console. Images without the `-agent` suffix include NGINX Agent (2.*) for NGINX Instance Manager. See the [Technical Specifications](https://docs.nginx.com/nginx-ingress-controller/technical-specifications/) for available image variants.
 
 ## Prerequisites
 
