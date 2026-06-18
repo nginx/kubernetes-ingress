@@ -94,7 +94,7 @@ USER 101
 # Base:    nginx:1.31.2-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
 # Adds:    nginx-module-otel + nginx-agent v3
 # Used as: BUILD_OS=alpine
-FROM nginx:1.31.2-alpine3.23@sha256:8b1e78743a03dbb2c95171cc58639fef29abc8816598e27fb910ed2e621e589a AS alpine
+FROM nginx:1.31.2-alpine3.23@sha256:81595dd77c2cc4ec66c6721daa3c13b6a1f7bb3a8a2cd3247a874e3bd5c39dd2 AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
@@ -116,7 +116,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 # Base:    nginx:1.31.2 (official NGINX OSS Debian image, OSS pre-installed)
 # Adds:    nginx-module-otel + nginx-agent v3
 # Used as: BUILD_OS=debian (default)
-FROM nginx:1.31.2@sha256:608a100c71651bf5b773c89083b4a1ad7ef4b2bd05d7a7e552271e03123692ad AS debian
+FROM nginx:1.31.2@sha256:351872cd77d5a6221ff3950af72453167b7fbc3d73aa21ad2606e85c76151792 AS debian
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
