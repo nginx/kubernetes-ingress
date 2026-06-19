@@ -758,22 +758,29 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 	if err != nil {
 		return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer config: %v: %w", name, err)
 	}
+
+	// Order matters only when -enable-config-safety=true: ConfigRollbackManager.CreateConfig
+	// runs `nginx -t` deletes the new file on failure.
+	// VS template emits `include oidc-conf.d/oidc_<ns>_<vs>.conf;`, so the OIDC config must
+	// exist on disk before the VS config is written. Without config safety the order is
+	// immaterial because validation only runs at Reload().
+	var oidcChanged bool
+	if vsCfg.Server.OIDC != nil {
+		oidcName := getFileNameForOIDCVirtualServer(virtualServerEx.VirtualServer)
+
+		oidcContent, err := cnf.templateExecutorV2.ExecuteOIDCTemplate(vsCfg.Server.OIDC)
+		if err != nil {
+			return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer OIDC config: %v: %w", oidcName, err)
+		}
+		oidcChanged = cnf.nginxManager.CreateOIDCConfig(oidcName, oidcContent)
+	}
+
 	changed, err := cnf.nginxManager.CreateConfig(name, content)
 	if err != nil {
 		return false, warnings, weightUpdates, fmt.Errorf("error validating VirtualServer config %v: %w", name, err)
 	}
-
-	if vsCfg.Server.OIDC != nil {
-		name := getFileNameForOIDCVirtualServer(virtualServerEx.VirtualServer)
-
-		content, err := cnf.templateExecutorV2.ExecuteOIDCTemplate(vsCfg.Server.OIDC)
-		if err != nil {
-			return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer OIDC config: %v: %w", name, err)
-		}
-		oidcChanged := cnf.nginxManager.CreateOIDCConfig(name, content)
-		if oidcChanged {
-			changed = true
-		}
+	if oidcChanged {
+		changed = true
 	}
 	cnf.virtualServers[name] = virtualServerEx
 
