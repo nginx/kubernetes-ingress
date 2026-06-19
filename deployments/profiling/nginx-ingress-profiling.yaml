@@ -13,7 +13,7 @@
 #   kubectl apply -f deployments/rbac/rbac.yaml
 #   kubectl apply -f deployments/common/nginx-config.yaml
 #   kubectl apply -f deployments/common/ingress-class.yaml
-#   kubectl apply -f deployments/debug/nginx-ingress-profiling.yaml
+#   kubectl apply -f deployments/profiling/nginx-ingress-profiling.yaml
 #
 # Access pprof:
 #   kubectl port-forward -n nginx-ingress deploy/nginx-ingress 6060:6060

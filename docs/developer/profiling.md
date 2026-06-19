@@ -63,7 +63,7 @@ kubectl apply -f deployments/common/nginx-config.yaml
 kubectl apply -f deployments/common/ingress-class.yaml
 
 # 6. Deploy NIC with pprof exposed
-kubectl apply -f deployments/debug/nginx-ingress-profiling.yaml
+kubectl apply -f deployments/profiling/nginx-ingress-profiling.yaml
 
 # 7. Forward the pprof port
 kubectl port-forward -n nginx-ingress deploy/nginx-ingress 6060:6060
@@ -107,7 +107,7 @@ Note: this image uses `/dlv` as its entrypoint (Delve debugger), not `/nginx-ing
 
 ### Using the provided manifest
 
-A ready-to-use manifest is provided at `deployments/debug/nginx-ingress-profiling.yaml`. It contains:
+A ready-to-use manifest is provided at `deployments/profiling/nginx-ingress-profiling.yaml`. It contains:
 
 - A **Deployment** identical to the standard one, with an additional `pprof` container port (6060)
 - A **NodePort Service** (`nginx-ingress-pprof`) exposing port 6060 for pprof
@@ -122,7 +122,7 @@ kubectl apply -f deployments/common/nginx-config.yaml
 kubectl apply -f deployments/common/ingress-class.yaml
 
 # Deploy the profiling variant
-kubectl apply -f deployments/debug/nginx-ingress-profiling.yaml
+kubectl apply -f deployments/profiling/nginx-ingress-profiling.yaml
 ```
 
 Verify the pod is running and pprof is active:
