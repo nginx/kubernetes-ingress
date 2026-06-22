@@ -99,14 +99,14 @@
     "shortcode_row": {
       "nap_waf_prefix": "37.0",
       "compiler_version": "5.635.1",
-      "waf_release_version": "5.13.2"
+      "waf_release_version": "5.13.1"
     },
     "rows": [
       {
         "nic_version": "5.4.3",
         "nap_waf_version": "37.0+5.635.0",
-        "config_mgr_version": "5.13.2",
-        "enforcer_version": "5.13.2"
+        "config_mgr_version": "5.13.0",
+        "enforcer_version": "5.13.0"
       },
       {
         "nic_version": "5.3.4",
