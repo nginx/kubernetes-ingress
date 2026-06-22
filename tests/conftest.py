@@ -241,7 +241,9 @@ def pytest_runtest_makereport(item) -> None:
         while (not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace)) and count < 10:
             count += 1
             wait_before_test()
-        print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace))
+        pod = item.funcargs["kube_apis"].v1.read_namespaced_pod(pod_name, pod_namespace)
+        container_name = pod.spec.containers[0].name
+        print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace, container=container_name))
         print("\n===================== IC Logs End =====================")
 
     if rep.when == "call" and item.config.getoption("--skip-fixture-teardown") == "yes":
