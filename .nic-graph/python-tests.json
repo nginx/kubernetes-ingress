@@ -1,0 +1,6541 @@
+{
+  "files": [
+    {
+      "file": "tests/suite/fixtures/fixtures.py",
+      "top_tests": [
+        {
+          "name": "test_namespace",
+          "line": 136
+        }
+      ],
+      "fixtures": [
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_ac_polices_vs.py",
+      "classes": [
+        {
+          "name": "TestAccessControlPoliciesVs",
+          "line": 90,
+          "tests": [
+            {
+              "name": "test_deny_policy",
+              "line": 101,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_allow_policy",
+              "line": 171,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_override_policy",
+              "line": 234,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_invalid_policy",
+              "line": 282,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_deleted_policy",
+              "line": 339,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_route_override_spec",
+              "line": 398
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "config_setup",
+        "crd_ingress_controller",
+        "kube_apis",
+        "request",
+        "src",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_ac_policies_ingress.py",
+      "classes": [
+        {
+          "name": "TestAccessControlPoliciesIngress",
+          "line": 206,
+          "tests": [
+            {
+              "name": "test_deny_policy",
+              "line": 211,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize",
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_allow_policy",
+              "line": 247,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize",
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_invalid_policy",
+              "line": 284,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "config_setup",
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "ingress_setup",
+        "invalid_policy_setup",
+        "kube_apis",
+        "policy_setup",
+        "request",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_ac_policies_vsr.py",
+      "classes": [
+        {
+          "name": "TestAccessControlPoliciesVsr",
+          "line": 67,
+          "tests": [
+            {
+              "name": "test_deny_policy_vsr",
+              "line": 82,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_allow_policy_vsr",
+              "line": 154
+            },
+            {
+              "name": "test_override_policy_vsr",
+              "line": 214
+            },
+            {
+              "name": "test_invalid_policy_vsr",
+              "line": 273
+            },
+            {
+              "name": "test_override_vs_vsr",
+              "line": 329,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky",
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "config_setup",
+        "crd_ingress_controller",
+        "kube_apis",
+        "src",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_agent.py",
+      "classes": [
+        {
+          "name": "TestAgentV3",
+          "line": 19,
+          "tests": [
+            {
+              "name": "test_agent",
+              "line": 20
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_annotations.py",
+      "classes": [
+        {
+          "name": "TestAnnotations",
+          "line": 222,
+          "tests": [
+            {
+              "name": "test_nginx_config_defaults",
+              "line": 223
+            },
+            {
+              "name": "test_when_annotation_in_ing_only",
+              "line": 272,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_when_annotation_in_configmap_only",
+              "line": 324,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_ing_overrides_configmap",
+              "line": 377,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_upstream_zone_size_0",
+              "line": 425,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_validation",
+              "line": 469,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestMergeableFlows",
+          "line": 497,
+          "tests": [
+            {
+              "name": "test_minion_overrides_master",
+              "line": 519,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestStandardFlows",
+          "line": 551,
+          "tests": [
+            {
+              "name": "test_standard_ingress",
+              "line": 564,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestGrpcFlows",
+          "line": 591,
+          "tests": [
+            {
+              "name": "test_grpc_flow",
+              "line": 598,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "annotations",
+        "annotations_grpc_setup",
+        "annotations_setup",
+        "cli_arguments",
+        "configmap_file",
+        "expected_strings",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "unexpected_strings",
+        "yaml_file"
+      ]
+    },
+    {
+      "file": "tests/suite/test_apikey_auth_policies.py",
+      "classes": [
+        {
+          "name": "TestAPIKeyAuthPolicies",
+          "line": 59,
+          "tests": [
+            {
+              "name": "test_apikey_auth_policy_vs",
+              "line": 86
+            },
+            {
+              "name": "test_apikey_auth_policy_vs_and_vsr",
+              "line": 294
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_agent.py",
+      "classes": [
+        {
+          "name": "TestAppProtectAgentV2",
+          "line": 22,
+          "tests": [
+            {
+              "name": "test_ap_agent",
+              "line": 23
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller_with_ap",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_integration.py",
+      "classes": [
+        {
+          "name": "TestAppProtect",
+          "line": 164,
+          "tests": [
+            {
+              "name": "test_ap_nginx_config_entries",
+              "line": 165
+            },
+            {
+              "name": "test_ap_enable_true_policy_correct",
+              "line": 194,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_ap_enable_false_policy_correct",
+              "line": 217
+            },
+            {
+              "name": "test_ap_enable_true_policy_incorrect",
+              "line": 241
+            },
+            {
+              "name": "test_ap_enable_false_policy_incorrect",
+              "line": 268
+            },
+            {
+              "name": "test_ap_pod_startup",
+              "line": 297,
+              "markers": [
+                "pytest.mark.startup"
+              ]
+            },
+            {
+              "name": "test_ap_multi_sec_logs",
+              "line": 330,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_ap_enable_true_policy_correct_uds",
+              "line": 408,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky",
+        "pytest.mark.smoke",
+        "pytest.mark.startup"
+      ],
+      "fixtures": [
+        "appprotect_setup",
+        "crd_ingress_controller_with_ap",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "request",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_waf_policies.py",
+      "classes": [
+        {
+          "name": "TestAppProtectWAFPolicyVS",
+          "line": 136,
+          "tests": [
+            {
+              "name": "test_ap_waf_policy_block",
+              "line": 155,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_ap_waf_policy_allow",
+              "line": 232,
+              "markers": [
+                "pytest.mark.appprotect_waf_policies_allow",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_ap_waf_policy_multi_logs",
+              "line": 290
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFPolicyVSR",
+          "line": 392,
+          "tests": [
+            {
+              "name": "test_ap_waf_policy_block",
+              "line": 414,
+              "markers": [
+                "pytest.mark.appprotect_waf_policies_block",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFPolicyVSRSelector",
+          "line": 489,
+          "tests": [
+            {
+              "name": "test_ap_waf_policy_block",
+              "line": 511,
+              "markers": [
+                "pytest.mark.appprotect_waf_policies_block",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.appprotect_waf_policies_allow",
+        "pytest.mark.appprotect_waf_policies_block",
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "ap_enable",
+        "appprotect_setup",
+        "crd_ingress_controller_with_ap",
+        "kube_apis",
+        "test_namespace",
+        "v_s_route_selector_setup",
+        "v_s_route_setup",
+        "virtual_server_setup",
+        "vs_src",
+        "waf"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_waf_policies_grpc.py",
+      "classes": [
+        {
+          "name": "TestAppProtectVSGrpc",
+          "line": 226,
+          "tests": [
+            {
+              "name": "test_responses_grpc_block",
+              "line": 237,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_responses_grpc_allow",
+              "line": 275,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectVSRGrpc",
+          "line": 321,
+          "tests": [
+            {
+              "name": "test_responses_grpc_block",
+              "line": 332,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_responses_grpc_allow",
+              "line": 353,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "appprotect_setup",
+        "crd_ingress_controller_with_ap",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_waf_policies_ing.py",
+      "classes": [
+        {
+          "name": "TestAppProtectWAFPolicyIngress",
+          "line": 128,
+          "tests": [
+            {
+              "name": "test_waf_policy_v4_on_ingress",
+              "line": 129
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFPolicyMergeableIngress",
+          "line": 174,
+          "tests": [
+            {
+              "name": "test_waf_policy_v4_on_mergeable_ingress",
+              "line": 175
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "appprotect_v4_resources",
+        "crd_ingress_controller_with_ap",
+        "ingress_setup",
+        "kube_apis",
+        "mergeable_ingress_setup",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_wafv5_integration.py",
+      "classes": [
+        {
+          "name": "TestAppProtectWAFv5IntegrationVS",
+          "line": 41,
+          "tests": [
+            {
+              "name": "test_ap_waf_v5_policy_block_vs",
+              "line": 55,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFv5IntegrationVSR",
+          "line": 109,
+          "tests": [
+            {
+              "name": "test_ap_waf_v5_policy_block_vsr",
+              "line": 124
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFv5IntegrationVSRSelector",
+          "line": 186,
+          "tests": [
+            {
+              "name": "test_ap_waf_v5_policy_block_vsr_selector",
+              "line": 201
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller_with_waf_v5",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace",
+        "v_s_route_selector_setup",
+        "v_s_route_setup",
+        "virtual_server_setup",
+        "vs_src",
+        "waf_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_wafv5_integration_rorfs.py",
+      "classes": [
+        {
+          "name": "TestAppProtectWAFv5IntegrationVSrorfs",
+          "line": 41,
+          "tests": [
+            {
+              "name": "test_ap_waf_v5_policy_block_vs",
+              "line": 55,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFv5IntegrationVSRrorfs",
+          "line": 109,
+          "tests": [
+            {
+              "name": "test_ap_waf_v5_policy_block_vsr",
+              "line": 124
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller_with_waf_v5",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace",
+        "v_s_route_setup",
+        "virtual_server_setup",
+        "vs_src",
+        "waf_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_wafv5_policies_ing.py",
+      "classes": [
+        {
+          "name": "TestAppProtectWAFv5PolicyIngress",
+          "line": 97,
+          "tests": [
+            {
+              "name": "test_waf_policy_v5_on_ingress",
+              "line": 98
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFv5PolicyMergeableIngress",
+          "line": 132,
+          "tests": [
+            {
+              "name": "test_waf_policy_v5_on_mergeable_ingress",
+              "line": 133
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller_with_waf_v5",
+        "ingress_setup",
+        "kube_apis",
+        "mergeable_ingress_setup",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_watch_namespace.py",
+      "classes": [
+        {
+          "name": "TestAppProtectWatchNamespaceDisabled",
+          "line": 134,
+          "tests": [
+            {
+              "name": "test_responses",
+              "line": 135
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWatchNamespaceEnabled",
+          "line": 176,
+          "tests": [
+            {
+              "name": "test_responses",
+              "line": 177
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "backend_setup",
+        "crd_ingress_controller_with_ap",
+        "kube_apis",
+        "request",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_app_protect_watch_namespace_label.py",
+      "classes": [
+        {
+          "name": "TestAppProtectWatchNamespaceLabelEnabled",
+          "line": 143,
+          "tests": [
+            {
+              "name": "test_responses",
+              "line": 144
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "backend_setup",
+        "crd_ingress_controller_with_ap",
+        "kube_apis",
+        "request"
+      ]
+    },
+    {
+      "file": "tests/suite/test_auth_basic_auth_mergeable.py",
+      "classes": [
+        {
+          "name": "TestAuthBasicAuthMergeableMinions",
+          "line": 162,
+          "tests": [
+            {
+              "name": "test_auth_basic_auth_response_codes",
+              "line": 163
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "auth_basic_auth_setup",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_auth_basic_policies.py",
+      "classes": [
+        {
+          "name": "TestAuthBasicPolicies",
+          "line": 73,
+          "tests": [
+            {
+              "name": "test_auth_basic_policy_credentials",
+              "line": 112,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_auth_basic_policy_secret",
+              "line": 162,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_auth_basic_policy",
+              "line": 231,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_auth_basic_policy_delete_secret",
+              "line": 306
+            },
+            {
+              "name": "test_auth_basic_policy_delete_policy",
+              "line": 353
+            },
+            {
+              "name": "test_auth_basic_policy_override",
+              "line": 401
+            },
+            {
+              "name": "test_auth_basic_policy_override_spec",
+              "line": 474
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "credentials",
+        "htpasswd_secret",
+        "kube_apis",
+        "policy",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_auth_basic_policies_vsr.py",
+      "classes": [
+        {
+          "name": "TestAuthBasicPoliciesVsr",
+          "line": 60,
+          "tests": [
+            {
+              "name": "test_auth_basic_policy_credentials",
+              "line": 100,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_auth_basic_policy_secret",
+              "line": 152,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_auth_basic_policy",
+              "line": 227,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_auth_basic_policy_delete_secret",
+              "line": 307
+            },
+            {
+              "name": "test_auth_basic_policy_delete_policy",
+              "line": 373
+            },
+            {
+              "name": "test_auth_basic_policy_override",
+              "line": 436
+            },
+            {
+              "name": "test_auth_basic_policy_override_vs_vsr",
+              "line": 493,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "credentials",
+        "htpasswd_secret",
+        "kube_apis",
+        "policy",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup",
+        "vs_src"
+      ]
+    },
+    {
+      "file": "tests/suite/test_auth_basic_secrets.py",
+      "classes": [
+        {
+          "name": "TestAuthBasicSecrets",
+          "line": 111,
+          "tests": [
+            {
+              "name": "test_response_code_200_and_server_name",
+              "line": 112
+            },
+            {
+              "name": "test_response_codes_after_secret_remove_and_restore",
+              "line": 124
+            },
+            {
+              "name": "test_response_code_403_with_invalid_secret",
+              "line": 152
+            },
+            {
+              "name": "test_response_code_401_with_updated_secret",
+              "line": 172
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "auth_basic_secret",
+        "auth_basic_secrets_setup",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_batch_reloads.py",
+      "classes": [
+        {
+          "name": "TestMultipleSimpleIngress",
+          "line": 104,
+          "tests": [
+            {
+              "name": "test_simple_ingress_batch_start",
+              "line": 114,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtect",
+          "line": 233,
+          "tests": [
+            {
+              "name": "test_ap_ingress_batch_start",
+              "line": 234
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServer",
+          "line": 296,
+          "tests": [
+            {
+              "name": "test_vs_batch_start",
+              "line": 297
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFPolicyVS",
+          "line": 399,
+          "tests": [
+            {
+              "name": "test_ap_waf_policy_vs_batch_start",
+              "line": 400
+            }
+          ]
+        },
+        {
+          "name": "TestSingleVSMultipleVSRs",
+          "line": 498,
+          "tests": [
+            {
+              "name": "test_startup_time",
+              "line": 499
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "ap_ingress_setup",
+        "appprotect_waf_setup",
+        "crd_ingress_controller",
+        "crd_ingress_controller_with_ap",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "request",
+        "simple_ingress_setup",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_batch_startup_times.py",
+      "classes": [
+        {
+          "name": "TestMultipleSimpleIngress",
+          "line": 104,
+          "tests": [
+            {
+              "name": "test_simple_ingress_batch_start",
+              "line": 114,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtect",
+          "line": 233,
+          "tests": [
+            {
+              "name": "test_ap_ingress_batch_start",
+              "line": 234
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServer",
+          "line": 298,
+          "tests": [
+            {
+              "name": "test_vs_batch_start",
+              "line": 299
+            }
+          ]
+        },
+        {
+          "name": "TestAppProtectWAFPolicyVS",
+          "line": 405,
+          "tests": [
+            {
+              "name": "test_ap_waf_policy_vs_batch_start",
+              "line": 406
+            }
+          ]
+        },
+        {
+          "name": "TestSingleVSMultipleVSRs",
+          "line": 550,
+          "tests": [
+            {
+              "name": "test_startup_time",
+              "line": 551
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "ap_ingress_setup",
+        "appprotect_waf_setup",
+        "crd_ingress_controller",
+        "crd_ingress_controller_with_ap",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "request",
+        "simple_ingress_setup",
+        "test_namespace",
+        "virtual_server_setup",
+        "vs_vsr_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_build_info.py",
+      "classes": [
+        {
+          "name": "TestBuildVersion",
+          "line": 13,
+          "tests": [
+            {
+              "name": "test_build_version",
+              "line": 14
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_cache_policies_vs.py",
+      "classes": [
+        {
+          "name": "TestCachePolicies",
+          "line": 39,
+          "tests": [
+            {
+              "name": "test_cache_policy_basic",
+              "line": 47,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_cache_policy_advanced",
+              "line": 130,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_cache_policy_purge",
+              "line": 208,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.skip_for_nginx_oss"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "src",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_cache_policies_vsr.py",
+      "classes": [
+        {
+          "name": "TestCachePoliciesVSR",
+          "line": 37,
+          "tests": [
+            {
+              "name": "test_cache_policy_vsr_basic",
+              "line": 47
+            },
+            {
+              "name": "test_cache_policy_vsr_advanced",
+              "line": 135
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_config_rollback_ingress.py",
+      "classes": [
+        {
+          "name": "TestConfigRollbackIngressCreate",
+          "line": 73,
+          "tests": [
+            {
+              "name": "test_create_invalid_ingress",
+              "line": 76
+            }
+          ]
+        },
+        {
+          "name": "TestConfigRollbackIngress",
+          "line": 138,
+          "tests": [
+            {
+              "name": "test_ingress_rollback",
+              "line": 200,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_configmap_main_snippet_rollback",
+              "line": 269,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_configmap_partial_rollback",
+              "line": 349,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "annotations",
+        "configmap_data",
+        "crd_ingress_controller",
+        "expected_conf_absent",
+        "expected_log_error",
+        "expected_nginx_error",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "ingress_setup",
+        "kube_apis",
+        "protect_ingress",
+        "restore_configmap",
+        "test_namespace",
+        "transport_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_config_rollback_minion.py",
+      "classes": [
+        {
+          "name": "TestConfigRollbackMinion",
+          "line": 45,
+          "tests": [
+            {
+              "name": "test_minion_rollback",
+              "line": 102,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "expected_nginx_error",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "mergeable_setup",
+        "snippet_value",
+        "target",
+        "test_namespace",
+        "transport_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_config_rollback_ts.py",
+      "classes": [
+        {
+          "name": "TestConfigRollbackTSCreate",
+          "line": 70,
+          "tests": [
+            {
+              "name": "test_create_invalid_ts",
+              "line": 111,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestConfigRollbackTransportServer",
+          "line": 230,
+          "tests": [
+            {
+              "name": "test_ts_rollback",
+              "line": 246,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_configmap_main_snippet_rollback",
+              "line": 348,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "configmap_data",
+        "crd_ingress_controller",
+        "expected_log_error",
+        "expected_nginx_error",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "invalid_ts_yaml",
+        "kube_apis",
+        "restore_configmap",
+        "sni_hostname",
+        "snippet_value",
+        "test_namespace",
+        "traffic_port_attr",
+        "transport_server_setup",
+        "ts_create_setup",
+        "valid_ts_yaml",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_config_rollback_vs.py",
+      "classes": [
+        {
+          "name": "TestConfigRollbackVSCreate",
+          "line": 54,
+          "tests": [
+            {
+              "name": "test_create_invalid_vs",
+              "line": 57
+            }
+          ]
+        },
+        {
+          "name": "TestConfigRollbackVirtualServer",
+          "line": 120,
+          "tests": [
+            {
+              "name": "test_vs_rollback",
+              "line": 157,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_configmap_main_snippet_rollback",
+              "line": 248,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_configmap_partial_rollback",
+              "line": 322,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "apply_patch",
+        "configmap_data",
+        "crd_ingress_controller",
+        "expected_conf_absent",
+        "expected_log_error",
+        "expected_nginx_error",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "protect_vs",
+        "restore_configmap",
+        "test_namespace",
+        "transport_server_setup",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_config_rollback_vsr.py",
+      "classes": [
+        {
+          "name": "TestConfigRollbackVSRoute",
+          "line": 41,
+          "tests": [
+            {
+              "name": "test_vsr_rollback",
+              "line": 63,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "expected_nginx_error",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "snippet_value",
+        "target",
+        "transport_server_setup",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_cors_policies_ingress.py",
+      "classes": [
+        {
+          "name": "TestCORSPoliciesIngress",
+          "line": 37,
+          "tests": [
+            {
+              "name": "test_cors_policy_simple_ingress",
+              "line": 44
+            },
+            {
+              "name": "test_cors_policy_wildcard_ingress",
+              "line": 129
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_cors_policies_vs.py",
+      "classes": [
+        {
+          "name": "TestCORSPolicies",
+          "line": 35,
+          "tests": [
+            {
+              "name": "test_cors_policy_simple",
+              "line": 43,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_cors_policy_wildcard",
+              "line": 132,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "src",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_cors_policies_vsr.py",
+      "classes": [
+        {
+          "name": "TestCORSPoliciesVSR",
+          "line": 34,
+          "tests": [
+            {
+              "name": "test_cors_policy_vsr_simple",
+              "line": 43
+            },
+            {
+              "name": "test_cors_policy_vsr_wildcard",
+              "line": 137
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_custom_annotations.py",
+      "classes": [
+        {
+          "name": "TestCustomAnnotations",
+          "line": 103,
+          "tests": [
+            {
+              "name": "test_nginx_config",
+              "line": 104
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "custom_annotations_setup",
+        "expected_texts",
+        "ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_default_server.py",
+      "classes": [
+        {
+          "name": "TestDefaultServer",
+          "line": 110,
+          "tests": [
+            {
+              "name": "test_with_default_tls_secret",
+              "line": 122,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_without_default_tls_secret",
+              "line": 167,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_disable_default_listeners_true",
+              "line": 189,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_custom_default_listeners",
+              "line": 217,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_health_status_bypasses_ssl_redirect",
+              "line": 246,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "default_server_setup",
+        "default_server_setup_custom_port",
+        "deploy_empty_host_ingress",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "secret_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_disable_ipv6.py",
+      "classes": [
+        {
+          "name": "TestDisableIpv6VsTs",
+          "line": 43,
+          "tests": [
+            {
+              "name": "test_ipv6_listeners_not_in_config",
+              "line": 44
+            }
+          ]
+        },
+        {
+          "name": "TestDisableIPV6Ingress",
+          "line": 133,
+          "tests": [
+            {
+              "name": "test_ipv6_listeners_not_in_config",
+              "line": 134
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "ingress_setup",
+        "kube_apis",
+        "transport_server_setup",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_dos.py",
+      "classes": [
+        {
+          "name": "TestDos",
+          "line": 162,
+          "tests": [
+            {
+              "name": "test_ap_nginx_config_entries",
+              "line": 169
+            },
+            {
+              "name": "test_dos_sec_logs_on",
+              "line": 216
+            },
+            {
+              "name": "test_dos_allowlist",
+              "line": 267
+            },
+            {
+              "name": "test_dos_under_attack_with_learning",
+              "line": 307,
+              "markers": [
+                "pytest.mark.dos_learning"
+              ]
+            },
+            {
+              "name": "test_dos_arbitrator",
+              "line": 431
+            },
+            {
+              "name": "test_dos_arbitrator_different_ns",
+              "line": 493
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.dos_learning"
+      ],
+      "fixtures": [
+        "crd_ingress_controller_with_dos",
+        "dos_setup",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_egress_mtls.py",
+      "classes": [
+        {
+          "name": "TestEgressMtlsPolicyVS",
+          "line": 65,
+          "tests": [
+            {
+              "name": "test_egress_mtls_policy",
+              "line": 111,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "expected_code",
+        "expected_text",
+        "kube_apis",
+        "mtls_ca_secret",
+        "policy_src",
+        "test_description",
+        "test_namespace",
+        "virtual_server_setup",
+        "vs_message",
+        "vs_src",
+        "vs_state"
+      ]
+    },
+    {
+      "file": "tests/suite/test_egress_mtls_ingress.py",
+      "classes": [
+        {
+          "name": "TestEgressMTLSPoliciesIngress",
+          "line": 142,
+          "tests": [
+            {
+              "name": "test_valid_egress_mtls_policy",
+              "line": 145,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_invalid_egress_mtls_policy",
+              "line": 181,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "backend_setup",
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_variant",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_empty_host_ingress.py",
+      "classes": [
+        {
+          "name": "TestEmptyHostIngressCollisionResolution",
+          "line": 32,
+          "tests": [
+            {
+              "name": "test_empty_host_ingress_collision_resolution",
+              "line": 56
+            }
+          ]
+        },
+        {
+          "name": "TestEmptyHostIngressValidation",
+          "line": 184,
+          "tests": [
+            {
+              "name": "test_forbidden_annotation_rejected_for_empty_host_ingress",
+              "line": 202
+            },
+            {
+              "name": "test_default_backend_without_root_path_uses_single_root_location",
+              "line": 223
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "empty_host_app_setup",
+        "empty_host_apps_setup",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_empty_host_ingress_mergeable.py",
+      "classes": [
+        {
+          "name": "TestEmptyHostIngressMergeable",
+          "line": 28,
+          "tests": [
+            {
+              "name": "test_empty_host_minion_requires_master_sequence",
+              "line": 29
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_empty_host_ingress_reload.py",
+      "classes": [
+        {
+          "name": "TestEmptyHostIngressReload",
+          "line": 43,
+          "tests": [
+            {
+              "name": "test_patch_empty_host_ingress_with_invalid_annotation",
+              "line": 67
+            },
+            {
+              "name": "test_delete_winner_promote_invalid_loser",
+              "line": 116
+            },
+            {
+              "name": "test_named_to_empty_host_with_invalid_annotation",
+              "line": 171
+            },
+            {
+              "name": "test_empty_host_to_named_with_invalid_annotation",
+              "line": 241
+            }
+          ]
+        },
+        {
+          "name": "TestEmptyHostIngressStartupProtection",
+          "line": 303,
+          "tests": [
+            {
+              "name": "test_default_server_survives_invalid_empty_host_ingress_on_startup",
+              "line": 345
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "expect_rollback",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "invalid_empty_host_ingress_before_startup",
+        "kube_apis",
+        "reload_setup",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_external_auth_policies_ingress.py",
+      "classes": [
+        {
+          "name": "TestExternalAuthPoliciesIngress",
+          "line": 65,
+          "tests": [
+            {
+              "name": "test_external_auth_policy_valid",
+              "line": 76,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_credentials",
+              "line": 121,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_credentials_minion",
+              "line": 154,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_invalid_rejected_by_crd",
+              "line": 184,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_nonexistent_svc",
+              "line": 209,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_delete_policy",
+              "line": 238,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_delete_backend",
+              "line": 274,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_endpoint_recovery",
+              "line": 308,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_override",
+              "line": 370,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_master_vs_minion_override",
+              "line": 401,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_signin_uri",
+              "line": 429,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_custom_port",
+              "line": 460,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "check404",
+        "crd_ingress_controller",
+        "credentials",
+        "ext_auth_ingress",
+        "ext_auth_setup",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_external_auth_policies_tls_ingress.py",
+      "classes": [
+        {
+          "name": "TestExternalAuthPoliciesIngressTLS",
+          "line": 61,
+          "tests": [
+            {
+              "name": "test_tls_ssl_enabled_only",
+              "line": 66,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_full_verify_standard",
+              "line": 93,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_full_verify_mergeable",
+              "line": 125,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_credentials",
+              "line": 153,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_http_fallback",
+              "line": 183,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_signin_uri",
+              "line": 209,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_custom_port",
+              "line": 241,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_verify_without_ssl_enabled",
+              "line": 270,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_nonexistent_ca_secret",
+              "line": 291,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_wrong_ca_secret_type",
+              "line": 311,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_cross_ns_nonexistent_ca",
+              "line": 338,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_bad_sni_name",
+              "line": 359,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_verify_no_trusted_cert",
+              "line": 385,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_default_sni_mismatch",
+              "line": 407,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_delete_ca_secret",
+              "line": 429,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_delete_server_tls_secret",
+              "line": 464,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_delete_backend",
+              "line": 501,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_policy_override",
+              "line": 539,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "credentials",
+        "ext_auth_ingress",
+        "ext_auth_setup",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_external_auth_policies_tls_vs.py",
+      "classes": [
+        {
+          "name": "TestExternalAuthPoliciesTLS",
+          "line": 69,
+          "tests": [
+            {
+              "name": "test_tls_ssl_enabled_only",
+              "line": 73,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_full_verify",
+              "line": 108,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_credentials",
+              "line": 148,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_http_fallback",
+              "line": 187,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_verify_without_ssl_enabled",
+              "line": 222,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_custom_port",
+              "line": 254,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_signin_uri",
+              "line": 289,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_nonexistent_ca_secret",
+              "line": 328,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_wrong_ca_secret_type",
+              "line": 358,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_cross_ns_nonexistent_ca",
+              "line": 393,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_bad_sni_name",
+              "line": 423,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_verify_no_trusted_cert",
+              "line": 456,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_default_sni_mismatch",
+              "line": 488,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_delete_ca_secret",
+              "line": 521,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_delete_server_tls_secret",
+              "line": 572,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_policy_override",
+              "line": 628,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_delete_backend",
+              "line": 677,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "credentials",
+        "ext_auth_restore_vs",
+        "ext_auth_setup",
+        "kube_apis",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_external_auth_policies_vs.py",
+      "classes": [
+        {
+          "name": "TestExternalAuthPolicies",
+          "line": 66,
+          "tests": [
+            {
+              "name": "test_external_auth_policy_credentials",
+              "line": 69,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_valid",
+              "line": 109,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_invalid_rejected_by_crd",
+              "line": 150,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_nonexistent_svc",
+              "line": 168,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_delete_policy",
+              "line": 202,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_delete_backend",
+              "line": 242,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_endpoint_recovery",
+              "line": 282,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_override",
+              "line": 348,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_override_spec",
+              "line": 401,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_signin_uri",
+              "line": 448,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_custom_port",
+              "line": 495,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "credentials",
+        "ext_auth_restore_vs",
+        "ext_auth_setup",
+        "kube_apis",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_external_auth_policies_vsr.py",
+      "classes": [
+        {
+          "name": "TestExternalAuthPoliciesVsr",
+          "line": 82,
+          "tests": [
+            {
+              "name": "test_external_auth_policy_credentials",
+              "line": 94,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_valid",
+              "line": 142,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_invalid_rejected_by_crd",
+              "line": 193,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_external_auth_policy_nonexistent_svc",
+              "line": 213
+            },
+            {
+              "name": "test_external_auth_policy_delete_policy",
+              "line": 252
+            },
+            {
+              "name": "test_external_auth_policy_override",
+              "line": 317
+            },
+            {
+              "name": "test_external_auth_policy_override_vs_vsr",
+              "line": 373,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestExternalAuthPoliciesVsrTLS",
+          "line": 467,
+          "tests": [
+            {
+              "name": "test_tls_ssl_enabled_only",
+              "line": 484
+            },
+            {
+              "name": "test_tls_full_verify",
+              "line": 527,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_tls_credentials",
+              "line": 578,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_tls_nonexistent_ca_secret",
+              "line": 629
+            },
+            {
+              "name": "test_tls_wrong_ca_secret_type",
+              "line": 668
+            },
+            {
+              "name": "test_tls_bad_sni_name",
+              "line": 717
+            },
+            {
+              "name": "test_tls_verify_no_trusted_cert",
+              "line": 756
+            },
+            {
+              "name": "test_tls_delete_policy",
+              "line": 799
+            },
+            {
+              "name": "test_tls_delete_backend",
+              "line": 865
+            },
+            {
+              "name": "test_tls_policy_override_vs_vsr",
+              "line": 930,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "credentials",
+        "kube_apis",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup",
+        "vs_src"
+      ]
+    },
+    {
+      "file": "tests/suite/test_externalname_service.py",
+      "classes": [
+        {
+          "name": "TestExternalNameService",
+          "line": 113,
+          "tests": [
+            {
+              "name": "test_resolver",
+              "line": 114
+            },
+            {
+              "name": "test_ic_template_config_upstream_zone",
+              "line": 121
+            },
+            {
+              "name": "test_ic_template_config_upstream_rule",
+              "line": 138
+            },
+            {
+              "name": "test_ic_template_config_upstream_server",
+              "line": 150
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "external_name_setup",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_filter_secrets.py",
+      "classes": [
+        {
+          "name": "TestFilterSecret",
+          "line": 38,
+          "tests": [
+            {
+              "name": "test_filter_secret_single_namespace",
+              "line": 39
+            }
+          ]
+        },
+        {
+          "name": "TestFilterAfterIcCreated",
+          "line": 51,
+          "tests": [
+            {
+              "name": "test_filter_secret_created_after_ic",
+              "line": 52
+            }
+          ]
+        },
+        {
+          "name": "TestFilterSecretMultipuleNamespace",
+          "line": 105,
+          "tests": [
+            {
+              "name": "test_filter_secret_multi_namespace",
+              "line": 106
+            }
+          ]
+        },
+        {
+          "name": "TestFilterSecretMultipleNamespaceAfterIcCreated",
+          "line": 120,
+          "tests": [
+            {
+              "name": "test_filter_secret_multiplue_created_after_ic",
+              "line": 121
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "ingress_controller",
+        "kube_apis",
+        "request",
+        "setup_multiple_ns_and_multiple_secrets",
+        "setup_single_secret_and_ns"
+      ]
+    },
+    {
+      "file": "tests/suite/test_healthcheck_uri.py",
+      "classes": [
+        {
+          "name": "TestHealthStatusURI",
+          "line": 28,
+          "tests": [
+            {
+              "name": "test_response_code",
+              "line": 29
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "expected_responses",
+        "ingress_controller",
+        "ingress_controller_endpoint"
+      ]
+    },
+    {
+      "file": "tests/suite/test_hsts.py",
+      "classes": [
+        {
+          "name": "TestTLSHSTSFlows",
+          "line": 87,
+          "tests": [
+            {
+              "name": "test_headers",
+              "line": 88
+            }
+          ]
+        },
+        {
+          "name": "TestBrokenTLSHSTSFlows",
+          "line": 125,
+          "tests": [
+            {
+              "name": "test_headers_without_secret",
+              "line": 126
+            }
+          ]
+        },
+        {
+          "name": "TestNoTLSHSTS",
+          "line": 140,
+          "tests": [
+            {
+              "name": "test_headers",
+              "line": 141
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "hsts_setup",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_ingress_class.py",
+      "classes": [
+        {
+          "name": "TestIngressClassArgs",
+          "line": 76,
+          "tests": [
+            {
+              "name": "test_response_codes_117_plus",
+              "line": 93,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "backend_setup",
+        "expected_responses",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites"
+      ]
+    },
+    {
+      "file": "tests/suite/test_ingress_mtls.py",
+      "classes": [
+        {
+          "name": "TestIngressMtlsPolicyVS",
+          "line": 85,
+          "tests": [
+            {
+              "name": "test_ingress_mtls_policy",
+              "line": 116,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_ingress_mtls_policy_cert",
+              "line": 188,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_ingress_mtls_policy_crl",
+              "line": 286,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_ingress_mtls_policy_cert_crl",
+              "line": 355,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestIngressMtlsPolicyVSR",
+          "line": 437,
+          "tests": [
+            {
+              "name": "test_ingress_mtls_policy_vsr",
+              "line": 438
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "certificate",
+        "crd_ingress_controller",
+        "exception",
+        "expected_code",
+        "expected_text",
+        "kube_apis",
+        "mtls_secret_in",
+        "policy_src",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup",
+        "virtual_server_setup",
+        "vs_message",
+        "vs_src",
+        "vs_state"
+      ]
+    },
+    {
+      "file": "tests/suite/test_ingress_mtls_ingress.py",
+      "classes": [
+        {
+          "name": "TestIngressMTLSPoliciesIngress",
+          "line": 57,
+          "tests": [
+            {
+              "name": "test_ingress_mtls_policy_ingress",
+              "line": 89,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_invalid_ingress_mtls_policy_ingress",
+              "line": 181
+            },
+            {
+              "name": "test_ingress_mtls_chain_validation",
+              "line": 261
+            },
+            {
+              "name": "test_ingress_mtls_missing_secret_ingress",
+              "line": 368
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "certificate",
+        "crd_ingress_controller",
+        "exception",
+        "expected_code",
+        "expected_text",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_ingress_mtls_mergeable_ingress.py",
+      "classes": [
+        {
+          "name": "TestIngressMTLSMergeableIngress",
+          "line": 44,
+          "tests": [
+            {
+              "name": "test_ingress_mtls_policy_mergeable_master",
+              "line": 45
+            },
+            {
+              "name": "test_ingress_mtls_policy_mergeable_minion",
+              "line": 134
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_jwt_auth_mergeable.py",
+      "classes": [
+        {
+          "name": "TestJWTAuthMergeableMinions",
+          "line": 200,
+          "tests": [
+            {
+              "name": "test_jwt_auth_response_codes_and_location",
+              "line": 201
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "jwt_auth_setup",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_jwt_policies.py",
+      "classes": [
+        {
+          "name": "TestJWTPolicies",
+          "line": 50,
+          "tests": [
+            {
+              "name": "test_jwt_policy_token",
+              "line": 82,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_policy_secret",
+              "line": 141,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_policy",
+              "line": 210,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_policy_delete_secret",
+              "line": 285
+            },
+            {
+              "name": "test_jwt_policy_delete_policy",
+              "line": 332
+            },
+            {
+              "name": "test_jwt_policy_override",
+              "line": 380
+            },
+            {
+              "name": "test_jwt_policy_override_spec",
+              "line": 450
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "jwk_secret",
+        "kube_apis",
+        "policy",
+        "test_namespace",
+        "token",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_jwt_policies_jwksuri.py",
+      "classes": [
+        {
+          "name": "TestJWTPoliciesVsJwksuri",
+          "line": 194,
+          "tests": [
+            {
+              "name": "test_jwt_policy_jwksuri",
+              "line": 196,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_invalid_policy_jwksuri",
+              "line": 265,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_policy_subroute_jwksuri",
+              "line": 327,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_policy_subroute_jwksuri_multiple_vs",
+              "line": 395
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "jwt_virtual_server",
+        "keycloak_setup",
+        "kube_apis",
+        "request",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_jwt_policies_jwksuri_vsr.py",
+      "classes": [
+        {
+          "name": "TestJWTPoliciesVSRJwksuri",
+          "line": 44,
+          "tests": [
+            {
+              "name": "test_jwt_policy_jwksuri",
+              "line": 46,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_invalid_policy_jwksuri",
+              "line": 125,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "jwt_virtual_server_route",
+        "keycloak_setup",
+        "kube_apis",
+        "request",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_jwt_policies_vsr.py",
+      "classes": [
+        {
+          "name": "TestJWTPoliciesVsr",
+          "line": 47,
+          "tests": [
+            {
+              "name": "test_jwt_policy_token",
+              "line": 79,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_policy_secret",
+              "line": 140,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_policy",
+              "line": 215,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_jwt_policy_delete_secret",
+              "line": 298
+            },
+            {
+              "name": "test_jwt_policy_delete_policy",
+              "line": 364
+            },
+            {
+              "name": "test_jwt_policy_override",
+              "line": 427
+            },
+            {
+              "name": "test_jwt_policy_override_vs_vsr",
+              "line": 486,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "jwk_secret",
+        "kube_apis",
+        "policy",
+        "test_namespace",
+        "token",
+        "v_s_route_app_setup",
+        "v_s_route_setup",
+        "vs_src"
+      ]
+    },
+    {
+      "file": "tests/suite/test_jwt_secrets.py",
+      "classes": [
+        {
+          "name": "TestJWTSecrets",
+          "line": 98,
+          "tests": [
+            {
+              "name": "test_response_code_200_and_server_name",
+              "line": 99
+            },
+            {
+              "name": "test_response_codes_after_secret_remove_and_restore",
+              "line": 111
+            },
+            {
+              "name": "test_response_code_500_with_invalid_secret",
+              "line": 137
+            },
+            {
+              "name": "test_response_code_302_with_updated_secret",
+              "line": 152
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "jwt_secret",
+        "jwt_secrets_setup",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_mgmt_configmap_keys.py",
+      "classes": [
+        {
+          "name": "TestMGMTConfigMap",
+          "line": 43,
+          "tests": [
+            {
+              "name": "test_mgmt_configmap_events",
+              "line": 53,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_full_mgmt_configmap",
+              "line": 157,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "cli_arguments",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_multiple_ns_perf.py",
+      "classes": [
+        {
+          "name": "TestMultipleSimpleIngress",
+          "line": 73,
+          "tests": [
+            {
+              "name": "test_ingress_multi_ns",
+              "line": 76
+            }
+          ]
+        },
+        {
+          "name": "TestMultipleVS",
+          "line": 136,
+          "tests": [
+            {
+              "name": "test_vs_multi_ns",
+              "line": 139
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "cli_arguments",
+        "ingress_controller_prerequisites",
+        "ingress_ns_setup",
+        "kube_apis",
+        "request",
+        "vs_ns_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_oidc.py",
+      "classes": [
+        {
+          "name": "TestOIDCHttp",
+          "line": 166,
+          "tests": [
+            {
+              "name": "test_oidc",
+              "line": 169,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestOIDCHttps",
+          "line": 212,
+          "tests": [
+            {
+              "name": "test_oidc",
+              "line": 215,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "configmap",
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "keycloak_setup",
+        "kube_apis",
+        "oidcYaml",
+        "request",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_oidc_fclo.py",
+      "classes": [
+        {
+          "name": "TestOIDCFCLO",
+          "line": 141,
+          "tests": [
+            {
+              "name": "test_oidc",
+              "line": 142
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "keycloak_setup",
+        "kube_apis",
+        "request",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_otel.py",
+      "classes": [
+        {
+          "name": "TestOtel",
+          "line": 29,
+          "tests": [
+            {
+              "name": "test_otel_not_enabled",
+              "line": 31
+            },
+            {
+              "name": "test_otel_endpoint",
+              "line": 58
+            },
+            {
+              "name": "test_otel_header",
+              "line": 109
+            },
+            {
+              "name": "test_otel_header_name_only",
+              "line": 161
+            },
+            {
+              "name": "test_otel_header_value_only",
+              "line": 213
+            },
+            {
+              "name": "test_otel_service_name",
+              "line": 265
+            },
+            {
+              "name": "test_otel_trace",
+              "line": 317
+            },
+            {
+              "name": "test_otel_all",
+              "line": 365
+            },
+            {
+              "name": "test_otel_all_except_endpoint",
+              "line": 425
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_policy_ingress_class.py",
+      "classes": [
+        {
+          "name": "TestRateLimitingPolicies",
+          "line": 41,
+          "tests": [
+            {
+              "name": "test_policy_empty_ingress_class",
+              "line": 51,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_policy_matching_ingress_class",
+              "line": 95,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_policy_non_matching_ingress_class",
+              "line": 139,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "src",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_prometheus_metrics.py",
+      "classes": [
+        {
+          "name": "TestPrometheusExporter",
+          "line": 85,
+          "tests": [
+            {
+              "name": "test_metrics",
+              "line": 113,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_latency_metrics",
+              "line": 150,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_https_metrics",
+              "line": 187,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestTransportServerMetrics",
+          "line": 257,
+          "tests": [
+            {
+              "name": "test_total_metrics",
+              "line": 266,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestPrometheusExporterPlus",
+          "line": 313,
+          "tests": [
+            {
+              "name": "test_plus_metrics",
+              "line": 333,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "cli_arguments",
+        "crd_ingress_controller",
+        "expected_metrics",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_setup",
+        "kube_apis",
+        "prometheus_secret_setup",
+        "test_namespace",
+        "ts",
+        "ts_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_rewrite_target.py",
+      "classes": [
+        {
+          "name": "TestRewriteTarget",
+          "line": 81,
+          "tests": [
+            {
+              "name": "test_static_rewrite_target",
+              "line": 83,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_regex_rewrite_target",
+              "line": 102,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "rewrite_target_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_rewrites.py",
+      "classes": [
+        {
+          "name": "TestRewrites",
+          "line": 101,
+          "tests": [
+            {
+              "name": "test_vs_rewrite",
+              "line": 105,
+              "markers": [
+                "pytest.mark.vs",
+                "pytest.mark.vs_rewrite",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_vsr_rewrite",
+              "line": 117,
+              "markers": [
+                "pytest.mark.vsr",
+                "pytest.mark.vsr_rewrite",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.vs",
+        "pytest.mark.vs_rewrite",
+        "pytest.mark.vsr",
+        "pytest.mark.vsr_rewrite"
+      ],
+      "fixtures": [
+        "args",
+        "cookies",
+        "expected",
+        "path",
+        "vs_rewrites_setup",
+        "vsr_rewrites_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_rl_ingress.py",
+      "classes": [
+        {
+          "name": "TestRateLimitIngress",
+          "line": 109,
+          "tests": [
+            {
+              "name": "test_ingress_rate_limit",
+              "line": 110
+            }
+          ]
+        },
+        {
+          "name": "TestRateLimitIngressZoneSync",
+          "line": 138,
+          "tests": [
+            {
+              "name": "test_ingress_rate_limit_with_zone_sync",
+              "line": 139
+            }
+          ]
+        },
+        {
+          "name": "TestRateLimitIngressScaled",
+          "line": 212,
+          "tests": [
+            {
+              "name": "test_ingress_rate_limit_scaled",
+              "line": 213
+            }
+          ]
+        },
+        {
+          "name": "TestRateLimitIngressScaledWithZoneSync",
+          "line": 249,
+          "tests": [
+            {
+              "name": "test_ingress_rate_limit_scaled_with_zone_sync",
+              "line": 250
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "annotations_setup",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_rl_policies.py",
+      "classes": [
+        {
+          "name": "TestRateLimitingPolicies",
+          "line": 124,
+          "tests": [
+            {
+              "name": "test_rl_policy_1rs",
+              "line": 163,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_5rs",
+              "line": 196,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_invalid",
+              "line": 229,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_deleted",
+              "line": 267,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_override",
+              "line": 303,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_override_spec_route",
+              "line": 338,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_scaled",
+              "line": 375,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_5rs_with_zone_sync",
+              "line": 423,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_with_scale_and_zone_sync",
+              "line": 503,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_jwt_claim_sub",
+              "line": 597,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestTieredRateLimitingPolicies",
+          "line": 660,
+          "tests": [
+            {
+              "name": "test_speclevel_rl_policy_tiered_basic_premium_no_default_jwt_claim_sub",
+              "line": 700,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_speclevel_rl_policy_tiered_basic_premium_with_default_jwt_claim_sub",
+              "line": 768,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_routelevel_rl_policy_tiered_basic_premium_with_default_jwt_claim_sub",
+              "line": 838,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_routelevel_rl_policy_tiered_basic_premium_no_default_jwt_claim_sub",
+              "line": 915,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_duplicate_default_policy_tiered_basic_premium_with_default_jwt_claim_sub",
+              "line": 990,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_speclevel_rl_policy_tiered_basic_premium_with_default_variables_apikey",
+              "line": 1035,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_speclevel_rl_policy_tiered_read_write_with_default_variables_request_method",
+              "line": 1103,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.skip_for_nginx_oss",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "src",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_rl_policies_vsr.py",
+      "classes": [
+        {
+          "name": "TestRateLimitingPoliciesVsr",
+          "line": 140,
+          "tests": [
+            {
+              "name": "test_rl_policy_1rs_vsr",
+              "line": 184,
+              "markers": [
+                "pytest.mark.smoke",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_5rs_vsr",
+              "line": 218,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_override_vsr",
+              "line": 251,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_deleted_vsr",
+              "line": 288,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_invalid_vsr",
+              "line": 326,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_override_vs_vsr",
+              "line": 373,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_scaled_vsr",
+              "line": 422,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_5rs_with_zone_sync_vsr",
+              "line": 466,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_with_scale_and_zone_sync_vsr",
+              "line": 547,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_jwt_claim_sub_vsr",
+              "line": 642,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestTieredRateLimitingPoliciesVsr",
+          "line": 704,
+          "tests": [
+            {
+              "name": "test_rl_policy_tiered_basic_premium_no_default_jwt_claim_sub_vsr",
+              "line": 748,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_tiered_basic_premium_with_default_jwt_claim_sub_vsr",
+              "line": 824,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_multiple_tiered_jwt_claim_sub_vsr",
+              "line": 900,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_override_multiple_tiered_jwt_claim_sub_vs_vsr",
+              "line": 1041,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_duplicate_default_policy_tiered_basic_premium_with_default_jwt_claim_sub_vsr",
+              "line": 1190,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_override_multiple_tiered_apikey_vs_vsr",
+              "line": 1242,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_rl_policy_multiple_tiered_variables_apikey_vsr",
+              "line": 1375,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.skip_for_nginx_oss",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "src",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_smoke.py",
+      "classes": [
+        {
+          "name": "TestSmoke",
+          "line": 77,
+          "tests": [
+            {
+              "name": "test_response_code_200_and_server_name",
+              "line": 90,
+              "markers": [
+                "pytest.mark.parametrize",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_reload_count_after_start",
+              "line": 108,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_batch_create_reload_count",
+              "line": 132,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "path",
+        "request",
+        "smoke_setup",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_snippet_flag.py",
+      "classes": [
+        {
+          "name": "TestSnippetAnnotation",
+          "line": 16,
+          "tests": [
+            {
+              "name": "test_snippet_annotation_used",
+              "line": 29,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_snippet_annotation_ignored",
+              "line": 61,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace"
+      ]
+    },
+    {
+      "file": "tests/suite/test_startup_perf.py",
+      "classes": [
+        {
+          "name": "TestStartupPerf",
+          "line": 861,
+          "tests": [
+            {
+              "name": "test_startup_with_config_safety",
+              "line": 889
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "cli_arguments",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "request",
+        "startup_perf_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_tls.py",
+      "classes": [
+        {
+          "name": "TestIngressTLS",
+          "line": 109,
+          "tests": [
+            {
+              "name": "test_tls_termination",
+              "line": 110
+            }
+          ]
+        },
+        {
+          "name": "TestIngressTLSDynamicReloads",
+          "line": 165,
+          "tests": [
+            {
+              "name": "test_tls_termination",
+              "line": 166
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "test_namespace",
+        "tls_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server.py",
+      "classes": [
+        {
+          "name": "TestTransportServer",
+          "line": 25,
+          "tests": [
+            {
+              "name": "test_snippets",
+              "line": 26
+            },
+            {
+              "name": "test_configurable_timeout_directives",
+              "line": 64
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "transport_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server_backup_service.py",
+      "classes": [
+        {
+          "name": "TestTransportServerWithBackupService",
+          "line": 185,
+          "tests": [
+            {
+              "name": "test_get_response_from_application",
+              "line": 191
+            },
+            {
+              "name": "test_get_response_from_backup",
+              "line": 239
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace",
+        "transport_server_tls_passthrough_setup",
+        "ts_externalname_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server_custom_ip_listener.py",
+      "classes": [
+        {
+          "name": "TestTransportServerCustomIPListener",
+          "line": 24,
+          "tests": [
+            {
+              "name": "test_ts_custom_ip_listener",
+              "line": 25
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "transport_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server_external_name.py",
+      "classes": [
+        {
+          "name": "TestTransportServerStatus",
+          "line": 93,
+          "tests": [
+            {
+              "name": "test_template_config",
+              "line": 94
+            },
+            {
+              "name": "test_event_warning",
+              "line": 132,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "transport_server_setup",
+        "ts_externalname_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server_service_insight.py",
+      "classes": [
+        {
+          "name": "TestTransportServerTSServiceInsightHTTP",
+          "line": 103,
+          "tests": [
+            {
+              "name": "test_ts_service_insight",
+              "line": 104
+            }
+          ]
+        },
+        {
+          "name": "TestTransportServerTSServiceInsightHTTPS",
+          "line": 176,
+          "tests": [
+            {
+              "name": "test_ts_service_insight_https",
+              "line": 177
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "https_secret_setup",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "test_namespace",
+        "transport_server_tls_passthrough_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server_status.py",
+      "classes": [
+        {
+          "name": "TestTransportServerStatus",
+          "line": 25,
+          "tests": [
+            {
+              "name": "test_status_valid",
+              "line": 39,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_status_warning",
+              "line": 59
+            },
+            {
+              "name": "test_status_invalid",
+              "line": 89
+            },
+            {
+              "name": "test_valid_status_invalid_udp_listener",
+              "line": 120
+            },
+            {
+              "name": "test_valid_status_invalid_tcp_listener",
+              "line": 160
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "transport_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server_tcp_load_balance.py",
+      "classes": [
+        {
+          "name": "TestTransportServerTcpLoadBalance",
+          "line": 42,
+          "tests": [
+            {
+              "name": "test_number_of_replicas",
+              "line": 56
+            },
+            {
+              "name": "test_tcp_request_load_balanced",
+              "line": 105
+            },
+            {
+              "name": "test_tcp_request_load_balanced_multiple",
+              "line": 155
+            },
+            {
+              "name": "test_tcp_request_load_balanced_wrong_port",
+              "line": 225
+            },
+            {
+              "name": "test_tcp_request_load_balanced_missing_service",
+              "line": 254
+            },
+            {
+              "name": "test_tcp_request_max_connections",
+              "line": 293
+            },
+            {
+              "name": "test_tcp_request_load_balanced_method",
+              "line": 368
+            },
+            {
+              "name": "test_tcp_passing_healthcheck_with_match",
+              "line": 457,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss"
+              ]
+            },
+            {
+              "name": "test_tcp_failing_healthcheck_with_match",
+              "line": 522,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss"
+              ]
+            },
+            {
+              "name": "test_secure_tcp_request_load_balanced",
+              "line": 588
+            }
+          ]
+        },
+        {
+          "name": "TestTransportServerTcpLoadBalanceDynamicReload",
+          "line": 673,
+          "tests": [
+            {
+              "name": "test_dynamic_reload",
+              "line": 674
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.skip_for_nginx_oss"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "transport_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server_udp_load_balance.py",
+      "classes": [
+        {
+          "name": "TestTransportServerUdpLoadBalance",
+          "line": 63,
+          "tests": [
+            {
+              "name": "test_number_of_replicas",
+              "line": 76
+            },
+            {
+              "name": "test_udp_request_load_balanced",
+              "line": 124
+            },
+            {
+              "name": "test_udp_request_load_balanced_multiple",
+              "line": 174
+            },
+            {
+              "name": "test_udp_request_fails",
+              "line": 242,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_udp_passing_healthcheck_with_match",
+              "line": 275,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss"
+              ]
+            },
+            {
+              "name": "test_udp_failing_healthcheck_with_match",
+              "line": 344,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize",
+        "pytest.mark.skip_for_nginx_oss"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "file",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "transport_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_transport_server_with_host.py",
+      "classes": [
+        {
+          "name": "TestTransportServerWithHost",
+          "line": 30,
+          "tests": [
+            {
+              "name": "test_ts_with_host",
+              "line": 31
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "transport_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_ts_tls_passthrough.py",
+      "classes": [
+        {
+          "name": "TestTransportServerTlsPassthrough",
+          "line": 120,
+          "tests": [
+            {
+              "name": "test_tls_passthrough",
+              "line": 135,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_tls_passthrough_proxy_protocol_config",
+              "line": 159
+            },
+            {
+              "name": "test_tls_passthrough_host_collision_ts",
+              "line": 188
+            },
+            {
+              "name": "test_tls_passthrough_host_collision_vs",
+              "line": 223
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace",
+        "transport_server_tls_passthrough_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_udp_http_listeners_together.py",
+      "classes": [
+        {
+          "name": "TestUDPandHTTPListenersTogether",
+          "line": 40,
+          "tests": [
+            {
+              "name": "test_udp_and_http_listeners_together",
+              "line": 41
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "transport_server_setup",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_upgrade_resources.py",
+      "classes": [
+        {
+          "name": "TestUpgrade",
+          "line": 27,
+          "tests": [
+            {
+              "name": "test_create",
+              "line": 29,
+              "markers": [
+                "pytest.mark.create"
+              ]
+            },
+            {
+              "name": "test_delete",
+              "line": 122,
+              "markers": [
+                "pytest.mark.delete"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.create",
+        "pytest.mark.delete"
+      ],
+      "fixtures": [
+        "kube_apis",
+        "request"
+      ]
+    },
+    {
+      "file": "tests/suite/test_use_cluster_ip.py",
+      "classes": [
+        {
+          "name": "TestIngressUseClusterIPReloads",
+          "line": 83,
+          "tests": [
+            {
+              "name": "test_ingress_use_cluster_ip_reloads",
+              "line": 84
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "test_namespace",
+        "use_cluster_ip_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerRoute",
+          "line": 63,
+          "tests": [
+            {
+              "name": "test_responses_and_events_in_flow",
+              "line": 64
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServerRouteValidation",
+          "line": 337,
+          "tests": [
+            {
+              "name": "test_vsr_without_vs",
+              "line": 338
+            },
+            {
+              "name": "test_make_existing_vsr_invalid",
+              "line": 369,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 399
+            }
+          ]
+        },
+        {
+          "name": "TestCreateInvalidVirtualServerRoute",
+          "line": 437,
+          "tests": [
+            {
+              "name": "test_create_invalid_vsr",
+              "line": 438
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServerRouteSelector",
+          "line": 475,
+          "tests": [
+            {
+              "name": "test_responses_and_events_in_flow",
+              "line": 489
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "route_yaml",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_selector_app_setup",
+        "v_s_route_selector_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_advanced_routing.py",
+      "classes": [
+        {
+          "name": "TestVSRAdvancedRouting",
+          "line": 121,
+          "tests": [
+            {
+              "name": "test_flow_with_header",
+              "line": 122
+            },
+            {
+              "name": "test_flow_with_argument",
+              "line": 142
+            },
+            {
+              "name": "test_flow_with_cookie",
+              "line": 165
+            },
+            {
+              "name": "test_flow_with_variable",
+              "line": 194
+            },
+            {
+              "name": "test_flow_with_complex_conditions",
+              "line": 211
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "vsr_adv_routing_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_api.py",
+      "classes": [
+        {
+          "name": "TestVSRNginxPlusApi",
+          "line": 26,
+          "tests": [
+            {
+              "name": "test_dynamic_configuration",
+              "line": 27
+            },
+            {
+              "name": "test_status_zone_support",
+              "line": 63
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_canned_responses.py",
+      "classes": [
+        {
+          "name": "TestVSRCannedResponses",
+          "line": 34,
+          "tests": [
+            {
+              "name": "test_config",
+              "line": 35
+            },
+            {
+              "name": "test_custom_canned_response",
+              "line": 47
+            },
+            {
+              "name": "test_default_canned_response",
+              "line": 80
+            },
+            {
+              "name": "test_update",
+              "line": 88
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 123,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 139
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_error_pages.py",
+      "classes": [
+        {
+          "name": "TestVSRErrorPages",
+          "line": 32,
+          "tests": [
+            {
+              "name": "test_redirect_strategy",
+              "line": 33
+            },
+            {
+              "name": "test_return_strategy",
+              "line": 47
+            },
+            {
+              "name": "test_virtual_server_after_update",
+              "line": 60
+            },
+            {
+              "name": "test_validation_event_flow",
+              "line": 87
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 130
+            },
+            {
+              "name": "test_splits_and_matches",
+              "line": 173,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_vsr_overrides_vs",
+              "line": 196
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "v_s_r_data",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_externalname.py",
+      "classes": [
+        {
+          "name": "TestVSRWithExternalNameService",
+          "line": 144,
+          "tests": [
+            {
+              "name": "test_responses",
+              "line": 145
+            },
+            {
+              "name": "test_template_config",
+              "line": 154
+            },
+            {
+              "name": "test_events_flows",
+              "line": 178,
+              "markers": [
+                "pytest.mark.xfail"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.xfail"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "vsr_externalname_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_focused_canary.py",
+      "classes": [
+        {
+          "name": "TestVSRFocusedCanaryRelease",
+          "line": 130,
+          "tests": [
+            {
+              "name": "test_flow_with_header",
+              "line": 131
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "vsr_canary_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_grpc.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerRouteGrpc",
+          "line": 79,
+          "tests": [
+            {
+              "name": "test_config_after_setup",
+              "line": 103,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_config_after_enable_tls",
+              "line": 120,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 142,
+              "markers": [
+                "pytest.mark.flaky",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_mixed_config",
+              "line": 163,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky",
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "backend_setup",
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_multiple_regex.py",
+      "classes": [
+        {
+          "name": "TestVSRMultipleRegexPaths",
+          "line": 107,
+          "tests": [
+            {
+              "name": "test_happy_path_status",
+              "line": 137,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_happy_path_traffic",
+              "line": 151
+            },
+            {
+              "name": "test_happy_path_nginx_config",
+              "line": 169
+            },
+            {
+              "name": "test_vs_path_not_in_vsr",
+              "line": 193
+            },
+            {
+              "name": "test_vsr_path_not_in_vs",
+              "line": 219
+            },
+            {
+              "name": "test_vs_duplicate_paths",
+              "line": 245
+            },
+            {
+              "name": "test_vsr_duplicate_paths",
+              "line": 270
+            },
+            {
+              "name": "test_vsr_mixed_regex_nonregex",
+              "line": 296
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "multi_regex_vsr_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_redirects.py",
+      "classes": [
+        {
+          "name": "TestVSRRedirects",
+          "line": 32,
+          "tests": [
+            {
+              "name": "test_config",
+              "line": 33
+            },
+            {
+              "name": "test_custom_redirect",
+              "line": 45
+            },
+            {
+              "name": "test_default_redirect",
+              "line": 52
+            },
+            {
+              "name": "test_update",
+              "line": 59
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 88,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 104
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_regexp_location.py",
+      "classes": [
+        {
+          "name": "TestRegexpLocation",
+          "line": 35,
+          "tests": [
+            {
+              "name": "test_response_for_regex_location",
+              "line": 74,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_flow_for_invalid_vs",
+              "line": 107
+            },
+            {
+              "name": "test_flow_for_invalid_vsr",
+              "line": 135
+            }
+          ]
+        },
+        {
+          "name": "TestVSRRegexpMultipleMatches",
+          "line": 235,
+          "tests": [
+            {
+              "name": "test_exact_match_overrides_all",
+              "line": 236
+            },
+            {
+              "name": "test_regexp_overrides_prefix",
+              "line": 249
+            },
+            {
+              "name": "test_longest_prefix_overrides_regexp",
+              "line": 270
+            }
+          ]
+        },
+        {
+          "name": "TestVSRSelectorRegexpLocation",
+          "line": 307,
+          "tests": [
+            {
+              "name": "test_response_for_regex_location",
+              "line": 346,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_flow_for_invalid_vs",
+              "line": 384
+            },
+            {
+              "name": "test_flow_for_invalid_vsr",
+              "line": 417
+            }
+          ]
+        },
+        {
+          "name": "TestVSRSelectorRegexpMultipleMatches",
+          "line": 529,
+          "tests": [
+            {
+              "name": "test_exact_match_overrides_all",
+              "line": 530
+            },
+            {
+              "name": "test_regexp_overrides_prefix",
+              "line": 543
+            },
+            {
+              "name": "test_longest_prefix_overrides_regexp",
+              "line": 567
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_data",
+        "v_s_route_app_setup",
+        "v_s_route_selector_app_setup",
+        "v_s_route_selector_setup",
+        "v_s_route_setup",
+        "vsr_regexp_setup",
+        "vsr_selector_regexp_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_service_insight.py",
+      "classes": [
+        {
+          "name": "TestServiceInsightVsr",
+          "line": 29,
+          "tests": [
+            {
+              "name": "test_service_insight_vsr",
+              "line": 30
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "test_namespace",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_split_traffic.py",
+      "classes": [
+        {
+          "name": "TestVSRTrafficSplitting",
+          "line": 54,
+          "tests": [
+            {
+              "name": "test_several_requests",
+              "line": 55
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_status.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerRouteStatus",
+          "line": 28,
+          "tests": [
+            {
+              "name": "test_status_valid",
+              "line": 64,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_status_invalid",
+              "line": 94
+            },
+            {
+              "name": "test_status_invalid_prefix",
+              "line": 143
+            },
+            {
+              "name": "test_status_invalid_vsr_in_vs",
+              "line": 193
+            },
+            {
+              "name": "test_status_remove_vs",
+              "line": 234
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_upstream_options.py",
+      "classes": [
+        {
+          "name": "TestVSRouteUpstreamOptions",
+          "line": 39,
+          "tests": [
+            {
+              "name": "test_nginx_config_upstreams_defaults",
+              "line": 40
+            },
+            {
+              "name": "test_when_option_in_v_s_r_only",
+              "line": 156,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_when_option_in_config_map_only",
+              "line": 249,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_v_s_r_overrides_config_map",
+              "line": 357,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestVSRouteUpstreamOptionsValidation",
+          "line": 433,
+          "tests": [
+            {
+              "name": "test_event_message_and_config",
+              "line": 434
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 530
+            }
+          ]
+        },
+        {
+          "name": "TestOptionsSpecificForPlus",
+          "line": 599,
+          "tests": [
+            {
+              "name": "test_config_and_events",
+              "line": 651,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_slow_start_warning",
+              "line": 712,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 759
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 840
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "config_map_file",
+        "crd_ingress_controller",
+        "expected_strings",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "options",
+        "restore_configmap",
+        "unexpected_strings",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_upstream_tls.py",
+      "classes": [
+        {
+          "name": "TestVSRouteUpstreamTls",
+          "line": 83,
+          "tests": [
+            {
+              "name": "test_responses_and_config_after_setup",
+              "line": 84
+            },
+            {
+              "name": "test_events_after_setup",
+              "line": 117
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 138,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_responses_and_config_after_disable_tls",
+              "line": 188
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "v_s_route_secure_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_weight_changes_dynamic_reload.py",
+      "classes": [
+        {
+          "name": "TestVSRWeightChangesWithReloadCondition",
+          "line": 129,
+          "tests": [
+            {
+              "name": "test_vsr_weight_changes_reload_behavior",
+              "line": 131
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "expect_reload",
+        "kube_apis",
+        "vsr_weight_changes_dynamic_reload_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_v_s_route_weight_changes_dynamic_reload_many_splits.py",
+      "classes": [
+        {
+          "name": "TestVSRWeightChangesDynamicReloadManySplits",
+          "line": 138,
+          "tests": [
+            {
+              "name": "test_vsr_weight_changes_dynamic_reload_many_splits",
+              "line": 140,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "vsr_weight_changes_dynamic_reload_many_splits_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server.py",
+      "classes": [
+        {
+          "name": "TestVirtualServer",
+          "line": 36,
+          "tests": [
+            {
+              "name": "test_responses_after_setup",
+              "line": 37
+            },
+            {
+              "name": "test_responses_after_virtual_server_update",
+              "line": 43
+            },
+            {
+              "name": "test_responses_after_backend_update",
+              "line": 84
+            },
+            {
+              "name": "test_responses_after_virtual_server_removal",
+              "line": 103
+            },
+            {
+              "name": "test_responses_after_backend_service_removal",
+              "line": 122
+            },
+            {
+              "name": "test_responses_after_rbac_misconfiguration_on_the_fly",
+              "line": 137
+            },
+            {
+              "name": "test_responses_after_crd_removal_on_the_fly",
+              "line": 152
+            },
+            {
+              "name": "test_responses_after_virtual_server_update_with_gunzip",
+              "line": 170
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServerInitialRBACMisconfiguration",
+          "line": 221,
+          "tests": [
+            {
+              "name": "test_responses_after_rbac_misconfiguration",
+              "line": 223,
+              "markers": [
+                "pytest.mark.skip"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.skip"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_advanced_routing.py",
+      "classes": [
+        {
+          "name": "TestAdvancedRouting",
+          "line": 41,
+          "tests": [
+            {
+              "name": "test_flow_with_header",
+              "line": 42
+            },
+            {
+              "name": "test_flow_with_argument",
+              "line": 62
+            },
+            {
+              "name": "test_flow_with_cookie",
+              "line": 85
+            },
+            {
+              "name": "test_flow_with_variable",
+              "line": 114
+            },
+            {
+              "name": "test_flow_with_complex_conditions",
+              "line": 131
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_api.py",
+      "classes": [
+        {
+          "name": "TestVSNginxPlusApi",
+          "line": 26,
+          "tests": [
+            {
+              "name": "test_dynamic_configuration",
+              "line": 27
+            },
+            {
+              "name": "test_status_zone_support",
+              "line": 49
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_backup_service.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerWithBackupService",
+          "line": 130,
+          "tests": [
+            {
+              "name": "test_get_response_from_application",
+              "line": 136
+            },
+            {
+              "name": "test_get_response_from_backup",
+              "line": 183
+            },
+            {
+              "name": "test_delete_backup_service",
+              "line": 283
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup",
+        "vs_externalname_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_canned_responses.py",
+      "classes": [
+        {
+          "name": "TestVSCannedResponse",
+          "line": 34,
+          "tests": [
+            {
+              "name": "test_config",
+              "line": 35
+            },
+            {
+              "name": "test_custom_canned_response",
+              "line": 46
+            },
+            {
+              "name": "test_default_canned_response",
+              "line": 78
+            },
+            {
+              "name": "test_update",
+              "line": 88
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 116,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 130
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_certmanager.py",
+      "classes": [
+        {
+          "name": "TestCertManagerVirtualServer",
+          "line": 28,
+          "tests": [
+            {
+              "name": "test_responses_after_setup",
+              "line": 29
+            }
+          ]
+        },
+        {
+          "name": "TestCertManagerVirtualServerCA",
+          "line": 70,
+          "tests": [
+            {
+              "name": "test_responses_after_setup",
+              "line": 71
+            },
+            {
+              "name": "test_virtual_server_no_cm",
+              "line": 108
+            }
+          ]
+        },
+        {
+          "name": "TestCertManagerVirtualServerWatchLabel",
+          "line": 155,
+          "tests": [
+            {
+              "name": "test_responses_after_setup",
+              "line": 156
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "create_certmanager",
+        "create_issuer",
+        "kube_apis",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_configmap_keys.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerConfigMapNoTls",
+          "line": 195,
+          "tests": [
+            {
+              "name": "test_keys",
+              "line": 196
+            },
+            {
+              "name": "test_keys_in_main_config",
+              "line": 310
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServerConfigMapWithTls",
+          "line": 389,
+          "tests": [
+            {
+              "name": "test_ssl_keys",
+              "line": 390
+            },
+            {
+              "name": "test_configmap_events",
+              "line": 440
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "clean_up",
+        "cli_arguments",
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_custom_ip_listeners.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerCustomListeners",
+          "line": 66,
+          "tests": [
+            {
+              "name": "test_custom_listeners_update",
+              "line": 119,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_setup",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_custom_listeners.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerCustomListeners",
+          "line": 67,
+          "tests": [
+            {
+              "name": "test_custom_listeners",
+              "line": 201,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_custom_listeners_update",
+              "line": 377,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_setup",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_dos.py",
+      "classes": [
+        {
+          "name": "TestDos",
+          "line": 174,
+          "tests": [
+            {
+              "name": "test_responses_after_setup",
+              "line": 181
+            },
+            {
+              "name": "test_dos_vs_logs",
+              "line": 187
+            },
+            {
+              "name": "test_vs_with_dos_config",
+              "line": 223
+            },
+            {
+              "name": "test_vs_dos_under_attack_no_learning",
+              "line": 292
+            },
+            {
+              "name": "test_dos_under_attack_with_learning",
+              "line": 360,
+              "markers": [
+                "pytest.mark.skip"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.skip"
+      ],
+      "fixtures": [
+        "crd_ingress_controller_with_dos",
+        "dos_setup",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "test_namespace",
+        "virtual_server_setup_dos"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_error_pages.py",
+      "classes": [
+        {
+          "name": "TestVSErrorPages",
+          "line": 32,
+          "tests": [
+            {
+              "name": "test_redirect_strategy",
+              "line": 33
+            },
+            {
+              "name": "test_return_strategy",
+              "line": 54
+            },
+            {
+              "name": "test_virtual_server_after_update",
+              "line": 64
+            },
+            {
+              "name": "test_validation_event_flow",
+              "line": 86
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 115
+            },
+            {
+              "name": "test_splits_and_matches",
+              "line": 158,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "v_s_data",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_external_name.py",
+      "classes": [
+        {
+          "name": "TestVSWithExternalNameService",
+          "line": 100,
+          "tests": [
+            {
+              "name": "test_response",
+              "line": 101
+            },
+            {
+              "name": "test_template_config",
+              "line": 104
+            },
+            {
+              "name": "test_events_flows",
+              "line": 127
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup",
+        "vs_externalname_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_externaldns.py",
+      "classes": [
+        {
+          "name": "TestExternalDNSVirtualServer",
+          "line": 31,
+          "tests": [
+            {
+              "name": "test_responses_after_setup",
+              "line": 32
+            },
+            {
+              "name": "test_update_to_ed_in_vs",
+              "line": 74
+            }
+          ]
+        },
+        {
+          "name": "TestExternalDNSVirtualServerWatchLabel",
+          "line": 124,
+          "tests": [
+            {
+              "name": "test_responses_after_setup",
+              "line": 125
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller_with_ed",
+        "create_externaldns",
+        "kube_apis",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_focused_canary.py",
+      "classes": [
+        {
+          "name": "TestVSFocusedCanaryRelease",
+          "line": 52,
+          "tests": [
+            {
+              "name": "test_several_requests",
+              "line": 53
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_foreign_upstream.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerForeignUpstream",
+          "line": 109,
+          "tests": [
+            {
+              "name": "test_responses_after_setup",
+              "line": 110
+            },
+            {
+              "name": "test_responses_regex_path",
+              "line": 124
+            },
+            {
+              "name": "test_responses_vsr_foreign_upstream",
+              "line": 176
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "virtual_server_foreign_upstream_app_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_grpc.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerGrpc",
+          "line": 91,
+          "tests": [
+            {
+              "name": "test_config_after_setup",
+              "line": 105,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 123,
+              "markers": [
+                "pytest.mark.flaky",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_connect_grpc_backend",
+              "line": 145,
+              "markers": [
+                "pytest.mark.flaky",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_grpc_error_intercept",
+              "line": 170,
+              "markers": [
+                "pytest.mark.flaky",
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_config_error_page_warning",
+              "line": 230,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_config_after_enable_tls",
+              "line": 248,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServerGrpcHealthCheck",
+          "line": 278,
+          "tests": [
+            {
+              "name": "test_config_after_enable_healthcheck",
+              "line": 280,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_grpc_healthcheck_validation",
+              "line": 307,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_grpc_healthcheck_send_hello",
+              "line": 337,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky",
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "backend_setup",
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_mixed_grpc.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerMixedUpstreamType",
+          "line": 86,
+          "tests": [
+            {
+              "name": "test_config_after_setup",
+              "line": 88,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "backend_setup",
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_redirects.py",
+      "classes": [
+        {
+          "name": "TestVSRedirects",
+          "line": 32,
+          "tests": [
+            {
+              "name": "test_config",
+              "line": 33
+            },
+            {
+              "name": "test_custom_redirect",
+              "line": 44
+            },
+            {
+              "name": "test_default_redirect",
+              "line": 50
+            },
+            {
+              "name": "test_update",
+              "line": 59
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 88,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 104
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_service_insight.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerServiceInsightHTTP",
+          "line": 28,
+          "tests": [
+            {
+              "name": "test_responses_svc_insight_http",
+              "line": 29
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServerServiceInsightHTTPS",
+          "line": 80,
+          "tests": [
+            {
+              "name": "test_responses_svc_insight_https",
+              "line": 81
+            },
+            {
+              "name": "test_responses_svc_insight_update_pods",
+              "line": 106
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "https_secret_setup",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "request",
+        "test_namespace",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_split_traffic.py",
+      "classes": [
+        {
+          "name": "TestTrafficSplitting",
+          "line": 52,
+          "tests": [
+            {
+              "name": "test_several_requests",
+              "line": 53
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_status.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerStatus",
+          "line": 25,
+          "tests": [
+            {
+              "name": "test_status_valid",
+              "line": 39,
+              "markers": [
+                "pytest.mark.smoke"
+              ]
+            },
+            {
+              "name": "test_status_invalid",
+              "line": 60
+            },
+            {
+              "name": "test_status_warning",
+              "line": 91,
+              "markers": [
+                "pytest.mark.skip_for_nginx_oss"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.skip_for_nginx_oss",
+        "pytest.mark.smoke"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_tls.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerTLS",
+          "line": 93,
+          "tests": [
+            {
+              "name": "test_tls_termination",
+              "line": 94
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServerTLSDynamicReloads",
+          "line": 171,
+          "tests": [
+            {
+              "name": "test_tls_termination",
+              "line": 172
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "clean_up",
+        "crd_ingress_controller",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_tls_redirect.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerTLSRedirect",
+          "line": 21,
+          "tests": [
+            {
+              "name": "test_tls_redirect_defaults",
+              "line": 22
+            },
+            {
+              "name": "test_tls_redirect_based_on_header",
+              "line": 66
+            },
+            {
+              "name": "test_tls_redirect_based_on_scheme",
+              "line": 142
+            },
+            {
+              "name": "test_tls_redirect_without_tls_termination",
+              "line": 186
+            },
+            {
+              "name": "test_tls_redirect_openapi_validation_flow",
+              "line": 261
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_upstream_options.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerUpstreamOptions",
+          "line": 39,
+          "tests": [
+            {
+              "name": "test_nginx_config_defaults",
+              "line": 40
+            },
+            {
+              "name": "test_when_option_in_v_s_only",
+              "line": 191,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_when_option_in_config_map_only",
+              "line": 267,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_v_s_overrides_config_map",
+              "line": 363,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "TestVirtualServerUpstreamOptionValidation",
+          "line": 425,
+          "tests": [
+            {
+              "name": "test_event_message_and_config",
+              "line": 426
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 488
+            }
+          ]
+        },
+        {
+          "name": "TestOptionsSpecificForPlus",
+          "line": 557,
+          "tests": [
+            {
+              "name": "test_config_and_events",
+              "line": 618,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_slow_start_warning",
+              "line": 663,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 691,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_openapi_validation_flow",
+              "line": 748
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky",
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "config_map_file",
+        "crd_ingress_controller",
+        "expected_strings",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "options",
+        "restore_configmap",
+        "unexpected_strings",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_upstream_tls.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerUpstreamTls",
+          "line": 34,
+          "tests": [
+            {
+              "name": "test_responses_and_config_after_setup",
+              "line": 35
+            },
+            {
+              "name": "test_event_after_setup",
+              "line": 56
+            },
+            {
+              "name": "test_validation_flow",
+              "line": 65,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            },
+            {
+              "name": "test_responses_and_config_after_disable_tls",
+              "line": 100
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_use_cluster_ip_reloads.py",
+      "classes": [
+        {
+          "name": "TestVSUseClusterIP",
+          "line": 25,
+          "tests": [
+            {
+              "name": "test_use_cluster_ip_reloads",
+              "line": 27,
+              "markers": [
+                "pytest.mark.flaky"
+              ]
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.flaky"
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_endpoint",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_validation.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerValidation",
+          "line": 49,
+          "tests": [
+            {
+              "name": "test_virtual_server_behavior",
+              "line": 50
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "cli_arguments",
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_weight_changes_without_reload.py",
+      "classes": [
+        {
+          "name": "TestWeightChangesWithReloadCondition",
+          "line": 49,
+          "tests": [
+            {
+              "name": "test_weight_changes_reload_behavior",
+              "line": 50
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "expect_reload",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_virtual_server_wildcard.py",
+      "classes": [
+        {
+          "name": "TestVirtualServerWildcard",
+          "line": 22,
+          "tests": [
+            {
+              "name": "test_vs_status",
+              "line": 23
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "kube_apis",
+        "virtual_server_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_watch_namespace.py",
+      "classes": [
+        {
+          "name": "TestWatchNamespace",
+          "line": 88,
+          "tests": [
+            {
+              "name": "test_response_codes",
+              "line": 89
+            }
+          ]
+        },
+        {
+          "name": "TestWatchMultipleNamespaces",
+          "line": 110,
+          "tests": [
+            {
+              "name": "test_response_codes",
+              "line": 111
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "backend_setup",
+        "expected_responses",
+        "ingress_controller"
+      ]
+    },
+    {
+      "file": "tests/suite/test_watch_namespace_label.py",
+      "classes": [
+        {
+          "name": "TestWatchNamespaceLabelIngress",
+          "line": 135,
+          "tests": [
+            {
+              "name": "test_response_codes",
+              "line": 136
+            }
+          ]
+        },
+        {
+          "name": "TestWatchNamespaceLabelVS",
+          "line": 192,
+          "tests": [
+            {
+              "name": "test_response_codes",
+              "line": 193
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "backend_setup",
+        "backend_setup_vs",
+        "crd_ingress_controller",
+        "expected_responses",
+        "ingress_controller",
+        "kube_apis"
+      ]
+    },
+    {
+      "file": "tests/suite/test_watch_secret_namespace.py",
+      "classes": [
+        {
+          "name": "TestVSRWatchSecretNamespacesValid",
+          "line": 29,
+          "tests": [
+            {
+              "name": "test_responses",
+              "line": 30
+            }
+          ]
+        },
+        {
+          "name": "TestVSRWatchSecretNamespacesInvalid",
+          "line": 84,
+          "tests": [
+            {
+              "name": "test_responses",
+              "line": 85
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "crd_ingress_controller",
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "v_s_route_app_setup",
+        "v_s_route_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_wildcard_tls_secret.py",
+      "classes": [
+        {
+          "name": "TestTLSWildcardSecrets",
+          "line": 119,
+          "tests": [
+            {
+              "name": "test_response_code_200",
+              "line": 121,
+              "markers": [
+                "pytest.mark.parametrize"
+              ]
+            },
+            {
+              "name": "test_certificate_subject",
+              "line": 128
+            },
+            {
+              "name": "test_certificate_subject_remains_with_invalid_secret",
+              "line": 140
+            },
+            {
+              "name": "test_certificate_subject_updates_after_secret_update",
+              "line": 165
+            },
+            {
+              "name": "test_response_and_subject_remains_after_secret_delete",
+              "line": 190
+            }
+          ]
+        }
+      ],
+      "markers": [
+        "pytest.mark.parametrize"
+      ],
+      "fixtures": [
+        "ingress_controller_prerequisites",
+        "kube_apis",
+        "path",
+        "wildcard_tls_secret_ingress_controller",
+        "wildcard_tls_secret_setup"
+      ]
+    },
+    {
+      "file": "tests/suite/test_zone_sync.py",
+      "classes": [
+        {
+          "name": "TestZoneSyncLifecycle",
+          "line": 134,
+          "tests": [
+            {
+              "name": "test_nic_starts_without_zonesync",
+              "line": 135
+            },
+            {
+              "name": "test_apply_minimal_default_zonesync_config",
+              "line": 191
+            },
+            {
+              "name": "test_enable_customized_zonesync_resolver_valid",
+              "line": 250
+            },
+            {
+              "name": "test_update_zonesync_port",
+              "line": 307
+            },
+            {
+              "name": "test_zonesync_enabled_and_disabled",
+              "line": 373
+            }
+          ]
+        }
+      ],
+      "fixtures": [
+        "cli_arguments",
+        "ingress_controller",
+        "ingress_controller_endpoint",
+        "ingress_controller_prerequisites",
+        "kube_apis"
+      ]
+    }
+  ]
+}

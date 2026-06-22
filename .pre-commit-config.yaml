@@ -1,6 +1,6 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
-exclude: (^_vendor/|.*pb2.*)
+exclude: (^_vendor/|.*pb2.*|^\.nic-graph/)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -41,6 +41,15 @@ repos:
         entry: golangci-lint run --new-from-rev HEAD --fix
         types: [go]
         language: golang
+        require_serial: true
+        pass_filenames: false
+
+      - id: nic-graph
+        name: nic-graph
+        description: Regenerate the .nic-graph/ static code index when Go/template/Helm/example/python sources change.
+        entry: bash -c 'go run ./hack/nic-graph/cmd/nic-graph build && git add .nic-graph'
+        language: golang
+        files: '(^internal/|^pkg/apis/|^cmd/|^hack/nic-graph/|\.tmpl$|^charts/nginx-ingress/(values\.schema\.json|templates/)|^examples/|^tests/suite/.*\.py$)'
         require_serial: true
         pass_filenames: false
 
@@ -98,5 +107,5 @@ repos:
         args: ["-shellcheck", ""]
 
 ci:
-  skip: [golangci-lint, check-jsonschema, markdownlint-cli2]
+  skip: [golangci-lint, check-jsonschema, markdownlint-cli2, nic-graph]
   autoupdate_schedule: quarterly # We use renovate for more frequent updates and there's no way to disable autoupdate

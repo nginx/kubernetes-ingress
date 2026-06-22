@@ -1,0 +1,489 @@
+{
+  "entries": [
+    {
+      "crd": "APDosLogConf",
+      "group": "appprotectdos.f5.com/v1beta1",
+      "type_file": "",
+      "type_line": 0,
+      "validators": [
+        "pkg/apis/dos/validation.ValidateAppProtectDosAllowList",
+        "pkg/apis/dos/validation.ValidateAppProtectDosLogConf",
+        "pkg/apis/dos/validation.ValidateAppProtectDosPolicy",
+        "pkg/apis/dos/validation.ValidateDosProtectedResource"
+      ],
+      "tests": [
+        "internal/k8s/appprotectdos/app_protect_dos_configuration_test.go",
+        "pkg/apis/dos/validation/dos_test.go"
+      ],
+      "sources": [
+        "internal/configs/configurator.go",
+        "internal/k8s/appprotect_dos.go",
+        "internal/k8s/appprotectdos/app_protect_dos_configuration.go",
+        "pkg/apis/dos/validation/dos.go"
+      ]
+    },
+    {
+      "crd": "APDosPolicy",
+      "group": "appprotectdos.f5.com/v1beta1",
+      "type_file": "",
+      "type_line": 0,
+      "validators": [
+        "pkg/apis/dos/validation.ValidateAppProtectDosAllowList",
+        "pkg/apis/dos/validation.ValidateAppProtectDosLogConf",
+        "pkg/apis/dos/validation.ValidateAppProtectDosPolicy",
+        "pkg/apis/dos/validation.ValidateDosProtectedResource"
+      ],
+      "tests": [
+        "internal/k8s/appprotectdos/app_protect_dos_configuration_test.go",
+        "pkg/apis/dos/validation/dos_test.go"
+      ],
+      "sources": [
+        "internal/configs/configurator.go",
+        "internal/k8s/appprotect_dos.go",
+        "internal/k8s/appprotectdos/app_protect_dos_configuration.go",
+        "pkg/apis/dos/validation/dos.go"
+      ]
+    },
+    {
+      "crd": "APLogConf",
+      "group": "appprotect.f5.com/v1beta1",
+      "type_file": "",
+      "type_line": 0,
+      "validators": [
+        "pkg/apis/configuration/validation.ValidateAppProtectLogConf",
+        "pkg/apis/configuration/validation.ValidateAppProtectLogDestination",
+        "pkg/apis/configuration/validation.ValidateAppProtectPolicy",
+        "pkg/apis/configuration/validation.ValidateAppProtectUserSig",
+        "pkg/apis/configuration/validation.ValidateRequiredFields",
+        "pkg/apis/configuration/validation.ValidateRequiredSlices"
+      ],
+      "tests": [
+        "internal/k8s/appprotect/app_protect_configuration_test.go",
+        "internal/k8s/appprotect_waf_test.go",
+        "pkg/apis/configuration/validation/appprotect_common_test.go",
+        "pkg/apis/configuration/validation/appprotect_test.go"
+      ],
+      "sources": [
+        "internal/configs/annotations.go",
+        "internal/configs/configurator.go",
+        "internal/k8s/appprotect/app_protect_configuration.go",
+        "internal/k8s/appprotect_waf.go",
+        "internal/k8s/configuration.go",
+        "pkg/apis/configuration/validation/appprotect.go",
+        "pkg/apis/configuration/validation/appprotect_common.go"
+      ]
+    },
+    {
+      "crd": "APPolicy",
+      "group": "appprotect.f5.com/v1beta1",
+      "type_file": "",
+      "type_line": 0,
+      "validators": [
+        "pkg/apis/configuration/validation.ValidateAppProtectLogConf",
+        "pkg/apis/configuration/validation.ValidateAppProtectLogDestination",
+        "pkg/apis/configuration/validation.ValidateAppProtectPolicy",
+        "pkg/apis/configuration/validation.ValidateAppProtectUserSig",
+        "pkg/apis/configuration/validation.ValidateRequiredFields",
+        "pkg/apis/configuration/validation.ValidateRequiredSlices"
+      ],
+      "configs": [
+        "internal/configs.newAppProtectPolicyResources"
+      ],
+      "tests": [
+        "internal/k8s/appprotect/app_protect_configuration_test.go",
+        "internal/k8s/appprotect_waf_test.go",
+        "pkg/apis/configuration/validation/appprotect_common_test.go",
+        "pkg/apis/configuration/validation/appprotect_test.go"
+      ],
+      "sources": [
+        "internal/configs/annotations.go",
+        "internal/configs/configurator.go",
+        "internal/configs/virtualserver.go",
+        "internal/k8s/appprotect/app_protect_configuration.go",
+        "internal/k8s/appprotect_waf.go",
+        "internal/k8s/configuration.go",
+        "pkg/apis/configuration/validation/appprotect.go",
+        "pkg/apis/configuration/validation/appprotect_common.go"
+      ]
+    },
+    {
+      "crd": "APUserSig",
+      "group": "appprotect.f5.com/v1beta1",
+      "type_file": "",
+      "type_line": 0,
+      "validators": [
+        "pkg/apis/configuration/validation.ValidateAppProtectLogConf",
+        "pkg/apis/configuration/validation.ValidateAppProtectLogDestination",
+        "pkg/apis/configuration/validation.ValidateAppProtectPolicy",
+        "pkg/apis/configuration/validation.ValidateAppProtectUserSig",
+        "pkg/apis/configuration/validation.ValidateRequiredFields",
+        "pkg/apis/configuration/validation.ValidateRequiredSlices"
+      ],
+      "tests": [
+        "internal/k8s/appprotect/app_protect_configuration_test.go",
+        "internal/k8s/appprotect_waf_test.go",
+        "pkg/apis/configuration/validation/appprotect_common_test.go",
+        "pkg/apis/configuration/validation/appprotect_test.go"
+      ],
+      "sources": [
+        "internal/configs/configurator.go",
+        "internal/k8s/appprotect/app_protect_configuration.go",
+        "internal/k8s/appprotect_waf.go",
+        "pkg/apis/configuration/validation/appprotect.go",
+        "pkg/apis/configuration/validation/appprotect_common.go"
+      ]
+    },
+    {
+      "crd": "DNSEndpoint",
+      "group": "externaldns.nginx.org/v1",
+      "type_file": "pkg/apis/externaldns/v1/types.go",
+      "type_line": 12,
+      "validators": [
+        "pkg/apis/configuration/validation.IsExternalDNSEnabled",
+        "pkg/apis/externaldns/validation.ValidateDNSEndpoint"
+      ],
+      "tests": [
+        "internal/externaldns/controller_test.go",
+        "internal/externaldns/sync_test.go",
+        "pkg/apis/configuration/validation/virtualserver_test.go",
+        "pkg/apis/externaldns/validation/externaldns_test.go"
+      ],
+      "sources": [
+        "internal/externaldns/controller.go",
+        "internal/externaldns/handlers.go",
+        "internal/externaldns/sync.go",
+        "internal/logger/events.go",
+        "pkg/apis/configuration/v1/types.go",
+        "pkg/apis/configuration/validation/virtualserver.go",
+        "pkg/apis/externaldns/register.go",
+        "pkg/apis/externaldns/v1/register.go",
+        "pkg/apis/externaldns/v1/types.go",
+        "pkg/apis/externaldns/validation/externaldns.go"
+      ]
+    },
+    {
+      "crd": "DosProtectedResource",
+      "group": "appprotectdos.f5.com/v1beta1",
+      "type_file": "pkg/apis/dos/v1beta1/types.go",
+      "type_line": 11,
+      "validators": [
+        "pkg/apis/dos/validation.ValidateAppProtectDosAllowList",
+        "pkg/apis/dos/validation.ValidateAppProtectDosLogConf",
+        "pkg/apis/dos/validation.ValidateAppProtectDosPolicy",
+        "pkg/apis/dos/validation.ValidateDosProtectedResource"
+      ],
+      "configs": [
+        "internal/configs.appProtectDosResource"
+      ],
+      "tests": [
+        "internal/configs/dos_test.go",
+        "internal/k8s/appprotectdos/app_protect_dos_configuration_test.go",
+        "pkg/apis/dos/validation/dos_test.go"
+      ],
+      "sources": [
+        "internal/configs/dos.go",
+        "internal/k8s/appprotect_dos.go",
+        "internal/k8s/appprotectdos/app_protect_dos_configuration.go",
+        "pkg/apis/dos/register.go",
+        "pkg/apis/dos/v1beta1/register.go",
+        "pkg/apis/dos/v1beta1/types.go",
+        "pkg/apis/dos/validation/dos.go"
+      ]
+    },
+    {
+      "crd": "GlobalConfiguration",
+      "group": "k8s.nginx.org/v1",
+      "type_file": "pkg/apis/configuration/v1/types.go",
+      "type_line": 562,
+      "validators": [
+        "pkg/apis/configuration/validation.NewGlobalConfigurationValidator"
+      ],
+      "configs": [
+        "internal/configs.GlobalConfigParams"
+      ],
+      "templates": [
+        "internal/configs/version1/nginx-plus.tmpl",
+        "internal/configs/version1/nginx.tmpl"
+      ],
+      "tests": [
+        "internal/k8s/configuration_test.go",
+        "pkg/apis/configuration/validation/globalconfiguration_test.go"
+      ],
+      "sources": [
+        "internal/k8s/configuration.go",
+        "internal/k8s/global_configuration.go",
+        "pkg/apis/configuration/v1/types.go",
+        "pkg/apis/configuration/validation/globalconfiguration.go"
+      ]
+    },
+    {
+      "crd": "Policy",
+      "group": "k8s.nginx.org/v1",
+      "type_file": "pkg/apis/configuration/v1/types.go",
+      "type_line": 766,
+      "validators": [
+        "pkg/apis/configuration/validation.ValidatePolicy"
+      ],
+      "configs": [
+        "internal/configs.apiKeyAuth",
+        "internal/configs.apiKeyClient",
+        "internal/configs.generateAPIKeyClients",
+        "internal/configs.generateAuthJwtClaimSet",
+        "internal/configs.generateAuthJwtClaimSetClaim",
+        "internal/configs.generateAuthJwtClaimSetVariable",
+        "internal/configs.generateCORSHeaders",
+        "internal/configs.generateCORSOriginMap",
+        "internal/configs.generateCORSVariableName",
+        "internal/configs.generateCacheConfig",
+        "internal/configs.generateGroupedLimitReqZone",
+        "internal/configs.generateLRZGroupMaps",
+        "internal/configs.generateLRZPolicyGroupMap",
+        "internal/configs.generateLimitReq",
+        "internal/configs.generateLimitReqOptions",
+        "internal/configs.generateLimitReqZone",
+        "internal/configs.generatePolicies",
+        "internal/configs.jwtAuth",
+        "internal/configs.newPoliciesConfig",
+        "internal/configs.policiesCfg",
+        "internal/configs.policyOptions",
+        "internal/configs.policyOwnerDetails",
+        "internal/configs.rateLimit"
+      ],
+      "templates": [
+        "internal/configs/version2/nginx-plus.virtualserver.tmpl",
+        "internal/configs/version2/nginx.virtualserver.tmpl"
+      ],
+      "tests": [
+        "internal/configs/policy_test.go",
+        "internal/configs/virtualserver_policy_test.go",
+        "pkg/apis/configuration/validation/policy_test.go"
+      ],
+      "sources": [
+        "internal/configs/policy.go",
+        "internal/k8s/policy.go",
+        "pkg/apis/configuration/v1/types.go",
+        "pkg/apis/configuration/validation/policy.go"
+      ]
+    },
+    {
+      "crd": "TransportServer",
+      "group": "k8s.nginx.org/v1",
+      "type_file": "pkg/apis/configuration/v1/types.go",
+      "type_line": 612,
+      "validators": [
+        "pkg/apis/configuration/validation.NewTransportServerValidator"
+      ],
+      "configs": [
+        "internal/configs.TransportServerEx",
+        "internal/configs.generateHealthCheckMatch",
+        "internal/configs.generateLoadBalancingMethod",
+        "internal/configs.generateSSLConfig",
+        "internal/configs.generateServerName",
+        "internal/configs.generateStreamUpstream",
+        "internal/configs.generateStreamUpstreams",
+        "internal/configs.generateTransportServerConfig",
+        "internal/configs.generateTransportServerHealthCheck",
+        "internal/configs.generateTransportServerHealthCheckWithDefaults",
+        "internal/configs.generateUnixSocket",
+        "internal/configs.newUpstreamNamerForTransportServer",
+        "internal/configs.transportServerConfigParams",
+        "internal/configs/version2.TransportServerConfig"
+      ],
+      "templates": [
+        "internal/configs/version2/nginx-plus.transportserver.tmpl",
+        "internal/configs/version2/nginx.transportserver.tmpl"
+      ],
+      "tests": [
+        "internal/configs/configurator_bench_test.go",
+        "internal/configs/configurator_test.go",
+        "internal/configs/transportserver_test.go",
+        "internal/configs/version2/templates_test.go",
+        "internal/healthcheck/healthcheck_test.go",
+        "internal/k8s/configuration_test.go",
+        "internal/k8s/reference_checkers_test.go",
+        "internal/k8s/status_test.go",
+        "internal/telemetry/collector_test.go",
+        "pkg/apis/configuration/validation/transportserver_test.go"
+      ],
+      "sources": [
+        "internal/configs/configurator.go",
+        "internal/configs/transportserver.go",
+        "internal/configs/version2/stream.go",
+        "internal/configs/version2/template_executor.go",
+        "internal/k8s/configuration.go",
+        "internal/k8s/controller.go",
+        "internal/k8s/reference_checkers.go",
+        "internal/k8s/status.go",
+        "internal/k8s/transport_server.go",
+        "internal/metrics/collectors/controller.go",
+        "pkg/apis/configuration/v1/types.go",
+        "pkg/apis/configuration/validation/transportserver.go"
+      ]
+    },
+    {
+      "crd": "VirtualServer",
+      "group": "k8s.nginx.org/v1",
+      "type_file": "pkg/apis/configuration/v1/types.go",
+      "type_line": 36,
+      "validators": [
+        "pkg/apis/configuration/validation.IsCertManagerEnabled",
+        "pkg/apis/configuration/validation.IsDirectiveAutoadjustEnabled",
+        "pkg/apis/configuration/validation.IsDosEnabled",
+        "pkg/apis/configuration/validation.IsExternalDNSEnabled",
+        "pkg/apis/configuration/validation.IsPlus",
+        "pkg/apis/configuration/validation.NewVirtualServerValidator",
+        "pkg/apis/configuration/validation.NormalizePath"
+      ],
+      "configs": [
+        "internal/configs.GenerateEndpointsKey",
+        "internal/configs.GenerateExternalNameSvcKey",
+        "internal/configs.MeshPodOwner",
+        "internal/configs.NewUpstreamNamerForVirtualServer",
+        "internal/configs.NewUpstreamNamerForVirtualServerRoute",
+        "internal/configs.NewVSVariableNamer",
+        "internal/configs.PodInfo",
+        "internal/configs.VariableNamer",
+        "internal/configs.VirtualServerEx",
+        "internal/configs.addAddHeaderInheritToLocations",
+        "internal/configs.addCacheZone",
+        "internal/configs.addDosConfigToLocations",
+        "internal/configs.addPoliciesCfgToLocation",
+        "internal/configs.addPoliciesCfgToLocations",
+        "internal/configs.appProtectPolicyResources",
+        "internal/configs.errorPageDetails",
+        "internal/configs.generateAPIKeyClientMap",
+        "internal/configs.generateBool",
+        "internal/configs.generateBuffers",
+        "internal/configs.generateDefaultSplitsConfig",
+        "internal/configs.generateDosCfg",
+        "internal/configs.generateErrorPageCodes",
+        "internal/configs.generateErrorPageDetails",
+        "internal/configs.generateErrorPageLocations",
+        "internal/configs.generateErrorPageName",
+        "internal/configs.generateErrorPages",
+        "internal/configs.generateGRPCPass",
+        "internal/configs.generateGRPCPassProtocol",
+        "internal/configs.generateHealthCheck",
+        "internal/configs.generateIntFromPointer",
+        "internal/configs.generateLBMethod",
+        "internal/configs.generateLocation",
+        "internal/configs.generateLocationForProxying",
+        "internal/configs.generateLocationForRedirect",
+        "internal/configs.generateLocationForReturn",
+        "internal/configs.generateMatchesConfig",
+        "internal/configs.generateParametersForMatchesRouteMap",
+        "internal/configs.generatePath",
+        "internal/configs.generateProxyAddHeaders",
+        "internal/configs.generateProxyHideHeaders",
+        "internal/configs.generateProxyIgnoreHeaders",
+        "internal/configs.generateProxyInterceptErrors",
+        "internal/configs.generateProxyPass",
+        "internal/configs.generateProxyPassHeaders",
+        "internal/configs.generateProxyPassProtocol",
+        "internal/configs.generateProxyPassRequestHeaders",
+        "internal/configs.generateProxyPassRewrite",
+        "internal/configs.generateProxySSLName",
+        "internal/configs.generateProxySetHeaders",
+        "internal/configs.generateQueueForPlus",
+        "internal/configs.generateReturnBlock",
+        "internal/configs.generateRewrites",
+        "internal/configs.generateSessionCookie",
+        "internal/configs.generateSnippets",
+        "internal/configs.generateSplits",
+        "internal/configs.generateSplitsForWeightChangesDynamicReload",
+        "internal/configs.generateStatusMatchName",
+        "internal/configs.generateString",
+        "internal/configs.generateTLSRedirectBasedOn",
+        "internal/configs.generateTLSRedirectConfig",
+        "internal/configs.generateTime",
+        "internal/configs.generateTimeWithDefault",
+        "internal/configs.generateUpstreamStatusMatch",
+        "internal/configs.generateUpstreams",
+        "internal/configs.generateValueForMatchesRouteMap",
+        "internal/configs.newAppProtectPolicyResources",
+        "internal/configs.newHealthCheckWithDefaults",
+        "internal/configs.newVirtualServerConfigurator",
+        "internal/configs.routingCfg",
+        "internal/configs.upstreamNamer",
+        "internal/configs.virtualServerConfigurator",
+        "internal/configs/version2.VirtualServerConfig"
+      ],
+      "templates": [
+        "internal/configs/version2/nginx-plus.virtualserver.tmpl",
+        "internal/configs/version2/nginx.virtualserver.tmpl"
+      ],
+      "tests": [
+        "internal/certmanager/sync_test.go",
+        "internal/configs/configmaps_test.go",
+        "internal/configs/configurator_bench_test.go",
+        "internal/configs/configurator_test.go",
+        "internal/configs/version2/templates_test.go",
+        "internal/configs/virtualserver_config_test.go",
+        "internal/configs/virtualserver_helpers_test.go",
+        "internal/configs/virtualserver_policy_test.go",
+        "internal/configs/virtualserver_ratelimit_groups_test.go",
+        "internal/configs/virtualserver_routing_test.go",
+        "internal/configs/virtualserver_test_common_test.go",
+        "internal/k8s/configuration_test.go",
+        "internal/k8s/controller_test.go",
+        "internal/k8s/reference_checkers_test.go",
+        "internal/telemetry/collector_test.go",
+        "pkg/apis/configuration/validation/virtualserver_test.go"
+      ],
+      "sources": [
+        "internal/certmanager/sync.go",
+        "internal/configs/configurator.go",
+        "internal/configs/version2/http.go",
+        "internal/configs/version2/template_executor.go",
+        "internal/configs/virtualserver.go",
+        "internal/k8s/configuration.go",
+        "internal/k8s/controller.go",
+        "internal/k8s/handlers.go",
+        "internal/k8s/reference_checkers.go",
+        "internal/k8s/status.go",
+        "internal/logger/events.go",
+        "internal/metrics/collectors/controller.go",
+        "pkg/apis/configuration/v1/types.go",
+        "pkg/apis/configuration/validation/virtualserver.go"
+      ]
+    },
+    {
+      "crd": "VirtualServerRoute",
+      "group": "k8s.nginx.org/v1",
+      "type_file": "pkg/apis/configuration/v1/types.go",
+      "type_line": 503,
+      "validators": [
+        "pkg/apis/configuration/validation.NewVirtualServerValidator"
+      ],
+      "configs": [
+        "internal/configs.NewUpstreamNamerForVirtualServerRoute",
+        "internal/configs.VirtualServerEx",
+        "internal/configs/version2.VirtualServerConfig"
+      ],
+      "templates": [
+        "internal/configs/version2/nginx-plus.virtualserver.tmpl",
+        "internal/configs/version2/nginx.virtualserver.tmpl"
+      ],
+      "tests": [
+        "internal/configs/configurator_test.go",
+        "internal/configs/virtualserver_helpers_test.go",
+        "internal/configs/virtualserver_routing_test.go",
+        "internal/k8s/configuration_test.go",
+        "internal/k8s/reference_checkers_test.go",
+        "pkg/apis/configuration/validation/virtualserver_test.go"
+      ],
+      "sources": [
+        "internal/configs/configurator.go",
+        "internal/configs/virtualserver.go",
+        "internal/k8s/configuration.go",
+        "internal/k8s/controller.go",
+        "internal/k8s/handlers.go",
+        "internal/k8s/reference_checkers.go",
+        "internal/k8s/status.go",
+        "internal/metrics/collectors/controller.go",
+        "pkg/apis/configuration/v1/types.go",
+        "pkg/apis/configuration/validation/virtualserver.go"
+      ]
+    }
+  ]
+}

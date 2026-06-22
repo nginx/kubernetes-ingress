@@ -1,0 +1,3739 @@
+{
+  "values_keys": [
+    "controller",
+    "controller.affinity",
+    "controller.allowEmptyIngressHost",
+    "controller.annotations",
+    "controller.appprotect",
+    "controller.appprotect.configManager",
+    "controller.appprotect.configManager.image",
+    "controller.appprotect.configManager.image.digest",
+    "controller.appprotect.configManager.image.pullPolicy",
+    "controller.appprotect.configManager.image.repository",
+    "controller.appprotect.configManager.image.tag",
+    "controller.appprotect.configManager.securityContext",
+    "controller.appprotect.enable",
+    "controller.appprotect.enforcer",
+    "controller.appprotect.enforcer.host",
+    "controller.appprotect.enforcer.image",
+    "controller.appprotect.enforcer.image.digest",
+    "controller.appprotect.enforcer.image.pullPolicy",
+    "controller.appprotect.enforcer.image.repository",
+    "controller.appprotect.enforcer.image.tag",
+    "controller.appprotect.enforcer.port",
+    "controller.appprotect.enforcer.securityContext",
+    "controller.appprotect.ipIntelligence",
+    "controller.appprotect.ipIntelligence.enable",
+    "controller.appprotect.ipIntelligence.image",
+    "controller.appprotect.ipIntelligence.image.digest",
+    "controller.appprotect.ipIntelligence.image.pullPolicy",
+    "controller.appprotect.ipIntelligence.image.repository",
+    "controller.appprotect.ipIntelligence.image.tag",
+    "controller.appprotect.ipIntelligence.securityContext",
+    "controller.appprotect.logLevel",
+    "controller.appprotect.v5",
+    "controller.appprotect.volumes",
+    "controller.appprotectdos",
+    "controller.appprotectdos.debug",
+    "controller.appprotectdos.enable",
+    "controller.appprotectdos.maxDaemons",
+    "controller.appprotectdos.maxWorkers",
+    "controller.appprotectdos.memory",
+    "controller.config",
+    "controller.config.annotations",
+    "controller.config.entries",
+    "controller.config.name",
+    "controller.containerPort",
+    "controller.customConfigMap",
+    "controller.customPorts",
+    "controller.debug",
+    "controller.debug.continue",
+    "controller.debug.enable",
+    "controller.defaultHTTPListenerPort",
+    "controller.defaultHTTPSListenerPort",
+    "controller.defaultTLS",
+    "controller.defaultTLS.cert",
+    "controller.defaultTLS.key",
+    "controller.defaultTLS.secret",
+    "controller.directiveAutoAdjust",
+    "controller.disableIPV6",
+    "controller.dnsPolicy",
+    "controller.enableCertManager",
+    "controller.enableCustomResources",
+    "controller.enableExternalDNS",
+    "controller.enableLatencyMetrics",
+    "controller.enableOIDC",
+    "controller.enableSSLDynamicReload",
+    "controller.enableSnippets",
+    "controller.enableTLSPassthrough",
+    "controller.enableWeightChangesDynamicReload",
+    "controller.env",
+    "controller.extraContainers",
+    "controller.globalConfiguration",
+    "controller.globalConfiguration.create",
+    "controller.globalConfiguration.customName",
+    "controller.globalConfiguration.spec",
+    "controller.globalConfiguration.spec.listeners",
+    "controller.healthStatus",
+    "controller.healthStatusURI",
+    "controller.hostNetwork",
+    "controller.hostPort",
+    "controller.image",
+    "controller.image.digest",
+    "controller.image.pullPolicy",
+    "controller.image.repository",
+    "controller.image.tag",
+    "controller.ingressClass",
+    "controller.ingressClass.create",
+    "controller.ingressClass.name",
+    "controller.ingressClass.setAsDefaultIngress",
+    "controller.initContainerResources",
+    "controller.initContainerSecurityContext",
+    "controller.initContainers",
+    "controller.kind",
+    "controller.lifecycle",
+    "controller.logFormat",
+    "controller.logLevel",
+    "controller.mgmt",
+    "controller.mgmt.configMapName",
+    "controller.mgmt.enforceInitialReport",
+    "controller.mgmt.licenseTokenSecretName",
+    "controller.mgmt.resolver",
+    "controller.mgmt.resolver.addresses",
+    "controller.mgmt.resolver.ipv6",
+    "controller.mgmt.resolver.valid",
+    "controller.mgmt.sslCertificateSecretName",
+    "controller.mgmt.sslTrustedCertificateSecretName",
+    "controller.mgmt.sslVerify",
+    "controller.mgmt.usageReport",
+    "controller.mgmt.usageReport.endpoint",
+    "controller.mgmt.usageReport.interval",
+    "controller.mgmt.usageReport.proxyCredentialsSecretName",
+    "controller.mgmt.usageReport.proxyHost",
+    "controller.minReadySeconds",
+    "controller.name",
+    "controller.nginxDebug",
+    "controller.nginxReloadTimeout",
+    "controller.nginxStatus",
+    "controller.nginxStatus.allowCidrs",
+    "controller.nginxStatus.enable",
+    "controller.nginxStatus.port",
+    "controller.nginxplus",
+    "controller.nodeSelector",
+    "controller.pod",
+    "controller.pod.annotations",
+    "controller.pod.extraLabels",
+    "controller.podDisruptionBudget",
+    "controller.podDisruptionBudget.annotations",
+    "controller.podDisruptionBudget.enabled",
+    "controller.podDisruptionBudget.maxUnavailable",
+    "controller.podDisruptionBudget.minAvailable",
+    "controller.podSecurityContext",
+    "controller.priorityClassName",
+    "controller.readOnlyRootFilesystem",
+    "controller.readyStatus",
+    "controller.readyStatus.enable",
+    "controller.readyStatus.initialDelaySeconds",
+    "controller.readyStatus.port",
+    "controller.replicaCount",
+    "controller.reportIngressStatus",
+    "controller.reportIngressStatus.annotations",
+    "controller.reportIngressStatus.enable",
+    "controller.reportIngressStatus.enableLeaderElection",
+    "controller.reportIngressStatus.externalService",
+    "controller.reportIngressStatus.ingressLink",
+    "controller.reportIngressStatus.leaderElectionLockName",
+    "controller.resources",
+    "controller.securityContext",
+    "controller.selectorLabels",
+    "controller.service",
+    "controller.service.allocateLoadBalancerNodePorts",
+    "controller.service.annotations",
+    "controller.service.create",
+    "controller.service.customPorts",
+    "controller.service.externalIPs",
+    "controller.service.externalTrafficPolicy",
+    "controller.service.extraLabels",
+    "controller.service.httpPort",
+    "controller.service.httpPort.enable",
+    "controller.service.httpPort.name",
+    "controller.service.httpPort.nodePort",
+    "controller.service.httpPort.port",
+    "controller.service.httpPort.targetPort",
+    "controller.service.httpsPort",
+    "controller.service.httpsPort.enable",
+    "controller.service.httpsPort.nodePort",
+    "controller.service.httpsPort.port",
+    "controller.service.httpsPort.targetPort",
+    "controller.service.ipFamilies",
+    "controller.service.ipFamilyPolicy",
+    "controller.service.loadBalancerClass",
+    "controller.service.loadBalancerIP",
+    "controller.service.loadBalancerSourceRanges",
+    "controller.service.sessionAffinity",
+    "controller.service.sessionAffinity.enable",
+    "controller.service.sessionAffinity.timeoutSeconds",
+    "controller.service.sessionAffinity.type",
+    "controller.service.type",
+    "controller.serviceAccount",
+    "controller.serviceAccount.annotations",
+    "controller.serviceAccount.imagePullSecretName",
+    "controller.serviceAccount.imagePullSecretsNames",
+    "controller.serviceAccount.name",
+    "controller.shareProcessNamespace",
+    "controller.startupStatus",
+    "controller.startupStatus.enable",
+    "controller.startupStatus.failureThreshold",
+    "controller.startupStatus.initialDelaySeconds",
+    "controller.startupStatus.path",
+    "controller.startupStatus.periodSeconds",
+    "controller.startupStatus.port",
+    "controller.startupStatus.successThreshold",
+    "controller.startupStatus.timeoutSeconds",
+    "controller.statefulset",
+    "controller.statefulset.nginxCachePVC",
+    "controller.statefulset.nginxCachePVC.accessModes",
+    "controller.statefulset.nginxCachePVC.size",
+    "controller.statefulset.nginxCachePVC.storageClass",
+    "controller.statefulset.persistentVolumeClaimRetentionPolicy",
+    "controller.statefulset.podManagementPolicy",
+    "controller.strategy",
+    "controller.telemetryReporting",
+    "controller.telemetryReporting.enable",
+    "controller.terminationGracePeriodSeconds",
+    "controller.tlsPassthroughPort",
+    "controller.tolerations",
+    "controller.topologySpreadConstraints",
+    "controller.volumeMounts",
+    "controller.volumes",
+    "controller.watchNamespace",
+    "controller.watchSecretNamespace",
+    "controller.wildcardTLS",
+    "controller.wildcardTLS.cert",
+    "controller.wildcardTLS.key",
+    "controller.wildcardTLS.secret",
+    "nginxAgent",
+    "nginxAgent.customConfigMap",
+    "nginxAgent.dataplaneKeySecretName",
+    "nginxAgent.enable",
+    "nginxAgent.endpointHost",
+    "nginxAgent.endpointPort",
+    "nginxAgent.instanceGroup",
+    "nginxAgent.instanceManager",
+    "nginxAgent.instanceManager.grpcPort",
+    "nginxAgent.instanceManager.host",
+    "nginxAgent.instanceManager.sni",
+    "nginxAgent.instanceManager.tls",
+    "nginxAgent.instanceManager.tls.caSecret",
+    "nginxAgent.instanceManager.tls.enable",
+    "nginxAgent.instanceManager.tls.secret",
+    "nginxAgent.instanceManager.tls.skipVerify",
+    "nginxAgent.logLevel",
+    "nginxAgent.napMonitoring",
+    "nginxAgent.napMonitoring.collectorBufferSize",
+    "nginxAgent.napMonitoring.processorBufferSize",
+    "nginxAgent.syslog",
+    "nginxAgent.syslog.host",
+    "nginxAgent.syslog.port",
+    "nginxAgent.tlsSkipVerify",
+    "nginxServiceMesh",
+    "nginxServiceMesh.enable",
+    "nginxServiceMesh.enableEgress",
+    "prometheus",
+    "prometheus.create",
+    "prometheus.port",
+    "prometheus.scheme",
+    "prometheus.secret",
+    "prometheus.service",
+    "prometheus.service.create",
+    "prometheus.service.labels",
+    "prometheus.serviceMonitor",
+    "prometheus.serviceMonitor.create",
+    "prometheus.serviceMonitor.endpoints",
+    "prometheus.serviceMonitor.labels",
+    "prometheus.serviceMonitor.selectorMatchLabels",
+    "rbac",
+    "rbac.create",
+    "serviceInsight",
+    "serviceInsight.create",
+    "serviceInsight.port",
+    "serviceInsight.scheme",
+    "serviceInsight.secret"
+  ],
+  "templates": [
+    "charts/nginx-ingress/templates/NOTES.txt",
+    "charts/nginx-ingress/templates/_helpers.tpl",
+    "charts/nginx-ingress/templates/clusterrole.yaml",
+    "charts/nginx-ingress/templates/clusterrolebinding.yaml",
+    "charts/nginx-ingress/templates/controller-configmap.yaml",
+    "charts/nginx-ingress/templates/controller-daemonset.yaml",
+    "charts/nginx-ingress/templates/controller-deployment.yaml",
+    "charts/nginx-ingress/templates/controller-globalconfiguration.yaml",
+    "charts/nginx-ingress/templates/controller-hpa.yaml",
+    "charts/nginx-ingress/templates/controller-ingress-class.yaml",
+    "charts/nginx-ingress/templates/controller-leader-election-configmap.yaml",
+    "charts/nginx-ingress/templates/controller-lease.yaml",
+    "charts/nginx-ingress/templates/controller-pdb.yaml",
+    "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+    "charts/nginx-ingress/templates/controller-role.yaml",
+    "charts/nginx-ingress/templates/controller-rolebinding.yaml",
+    "charts/nginx-ingress/templates/controller-secret.yaml",
+    "charts/nginx-ingress/templates/controller-service.yaml",
+    "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+    "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+    "charts/nginx-ingress/templates/controller-statefulset.yaml",
+    "charts/nginx-ingress/templates/controller-wildcard-secret.yaml"
+  ],
+  "value_usage": {
+    "controller.affinity": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 45
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 47
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 43
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 45
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 44
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 46
+      }
+    ],
+    "controller.allowEmptyIngressHost": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 360
+      }
+    ],
+    "controller.annotations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 10
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 10
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 10
+      }
+    ],
+    "controller.appprotect.configManager.image": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 185
+      }
+    ],
+    "controller.appprotect.configManager.image.pullPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 537
+      }
+    ],
+    "controller.appprotect.configManager.securityContext": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 538
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 540
+      }
+    ],
+    "controller.appprotect.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 274
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 275
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 276
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 279
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 575
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 584
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 92
+      }
+    ],
+    "controller.appprotect.enforcer.host": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 280
+      }
+    ],
+    "controller.appprotect.enforcer.image": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 181
+      }
+    ],
+    "controller.appprotect.enforcer.image.pullPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 518
+      }
+    ],
+    "controller.appprotect.enforcer.port": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 280
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 525
+      }
+    ],
+    "controller.appprotect.enforcer.securityContext": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 519
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 521
+      }
+    ],
+    "controller.appprotect.ipIntelligence": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 415
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 531
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 549
+      }
+    ],
+    "controller.appprotect.ipIntelligence.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 275
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 415
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 531
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 549
+      }
+    ],
+    "controller.appprotect.ipIntelligence.image": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 189
+      }
+    ],
+    "controller.appprotect.ipIntelligence.image.pullPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 552
+      }
+    ],
+    "controller.appprotect.ipIntelligence.securityContext": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 553
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 555
+      }
+    ],
+    "controller.appprotect.logLevel": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 276
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 277
+      }
+    ],
+    "controller.appprotect.v5": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 279
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 413
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 480
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 515
+      }
+    ],
+    "controller.appprotect.volumes": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 414
+      }
+    ],
+    "controller.appprotectdos.debug": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 284
+      }
+    ],
+    "controller.appprotectdos.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 282
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 283
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 104
+      }
+    ],
+    "controller.appprotectdos.maxDaemons": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 285
+      }
+    ],
+    "controller.appprotectdos.maxWorkers": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 286
+      }
+    ],
+    "controller.appprotectdos.memory": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 287
+      }
+    ],
+    "controller.autoscaling.annotations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 11
+      }
+    ],
+    "controller.autoscaling.behavior": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 20
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 22
+      }
+    ],
+    "controller.autoscaling.create": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 1
+      }
+    ],
+    "controller.autoscaling.enabled": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 13
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 13
+      }
+    ],
+    "controller.autoscaling.maxReplicas": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 19
+      }
+    ],
+    "controller.autoscaling.minReplicas": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 18
+      }
+    ],
+    "controller.autoscaling.targetCPUUtilizationPercentage": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 33
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 39
+      }
+    ],
+    "controller.autoscaling.targetMemoryUtilizationPercentage": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 25
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 31
+      }
+    ],
+    "controller.config.annotations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 11
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 25
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 27
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 42
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 44
+      }
+    ],
+    "controller.config.entries": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 14
+      }
+    ],
+    "controller.config.name": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 100
+      }
+    ],
+    "controller.containerPort": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 67
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 74
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 75
+      }
+    ],
+    "controller.customConfigMap": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 97
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 98
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 1
+      }
+    ],
+    "controller.customPorts": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 75
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 76
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 82
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 83
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 83
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 84
+      }
+    ],
+    "controller.debug": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 258
+      }
+    ],
+    "controller.debug.continue": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 267
+      }
+    ],
+    "controller.debug.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 258
+      }
+    ],
+    "controller.defaultHTTPListenerPort": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 358
+      }
+    ],
+    "controller.defaultHTTPSListenerPort": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 359
+      }
+    ],
+    "controller.defaultTLS.cert": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 295
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-secret.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-secret.yaml",
+        "line": 11
+      }
+    ],
+    "controller.defaultTLS.key": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 295
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-secret.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-secret.yaml",
+        "line": 12
+      }
+    ],
+    "controller.defaultTLS.secret": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 293
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 294
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-secret.yaml",
+        "line": 1
+      }
+    ],
+    "controller.directiveAutoAdjust": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 347
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 348
+      }
+    ],
+    "controller.disableIPV6": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 346
+      }
+    ],
+    "controller.dnsPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 54
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 61
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 62
+      }
+    ],
+    "controller.enableCertManager": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 355
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 149
+      }
+    ],
+    "controller.enableConfigSafety": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 313
+      }
+    ],
+    "controller.enableCustomResources": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 344
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 350
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 116
+      }
+    ],
+    "controller.enableExternalDNS": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 357
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 162
+      }
+    ],
+    "controller.enableLatencyMetrics": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 369
+      }
+    ],
+    "controller.enableOIDC": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 356
+      }
+    ],
+    "controller.enableSSLDynamicReload": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 370
+      }
+    ],
+    "controller.enableSnippets": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 345
+      }
+    ],
+    "controller.enableTLSPassthrough": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 351
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 352
+      }
+    ],
+    "controller.enableWeightChangesDynamicReload": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 372
+      }
+    ],
+    "controller.env": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 138
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 139
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 147
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 148
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 148
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 149
+      }
+    ],
+    "controller.extraContainers": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 168
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 169
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 175
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 176
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 176
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 177
+      }
+    ],
+    "controller.globalConfiguration.create": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 361
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-globalconfiguration.yaml",
+        "line": 1
+      }
+    ],
+    "controller.globalConfiguration.customName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 225
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 226
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 241
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 250
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 361
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 363
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 364
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-globalconfiguration.yaml",
+        "line": 5
+      }
+    ],
+    "controller.globalConfiguration.spec": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-globalconfiguration.yaml",
+        "line": 15
+      }
+    ],
+    "controller.healthStatus": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 308
+      }
+    ],
+    "controller.healthStatusURI": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 309
+      }
+    ],
+    "controller.hostNetwork": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 53
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 60
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 61
+      }
+    ],
+    "controller.hostPort": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 71
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 72
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 78
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 79
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 79
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 80
+      }
+    ],
+    "controller.hostPort.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 71
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 78
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 79
+      }
+    ],
+    "controller.image": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 177
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 193
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 195
+      }
+    ],
+    "controller.image.pullPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 61
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 180
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 68
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 187
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 69
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 188
+      }
+    ],
+    "controller.image.tag": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 170
+      }
+    ],
+    "controller.ingressClass.create": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-ingress-class.yaml",
+        "line": 1
+      }
+    ],
+    "controller.ingressClass.name": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 298
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-ingress-class.yaml",
+        "line": 5
+      }
+    ],
+    "controller.ingressClass.setAsDefaultIngress": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-ingress-class.yaml",
+        "line": 8
+      }
+    ],
+    "controller.initContainerResources": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 182
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 184
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 189
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 191
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 190
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 192
+      }
+    ],
+    "controller.initContainerSecurityContext": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 186
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 188
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 193
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 195
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 194
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 196
+      }
+    ],
+    "controller.initContainers": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 174
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 203
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 204
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 181
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 210
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 211
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 182
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 211
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 212
+      }
+    ],
+    "controller.kind": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 71
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 408
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 476
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 1
+      }
+    ],
+    "controller.lifecycle": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 62
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 64
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 69
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 71
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 70
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 72
+      }
+    ],
+    "controller.logFormat": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 312
+      }
+    ],
+    "controller.logLevel": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 311
+      }
+    ],
+    "controller.mgmt": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 130
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 48
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 51
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 54
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 65
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 68
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 71
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 147
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 156
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 157
+      }
+    ],
+    "controller.mgmt.configMapName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 119
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 120
+      }
+    ],
+    "controller.mgmt.enforceInitialReport": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 52
+      }
+    ],
+    "controller.mgmt.licenseTokenSecretName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 131
+      }
+    ],
+    "controller.mgmt.resolver": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 72
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 75
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 78
+      }
+    ],
+    "controller.mgmt.resolver.addresses": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 73
+      }
+    ],
+    "controller.mgmt.resolver.ipv6": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 76
+      }
+    ],
+    "controller.mgmt.resolver.valid": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 79
+      }
+    ],
+    "controller.mgmt.sslCertificateSecretName": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 69
+      }
+    ],
+    "controller.mgmt.sslTrustedCertificateSecretName": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 66
+      }
+    ],
+    "controller.mgmt.sslVerify": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 49
+      }
+    ],
+    "controller.mgmt.usageReport": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 55
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 58
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 61
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 148
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 149
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 157
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 158
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 158
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 159
+      }
+    ],
+    "controller.mgmt.usageReport.endpoint": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 56
+      }
+    ],
+    "controller.mgmt.usageReport.interval": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 59
+      }
+    ],
+    "controller.mgmt.usageReport.proxyCredentialsSecretName": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 155
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 160
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 164
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 169
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 165
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 170
+      }
+    ],
+    "controller.mgmt.usageReport.proxyHost": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 62
+      }
+    ],
+    "controller.minReadySeconds": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 210
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 211
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 217
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 218
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 218
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 219
+      }
+    ],
+    "controller.name": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 33
+      }
+    ],
+    "controller.nginxDebug": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 310
+      }
+    ],
+    "controller.nginxReloadTimeout": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 273
+      }
+    ],
+    "controller.nginxStatus.allowCidrs": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 317
+      }
+    ],
+    "controller.nginxStatus.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 314
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 315
+      }
+    ],
+    "controller.nginxStatus.port": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 316
+      }
+    ],
+    "controller.nginxplus": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 272
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 290
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 34
+      }
+    ],
+    "controller.nodeSelector": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 37
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 39
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 35
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 37
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 36
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 38
+      }
+    ],
+    "controller.pod.annotations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 20
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 27
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 28
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 23
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 30
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 31
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 24
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 31
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 32
+      }
+    ],
+    "controller.pod.extraLabels": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 76
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 77
+      }
+    ],
+    "controller.podDisruptionBudget.annotations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 11
+      }
+    ],
+    "controller.podDisruptionBudget.enabled": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 1
+      }
+    ],
+    "controller.podDisruptionBudget.maxUnavailable": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 20
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 21
+      }
+    ],
+    "controller.podDisruptionBudget.minAvailable": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 17
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 18
+      }
+    ],
+    "controller.podSecurityContext": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 35
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 58
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 59
+      }
+    ],
+    "controller.priorityClassName": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 50
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 51
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 52
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 53
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 53
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 54
+      }
+    ],
+    "controller.readOnlyRootFilesystem": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 213
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 119
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 128
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 129
+      }
+    ],
+    "controller.readyStatus.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 367
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 86
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 94
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 93
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 101
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 94
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 102
+      }
+    ],
+    "controller.readyStatus.initialDelaySeconds": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 100
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 107
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 108
+      }
+    ],
+    "controller.readyStatus.port": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 368
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 88
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 95
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 96
+      }
+    ],
+    "controller.replicaCount": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 14
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 14
+      }
+    ],
+    "controller.reportIngressStatus.annotations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-leader-election-configmap.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-leader-election-configmap.yaml",
+        "line": 11
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-lease.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-lease.yaml",
+        "line": 11
+      }
+    ],
+    "controller.reportIngressStatus.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 319
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 84
+      }
+    ],
+    "controller.reportIngressStatus.enableLeaderElection": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 329
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 330
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-leader-election-configmap.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-lease.yaml",
+        "line": 1
+      }
+    ],
+    "controller.reportIngressStatus.externalService": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 323
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 324
+      }
+    ],
+    "controller.reportIngressStatus.ingressLink": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 321
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 322
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 139
+      }
+    ],
+    "controller.reportIngressStatus.leaderElectionLockName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 141
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 142
+      }
+    ],
+    "controller.resources": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 165
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 121
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 122
+      }
+    ],
+    "controller.securityContext": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 213
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 113
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 115
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 122
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 124
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 123
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 125
+      }
+    ],
+    "controller.securityContext.readOnlyRootFilesystem": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 213
+      }
+    ],
+    "controller.selectorLabels": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 85
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 86
+      }
+    ],
+    "controller.service": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 26
+      }
+    ],
+    "controller.service.allocateLoadBalancerNodePorts": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 27
+      }
+    ],
+    "controller.service.annotations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 12
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 14
+      }
+    ],
+    "controller.service.clusterIP": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 17
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 18
+      }
+    ],
+    "controller.service.create": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 325
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 1
+      }
+    ],
+    "controller.service.customPorts": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 49
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 50
+      }
+    ],
+    "controller.service.externalIPs": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 80
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 82
+      }
+    ],
+    "controller.service.externalTrafficPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 21
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 22
+      }
+    ],
+    "controller.service.extraLabels": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 10
+      }
+    ],
+    "controller.service.httpPort.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 52
+      }
+    ],
+    "controller.service.httpPort.name": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 56
+      }
+    ],
+    "controller.service.httpPort.nodePort": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 58
+      }
+    ],
+    "controller.service.httpPort.port": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 53
+      }
+    ],
+    "controller.service.httpPort.targetPort": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 54
+      }
+    ],
+    "controller.service.httpsPort.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 61
+      }
+    ],
+    "controller.service.httpsPort.name": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 65
+      }
+    ],
+    "controller.service.httpsPort.nodePort": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 67
+      }
+    ],
+    "controller.service.httpsPort.port": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 62
+      }
+    ],
+    "controller.service.httpsPort.targetPort": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 63
+      }
+    ],
+    "controller.service.ipFamilies": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 44
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 46
+      }
+    ],
+    "controller.service.ipFamilyPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 41
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 42
+      }
+    ],
+    "controller.service.loadBalancerClass": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 32
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 33
+      }
+    ],
+    "controller.service.loadBalancerIP": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 29
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 30
+      }
+    ],
+    "controller.service.loadBalancerSourceRanges": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 35
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 37
+      }
+    ],
+    "controller.service.sessionAffinity.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 72
+      }
+    ],
+    "controller.service.sessionAffinity.timeoutSeconds": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 77
+      }
+    ],
+    "controller.service.sessionAffinity.type": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 73
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 74
+      }
+    ],
+    "controller.service.type": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 325
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 20
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 20
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 25
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 40
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 57
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 57
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 66
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 66
+      }
+    ],
+    "controller.serviceAccount.annotations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 6
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 7
+      }
+    ],
+    "controller.serviceAccount.imagePullSecretName": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 12
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 16
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 17
+      }
+    ],
+    "controller.serviceAccount.imagePullSecretsNames": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 12
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 20
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 21
+      }
+    ],
+    "controller.serviceAccount.name": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 152
+      }
+    ],
+    "controller.shareProcessNamespace": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 55
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 62
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 63
+      }
+    ],
+    "controller.startupStatus.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 90
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 102
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 97
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 109
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 98
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 110
+      }
+    ],
+    "controller.startupStatus.failureThreshold": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 111
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 118
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 119
+      }
+    ],
+    "controller.startupStatus.initialDelaySeconds": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 107
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 114
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 115
+      }
+    ],
+    "controller.startupStatus.path": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 105
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 112
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 113
+      }
+    ],
+    "controller.startupStatus.periodSeconds": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 108
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 115
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 116
+      }
+    ],
+    "controller.startupStatus.port": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 92
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 99
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 100
+      }
+    ],
+    "controller.startupStatus.successThreshold": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 110
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 117
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 118
+      }
+    ],
+    "controller.startupStatus.timeoutSeconds": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 109
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 116
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 117
+      }
+    ],
+    "controller.statefulset.nginxCachePVC.accessModes": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 233
+      }
+    ],
+    "controller.statefulset.nginxCachePVC.size": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 239
+      }
+    ],
+    "controller.statefulset.nginxCachePVC.storageClass": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 234
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 235
+      }
+    ],
+    "controller.statefulset.persistentVolumeClaimRetentionPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 224
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 226
+      }
+    ],
+    "controller.statefulset.podManagementPolicy": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 221
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 222
+      }
+    ],
+    "controller.strategy": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 206
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 208
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 213
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 215
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 214
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 216
+      }
+    ],
+    "controller.telemetryReporting.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 371
+      }
+    ],
+    "controller.terminationGracePeriodSeconds": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 36
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 59
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 60
+      }
+    ],
+    "controller.tlsPassthroughPort": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 353
+      }
+    ],
+    "controller.tolerations": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 41
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 43
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 39
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 41
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 40
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 42
+      }
+    ],
+    "controller.topologySpreadConstraints": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 47
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 49
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 48
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 50
+      }
+    ],
+    "controller.volumeMounts": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 490
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 491
+      }
+    ],
+    "controller.volumes": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 420
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 421
+      }
+    ],
+    "controller.watchNamespace": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 299
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 300
+      }
+    ],
+    "controller.watchNamespaceLabel": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 302
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 303
+      }
+    ],
+    "controller.watchSecretNamespace": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 305
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 306
+      }
+    ],
+    "controller.wildcardTLS.cert": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 335
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-wildcard-secret.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-wildcard-secret.yaml",
+        "line": 11
+      }
+    ],
+    "controller.wildcardTLS.key": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 335
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-wildcard-secret.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-wildcard-secret.yaml",
+        "line": 12
+      }
+    ],
+    "controller.wildcardTLS.secret": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 333
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 334
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-wildcard-secret.yaml",
+        "line": 1
+      }
+    ],
+    "fullnameOverride": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 16
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 17
+      }
+    ],
+    "nameOverride": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 7
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 19
+      }
+    ],
+    "nginxAgent.customConfigMap": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 73
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 108
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 109
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 17
+      }
+    ],
+    "nginxAgent.dataplaneKeySecretName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 375
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 429
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 432
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 500
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 565
+      }
+    ],
+    "nginxAgent.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 73
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 373
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 423
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 493
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 608
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 17
+      }
+    ],
+    "nginxAgent.endpointHost": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 591
+      }
+    ],
+    "nginxAgent.endpointPort": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 592
+      }
+    ],
+    "nginxAgent.instanceGroup": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 376
+      }
+    ],
+    "nginxAgent.instanceManager.grpcPort": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 609
+      }
+    ],
+    "nginxAgent.instanceManager.host": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 608
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 608
+      }
+    ],
+    "nginxAgent.instanceManager.sni": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 610
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 611
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 612
+      }
+    ],
+    "nginxAgent.instanceManager.tls": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 436
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 506
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 614
+      }
+    ],
+    "nginxAgent.instanceManager.tls.caSecret": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 436
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 444
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 446
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 506
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 618
+      }
+    ],
+    "nginxAgent.instanceManager.tls.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 616
+      }
+    ],
+    "nginxAgent.instanceManager.tls.secret": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 436
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 440
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 442
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 506
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 621
+      }
+    ],
+    "nginxAgent.instanceManager.tls.skipVerify": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 617
+      }
+    ],
+    "nginxAgent.logLevel": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 568
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 605
+      }
+    ],
+    "nginxAgent.napMonitoring.collectorBufferSize": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 638
+      }
+    ],
+    "nginxAgent.napMonitoring.processorBufferSize": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 639
+      }
+    ],
+    "nginxAgent.syslog.host": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 640
+      }
+    ],
+    "nginxAgent.syslog.port": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 641
+      }
+    ],
+    "nginxAgent.tlsSkipVerify": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 596
+      }
+    ],
+    "nginxServiceMesh.enable": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 68
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 141
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 150
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 151
+      }
+    ],
+    "nginxServiceMesh.enableEgress": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 70
+      }
+    ],
+    "prometheus.create": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 338
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 20
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 22
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 78
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 23
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 25
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 85
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 24
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 26
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 86
+      }
+    ],
+    "prometheus.port": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 339
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 24
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 80
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 27
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 87
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 17
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 18
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 28
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 88
+      }
+    ],
+    "prometheus.scheme": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 25
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 28
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 29
+      }
+    ],
+    "prometheus.secret": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 340
+      }
+    ],
+    "prometheus.service.create": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 1
+      }
+    ],
+    "prometheus.service.labels": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 10
+      }
+    ],
+    "prometheus.serviceMonitor.create": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 1
+      }
+    ],
+    "prometheus.serviceMonitor.endpoints": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 20
+      }
+    ],
+    "prometheus.serviceMonitor.labels": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 9
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 10
+      }
+    ],
+    "prometheus.serviceMonitor.selectorMatchLabels": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 15
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 16
+      }
+    ],
+    "rbac.clusterrole.create": [
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 1
+      }
+    ],
+    "rbac.create": [
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrolebinding.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-role.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-rolebinding.yaml",
+        "line": 1
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 1
+      }
+    ],
+    "serviceInsight.create": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 341
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 82
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 89
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 90
+      }
+    ],
+    "serviceInsight.port": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 342
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 84
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 91
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 92
+      }
+    ],
+    "serviceInsight.secret": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 343
+      }
+    ],
+    "serviceNameOverride": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 41
+      }
+    ]
+  },
+  "include_usage": {
+    "nap-config-manager.image": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 536
+      }
+    ],
+    "nap-enforcer.image": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 517
+      }
+    ],
+    "nap-ip-intelligence.image": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 551
+      }
+    ],
+    "nginx-ingress.agentConfigName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 426
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 21
+      }
+    ],
+    "nginx-ingress.agentConfiguration": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 74
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 31
+      }
+    ],
+    "nginx-ingress.appprotect.v5": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 172
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 179
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 180
+      }
+    ],
+    "nginx-ingress.args": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 167
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 174
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 175
+      }
+    ],
+    "nginx-ingress.chart": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 55
+      }
+    ],
+    "nginx-ingress.configName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 289
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 5
+      }
+    ],
+    "nginx-ingress.controller.fullname": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 41
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 71
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 362
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 376
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-globalconfiguration.yaml",
+        "line": 6
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 17
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 5
+      }
+    ],
+    "nginx-ingress.controller.service.name": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 326
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 16
+      }
+    ],
+    "nginx-ingress.defaultTLSName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 296
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-secret.yaml",
+        "line": 5
+      }
+    ],
+    "nginx-ingress.fullname": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 33
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 100
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 111
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 122
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 144
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 152
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 159
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 166
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 206
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrolebinding.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrolebinding.yaml",
+        "line": 14
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-role.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-rolebinding.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-rolebinding.yaml",
+        "line": 12
+      }
+    ],
+    "nginx-ingress.globalConfiguration.customName": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-globalconfiguration.yaml",
+        "line": 9
+      }
+    ],
+    "nginx-ingress.globalConfiguration.customNamespace": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-globalconfiguration.yaml",
+        "line": 10
+      }
+    ],
+    "nginx-ingress.globalConfiguration.validateCustomName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 240
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 249
+      }
+    ],
+    "nginx-ingress.image": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 60
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 179
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 66
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 186
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 67
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 187
+      }
+    ],
+    "nginx-ingress.image-digest-or-tag": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 177
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 181
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 185
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 189
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 195
+      }
+    ],
+    "nginx-ingress.labels": [
+      {
+        "file": "charts/nginx-ingress/templates/clusterrole.yaml",
+        "line": 7
+      },
+      {
+        "file": "charts/nginx-ingress/templates/clusterrolebinding.yaml",
+        "line": 7
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 24
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 41
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-globalconfiguration.yaml",
+        "line": 13
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-hpa.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-ingress-class.yaml",
+        "line": 7
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-leader-election-configmap.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-lease.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-role.yaml",
+        "line": 7
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-rolebinding.yaml",
+        "line": 7
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-secret.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 11
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 8
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-wildcard-secret.yaml",
+        "line": 8
+      }
+    ],
+    "nginx-ingress.leaderElectionName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 331
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-leader-election-configmap.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-lease.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-role.yaml",
+        "line": 46
+      }
+    ],
+    "nginx-ingress.licenseTokenSecretName": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 47
+      }
+    ],
+    "nginx-ingress.mgmtConfigName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 291
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-configmap.yaml",
+        "line": 38
+      }
+    ],
+    "nginx-ingress.name": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 88
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 59
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 178
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 67
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 185
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 68
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 186
+      }
+    ],
+    "nginx-ingress.podLabels": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 19
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 22
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 23
+      }
+    ],
+    "nginx-ingress.prometheus.serviceName": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 5
+      }
+    ],
+    "nginx-ingress.readOnlyRootFilesystem": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 398
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 465
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 174
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 177
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 181
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 184
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 182
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 185
+      }
+    ],
+    "nginx-ingress.selectorLabels": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 56
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 67
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 15
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 18
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-pdb.yaml",
+        "line": 16
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-prometheus-service.yaml",
+        "line": 20
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-service.yaml",
+        "line": 71
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-servicemonitor.yaml",
+        "line": 18
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 19
+      }
+    ],
+    "nginx-ingress.serviceAccountName": [
+      {
+        "file": "charts/nginx-ingress/templates/clusterrolebinding.yaml",
+        "line": 10
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 32
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 55
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-rolebinding.yaml",
+        "line": 15
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-serviceaccount.yaml",
+        "line": 5
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 56
+      }
+    ],
+    "nginx-ingress.volumeEntries": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 387
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 390
+      }
+    ],
+    "nginx-ingress.volumeMountEntries": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 458
+      },
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 461
+      }
+    ],
+    "nginx-ingress.volumeMounts": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 128
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 137
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 138
+      }
+    ],
+    "nginx-ingress.volumes": [
+      {
+        "file": "charts/nginx-ingress/templates/controller-daemonset.yaml",
+        "line": 49
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-deployment.yaml",
+        "line": 51
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-statefulset.yaml",
+        "line": 52
+      }
+    ],
+    "nginx-ingress.wildcardTLSName": [
+      {
+        "file": "charts/nginx-ingress/templates/_helpers.tpl",
+        "line": 336
+      },
+      {
+        "file": "charts/nginx-ingress/templates/controller-wildcard-secret.yaml",
+        "line": 5
+      }
+    ]
+  }
+}

@@ -30,6 +30,7 @@ osx-nginx-plus-ingress
 nginx-plus-ingress
 cmd/nginx-ingress/nginx-ingress
 dist/
+bin/
 
 # NGINX Plus license files
 *.crt

@@ -1,0 +1,2806 @@
+{
+  "entries": [
+    {
+      "file": "examples/custom-resources/access-control/README.md",
+      "kind": "md",
+      "name": "Deploy a Policy for access control",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/access-control/access-control-policy-allow.yaml",
+      "kind": "Policy",
+      "name": "webapp-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/access-control/access-control-policy-deny.yaml",
+      "kind": "Policy",
+      "name": "webapp-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/access-control/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/access-control/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/advanced-routing/README.md",
+      "kind": "md",
+      "name": "Advanced Routing",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/advanced-routing/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/advanced-routing/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee-v1",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/api-key/README.md",
+      "kind": "md",
+      "name": "API Key Authentication",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/api-key/api-key-policy.yaml",
+      "kind": "Policy",
+      "name": "api-key-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/api-key/api-key-secret.yaml",
+      "kind": "Secret",
+      "name": "api-key-client-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/api-key/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/api-key/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/api-key/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-dos/README.md",
+      "kind": "md",
+      "name": "DOS",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-dos/apdos-logconf.yaml",
+      "kind": "APDosLogConf",
+      "name": "doslogconf",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-dos/apdos-policy.yaml",
+      "kind": "APDosPolicy",
+      "name": "dospolicy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-dos/apdos-protected.yaml",
+      "kind": "DosProtectedResource",
+      "name": "dos-protected",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-dos/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-dos/syslog2.yaml",
+      "kind": "Deployment",
+      "name": "syslog-2",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-dos/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-dos/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf-v5/README.md",
+      "kind": "md",
+      "name": "WAF",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf-v5/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf-v5/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf-v5/waf.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf-v5/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/README.md",
+      "kind": "md",
+      "name": "WAF",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/ap-apple-uds.yaml",
+      "kind": "APUserSig",
+      "name": "apple",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/ap-dataguard-alarm-policy.yaml",
+      "kind": "APPolicy",
+      "name": "dataguard-alarm",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/ap-ip-intelligence-policy.yaml",
+      "kind": "APPolicy",
+      "name": "ip-intelligence-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/ap-logconf.yaml",
+      "kind": "APLogConf",
+      "name": "logconf",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/waf.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/app-protect-waf/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/transport-server/README.md",
+      "kind": "md",
+      "name": "Support for Backup Directive in Transport Server",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/transport-server/app-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/transport-server/backup-svc.yaml",
+      "kind": "Service",
+      "name": "backup-svc-ts",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/transport-server/external-secure-app.yaml",
+      "kind": "Deployment",
+      "name": "secure-app-backup",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/transport-server/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/transport-server/secure-app.yaml",
+      "kind": "Deployment",
+      "name": "secure-app",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/transport-server/transport-server-passthrough.yaml",
+      "kind": "TransportServer",
+      "name": "secure-app",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/virtual-server/README.md",
+      "kind": "md",
+      "name": "Support for Backup Directive in Virtual Server",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/virtual-server/backup-svc.yaml",
+      "kind": "Service",
+      "name": "backup-svc",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/virtual-server/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/virtual-server/cafe-virtual-server-backup.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/virtual-server/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/virtual-server/external-cafe.yaml",
+      "kind": "Namespace",
+      "name": "external-ns",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/backup-directive/virtual-server/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-auth/README.md",
+      "kind": "md",
+      "name": "Basic Authentication",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-auth/basic-auth-policy.yaml",
+      "kind": "Policy",
+      "name": "basic-auth-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-auth/cafe-passwd.yaml",
+      "kind": "Secret",
+      "name": "cafe-passwd",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-auth/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-auth/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-auth/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration-vsr/README.md",
+      "kind": "md",
+      "name": "Basic Configuration with VirtualServerRoute",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration-vsr/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration-vsr/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration-vsr/coffee-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration-vsr/coffee.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration-vsr/tea-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration-vsr/tea.yaml",
+      "kind": "Deployment",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration/README.md",
+      "kind": "md",
+      "name": "Basic Configuration",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-configuration/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-tcp-udp/README.md",
+      "kind": "md",
+      "name": "Basic TCP/UDP Load Balancing",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-tcp-udp/dns.yaml",
+      "kind": "ConfigMap",
+      "name": "coredns",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-tcp-udp/global-configuration.yaml",
+      "kind": "GlobalConfiguration",
+      "name": "nginx-configuration",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-tcp-udp/transport-server-tcp.yaml",
+      "kind": "TransportServer",
+      "name": "dns-tcp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/basic-tcp-udp/transport-server-udp.yaml",
+      "kind": "TransportServer",
+      "name": "dns-udp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cache-policy/README.md",
+      "kind": "md",
+      "name": "Cache Policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cache-policy/cache.yaml",
+      "kind": "Policy",
+      "name": "cache-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cache-policy/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cache-policy/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cache-policy/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/certmanager/README.md",
+      "kind": "md",
+      "name": "Example",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/certmanager/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/certmanager/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/certmanager/self-signed.yaml",
+      "kind": "Namespace",
+      "name": "sandbox",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cors/README.md",
+      "kind": "md",
+      "name": "CORS Policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cors/cors-policy.yaml",
+      "kind": "Policy",
+      "name": "cors-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cors/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cors/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cors/wildcard-cors-policy.yaml",
+      "kind": "Policy",
+      "name": "wildcard-cors-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cross-namespace-configuration/README.md",
+      "kind": "md",
+      "name": "Cross-Namespace Configuration",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cross-namespace-configuration/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "cafe-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cross-namespace-configuration/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cross-namespace-configuration/coffee-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cross-namespace-configuration/coffee.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cross-namespace-configuration/namespaces.yaml",
+      "kind": "Namespace",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cross-namespace-configuration/tea-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/cross-namespace-configuration/tea.yaml",
+      "kind": "Deployment",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/transportserver/README.md",
+      "kind": "md",
+      "name": "Custom IPv4 and IPv6 Address Listeners",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/transportserver/dns.yaml",
+      "kind": "ConfigMap",
+      "name": "coredns",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/transportserver/global-configuration.yaml",
+      "kind": "GlobalConfiguration",
+      "name": "my-release-nginx-ingress-controller",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/transportserver/tcp-transport-server.yaml",
+      "kind": "TransportServer",
+      "name": "tcp-dns",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/transportserver/udp-transport-server.yaml",
+      "kind": "TransportServer",
+      "name": "dns-udp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/virtualserver/README.md",
+      "kind": "md",
+      "name": "Custom IPv4 and IPv6 Address Listeners",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/virtualserver/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/virtualserver/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/virtualserver/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-ip-listeners/virtualserver/global-configuration.yaml",
+      "kind": "GlobalConfiguration",
+      "name": "nginx-configuration",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-listeners/README.md",
+      "kind": "md",
+      "name": "Custom HTTP Listeners",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-listeners/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-listeners/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-listeners/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-listeners/global-configuration.yaml",
+      "kind": "GlobalConfiguration",
+      "name": "nginx-configuration",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/custom-templates/README.md",
+      "kind": "md",
+      "name": "Custom Templates",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/egress-mtls/README.md",
+      "kind": "md",
+      "name": "Egress MTLS",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/egress-mtls/egress-mtls-secret.yaml",
+      "kind": "Secret",
+      "name": "egress-mtls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/egress-mtls/egress-mtls.yaml",
+      "kind": "Policy",
+      "name": "egress-mtls-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/egress-mtls/egress-trusted-ca-secret.yaml",
+      "kind": "Secret",
+      "name": "egress-trusted-ca-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/egress-mtls/secure-app-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "app-tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/egress-mtls/secure-app.yaml",
+      "kind": "Deployment",
+      "name": "secure-app",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/egress-mtls/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/README.md",
+      "kind": "md",
+      "name": "External Authentication with OAuth2",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/basic-auth-policy.yaml",
+      "kind": "Policy",
+      "name": "external-auth-basic-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/basic-auth.yaml",
+      "kind": "ConfigMap",
+      "name": "secure-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/external-auth-ca-secret.yaml",
+      "kind": "Secret",
+      "name": "external-auth-ca-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/external-auth-server-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "external-auth-server-tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/htpasswd-secret.yaml",
+      "kind": "Secret",
+      "name": "htpasswd-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/oauth2-policy.yaml",
+      "kind": "Policy",
+      "name": "external-auth-oauth2-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/oauth2-proxy-client-secret.yaml",
+      "kind": "Secret",
+      "name": "oauth2-proxy-client-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/oauth2-proxy.yaml",
+      "kind": "ConfigMap",
+      "name": "oauth2-proxy-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth-oauth2/tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth/README.md",
+      "kind": "md",
+      "name": "External Authentication",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth/basic-auth-policy.yaml",
+      "kind": "Policy",
+      "name": "external-auth-basic-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth/basic-auth.yaml",
+      "kind": "ConfigMap",
+      "name": "secure-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth/external-auth-server-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "external-auth-server-tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth/htpasswd-secret.yaml",
+      "kind": "Secret",
+      "name": "htpasswd-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-auth/tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-dns/README.md",
+      "kind": "md",
+      "name": "External DNS",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-dns/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-dns/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-dns/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/external-dns/external-dns-route53.yaml",
+      "kind": "ClusterRole",
+      "name": "external-dns",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/externalname-services/README.md",
+      "kind": "md",
+      "name": "Support for Type ExternalName Services",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/externalname-services/transport-server/README.md",
+      "kind": "md",
+      "name": "Support for Type ExternalName Services in Transport Server",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/externalname-services/transport-server/app-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/externalname-services/transport-server/externalname-svc.yaml",
+      "kind": "Service",
+      "name": "externalname-service",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/externalname-services/transport-server/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/externalname-services/transport-server/secure-app-external.yaml",
+      "kind": "Deployment",
+      "name": "secure-app-external-backend",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/foreign-namespace-upstreams/README.md",
+      "kind": "md",
+      "name": "Upstreams in foreign namespaces",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/foreign-namespace-upstreams/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "cafe-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/foreign-namespace-upstreams/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/foreign-namespace-upstreams/coffee.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/foreign-namespace-upstreams/namespaces.yaml",
+      "kind": "Namespace",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/foreign-namespace-upstreams/tea.yaml",
+      "kind": "Deployment",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/grpc-upstreams/README.md",
+      "kind": "md",
+      "name": "gRPC support",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/grpc-upstreams/greeter-app.yaml",
+      "kind": "Deployment",
+      "name": "grpc",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/grpc-upstreams/greeter-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/grpc-upstreams/greeter-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/grpc-upstreams/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/health-checks/README.md",
+      "kind": "md",
+      "name": "Support for Active Health Checks",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/ingress-mtls/README.md",
+      "kind": "md",
+      "name": "Ingress MTLS",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/ingress-mtls/ingress-mtls-secret.yaml",
+      "kind": "Secret",
+      "name": "ingress-mtls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/ingress-mtls/ingress-mtls.yaml",
+      "kind": "Policy",
+      "name": "ingress-mtls-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/ingress-mtls/tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/ingress-mtls/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/ingress-mtls/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwks/README.md",
+      "kind": "md",
+      "name": "JWKS",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwks/jwks.yaml",
+      "kind": "Policy",
+      "name": "jwt-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwks/keycloak.yaml",
+      "kind": "Service",
+      "name": "keycloak",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwks/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwks/tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwks/virtual-server-idp.yaml",
+      "kind": "VirtualServer",
+      "name": "keycloak",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwks/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwks/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwt/README.md",
+      "kind": "md",
+      "name": "JWT",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwt/jwk-secret.yaml",
+      "kind": "Secret",
+      "name": "jwk-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwt/jwt.yaml",
+      "kind": "Policy",
+      "name": "jwt-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwt/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/jwt/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/README.md",
+      "kind": "md",
+      "name": "OIDC with Front Channel Logout",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/client-secret-one.yaml",
+      "kind": "Secret",
+      "name": "fclo-secret-one",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/client-secret-two.yaml",
+      "kind": "Secret",
+      "name": "fclo-secret-two",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/keycloak.yaml",
+      "kind": "Service",
+      "name": "keycloak",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/keycloak_setup.md",
+      "kind": "md",
+      "name": "Keycloak Setup for Front Channel Logout example",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/oidc-one.yaml",
+      "kind": "Policy",
+      "name": "oidc-one-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/oidc-two.yaml",
+      "kind": "Policy",
+      "name": "oidc-two-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/two-virtual-servers.yaml",
+      "kind": "VirtualServer",
+      "name": "fclo-one",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/two-webapps.yaml",
+      "kind": "Deployment",
+      "name": "fclo-one",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc-fclo/virtual-server-idp.yaml",
+      "kind": "VirtualServer",
+      "name": "keycloak",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/README.md",
+      "kind": "md",
+      "name": "OIDC",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/client-secret.yaml",
+      "kind": "Secret",
+      "name": "oidc-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/keycloak-ca-secret.yaml",
+      "kind": "Secret",
+      "name": "keycloak-ca-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/keycloak-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "keycloak-tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/keycloak.yaml",
+      "kind": "Service",
+      "name": "keycloak",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/keycloak_setup.md",
+      "kind": "md",
+      "name": "Keycloak Setup",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/oidc-pkce.yaml",
+      "kind": "Policy",
+      "name": "oidc-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/oidc.yaml",
+      "kind": "Policy",
+      "name": "oidc-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/virtual-server-idp.yaml",
+      "kind": "VirtualServer",
+      "name": "keycloak",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/oidc/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/path-matching/README.md",
+      "kind": "md",
+      "name": "Path Matching",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/path-matching/longest-prefix-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "longest-prefix-routes",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/path-matching/path-matching-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "path-matching",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/path-matching/path-matching-with-subroutes-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "path-matching-vsr",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/path-matching/prefix-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "prefix-routes",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-jwt-claim/README.md",
+      "kind": "md",
+      "name": "Rate Limit JWT claim",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-jwt-claim/rate-limit.yaml",
+      "kind": "Policy",
+      "name": "rate-limit-jwt",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-jwt-claim/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-jwt-claim/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-apikey/README.md",
+      "kind": "md",
+      "name": "Tiered Rate Limits with API Keys",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-apikey/api-key-policy.yaml",
+      "kind": "Policy",
+      "name": "api-key-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-apikey/api-key-secret.yaml",
+      "kind": "Secret",
+      "name": "api-key-client-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-apikey/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-apikey/coffee.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-apikey/rate-limits.yaml",
+      "kind": "Policy",
+      "name": "rate-limit-apikey-premium",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-jwt-claim/README.md",
+      "kind": "md",
+      "name": "Tiered Rate Limits with JWT Claim",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-jwt-claim/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-jwt-claim/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-jwt-claim/coffee.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-jwt-claim/rate-limits.yaml",
+      "kind": "Policy",
+      "name": "rate-limit-jwt-premium",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-request-method/README.md",
+      "kind": "md",
+      "name": "Tiered Rate Limits with Request Methods",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-request-method/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-request-method/coffee.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit-tiered-request-method/rate-limits.yaml",
+      "kind": "Policy",
+      "name": "rate-limit-request-method-get-head",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit/README.md",
+      "kind": "md",
+      "name": "Rate Limit",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit/rate-limit.yaml",
+      "kind": "Policy",
+      "name": "rate-limit-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rate-limit/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/rewrites/README.md",
+      "kind": "md",
+      "name": "Rewrites Support",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring-v5/README.md",
+      "kind": "md",
+      "name": "WAF Security Monitoring with F5 WAF for NGINX v5",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring-v5/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring-v5/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring-v5/waf-agent-v3.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring-v5/waf.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring-v5/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring/README.md",
+      "kind": "md",
+      "name": "WAF",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring/ap-apple-uds.yaml",
+      "kind": "APUserSig",
+      "name": "apple",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring/ap-dataguard-alarm-policy.yaml",
+      "kind": "APPolicy",
+      "name": "dataguard-alarm",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring/ap-logconf-agent-v3.yaml",
+      "kind": "APLogConf",
+      "name": "logconf",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring/ap-logconf.yaml",
+      "kind": "APLogConf",
+      "name": "logconf",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring/waf.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/security-monitoring/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/service-insight/README.md",
+      "kind": "md",
+      "name": "Support for Service Insight",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/service-insight/service-insight-secret.yaml",
+      "kind": "Secret",
+      "name": "service-insight-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/session-persistence/README.md",
+      "kind": "md",
+      "name": "Session Persistence",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/session-persistence/cafe-vs-with-session-cookie.yml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/tls-passthrough/README.md",
+      "kind": "md",
+      "name": "TLS Passthrough",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/tls-passthrough/app-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/tls-passthrough/secure-app.yaml",
+      "kind": "Deployment",
+      "name": "secure-app",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/tls-passthrough/transport-server-passthrough.yaml",
+      "kind": "TransportServer",
+      "name": "secure-app",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/traffic-splitting/README.md",
+      "kind": "md",
+      "name": "Traffic Splitting",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/traffic-splitting/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/traffic-splitting/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee-v1",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/transport-server-sni/README.md",
+      "kind": "md",
+      "name": "TransportServer SNI",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/transport-server-sni/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/transport-server-sni/cafe-transport-server.yaml",
+      "kind": "TransportServer",
+      "name": "cafe-ts",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/transport-server-sni/mongo-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/transport-server-sni/mongo-transport-server.yaml",
+      "kind": "TransportServer",
+      "name": "mongo-ts",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/transport-server-sni/mongo.yaml",
+      "kind": "Service",
+      "name": "mongodb",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/transport-server-sni/tcp-echo-server.yaml",
+      "kind": "Service",
+      "name": "tcp-echo-service",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-multiple-regex-routes/README.md",
+      "kind": "md",
+      "name": "Multiple Regex Routes per VirtualServerRoute",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-multiple-regex-routes/virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "api-gateway",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-multiple-regex-routes/vsr-api-duplicate-paths.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "vsr-api",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-multiple-regex-routes/vsr-api-extra-subroute.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "vsr-api",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-multiple-regex-routes/vsr-api-missing-subroute.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "vsr-api",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-multiple-regex-routes/vsr-api.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "vsr-api",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-multiple-regex-routes/vsr-media.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "vsr-media",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-crossnamespace/README.md",
+      "kind": "md",
+      "name": "Cross-Namespace, VirtualServeRoute Selector Configuration",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-crossnamespace/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "cafe-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-crossnamespace/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-crossnamespace/coffee-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-crossnamespace/coffee.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-crossnamespace/namespaces.yaml",
+      "kind": "Namespace",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-crossnamespace/tea-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-crossnamespace/tea.yaml",
+      "kind": "Deployment",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/README.md",
+      "kind": "md",
+      "name": "VirtualServerRoute Selector With Policies Configuration",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/api-key-policy.yaml",
+      "kind": "Policy",
+      "name": "api-key-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/api-key-secret.yaml",
+      "kind": "Secret",
+      "name": "api-key-client-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/cafe-namespace.yaml",
+      "kind": "Namespace",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/cafe-virtual-server.yaml",
+      "kind": "VirtualServer",
+      "name": "cafe",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/coffee-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/coffee.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/rate-limit.yaml",
+      "kind": "Policy",
+      "name": "rate-limit-policy",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/tea-virtual-server-route.yaml",
+      "kind": "VirtualServerRoute",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/vsr-route-selector-policies/tea.yaml",
+      "kind": "Deployment",
+      "name": "tea",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/zone-sync/README.md",
+      "kind": "md",
+      "name": "Zone-Sync",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/custom-resources/zone-sync/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "custom-resources"
+    },
+    {
+      "file": "examples/ingress-resources/access-control/README.md",
+      "kind": "md",
+      "name": "Access Control Policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/access-control/access-control-policy-allow.yaml",
+      "kind": "Policy",
+      "name": "webapp-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/access-control/access-control-policy-deny.yaml",
+      "kind": "Policy",
+      "name": "webapp-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/access-control/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/access-control/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/access-control/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/access-control/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/README.md",
+      "kind": "md",
+      "name": "NGINX App Protect DoS Support",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/apdos-logconf.yaml",
+      "kind": "APDosLogConf",
+      "name": "doslogconf",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/apdos-policy.yaml",
+      "kind": "APDosPolicy",
+      "name": "dospolicy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/apdos-protected.yaml",
+      "kind": "DosProtectedResource",
+      "name": "dos-protected",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/syslog2.yaml",
+      "kind": "Deployment",
+      "name": "syslog-2",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/webapp-ingress.yaml",
+      "kind": "Ingress",
+      "name": "webapp-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/webapp-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-dos/webapp.yaml",
+      "kind": "Deployment",
+      "name": "webapp",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy-v5/README.md",
+      "kind": "md",
+      "name": "WAF",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy-v5/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy-v5/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy-v5/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy-v5/waf.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy/README.md",
+      "kind": "md",
+      "name": "WAF",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy/ap-apple-uds.yaml",
+      "kind": "APUserSig",
+      "name": "apple",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy/ap-dataguard-alarm-policy.yaml",
+      "kind": "APPolicy",
+      "name": "dataguard-alarm",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy/ap-logconf.yaml",
+      "kind": "APLogConf",
+      "name": "logconf",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf-policy/waf-policy.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf/README.md",
+      "kind": "md",
+      "name": "NGINX App Protect Support",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf/ap-apple-uds.yaml",
+      "kind": "APUserSig",
+      "name": "apple",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf/ap-dataguard-alarm-policy.yaml",
+      "kind": "APPolicy",
+      "name": "dataguard-alarm",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf/ap-logconf.yaml",
+      "kind": "APLogConf",
+      "name": "logconf",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/app-protect-waf/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/basic-auth/README.md",
+      "kind": "md",
+      "name": "Support for HTTP Basic Authentication",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/basic-auth/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/basic-auth/cafe-passwd.yaml",
+      "kind": "Secret",
+      "name": "cafe-passwd",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/basic-auth/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/basic-auth/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/complete-example/README.md",
+      "kind": "md",
+      "name": "Example",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/complete-example/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/complete-example/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/complete-example/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/cors/README.md",
+      "kind": "md",
+      "name": "CORS Policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/cors/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/cors/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/cors/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/cors/cors-policy.yaml",
+      "kind": "Policy",
+      "name": "cors-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/custom-annotations/README.md",
+      "kind": "md",
+      "name": "Custom Annotations",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/custom-templates/README.md",
+      "kind": "md",
+      "name": "Custom Templates",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/customization/README.md",
+      "kind": "md",
+      "name": "Customization of NGINX Configuration",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/daemon-set/README.md",
+      "kind": "md",
+      "name": "Deploying NGINX and NGINX Plus Controllers as a Daemon Set",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/egress-mtls/README.md",
+      "kind": "md",
+      "name": "Egress MTLS",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/egress-mtls/egress-mtls-secret.yaml",
+      "kind": "Secret",
+      "name": "egress-mtls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/egress-mtls/egress-mtls.yaml",
+      "kind": "Policy",
+      "name": "egress-mtls-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/egress-mtls/egress-trusted-ca-secret.yaml",
+      "kind": "Secret",
+      "name": "egress-trusted-ca-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/egress-mtls/ingress.yaml",
+      "kind": "Ingress",
+      "name": "webapp-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/egress-mtls/secure-app-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "app-tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/egress-mtls/secure-app.yaml",
+      "kind": "Deployment",
+      "name": "secure-app",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host-mergeable/README.md",
+      "kind": "md",
+      "name": "Mergeable Ingress Without a Host",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host-mergeable/cafe-master.yaml",
+      "kind": "Ingress",
+      "name": "cafe-empty-host-master",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host-mergeable/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host-mergeable/coffee-minion.yaml",
+      "kind": "Ingress",
+      "name": "coffee-minion",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host-mergeable/default-server-secret.yaml",
+      "kind": "Secret",
+      "name": "default-server-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host-mergeable/tea-minion.yaml",
+      "kind": "Ingress",
+      "name": "tea-minion",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host/README.md",
+      "kind": "md",
+      "name": "Ingress Without a Host",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-empty-host",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/empty-host/default-server-secret.yaml",
+      "kind": "Secret",
+      "name": "default-server-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/README.md",
+      "kind": "md",
+      "name": "External Authentication with Mergeable Ingresses",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/basic-auth-policy.yaml",
+      "kind": "Policy",
+      "name": "external-auth-basic-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/basic-auth.yaml",
+      "kind": "ConfigMap",
+      "name": "secure-config",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/cafe-ingress-master.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-master",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/coffee-minion.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-coffee-minion",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/external-auth-ca-secret.yaml",
+      "kind": "Secret",
+      "name": "external-auth-ca-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/external-auth-server-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "external-auth-server-tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/htpasswd-secret.yaml",
+      "kind": "Secret",
+      "name": "htpasswd-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/oauth2-policy.yaml",
+      "kind": "Policy",
+      "name": "external-auth-oauth2-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/oauth2-proxy-client-secret.yaml",
+      "kind": "Secret",
+      "name": "oauth2-proxy-client-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/oauth2-proxy.yaml",
+      "kind": "ConfigMap",
+      "name": "oauth2-proxy-config",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/tea-minion.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-tea-minion",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth-mergeable/tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth/README.md",
+      "kind": "md",
+      "name": "External Authentication",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth/basic-auth-policy.yaml",
+      "kind": "Policy",
+      "name": "external-auth-basic-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth/basic-auth.yaml",
+      "kind": "ConfigMap",
+      "name": "secure-config",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth/external-auth-server-tls-secret.yaml",
+      "kind": "Secret",
+      "name": "external-auth-server-tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth/htpasswd-secret.yaml",
+      "kind": "Secret",
+      "name": "htpasswd-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/external-auth/tls-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/externalname-services/README.md",
+      "kind": "md",
+      "name": "Support for Type ExternalName Services",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/grpc-services/README.md",
+      "kind": "md",
+      "name": "gRPC support",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/health-checks/README.md",
+      "kind": "md",
+      "name": "Support for Active Health Checks",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/ingress-mtls/README.md",
+      "kind": "md",
+      "name": "Ingress MTLS",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/ingress-mtls/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/ingress-mtls/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/ingress-mtls/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/ingress-mtls/ingress-mtls-policy.yaml",
+      "kind": "Policy",
+      "name": "ingress-mtls-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/ingress-mtls/ingress-mtls-secret.yaml",
+      "kind": "Secret",
+      "name": "ingress-mtls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/jwt/README.md",
+      "kind": "md",
+      "name": "Support for JSON Web Tokens (JWTs)",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/mergeable-ingress-types/README.md",
+      "kind": "md",
+      "name": "Mergeable Ingress Types Support",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/mergeable-ingress-types/cafe-master.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-master",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/mergeable-ingress-types/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/mergeable-ingress-types/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/mergeable-ingress-types/coffee-minion.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-coffee-minion",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/mergeable-ingress-types/tea-minion.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-tea-minion",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/path-regex/README.md",
+      "kind": "md",
+      "name": "Support for path regular expressions",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-redirect/README.md",
+      "kind": "md",
+      "name": "Proxy Redirect",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-redirect/ingress-no-redirect.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-redirect/ingress-redirect-from-to.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-redirect/ingress-redirect-regex.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-redirect/redirect-backend.yaml",
+      "kind": "ConfigMap",
+      "name": "redirect-backend-config",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/README.md",
+      "kind": "md",
+      "name": "Support for custom proxy headers",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/mergeable-ingress/cafe-master.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-master",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/mergeable-ingress/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/mergeable-ingress/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/mergeable-ingress/coffee-minion.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-coffee-minion",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/mergeable-ingress/tea-minion.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-tea-minion",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/proxy-set-headers/standard-ingress/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rate-limit/README.md",
+      "kind": "md",
+      "name": "Example",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rate-limit/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rate-limit/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rate-limit/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rewrite-target/README.md",
+      "kind": "md",
+      "name": "Support for Rewrite Target",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rewrite-target/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rewrite-target/regex-rewrite.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rewrite-target/simple-rewrite.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/rewrites/README.md",
+      "kind": "md",
+      "name": "Rewrites Support",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring-v5/README.md",
+      "kind": "md",
+      "name": "NGINX Security Monitoring with F5 WAF for NGINX v5",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring-v5/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring-v5/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring-v5/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring-v5/syslog.yaml",
+      "kind": "Deployment",
+      "name": "syslog",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring-v5/waf-agent-v3.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring-v5/waf.yaml",
+      "kind": "Policy",
+      "name": "waf-policy",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring/README.md",
+      "kind": "md",
+      "name": "NGINX Security Monitoring",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring/ap-apple-uds.yaml",
+      "kind": "APUserSig",
+      "name": "apple",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring/ap-dataguard-alarm-policy.yaml",
+      "kind": "APPolicy",
+      "name": "dataguard-alarm",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring/ap-logconf-agent-v3.yaml",
+      "kind": "APLogConf",
+      "name": "secops-logconf",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring/ap-logconf.yaml",
+      "kind": "APLogConf",
+      "name": "secops-logconf",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring/cafe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/security-monitoring/cafe.yaml",
+      "kind": "Deployment",
+      "name": "coffee",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/session-persistence/README.md",
+      "kind": "md",
+      "name": "Session Persistence",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/session-persistence/cafe-ingress-with-session-persistence.yaml",
+      "kind": "Ingress",
+      "name": "cafe-ingress-with-session-persistence",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/session-persistence/cafe-secret.yaml",
+      "kind": "Secret",
+      "name": "tls-secret",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/ssl-services/README.md",
+      "kind": "md",
+      "name": "SSL Services Support",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/startup-probe/README.md",
+      "kind": "md",
+      "name": "Startup Probe Configuration for NGINX Ingress Controller",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/startup-probe/startup-probe-ingress.yaml",
+      "kind": "Ingress",
+      "name": "always-200-ingress",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/tcp-udp/README.md",
+      "kind": "md",
+      "name": "Support for  TCP/UDP Load Balancing",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/tcp-udp/dns.yaml",
+      "kind": "ConfigMap",
+      "name": "coredns",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/tcp-udp/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/tcp-udp/nginx-plus-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/ingress-resources/websocket/README.md",
+      "kind": "md",
+      "name": "WebSocket support",
+      "group": "ingress-resources"
+    },
+    {
+      "file": "examples/shared-examples/autoscaling-keda/README.md",
+      "kind": "md",
+      "name": "Enable Keda scale to 0 in off hours",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/autoscaling-keda/scaled-object.yaml",
+      "kind": "ScaledObject",
+      "name": "cron-scaledobject",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/custom-log-format/README.md",
+      "kind": "md",
+      "name": "Custom NGINX log format",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/custom-templates/README.md",
+      "kind": "md",
+      "name": "Custom Templates",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/default-server-secret/default-server-secret.yaml",
+      "kind": "Secret",
+      "name": "default-server-secret",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/nginx-plus-secret/README.md",
+      "kind": "md",
+      "name": "NGINX Plus Secret",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/nginx-plus-secret/configmap.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config-mgmt",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/otel/README.md",
+      "kind": "md",
+      "name": "Enable OpenTelemetry",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/otel/nginx-config.yaml",
+      "kind": "ConfigMap",
+      "name": "nginx-config",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/proxy-protocol/README.md",
+      "kind": "md",
+      "name": "PROXY Protocol",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/rbac/README.md",
+      "kind": "md",
+      "name": "RBAC",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/usage-reporting/cluster-connector.yaml",
+      "kind": "Namespace",
+      "name": "nginx-cluster-connector",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/usage-reporting/scc.yaml",
+      "kind": "SecurityContextConstraints",
+      "name": "nginx-cluster-connector",
+      "group": "shared-examples"
+    },
+    {
+      "file": "examples/shared-examples/wildcard-tls-certificate/README.md",
+      "kind": "md",
+      "name": "Wildcard TLS Certificate",
+      "group": "shared-examples"
+    }
+  ]
+}
