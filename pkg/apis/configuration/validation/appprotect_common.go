@@ -39,14 +39,30 @@ func ValidateRequiredFields(obj *unstructured.Unstructured, fieldsList [][]strin
 }
 
 var (
-	logDstEx     = regexp.MustCompile(`(?:syslog:server=((?:\d{1,3}\.){3}\d{1,3}|localhost|[a-zA-Z0-9._-]+):\d{1,5})|stderr|(?:\/[\S]+)+`)
-	logDstFileEx = regexp.MustCompile(`(?:\/[\S]+)+`)
-	logDstFQDNEx = regexp.MustCompile(`(?:[a-zA-Z0-9_-]+\.)+[a-zA-Z0-9_-]+`)
+	// logDstEx matches a valid log destination: a syslog target (IP, localhost, or FQDN with port), "stderr", or an absolute file path.
+	// Allowed: syslog:server=<ip|localhost|fqdn>:<port>, stderr, /path/to/file.
+	// Blocked: relative paths, stdout, empty strings, partial/substring matches, whitespace in paths.
+	logDstEx     = regexp.MustCompile(`^(?:(?:syslog:server=(?:(?:\d{1,3}\.){3}\d{1,3}|localhost|[a-zA-Z0-9._-]+):\d{1,5})|stderr|(?:\/\S+)+)$`)
+
+	// logDstFileEx matches an absolute file path: one or more /segment sequences.
+	// Allowed: /var/log/ap.log, /tmp/log.
+	// Blocked: relative paths, bare filenames, paths containing whitespace.
+	logDstFileEx = regexp.MustCompile(`^(?:\/[\S]+)+$`)
+
+	// logDstFQDNEx matches a fully qualified domain name: dot-separated labels of alphanumeric characters, hyphens, or underscores.
+	// Allowed: my-syslog.example.com, server_1.ns.
+	// Blocked: bare hostnames without dots (e.g., localhost), IP addresses, empty strings.
+	logDstFQDNEx = regexp.MustCompile(`^(?:[a-zA-Z0-9_-]+\.)+[a-zA-Z0-9_-]+$`)
 )
 
 // ValidateAppProtectLogDestination validates destination for log configuration
 func ValidateAppProtectLogDestination(dstAntn string) error {
 	errormsg := "error parsing App Protect Log config: Destination must follow format: syslog:server=<ip-address | localhost>:<port> or fqdn or stderr or absolute path to file"
+
+	if ContainsDangerousChars(dstAntn) {
+		return fmt.Errorf("%s Log Destination contains dangerous characters", errormsg)
+	}
+
 	if !logDstEx.MatchString(dstAntn) {
 		return fmt.Errorf("%s Log Destination did not follow format", errormsg)
 	}
