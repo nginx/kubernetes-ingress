@@ -1503,7 +1503,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 			continue
 		}
 		exAuth := pol.Spec.ExternalAuth
-		upstreamName := fmt.Sprintf("ing_exauth_%s_%s", pol.Namespace, pol.Name)
+		upstreamName := fmt.Sprintf("ing_%s_%s_exauth_%s_%s", ingEx.Ingress.Namespace, ingEx.Ingress.Name, pol.Namespace, pol.Name)
 		port := getExternalAuthPort(exAuth)
 		ns, svcName := ParseServiceReference(exAuth.AuthServiceName, pol.Namespace)
 		endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)

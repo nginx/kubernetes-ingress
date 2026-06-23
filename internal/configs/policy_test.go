@@ -1746,7 +1746,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
@@ -1764,7 +1764,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/oauth2/auth",
 					InternalPath: "/_external_auth/oauth2/auth",
 				},
@@ -1784,7 +1784,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/check",
 					InternalPath: "/_external_auth/check",
 				},
@@ -1804,7 +1804,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "oauth2-proxy",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/oauth2/auth",
 					InternalPath: "/_external_auth/oauth2/auth",
 				},
@@ -1824,7 +1824,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-ns/auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/validate",
 					InternalPath: "/_external_auth/validate",
 				},
@@ -1842,7 +1842,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
@@ -1860,7 +1860,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
@@ -1895,7 +1895,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/check",
 					InternalPath: "/_external_auth/check",
 				},
@@ -1913,7 +1913,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/check",
 					InternalPath: "/_external_auth/check",
 				},
@@ -1931,7 +1931,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/check",
 					InternalPath: "/_external_auth/check",
 				},
@@ -1950,7 +1950,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
@@ -1970,7 +1970,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
@@ -1991,7 +1991,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-tls-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
@@ -2013,7 +2013,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "other-ns/auth-tls-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
@@ -2036,7 +2036,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			expected: &version2.ExternalAuth{
 				URI: &version2.AuthURI{
 					Service:      "auth-tls-svc",
-					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 					Path:         "/auth",
 					InternalPath: "/_external_auth/auth",
 				},
@@ -2069,7 +2069,7 @@ func TestAddExternalAuthConfig(t *testing.T) {
 			}
 
 			polKey := polNamespace + "/" + polName
-			res := config.addExternalAuthConfig(test.extAuth, polKey, polNamespace, polName, nil, policyOptions{}, policyOwnerDetails{parentType: "vs"})
+			res := config.addExternalAuthConfig(test.extAuth, polKey, polNamespace, polName, nil, policyOptions{}, policyOwnerDetails{parentType: "vs", parentNamespace: "default", parentName: "test-vs"})
 
 			if test.wantWarning {
 				if len(res.warnings) == 0 {
@@ -2130,7 +2130,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
 						Service:      "auth-svc",
-						Upstream:     "vs_exauth_default_ext-auth-policy",
+						Upstream:     "vs_default_test-vs_exauth_default_ext-auth-policy",
 						Path:         "/auth",
 						InternalPath: "/_external_auth/auth",
 					},
@@ -2169,7 +2169,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
 						Service:      "oauth2-proxy",
-						Upstream:     "vs_exauth_default_full-ext-auth",
+						Upstream:     "vs_default_test-vs_exauth_default_full-ext-auth",
 						Path:         "/oauth2/auth",
 						InternalPath: "/_external_auth/oauth2/auth",
 					},
@@ -2209,7 +2209,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
 						Service:      "auth-svc",
-						Upstream:     "vs_exauth_default_https-ext-auth",
+						Upstream:     "vs_default_test-vs_exauth_default_https-ext-auth",
 						Path:         "/validate",
 						InternalPath: "/_external_auth/validate",
 					},
@@ -2247,7 +2247,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
 						Service:      "auth-svc",
-						Upstream:     "vs_exauth_app-namespace_vsr-ext-auth",
+						Upstream:     "vs_default_parent-vs_exauth_app-namespace_vsr-ext-auth",
 						Path:         "/oauth2/auth",
 						InternalPath: "/_external_auth/oauth2/auth",
 					},
@@ -2287,7 +2287,7 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				ExternalAuth: &version2.ExternalAuth{
 					URI: &version2.AuthURI{
 						Service:      "central-auth",
-						Upstream:     "vs_exauth_shared-policies_shared-ext-auth",
+						Upstream:     "vs_default_parent-vs_exauth_shared-policies_shared-ext-auth",
 						Path:         "/oauth2/auth",
 						InternalPath: "/_external_auth/oauth2/auth",
 					},
