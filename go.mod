@@ -17,7 +17,7 @@ require (
 	github.com/nginx/telemetry-exporter v0.1.5
 	github.com/nginxinc/nginx-service-mesh v1.7.0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/spiffe/go-spiffe/v2 v2.8.0
+	github.com/spiffe/go-spiffe/v2 v2.8.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
