@@ -21,6 +21,7 @@ from suite.utils.resources_utils import (
     get_first_pod_name,
     patch_rbac,
     replace_configmap_from_yaml,
+    wait_before_test,
     wait_until_all_pods_are_ready,
 )
 
@@ -66,6 +67,8 @@ class ICPool:
 
         if self._current_key == key and self._name is not None:
             print(f"------------------------- Reuse IC (key={key}) -----------------------------------")
+            # Allow time for the IC to process pending changes from previous test class teardown
+            wait_before_test()
             ensure_connection_to_public_endpoint(
                 self._endpoint.public_ip,
                 self._endpoint.port,

@@ -213,6 +213,29 @@ def pytest_collection_modifyitems(config, items) -> None:
                 item.add_marker(multi_ns)
 
 
+def pytest_runtest_logstart(nodeid, location) -> None:
+    """
+    Ensure each test's captured output starts on a new line.
+
+    Pytest writes the test nodeid (e.g. ``suite/test_foo.py::TestBar::test_baz``)
+    to the terminal without a trailing newline at the start of each test. When
+    ``-s`` is used, any prints from fixtures or setup are then appended to that
+    same line. Emitting a newline here puts subsequent output on its own line.
+    """
+    print()
+
+
+def pytest_runtest_teardown(item, nextitem) -> None:
+    """
+    Ensure teardown output starts on a new line.
+
+    Pytest writes the call-phase status (e.g. ``PASSED``) without a trailing
+    newline, so prints from teardown fixtures would otherwise appear directly
+    after it (e.g. ``PASSEDClean up the Application:``).
+    """
+    print()
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item) -> None:
     """
@@ -237,7 +260,11 @@ def pytest_runtest_makereport(item) -> None:
         while (not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace)) and count < 10:
             count += 1
             wait_before_test()
-        print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace))
+        log_output = item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace)
+        if isinstance(log_output, bytes):
+            log_output = log_output.decode("utf-8", errors="replace")
+        for line in log_output.splitlines():
+            print(line)
         print("\n===================== IC Logs End =====================")
 
     if rep.when == "call" and item.config.getoption("--skip-fixture-teardown") == "yes":
