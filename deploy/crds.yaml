@@ -1031,7 +1031,7 @@ spec:
                       pollInterval:
                         description: |-
                           PollInterval is how often to re-fetch the bundle when enablePolling is true.
-                          Minimum 10s. Default 1m. Ignored when enablePolling is false.
+                          Minimum 1m. Default 5m. Ignored when enablePolling is false.
                         type: string
                       retryAttempts:
                         description: RetryAttempts is the number of retry attempts
@@ -1128,7 +1128,7 @@ spec:
                           pollInterval:
                             description: |-
                               PollInterval is how often to re-fetch the bundle when enablePolling is true.
-                              Minimum 10s. Default 1m. Ignored when enablePolling is false.
+                              Minimum 1m. Default 5m. Ignored when enablePolling is false.
                             type: string
                           retryAttempts:
                             description: RetryAttempts is the number of retry attempts
@@ -1232,7 +1232,7 @@ spec:
                             pollInterval:
                               description: |-
                                 PollInterval is how often to re-fetch the bundle when enablePolling is true.
-                                Minimum 10s. Default 1m. Ignored when enablePolling is false.
+                                Minimum 1m. Default 5m. Ignored when enablePolling is false.
                               type: string
                             retryAttempts:
                               description: RetryAttempts is the number of retry attempts

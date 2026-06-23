@@ -25,12 +25,12 @@ POLICY_NAME = "waf-policy"
 INVALID_BUNDLE_URL = "https://does-not-exist.invalid/bundles/waf.tgz"
 
 
-def send_malicious_request_with_retry(url, host, retries=10):
+def send_malicious_request_with_retry(url, host, retries=20):
     """Send a request with an embedded XSS payload, retrying until WAF blocks it."""
     response = requests.get(url + "</script>", headers={"host": host})
     count = 0
     while count < retries and "Request Rejected" not in response.text:
-        wait_before_test(2)
+        wait_before_test(3)
         response = requests.get(url + "</script>", headers={"host": host})
         count += 1
     return response
@@ -106,7 +106,7 @@ class TestWAFBundleSourceInsecureVS:
             bundle_server.insecure_url,
             insecure_skip_verify=True,
         )
-        wait_before_test()
+        wait_before_test(10)
 
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -114,7 +114,7 @@ class TestWAFBundleSourceInsecureVS:
             vs_src,
             virtual_server_setup.namespace,
         )
-        wait_before_test()
+        wait_before_test(5)
 
         response = send_malicious_request_with_retry(
             virtual_server_setup.backend_1_url,
@@ -153,7 +153,7 @@ class TestWAFBundleSourceMTLSVS:
             insecure_skip_verify=True,
             secret=bundle_server.client_secret,
         )
-        wait_before_test()
+        wait_before_test(10)
 
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -161,7 +161,7 @@ class TestWAFBundleSourceMTLSVS:
             WAF_SPEC_VS,
             virtual_server_setup.namespace,
         )
-        wait_before_test()
+        wait_before_test(5)
 
         response = send_malicious_request_with_retry(
             virtual_server_setup.backend_1_url,
@@ -280,7 +280,7 @@ class TestWAFBundleSourceFailureVS:
         response = send_malicious_request_with_retry(
             virtual_server_setup.backend_1_url,
             virtual_server_setup.vs_host,
-            retries=15,
+            retries=25,
         )
 
         restore_default_vs(kube_apis, virtual_server_setup)

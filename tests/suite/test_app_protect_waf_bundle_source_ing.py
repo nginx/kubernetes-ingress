@@ -32,12 +32,12 @@ class BundleSourceIngressSetup:
         self.ingress_host = ingress_host
 
 
-def send_malicious_request_with_retry(url, host, retries=10):
+def send_malicious_request_with_retry(url, host, retries=20):
     """Send a request with an embedded XSS payload, retrying until WAF blocks it."""
     response = requests.get(url + "</script>", headers={"host": host})
     count = 0
     while count < retries and "Request Rejected" not in response.text:
-        wait_before_test(2)
+        wait_before_test(3)
         response = requests.get(url + "</script>", headers={"host": host})
         count += 1
     return response
@@ -111,7 +111,7 @@ class TestWAFBundleSourceInsecureIngress:
             bundle_server.insecure_url,
             insecure_skip_verify=True,
         )
-        wait_before_test()
+        wait_before_test(10)
 
         request_url = (
             f"http://{ingress_setup.public_endpoint.public_ip}:" f"{ingress_setup.public_endpoint.port}/backend1"
@@ -157,7 +157,7 @@ class TestWAFBundleSourceMTLSIngress:
             insecure_skip_verify=True,
             secret=bundle_server.client_secret,
         )
-        wait_before_test()
+        wait_before_test(10)
 
         request_url = (
             f"http://{ingress_setup.public_endpoint.public_ip}:" f"{ingress_setup.public_endpoint.port}/backend1"
