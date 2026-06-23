@@ -448,6 +448,11 @@ function initiateNewAuth(r) {
     r.return(302, r.variables.oidc_authz_endpoint + getAuthZArgs(r));
 }
 
+function randomB64url(size) {
+    return Buffer.from(crypto.getRandomValues(new Uint8Array(size)))
+        .toString('base64url');
+}
+
 // Generate the authorization request arguments
 function getAuthZArgs(r) {
     var c = require('crypto');
@@ -471,10 +476,8 @@ function getAuthZArgs(r) {
     ];
 
     if (r.variables.oidc_pkce_enable == 1) {
-        var pkce_code_verifier = c.createHmac('sha256', r.variables.oidc_hmac_key)
-            .update(String(Math.random())).digest('hex');
-        r.variables.pkce_id = c.createHash('sha256')
-            .update(String(Math.random())).digest('base64url');
+        var pkce_code_verifier = randomB64url(32);
+        r.variables.pkce_id = randomB64url(32);
         var pkce_code_challenge = c.createHash('sha256')
             .update(pkce_code_verifier).digest('base64url');
         r.variables.pkce_code_verifier = pkce_code_verifier;
