@@ -190,8 +190,8 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 oss-alpine-image: ## Build OSS Alpine-based image
 	$(DOCKER_CMD) \
 		--build-arg BUILD_OS=alpine-oss \
-		--build-arg NGINX_VERSION=$(NGINX_OSS_VERSION) \
-		--build-arg AGENT_VERSION=$(AGENT_V3_VERSION)
+		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: oss-debian-image
 oss-debian-image: ## Build OSS Debian-based image
