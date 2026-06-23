@@ -212,6 +212,75 @@ def pytest_collection_modifyitems(config, items) -> None:
             if "multi_ns" in item.keywords:
                 item.add_marker(multi_ns)
 
+    # Reorder items to group tests by Ingress Controller fixture profile so the
+    # session-scoped IC pool can reuse the same IC deployment across as many
+    # consecutive test classes as possible. Within each profile group the
+    # original collection order is preserved (Python's sort is stable).
+    _sort_items_by_ic_profile(items)
+
+
+# Fixtures that share the session-scoped ic_pool. Test classes using any of
+# these can reuse the same IC deployment when their extra_args match.
+_POOL_FIXTURES = frozenset(
+    {
+        "crd_ingress_controller",
+        "crd_ingress_controller_with_ap",
+        "crd_ingress_controller_with_dos",
+        "crd_ingress_controller_with_ed",
+    }
+)
+
+# Fixtures that create their own IC deployment outside the pool. Tests using
+# these force the pool to be torn down, so we group them last.
+_INLINE_IC_FIXTURES = frozenset(
+    {
+        "ingress_controller",
+        "crd_ingress_controller_with_waf_v5",
+    }
+)
+
+
+def _ic_profile_key(item) -> tuple:
+    """Return a sort key that groups items by IC fixture profile.
+
+    Order:
+        0. Tests that do not require an IC at all (run first).
+        1. Tests using a pool-backed CRD IC fixture, sub-sorted by the
+           pool config key (extra_args) so consecutive classes can reuse the
+           running IC.
+        2. Tests using fixtures that create an IC outside the pool
+           (forces a pool teardown).
+
+    Returned tuple is (group_priority, pool_subkey, fixture_name).
+    """
+    fixturenames = set(getattr(item, "fixturenames", ()))
+
+    pool_fixture = next((f for f in _POOL_FIXTURES if f in fixturenames), None)
+    if pool_fixture is not None:
+        # Try to extract extra_args from the parametrized fixture value so
+        # classes with matching args run consecutively (maximum pool reuse).
+        extra_args_key: tuple = ()
+        callspec = getattr(item, "callspec", None)
+        if callspec is not None:
+            params = getattr(callspec, "params", {}) or {}
+            param_value = params.get(pool_fixture)
+            if isinstance(param_value, dict):
+                extra_args = param_value.get("extra_args") or []
+                if isinstance(extra_args, (list, tuple)):
+                    extra_args_key = tuple(sorted(str(a) for a in extra_args))
+        return (1, extra_args_key, pool_fixture)
+
+    inline_fixture = next((f for f in _INLINE_IC_FIXTURES if f in fixturenames), None)
+    if inline_fixture is not None:
+        return (2, (), inline_fixture)
+
+    return (0, (), "")
+
+
+def _sort_items_by_ic_profile(items) -> None:
+    """In-place stable sort of test items by IC fixture profile."""
+    items.sort(key=_ic_profile_key)
+
 
 def pytest_runtest_logstart(nodeid, location) -> None:
     """

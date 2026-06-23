@@ -134,19 +134,24 @@ def ic_pool(kube_apis, cli_arguments, ingress_controller_prerequisites, ingress_
 
 
 @pytest.fixture(scope="class")
-def ingress_controller(cli_arguments, kube_apis, ingress_controller_prerequisites, request) -> str:
+def ingress_controller(cli_arguments, kube_apis, ingress_controller_prerequisites, ic_pool, request) -> str:
     """
     Create Ingress Controller according to the context.
 
     :param cli_arguments: context
     :param kube_apis: client apis
     :param ingress_controller_prerequisites
+    :param ic_pool: session-scoped IC pool (torn down before creating a non-CRD IC)
     :param request: pytest fixture
     :return: IC name
     """
     namespace = ingress_controller_prerequisites.namespace
     name = "nginx-ingress"
     print("------------------------- Create IC without CRDs -----------------------------------")
+    # The IC pool may already have a CRD-enabled IC running with the same
+    # deployment name ("nginx-ingress"). Tear it down before creating our own,
+    # otherwise the create call will fail with a 409 Conflict.
+    ic_pool.teardown()
     try:
         extra_args = request.param.get("extra_args", None)
         extra_args.append("-enable-custom-resources=false")
