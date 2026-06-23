@@ -13,7 +13,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:928cf862e95827ac9db4a54e0ffc4f0884ecb9f985db3ea6b21d61a97a92d199
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:3998f88d4de99423119b61b47d2bd3d995be7a1368014f5edd8e63f93f946445
 
 
 ############################################# External dependency images #############################################
@@ -141,7 +141,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 # Base:    nginx:1.31.2-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
 # Adds:    nginx-module-otel + nginx-agent v3
 # Used as: BUILD_OS=alpine
-FROM nginx:1.31.2-alpine3.23@sha256:20316569d8f81a160065d7d2a5eeffc7ca97d79022462ee255fd23fa103a6b5c AS alpine
+FROM nginx:1.31.2-alpine3.23@sha256:1a8724a52d432501548a8d8681bb1554c2d09778f8b9ed0882fc3442549980b7 AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION

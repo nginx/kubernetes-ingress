@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.18
 	github.com/aws/aws-sdk-go-v2/service/marketplacemetering v1.36.5
 	github.com/cert-manager/cert-manager v1.20.2
-	github.com/dlclark/regexp2/v2 v2.1.0
+	github.com/dlclark/regexp2/v2 v2.2.2
 	github.com/gkampitakis/go-snaps v0.5.22
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
@@ -17,17 +17,17 @@ require (
 	github.com/nginx/telemetry-exporter v0.1.5
 	github.com/nginxinc/nginx-service-mesh v1.7.0
 	github.com/prometheus/client_golang v1.23.2
-	github.com/spiffe/go-spiffe/v2 v2.7.0
+	github.com/spiffe/go-spiffe/v2 v2.8.1
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
 	golang.org/x/crypto v0.53.0
-	k8s.io/api v0.36.1
-	k8s.io/apiextensions-apiserver v0.36.1
-	k8s.io/apimachinery v0.36.1
-	k8s.io/client-go v0.36.1
-	k8s.io/code-generator v0.36.1
-	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2
+	k8s.io/api v0.36.2
+	k8s.io/apiextensions-apiserver v0.36.2
+	k8s.io/apimachinery v0.36.2
+	k8s.io/client-go v0.36.2
+	k8s.io/code-generator v0.36.2
+	k8s.io/utils v0.0.0-20260617174310-a95e086a2553
 	sigs.k8s.io/controller-tools v0.21.0
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0
 	sigs.k8s.io/yaml v1.6.0
@@ -206,12 +206,12 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.36.1 // indirect
-	k8s.io/component-base v0.36.1 // indirect
+	k8s.io/apiserver v0.36.2 // indirect
+	k8s.io/component-base v0.36.2 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250922181213-ec3ebc5fd46b // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260427204847-8949caaa1199 // indirect
-	k8s.io/streaming v0.36.1 // indirect
+	k8s.io/streaming v0.36.2 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/controller-runtime v0.23.1 // indirect
 	sigs.k8s.io/gateway-api v1.5.0 // indirect
