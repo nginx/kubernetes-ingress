@@ -34,7 +34,12 @@ class CustomAnnotationsSetup:
 
 @pytest.fixture(scope="class")
 def custom_annotations_setup(
-    request, kube_apis, ingress_controller_prerequisites, ingress_controller_endpoint, test_namespace
+    request,
+    kube_apis,
+    ingress_controller_prerequisites,
+    ingress_controller,
+    ingress_controller_endpoint,
+    test_namespace,
 ) -> CustomAnnotationsSetup:
     ing_type = request.param
     print("------------------------- Deploy ConfigMap with custom template -----------------------------------")
