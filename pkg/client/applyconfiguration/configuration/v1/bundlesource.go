@@ -43,7 +43,7 @@ type BundleSourceApplyConfiguration struct {
 	// modifying the Policy resource to trigger a new fetch.
 	EnablePolling *bool `json:"enablePolling,omitempty"`
 	// PollInterval is how often to re-fetch the bundle when enablePolling is true.
-	// Minimum 10s. Default 1m. Ignored when enablePolling is false.
+	// Minimum 1m. Default 5m. Ignored when enablePolling is false.
 	PollInterval *metav1.Duration `json:"pollInterval,omitempty"`
 	// Timeout is the per-request HTTP timeout. Default 60s.
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
