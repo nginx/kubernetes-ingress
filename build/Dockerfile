@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.24
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
-ARG NGINX_OSS_VERSION=1.31.1
+ARG NGINX_OSS_VERSION=1.31.2
 ARG NGINX_PLUS_VERSION=R37.0
 ARG NAP_WAF_VERSION=37.0+5.635
 ARG NAP_WAF_COMMON_VERSION=11.665
@@ -13,7 +13,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:928cf862e95827ac9db4a54e0ffc4f0884ecb9f985db3ea6b21d61a97a92d199
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:3998f88d4de99423119b61b47d2bd3d995be7a1368014f5edd8e63f93f946445
 
 
 ############################################# External dependency images #############################################
@@ -91,10 +91,10 @@ USER 101
 
 
 ############################################# NGINX OSS on Alpine Linux #############################################
-# Base:    nginx:1.31.1-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
+# Base:    nginx:1.31.2-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
 # Adds:    nginx-module-otel + nginx-agent v3
 # Used as: BUILD_OS=alpine
-FROM nginx:1.31.1-alpine3.23@sha256:8b1e78743a03dbb2c95171cc58639fef29abc8816598e27fb910ed2e621e589a AS alpine
+FROM nginx:1.31.2-alpine3.23@sha256:1a8724a52d432501548a8d8681bb1554c2d09778f8b9ed0882fc3442549980b7 AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
@@ -113,10 +113,10 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 
 ############################################# NGINX OSS on Debian 13 #############################################
-# Base:    nginx:1.31.1 (official NGINX OSS Debian image, OSS pre-installed)
+# Base:    nginx:1.31.2 (official NGINX OSS Debian image, OSS pre-installed)
 # Adds:    nginx-module-otel + nginx-agent v3
 # Used as: BUILD_OS=debian (default)
-FROM nginx:1.31.1@sha256:608a100c71651bf5b773c89083b4a1ad7ef4b2bd05d7a7e552271e03123692ad AS debian
+FROM nginx:1.31.2@sha256:42f2d24ae18df9b5251d1cc45548085656d2335e9338fd150a24e415462d151f AS debian
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 

@@ -4,7 +4,7 @@ GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.1
+NGINX_OSS_VERSION             ?= 1.31.2
 NGINX_PLUS_VERSION            ?= R37.0
 NAP_WAF_VERSION               ?= 37.0+5.635
 NAP_WAF_COMMON_VERSION        ?= 11.665

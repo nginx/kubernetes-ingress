@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -3670,3 +3672,175 @@ server {
     {{- end }}
 }`
 )
+
+// oidcIncludePattern matches the `include oidc-conf.d/<basename>.conf;` directive emitted by
+// the Plus VirtualServer template when Server.OIDC is set.
+var oidcIncludePattern = regexp.MustCompile(`include oidc-conf\.d/([^;\s]+)\.conf;`)
+
+// configSafetyEnabledFakeManager simulates the ConfigRollbackManager behavior that is active
+// only when the controller runs with -enable-config-safety=true: every CreateConfig call runs
+// `nginx -t` synchronously and fails if any `include oidc-conf.d/*.conf;` directive points at
+// a file that has not yet been written.
+// With config safety disabled, LocalManager.CreateConfig just writes the file and the validation
+// is deferred to Reload().
+type configSafetyEnabledFakeManager struct {
+	*nginx.FakeManager
+	mu          sync.Mutex
+	writtenOIDC map[string]bool
+	oidcCalls   int
+	vsCalls     int
+}
+
+func (m *configSafetyEnabledFakeManager) CreateOIDCConfig(name string, content []byte) bool {
+	m.mu.Lock()
+	if m.writtenOIDC == nil {
+		m.writtenOIDC = map[string]bool{}
+	}
+	m.writtenOIDC[name] = true
+	m.oidcCalls++
+	m.mu.Unlock()
+	return m.FakeManager.CreateOIDCConfig(name, content)
+}
+
+func (m *configSafetyEnabledFakeManager) CreateConfig(name string, content []byte) (bool, error) {
+	for _, match := range oidcIncludePattern.FindAllSubmatch(content, -1) {
+		included := string(match[1])
+		m.mu.Lock()
+		present := m.writtenOIDC[included]
+		m.mu.Unlock()
+		if !present {
+			return false, fmt.Errorf(
+				`nginx: [emerg] open() "/etc/nginx/oidc-conf.d/%s.conf" failed (2: No such file or directory) in /etc/nginx/conf.d/%s.conf`,
+				included, name,
+			)
+		}
+	}
+	m.mu.Lock()
+	m.vsCalls++
+	m.mu.Unlock()
+	return m.FakeManager.CreateConfig(name, content)
+}
+
+func createOIDCVirtualServerEx() *VirtualServerEx {
+	return &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Policies: []conf_v1.PolicyReference{
+					{Name: "oidc-policy"},
+				},
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea-svc", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/oidc-policy": {
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+				Spec: conf_v1.PolicySpec{
+					OIDC: &conf_v1.OIDC{
+						AuthEndpoint:  "https://auth.example.com",
+						TokenEndpoint: "https://token.example.com",
+						JWKSURI:       "https://jwks.example.com",
+						ClientID:      "example-client-id",
+						ClientSecret:  "example-client-secret",
+						Scope:         "openid",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {"10.0.0.10:80"},
+		},
+		SecretRefs: map[string]*secrets.SecretReference{
+			"default/example-client-secret": {
+				Secret: &api_v1.Secret{
+					Type: secrets.SecretTypeOIDC,
+					Data: map[string][]byte{
+						"client-secret": []byte("c2VjcmV0"),
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestAddOrUpdateVirtualServer_WithOIDCAndConfigSafetyEnabled_AppliesSuccessfully is the
+// test to make sure oidc config is written before the virtual server config when -enable-config-safety is enabled.
+func TestAddOrUpdateVirtualServer_WithOIDCAndConfigSafetyEnabled_AppliesSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	manager := &configSafetyEnabledFakeManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	cnf.isPlus = true
+
+	vsEx := createOIDCVirtualServerEx()
+
+	if _, err := cnf.AddOrUpdateVirtualServer(vsEx); err != nil {
+		t.Fatalf("AddOrUpdateVirtualServer failed under -enable-config-safety (OIDC config likely written after VS config): %v", err)
+	}
+
+	if manager.oidcCalls != 1 {
+		t.Errorf("expected exactly one CreateOIDCConfig call, got %d", manager.oidcCalls)
+	}
+	if manager.vsCalls != 1 {
+		t.Errorf("expected exactly one CreateConfig call for the VS, got %d", manager.vsCalls)
+	}
+
+	wantOIDC := getFileNameForOIDCVirtualServer(vsEx.VirtualServer)
+	if !manager.writtenOIDC[wantOIDC] {
+		t.Errorf("expected OIDC config %q to be written, written set: %v", wantOIDC, manager.writtenOIDC)
+	}
+}
+
+// TestAddOrUpdateVirtualServer_WithoutOIDCAndConfigSafetyEnabled_DoesNotWriteOIDCConfig
+// is the test to make sure oidc config is not written when the virtual server does not have OIDC and -enable-config-safety is enabled.
+func TestAddOrUpdateVirtualServer_WithoutOIDCAndConfigSafetyEnabled_DoesNotWriteOIDCConfig(t *testing.T) {
+	t.Parallel()
+
+	manager := &configSafetyEnabledFakeManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	cnf.isPlus = true
+
+	vsEx := &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea-svc", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {"10.0.0.10:80"},
+		},
+	}
+
+	if _, err := cnf.AddOrUpdateVirtualServer(vsEx); err != nil {
+		t.Fatalf("AddOrUpdateVirtualServer returned unexpected error: %v", err)
+	}
+
+	if manager.oidcCalls != 0 {
+		t.Errorf("expected no CreateOIDCConfig calls for a VS without OIDC, got %d", manager.oidcCalls)
+	}
+	if manager.vsCalls != 1 {
+		t.Errorf("expected exactly one CreateConfig call for the VS, got %d", manager.vsCalls)
+	}
+}
