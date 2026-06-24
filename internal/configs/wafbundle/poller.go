@@ -26,6 +26,7 @@ type PollSource struct {
 	Kind     BundleType
 	Req      Request
 	Interval time.Duration
+	disabled bool // set when a non-transient error is encountered; skips future polls
 }
 
 // SyncCallback is called after a successful bundle update to trigger a policy re-sync.
@@ -141,6 +142,10 @@ func (m *pollerManager) runPoller(ctx context.Context, polKey string, sources []
 }
 
 func (m *pollerManager) pollSource(ctx context.Context, polKey string, src *PollSource) {
+	if src.disabled {
+		return
+	}
+
 	fetchCtx, cancel := context.WithTimeout(ctx, effectiveTimeout(&src.Req))
 	defer cancel()
 
@@ -153,8 +158,14 @@ func (m *pollerManager) pollSource(ctx context.Context, polKey string, src *Poll
 	}
 
 	if err != nil {
-		nl.Warnf(m.logger, "bundle re-fetch failed for policy %s file %s (keeping existing bundle): %v",
-			polKey, src.Filename, err)
+		if isNonTransient(err) {
+			nl.Warnf(m.logger, "permanent fetch failure for policy %s file %s — stopping poll (re-apply policy to retry): %v",
+				polKey, src.Filename, err)
+			src.disabled = true
+		} else {
+			nl.Warnf(m.logger, "bundle re-fetch failed for policy %s file %s (keeping existing bundle): %v",
+				polKey, src.Filename, err)
+		}
 		if m.errorCb != nil {
 			m.errorCb(polKey, err)
 		}

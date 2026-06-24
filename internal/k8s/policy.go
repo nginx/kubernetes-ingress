@@ -105,7 +105,11 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			msg := fmt.Sprintf("Policy %v/%v was added or updated", pol.Namespace, pol.Name)
 			lbc.recorder.Event(pol, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
 
-			if lbc.reportCustomResourceStatusEnabled() {
+			// Only set Valid if all expected bundle files are already on disk.
+			// If any bundle is still pending its initial fetch, skip the status update here:
+			// performInitialFetch will set Warning on failure, or the poller's syncCb will
+			// trigger a re-sync (which will then find the files and set Valid).
+			if lbc.reportCustomResourceStatusEnabled() && (!hasBundleSource(pol) || lbc.bundleFilesReady(pol)) {
 				// Defer policy status updates during startup to avoid serial
 				// API calls that block readiness. See flushPendingStatusesAsync().
 				if !lbc.isNginxReady {
@@ -269,6 +273,34 @@ func hasBundleSource(pol *conf_v1.Policy) bool {
 		}
 	}
 	return false
+}
+
+// bundleFilesReady reports whether all expected bundle files for pol exist on disk.
+// Returns true for policies that have no bundle sources.
+// A false return means at least one bundle is still pending its initial fetch,
+// so syncPolicy should not set the policy status to Valid prematurely.
+func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
+	if pol.Spec.WAF == nil || lbc.appProtectBundlePath == "" {
+		return true
+	}
+	if pol.Spec.WAF.ApBundleSource != nil {
+		path := filepath.Join(lbc.appProtectBundlePath,
+			wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return false
+		}
+	}
+	for idx, sl := range pol.Spec.WAF.SecurityLogs {
+		if sl == nil || sl.ApLogBundleSource == nil {
+			continue
+		}
+		path := filepath.Join(lbc.appProtectBundlePath,
+			wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx)))
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return false
+		}
+	}
+	return true
 }
 
 // syncWAFBundleSource performs initial bundle fetches (if files are absent on disk)

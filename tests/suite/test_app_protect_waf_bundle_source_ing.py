@@ -1,7 +1,10 @@
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
+from suite.utils.ap_resources_utils import (
+    assert_waf_blocked,
+    send_malicious_request_with_retry,
+)
 from suite.utils.bundle_source_utils import (
     BundleServerSetup,
     create_waf_bundle_source_policy,
@@ -30,23 +33,6 @@ class BundleSourceIngressSetup:
     def __init__(self, public_endpoint: PublicEndpoint, ingress_host: str):
         self.public_endpoint = public_endpoint
         self.ingress_host = ingress_host
-
-
-def send_malicious_request_with_retry(url, host, retries=20):
-    """Send a request with an embedded XSS payload, retrying until WAF blocks it."""
-    response = requests.get(url + "</script>", headers={"host": host})
-    count = 0
-    while count < retries and "Request Rejected" not in response.text:
-        wait_before_test(3)
-        response = requests.get(url + "</script>", headers={"host": host})
-        count += 1
-    return response
-
-
-def assert_waf_blocked(response):
-    """Assert that the response was rejected by App Protect WAF."""
-    assert response.status_code == 200
-    assert "The requested URL was rejected. Please consult with your administrator." in response.text
 
 
 @pytest.fixture(scope="class")

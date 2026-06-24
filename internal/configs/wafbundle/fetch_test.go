@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +17,7 @@ import (
 )
 
 // HTTPS source tests
-func TestFetchHTTPS_Downloads(t *testing.T) {
+func TestFetchHTTPSDownloads(t *testing.T) {
 	t.Parallel()
 	content := []byte("bundle-content-v1")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -40,7 +41,7 @@ func TestFetchHTTPS_Downloads(t *testing.T) {
 	}
 }
 
-func TestFetchHTTPS_304NotModified(t *testing.T) {
+func TestFetchHTTPS304NotModified(t *testing.T) {
 	t.Parallel()
 	callCount := atomic.Int32{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +70,7 @@ func TestFetchHTTPS_304NotModified(t *testing.T) {
 	}
 }
 
-func TestFetchHTTPS_4xx_NonTransient(t *testing.T) {
+func TestFetchHTTPS4xxNonTransient(t *testing.T) {
 	t.Parallel()
 	callCount := atomic.Int32{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -92,7 +93,7 @@ func TestFetchHTTPS_4xx_NonTransient(t *testing.T) {
 	}
 }
 
-func TestFetchHTTPS_5xx_Retries(t *testing.T) {
+func TestFetchHTTPS5xxRetries(t *testing.T) {
 	t.Parallel()
 	callCount := atomic.Int32{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -117,7 +118,7 @@ func TestFetchHTTPS_5xx_Retries(t *testing.T) {
 	}
 }
 
-func TestFetchHTTPS_RefusesRedirect(t *testing.T) {
+func TestFetchHTTPSRefusesRedirect(t *testing.T) {
 	t.Parallel()
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -137,7 +138,7 @@ func TestFetchHTTPS_RefusesRedirect(t *testing.T) {
 	}
 }
 
-func TestFetchHTTPS_EmptyBody_NonTransient(t *testing.T) {
+func TestFetchHTTPSEmptyBodyNonTransient(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -151,7 +152,7 @@ func TestFetchHTTPS_EmptyBody_NonTransient(t *testing.T) {
 	}
 }
 
-func TestFetchHTTPS_InsecureSkipVerify(t *testing.T) {
+func TestFetchHTTPSInsecureSkipVerify(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -176,7 +177,7 @@ func TestFetchHTTPS_InsecureSkipVerify(t *testing.T) {
 	}
 }
 
-func TestFetchHTTPS_CustomTLSCA(t *testing.T) {
+func TestFetchHTTPSCustomTLSCA(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -239,7 +240,7 @@ func n1cTestRequest() *Request {
 	}
 }
 
-func TestN1CFetch_FullFlow(t *testing.T) {
+func TestN1CFetchFullFlow(t *testing.T) {
 	t.Parallel()
 	compileCalled := atomic.Int32{}
 	downloadCalled := atomic.Int32{}
@@ -293,7 +294,7 @@ func TestN1CFetch_FullFlow(t *testing.T) {
 	}
 }
 
-func TestN1CFetch_HashUnchanged_SkipsDownload(t *testing.T) {
+func TestN1CFetchHashUnchangedSkipsDownload(t *testing.T) {
 	t.Parallel()
 	downloadCalled := atomic.Int32{}
 	existingHash := ComputeChecksum([]byte(testBundleData))
@@ -342,7 +343,7 @@ func TestN1CFetch_HashUnchanged_SkipsDownload(t *testing.T) {
 	}
 }
 
-func TestN1CFetch_PolicyNotFound(t *testing.T) {
+func TestN1CFetchPolicyNotFound(t *testing.T) {
 	t.Parallel()
 	policiesPath := fmt.Sprintf("/api/nginx/one/namespaces/%s/app-protect/policies", testNS)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -366,7 +367,7 @@ func TestN1CFetch_PolicyNotFound(t *testing.T) {
 	}
 }
 
-func TestN1CFetch_CompileFailed_NonTransient(t *testing.T) {
+func TestN1CFetchCompileFailedNonTransient(t *testing.T) {
 	t.Parallel()
 	policiesPath := fmt.Sprintf("/api/nginx/one/namespaces/%s/app-protect/policies", testNS)
 	compilePath := fmt.Sprintf("/api/nginx/one/namespaces/%s/app-protect/policies/%s/versions/%s/compile",
@@ -400,7 +401,7 @@ func TestN1CFetch_CompileFailed_NonTransient(t *testing.T) {
 	}
 }
 
-func TestN1CFetch_CompilePending_ThenSucceeds(t *testing.T) {
+func TestN1CFetchCompilePendingThenSucceeds(t *testing.T) {
 	t.Parallel()
 	statusCallCount := atomic.Int32{}
 	policiesPath := fmt.Sprintf("/api/nginx/one/namespaces/%s/app-protect/policies", testNS)
@@ -450,7 +451,7 @@ func TestN1CFetch_CompilePending_ThenSucceeds(t *testing.T) {
 	}
 }
 
-func TestN1CFetch_Pagination(t *testing.T) {
+func TestN1CFetchPagination(t *testing.T) {
 	t.Parallel()
 	const totalItems = 150
 	policiesPath := fmt.Sprintf("/api/nginx/one/namespaces/%s/app-protect/policies", testNS)
@@ -499,7 +500,7 @@ func TestN1CFetch_Pagination(t *testing.T) {
 	}
 }
 
-func TestN1CFetch_LogProfile(t *testing.T) {
+func TestN1CFetchLogProfile(t *testing.T) {
 	t.Parallel()
 	const profileName = "log_all"
 	const profileObjID = "lp_xyz789"
@@ -535,7 +536,7 @@ func TestN1CFetch_LogProfile(t *testing.T) {
 	}
 }
 
-func TestN1CFetch_401_NonTransient(t *testing.T) {
+func TestN1CFetch401NonTransient(t *testing.T) {
 	t.Parallel()
 	callCount := atomic.Int32{}
 	policiesPath := fmt.Sprintf("/api/nginx/one/namespaces/%s/app-protect/policies", testNS)
@@ -577,7 +578,7 @@ func nimTestRequest(srvURL string) *Request {
 	}
 }
 
-func TestNIMFetch_FullFlow(t *testing.T) {
+func TestNIMFetchFullFlow(t *testing.T) {
 	t.Parallel()
 	bundleData := "fake-nim-bundle"
 	bundleB64 := base64.StdEncoding.EncodeToString([]byte(bundleData))
@@ -632,7 +633,7 @@ func TestNIMFetch_FullFlow(t *testing.T) {
 	}
 }
 
-func TestNIMFetch_PolicyNotFound(t *testing.T) {
+func TestNIMFetchPolicyNotFound(t *testing.T) {
 	t.Parallel()
 	bundlesPath := "/api/platform/v1/security/policies/bundles"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -654,7 +655,7 @@ func TestNIMFetch_PolicyNotFound(t *testing.T) {
 	}
 }
 
-func TestNIMFetch_MultipleCompilations_PicksLatest(t *testing.T) {
+func TestNIMFetchMultipleCompilationsPicksLatest(t *testing.T) {
 	t.Parallel()
 	bundleData := "latest-bundle"
 	bundleB64 := base64.StdEncoding.EncodeToString([]byte(bundleData))
@@ -715,7 +716,7 @@ func TestNIMFetch_MultipleCompilations_PicksLatest(t *testing.T) {
 	}
 }
 
-func TestNIMFetch_LogProfile(t *testing.T) {
+func TestNIMFetchLogProfile(t *testing.T) {
 	t.Parallel()
 	logData := "log-profile-bundle"
 	logB64 := base64.StdEncoding.EncodeToString([]byte(logData))
@@ -747,7 +748,7 @@ func TestNIMFetch_LogProfile(t *testing.T) {
 	}
 }
 
-func TestNIMFetch_BasicAuth(t *testing.T) {
+func TestNIMFetchBasicAuth(t *testing.T) {
 	t.Parallel()
 	bundleData := "basic-auth-bundle"
 	bundleB64 := base64.StdEncoding.EncodeToString([]byte(bundleData))
@@ -792,7 +793,7 @@ func TestNIMFetch_BasicAuth(t *testing.T) {
 	}
 }
 
-func TestNIMFetch_401_NonTransient(t *testing.T) {
+func TestNIMFetch401NonTransient(t *testing.T) {
 	t.Parallel()
 	bundlesPath := "/api/platform/v1/security/policies/bundles"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -809,8 +810,134 @@ func TestNIMFetch_401_NonTransient(t *testing.T) {
 	}
 }
 
+// Retry and EOF detection tests
+
+func TestN1CFetchEOFBecomesNonTransient(t *testing.T) {
+	t.Parallel()
+	callCount := atomic.Int32{}
+	// Server that immediately closes the connection (simulates EOF)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		callCount.Add(1)
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			t.Fatal("server doesn't support hijacking")
+		}
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			t.Fatalf("hijack failed: %v", err)
+		}
+		_ = conn.Close()
+	}))
+	defer srv.Close()
+
+	req := n1cTestRequest()
+	req.URL = srv.URL
+	req.NAPRelease = "5.13.2"
+	req.RetryAttempts = 2
+	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for EOF")
+	}
+	if !isNonTransient(err) {
+		t.Errorf("EOF after retries should be non-transient, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "5.13.2") {
+		t.Errorf("error should mention NAP release, got: %v", err)
+	}
+	if callCount.Load() != 2 {
+		t.Errorf("expected 2 retry attempts, got %d", callCount.Load())
+	}
+}
+
+func TestN1CGetErrorBodyIncluded(t *testing.T) {
+	t.Parallel()
+	policiesPath := fmt.Sprintf("/api/nginx/one/namespaces/%s/app-protect/policies", testNS)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == policiesPath {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte("unsupported nap_release value"))
+		}
+	}))
+	defer srv.Close()
+
+	req := n1cTestRequest()
+	req.URL = srv.URL
+	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for 400")
+	}
+	if !strings.Contains(err.Error(), "unsupported nap_release value") {
+		t.Errorf("error should include response body, got: %v", err)
+	}
+}
+
+func TestN1CGetAuthErrorMentionsSecret(t *testing.T) {
+	t.Parallel()
+	policiesPath := fmt.Sprintf("/api/nginx/one/namespaces/%s/app-protect/policies", testNS)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == policiesPath {
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	defer srv.Close()
+
+	req := n1cTestRequest()
+	req.URL = srv.URL
+	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for 401")
+	}
+	if !strings.Contains(err.Error(), "verify the API token") {
+		t.Errorf("error should mention checking Secret, got: %v", err)
+	}
+}
+
+func TestFetchHTTPSTruncatedResponse(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// Advertise Content-Length of 1000 bytes but only send 5.
+		// Go's HTTP client detects the mismatch and returns "unexpected EOF".
+		w.Header().Set("Content-Length", "1000")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("short"))
+	}))
+	defer srv.Close()
+
+	f := NewHTTPFetcher()
+	_, err := f.FetchPolicyBundle(context.Background(), &Request{Type: SourceTypeHTTPS, URL: srv.URL})
+	if err == nil {
+		t.Fatal("expected error for truncated response")
+	}
+	// Go's HTTP client catches Content-Length vs actual body mismatch as "unexpected EOF"
+	if !strings.Contains(err.Error(), "EOF") {
+		t.Errorf("truncated response should produce EOF error, got: %v", err)
+	}
+}
+
+func TestIsEOFError(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"io.EOF", fmt.Errorf("request: %w", io.EOF), true},
+		{"io.ErrUnexpectedEOF", fmt.Errorf("read: %w", io.ErrUnexpectedEOF), true},
+		{"string contains EOF", fmt.Errorf("connection closed: unexpected EOF"), true},
+		{"normal error", fmt.Errorf("timeout exceeded"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isEOFError(tt.err); got != tt.want {
+				t.Errorf("isEOFError(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
+	}
+}
+
 // Helper tests
-func TestComputeChecksum_Deterministic(t *testing.T) {
+func TestComputeChecksumDeterministic(t *testing.T) {
 	t.Parallel()
 	s1 := ComputeChecksum([]byte("hello"))
 	s2 := ComputeChecksum([]byte("hello"))

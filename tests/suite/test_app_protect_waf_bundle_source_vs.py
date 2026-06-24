@@ -1,6 +1,10 @@
 import pytest
 import requests
 from settings import TEST_DATA
+from suite.utils.ap_resources_utils import (
+    assert_waf_blocked,
+    send_malicious_request_with_retry,
+)
 from suite.utils.bundle_source_utils import (
     BundleServerSetup,
     create_waf_bundle_source_policy,
@@ -23,23 +27,6 @@ STD_VS = f"{TEST_DATA}/ap-waf-v5/standard/virtual-server.yaml"
 
 POLICY_NAME = "waf-policy"
 INVALID_BUNDLE_URL = "https://does-not-exist.invalid/bundles/waf.tgz"
-
-
-def send_malicious_request_with_retry(url, host, retries=20):
-    """Send a request with an embedded XSS payload, retrying until WAF blocks it."""
-    response = requests.get(url + "</script>", headers={"host": host})
-    count = 0
-    while count < retries and "Request Rejected" not in response.text:
-        wait_before_test(3)
-        response = requests.get(url + "</script>", headers={"host": host})
-        count += 1
-    return response
-
-
-def assert_waf_blocked(response):
-    """Assert that the response was rejected by App Protect WAF."""
-    assert response.status_code == 200
-    assert "The requested URL was rejected. Please consult with your administrator." in response.text
 
 
 def restore_default_vs(kube_apis, virtual_server_setup):

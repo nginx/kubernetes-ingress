@@ -2,6 +2,7 @@ package wafbundle
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -49,7 +50,7 @@ func init() {
 	testBundleReloadDelay = &zero
 }
 
-func TestPoller_WritesBundle_OnUpdate(t *testing.T) {
+func TestPollerWritesBundleOnUpdate(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
 	data := []byte("updated-bundle")
@@ -87,7 +88,7 @@ func TestPoller_WritesBundle_OnUpdate(t *testing.T) {
 	}
 }
 
-func TestPoller_NoSync_WhenUnchanged(t *testing.T) {
+func TestPollerNoSyncWhenUnchanged(t *testing.T) {
 	t.Parallel()
 	ff := &fakeFetcher{}
 	ff.set(Result{Unchanged: true}, nil)
@@ -104,7 +105,7 @@ func TestPoller_NoSync_WhenUnchanged(t *testing.T) {
 	}
 }
 
-func TestPoller_NoSync_OnFetchError(t *testing.T) {
+func TestPollerNoSyncOnFetchError(t *testing.T) {
 	t.Parallel()
 	ff := &fakeFetcher{}
 	ff.set(Result{}, &nonTransientError{cause: simpleErr("server down")})
@@ -140,7 +141,7 @@ func TestPoller_NoSync_OnFetchError(t *testing.T) {
 	}
 }
 
-func TestPoller_StopPoller_CancelsGoroutine(t *testing.T) {
+func TestPollerStopPollerCancelsGoroutine(t *testing.T) {
 	t.Parallel()
 	ff := &fakeFetcher{}
 	ff.set(Result{Unchanged: true}, nil)
@@ -165,7 +166,7 @@ func TestPoller_StopPoller_CancelsGoroutine(t *testing.T) {
 	}
 }
 
-func TestPoller_ReconcilePoller_ReplacesOnChange(t *testing.T) {
+func TestPollerReconcilePollerReplacesOnChange(t *testing.T) {
 	t.Parallel()
 	ff := &fakeFetcher{}
 	ff.set(Result{Unchanged: true}, nil)
@@ -184,7 +185,7 @@ func TestPoller_ReconcilePoller_ReplacesOnChange(t *testing.T) {
 	mgr.ReconcilePoller("ns/pol", src2) // should replace cleanly
 }
 
-func TestPoller_WriteAtomic_NoTempFile(t *testing.T) {
+func TestPollerWriteAtomicNoTempFile(t *testing.T) {
 	t.Parallel()
 	tmpDir := t.TempDir()
 	dst := filepath.Join(tmpDir, "bundle.tgz")
@@ -201,6 +202,36 @@ func TestPoller_WriteAtomic_NoTempFile(t *testing.T) {
 		if filepath.Ext(e.Name()) == ".tmp" {
 			t.Errorf("temp file not cleaned up: %s", e.Name())
 		}
+	}
+}
+
+func TestPollerStopsOnNonTransient(t *testing.T) {
+	t.Parallel()
+	tmpDir := t.TempDir()
+	ff := &fakeFetcher{}
+	ff.set(Result{}, &nonTransientError{fmt.Errorf("unsupported version")})
+
+	mgr := NewPollerManager(ff, tmpDir, func(_ string) {}, nil, testLogger())
+
+	mgr.ReconcilePoller("default/waf", []PollSource{{
+		Filename: FetchedBundleFilename("default", "waf", "policy"),
+		Kind:     PolicyBundle,
+		Req:      Request{Type: SourceTypeN1C, URL: "https://example.com"},
+		Interval: 50 * time.Millisecond,
+	}})
+	defer mgr.StopAll()
+
+	// Wait for at least one poll to fire
+	time.Sleep(200 * time.Millisecond)
+	first := ff.callCount.Load()
+	if first == 0 {
+		t.Fatal("expected at least one fetch attempt")
+	}
+
+	// Wait for more ticks — count should not increase
+	time.Sleep(200 * time.Millisecond)
+	if got := ff.callCount.Load(); got != first {
+		t.Errorf("poller should have stopped: calls went from %d to %d", first, got)
 	}
 }
 

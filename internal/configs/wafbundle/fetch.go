@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,7 @@ type HTTPFetcher struct{}
 func NewHTTPFetcher() *HTTPFetcher { return &HTTPFetcher{} }
 
 // FetchPolicyBundle dispatches to the appropriate source-specific fetch implementation.
+// N1C and NIM paths are wrapped with retry-with-backoff (HTTPS has its own retry).
 func (f *HTTPFetcher) FetchPolicyBundle(ctx context.Context, req *Request) (Result, error) {
 	client, err := f.buildClient(req)
 	if err != nil {
@@ -35,15 +37,20 @@ func (f *HTTPFetcher) FetchPolicyBundle(ctx context.Context, req *Request) (Resu
 	}
 	switch req.Type {
 	case SourceTypeN1C:
-		return fetchN1CPolicyBundle(ctx, client, req)
+		return withRetry(ctx, req, func() (Result, error) {
+			return fetchN1CPolicyBundle(ctx, client, req)
+		})
 	case SourceTypeNIM:
-		return fetchNIMPolicyBundle(ctx, client, req)
+		return withRetry(ctx, req, func() (Result, error) {
+			return fetchNIMPolicyBundle(ctx, client, req)
+		})
 	default: // HTTPS
 		return fetchHTTPSBundle(ctx, client, req)
 	}
 }
 
 // FetchLogProfileBundle dispatches to the appropriate source-specific fetch implementation.
+// N1C and NIM paths are wrapped with retry-with-backoff (HTTPS has its own retry).
 func (f *HTTPFetcher) FetchLogProfileBundle(ctx context.Context, req *Request) (Result, error) {
 	client, err := f.buildClient(req)
 	if err != nil {
@@ -51,9 +58,13 @@ func (f *HTTPFetcher) FetchLogProfileBundle(ctx context.Context, req *Request) (
 	}
 	switch req.Type {
 	case SourceTypeN1C:
-		return fetchN1CLogProfileBundle(ctx, client, req)
+		return withRetry(ctx, req, func() (Result, error) {
+			return fetchN1CLogProfileBundle(ctx, client, req)
+		})
 	case SourceTypeNIM:
-		return fetchNIMLogProfileBundle(ctx, client, req)
+		return withRetry(ctx, req, func() (Result, error) {
+			return fetchNIMLogProfileBundle(ctx, client, req)
+		})
 	default: // HTTPS
 		return fetchHTTPSBundle(ctx, client, req)
 	}
@@ -90,18 +101,21 @@ func (f *HTTPFetcher) buildClient(req *Request) (*http.Client, error) {
 	}, nil
 }
 
-// HTTPS source
-func fetchHTTPSBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
+// withRetry executes fn with exponential backoff retry for transient errors.
+// Non-transient errors and nil (success) stop immediately.
+// After all retries are exhausted, if every failure was an EOF-style error,
+// the error is wrapped as non-transient with guidance about the NAP release.
+func withRetry(ctx context.Context, req *Request, fn func() (Result, error)) (Result, error) {
 	var result Result
 	var fetchErr error
+	allEOF := true
 	for attempt := 0; attempt < effectiveRetries(req); attempt++ {
-		httpReq, err := newHTTPSRequest(ctx, req)
-		if err != nil {
-			return Result{}, err
-		}
-		result, fetchErr = doHTTPSFetch(client, httpReq, req)
+		result, fetchErr = fn()
 		if fetchErr == nil || isNonTransient(fetchErr) {
-			break
+			return result, fetchErr
+		}
+		if !isEOFError(fetchErr) {
+			allEOF = false
 		}
 		if attempt < effectiveRetries(req)-1 {
 			backoff := time.Duration(1<<uint(attempt)) * time.Second
@@ -115,7 +129,34 @@ func fetchHTTPSBundle(ctx context.Context, client *http.Client, req *Request) (R
 			}
 		}
 	}
+	// All retries exhausted with transient errors.
+	if allEOF && fetchErr != nil && req.NAPRelease != "" {
+		return Result{}, &nonTransientError{
+			fmt.Errorf("%w — F5 WAF version %s may not be supported by this remote endpoint (all %d retries failed with EOF)",
+				fetchErr, req.NAPRelease, effectiveRetries(req)),
+		}
+	}
 	return result, fetchErr
+}
+
+// isEOFError reports whether err is or wraps an EOF-style error
+// (io.EOF, io.ErrUnexpectedEOF, or a message containing "EOF").
+func isEOFError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || strings.Contains(err.Error(), "EOF")
+}
+
+// HTTPS source
+func fetchHTTPSBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
+	return withRetry(ctx, req, func() (Result, error) {
+		httpReq, err := newHTTPSRequest(ctx, req)
+		if err != nil {
+			return Result{}, err
+		}
+		return doHTTPSFetch(client, httpReq, req)
+	})
 }
 
 // newHTTPSRequest builds a fresh *http.Request for an HTTPS bundle fetch.
@@ -206,6 +247,17 @@ func readBundleBody(resp *http.Response, reqURL string) ([]byte, error) {
 		return nil, &nonTransientError{fmt.Errorf("empty response from %s", reqURL)}
 	}
 	return data, nil
+}
+
+// readErrorSnippet reads up to 1 KB from r for inclusion in error messages.
+// Returns an empty string on any read error.
+func readErrorSnippet(r io.Reader) string {
+	const maxSnippet = 1024
+	data, err := io.ReadAll(io.LimitReader(r, maxSnippet))
+	if err != nil || len(data) == 0 {
+		return "(no response body)"
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // NGINX One Console (N1C)
@@ -416,13 +468,13 @@ func n1cGet(ctx context.Context, client *http.Client, targetURL, token string) (
 	case resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusAccepted:
 		// 200 OK — normal response. 202 Accepted — async compilation in progress (valid for compile status polling).
 	case resp.StatusCode == http.StatusNotFound:
-		return nil, &nonTransientError{fmt.Errorf("N1C resource not found (404)")}
+		return nil, &nonTransientError{fmt.Errorf("N1C resource not found (404): %s", readErrorSnippet(resp.Body))}
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		return nil, &nonTransientError{fmt.Errorf("N1C auth failure (%d)", resp.StatusCode)}
+		return nil, &nonTransientError{fmt.Errorf("N1C auth failure (%d) — verify the API token in the referenced Secret is correct and not expired", resp.StatusCode)}
 	case resp.StatusCode >= 400 && resp.StatusCode < 500:
-		return nil, &nonTransientError{fmt.Errorf("N1C client error %d", resp.StatusCode)}
+		return nil, &nonTransientError{fmt.Errorf("N1C client error %d: %s", resp.StatusCode, readErrorSnippet(resp.Body))}
 	default:
-		return nil, fmt.Errorf("N1C server error %d", resp.StatusCode)
+		return nil, fmt.Errorf("N1C server error %d: %s", resp.StatusCode, readErrorSnippet(resp.Body))
 	}
 
 	data, err = io.ReadAll(io.LimitReader(resp.Body, MaxBundleSize+1))
@@ -707,13 +759,13 @@ func nimGet(ctx context.Context, client *http.Client, targetURL string, auth *Bu
 	switch {
 	case resp.StatusCode == http.StatusOK:
 	case resp.StatusCode == http.StatusNotFound:
-		return nil, &nonTransientError{fmt.Errorf("NIM resource not found (404)")}
+		return nil, &nonTransientError{fmt.Errorf("NIM resource not found (404): %s", readErrorSnippet(resp.Body))}
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
-		return nil, &nonTransientError{fmt.Errorf("NIM auth failure (%d)", resp.StatusCode)}
+		return nil, &nonTransientError{fmt.Errorf("NIM auth failure (%d) — verify the credentials in the referenced Secret are correct", resp.StatusCode)}
 	case resp.StatusCode >= 400 && resp.StatusCode < 500:
-		return nil, &nonTransientError{fmt.Errorf("NIM client error %d", resp.StatusCode)}
+		return nil, &nonTransientError{fmt.Errorf("NIM client error %d: %s", resp.StatusCode, readErrorSnippet(resp.Body))}
 	default:
-		return nil, fmt.Errorf("NIM server error %d", resp.StatusCode)
+		return nil, fmt.Errorf("NIM server error %d: %s", resp.StatusCode, readErrorSnippet(resp.Body))
 	}
 
 	data, err = io.ReadAll(io.LimitReader(resp.Body, MaxBundleSize+1))
