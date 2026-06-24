@@ -38,7 +38,6 @@ import (
 
 	k8spolicies "github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
-	"github.com/nginxinc/nginx-service-mesh/pkg/spiffe"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
 	"k8s.io/apimachinery/pkg/fields"
@@ -206,7 +205,7 @@ type LoadBalancerController struct {
 	metricsCollector              collectors.ControllerCollector
 	globalConfigurationValidator  *validation.GlobalConfigurationValidator
 	transportServerValidator      *validation.TransportServerValidator
-	spiffeCertFetcher             *spiffe.X509CertFetcher
+	spireAgentAddress             string
 	internalRoutesEnabled         bool
 	syncLock                      sync.Mutex
 	isNginxReady                  bool
@@ -351,13 +350,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
-	var err error
-	if input.SpireAgentAddress != "" {
-		lbc.spiffeCertFetcher, err = spiffe.NewX509CertFetcher(input.SpireAgentAddress, nil)
-		if err != nil {
-			nl.Fatalf(lbc.Logger, "failed to initialize spiffe certfetcher: %v", err)
-		}
-	}
+	lbc.spireAgentAddress = input.SpireAgentAddress
 
 	isDynamicNs := input.WatchNamespaceLabel != ""
 
@@ -726,19 +719,29 @@ func (lbc *LoadBalancerController) Run() {
 		go lbc.namespaceWatcherController.Run(lbc.ctx.Done())
 	}
 
-	if lbc.spiffeCertFetcher != nil {
-		_, _, err := lbc.spiffeCertFetcher.Start(lbc.ctx)
+	if lbc.spireAgentAddress != "" {
 		lbc.addInternalRouteServer()
-		if err != nil {
-			nl.Fatal(lbc.Logger, err)
-		}
+
+		// certCh receives X.509 SVID updates from the SPIFFE Workload API.
+		// errCh receives a terminal error if the watch stops.
+		certCh := make(chan *workloadapi.X509Context)
+		errCh := make(chan error, 1)
+		watcher := &spiffeWatcher{certCh: certCh}
+
+		go func() {
+			if err := workloadapi.WatchX509Context(lbc.ctx, watcher, workloadapi.WithAddr("unix://"+lbc.spireAgentAddress)); err != nil {
+				errCh <- err
+			}
+		}()
 
 		// wait for initial bundle
 		timeoutch := make(chan bool, 1)
 		go func() { time.Sleep(time.Second * 30); timeoutch <- true }()
 		select {
-		case cert := <-lbc.spiffeCertFetcher.CertCh:
+		case cert := <-certCh:
 			lbc.syncSVIDRotation(cert)
+		case err := <-errCh:
+			nl.Fatalf(lbc.Logger, "error watching for SVID rotations: %v", err)
 		case <-timeoutch:
 			nl.Fatal(lbc.Logger, "Failed to download initial spiffe trust bundle")
 		}
@@ -746,10 +749,10 @@ func (lbc *LoadBalancerController) Run() {
 		go func() {
 			for {
 				select {
-				case err := <-lbc.spiffeCertFetcher.WatchErrCh:
+				case err := <-errCh:
 					nl.Errorf(lbc.Logger, "error watching for SVID rotations: %v", err)
 					return
-				case cert := <-lbc.spiffeCertFetcher.CertCh:
+				case cert := <-certCh:
 					lbc.syncSVIDRotation(cert)
 				}
 			}
@@ -1187,7 +1190,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		nl.Debugf(lbc.Logger, "Batch processing %v items", lbc.syncQueue.Len())
 	}
 	nl.Debugf(lbc.Logger, "Syncing %v", task.Key)
-	if lbc.spiffeCertFetcher != nil {
+	if lbc.spireAgentAddress != "" {
 		lbc.syncLock.Lock()
 		defer lbc.syncLock.Unlock()
 	}
@@ -4146,6 +4149,22 @@ func (lbc *LoadBalancerController) isHealthCheckEnabled(ing *networking.Ingress)
 func formatWarningMessages(w []string) string {
 	return strings.Join(w, "; ")
 }
+
+// spiffeWatcher implements workloadapi.X509ContextWatcher. It forwards X.509
+// SVID updates from the SPIFFE Workload API onto certCh. Watch errors are
+// surfaced via the error returned by workloadapi.WatchX509Context, so they are
+// not handled here.
+type spiffeWatcher struct {
+	certCh chan<- *workloadapi.X509Context
+}
+
+// OnX509ContextUpdate is called when a new X.509 context is fetched from the SPIFFE Workload API.
+func (w *spiffeWatcher) OnX509ContextUpdate(svidResponse *workloadapi.X509Context) {
+	w.certCh <- svidResponse
+}
+
+// OnX509ContextWatchError is called when there is an error watching for X.509 context updates.
+func (w *spiffeWatcher) OnX509ContextWatchError(_ error) {}
 
 func (lbc *LoadBalancerController) syncSVIDRotation(svidResponse *workloadapi.X509Context) {
 	lbc.syncLock.Lock()
