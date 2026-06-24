@@ -13,7 +13,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:3998f88d4de99423119b61b47d2bd3d995be7a1368014f5edd8e63f93f946445
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:5d24ca677ffca8bfe0d472536f51d2c7dc172210770fe04c1c93d23d159209db
 
 
 ############################################# External dependency images #############################################
