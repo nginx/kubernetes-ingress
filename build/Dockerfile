@@ -89,34 +89,29 @@ RUN --mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/pat
 	&& patch-os.sh
 USER 101
 
-
-############################################# NGINX OSS on Alpine Linux #############################################
-# Base:    nginx:1.31.2-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
-# Adds:    nginx-module-otel + nginx-agent v3
-# Used as: BUILD_OS=alpine
-FROM nginx:1.31.2-alpine3.23@sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa AS alpine
-ARG PACKAGE_REPO
+############################################### NGINX OSS - Alpine #############################################
+FROM alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 AS alpine
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
 RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	apk add --no-cache libcap libstdc++ \
+	apk add --no-cache openssl curl ca-certificates libcap libstdc++ libc-utils \
+    && apk add -X "https://nginx.org/packages/mainline/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+        nginx~${NGINX_OSS_VERSION} \
+        nginx-module-njs~${NGINX_OSS_VERSION} \
+        nginx-module-otel~${NGINX_OSS_VERSION} \
+    && apk add -X "https://packages.nginx.org/nginx-agent/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+        nginx-agent~${AGENT_V3_VERSION} \
 	&& export $(cat /tmp/user_agent) \
-	&& printf "%s%s%s\n" "http://packages.nginx.org/nginx/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
-	&& printf "%s%s%s\n" "http://packages.nginx.org/nginx-agent/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-module-otel~${NGINX_OSS_VERSION} nginx-agent~${AGENT_V3_VERSION} \
 	&& ldconfig /usr/local/lib/ \
 	&& agent.sh \
 	&& sed -i -e '/nginx.org/d' /etc/apk/repositories
 
 
-############################################# NGINX OSS on Debian 13 #############################################
-# Base:    nginx:1.31.2 (official NGINX OSS Debian image, OSS pre-installed)
-# Adds:    nginx-module-otel + nginx-agent v3
-# Used as: BUILD_OS=debian (default)
-FROM nginx:1.31.2@sha256:351872cd77d5a6221ff3950af72453167b7fbc3d73aa21ad2606e85c76151792 AS debian
+############################################### NGINX OSS - Debian #############################################
+FROM debian:trixie-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e AS debian
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
@@ -134,14 +129,15 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
-	nginx-agent=${AGENT_V3_VERSION}* \
-	nginx-module-otel=${NGINX_OSS_VERSION}* \
+      nginx=${NGINX_OSS_VERSION}* \
+      nginx-module-njs=${NGINX_OSS_VERSION}* \
+      nginx-module-otel=${NGINX_OSS_VERSION}* \
+      nginx-agent=${AGENT_V3_VERSION}* \
 	&& apt-get purge --auto-remove -y gpg \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
 	&& agent.sh
 
-
-############################################# NGINX OSS on Red Hat UBI 10 #############################################
+############################################# NGINX OSS - Red Hat UBI 10 #############################################
 # Base:    ubi-minimal (Red Hat UBI 10 minimal)
 # Adds:    nginx + nginx-module-njs/otel/image-filter/xslt + nginx-agent v3
 # Used as: BUILD_OS=ubi
@@ -182,7 +178,13 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
     && printf "%s\n" "[agent]" "name=agent repo" \
     "baseurl=https://packages.nginx.org/nginx-agent/centos/10/\$basearch/" \
     "gpgcheck=1" "enabled=1" "module_hotfixes=true" >> /etc/yum.repos.d/nginx.repo \
-	&& microdnf --nodocs install -y nginx-${NGINX_OSS_VERSION}* nginx-module-njs-${NGINX_OSS_VERSION}* nginx-module-otel-${NGINX_OSS_VERSION}* nginx-module-image-filter-${NGINX_OSS_VERSION}* nginx-module-xslt-${NGINX_OSS_VERSION}* nginx-agent-${AGENT_V3_VERSION}* \
+	&& microdnf --nodocs install -y \
+      nginx-${NGINX_OSS_VERSION}* \
+      nginx-module-njs-${NGINX_OSS_VERSION}* \
+      nginx-module-otel-${NGINX_OSS_VERSION}* \
+      nginx-module-image-filter-${NGINX_OSS_VERSION}* \
+      nginx-module-xslt-${NGINX_OSS_VERSION}* \
+      nginx-agent-${AGENT_V3_VERSION}* \
 	&& rm -rf /etc/yum.repos.d/nginx.repo /etc/yum.repos.d/local-deps.repo \
 	&& ubi-clean.sh
 
