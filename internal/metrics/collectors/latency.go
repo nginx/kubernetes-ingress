@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -91,7 +92,7 @@ func NewLatencyMetricsCollector(
 	buckets []float64,
 ) *LatencyMetricsCollector {
 	if len(buckets) == 0 {
-		buckets = DefaultLatencyBuckets
+		buckets = slices.Clone(DefaultLatencyBuckets)
 	}
 	return &LatencyMetricsCollector{
 		httpLatency: prometheus.NewHistogramVec(

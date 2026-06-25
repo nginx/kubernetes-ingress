@@ -367,7 +367,7 @@ Build the args for the service binary.
 - -ready-status={{ .Values.controller.readyStatus.enable }}
 - -ready-status-port={{ .Values.controller.readyStatus.port }}
 - -enable-latency-metrics={{ .Values.controller.enableLatencyMetrics }}
-{{- if .Values.controller.latencyMetricsBuckets }}
+{{- if and .Values.controller.enableLatencyMetrics .Values.controller.latencyMetricsBuckets }}
 - -latency-metrics-buckets={{ .Values.controller.latencyMetricsBuckets }}
 {{- end }}
 - -ssl-dynamic-reload={{ .Values.controller.enableSSLDynamicReload }}

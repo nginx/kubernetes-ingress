@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"os"
 	"regexp"
@@ -524,6 +525,9 @@ func parseLatencyBuckets(s string) ([]float64, error) {
 		v, err := strconv.ParseFloat(p, 64)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %q as a number: %w", p, err)
+		}
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return nil, fmt.Errorf("bucket values must be finite, got %q", p)
 		}
 		if v <= 0 {
 			return nil, fmt.Errorf("bucket values must be positive, got %v", v)

@@ -195,6 +195,10 @@ func TestParseLatencyBuckets(t *testing.T) {
 		"10,5",       // not ascending
 		"5,5",        // not strictly ascending (equal)
 		"5,10,10,20", // duplicate value
+		"NaN",        // not a finite number
+		"Inf",        // not finite
+		"+Inf",       // not finite
+		"10,NaN,100", // non-finite value in the middle
 	}
 	for _, in := range badInputs {
 		if _, err := parseLatencyBuckets(in); err == nil {
