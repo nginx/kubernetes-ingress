@@ -55,57 +55,23 @@ runs:
     - name: Deploy Kubernetes (k3d)
       id: k8s
       run: |
-        # Size the cluster for the GitHub-hosted runner (16 GiB RAM, 4 vCPU).
-        # --no-lb skips the serverlb container (tests use NodePort via cluster_ip).
-        # Extra k3s components are disabled to cut startup time and memory.
-        k3d cluster create ${{ github.run_id }} --wait \
-          --servers 1 --agents 0 --no-lb \
-          --servers-memory 12g \
-          --k3s-arg "--disable=traefik,servicelb,metrics-server@server:*"
+        make -f tests/Makefile create-k3d-cluster K8S_CLUSTER_NAME=${{ github.run_id }}
+        make -f tests/Makefile k3d-image-load \
+          REGISTRY="" PREFIX=${{ inputs.image-name }} TAG=${{ inputs.tag }} \
+          K8S_CLUSTER_NAME=${{ github.run_id }}
 
-        # Native, parallelised image import (replaces docker save | ctr import).
-        k3d image import ${{ inputs.image-name }}:${{ inputs.tag }} \
-          --cluster ${{ github.run_id }} --mode direct
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
         noslash="${nospaces//\//_}"
         sanitized_marker="${noslash//\'/}"
         name="${sanitized_marker}-${{ inputs.k8s-version }}"
 
-        # server container for k3d cluster
-        cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' k3d-${{ github.run_id }}-server-0)
-
-        # validate network and cluster IP
-        if [ -z "$cluster_ip" ]; then
-          echo "Error: Could not get cluster IP from k3d-${{ github.run_id }}-server-0"
-          docker ps --filter name=k3d-${{ github.run_id }}
-          exit 1
-        fi
-
-        # verify k3d network exists
-        if ! docker network inspect k3d-${{ github.run_id }} > /dev/null 2>&1; then
-          echo "Error: k3d network k3d-${{ github.run_id }} not found"
-          docker network ls
-          exit 1
-        fi
-
         test_name=tests-nginx-${{ inputs.image-type }}-${name}.html
         test_output_path=${{ github.workspace }}/tests/${test_name}
-        echo "cluster_ip=${cluster_ip}" >> $GITHUB_OUTPUT
         echo "test_name=${test_name}" >> $GITHUB_OUTPUT
         echo "test_output_path=${test_output_path}" >> $GITHUB_OUTPUT
         echo "Output:"
-        echo "  cluster_ip=${cluster_ip}"
         echo "  test_output_path=${test_output_path}"
-      shell: bash
-
-    - name: Setup Kubeconfig (k3d)
-      run: |
-        mkdir -p ~/.kube/k3d
-        k3d kubeconfig get ${{ github.run_id }} > ~/.kube/k3d/config
-        sed -i "s|server: https://0.0.0.0:[0-9]*|server: https://${{ steps.k8s.outputs.cluster_ip }}:6443|g" ~/.kube/k3d/config
-        echo "Updated kubeconfig server to use cluster IP:"
-        grep "server:" ~/.kube/k3d/config
       shell: bash
 
     - name: Run Smoke Tests
@@ -131,7 +97,7 @@ runs:
         --image=${{ inputs.image-name }}:${{ inputs.tag }} \
         --image-pull-policy=Never \
         --ic-type=nginx${{ contains(inputs.image-type, 'plus') && '-plus' || '' }}-ingress \
-        --service=nodeport --node-ip=${{ steps.k8s.outputs.cluster_ip }} \
+        --service=nodeport --node-ip=k3d-${{ github.run_id }}-server-0 \
         --html=${{ steps.k8s.outputs.test_output_path }} \
         --self-contained-html \
         --durations=10 \

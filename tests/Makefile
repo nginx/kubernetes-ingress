@@ -150,7 +150,7 @@ delete-kind-cluster: ## Delete a Kind K8S cluster
 
 .PHONY: image-load
 image-load: ## Load the image into the Kind K8S cluster
-	@docker save $(BUILD_IMAGE) | \
+	@docker save --platform=linux/$(ARCH) $(BUILD_IMAGE) | \
 		docker exec --privileged -i $(K8S_CLUSTER_NAME)-control-plane \
 			ctr --namespace=k8s.io images import -
 
@@ -181,7 +181,6 @@ create-k3d-cluster: $(K3D_KUBE_CONFIG_FOLDER) ## Create a k3d K8S cluster
 	@k3d cluster create $(K8S_CLUSTER_NAME) --wait \
 		--servers 1 --agents 0 --no-lb \
 		--servers-memory 12g \
-		--image=rancher/k3s:$(K8S_CLUSTER_VERSION)-k3s1 \
 		--k3s-arg "--disable=traefik,servicelb,metrics-server@server:*"
 	@k3d kubeconfig get $(K8S_CLUSTER_NAME) > $(K3D_KUBE_CONFIG_FOLDER)/config
 	@sed -i.bak "s|server: https://0.0.0.0:[0-9]*|server: https://k3d-$(K8S_CLUSTER_NAME)-server-0:6443|g" $(K3D_KUBE_CONFIG_FOLDER)/config && rm -f $(K3D_KUBE_CONFIG_FOLDER)/config.bak
@@ -195,7 +194,9 @@ delete-k3d-cluster: ## Delete a k3d K8S cluster
 
 .PHONY: k3d-image-load
 k3d-image-load: ## Load the image into the k3d K8S cluster
-	@k3d image import $(BUILD_IMAGE) --cluster $(K8S_CLUSTER_NAME) --mode direct
+	@docker save --platform=linux/$(ARCH) $(BUILD_IMAGE) | \
+		docker exec --privileged -i k3d-$(K8S_CLUSTER_NAME)-server-0 \
+			ctr --namespace=k8s.io images import -
 
 
 .PHONY: run-tests-in-minikube
