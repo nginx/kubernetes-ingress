@@ -39,7 +39,7 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
+      docs_only: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.docs.outputs.docs_only == 'true' }}
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
@@ -181,7 +181,7 @@ jobs:
 
       - name: Output variables
         run: |
-          echo docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
+          echo docs_only: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.docs.outputs.docs_only == 'true' }}
           echo k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
           echo go_path: ${{ steps.vars.outputs.go_path }}
           echo go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
@@ -248,6 +248,10 @@ jobs:
       contents: read
       id-token: write
     needs: checks
+    if: >-
+      inputs.force ||
+      (needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit != 'true')
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -258,10 +262,6 @@ jobs:
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: 'v3.21.2'
-        if: >-
-          inputs.force ||
-          needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -269,11 +269,7 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: >-
-          inputs.force ||
-          needs.checks.outputs.forked_workflow == 'false' &&
-          (needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true')
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Setup secrets
         id: secrets
@@ -282,46 +278,26 @@ jobs:
           CODECOV_TOKEN=$(az keyvault secret show --name code-cov --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$CODECOV_TOKEN"
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
-        if: >-
-          inputs.force ||
-          needs.checks.outputs.forked_workflow == 'false' &&
-          (needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true')
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Setup Golang Environment
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
-        if: >-
-          inputs.force ||
-          needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Generate secrets for tests
         run: |
           make secrets
-        if: >-
-          inputs.force ||
-          needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Run Tests
         run: make cover
-        if: >-
-          inputs.force ||
-          needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
-        if: >-
-          inputs.force ||
-          (needs.checks.outputs.forked_workflow == 'false' &&
-          (needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true'))
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
   staticcheck:
     name: Static Check
@@ -385,6 +361,10 @@ jobs:
   build-artifacts:
     name: Build Artifacts
     needs: [checks, unit-tests]
+    if: >-
+      !cancelled() &&
+      needs.checks.result == 'success' &&
+      (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped')
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' }}
@@ -445,7 +425,7 @@ jobs:
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
         with:
           platforms: arm64
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -453,7 +433,7 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Setup secrets
         id: secrets
@@ -465,7 +445,7 @@ jobs:
           GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$GCR_SERVICE_ACCOUNT"
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -474,7 +454,7 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
@@ -482,19 +462,19 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Install Python dependencies
         run: |
           make -f tests/Makefile setup-venv
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Run tests
         id: packages
         run: |
           source tests/venv/bin/activate
           python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} --log package_output.txt
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Add comment
         run: |
@@ -506,7 +486,7 @@ jobs:
           gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F output.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' && github.event.pull_request }}
 
   helm-tests:
     if: >-
@@ -890,7 +870,7 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     name: Final CI Results
-    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
+    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck, unit-tests, verify-codegen]
     steps:
       - run: |
           tagResult="${{ needs.tag-stable.result }}"
@@ -902,6 +882,8 @@ jobs:
           buildArtifactsResult="${{ needs.build-artifacts.result }}"
           staticcheckResult="${{ needs.staticcheck.result }}"
           govulncheckResult="${{ needs.govulncheck.result }}"
+          unitTestsResult="${{ needs.unit-tests.result }}"
+          verifyCodegenResult="${{ needs.verify-codegen.result }}"
           if [[ $tagResult != "success" && $tagResult != "skipped" ]]; then
             exit 1
           fi
@@ -927,6 +909,12 @@ jobs:
             exit 1
           fi
           if [[ $govulncheckResult != "success" && $govulncheckResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $unitTestsResult != "success" && $unitTestsResult != "skipped" ]]; then
+            exit 1
+          fi
+          if [[ $verifyCodegenResult != "success" && $verifyCodegenResult != "skipped" ]]; then
             exit 1
           fi
 

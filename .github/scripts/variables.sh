@@ -65,9 +65,19 @@ get_k8s_latest_version() {
   echo "$K8S_LATEST_VERSION"
 }
 
-# Outputs docs_only=true if all changed files match doc paths (*.md, docs/**, examples/**)
+# Outputs docs_only=true if all changed files (vs. PR/merge base) match doc paths.
+# Doc paths include: *.md, docs/**, examples/**, site/**, .github/ISSUE_TEMPLATE/**,
+# .github/PULL_REQUEST_TEMPLATE.md, CHANGELOG*, LICENSE, CODEOWNERS.
 get_docs_only() {
-  non_doc_files=$(git diff --name-only HEAD^ | grep -Ev '(\.md$|^docs/|^examples/)')
+  local range
+  if [ -n "${GITHUB_BASE_REF:-}" ]; then
+    # PR or merge_group event: compare against the target branch.
+    git fetch --quiet --depth=50 origin "${GITHUB_BASE_REF}" 2>/dev/null || true
+    range="origin/${GITHUB_BASE_REF}...HEAD"
+  else
+    range="HEAD^...HEAD"
+  fi
+  non_doc_files=$(git diff --name-only "${range}" 2>/dev/null | grep -Ev '(\.md$|^docs/|^examples/|^site/|^\.github/ISSUE_TEMPLATE/|^\.github/PULL_REQUEST_TEMPLATE\.md$|^CHANGELOG|^LICENSE$|^CODEOWNERS$)')
   if [ -z "$non_doc_files" ]; then
     echo "docs_only=true"
   else
