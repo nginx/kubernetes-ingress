@@ -328,6 +328,9 @@ def crd_ingress_controller_with_waf_v5(
                 _preload_content=False,
             )
             resp.write_stdin(file_content)
+            resp.write_stdin(None)  # signal EOF so cat exits cleanly
+            while resp.is_open():
+                resp.update(timeout=5)
             resp.close()
 
             # Verify the file was written completely.

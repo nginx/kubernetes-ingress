@@ -103,10 +103,12 @@ def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str) -> None:
         _preload_content=False,
     )
     resp.write_stdin(file_content)
+    resp.write_stdin(None)  # signal EOF so cat exits cleanly
+    while resp.is_open():
+        resp.update(timeout=5)
     resp.close()
 
-    # Verify the file was written completely — the websocket can close
-    # before cat finishes flushing, leaving a truncated .tgz on disk.
+    # Verify the file was written completely as a safety net.
     dest_path = "/www/bundles/wafv5.tgz"
     result = stream(
         v1.connect_get_namespaced_pod_exec,
