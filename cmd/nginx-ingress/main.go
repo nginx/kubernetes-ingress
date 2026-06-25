@@ -990,7 +990,7 @@ func createPlusAndLatencyCollectors(
 			go metrics.RunPrometheusListenerForNginx(ctx, *prometheusMetricsListenPort, client, registry, constLabels, prometheusSecret)
 		}
 		if *enableLatencyMetrics {
-			lc = collectors.NewLatencyMetricsCollector(ctx, constLabels, upstreamServerVariableLabels, upstreamServerPeerVariableLabelNames)
+			lc = collectors.NewLatencyMetricsCollector(ctx, constLabels, upstreamServerVariableLabels, upstreamServerPeerVariableLabelNames, latencyBuckets)
 			if err := lc.Register(registry); err != nil {
 				nl.Errorf(l, "Error registering Latency Prometheus metrics: %v", err)
 			}

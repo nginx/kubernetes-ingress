@@ -666,6 +666,10 @@ controller:
   ## Enable collection of latency metrics for upstreams. Requires prometheus.create.
   enableLatencyMetrics: false
 
+  ## Comma-separated list of buckets in milliseconds, in strictly ascending order, for the upstream response latency histogram, e.g. "5,10,25,50,100,250,500,1000".
+  ## Requires controller.enableLatencyMetrics. When empty, a default set of buckets is used. Reducing the number of buckets lowers the metric's time-series cardinality.
+  latencyMetricsBuckets: ""
+
   ## Disable IPV6 listeners explicitly for nodes that do not support the IPV6 stack.
   disableIPV6: false
 
