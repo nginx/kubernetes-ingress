@@ -94,7 +94,7 @@ USER 101
 # Base:    nginx:1.31.2-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
 # Adds:    nginx-module-otel + nginx-agent v3
 # Used as: BUILD_OS=alpine
-FROM nginx:1.31.2-alpine3.23@sha256:1a8724a52d432501548a8d8681bb1554c2d09778f8b9ed0882fc3442549980b7 AS alpine
+FROM nginx:1.31.2-alpine3.23@sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa AS alpine
 ARG PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
