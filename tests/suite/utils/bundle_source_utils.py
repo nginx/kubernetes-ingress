@@ -104,6 +104,24 @@ def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str) -> None:
     )
     resp.write_stdin(file_content)
     resp.close()
+
+    # Verify the file was written completely — the websocket can close
+    # before cat finishes flushing, leaving a truncated .tgz on disk.
+    dest_path = "/www/bundles/wafv5.tgz"
+    result = stream(
+        v1.connect_get_namespaced_pod_exec,
+        pod_name,
+        namespace,
+        container="nginx",
+        command=["sh", "-c", f"wc -c < {dest_path}"],
+        stderr=True,
+        stdin=False,
+        stdout=True,
+        tty=False,
+    )
+    actual_size = int(result.strip())
+    if actual_size != len(file_content):
+        raise RuntimeError(f"Bundle copy incomplete: wrote {actual_size} of {len(file_content)} bytes to {dest_path}")
     print("WAF bundle copied to bundle-server pod")
 
 

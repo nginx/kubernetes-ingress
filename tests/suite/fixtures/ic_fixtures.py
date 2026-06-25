@@ -311,9 +311,10 @@ def crd_ingress_controller_with_waf_v5(
         try:
             with open(f"{dir}/wafv5.tgz", "rb") as f:
                 file_content = f.read()
-            exec_command = ["sh", "-c", f"cat > /etc/app_protect/bundles/wafv5.tgz"]
+            dest_path = "/etc/app_protect/bundles/wafv5.tgz"
+            exec_command = ["sh", "-c", f"cat > {dest_path}"]
             pod_name = get_first_pod_name(kube_apis.v1, namespace)
-            container_name = f"nginx-plus-ingress"
+            container_name = "nginx-plus-ingress"
             resp = stream(
                 kube_apis.v1.connect_get_namespaced_pod_exec,
                 pod_name,
@@ -328,6 +329,24 @@ def crd_ingress_controller_with_waf_v5(
             )
             resp.write_stdin(file_content)
             resp.close()
+
+            # Verify the file was written completely.
+            result = stream(
+                kube_apis.v1.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container=container_name,
+                command=["sh", "-c", f"wc -c < {dest_path}"],
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
+            actual_size = int(result.strip())
+            if actual_size != len(file_content):
+                raise RuntimeError(
+                    f"Bundle copy incomplete: wrote {actual_size} of {len(file_content)} bytes to {dest_path}"
+                )
 
         except Exception as ex:
             pytest.fail(f"Failed to copy WAFv5 bundle into the pod: {ex}")
