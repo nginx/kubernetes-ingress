@@ -182,6 +182,20 @@ create-k3d-cluster: $(K3D_KUBE_CONFIG_FOLDER) ## Create a k3d K8S cluster
 		--servers 1 --agents 0 --no-lb \
 		--servers-memory 12g \
 		--k3s-arg "--disable=traefik,servicelb,metrics-server@server:*"
+	@# k3d --wait only waits for the k3s container's startup probe; the apiserver
+	@# can still return 503 "apiserver not ready" for ~10s while controllers init.
+	@# Poll /readyz from inside the server container before handing back control.
+	@echo "Waiting for k3s apiserver /readyz to pass..."
+	@i=0; while ! docker exec k3d-$(K8S_CLUSTER_NAME)-server-0 k3s kubectl get --raw=/readyz >/dev/null 2>&1; do \
+		i=$$((i+1)); \
+		if [ $$i -ge 60 ]; then \
+			echo "apiserver /readyz did not pass within 120s"; \
+			docker exec k3d-$(K8S_CLUSTER_NAME)-server-0 k3s kubectl get --raw='/readyz?verbose' || true; \
+			exit 1; \
+		fi; \
+		sleep 2; \
+	done
+	@docker exec k3d-$(K8S_CLUSTER_NAME)-server-0 k3s kubectl wait --for=condition=Ready nodes --all --timeout=120s
 	@k3d kubeconfig get $(K8S_CLUSTER_NAME) > $(K3D_KUBE_CONFIG_FOLDER)/config
 	@sed -i.bak "s|server: https://0.0.0.0:[0-9]*|server: https://k3d-$(K8S_CLUSTER_NAME)-server-0:6443|g" $(K3D_KUBE_CONFIG_FOLDER)/config && rm -f $(K3D_KUBE_CONFIG_FOLDER)/config.bak
 
