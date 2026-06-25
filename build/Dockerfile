@@ -137,58 +137,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
 	&& agent.sh
 
-############################################# NGINX OSS on Alpine Linux #############################################
-# Base:    nginx:1.31.2-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
-# Adds:    nginx-module-otel + nginx-agent v3
-# Used as: BUILD_OS=alpine
-FROM nginx:1.31.2-alpine3.23@sha256:1a8724a52d432501548a8d8681bb1554c2d09778f8b9ed0882fc3442549980b7 AS alpine
-ARG PACKAGE_REPO
-ARG NGINX_OSS_VERSION
-ARG AGENT_V3_VERSION
-
-RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
-	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
-	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	apk add --no-cache libcap libstdc++ \
-	&& export $(cat /tmp/user_agent) \
-	&& printf "%s%s%s\n" "http://packages.nginx.org/nginx/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
-	&& printf "%s%s%s\n" "http://packages.nginx.org/nginx-agent/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-module-otel~${NGINX_OSS_VERSION} nginx-agent~${AGENT_V3_VERSION} \
-	&& ldconfig /usr/local/lib/ \
-	&& agent.sh \
-	&& sed -i -e '/nginx.org/d' /etc/apk/repositories
-
-
-############################################# NGINX OSS on Debian 13 #############################################
-# Base:    nginx:1.31.2 (official NGINX OSS Debian image, OSS pre-installed)
-# Adds:    nginx-module-otel + nginx-agent v3
-# Used as: BUILD_OS=debian (default)
-FROM nginx:1.31.2@sha256:42f2d24ae18df9b5251d1cc45548085656d2335e9338fd150a24e415462d151f AS debian
-ARG NGINX_OSS_VERSION
-ARG AGENT_V3_VERSION
-
-RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
-	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
-	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y \
-	gpg libcap2-bin ca-certificates lsb-release debian-archive-keyring \
-	&& gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key \
-	&& echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-	http://packages.nginx.org/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
-    && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-    http://packages.nginx.org/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
-	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
-	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y \
-	nginx-agent=${AGENT_V3_VERSION}* \
-	nginx-module-otel=${NGINX_OSS_VERSION}* \
-	&& apt-get purge --auto-remove -y gpg \
-	&& rm -rf /var/lib/apt/lists/* /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
-	&& agent.sh
-
-
-############################################# NGINX OSS on Red Hat UBI 10 #############################################
+############################################# NGINX OSS - Red Hat UBI 10 #############################################
 # Base:    ubi-minimal (Red Hat UBI 10 minimal)
 # Adds:    nginx + nginx-module-njs/otel/image-filter/xslt + nginx-agent v3
 # Used as: BUILD_OS=ubi
