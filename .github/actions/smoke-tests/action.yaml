@@ -55,16 +55,17 @@ runs:
     - name: Deploy Kubernetes (k3d)
       id: k8s
       run: |
-        # create k3d cluster with default resources like KIND/Minikube
+        # Size the cluster for the GitHub-hosted runner (16 GiB RAM, 4 vCPU).
+        # --no-lb skips the serverlb container (tests use NodePort via cluster_ip).
+        # Extra k3s components are disabled to cut startup time and memory.
         k3d cluster create ${{ github.run_id }} --wait \
-          --servers 1 --agents 0 \
-          --servers-memory 4g \
-          --k3s-arg "--disable=traefik@server:*"
+          --servers 1 --agents 0 --no-lb \
+          --servers-memory 12g \
+          --k3s-arg "--disable=traefik,servicelb,metrics-server@server:*"
 
-        kubectl wait --for=condition=Ready nodes --all --timeout=120s --kubeconfig ~/.kube/config
-        docker save ${{ inputs.image-name }}:${{ inputs.tag }} | \
-          docker exec --privileged -i k3d-${{ github.run_id }}-server-0 \
-            ctr --namespace=k8s.io images import -
+        # Native, parallelised image import (replaces docker save | ctr import).
+        k3d image import ${{ inputs.image-name }}:${{ inputs.tag }} \
+          --cluster ${{ github.run_id }} --mode direct
         label="${{ inputs.label }}"
         nospaces="${label// /_}"
         noslash="${nospaces//\//_}"

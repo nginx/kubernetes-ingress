@@ -8,6 +8,7 @@ NODE_IP                     =
 TEST_PREFIX                 = test-runner
 KUBE_CONFIG_FOLDER          = ${HOME}/.kube
 KIND_KUBE_CONFIG_FOLDER     = $(KUBE_CONFIG_FOLDER)/kind
+K3D_KUBE_CONFIG_FOLDER      = $(KUBE_CONFIG_FOLDER)/k3d
 MINIKUBE_KUBE_CONFIG_FOLDER = $(KUBE_CONFIG_FOLDER)/minikube
 DOCKERFILEPATH              := ${ROOT_DIR}/tests/Dockerfile
 PYTHON                      ?= python3
@@ -54,6 +55,10 @@ $(KUBE_CONFIG_FOLDER):
 
 
 $(KIND_KUBE_CONFIG_FOLDER): $(KUBE_CONFIG_FOLDER)
+	@mkdir -p $@
+
+
+$(K3D_KUBE_CONFIG_FOLDER): $(KUBE_CONFIG_FOLDER)
 	@mkdir -p $@
 
 
@@ -148,6 +153,49 @@ image-load: ## Load the image into the Kind K8S cluster
 	@docker save $(BUILD_IMAGE) | \
 		docker exec --privileged -i $(K8S_CLUSTER_NAME)-control-plane \
 			ctr --namespace=k8s.io images import -
+
+
+.PHONY: run-tests-in-k3d
+run-tests-in-k3d: secrets ## Run tests in k3d
+	docker run --network=k3d-$(strip $(K8S_CLUSTER_NAME)) --rm \
+		-v $(K3D_KUBE_CONFIG_FOLDER):/root/.kube \
+		-v $(ROOT_DIR)/tests:/workspace/tests \
+		-v $(ROOT_DIR)/common-secrets:/workspace/common-secrets \
+		-v $(ROOT_DIR)/deployments:/workspace/deployments \
+		-v $(ROOT_DIR)/config:/workspace/config \
+		-v $(ROOT_DIR)/pyproject.toml:/workspace/pyproject.toml \
+		$(TEST_PREFIX):$(TEST_TAG) \
+ 		--context=k3d-$(strip $(K8S_CLUSTER_NAME)) \
+ 		--image=$(BUILD_IMAGE) --image-pull-policy=$(PULL_POLICY) \
+ 		--deployment-type=$(DEPLOYMENT_TYPE) \
+ 		--ic-type=$(IC_TYPE) \
+ 		--service=nodeport \
+ 		--node-ip=k3d-$(strip $(K8S_CLUSTER_NAME))-server-0 \
+ 		--show-ic-logs=$(SHOW_IC_LOGS) \
+		--plus-jwt=$(PLUS_JWT) \
+ 		$(PYTEST_ARGS)
+
+
+.PHONY: create-k3d-cluster
+create-k3d-cluster: $(K3D_KUBE_CONFIG_FOLDER) ## Create a k3d K8S cluster
+	@k3d cluster create $(K8S_CLUSTER_NAME) --wait \
+		--servers 1 --agents 0 --no-lb \
+		--servers-memory 12g \
+		--image=rancher/k3s:$(K8S_CLUSTER_VERSION)-k3s1 \
+		--k3s-arg "--disable=traefik,servicelb,metrics-server@server:*"
+	@k3d kubeconfig get $(K8S_CLUSTER_NAME) > $(K3D_KUBE_CONFIG_FOLDER)/config
+	@sed -i.bak "s|server: https://0.0.0.0:[0-9]*|server: https://k3d-$(K8S_CLUSTER_NAME)-server-0:6443|g" $(K3D_KUBE_CONFIG_FOLDER)/config && rm -f $(K3D_KUBE_CONFIG_FOLDER)/config.bak
+
+
+.PHONY: delete-k3d-cluster
+delete-k3d-cluster: ## Delete a k3d K8S cluster
+	@k3d cluster delete $(K8S_CLUSTER_NAME)
+	@rm -f $(K3D_KUBE_CONFIG_FOLDER)/config
+
+
+.PHONY: k3d-image-load
+k3d-image-load: ## Load the image into the k3d K8S cluster
+	@k3d image import $(BUILD_IMAGE) --cluster $(K8S_CLUSTER_NAME) --mode direct
 
 
 .PHONY: run-tests-in-minikube
