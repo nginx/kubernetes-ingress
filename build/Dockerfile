@@ -178,7 +178,13 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
     && printf "%s\n" "[agent]" "name=agent repo" \
     "baseurl=https://packages.nginx.org/nginx-agent/centos/10/\$basearch/" \
     "gpgcheck=1" "enabled=1" "module_hotfixes=true" >> /etc/yum.repos.d/nginx.repo \
-	&& microdnf --nodocs install -y nginx-${NGINX_OSS_VERSION}* nginx-module-njs-${NGINX_OSS_VERSION}* nginx-module-otel-${NGINX_OSS_VERSION}* nginx-module-image-filter-${NGINX_OSS_VERSION}* nginx-module-xslt-${NGINX_OSS_VERSION}* nginx-agent-${AGENT_V3_VERSION}* \
+	&& microdnf --nodocs install -y \
+      nginx-${NGINX_OSS_VERSION}* \
+      nginx-module-njs-${NGINX_OSS_VERSION}* \
+      nginx-module-otel-${NGINX_OSS_VERSION}* \
+      nginx-module-image-filter-${NGINX_OSS_VERSION}* \
+      nginx-module-xslt-${NGINX_OSS_VERSION}* \
+      nginx-agent-${AGENT_V3_VERSION}* \
 	&& rm -rf /etc/yum.repos.d/nginx.repo /etc/yum.repos.d/local-deps.repo \
 	&& ubi-clean.sh
 
