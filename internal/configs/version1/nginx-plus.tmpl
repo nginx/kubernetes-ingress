@@ -47,6 +47,10 @@ http {
     {{- range $value := .HTTPSnippets}}
     {{$value}}{{- end}}
 
+    {{- range $h := .AddHeaders}}
+    add_header {{$h.Name}} {{ printf "%q" $h.Value }}{{if $h.Always}} always{{end}};
+    {{- end}}
+
     {{if .LogFormat -}}
     log_format  main {{if .LogFormatEscaping}}escape={{ .LogFormatEscaping }} {{end}}
                      {{range $i, $value := .LogFormat -}}
@@ -92,6 +96,10 @@ http {
 
     access_log {{.AccessLog}};
 
+    {{- if .AddHeaderInherit}}
+    add_header_inherit {{.AddHeaderInherit}};
+    {{- end}}
+
     {{- if .LatencyMetrics}}
     log_format response_time '{"upstreamAddress":"$upstream_addr", "upstreamResponseTime":"$upstream_response_time", "proxyHost":"$proxy_host", "upstreamStatus": "$upstream_status"}';
     access_log syslog:server=unix:/var/lib/nginx/nginx-syslog.sock,nohostname,tag=nginx response_time;
@@ -128,6 +136,21 @@ http {
     map $http_upgrade $connection_upgrade {
         default upgrade;
         ''      close;
+    }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
     }
     map $http_upgrade $vs_connection_header {
         default upgrade;
@@ -174,61 +197,6 @@ http {
     keyval_zone zone=oidc_sids:{{.OIDC.SIDSZoneSize}} timeout={{.OIDC.SIDSTimeout}} sync;
     include oidc/oidc_common.conf;
     {{- end}}
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen {{ .DefaultHTTPListenerPort }} default_server{{if .ProxyProtocol}} proxy_protocol{{end}};
-        {{- if not .DisableIPV6}}listen [::]:{{ .DefaultHTTPListenerPort }} default_server{{if .ProxyProtocol}} proxy_protocol{{end}};{{end}}
-
-        {{- if .TLSPassthrough}}
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        {{- else}}
-        listen {{ .DefaultHTTPSListenerPort }} ssl default_server{{if .ProxyProtocol}} proxy_protocol{{end}};
-        {{if not .DisableIPV6}}listen [::]:{{ .DefaultHTTPSListenerPort }} ssl default_server{{if .ProxyProtocol}} proxy_protocol{{end}};{{end}}
-        {{- end}}
-
-        {{- if .HTTP2}}
-        http2 on;
-        {{- end}}
-
-        {{- if .SSLRejectHandshake}}
-        ssl_reject_handshake on;
-        {{- else}}
-        ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/default" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/default" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        {{- end}}
-
-        {{- range $setRealIPFrom := .SetRealIPFrom}}
-        set_real_ip_from {{$setRealIPFrom}};{{end}}
-        {{- if .RealIPHeader}}real_ip_header {{.RealIPHeader}};{{end}}
-        {{- if .RealIPRecursive}}real_ip_recursive on;{{end}}
-
-        server_name _;
-        server_tokens "{{.ServerTokens}}";
-        {{- if .DefaultServerAccessLogOff}}
-        access_log off;
-        {{end -}}
-
-        {{- if .HealthStatus}}
-        location {{.HealthStatusURI}} {
-            default_type text/plain;
-            return 200 "healthy\n";
-        }
-        {{end}}
-
-        location / {
-            return {{.DefaultServerReturn}};
-        }
-    }
-
     {{- if .NginxStatus}}
     # NGINX Plus APIs
     server {

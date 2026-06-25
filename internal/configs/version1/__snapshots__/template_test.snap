@@ -57,31 +57,24 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -195,6 +188,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -202,28 +210,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -335,6 +321,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -342,28 +343,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -474,6 +453,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -481,28 +475,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -614,6 +586,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -621,28 +608,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -698,6 +663,553 @@ mgmt {
 
 ---
 
+[TestExecuteMainTemplateWithAddHeaders/nginx - 1]
+worker_processes  auto;
+worker_rlimit_nofile 65536;
+worker_cpu_affinity auto;
+worker_shutdown_timeout 1m;
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff";
+
+    log_format  main escape=default 
+                     '$remote_addr'
+                     ' $remote_user'
+                     ;
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+    access_log /dev/stdout main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout 65s;
+    keepalive_requests 100;
+
+    #gzip  on;
+
+    server_names_hash_max_size 512;
+    
+
+    variables_hash_bucket_size 256;
+    variables_hash_max_size 1024;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-502-server.sock;
+        access_log off;
+
+        return 502;
+    }
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main escape=none 
+                            '$remote_addr'
+                            ' $remote_user'
+                            ;
+
+    access_log  /dev/stdout  stream-main;
+    # comment
+
+    map_hash_max_size ;
+    
+
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+---
+
+[TestExecuteMainTemplateWithAddHeaders/nginx-plus - 1]
+worker_processes  auto;
+worker_rlimit_nofile 65536;
+worker_cpu_affinity auto;
+worker_shutdown_timeout 1m;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_http_app_protect_module.so;
+load_module modules/ngx_http_app_protect_dos_module.so;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff";
+
+    log_format  main escape=default 
+                     '$remote_addr'
+                     ' $remote_user'
+                     ;
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+    log_format  log_dos escape=json 
+                    '$remote_addr - $remote_user [$time_local]'
+                    ' "$request" $status $body_bytes_sent '
+                    ' "$http_referer" "$http_user_agent"'
+                    ;
+    app_protect_dos_arb_fqdn arb.test.server.com;
+
+    access_log /dev/stdout main;
+    app_protect_failure_mode_action pass;
+    app_protect_compressed_requests_action pass;
+    app_protect_cookie_seed ABCDEFGHIJKLMNOP;
+    app_protect_cpu_thresholds high=low=100;
+    app_protect_physical_memory_util_thresholds high=low=100;
+    app_protect_reconnect_period_seconds 10;
+    include /etc/nginx/waf/nac-usersigs/index.conf;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout 65s;
+    keepalive_requests 100;
+
+    #gzip  on;
+
+    server_names_hash_max_size 512;
+    
+
+    variables_hash_bucket_size 256;
+    variables_hash_max_size 1024;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main escape=none 
+                            '$remote_addr'
+                            ' $remote_user'
+                            ;
+
+    access_log  /dev/stdout  stream-main;
+    # comment
+    resolver example.com 127.0.0.1 valid=10s ipv6=off;
+    resolver_timeout 15s;
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /etc/nginx/secrets/license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPAndHTTPSListenerPorts - 1]
+# configuration for /
+
+
+server {
+    listen 8083 default_server;listen [::]:8083 default_server;
+    listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPListenerPort - 1]
+# configuration for /
+
+
+server {
+    listen 8083 default_server;listen [::]:8083 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithCustomDefaultHTTPSListenerPort - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithHTTP2Off - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithHTTP2On - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    http2 on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXPlusWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+
+    
+
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPAndHTTPSListenerPorts - 1]
+# configuration for /
+
+
+server {
+    listen 8083 default_server;listen [::]:8083 default_server;
+    listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPListenerPort - 1]
+# configuration for /
+
+
+server {
+    listen 8083 default_server;listen [::]:8083 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPSListenerPort - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 8443 ssl default_server;listen [::]:8443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithHTTP2Off - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithHTTP2On - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    http2 on;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForDefaultServerForNGINXWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
+# configuration for /
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_certificate $secret_dir_path/default;
+    ssl_certificate_key $secret_dir_path/default;
+
+    server_tokens off;
+
+    server_name _;
+    location / {
+        return 404;
+    }
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINX - 1]
 # configuration for default/cafe-ingress
 upstream test {
@@ -716,7 +1228,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -759,7 +1270,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -782,7 +1292,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -804,7 +1314,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -890,7 +1400,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -935,7 +1444,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -980,7 +1488,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1025,7 +1532,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1070,7 +1576,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1115,7 +1620,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1159,7 +1663,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1209,7 +1712,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1259,7 +1761,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1353,7 +1854,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1426,7 +1926,196 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
         
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndGRPCOnlyLocations - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    http2 on;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location /grpc {
+        set $service "";
+        status_zone "";
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    error_page 400 @grpcerror400;
+    error_page 401 @grpcerror401;
+    error_page 403 @grpcerror403;
+    error_page 404 @grpcerror404;
+    error_page 405 @grpcerror405;
+    error_page 408 @grpcerror408;
+    error_page 414 @grpcerror414;
+    error_page 426 @grpcerror426;
+    error_page 500 @grpcerror500;
+    error_page 501 @grpcerror501;
+    error_page 502 @grpcerror502;
+    error_page 503 @grpcerror503;
+    error_page 504 @grpcerror504;
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndMixedGRPCLocations - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    http2 on;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location /grpc {
+        set $service "";
+        status_zone "";
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1451,6 +2140,514 @@ server {
     location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
     location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
     location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndMixedGRPCLocations - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    http2 on;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location @login_url-default-cafe-ingress {
+        internal;
+        return 302 https://test.example.com/login;
+    }
+    
+    location /grpc {
+        set $service "";
+        status_zone "";
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithIngressMTLSPolicy - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+    ssl_client_certificate /etc/nginx/secrets/default-ingress-mtls-ca-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnLocation - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        return 500;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnServer - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+
+    server_tokens "off";
+    return 500;
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectDefault - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /coffee {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectMinionOff - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /coffee {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        proxy_redirect off;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectMinionPair - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /coffee {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectOff - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    proxy_redirect off;
+    location /coffee {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectPair - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
+    location /coffee {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
 }
 
 ---
@@ -1517,7 +2714,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1595,7 +2791,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1673,7 +2868,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1751,7 +2945,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1823,7 +3016,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1851,7 +3043,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1933,7 +3124,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1964,7 +3154,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2015,7 +3204,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2068,7 +3256,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2114,7 +3301,6 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2208,7 +3394,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2233,7 +3418,6 @@ server {
     server_tokens off;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2270,7 +3454,6 @@ server {
     server_tokens off;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2307,7 +3490,6 @@ server {
     server_tokens off;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-menu-ingress";
     set $resource_namespace "default";
@@ -2344,7 +3526,6 @@ server {
     server_tokens off;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2381,7 +3562,6 @@ server {
     server_tokens off;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2418,7 +3598,6 @@ server {
     server_tokens off;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2461,7 +3640,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2504,7 +3682,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2549,7 +3726,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2602,7 +3778,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2610,6 +3785,319 @@ server {
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
+    location /tea {
+        set $service "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndGRPCOnlyLocations - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    http2 on;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /grpc {
+        set $service "";
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    error_page 400 @grpcerror400;
+    error_page 401 @grpcerror401;
+    error_page 403 @grpcerror403;
+    error_page 404 @grpcerror404;
+    error_page 405 @grpcerror405;
+    error_page 408 @grpcerror408;
+    error_page 414 @grpcerror414;
+    error_page 426 @grpcerror426;
+    error_page 500 @grpcerror500;
+    error_page 501 @grpcerror501;
+    error_page 502 @grpcerror502;
+    error_page 503 @grpcerror503;
+    error_page 504 @grpcerror504;
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndGRPCOnlyLocations - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    http2 on;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /grpc {
+        set $service "";
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    error_page 400 @grpcerror400;
+    error_page 401 @grpcerror401;
+    error_page 403 @grpcerror403;
+    error_page 404 @grpcerror404;
+    error_page 405 @grpcerror405;
+    error_page 408 @grpcerror408;
+    error_page 414 @grpcerror414;
+    error_page 426 @grpcerror426;
+    error_page 500 @grpcerror500;
+    error_page 501 @grpcerror501;
+    error_page 502 @grpcerror502;
+    error_page 503 @grpcerror503;
+    error_page 504 @grpcerror504;
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndMixedGRPCLocations - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    http2 on;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+    location /grpc {
+        set $service "";
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location /tea {
+        set $service "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndMixedGRPCLocations - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 443 ssl;listen [::]:443 ssl;
+    http2 on;
+    ssl_certificate secret.pem;
+    ssl_certificate_key secret.pem;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    if ($scheme = http) {
+        return 301 https://$host:443$request_uri;
+    }
+    location /grpc {
+        set $service "";
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
     location /tea {
         set $service "";
         # location for minion default/tea-minion
@@ -2667,7 +4155,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2701,6 +4188,134 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXWithIngressMTLSPolicy - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    ssl_client_certificate /etc/nginx/secrets/default-ingress-mtls-ca-secret;
+    ssl_verify_client on;
+    ssl_verify_depth 2;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithPoliciesErrorReturnLocation - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        # location for minion default/tea-minion
+        set $resource_name "tea-minion";
+        set $resource_namespace "default";
+        return 500;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithPoliciesErrorReturnServer - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+
+    server_tokens off;
+    return 500;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout - 1]
 # configuration for default/test-ingress
 
@@ -2710,7 +4325,6 @@ server {
     server_tokens ;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -2746,7 +4360,6 @@ server {
     server_tokens ;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -2773,6 +4386,220 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectDefault - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /coffee {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectMinionOff - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /coffee {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        proxy_redirect off;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectMinionPair - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location /coffee {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectOff - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    proxy_redirect off;
+    location /coffee {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectPair - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
+    location /coffee {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXWithProxySetHeadersAnnotationWithDefaultValue - 1]
 # configuration for default/cafe-ingress-master
 
@@ -2782,7 +4609,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -2797,7 +4623,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2805,7 +4631,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -2819,7 +4645,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2827,7 +4653,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -2849,7 +4675,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -2923,7 +4748,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -3000,7 +4824,6 @@ server {
     server_tokens ;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -3038,7 +4861,6 @@ server {
     server_tokens ;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -3083,7 +4905,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3102,6 +4923,88 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithAddHeaderInherit/nginx - 1]
+# configuration for default/test-ingress
+
+
+server {
+
+    server_tokens ;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    add_header_inherit merge;
+    location /tea {
+        set $service "";
+        add_header_inherit off;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithAddHeaderInherit/nginx-plus - 1]
+# configuration for default/test-ingress
+
+
+server {
+
+    server_tokens "";
+
+    server_name test.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "test-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    add_header_inherit merge;
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        add_header_inherit off;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -3136,7 +5039,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3214,7 +5116,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -3322,7 +5223,6 @@ server {
         proxy_send_timeout 10s;
         client_max_body_size 2m;
         client_body_buffer_size 16k;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -3331,6 +5231,322 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
         proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithEmptyHostForNGINX - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    http2 on;
+    ssl_reject_handshake on;
+
+    server_tokens off;
+
+    server_name _;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($request_uri = /nginx-health) {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+    access_log off;
+    location = /nginx-health {
+        default_type text/plain;
+        return 200 "healthy\n";
+    }
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithEmptyHostForNGINXPlus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    http2 on;
+    ssl_reject_handshake on;
+
+    server_tokens "off";
+
+    server_name _;
+
+    status_zone _;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    set $redirect 0;
+    if ($scheme = http) {
+        set $redirect 1;
+    }
+    if ($request_uri = /nginx-health) {
+        set $redirect 0;
+    }
+    if ($redirect = 1) {
+        return 301 https://$host:443$request_uri;
+    }
+
+    
+    location @hc-test {
+        proxy_set_header Test-Header "test-header-value";
+        proxy_connect_timeout 0s;
+        proxy_read_timeout 0s;
+        proxy_send_timeout 0s;
+        proxy_pass ://test;
+        health_check uri= interval=1s fails=1 passes=1;
+    }
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    access_log off;
+    location = /nginx-health {
+        default_type text/plain;
+        return 200 "healthy\n";
+    }
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithEmptyHostWithRootLocation - 1]
+# configuration for default/webapp-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_reject_handshake on;
+
+    server_tokens off;
+
+    server_name _;
+    set $resource_type "ingress";
+    set $resource_name "webapp-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithGRPCEgressMTLSPolicy/nginx - 1]
+# configuration for default/ing
+upstream ups {
+    zone ups 256k;
+    server 127.0.0.1:8443 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+
+server {
+    listen 80;listen [::]:80;
+
+    server_tokens on;
+
+    server_name example.com;
+    set $resource_type "ingress";
+    set $resource_name "ing";
+    set $resource_namespace "default";
+    set $service "-";
+    location / {
+        set $service "secure-app";
+        grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;
+        grpc_ssl_certificate_key /etc/nginx/secrets/default-egress-mtls-secret;
+        grpc_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;
+        grpc_ssl_verify on;
+        grpc_ssl_verify_depth 2;
+        grpc_ssl_protocols TLSv1.2 TLSv1.3;
+        grpc_ssl_ciphers HIGH:!aNULL:!MD5;
+        grpc_ssl_session_reuse off;
+        grpc_ssl_server_name on;
+        grpc_ssl_name secure-app.example.com;
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpcs://ups;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithGRPCEgressMTLSPolicy/nginx-plus - 1]
+# configuration for default/ing
+upstream ups {
+    zone ups 256k;
+    server 127.0.0.1:8443 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+server {
+    listen 80;listen [::]:80;
+
+    server_tokens "on";
+
+    server_name example.com;
+
+    status_zone example.com;
+    set $resource_type "ingress";
+    set $resource_name "ing";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location / {
+        set $service "secure-app";
+        status_zone "secure-app";
+        grpc_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;
+        grpc_ssl_certificate_key /etc/nginx/secrets/default-egress-mtls-secret;
+        grpc_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;
+        grpc_ssl_verify on;
+        grpc_ssl_verify_depth 2;
+        grpc_ssl_protocols TLSv1.2 TLSv1.3;
+        grpc_ssl_ciphers HIGH:!aNULL:!MD5;
+        grpc_ssl_session_reuse off;
+        grpc_ssl_server_name on;
+        grpc_ssl_name secure-app.example.com;
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout ;
+        grpc_read_timeout ;
+        grpc_send_timeout ;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpcs://ups;
         
     }
     
@@ -3353,7 +5569,6 @@ server {
     server_tokens off;
 
     server_name test.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3415,7 +5630,6 @@ server {
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
         client_max_body_size 2m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -3425,6 +5639,206 @@ server {
         proxy_buffering off;
         proxy_pass http://test;
         add_header X-Test-Header "enabled" always;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithProxyEgressMTLSPolicy/nginx - 1]
+# configuration for default/ing
+upstream ups {
+    zone ups 256k;
+    server 127.0.0.1:8443 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+
+server {
+    listen 80;listen [::]:80;
+
+    server_tokens on;
+
+    server_name example.com;
+    set $resource_type "ingress";
+    set $resource_name "ing";
+    set $resource_namespace "default";
+    set $service "-";
+    proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;
+    proxy_ssl_certificate_key /etc/nginx/secrets/default-egress-mtls-secret;
+    proxy_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;
+    proxy_ssl_verify on;
+    proxy_ssl_verify_depth 2;
+    proxy_ssl_protocols TLSv1.2 TLSv1.3;
+    proxy_ssl_ciphers HIGH:!aNULL:!MD5;
+    proxy_ssl_session_reuse off;
+    proxy_ssl_server_name on;
+    proxy_ssl_name secure-app.example.com;
+    location / {
+        set $service "secure-app";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass https://ups;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithProxyEgressMTLSPolicy/nginx-plus - 1]
+# configuration for default/ing
+upstream ups {
+    zone ups 256k;
+    server 127.0.0.1:8443 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+server {
+    listen 80;listen [::]:80;
+
+    server_tokens "on";
+
+    server_name example.com;
+
+    status_zone example.com;
+    set $resource_type "ingress";
+    set $resource_name "ing";
+    set $resource_namespace "default";
+    set $service "-";
+    proxy_ssl_certificate /etc/nginx/secrets/default-egress-mtls-secret;
+    proxy_ssl_certificate_key /etc/nginx/secrets/default-egress-mtls-secret;
+    proxy_ssl_trusted_certificate /etc/nginx/secrets/default-egress-trusted-ca-secret;
+    proxy_ssl_verify on;
+    proxy_ssl_verify_depth 2;
+    proxy_ssl_protocols TLSv1.2 TLSv1.3;
+    proxy_ssl_ciphers HIGH:!aNULL:!MD5;
+    proxy_ssl_session_reuse off;
+    proxy_ssl_server_name on;
+    proxy_ssl_name secure-app.example.com;
+
+    
+
+    
+    location / {
+        set $service "secure-app";
+        status_zone "secure-app";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass https://ups;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithServerLevelAddHeaders/nginx - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff";
+    location /tea {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithServerLevelAddHeaders/nginx-plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    add_header X-Frame-Options "DENY" always;
+    add_header X-Content-Type-Options "nosniff";
+
+    
+    location /tea {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
         
     }
     
@@ -3493,149 +5907,20 @@ http {
         default upgrade;
         ''      close;
     }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
+    map $http_upgrade $default_connection_header {
+        default "";
     }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
+    map $http_host $resource_type {
+        default "";
     }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
+    map $http_host $resource_name {
+        default "";
     }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
+    map $http_host $resource_namespace {
+        default "";
     }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPAndHTTPSListenerPorts - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
+    map $http_host $service {
+        default "";
     }
     map $http_upgrade $vs_connection_header {
         default upgrade;
@@ -3644,316 +5929,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 8083 default_server;listen [::]:8083 default_server;
-        listen 8443 ssl default_server;
-        listen [::]:8443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPListenerPort - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 8083 default_server;listen [::]:8083 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithCustomDefaultHTTPSListenerPort - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 8443 ssl default_server;
-        listen [::]:8443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -4069,6 +6044,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -4076,29 +6066,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -4170,323 +6137,6 @@ mgmt {
 
 ---
 
-[TestExecuteTemplate_ForMainForNGINXPlusWithHTTP2Off - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_http_app_protect_module.so;
-load_module modules/ngx_http_app_protect_dos_module.so;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    log_format  log_dos escape=json 
-                    '$remote_addr - $remote_user [$time_local]'
-                    ' "$request" $status $body_bytes_sent '
-                    ' "$http_referer" "$http_user_agent"'
-                    ;
-    app_protect_dos_arb_fqdn arb.test.server.com;
-
-    access_log /dev/stdout main;
-    app_protect_failure_mode_action pass;
-    app_protect_compressed_requests_action pass;
-    app_protect_cookie_seed ABCDEFGHIJKLMNOP;
-    app_protect_cpu_thresholds high=low=100;
-    app_protect_physical_memory_util_thresholds high=low=100;
-    app_protect_reconnect_period_seconds 10;
-    include /etc/nginx/waf/nac-usersigs/index.conf;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithHTTP2On - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_http_app_protect_module.so;
-load_module modules/ngx_http_app_protect_dos_module.so;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    log_format  log_dos ', vs_name_al=$app_protect_dos_vs_name, ip=$remote_addr, tls_fp=$app_protect_dos_tls_fp, '
-                        'outcome=$app_protect_dos_outcome, reason=$app_protect_dos_outcome_reason, '
-                        'ip_tls=$remote_addr:$app_protect_dos_tls_fp, ';
-    app_protect_dos_arb_fqdn arb.test.server.com;
-
-    access_log /dev/stdout main;
-    app_protect_failure_mode_action pass;
-    app_protect_compressed_requests_action pass;
-    app_protect_cookie_seed ABCDEFGHIJKLMNOP;
-    app_protect_cpu_thresholds high=low=100;
-    app_protect_physical_memory_util_thresholds high=low=100;
-    app_protect_reconnect_period_seconds 10;
-    include /etc/nginx/waf/nac-usersigs/index.conf;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        http2 on;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
 [TestExecuteTemplate_ForMainForNGINXPlusWithOIDCTimeoutCustom - 1]
 worker_processes  ;
 
@@ -4544,6 +6194,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -4557,28 +6222,6 @@ http {
     keyval_zone zone=refresh_tokens:4M timeout=1h sync;
     keyval_zone zone=oidc_sids:5M timeout=120s sync;
     include oidc/oidc_common.conf;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -4688,6 +6331,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -4701,28 +6359,6 @@ http {
     keyval_zone zone=refresh_tokens:1M timeout=8h sync;
     keyval_zone zone=oidc_sids:1M timeout=8h sync;
     include oidc/oidc_common.conf;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -4769,165 +6405,6 @@ stream {
 
 mgmt {
     license_token /license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXPlusWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-load_module modules/ngx_http_app_protect_module.so;
-load_module modules/ngx_http_app_protect_dos_module.so;
-load_module modules/ngx_fips_check_module.so;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    log_format  log_dos escape=json 
-                    '$remote_addr - $remote_user [$time_local]'
-                    ' "$request" $status $body_bytes_sent '
-                    ' "$http_referer" "$http_user_agent"'
-                    ;
-    app_protect_dos_arb_fqdn arb.test.server.com;
-
-    access_log /dev/stdout main;
-    app_protect_failure_mode_action pass;
-    app_protect_compressed_requests_action pass;
-    app_protect_cookie_seed ABCDEFGHIJKLMNOP;
-    app_protect_cpu_thresholds high=low=100;
-    app_protect_physical_memory_util_thresholds high=low=100;
-    app_protect_reconnect_period_seconds 10;
-    include /etc/nginx/waf/nac-usersigs/index.conf;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-    resolver example.com 127.0.0.1 valid=10s ipv6=off;
-    resolver_timeout 15s;
-
-    map_hash_max_size ;
-    
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
-mgmt {
-    license_token /etc/nginx/secrets/license.jwt;
     enforce_initial_report off;
     deployment_context /etc/nginx/reporting/tracking.info;
 }
@@ -4995,6 +6472,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -5002,29 +6494,6 @@ http {
 
     resolver example.com 127.0.0.1 valid=10s ipv6=off;
     resolver_timeout 15s;
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -5154,391 +6623,24 @@ http {
         default upgrade;
         ''      close;
     }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
+    map $http_upgrade $default_connection_header {
+        default "";
     }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
+    map $http_host $resource_type {
+        default "";
     }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
+    map $http_host $resource_name {
+        default "";
     }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
+    map $http_host $resource_namespace {
+        default "";
     }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPAndHTTPSListenerPorts - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
+    map $http_host $service {
+        default "";
     }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 8083 default_server;listen [::]:8083 default_server;
-        listen 8443 ssl default_server;
-        listen [::]:8443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPListenerPort - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 8083 default_server;listen [::]:8083 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithCustomDefaultHTTPSListenerPort - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 8443 ssl default_server;
-        listen [::]:8443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -5634,32 +6736,24 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -5708,247 +6802,6 @@ stream {
         proxy_protocol on;
         proxy_pass $dest_internal_passthrough;
     }
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithHTTP2Off - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithHTTP2On - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        http2 on;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
     
 
     include /etc/nginx/stream-conf.d/*.conf;
@@ -6014,6 +6867,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -6030,28 +6898,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -6161,6 +7007,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -6168,28 +7029,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -6306,6 +7145,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -6313,28 +7167,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -6451,6 +7283,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -6458,28 +7305,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -6596,6 +7421,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -6603,28 +7443,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;
-        listen 0 ssl default_server;
-        
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -6740,6 +7558,21 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
@@ -6747,28 +7580,6 @@ http {
 
     
     
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen 0 ssl default_server;
-        listen [::]:0 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "";
-
-        location / {
-            return ;
-        }
-    }
 
     # NGINX Plus API over unix socket
     server {
@@ -6824,126 +7635,6 @@ mgmt {
     license_token /license.jwt;
     enforce_initial_report off;
     deployment_context /etc/nginx/reporting/tracking.info;
-}
-
----
-
-[TestExecuteTemplate_ForMainForNGINXWithoutCustomDefaultHTTPAndHTTPSListenerPorts - 1]
-worker_processes  auto;
-worker_rlimit_nofile 65536;
-worker_cpu_affinity auto;
-worker_shutdown_timeout 1m;
-daemon off;
-
-error_log  stderr ;
-pid        /var/lib/nginx/nginx.pid;
-
-load_module modules/ngx_http_js_module.so;
-
-events {
-    worker_connections  1024;
-}
-
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-    map_hash_max_size ;
-    map_hash_bucket_size ;
-
-    js_import /etc/nginx/njs/apikey_auth.js;
-    js_set $apikey_auth_hash apikey_auth.hash;
-
-    log_format  main escape=default 
-                     '$remote_addr'
-                     ' $remote_user'
-                     ;
-
-    map $upstream_trailer_grpc_status $grpc_status {
-        default $upstream_trailer_grpc_status;
-        '' $sent_http_grpc_status;
-    }
-    access_log /dev/stdout main;
-
-    sendfile        on;
-    #tcp_nopush     on;
-
-    keepalive_timeout 65s;
-    keepalive_requests 100;
-
-    #gzip  on;
-
-    server_names_hash_max_size 512;
-    
-
-    variables_hash_bucket_size 256;
-    variables_hash_max_size 1024;
-
-    map $request_uri $request_uri_no_args {
-        "~^(?P<path>[^?]*)(\?.*)?$" $path;
-    }
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-    map $http_upgrade $vs_connection_header {
-        default upgrade;
-        ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 80 default_server;listen [::]:80 default_server;
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
-    }
-
-    include /etc/nginx/config-version.conf;
-    include /etc/nginx/conf.d/*.conf;
-
-    server {
-        listen unix:/var/lib/nginx/nginx-502-server.sock;
-        access_log off;
-
-        return 502;
-    }
-
-    server {
-        listen unix:/var/lib/nginx/nginx-418-server.sock;
-        access_log off;
-
-        return 418;
-    }
-}
-
-stream {
-    log_format  stream-main escape=none 
-                            '$remote_addr'
-                            ' $remote_user'
-                            ;
-
-    access_log  /dev/stdout  stream-main;
-    # comment
-
-    map_hash_max_size ;
-    
-
-    include /etc/nginx/stream-conf.d/*.conf;
 }
 
 ---
@@ -7006,32 +7697,24 @@ http {
         default upgrade;
         ''      close;
     }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
     map $http_upgrade $vs_connection_header {
         default upgrade;
         ''      $default_connection_header;
-    }
-
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen 0 default_server;listen [::]:0 default_server;
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        ssl_certificate /etc/nginx/secrets/default;
-        ssl_certificate_key /etc/nginx/secrets/default;
-
-        server_name _;
-        server_tokens "off";
-
-        location / {
-            return ;
-        }
     }
 
     include /etc/nginx/config-version.conf;
@@ -7096,7 +7779,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7112,7 +7794,7 @@ server {
         proxy_send_timeout ;
         client_max_body_size ;
         proxy_set_header X-Forwarded-Coffee "espresso";
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7120,7 +7802,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7135,7 +7817,7 @@ server {
         proxy_send_timeout ;
         client_max_body_size ;
         proxy_set_header X-Forwarded-Tea "chai";
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7143,7 +7825,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7160,7 +7842,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7178,8 +7859,8 @@ server {
         proxy_set_header X-Forwarded-Coffee "espresso";
         proxy_set_header X-Forwarded-Minion "coffee";
         proxy_set_header Location "minion";
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
-        proxy_set_header BVC $http_bvc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
+        proxy_set_header BVC "$http_bvc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7187,7 +7868,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7202,8 +7883,8 @@ server {
         proxy_send_timeout ;
         client_max_body_size ;
         proxy_set_header X-Forwarded-Tea "chai";
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
-        proxy_set_header BVC $http_bvc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
+        proxy_set_header BVC "$http_bvc";
         proxy_set_header Location "master";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -7212,7 +7893,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7229,7 +7910,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7244,7 +7924,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7252,7 +7932,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7266,7 +7946,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7274,7 +7954,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7291,7 +7971,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7314,7 +7993,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7336,7 +8015,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7353,7 +8032,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7368,7 +8046,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-Coffee $http_x_forwarded_coffee;
+        proxy_set_header X-Forwarded-Coffee "$http_x_forwarded_coffee";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7376,7 +8054,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7390,7 +8068,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-Tea $http_x_forwarded_tea;
+        proxy_set_header X-Forwarded-Tea "$http_x_forwarded_tea";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7398,7 +8076,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7415,7 +8093,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7438,7 +8115,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7460,7 +8137,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7516,7 +8193,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7540,7 +8216,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7604,7 +8279,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7628,7 +8302,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7692,7 +8365,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7716,7 +8388,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7780,7 +8451,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7804,7 +8474,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7868,7 +8537,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7892,7 +8560,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7917,7 +8584,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7940,7 +8606,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -7954,7 +8620,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         client_max_body_size ;
-        proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;
+        proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -7962,7 +8628,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8018,7 +8684,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header X-Forwarded-ABC "coffee";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -8043,7 +8708,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header X-Forwarded-ABC "tea";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -8071,7 +8735,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8095,7 +8758,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8118,7 +8781,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8137,7 +8800,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8161,7 +8823,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8184,7 +8846,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8203,7 +8865,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8227,7 +8888,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8250,7 +8911,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8269,7 +8930,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8293,7 +8953,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8316,73 +8976,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-        
-    }
-    
-}
-
----
-
-[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 4]
-# configuration for default/cafe-ingress-master
-
-
-server {
-        deny 10.0.0.0/16;
-        allow all;
-
-    server_tokens ;
-
-    server_name cafe.example.com;
-
-    set $resource_type "ingress";
-    set $resource_name "cafe-ingress-master";
-    set $resource_namespace "default";
-    set $service "-";
-    location / {
-        set $service "";
-        # location for minion default/cafe-ingress-coffee-minion
-        set $resource_name "cafe-ingress-coffee-minion";
-        set $resource_namespace "default";
-        allow 10.1.1.1/16;
-        deny all;
-        proxy_http_version 1.1;
-        proxy_connect_timeout ;
-        proxy_read_timeout ;
-        proxy_send_timeout ;
-        client_max_body_size ;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://;
-        
-    }
-    
-    location / {
-        set $service "";
-        # location for minion default/cafe-ingress-tea-minion
-        set $resource_name "cafe-ingress-tea-minion";
-        set $resource_namespace "default";
-        allow 10.1.1.1/16;
-        deny all;
-        proxy_http_version 1.1;
-        proxy_connect_timeout ;
-        proxy_read_timeout ;
-        proxy_send_timeout ;
-        client_max_body_size ;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8403,7 +8997,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8428,7 +9021,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8452,77 +9045,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-        
-    }
-    
-}
-
----
-
-[TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy - 5]
-# configuration for default/cafe-ingress-master
-
-
-server {
-        allow 10.2.0.0/16;
-        deny all;
-        deny 10.0.0.0/16;
-        allow all;
-
-    server_tokens ;
-
-    server_name cafe.example.com;
-
-    set $resource_type "ingress";
-    set $resource_name "cafe-ingress-master";
-    set $resource_namespace "default";
-    set $service "-";
-    location / {
-        set $service "";
-        # location for minion default/cafe-ingress-coffee-minion
-        set $resource_name "cafe-ingress-coffee-minion";
-        set $resource_namespace "default";
-        allow 10.1.0.0/16;
-        allow 10.2.0.0/16;
-        deny all;
-        proxy_http_version 1.1;
-        proxy_connect_timeout ;
-        proxy_read_timeout ;
-        proxy_send_timeout ;
-        client_max_body_size ;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://;
-        
-    }
-    
-    location / {
-        set $service "";
-        # location for minion default/cafe-ingress-tea-minion
-        set $resource_name "cafe-ingress-tea-minion";
-        set $resource_namespace "default";
-        allow 10.1.0.0/16;
-        allow 10.2.0.0/16;
-        deny all;
-        proxy_http_version 1.1;
-        proxy_connect_timeout ;
-        proxy_read_timeout ;
-        proxy_send_timeout ;
-        client_max_body_size ;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8541,7 +9064,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8563,7 +9085,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8584,69 +9106,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
-        
-    }
-    
-}
-
----
-
-[TestExecuteTemplate_ForMergeableIngressMasterPolicy - 1]
-# configuration for default/cafe-ingress-master
-
-
-server {
-        allow 10.0.0.0/16;
-        deny all;
-
-    server_tokens ;
-
-    server_name cafe.example.com;
-
-    set $resource_type "ingress";
-    set $resource_name "cafe-ingress-master";
-    set $resource_namespace "default";
-    set $service "-";
-    location  {
-        set $service "";
-        # location for minion default/cafe-ingress-coffee-minion
-        set $resource_name "cafe-ingress-coffee-minion";
-        set $resource_namespace "default";
-        proxy_http_version 1.1;
-        proxy_connect_timeout ;
-        proxy_read_timeout ;
-        proxy_send_timeout ;
-        client_max_body_size ;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://;
-        
-    }
-    
-    location  {
-        set $service "";
-        # location for minion default/cafe-ingress-tea-minion
-        set $resource_name "cafe-ingress-tea-minion";
-        set $resource_namespace "default";
-        proxy_http_version 1.1;
-        proxy_connect_timeout ;
-        proxy_read_timeout ;
-        proxy_send_timeout ;
-        client_max_body_size ;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Port $server_port;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8665,7 +9125,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8687,7 +9146,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8708,7 +9167,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8725,7 +9184,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8749,7 +9207,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8772,7 +9230,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8789,7 +9247,6 @@ server {
     server_tokens ;
 
     server_name cafe.example.com;
-
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8813,7 +9270,7 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
         
     }
     
@@ -8836,7 +9293,488 @@ server {
         proxy_set_header X-Forwarded-Port $server_port;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_buffering off;
-        proxy_pass http://;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressWithEmptyHostForNGINXPlus - 1]
+# configuration for default/cafe-ingress-master
+upstream default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80 {
+    zone default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80 512k;
+    random two least_conn;
+    server 10.0.0.1:80 max_fails=1 fail_timeout=10s max_conns=0;
+}
+upstream default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 {
+    zone default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80 512k;
+    random two least_conn;
+    server 10.0.0.2:80 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+
+server {
+    listen 80 default_server;listen [::]:80 default_server;
+    listen 443 ssl default_server;listen [::]:443 ssl default_server;
+    ssl_reject_handshake on;
+
+    server_tokens "on";
+
+    server_name _;
+
+    status_zone _;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location /coffee {
+        set $service "coffee-svc";
+        status_zone "coffee-svc";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering on;
+        proxy_pass http://default-cafe-ingress-coffee-minion-_-coffee-svc-80;
+        
+    }
+    
+    location /tea {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
+        client_max_body_size 1m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering on;
+        proxy_pass http://default-cafe-ingress-tea-minion-_-tea-svc-80;
+        
+    }
+    
+    location / {
+        return 404;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressWithMasterAndMinionAddHeaderAnnotation/nginx - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    add_header X-Shared "master-val";
+    add_header X-Master-Only "monly";
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        add_header X-Shared "coffee-val" ;
+        add_header X-Coffee-Only "conly" ;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressWithMasterAndMinionAddHeaderAnnotation/nginx-plus - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+
+    server_tokens "";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    add_header X-Shared "master-val";
+    add_header X-Master-Only "monly";
+
+    
+    location  {
+        set $service "";
+        status_zone "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        add_header X-Shared "coffee-val" ;
+        add_header X-Coffee-Only "conly" ;
+        
+    }
+    
+    location  {
+        set $service "";
+        status_zone "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressWithMasterOnlyAddHeaderAnnotation/nginx - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    add_header X-Master "master-val" always;
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressWithMasterOnlyAddHeaderAnnotation/nginx-plus - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+
+    server_tokens "";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+    add_header X-Master "master-val" always;
+
+    
+    location  {
+        set $service "";
+        status_zone "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location  {
+        set $service "";
+        status_zone "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressWithMinionOnlyAddHeaderAnnotation/nginx - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+
+    server_tokens ;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        add_header X-Coffee "espresso" ;
+        
+    }
+    
+    location  {
+        set $service "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForMergeableIngressWithMinionOnlyAddHeaderAnnotation/nginx-plus - 1]
+# configuration for default/cafe-ingress-master
+
+
+server {
+
+    server_tokens "";
+
+    server_name cafe.example.com;
+
+    status_zone ;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress-master";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location  {
+        set $service "";
+        status_zone "";
+        # location for minion default/cafe-ingress-coffee-minion
+        set $resource_name "cafe-ingress-coffee-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        add_header X-Coffee "espresso" ;
+        
+    }
+    
+    location  {
+        set $service "";
+        status_zone "";
+        # location for minion default/cafe-ingress-tea-minion
+        set $resource_name "cafe-ingress-tea-minion";
+        set $resource_namespace "default";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
         
     }
     
@@ -8892,7 +9830,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -8916,7 +9853,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -8980,7 +9916,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -9004,7 +9939,6 @@ server {
         proxy_read_timeout 60s;
         proxy_send_timeout 60s;
         client_max_body_size 1m;
-        
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

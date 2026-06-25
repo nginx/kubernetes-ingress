@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: waf-policy-v5-ingress
+  annotations:
+    nginx.com/policies: "waf-policy"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: waf-policy-v5.example.com
+    http:
+      paths:
+      - path: /backend1
+        pathType: Prefix
+        backend:
+          service:
+            name: backend1-svc
+            port:
+              number: 80

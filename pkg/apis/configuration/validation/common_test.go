@@ -6,10 +6,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-func createPointerFromInt(n int) *int {
-	return &n
-}
-
 func TestValidateVariable(t *testing.T) {
 	t.Parallel()
 	validVars := map[string]bool{
@@ -373,5 +369,44 @@ func TestHeaderValidation(t *testing.T) {
 				t.Errorf("Expected no error for header name %s, but got error", test.headerName)
 			}
 		})
+	}
+}
+
+func TestValidatePath(t *testing.T) {
+	t.Parallel()
+	validPaths := []string{
+		"/",
+		"/path",
+		"/a-1/_A/",
+	}
+
+	for _, path := range validPaths {
+		allErrs := validatePath(path, field.NewPath("path"))
+		if len(allErrs) > 0 {
+			t.Errorf("validatePath(%q) returned errors %v for valid input", path, allErrs)
+		}
+	}
+
+	invalidPaths := []string{
+		"",
+		" /",
+		"/ ",
+		"/{",
+		"/}",
+		"/abc;",
+		`/path\`,
+		`/path\n`,
+		`//path`,
+		`/path/../`,
+		`/../`,
+		`/path/../etc/passwd`, `/..`,
+		`/a/..`,
+	}
+
+	for _, path := range invalidPaths {
+		allErrs := validatePath(path, field.NewPath("path"))
+		if len(allErrs) == 0 {
+			t.Errorf("validatePath(%q) returned no errors for invalid input", path)
+		}
 	}
 }

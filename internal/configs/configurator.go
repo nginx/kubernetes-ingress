@@ -44,6 +44,9 @@ const (
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
 const DefaultServerSecretPath = "/etc/nginx/secrets/default" //nolint:gosec // G101: Potential hardcoded credentials - false positive
 
+// DefaultServerConfigName is the config name used for the default server file in conf.d.
+const DefaultServerConfigName = "_default-server"
+
 // DefaultSecretPath is the full default path to where secrets are stored and accessed.
 const DefaultSecretPath = "/etc/nginx/secrets" // #nosec G101
 
@@ -418,6 +421,67 @@ func (cnf *Configurator) streamUpstreamsForTransportServer(ts *conf_v1.Transport
 	return upstreamNames
 }
 
+// GenerateDefaultServerConfig builds the fallback default server config written to conf.d.
+func GenerateDefaultServerConfig(staticCfgParams *StaticConfigParams, cfgParams *ConfigParams) version1.IngressNginxConfig {
+	return version1.IngressNginxConfig{
+		Servers: []version1.Server{{
+			Name:                emptyHostToken,
+			StatusZone:          emptyHostToken,
+			IsDefaultServer:     true,
+			Ports:               []int{staticCfgParams.DefaultHTTPListenerPort},
+			SSLPorts:            []int{staticCfgParams.DefaultHTTPSListenerPort},
+			SSL:                 true,
+			SSLCertificate:      DefaultServerSecretPath,
+			SSLCertificateKey:   DefaultServerSecretPath,
+			SSLRejectHandshake:  staticCfgParams.SSLRejectHandshake,
+			AccessLogOff:        cfgParams.DefaultServerAccessLogOff,
+			DefaultServerReturn: cfgParams.DefaultServerReturn,
+			HealthStatus:        staticCfgParams.HealthStatus,
+			HealthStatusURI:     staticCfgParams.HealthStatusURI,
+			ServerTokens:        cfgParams.ServerTokens,
+			TLSPassthrough:      staticCfgParams.TLSPassthrough,
+			HTTP2:               cfgParams.HTTP2,
+			ProxyProtocol:       cfgParams.ProxyProtocol,
+			RealIPHeader:        cfgParams.RealIPHeader,
+			SetRealIPFrom:       cfgParams.SetRealIPFrom,
+			RealIPRecursive:     cfgParams.RealIPRecursive,
+			DisableIPV6:         staticCfgParams.DisableIPV6,
+		}},
+		Ingress:                 version1.Ingress{},
+		DynamicSSLReloadEnabled: staticCfgParams.DynamicSSLReload,
+		StaticSSLPath:           staticCfgParams.StaticSSLPath,
+	}
+}
+
+func (cnf *Configurator) buildDefaultServerConfig() version1.IngressNginxConfig {
+	return GenerateDefaultServerConfig(cnf.staticCfgParams, cnf.CfgParams)
+}
+
+func (cnf *Configurator) hasActiveEmptyHostIngress() bool {
+	for _, ingEx := range cnf.ingresses {
+		if ingEx != nil && ingEx.ValidHosts[emptyHostName] {
+			return true
+		}
+	}
+	return false
+}
+
+func (cnf *Configurator) syncDefaultServerConfig() error {
+	if cnf.hasActiveEmptyHostIngress() {
+		return nil
+	}
+
+	defaultCfg := cnf.buildDefaultServerConfig()
+	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&defaultCfg)
+	if err != nil {
+		return fmt.Errorf("error generating default server config: %w", err)
+	}
+	if _, err := cnf.nginxManager.CreateConfig(DefaultServerConfigName, content); err != nil {
+		return fmt.Errorf("error writing default server config: %w", err)
+	}
+	return nil
+}
+
 // addOrUpdateIngress returns a bool that specifies if the underlying config
 // file has changed, and any warnings or errors
 func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, error) {
@@ -451,18 +515,33 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	})
 
 	name := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+	// Empty-host Ingresses keep their normal ingress-derived key in cnf.ingresses, but write through the shared default-server config file.
+	configName := name
+	if ingEx.ValidHosts[emptyHostName] {
+		configName = DefaultServerConfigName
+	}
+
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", configName, err)
 	}
-	configChanged, err := cnf.nginxManager.CreateConfig(name, content)
+	configChanged, err := cnf.nginxManager.CreateConfig(configName, content)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", configName, err)
+	}
+	// If this ingress moved from its own config file to the shared default-server file, delete the stale dedicated file after the new write succeeds.
+	if configName != name {
+		if current, exists := cnf.ingresses[name]; exists && !current.ValidHosts[emptyHostName] {
+			cnf.nginxManager.DeleteConfig(name)
+		}
 	}
 
 	cnf.ingresses[name] = ingEx
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(ingEx, nginxCfg.Upstreams)
+	}
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return false, warnings, fmt.Errorf("error syncing default server config for ingress %v: %w", name, err)
 	}
 	return configChanged, warnings, nil
 }
@@ -481,27 +560,8 @@ func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	return warnings, nil
 }
 
-// AddOrUpdateMergeableIngresses adds or updates NGINX configuration for the list of mergeable Ingress resources.
-func (cnf *Configurator) AddOrUpdateMergeableIngresses(mergeableIngs []*MergeableIngresses) (Warnings, error) {
-	allWarnings := newWarnings()
-
-	for _, mergeableIng := range mergeableIngs {
-		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
-		if err != nil {
-			return allWarnings, err
-		}
-		allWarnings.Add(warnings)
-	}
-
-	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
-		return allWarnings, fmt.Errorf("error when reloading NGINX when updating mergeable Ingresses: %w", err)
-	}
-
-	return allWarnings, nil
-}
-
 func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (bool, Warnings, error) {
-	apResources := cnf.updateApResources(mergeableIngs.Master)
+	apResources := cnf.updateApResourcesForMergeableIngresses(mergeableIngs)
 	cnf.updateDosResource(mergeableIngs.Master.DosEx)
 	dosResource := getAppProtectDosResource(mergeableIngs.Master.DosEx)
 
@@ -536,13 +596,25 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	})
 
 	name := objectMetaToFileName(&mergeableIngs.Master.Ingress.ObjectMeta)
+	// Empty-host mergeable masters keep their normal ingress-derived key in cnf.ingresses, but write through the shared default-server config file.
+	configName := name
+	if mergeableIngs.Master.ValidHosts[emptyHostName] {
+		configName = DefaultServerConfigName
+	}
+
 	content, err := cnf.templateExecutor.ExecuteIngressConfigTemplate(&nginxCfg)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error generating Ingress Config %v: %w", configName, err)
 	}
-	changed, err := cnf.nginxManager.CreateConfig(name, content)
+	changed, err := cnf.nginxManager.CreateConfig(configName, content)
 	if err != nil {
-		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", name, err)
+		return false, warnings, fmt.Errorf("error validating Ingress config %v: %w", configName, err)
+	}
+	// If this ingress moved from its own config file to the shared default-server file, delete the stale dedicated file after the new write succeeds.
+	if configName != name {
+		if current, exists := cnf.ingresses[name]; exists && !current.ValidHosts[emptyHostName] {
+			cnf.nginxManager.DeleteConfig(name)
+		}
 	}
 
 	cnf.ingresses[name] = mergeableIngs.Master
@@ -556,6 +628,9 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateIngressMetricsLabels(mergeableIngs.Master, nginxCfg.Upstreams)
+	}
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return false, warnings, fmt.Errorf("error syncing default server config for mergeable ingress %v: %w", name, err)
 	}
 
 	return changed, warnings, nil
@@ -683,22 +758,29 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 	if err != nil {
 		return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer config: %v: %w", name, err)
 	}
+
+	// Order matters only when -enable-config-safety=true: ConfigRollbackManager.CreateConfig
+	// runs `nginx -t` deletes the new file on failure.
+	// VS template emits `include oidc-conf.d/oidc_<ns>_<vs>.conf;`, so the OIDC config must
+	// exist on disk before the VS config is written. Without config safety the order is
+	// immaterial because validation only runs at Reload().
+	var oidcChanged bool
+	if vsCfg.Server.OIDC != nil {
+		oidcName := getFileNameForOIDCVirtualServer(virtualServerEx.VirtualServer)
+
+		oidcContent, err := cnf.templateExecutorV2.ExecuteOIDCTemplate(vsCfg.Server.OIDC)
+		if err != nil {
+			return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer OIDC config: %v: %w", oidcName, err)
+		}
+		oidcChanged = cnf.nginxManager.CreateOIDCConfig(oidcName, oidcContent)
+	}
+
 	changed, err := cnf.nginxManager.CreateConfig(name, content)
 	if err != nil {
 		return false, warnings, weightUpdates, fmt.Errorf("error validating VirtualServer config %v: %w", name, err)
 	}
-
-	if vsCfg.Server.OIDC != nil {
-		name := getFileNameForOIDCVirtualServer(virtualServerEx.VirtualServer)
-
-		content, err := cnf.templateExecutorV2.ExecuteOIDCTemplate(vsCfg.Server.OIDC)
-		if err != nil {
-			return false, warnings, weightUpdates, fmt.Errorf("error generating VirtualServer OIDC config: %v: %w", name, err)
-		}
-		oidcChanged := cnf.nginxManager.CreateOIDCConfig(name, content)
-		if oidcChanged {
-			changed = true
-		}
+	if oidcChanged {
+		changed = true
 	}
 	cnf.virtualServers[name] = virtualServerEx
 
@@ -1068,11 +1150,17 @@ func GenerateLicenseSecret(secret *api_v1.Secret) ([]byte, error) {
 // DeleteIngress deletes NGINX configuration for the Ingress resource.
 func (cnf *Configurator) DeleteIngress(key string, skipReload bool) error {
 	name := keyToFileName(key)
-	cnf.nginxManager.DeleteConfig(name)
+
+	if ingEx, exists := cnf.ingresses[name]; !exists || !ingEx.ValidHosts[emptyHostName] {
+		cnf.nginxManager.DeleteConfig(name)
+	}
 
 	delete(cnf.ingresses, name)
 	delete(cnf.minions, name)
 	delete(cnf.mergeableIngresses, name)
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return fmt.Errorf("error syncing default server config after deleting ingress %v: %w", key, err)
+	}
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.deleteIngressMetricsLabels(key)
@@ -1153,16 +1241,17 @@ func (cnf *Configurator) deleteTransportServer(key string) error {
 }
 
 // UpdateEndpoints updates endpoints in NGINX configuration for the Ingress resources.
-func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) error {
+func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) (Warnings, error) {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
+	allWarnings := newWarnings()
 
 	for _, ingEx := range ingExes {
-		// It is safe to ignore warnings here as no new warnings should appear when updating Endpoints for Ingresses
-		_, _, err := cnf.addOrUpdateIngress(ingEx)
+		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
-			return fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
+			return allWarnings, fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 		}
+		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
 			err := cnf.updatePlusEndpoints(ingEx)
@@ -1175,27 +1264,28 @@ func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) error {
 
 	if cnf.isPlus && !reloadPlus {
 		nl.Debug(l, "No need to reload nginx")
-		return nil
+		return allWarnings, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
-		return fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
+		return allWarnings, fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
 	}
 
-	return nil
+	return allWarnings, nil
 }
 
 // UpdateEndpointsMergeableIngress updates endpoints in NGINX configuration for a mergeable Ingress resource.
-func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*MergeableIngresses) error {
+func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*MergeableIngresses) (Warnings, error) {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
+	allWarnings := newWarnings()
 
 	for i := range mergeableIngresses {
-		// It is safe to ignore warnings here as no new warnings should appear when updating Endpoints for Ingresses
-		_, _, err := cnf.addOrUpdateMergeableIngress(mergeableIngresses[i])
+		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngresses[i])
 		if err != nil {
-			return fmt.Errorf("error adding or updating mergeableIngress %v/%v: %w", mergeableIngresses[i].Master.Ingress.Namespace, mergeableIngresses[i].Master.Ingress.Name, err)
+			return allWarnings, fmt.Errorf("error adding or updating mergeableIngress %v/%v: %w", mergeableIngresses[i].Master.Ingress.Namespace, mergeableIngresses[i].Master.Ingress.Name, err)
 		}
+		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
 			for _, ing := range mergeableIngresses[i].Minions {
@@ -1210,27 +1300,28 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 
 	if cnf.isPlus && !reloadPlus {
 		nl.Debug(l, "No need to reload nginx")
-		return nil
+		return allWarnings, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
-		return fmt.Errorf("error reloading NGINX when updating endpoints for %v: %w", mergeableIngresses, err)
+		return allWarnings, fmt.Errorf("error reloading NGINX when updating endpoints for %v: %w", mergeableIngresses, err)
 	}
 
-	return nil
+	return allWarnings, nil
 }
 
 // UpdateEndpointsForVirtualServers updates endpoints in NGINX configuration for the VirtualServer resources.
-func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*VirtualServerEx) error {
+func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*VirtualServerEx) (Warnings, error) {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	reloadPlus := false
+	allWarnings := newWarnings()
 
 	for _, vs := range virtualServerExes {
-		// It is safe to ignore warnings here as no new warnings should appear when updating Endpoints for VirtualServers
-		_, _, _, err := cnf.addOrUpdateVirtualServer(vs)
+		_, warnings, _, err := cnf.addOrUpdateVirtualServer(vs)
 		if err != nil {
-			return fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
+			return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
 		}
+		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
 			err := cnf.updatePlusEndpointsForVirtualServer(vs)
@@ -1243,14 +1334,14 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 
 	if cnf.isPlus && !reloadPlus {
 		nl.Debug(l, "No need to reload nginx")
-		return nil
+		return allWarnings, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
-		return fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
+		return allWarnings, fmt.Errorf("error reloading NGINX when updating endpoints: %w", err)
 	}
 
-	return nil
+	return allWarnings, nil
 }
 
 func (cnf *Configurator) updatePlusEndpointsForVirtualServer(virtualServerEx *VirtualServerEx) error {
@@ -1266,7 +1357,44 @@ func (cnf *Configurator) updatePlusEndpointsForVirtualServer(virtualServerEx *Vi
 		}
 	}
 
+	// Update external auth upstreams via the Plus API.
+	// These are generated from policies referenced by the VirtualServer
+	// and are not part of the VirtualServer spec upstreams, so they need separate handling.
+	for _, pol := range virtualServerEx.Policies {
+		if pol.Spec.ExternalAuth == nil || pol.Spec.ExternalAuth.AuthServiceName == "" {
+			continue
+		}
+		exAuth := pol.Spec.ExternalAuth
+		upstreamName := fmt.Sprintf("vs_exauth_%s_%s", pol.Namespace, pol.Name)
+		port := getExternalAuthPort(exAuth)
+		ns, svcName := ParseServiceReference(exAuth.AuthServiceName, pol.Namespace)
+		endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
+		if endps, exists := virtualServerEx.Endpoints[endpointKey]; exists {
+			cfg := nginx.ServerConfig{
+				MaxFails:    1,
+				MaxConns:    0,
+				FailTimeout: "10s",
+			}
+			err := cnf.updateServersInPlus(upstreamName, endps, cfg)
+			if err != nil {
+				return fmt.Errorf("couldn't update the endpoints for external auth upstream %v: %w", upstreamName, err)
+			}
+		}
+	}
+
 	return nil
+}
+
+// getExternalAuthPort returns the port for the external auth service.
+// It checks AuthServicePorts first, then falls back to 443 (SSL) or 80.
+func getExternalAuthPort(exAuth *conf_v1.ExternalAuth) int {
+	if len(exAuth.AuthServicePorts) > 0 && exAuth.AuthServicePorts[0] > 0 {
+		return exAuth.AuthServicePorts[0]
+	}
+	if exAuth.SSLEnabled {
+		return 443
+	}
+	return 80
 }
 
 // UpdateEndpointsForTransportServers updates endpoints in NGINX configuration for the TransportServer resources.
@@ -1335,7 +1463,7 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 			if _, isExternalName := ingEx.ExternalNameSvcs[ingEx.Ingress.Spec.DefaultBackend.Service.Name]; isExternalName {
 				nl.Debugf(l, "Service %s is Type ExternalName, skipping NGINX Plus endpoints update via API", ingEx.Ingress.Spec.DefaultBackend.Service.Name)
 			} else {
-				name := getNameForUpstream(ingEx.Ingress, emptyHost, ingEx.Ingress.Spec.DefaultBackend)
+				name := getNameForUpstream(ingEx.Ingress, emptyHostName, ingEx.Ingress.Spec.DefaultBackend)
 				err := cnf.updateServersInPlus(name, endps, cfg)
 				if err != nil {
 					return fmt.Errorf("couldn't update the endpoints for %v: %w", name, err)
@@ -1363,6 +1491,26 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 				if err != nil {
 					return fmt.Errorf("couldn't update the endpoints for %v: %w", name, err)
 				}
+			}
+		}
+	}
+
+	// Update external auth upstreams via the Plus API.
+	// These are generated from policies referenced by the Ingress
+	// and are not part of the Ingress spec, so they need separate handling.
+	for _, pol := range ingEx.Policies {
+		if pol.Spec.ExternalAuth == nil || pol.Spec.ExternalAuth.AuthServiceName == "" {
+			continue
+		}
+		exAuth := pol.Spec.ExternalAuth
+		upstreamName := fmt.Sprintf("ing_exauth_%s_%s", pol.Namespace, pol.Name)
+		port := getExternalAuthPort(exAuth)
+		ns, svcName := ParseServiceReference(exAuth.AuthServiceName, pol.Namespace)
+		endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
+		if endps, exists := ingEx.Endpoints[endpointKey]; exists {
+			err := cnf.updateServersInPlus(upstreamName, endps, cfg)
+			if err != nil {
+				return fmt.Errorf("couldn't update the endpoints for external auth upstream %v: %w", upstreamName, err)
 			}
 		}
 	}
@@ -1475,6 +1623,10 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		} else {
 			return allWarnings, nil, err
 		}
+	}
+
+	if err := cnf.syncDefaultServerConfig(); err != nil {
+		return allWarnings, nil, fmt.Errorf("error syncing default server config: %w", err)
 	}
 
 	for _, ingEx := range resources.IngressExes {
@@ -1822,9 +1974,31 @@ func (cnf *Configurator) AddOrUpdateSpiffeCerts(svidResponse *workloadapi.X509Co
 	return nil
 }
 
+func (cnf *Configurator) updateApResourcesForMergeableIngresses(mergeableIngs *MergeableIngresses) *AppProtectResources {
+	apResources := cnf.updateApResources(mergeableIngs.Master)
+	for _, minion := range mergeableIngs.Minions {
+		cnf.updateApResources(minion)
+	}
+	return apResources
+}
+
 func (cnf *Configurator) updateApResources(ingEx *IngressEx) *AppProtectResources {
 	var apResources AppProtectResources
 
+	// Policy attached WAF resources must exist on disk before template rendering/reload.
+	for _, apPol := range ingEx.ApPolRefs {
+		policyFileName := appProtectPolicyFileNameFromUnstruct(apPol)
+		policyContent := generateApResourceFileContent(apPol)
+		cnf.nginxManager.CreateAppProtectResourceFile(policyFileName, policyContent)
+	}
+
+	for _, logConf := range ingEx.LogConfRefs {
+		logConfFileName := appProtectLogConfFileNameFromUnstruct(logConf)
+		logConfContent := generateApResourceFileContent(logConf)
+		cnf.nginxManager.CreateAppProtectResourceFile(logConfFileName, logConfContent)
+	}
+
+	// annotation attached WAF resources must exist on disk before template rendering/reload.
 	if ingEx.AppProtectPolicy != nil {
 		policyFileName := appProtectPolicyFileNameFromUnstruct(ingEx.AppProtectPolicy)
 		policyContent := generateApResourceFileContent(ingEx.AppProtectPolicy)
@@ -1862,8 +2036,8 @@ func (cnf *Configurator) updateDosResource(dosEx *DosEx) {
 	}
 }
 
-func (cnf *Configurator) updateApResourcesForVs(vsEx *VirtualServerEx) *appProtectResourcesForVS {
-	resources := newAppProtectVSResourcesForVS()
+func (cnf *Configurator) updateApResourcesForVs(vsEx *VirtualServerEx) *appProtectPolicyResources {
+	resources := newAppProtectPolicyResources()
 
 	for apPolKey, apPol := range vsEx.ApPolRefs {
 		policyFileName := appProtectPolicyFileNameFromUnstruct(apPol)

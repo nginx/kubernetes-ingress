@@ -132,6 +132,72 @@ func TestParseServiceReference(t *testing.T) {
 	}
 }
 
+func TestParseResourceReference(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		resourceRef      string
+		defaultNamespace string
+		expectedNS       string
+		expectedResource string
+	}{
+		{
+			name:             "coffee service without namespace",
+			resourceRef:      "coffee-svc",
+			defaultNamespace: "coffee",
+			expectedNS:       "coffee",
+			expectedResource: "coffee-svc",
+		},
+		{
+			name:             "tea service with namespace",
+			resourceRef:      "tea/tea-svc",
+			defaultNamespace: "cafe",
+			expectedNS:       "tea",
+			expectedResource: "tea-svc",
+		},
+		{
+			name:             "tls secret with namespace",
+			resourceRef:      "default/tls-secret",
+			defaultNamespace: "cafe",
+			expectedNS:       "default",
+			expectedResource: "tls-secret",
+		},
+		{
+			name:             "tls secret without namespace",
+			resourceRef:      "tls-secret",
+			defaultNamespace: "cafe",
+			expectedNS:       "cafe",
+			expectedResource: "tls-secret",
+		},
+		{
+			name:             "policy without namespace",
+			resourceRef:      "access-control-policy",
+			defaultNamespace: "default",
+			expectedNS:       "default",
+			expectedResource: "access-control-policy",
+		},
+		{
+			name:             "policy with namespace",
+			resourceRef:      "ac-ns/access-control-policy",
+			defaultNamespace: "default",
+			expectedNS:       "ac-ns",
+			expectedResource: "access-control-policy",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			namespace, resourceName := ParseResourceReference(test.resourceRef, test.defaultNamespace)
+			if namespace != test.expectedNS || resourceName != test.expectedResource {
+				t.Errorf("ParseResourceReference(%q, %q) returned (%q, %q) but expected (%q, %q)",
+					test.resourceRef, test.defaultNamespace, namespace, resourceName, test.expectedNS, test.expectedResource)
+			}
+		})
+	}
+}
+
 func TestUpstreamNamerForVirtualServer(t *testing.T) {
 	t.Parallel()
 	virtualServer := conf_v1.VirtualServer{
@@ -577,8 +643,6 @@ func TestGenerateUpstream(t *testing.T) {
 func TestGenerateUpstreamWithKeepalive(t *testing.T) {
 	t.Parallel()
 	name := "test-upstream"
-	noKeepalive := 0
-	keepalive := 32
 	endpoints := []string{
 		"192.168.10.10:8080",
 	}
@@ -590,7 +654,7 @@ func TestGenerateUpstreamWithKeepalive(t *testing.T) {
 		msg       string
 	}{
 		{
-			conf_v1.Upstream{Keepalive: &keepalive, Service: name, Port: 80},
+			conf_v1.Upstream{Keepalive: new(32), Service: name, Port: 80},
 			&ConfigParams{Keepalive: 21},
 			version2.Upstream{
 				Name: "test-upstream",
@@ -624,7 +688,7 @@ func TestGenerateUpstreamWithKeepalive(t *testing.T) {
 			"upstream keepalive not set, configparam set",
 		},
 		{
-			conf_v1.Upstream{Keepalive: &noKeepalive, Service: name, Port: 80},
+			conf_v1.Upstream{Keepalive: new(0), Service: name, Port: 80},
 			&ConfigParams{Keepalive: 21},
 			version2.Upstream{
 				Name: "test-upstream",
@@ -1311,6 +1375,51 @@ func TestGenerateLocationForRedirect(t *testing.T) {
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateLocationForReturn() returned \n%+v but expected \n%+v for the case of %s",
 				result, test.expected, test.msg)
+		}
+	}
+}
+
+func TestGenerateLocationForReturnRegexPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		path         string
+		expectedPath string
+		msg          string
+	}{
+		{path: "~/api", expectedPath: `~ "/api"`, msg: "regex path is quoted"},
+		{path: "~ /api", expectedPath: `~ "/api"`, msg: "regex path with space is normalized and quoted"},
+		{path: "~*/img", expectedPath: `~* "/img"`, msg: "case-insensitive regex path is quoted"},
+		{path: "/prefix", expectedPath: "/prefix", msg: "prefix path is unchanged"},
+	}
+	snippets := []string{}
+	actionReturn := &conf_v1.ActionReturn{Body: "ok"}
+
+	for _, test := range tests {
+		location, _ := generateLocationForReturn(test.path, snippets, actionReturn, 1)
+		if location.Path != test.expectedPath {
+			t.Errorf("generateLocationForReturn() path = %q, want %q (%s)", location.Path, test.expectedPath, test.msg)
+		}
+	}
+}
+
+func TestGenerateLocationForRedirectRegexPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		path         string
+		expectedPath string
+		msg          string
+	}{
+		{path: "~/api", expectedPath: `~ "/api"`, msg: "regex path is quoted"},
+		{path: "~ /api", expectedPath: `~ "/api"`, msg: "regex path with space is normalized and quoted"},
+		{path: "~*/img", expectedPath: `~* "/img"`, msg: "case-insensitive regex path is quoted"},
+		{path: "/prefix", expectedPath: "/prefix", msg: "prefix path is unchanged"},
+	}
+	redirect := &conf_v1.ActionRedirect{URL: "http://nginx.org"}
+
+	for _, test := range tests {
+		result := generateLocationForRedirect(test.path, []string{}, redirect)
+		if result.Path != test.expectedPath {
+			t.Errorf("generateLocationForRedirect() path = %q, want %q (%s)", result.Path, test.expectedPath, test.msg)
 		}
 	}
 }
@@ -2072,7 +2181,7 @@ func TestGenerateGrpcHealthCheck(t *testing.T) {
 					ConnectTimeout: "20s",
 					SendTimeout:    "20s",
 					ReadTimeout:    "20s",
-					GRPCStatus:     createPointerFromInt(12),
+					GRPCStatus:     new(12),
 					GRPCService:    "grpc-service",
 					Headers: []conf_v1.Header{
 						{
@@ -2101,7 +2210,7 @@ func TestGenerateGrpcHealthCheck(t *testing.T) {
 				Fails:               3,
 				Passes:              2,
 				Port:                50051,
-				GRPCStatus:          createPointerFromInt(12),
+				GRPCStatus:          new(12),
 				GRPCService:         "grpc-service",
 				Headers: map[string]string{
 					"Host":       "my.service",
@@ -2251,12 +2360,37 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 						Namespace: namespace,
 					},
 				},
-				Endpoints: map[string][]string{},
+				Endpoints: map[string][]string{
+					"test-namespace/test:8080": {},
+				},
 			},
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
-			msg:                  "Service with no endpoints",
+			warningsExpected:     true,
+			msg:                  "Service exists with no endpoints",
+		},
+		{
+			upstream: conf_v1.Upstream{
+				Service: name,
+				Port:    8080,
+			},
+			vsEx: &VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      name,
+						Namespace: namespace,
+					},
+				},
+				Endpoints: map[string][]string{
+					"test-namespace/test:8080": {},
+				},
+			},
+			isPlus:               true,
+			isResolverConfigured: false,
+			expected:             []string{},
+			warningsExpected:     true,
+			msg:                  "Service exists with no endpoints (Plus)",
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -2272,10 +2406,11 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 				},
 				Endpoints: map[string][]string{},
 			},
-			isPlus:               true,
+			isPlus:               false,
 			isResolverConfigured: false,
-			expected:             nil,
-			msg:                  "Service with no endpoints",
+			expected:             []string{nginx502Server},
+			warningsExpected:     false,
+			msg:                  "Service unknown, no warning emitted",
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -2319,6 +2454,7 @@ func TestGenerateEndpointsForUpstream(t *testing.T) {
 			isPlus:               false,
 			isResolverConfigured: false,
 			expected:             []string{nginx502Server},
+			warningsExpected:     false,
 			msg:                  "Upstream with subselector, without a matching endpoint",
 		},
 	}
@@ -2597,7 +2733,15 @@ func TestGeneratePath(t *testing.T) {
 		},
 		{
 			path:     "=/exact/match",
-			expected: "=/exact/match",
+			expected: "= /exact/match",
+		},
+		{
+			path:     "= /exact/match",
+			expected: "= /exact/match",
+		},
+		{
+			path:     "=\t/exact/match",
+			expected: "= /exact/match",
 		},
 		{
 			path:     `~ *\\.jpg`,
@@ -2606,6 +2750,30 @@ func TestGeneratePath(t *testing.T) {
 		{
 			path:     `~* *\\.PNG`,
 			expected: `~* "*\\.PNG"`,
+		},
+		{
+			path:     "^~/images",
+			expected: "^~ /images",
+		},
+		{
+			path:     "^~ /images",
+			expected: "^~ /images",
+		},
+		{
+			path:     "^~  /images",
+			expected: "^~ /images",
+		},
+		{
+			path:     "~\t/api",
+			expected: `~ "/api"`,
+		},
+		{
+			path:     "~*\t\t/bar",
+			expected: `~* "/bar"`,
+		},
+		{
+			path:     "^~\t/static",
+			expected: "^~ /static",
 		},
 	}
 
@@ -3076,6 +3244,13 @@ func TestGenerateProxyPassRewrite(t *testing.T) {
 			},
 			expected: "",
 		},
+		{
+			path: "^~/path",
+			proxy: &conf_v1.ActionProxy{
+				RewritePath: "/rewrite",
+			},
+			expected: "/rewrite",
+		},
 	}
 
 	for _, test := range tests {
@@ -3228,8 +3403,6 @@ func TestGenerateProxySetHeaders(t *testing.T) {
 
 func TestGenerateProxyPassRequestHeaders(t *testing.T) {
 	t.Parallel()
-	passTrue := true
-	passFalse := false
 	tests := []struct {
 		proxy    *conf_v1.ActionProxy
 		expected bool
@@ -3253,7 +3426,7 @@ func TestGenerateProxyPassRequestHeaders(t *testing.T) {
 		{
 			proxy: &conf_v1.ActionProxy{
 				RequestHeaders: &conf_v1.ProxyRequestHeaders{
-					Pass: &passTrue,
+					Pass: new(true),
 				},
 			},
 			expected: true,
@@ -3261,7 +3434,7 @@ func TestGenerateProxyPassRequestHeaders(t *testing.T) {
 		{
 			proxy: &conf_v1.ActionProxy{
 				RequestHeaders: &conf_v1.ProxyRequestHeaders{
-					Pass: &passFalse,
+					Pass: new(false),
 				},
 			},
 			expected: false,
@@ -3541,5 +3714,80 @@ func TestGenerateTimeWithDefault(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("generateTimeWithDefault(%q, %q) returned %q but expected %q", test.value, test.defaultValue, result, test.expected)
 		}
+	}
+}
+
+func TestGetExAuthServicePort(t *testing.T) {
+	t.Parallel()
+
+	vsEx := &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "test-vs", Namespace: "default"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		cfg      policiesCfg
+		expected uint16
+	}{
+		{
+			name: "Ports from policy spec takes precedence over URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:          &version2.AuthURI{Port: "80"},
+					ServicePorts: []int{9000},
+				},
+			},
+			expected: 9000,
+		},
+		{
+			name: "first port from Ports is used",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					ServicePorts: []int{8080, 9000},
+				},
+			},
+			expected: 8080,
+		},
+		{
+			name: "falls back to URI port when Ports is empty",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI:          &version2.AuthURI{Port: "8443"},
+					ServicePorts: []int{},
+				},
+			},
+			expected: 8443,
+		},
+		{
+			name: "falls back to URI port when Ports is nil",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{Port: "3000"},
+				},
+			},
+			expected: 3000,
+		},
+		{
+			name: "defaults to 80 when no Ports and no URI port",
+			cfg: policiesCfg{
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{},
+				},
+			},
+			expected: 80,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			vsc := newVirtualServerConfigurator(&ConfigParams{}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			got := vsc.getExAuthServicePort(tc.cfg, vsEx)
+			if got != tc.expected {
+				t.Errorf("getExAuthServicePort() = %d, want %d", got, tc.expected)
+			}
+		})
 	}
 }

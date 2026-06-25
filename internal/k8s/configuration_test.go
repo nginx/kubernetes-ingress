@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +18,14 @@ import (
 )
 
 func createTestConfiguration() *Configuration {
+	c := createTestConfigurationDuringStartup()
+	c.CompleteStartup()
+	return c
+}
+
+// createTestConfigurationDuringStartup creates a Configuration in pre-startup
+// state (startupComplete=false), matching the state during initial queue drain.
+func createTestConfigurationDuringStartup() *Configuration {
 	lbc := LoadBalancerController{
 		ingressClass: "nginx",
 		Logger:       nl.LoggerFromContext(context.Background()),
@@ -30,6 +39,7 @@ func createTestConfiguration() *Configuration {
 	snippetsEnabled := true
 	isIPV6Disabled := false
 	isDirectiveAutoadjustEnabled := false
+	allowEmptyIngressHost := true
 	return NewConfiguration(
 		lbc.HasCorrectIngressClass,
 		isPlus,
@@ -47,6 +57,7 @@ func createTestConfiguration() *Configuration {
 		certManagerEnabled,
 		isIPV6Disabled,
 		isDirectiveAutoadjustEnabled,
+		allowEmptyIngressHost,
 	)
 }
 
@@ -76,7 +87,8 @@ func setupVSRConfiguration() (*Configuration, *conf_v1.VirtualServer, *conf_v1.V
 					MatchLabels: map[string]string{"app": "route"},
 				},
 			},
-		})
+		},
+	)
 
 	configuration.AddOrUpdateVirtualServer(vs)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
@@ -986,6 +998,102 @@ func TestAddIngressWithIncorrectClass(t *testing.T) {
 	}
 }
 
+func TestAddIngressEmptyHostAcceptedWhenEnabled(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	ing := createTestIngress("empty-host-ingress", "")
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &IngressConfiguration{
+				Ingress: ing,
+				ValidHosts: map[string]bool{
+					"": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateIngress(ing)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateIngress() returned unexpected problems: %v", problems)
+	}
+}
+
+func TestAddIngressEmptyHostOldestWinsAndPromotesOnDelete(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	older := createTestIngress("empty-host-older", "")
+	newer := createTestIngress("empty-host-newer", "")
+
+	baseTime := metav1.NewTime(time.Unix(1000, 0))
+	older.CreationTimestamp = baseTime
+	older.UID = "a"
+	newer.CreationTimestamp = metav1.NewTime(baseTime.Add(1 * time.Second))
+	newer.UID = "b"
+
+	_, problems := configuration.AddOrUpdateIngress(older)
+	if len(problems) != 0 {
+		t.Fatalf("expected no problems when adding oldest hostless ingress, got %v", problems)
+	}
+
+	changes, problems := configuration.AddOrUpdateIngress(newer)
+	if len(changes) != 0 {
+		t.Fatalf("expected no host changes when newer hostless ingress loses, got %v", changes)
+	}
+
+	if len(problems) != 1 {
+		t.Fatalf("expected one problem for losing hostless ingress, got %v", problems)
+	}
+
+	if problems[0].Object != newer {
+		t.Fatalf("expected problem object to be the newer ingress, got %#v", problems[0].Object)
+	}
+
+	if problems[0].Message != "All hosts are taken by other resources" {
+		t.Fatalf("expected host-taken problem, got %q", problems[0].Message)
+	}
+
+	changes, problems = configuration.DeleteIngress("default/empty-host-older")
+	expectedChanges := []ResourceChange{
+		{
+			Op: Delete,
+			Resource: &IngressConfiguration{
+				Ingress: older,
+				ValidHosts: map[string]bool{
+					"": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+		{
+			Op: AddOrUpdate,
+			Resource: &IngressConfiguration{
+				Ingress: newer,
+				ValidHosts: map[string]bool{
+					"": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+	}
+	var expectedProblems []ConfigurationProblem
+
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("DeleteIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(expectedProblems, problems); diff != "" {
+		t.Errorf("DeleteIngress() returned unexpected result (-want +got):\n%s", diff)
+	}
+}
+
 func TestAddVirtualServer(t *testing.T) {
 	configuration := createTestConfiguration()
 
@@ -1279,7 +1387,8 @@ func TestAddVirtualServerWithExistingVirtualServerRoute(t *testing.T) {
 				Path:          "/",
 				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
 			},
-		})
+		},
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -1321,7 +1430,8 @@ func TestAddSecondVirtualServerRoute(t *testing.T) {
 				Path:  "/second",
 				Route: "virtualserverroute-2",
 			},
-		})
+		},
+	)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
 
@@ -1374,7 +1484,8 @@ func TestAddThirdVirtualServerRoute(t *testing.T) {
 					MatchLabels: map[string]string{"app": "route"},
 				},
 			},
-		})
+		},
+	)
 
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
@@ -1508,7 +1619,7 @@ func TestMakeVirtualServerRouteInvalidForVirtualServer(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr2, vsr3},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {"default/virtualserverroute-3"}},
-				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0]: Invalid value: \"/\": must start with '/first'"},
+				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-1 is invalid: spec.subroutes[0].path: Invalid value: \"/\": must start with '/first'"},
 			},
 		},
 	}
@@ -1582,7 +1693,8 @@ func TestUpdateVirtualServerHost(t *testing.T) {
 				Path:  "/second",
 				Route: "virtualserverroute-2",
 			},
-		})
+		},
+	)
 	configuration.AddOrUpdateVirtualServerRoute(vsr1)
 	configuration.AddOrUpdateVirtualServer(vs)
 	configuration.AddOrUpdateVirtualServerRoute(vsr2) // This will be invalid due to host mismatch
@@ -2878,7 +2990,8 @@ func TestAddGlobalConfigurationThenAddVirtualServerWithValidCustomListeners(t *t
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2903,7 +3016,8 @@ func TestAddVirtualServerWithValidCustomListenersFirstThenAddGlobalConfiguration
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2943,7 +3057,8 @@ func TestAddVirtualServerWithValidCustomListenersAndNoGlobalConfiguration(t *tes
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2971,7 +3086,8 @@ func TestAddVirtualServerWithCustomHttpListenerThatDoNotExistInGlobalConfigurati
 		"cafe",
 		"cafe.example.com",
 		"http-bogus",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -2999,7 +3115,8 @@ func TestAddVirtualServerWithCustomHttpsListenerThatDoNotExistInGlobalConfigurat
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-bogus")
+		"https-bogus",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3027,7 +3144,8 @@ func TestDeleteHttpListenerFromExistingGlobalConfigurationWithVirtualServerDeplo
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3069,7 +3187,8 @@ func TestDeleteHttpsListenerFromExistingGlobalConfigurationWithVirtualServerDepl
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3109,7 +3228,8 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithValidCustomListen
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3223,7 +3343,8 @@ func TestAddVirtualServerWithCustomHttpListenerInHttpsBlock(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"http-8082")
+		"http-8082",
+	)
 
 	expectedWarningMsg := "Listener http-8082 can't be use in `listener.https` context as SSL is not enabled for that listener."
 
@@ -3253,7 +3374,8 @@ func TestAddVirtualServerWithCustomHttpsListenerInHttpBlock(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"https-8442",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedWarningMsg := "Listener https-8442 can't be use in `listener.http` context as SSL is enabled for that listener."
 
@@ -3283,7 +3405,8 @@ func TestAddVirtualServerWithNoHttpsListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"")
+		"",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3310,7 +3433,8 @@ func TestAddVirtualServerWithNoHttpListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3337,7 +3461,8 @@ func TestAddVirtualServerWithNoHttpOrHttpsListener(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"",
-		"")
+		"",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3364,7 +3489,8 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToFalseInGlo
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3408,7 +3534,8 @@ func TestAddVirtualServerWithValidCustomListenersAndChangeValueOfSslToTrueInGlob
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3452,13 +3579,15 @@ func TestAddMultipleVirtualServersWithTheSameCustomListeners(t *testing.T) {
 		"cafe",
 		"cafe.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	virtualServerFoo := createTestVirtualServerWithListeners(
 		"foo",
 		"foo.example.com",
 		"http-8082",
-		"https-8442")
+		"https-8442",
+	)
 
 	expectedChangesForVsCafe := []ResourceChange{
 		{
@@ -3495,7 +3624,8 @@ func TestUpdateGlobalConfigurationWithVirtualServerDeployedWithNoCustomListeners
 
 	virtualServer := createTestVirtualServer(
 		"cafe",
-		"cafe.example.com")
+		"cafe.example.com",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3525,7 +3655,8 @@ func TestDeleteGlobalConfigurationWithVirtualServerDeployedWithNoCustomListeners
 
 	virtualServer := createTestVirtualServer(
 		"cafe",
-		"cafe.example.com")
+		"cafe.example.com",
+	)
 
 	expectedChanges := []ResourceChange{
 		{
@@ -3816,6 +3947,401 @@ func addOrUpdateVirtualServer(t *testing.T, c *Configuration, virtualServer *con
 	}
 }
 
+func TestAddIngressDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	ing := createTestIngress("ingress", "foo.example.com")
+
+	changes, problems := configuration.AddOrUpdateIngress(ing)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateIngress() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateIngress() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestAddInvalidIngressDuringStartup_ReportsValidationProblem(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Create an invalid ingress with duplicate hosts
+	ing := createTestIngress("ingress", "foo.example.com", "foo.example.com")
+
+	changes, problems := configuration.AddOrUpdateIngress(ing)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateIngress() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 1 {
+		t.Fatalf("AddOrUpdateIngress() during startup returned %d problems, expected 1", len(problems))
+	}
+	if !problems[0].IsError {
+		t.Errorf("expected problem to be an error")
+	}
+	if problems[0].Reason != nl.EventReasonRejected {
+		t.Errorf("expected problem reason %q, got %q", nl.EventReasonRejected, problems[0].Reason)
+	}
+}
+
+func TestAddVirtualServerDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+
+	changes, problems := configuration.AddOrUpdateVirtualServer(vs)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateVirtualServer() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateVirtualServer() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestDeleteIngressDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// First complete startup so we can add an ingress normally
+	// Then we'll test delete during a fresh startup scenario
+	// Actually: add during startup (no rebuild), then delete during startup
+	ing := createTestIngress("ingress", "foo.example.com")
+	configuration.AddOrUpdateIngress(ing)
+
+	changes, problems := configuration.DeleteIngress("default/ingress")
+
+	if len(changes) != 0 {
+		t.Errorf("DeleteIngress() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("DeleteIngress() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestCompleteStartup_RebuildsHostsOnce(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add multiple resources during startup — no rebuilds happen
+	ing1 := createTestIngress("ingress-1", "foo.example.com")
+	ing2 := createTestIngress("ingress-2", "bar.example.com")
+	vs := createTestVirtualServer("virtualserver", "baz.example.com")
+
+	changes, _ := configuration.AddOrUpdateIngress(ing1)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup, got %d", len(changes))
+	}
+
+	changes, _ = configuration.AddOrUpdateIngress(ing2)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup, got %d", len(changes))
+	}
+
+	changes, _ = configuration.AddOrUpdateVirtualServer(vs)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup, got %d", len(changes))
+	}
+
+	// CompleteStartup should return all resources as AddOrUpdate changes
+	changes, problems := configuration.CompleteStartup()
+
+	if len(changes) != 3 {
+		t.Errorf("CompleteStartup() returned %d changes, expected 3", len(changes))
+	}
+	for _, c := range changes {
+		if c.Op != AddOrUpdate {
+			t.Errorf("expected AddOrUpdate operation, got %v", c.Op)
+		}
+	}
+	if len(problems) != 0 {
+		t.Errorf("CompleteStartup() returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestCompleteStartup_ReportsHostConflicts(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add two resources competing for the same host during startup
+	ing := createTestIngress("ingress", "foo.example.com")
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+
+	configuration.AddOrUpdateIngress(ing)
+	configuration.AddOrUpdateVirtualServer(vs)
+
+	// CompleteStartup should detect the host conflict
+	changes, problems := configuration.CompleteStartup()
+
+	// One resource wins the host, the loser gets a ConfigurationProblem (warning, not error)
+	if len(problems) != 1 {
+		t.Fatalf("CompleteStartup() returned %d problems, expected 1 (host conflict)", len(problems))
+	}
+	if problems[0].IsError {
+		t.Errorf("expected host conflict problem to be a warning (IsError=false)")
+	}
+
+	// The winner should get an AddOrUpdate change
+	addOrUpdateCount := 0
+	for _, c := range changes {
+		if c.Op == AddOrUpdate {
+			addOrUpdateCount++
+		}
+	}
+	if addOrUpdateCount < 1 {
+		t.Errorf("expected at least 1 AddOrUpdate change, got %d", addOrUpdateCount)
+	}
+}
+
+func TestCompleteStartup_OrphanedMinions(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add a minion without its master during startup
+	minion := createTestIngressMinion("minion", "foo.example.com", "/path")
+
+	configuration.AddOrUpdateIngress(minion)
+
+	// CompleteStartup should detect the orphaned minion
+	changes, problems := configuration.CompleteStartup()
+
+	if len(problems) != 1 {
+		t.Fatalf("CompleteStartup() returned %d problems, expected 1 (orphaned minion)", len(problems))
+	}
+	if problems[0].Reason != nl.EventReasonNoIngressMasterFound {
+		t.Errorf("expected problem reason %q, got %q", nl.EventReasonNoIngressMasterFound, problems[0].Reason)
+	}
+
+	// Orphaned minion should produce no AddOrUpdate changes
+	if len(changes) != 0 {
+		t.Errorf("expected 0 changes for orphaned minion, got %d", len(changes))
+	}
+}
+
+func TestAfterCompleteStartup_NormalBehaviorResumes(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Complete startup with no resources
+	configuration.CompleteStartup()
+
+	// Now add a resource — should get normal changes back
+	ing := createTestIngress("ingress", "foo.example.com")
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &IngressConfiguration{
+				Ingress: ing,
+				ValidHosts: map[string]bool{
+					"foo.example.com": true,
+				},
+				ChildWarnings: map[string][]string{},
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateIngress(ing)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() after CompleteStartup() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateIngress() after CompleteStartup() returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestCompleteStartup_MergeableIngresses(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add master and minions during startup
+	master := createTestIngressMaster("master", "foo.example.com")
+	minion1 := createTestIngressMinion("minion-1", "foo.example.com", "/path-1")
+	minion2 := createTestIngressMinion("minion-2", "foo.example.com", "/path-2")
+
+	configuration.AddOrUpdateIngress(master)
+	configuration.AddOrUpdateIngress(minion1)
+	configuration.AddOrUpdateIngress(minion2)
+
+	// CompleteStartup should produce a single AddOrUpdate for the master with both minions
+	changes, problems := configuration.CompleteStartup()
+
+	if len(changes) != 1 {
+		t.Fatalf("CompleteStartup() returned %d changes, expected 1", len(changes))
+	}
+	if changes[0].Op != AddOrUpdate {
+		t.Fatalf("expected AddOrUpdate operation, got %v", changes[0].Op)
+	}
+
+	ingConfig, ok := changes[0].Resource.(*IngressConfiguration)
+	if !ok {
+		t.Fatalf("expected *IngressConfiguration, got %T", changes[0].Resource)
+	}
+	if !ingConfig.IsMaster {
+		t.Errorf("expected IsMaster to be true")
+	}
+	if len(ingConfig.Minions) != 2 {
+		t.Errorf("expected 2 minions, got %d", len(ingConfig.Minions))
+	}
+	if len(problems) != 0 {
+		t.Errorf("CompleteStartup() returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestMinionsByHostIndex_TracksMinions(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// Add master and minions
+	master := createTestIngressMaster("master", "foo.example.com")
+	minion1 := createTestIngressMinion("minion-1", "foo.example.com", "/path-1")
+	minion2 := createTestIngressMinion("minion-2", "foo.example.com", "/path-2")
+
+	configuration.AddOrUpdateIngress(master)
+	configuration.AddOrUpdateIngress(minion1)
+	configuration.AddOrUpdateIngress(minion2)
+
+	// Verify the index tracks minions by host
+	hostMinions := configuration.minionsByHost["foo.example.com"]
+	if len(hostMinions) != 2 {
+		t.Fatalf("expected 2 minions indexed for foo.example.com, got %d", len(hostMinions))
+	}
+	if !hostMinions["default/minion-1"] {
+		t.Error("expected default/minion-1 in minionsByHost index")
+	}
+	if !hostMinions["default/minion-2"] {
+		t.Error("expected default/minion-2 in minionsByHost index")
+	}
+
+	// Master should not be in the index
+	for host, keys := range configuration.minionsByHost {
+		for key := range keys {
+			if key == "default/master" {
+				t.Errorf("master should not be in minionsByHost index, found under host %s", host)
+			}
+		}
+	}
+
+	// Delete a minion and verify it's removed from the index
+	configuration.DeleteIngress("default/minion-1")
+	hostMinions = configuration.minionsByHost["foo.example.com"]
+	if len(hostMinions) != 1 {
+		t.Fatalf("expected 1 minion indexed after delete, got %d", len(hostMinions))
+	}
+	if hostMinions["default/minion-1"] {
+		t.Error("default/minion-1 should have been removed from index")
+	}
+}
+
+func TestAddVirtualServerRouteDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	vsr := createTestVirtualServerRoute("vsr", "default", "foo.example.com", "/path")
+
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestAddInvalidVirtualServerRouteDuringStartup_ReportsValidationProblem(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	// An empty host makes the VSR invalid
+	vsr := createTestVirtualServerRoute("vsr", "default", "", "/path")
+
+	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	if len(changes) != 0 {
+		t.Errorf("AddOrUpdateVirtualServerRoute() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 1 {
+		t.Fatalf("AddOrUpdateVirtualServerRoute() during startup returned %d problems, expected 1", len(problems))
+	}
+	if !problems[0].IsError {
+		t.Errorf("expected problem to be an error")
+	}
+	if problems[0].Reason != nl.EventReasonRejected {
+		t.Errorf("expected problem reason %q, got %q", nl.EventReasonRejected, problems[0].Reason)
+	}
+}
+
+func TestDeleteVirtualServerRouteDuringStartup_ReturnsNoChanges(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	vsr := createTestVirtualServerRoute("vsr", "default", "foo.example.com", "/path")
+	configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	changes, problems := configuration.DeleteVirtualServerRoute("default/vsr")
+
+	if len(changes) != 0 {
+		t.Errorf("DeleteVirtualServerRoute() during startup returned %d changes, expected 0", len(changes))
+	}
+	if len(problems) != 0 {
+		t.Errorf("DeleteVirtualServerRoute() during startup returned %d problems, expected 0", len(problems))
+	}
+}
+
+func TestCompleteStartup_WithVSAndVSRs(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfigurationDuringStartup()
+
+	vs := createTestVirtualServerWithRoutes(
+		"virtualserver",
+		"foo.example.com",
+		[]conf_v1.Route{
+			{Path: "/first", Route: "virtualserverroute-1"},
+			{Path: "/second", Route: "virtualserverroute-2"},
+		},
+	)
+	vsr1 := createTestVirtualServerRoute("virtualserverroute-1", "default", "foo.example.com", "/first")
+	vsr2 := createTestVirtualServerRoute("virtualserverroute-2", "default", "foo.example.com", "/second")
+
+	// All three calls during startup return no changes
+	changes, _ := configuration.AddOrUpdateVirtualServer(vs)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup for VS, got %d", len(changes))
+	}
+	changes, _ = configuration.AddOrUpdateVirtualServerRoute(vsr1)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup for VSR1, got %d", len(changes))
+	}
+	changes, _ = configuration.AddOrUpdateVirtualServerRoute(vsr2)
+	if len(changes) != 0 {
+		t.Fatalf("expected no changes during startup for VSR2, got %d", len(changes))
+	}
+
+	// CompleteStartup should emit one AddOrUpdate change for the VS (with VSRs attached)
+	changes, problems := configuration.CompleteStartup()
+
+	if len(problems) != 0 {
+		t.Errorf("CompleteStartup() returned %d problems, expected 0", len(problems))
+	}
+	if len(changes) != 1 {
+		t.Fatalf("CompleteStartup() returned %d changes, expected 1", len(changes))
+	}
+	if changes[0].Op != AddOrUpdate {
+		t.Errorf("expected AddOrUpdate operation, got %v", changes[0].Op)
+	}
+	vsConfig, ok := changes[0].Resource.(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected *VirtualServerConfiguration, got %T", changes[0].Resource)
+	}
+	if len(vsConfig.VirtualServerRoutes) != 2 {
+		t.Errorf("expected 2 VSRs attached, got %d", len(vsConfig.VirtualServerRoutes))
+	}
+}
+
 func createTestIngressMaster(name string, host string) *networking.Ingress {
 	ing := createTestIngress(name, host)
 	ing.Annotations["nginx.org/mergeable-ingress-type"] = "master"
@@ -3875,19 +4401,20 @@ func createTestChallengeIngress(name string, host string, path string, serviceNa
 		},
 	}
 
-	rules = append(rules, networking.IngressRule{
-		Host: host,
-		IngressRuleValue: networking.IngressRuleValue{
-			HTTP: &networking.HTTPIngressRuleValue{
-				Paths: []networking.HTTPIngressPath{
-					{
-						Path:    path,
-						Backend: backend,
+	rules = append(
+		rules, networking.IngressRule{
+			Host: host,
+			IngressRuleValue: networking.IngressRuleValue{
+				HTTP: &networking.HTTPIngressRuleValue{
+					Paths: []networking.HTTPIngressPath{
+						{
+							Path:    path,
+							Backend: backend,
+						},
 					},
 				},
 			},
 		},
-	},
 	)
 
 	return &networking.Ingress{
@@ -4330,7 +4857,8 @@ func TestFindResourcesForResourceReference(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "asd.example.com", "/")
 	tsPassthrough := createTestTLSPassthroughTransportServer("transportserver-passthrough", "ts.example.com")
 	listeners := []conf_v1.Listener{
@@ -4713,7 +5241,8 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "foo.example.com", "/")
 
 	vsWithUpdatedGen := vs.DeepCopy()
@@ -5211,7 +5740,8 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 				Path:          "/",
 				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
 			},
-		})
+		},
+	)
 	expectedChanges = []ResourceChange{
 		{
 			Op: AddOrUpdate,
@@ -5291,7 +5821,8 @@ func TestIsEqualForVirtualServersVSR(t *testing.T) {
 				Path:  "/",
 				Route: "virtualserverroute",
 			},
-		})
+		},
+	)
 	vsr := createTestVirtualServerRouteWithLabels("virtualserverroute", "default", "foo.example.com", "/", nil)
 
 	vsWithUpdatedGen := vs.DeepCopy()
@@ -5854,6 +6385,134 @@ func TestValidateDuplicateVSRPaths(t *testing.T) {
 			expectedVSRs:  []*conf_v1.VirtualServerRoute{},
 			expectedWarns: nil,
 		},
+		{
+			name: "Paths differing only by whitespace after modifier are normalized duplicates",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~/foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-foo"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~ /foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr2-foo"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~/foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-foo"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path ~ /foo has conflicting subroutes on default/vsr2 and default/vsr1",
+			},
+		},
+		{
+			name: "Longest-prefix paths differing only by whitespace are normalized duplicates",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~/static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-static"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~ /static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr2-static"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~/static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-static"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path ^~ /static has conflicting subroutes on default/vsr2 and default/vsr1",
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -5871,184 +6530,418 @@ func TestValidateDuplicateVSRPaths(t *testing.T) {
 	}
 }
 
-func TestValidateDuplicateVSRs(t *testing.T) {
+// TestClassifyAndCollectVSRsDuplicateDedup verifies that classifyAndCollectVSRs
+// deduplicates VSRs that are referenced by multiple VS routes, keeping only the
+// first occurrence and emitting a warning for subsequent references.
+// This replaces the former TestValidateDuplicateVSRs which tested a now-removed
+// post-processing step; the dedup now happens during collection.
+func TestClassifyAndCollectVSRsDuplicateDedup(t *testing.T) {
 	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "cafe"
+	)
+
+	vsr := createTestVirtualServerRoute("duplicate-vsr", namespace, host, "/duplicate")
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{Path: "/duplicate", Route: "duplicate-vsr"},
+		{Path: "/duplicate", Route: "duplicate-vsr"},
+	})
+
+	cfg := createTestConfiguration()
+	cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/duplicate-vsr": vsr,
+	}
+
+	col := cfg.classifyAndCollectVSRs(vs)
+
+	if len(col.vsrs) != 1 {
+		t.Errorf("expected 1 VSR after dedup, got %d", len(col.vsrs))
+	}
+	if col.vsrs[0].Name != "duplicate-vsr" {
+		t.Errorf("expected duplicate-vsr, got %s", col.vsrs[0].Name)
+	}
+
+	foundDupWarning := false
+	for _, w := range col.warnings {
+		if strings.Contains(w, "duplicate VirtualServerRoutes") && strings.Contains(w, "duplicate-vsr") {
+			foundDupWarning = true
+		}
+	}
+	if !foundDupWarning {
+		t.Errorf("expected duplicate VSR warning, got warnings: %v", col.warnings)
+	}
+}
+
+func TestClassifyAndCollectVSRsNormalizesRegexPaths(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "cafe"
+	)
+
+	vsr := createTestVirtualServerRoute("regex-vsr", namespace, host, "~/api")
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{Path: "~/api", Route: "regex-vsr"},
+		{Path: "~ /api", Route: "regex-vsr"},
+	})
+
+	cfg := createTestConfiguration()
+	cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/regex-vsr": vsr,
+	}
+
+	col := cfg.classifyAndCollectVSRs(vs)
+	entry, exists := col.regexEntries[namespace+"/regex-vsr"]
+	if !exists {
+		t.Fatalf("expected regex entry for %s/regex-vsr", namespace)
+	}
+
+	if diff := cmp.Diff([]string{"~/api"}, entry.paths); diff != "" {
+		t.Errorf("classifyAndCollectVSRs() collected unexpected regex paths (-want +got):\n%s", diff)
+	}
+	if entry.firstSeenIdx != 0 {
+		t.Errorf("expected firstSeenIdx 0, got %d", entry.firstSeenIdx)
+	}
+	if len(col.warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", col.warnings)
+	}
+}
+
+// TestBuildVirtualServerRoutesMultipleRegex tests the multi-regex VSR feature: a single VSR
+// may be referenced by multiple regex VS routes, and the validation checks that the VSR's
+// subroutes form an exact set match with the collected VS paths.
+func TestBuildVirtualServerRoutesMultipleRegex(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		vsrName   = "myroute"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	makeSubroute := func(path string) conf_v1.Route {
+		return conf_v1.Route{
+			Path: path,
+			Action: &conf_v1.Action{
+				Return: &conf_v1.ActionReturn{Body: "ok"},
+			},
+		}
+	}
+
+	makeVSR := func(subroutes []conf_v1.Route) *conf_v1.VirtualServerRoute {
+		return &conf_v1.VirtualServerRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      vsrName,
+				Namespace: namespace,
+			},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				IngressClass: "nginx",
+				Host:         host,
+				Subroutes:    subroutes,
+			},
+		}
+	}
 
 	testCases := []struct {
 		name          string
-		vsName        string
-		vsNamespace   string
-		vsrs          []*conf_v1.VirtualServerRoute
-		expectedVSRs  []*conf_v1.VirtualServerRoute
+		vsRoutes      []conf_v1.Route
+		vsrSubroutes  []conf_v1.Route
+		expectedVSR   bool
 		expectedWarns []string
 	}{
 		{
-			name:        "No duplicate vsrs",
-			vsName:      "cafe",
-			vsNamespace: "default",
-			vsrs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr1",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path1",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path1"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr2",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path2",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path2"},
-								},
-							},
-						},
-					},
-				},
+			name: "two regex VS routes referencing same VSR with matching subroutes",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
+				{Path: "~/api/v2", Route: vsrName},
 			},
-			expectedVSRs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr1",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path1",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path1"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "vsr2",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/path2",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "path2"},
-								},
-							},
-						},
-					},
-				},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+				makeSubroute("~/api/v2"),
 			},
+			expectedVSR:   true,
 			expectedWarns: nil,
 		},
 		{
-			name:        "Duplicate VSRs",
-			vsName:      "cafe",
-			vsNamespace: "default",
-			vsrs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
+			name: "orphaned VSR subroute not covered by any VS path is rejected",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
 			},
-			expectedVSRs: []*conf_v1.VirtualServerRoute{
-				{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "duplicate-vsr",
-						Namespace: "default",
-					},
-					Spec: conf_v1.VirtualServerRouteSpec{
-						IngressClass: "nginx",
-						Host:         "foo.example.com",
-						Subroutes: []conf_v1.Route{
-							{
-								Path: "/duplicate",
-								Action: &conf_v1.Action{
-									Return: &conf_v1.ActionReturn{Body: "duplicate"},
-								},
-							},
-						},
-					},
-				},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+				makeSubroute("~/api/v2"),
 			},
+			expectedVSR: false,
 			expectedWarns: []string{
-				fmt.Sprintf("VS %s has duplicate VirtualServerRoutes %s", "default/cafe", "default/duplicate-vsr"),
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes[1].path: Invalid value: "~/api/v2": subroute path '~/api/v2' is not referenced by any VS route; all VSR subroutes must be referenced`,
 			},
 		},
 		{
-			name:          "Empty VSR slice",
-			vsrs:          []*conf_v1.VirtualServerRoute{},
-			expectedVSRs:  []*conf_v1.VirtualServerRoute{},
-			expectedWarns: nil,
+			name: "VS route path not covered by any subroute is rejected",
+			vsRoutes: []conf_v1.Route{
+				{Path: "~/api/v1", Route: vsrName},
+				{Path: "~/api/v2", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("~/api/v1"),
+			},
+			expectedVSR: false,
+			expectedWarns: []string{
+				`VirtualServerRoute default/myroute is invalid: spec.subroutes: Invalid value: "subroutes": subroute with path '~/api/v2' is missing; all VS route paths must be covered by VSR subroutes`,
+			},
+		},
+		{
+			name: "non-regex route validates eagerly while regex entry fails independently",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/prefix", Route: vsrName},
+				{Path: "~/regex", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/prefix/sub"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				`VirtualServerRoute default/myroute is invalid: [spec.subroutes: Invalid value: "subroutes": subroute with path '~/regex' is missing; all VS route paths must be covered by VSR subroutes, spec.subroutes[0].path: Invalid value: "/prefix/sub": subroute path '/prefix/sub' is not referenced by any VS route; all VSR subroutes must be referenced]`,
+			},
+		},
+		{
+			name: "duplicate non-regex VS routes referencing same VSR emit warning",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/api", Route: vsrName},
+				{Path: "/api", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/api/v1"),
+				makeSubroute("/api/v2"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				"VS default/myvs has duplicate VirtualServerRoutes default/myroute",
+			},
+		},
+		{
+			name: "duplicate non-regex routes plus regex route — non-regex wins, regex fails independently",
+			vsRoutes: []conf_v1.Route{
+				{Path: "/prefix", Route: vsrName},
+				{Path: "/prefix", Route: vsrName},
+				{Path: "~/regex", Route: vsrName},
+			},
+			vsrSubroutes: []conf_v1.Route{
+				makeSubroute("/prefix/sub"),
+			},
+			expectedVSR: true,
+			expectedWarns: []string{
+				"VS default/myvs has duplicate VirtualServerRoutes default/myroute",
+				`VirtualServerRoute default/myroute is invalid: [spec.subroutes: Invalid value: "subroutes": subroute with path '~/regex' is missing; all VS route paths must be covered by VSR subroutes, spec.subroutes[0].path: Invalid value: "/prefix/sub": subroute path '/prefix/sub' is not referenced by any VS route; all VSR subroutes must be referenced]`,
+			},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			resultVSRs, warnings := validateDuplicateVSRs(testCase.vsrs, testCase.vsName, testCase.vsNamespace)
-
-			if diff := cmp.Diff(testCase.expectedVSRs, resultVSRs); diff != "" {
-				t.Errorf("validateDuplicateVSRs() returned unexpected VSRs (-want +got):\n%s", diff)
+			configuration := createTestConfiguration()
+			vsr := makeVSR(testCase.vsrSubroutes)
+			configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+				namespace + "/" + vsrName: vsr,
 			}
-			if diff := cmp.Diff(testCase.expectedWarns, warnings); diff != "" {
-				t.Errorf("validateDuplicateVSRs() returned unexpected warnings (-want +got):\n%s", diff)
+
+			vs := createTestVirtualServerWithRoutes(vsName, host, testCase.vsRoutes)
+			gotVSRs, _, gotWarnings := configuration.buildVirtualServerRoutes(vs)
+
+			wantLen := 0
+			if testCase.expectedVSR {
+				wantLen = 1
+			}
+			if len(gotVSRs) != wantLen {
+				t.Errorf("buildVirtualServerRoutes() returned %d VSRs, want %d", len(gotVSRs), wantLen)
+			} else if testCase.expectedVSR {
+				if diff := cmp.Diff(vsr, gotVSRs[0]); diff != "" {
+					t.Errorf("buildVirtualServerRoutes() returned unexpected VSR (-want +got):\n%s", diff)
+				}
+			}
+			if diff := cmp.Diff(testCase.expectedWarns, gotWarnings); diff != "" {
+				t.Errorf("buildVirtualServerRoutes() returned unexpected warnings (-want +got):\n%s", diff)
 			}
 		})
 	}
+}
+
+// TestRegexVSROutputOrderMatchesVSRouteOrder verifies that when multiple regex VSRs are
+// referenced by a VirtualServer, the output slice preserves VS route definition order.
+// This prevents config churn: without stable ordering, Go map iteration would produce
+// a non-deterministic VSR slice, causing spurious nginx reloads on every reconcile.
+//
+// The test uses two VSRs whose keys are intentionally reverse-alphabetical relative to
+// their VS route order. If the implementation sorted alphabetically (or used raw map
+// iteration), the output would be [vsrA, vsrB] instead of the correct [vsrB, vsrA].
+func TestRegexVSROutputOrderMatchesVSRouteOrder(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	makeVSRWithName := func(name string, subroutes []conf_v1.Route) *conf_v1.VirtualServerRoute {
+		return &conf_v1.VirtualServerRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+			},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				IngressClass: "nginx",
+				Host:         host,
+				Subroutes:    subroutes,
+			},
+		}
+	}
+
+	makeSubroute := func(path string) conf_v1.Route {
+		return conf_v1.Route{
+			Path: path,
+			Action: &conf_v1.Action{
+				Return: &conf_v1.ActionReturn{Body: "ok"},
+			},
+		}
+	}
+
+	// VS routes reference vsrB first, then vsrA — intentionally reverse-alphabetical.
+	vsRoutes := []conf_v1.Route{
+		{Path: "~/images/jpg", Route: "vsr-beta"},
+		{Path: "~/api/v1", Route: "vsr-alpha"},
+	}
+
+	vsrBeta := makeVSRWithName("vsr-beta", []conf_v1.Route{
+		makeSubroute("~/images/jpg"),
+	})
+	vsrAlpha := makeVSRWithName("vsr-alpha", []conf_v1.Route{
+		makeSubroute("~/api/v1"),
+	})
+
+	configuration := createTestConfiguration()
+	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/vsr-alpha": vsrAlpha,
+		namespace + "/vsr-beta":  vsrBeta,
+	}
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, vsRoutes)
+
+	// Run the test multiple times to surface non-determinism from map iteration.
+	// With random map order, at least some iterations would produce [vsrAlpha, vsrBeta].
+	for i := 0; i < 20; i++ {
+		gotVSRs, _, gotWarnings := configuration.buildVirtualServerRoutes(vs)
+
+		if len(gotVSRs) != 2 {
+			t.Fatalf("iteration %d: buildVirtualServerRoutes() returned %d VSRs, want 2", i, len(gotVSRs))
+		}
+		// VS route order: vsrBeta (~/images/jpg) at index 0, vsrAlpha (~/api/v1) at index 1.
+		if gotVSRs[0].Name != "vsr-beta" || gotVSRs[1].Name != "vsr-alpha" {
+			t.Fatalf("iteration %d: VSR order should match VS route definition order [vsr-beta, vsr-alpha], got [%s, %s]",
+				i, gotVSRs[0].Name, gotVSRs[1].Name)
+		}
+		if len(gotWarnings) != 0 {
+			t.Errorf("iteration %d: unexpected warnings: %v", i, gotWarnings)
+		}
+	}
+}
+
+// TestBuildVirtualServerRoutesRegexSelector covers the routeSelector flow with regex VS paths.
+// It verifies two scenarios:
+//
+//  1. A regex routeSelector selects a VSR normally — the VSR should be returned.
+//
+//  2. A regex routeSelector selects a VSR that is ALSO referenced by an explicit regex route:
+//     field on the same VS.  This is a duplicate reference, and a duplicate-VSR warning fires.
+func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "myvs"
+	)
+
+	// --- Scenario 1: regex routeSelector, no explicit regex route ---
+	// The VSR is matched purely by label selector on a regex VS path.
+	// Expected: 1 VSR returned, no warnings.
+	t.Run("regex routeSelector selects VSR", func(t *testing.T) {
+		t.Parallel()
+
+		vsr := createTestVirtualServerRouteWithLabels(
+			"regex-vsr", namespace, host, "~/api",
+			map[string]string{"app": "regex-app"},
+		)
+		vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+			{
+				Path: "~/api",
+				RouteSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "regex-app"},
+				},
+			},
+		})
+
+		cfg := createTestConfiguration()
+		cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+			namespace + "/regex-vsr": vsr,
+		}
+
+		gotVSRs, _, _ := cfg.buildVirtualServerRoutes(vs)
+
+		if len(gotVSRs) != 1 {
+			t.Errorf("expected 1 VSR, got %d: %v", len(gotVSRs), gotVSRs)
+		}
+	})
+
+	// --- Scenario 2: regex routeSelector + explicit regex route to the same VSR ---
+	// The same VSR is matched by a label selector (on a regex path) AND referenced
+	// by an explicit regex route: field.  This is a duplicate reference, and a
+	// duplicate-VSR warning is expected.
+	t.Run("regex routeSelector plus explicit regex route to same VSR emits duplicate warning", func(t *testing.T) {
+		t.Parallel()
+
+		vsr := createTestVirtualServerRouteWithLabels(
+			"regex-vsr", namespace, host, "~/api",
+			map[string]string{"app": "regex-app"},
+		)
+		vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+			{
+				Path: "~/api",
+				RouteSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"app": "regex-app"},
+				},
+			},
+			{
+				// Explicit regex route to the same VSR.
+				Path:  "~/api",
+				Route: namespace + "/regex-vsr",
+			},
+		})
+
+		cfg := createTestConfiguration()
+		cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+			namespace + "/regex-vsr": vsr,
+		}
+
+		_, _, gotWarnings := cfg.buildVirtualServerRoutes(vs)
+
+		duplicateWarning := false
+		for _, w := range gotWarnings {
+			if strings.Contains(w, "has duplicate VirtualServerRoutes") {
+				duplicateWarning = true
+			}
+		}
+		if !duplicateWarning {
+			t.Errorf("expected a duplicate-VSR warning for the double reference, got warnings: %v", gotWarnings)
+		}
+	})
 }

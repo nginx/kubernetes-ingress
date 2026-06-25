@@ -1,0 +1,21 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: vsr-api
+spec:
+  host: api-gateway.example.com
+  subroutes:
+  - path: "~/api/v1"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: "API v1\nVSR: vsr-api\nPath directive: ~/api/v1\nRequest URI: ${request_uri}\n"
+  # "~ /api/v2" (space between modifier and path) normalises to "~/api/v2",
+  # which matches the VS route "~/api/v2". Both forms are equivalent.
+  - path: "~ /api/v2"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: "API v2\nVSR: vsr-api\nPath directive: ~/api/v2\nRequest URI: ${request_uri}\n"

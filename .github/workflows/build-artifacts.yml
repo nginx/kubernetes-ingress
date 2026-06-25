@@ -47,6 +47,10 @@ on:
         description: Whether to write built images to cache
         type: boolean
         default: false
+      read-from-cache:
+        description: Whether to read from cache when building images
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -66,12 +70,12 @@ jobs:
       json: ${{ steps.nic_binaries.outputs.json }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
         if: ${{ inputs.force }}
@@ -87,7 +91,7 @@ jobs:
         if: ${{ inputs.force || inputs.authenticated == 'true' }}
 
       - name: Build binaries
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
+        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
         with:
           version: v2.12.3 # renovate: datasource=github-releases depName=goreleaser/goreleaser,
           args: build --snapshot --clean
@@ -105,7 +109,7 @@ jobs:
         if: ${{ inputs.force }}
 
       - name: Store Artifacts in Cache
-        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
@@ -213,6 +217,7 @@ jobs:
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
+      read-from-cache: ${{ inputs.read-from-cache }}
     permissions:
       contents: read
       actions: read
@@ -241,6 +246,7 @@ jobs:
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
+      read-from-cache: ${{ inputs.read-from-cache }}
     permissions:
       contents: read
       id-token: write
@@ -268,6 +274,7 @@ jobs:
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
+      read-from-cache: ${{ inputs.read-from-cache }}
     permissions:
       contents: read
       id-token: write # gcr login

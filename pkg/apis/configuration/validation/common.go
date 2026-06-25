@@ -143,6 +143,13 @@ func validateStringWithVariables(str string, fieldPath *field.Path, specialVars 
 	return allErrs
 }
 
+func validateAddHeaderInherit(value string, fieldPath *field.Path) field.ErrorList {
+	if _, err := configs.ParseAddHeaderInherit(value); err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, value, err.Error())}
+	}
+	return nil
+}
+
 func validateTime(time string, fieldPath *field.Path) field.ErrorList {
 	if time == "" {
 		return nil
@@ -190,6 +197,11 @@ func validateSize(size string, fieldPath *field.Path) field.ErrorList {
 // validateSecretName checks if a secret name is valid.
 // It performs the same validation as ValidateSecretName from k8s.io/kubernetes/pkg/apis/core/validation/validation.go.
 func validateSecretName(name string, fieldPath *field.Path) field.ErrorList {
+	return validateK8SName(name, fieldPath)
+}
+
+// validateK8SName is a wrapper for validation.IsDNS1123Subdomain.
+func validateK8SName(name string, fieldPath *field.Path) field.ErrorList {
 	if name == "" {
 		return nil
 	}
@@ -231,4 +243,42 @@ func isValidHeaderName(name string) bool {
 	//         "^" / "_" / "`" / "|" / "~" / DIGIT / ALPHA
 	validHeaderName := regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
 	return validHeaderName.MatchString(name)
+}
+
+const (
+	pathFmt    = `/[^\s{};\\]*`
+	pathErrMsg = "must start with / and must not include any whitespace character, `{`, `}` or `;`"
+)
+
+var pathRegexp = regexp.MustCompile("^" + pathFmt + "$")
+
+func validatePath(path string, fieldPath *field.Path) field.ErrorList {
+	if path == "" {
+		return field.ErrorList{field.Required(fieldPath, "")}
+	}
+	if strings.HasPrefix(path, "//") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "protocol-relative URIs not allowed, must not start with '//'")}
+	}
+
+	// Reject any path segment equal to ".." to prevent directory traversal,
+	// including trailing forms like "/.." and "/a/.." (no trailing slash required).
+	// Splitting on both "/" and "\\" also catches Windows-style segments.
+	for _, segment := range strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}) {
+		if segment == ".." {
+			return field.ErrorList{field.Invalid(fieldPath, path, "path traversal not allowed, path must not contain '..' segments")}
+		}
+	}
+
+	if !pathRegexp.MatchString(path) {
+		msg := validation.RegexError(pathErrMsg, pathFmt, "/", "/path", "/path/subpath-123")
+		return field.ErrorList{field.Invalid(fieldPath, path, msg)}
+	}
+	return nil
+}
+
+// ValidatePath is a wrapper for validatePath to be used in other packages
+func ValidatePath(path string, fieldPath *field.Path) field.ErrorList {
+	return validatePath(path, fieldPath)
 }

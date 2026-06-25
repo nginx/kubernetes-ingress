@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -168,6 +166,23 @@ func ParseBool(s string) (bool, error) {
 	return strconv.ParseBool(s)
 }
 
+const (
+	addHeaderInheritOn    = "on"
+	addHeaderInheritOff   = "off"
+	addHeaderInheritMerge = "merge"
+)
+
+// ParseAddHeaderInherit validates the add_header_inherit directive mode.
+func ParseAddHeaderInherit(value string) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case addHeaderInheritOn, addHeaderInheritOff, addHeaderInheritMerge:
+		return value, nil
+	default:
+		return "", fmt.Errorf("must be one of: '%s', '%s' or '%s'", addHeaderInheritOn, addHeaderInheritOff, addHeaderInheritMerge)
+	}
+}
+
 // ParseInt ensures that the string value is a valid int
 func ParseInt(s string) (int, error) {
 	return strconv.Atoi(s)
@@ -294,20 +309,6 @@ func ParseProxyBuffersSpec(s string) (string, error) {
 	}
 
 	return "", errors.New("invalid proxy buffers string")
-}
-
-// parseProxySetHeaders ensures that the string colon-separated list of headers and values
-func parseProxySetHeaders(proxySetHeaders []string) []version2.Header {
-	var headers []version2.Header
-	for _, header := range proxySetHeaders {
-		parts := strings.SplitN(header, ":", 2)
-		if len(parts) == 1 {
-			headers = append(headers, version2.Header{Name: parts[0], Value: ""})
-		} else {
-			headers = append(headers, version2.Header{Name: parts[0], Value: parts[1]})
-		}
-	}
-	return headers
 }
 
 // ParsePortList ensures that the string is a comma-separated list of port numbers

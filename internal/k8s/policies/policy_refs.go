@@ -27,19 +27,3 @@ func GetPolicyRefsFromAnnotation(value, namespace string) []conf_v1.PolicyRefere
 	}
 	return policyRefs
 }
-
-// GetPolicyRefsFromPolicies parses the policies annotation and returns a slice of PolicyReference.
-func GetPolicyRefsFromPolicies(policies map[string]*conf_v1.Policy) []conf_v1.PolicyReference {
-	var policyRefs []conf_v1.PolicyReference
-	if len(policies) == 0 {
-		return policyRefs
-	}
-	for _, policy := range policies {
-		policyRef := conf_v1.PolicyReference{
-			Name:      policy.Name,
-			Namespace: policy.Namespace,
-		}
-		policyRefs = append(policyRefs, policyRef)
-	}
-	return policyRefs
-}

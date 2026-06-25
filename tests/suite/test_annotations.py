@@ -263,7 +263,7 @@ class TestAnnotations:
                     "if ($http_x_forwarded_proto = 'https')",
                     'set $hsts_header_val "max-age=2592000; preload";',
                     " 124k;",
-                    "proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+                    'proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";',
                 ],
                 ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;"],
             )
@@ -511,7 +511,7 @@ class TestMergeableFlows:
                 [
                     "proxy_send_timeout 10s;",
                     "max_conns=108;",
-                    "proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;",
+                    'proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";',
                 ],
             ),
         ],
@@ -554,7 +554,7 @@ class TestStandardFlows:
         [
             (
                 f"{TEST_DATA}/annotations/standard/annotations-ingress.yaml",
-                ["proxy_set_header X-Forwarded-ABC $http_x_forwarded_abc;", "proxy_set_header ABC $http_abc;"],
+                ['proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";', 'proxy_set_header ABC "$http_abc";'],
                 [
                     'proxy_set_header X-Forwarded-ABC "ABC";',
                 ],

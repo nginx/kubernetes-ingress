@@ -17,95 +17,180 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+// PolicyValidationConfig holds configuration flags needed for policy validation.
+type PolicyValidationConfig struct {
+	IsPlus           bool
+	EnableOIDC       bool
+	EnableAppProtect bool
+	EnableSnippets   bool
+}
+
 // ValidatePolicy validates a Policy.
-func ValidatePolicy(policy *v1.Policy, isPlus, enableOIDC, enableAppProtect bool) error {
-	allErrs := validatePolicySpec(&policy.Spec, field.NewPath("spec"), isPlus, enableOIDC, enableAppProtect)
+func ValidatePolicy(policy *v1.Policy, cfg PolicyValidationConfig) error {
+	allErrs := validatePolicySpec(&policy.Spec, field.NewPath("spec"), cfg)
 	return allErrs.ToAggregate()
 }
 
-func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enableOIDC, enableAppProtect bool) field.ErrorList {
-	allErrs := field.ErrorList{}
+// policyFieldValidator describes how to validate a single policy field.
+type policyFieldValidator struct {
+	// name is the JSON field name used in field paths and error messages.
+	name string
+	// isSet reports whether the policy field is present in the spec.
+	isSet func(*v1.PolicySpec) bool
+	// validate runs field-specific validation and returns any errors.
+	validate func(*v1.PolicySpec, *field.Path, PolicyValidationConfig) field.ErrorList
+	// gateCheck optionally enforces feature-gate prerequisites (e.g. Plus-only).
+	// It returns errors and a bool indicating whether validation should stop early.
+	gateCheck func(*field.Path, PolicyValidationConfig) (errs field.ErrorList, earlyReturn bool)
+}
 
+// policyFields returns the ordered list of policy field validators.
+// Each entry maps a PolicySpec field to its validation logic and any
+// feature-gate prerequisites. The order matches the original validation
+// sequence for consistency.
+func policyFields() []policyFieldValidator {
+	return []policyFieldValidator{
+		{
+			name:  "accessControl",
+			isSet: func(s *v1.PolicySpec) bool { return s.AccessControl != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateAccessControl(s.AccessControl, p.Child("accessControl"))
+			},
+		},
+		{
+			name:  "rateLimit",
+			isSet: func(s *v1.PolicySpec) bool { return s.RateLimit != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateRateLimit(s.RateLimit, p.Child("rateLimit"), cfg.IsPlus)
+			},
+		},
+		{
+			name:  "jwt",
+			isSet: func(s *v1.PolicySpec) bool { return s.JWTAuth != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				if !cfg.IsPlus {
+					return field.ErrorList{field.Forbidden(p.Child("jwt"), "jwt secrets are only supported in NGINX Plus")}, true
+				}
+				return nil, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateJWT(s.JWTAuth, p.Child("jwt"))
+			},
+		},
+		{
+			name:  "basicAuth",
+			isSet: func(s *v1.PolicySpec) bool { return s.BasicAuth != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateBasic(s.BasicAuth, p.Child("basicAuth"))
+			},
+		},
+		{
+			name:  "ingressMTLS",
+			isSet: func(s *v1.PolicySpec) bool { return s.IngressMTLS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateIngressMTLS(s.IngressMTLS, p.Child("ingressMTLS"))
+			},
+		},
+		{
+			name:  "egressMTLS",
+			isSet: func(s *v1.PolicySpec) bool { return s.EgressMTLS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateEgressMTLS(s.EgressMTLS, p.Child("egressMTLS"))
+			},
+		},
+		{
+			name:  "externalAuth",
+			isSet: func(s *v1.PolicySpec) bool { return s.ExternalAuth != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateExternalAuth(s.ExternalAuth, p.Child("externalAuth"), cfg.EnableSnippets)
+			},
+		},
+		{
+			name:  "oidc",
+			isSet: func(s *v1.PolicySpec) bool { return s.OIDC != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				var errs field.ErrorList
+				if !cfg.EnableOIDC {
+					errs = append(errs, field.Forbidden(p.Child("oidc"),
+						"OIDC must be enabled via cli argument -enable-oidc to use OIDC policy"))
+				}
+				if !cfg.IsPlus {
+					errs = append(errs, field.Forbidden(p.Child("oidc"), "OIDC is only supported in NGINX Plus"))
+					return errs, true
+				}
+				return errs, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateOIDC(s.OIDC, p.Child("oidc"))
+			},
+		},
+		{
+			name:  "apiKey",
+			isSet: func(s *v1.PolicySpec) bool { return s.APIKey != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateAPIKey(s.APIKey, p.Child("apiKey"))
+			},
+		},
+		{
+			name:  "waf",
+			isSet: func(s *v1.PolicySpec) bool { return s.WAF != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				var errs field.ErrorList
+				if !cfg.IsPlus {
+					errs = append(errs, field.Forbidden(p.Child("waf"), "WAF is only supported in NGINX Plus"))
+				}
+				if !cfg.EnableAppProtect {
+					errs = append(errs, field.Forbidden(p.Child("waf"),
+						"App Protect must be enabled via cli argument -enable-app-protect to use WAF policy"))
+				}
+				return errs, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateWAF(s.WAF, p.Child("waf"))
+			},
+		},
+		{
+			name:  "cache",
+			isSet: func(s *v1.PolicySpec) bool { return s.Cache != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateCache(s.Cache, p.Child("cache"), cfg.IsPlus)
+			},
+		},
+		{
+			name:  "cors",
+			isSet: func(s *v1.PolicySpec) bool { return s.CORS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateCORS(s.CORS, p.Child("cors"))
+			},
+		},
+	}
+}
+
+func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+	var allErrs field.ErrorList
 	fieldCount := 0
 
-	if spec.AccessControl != nil {
-		allErrs = append(allErrs, validateAccessControl(spec.AccessControl, fieldPath.Child("accessControl"))...)
-		fieldCount++
-	}
-
-	if spec.RateLimit != nil {
-		allErrs = append(allErrs, validateRateLimit(spec.RateLimit, fieldPath.Child("rateLimit"), isPlus)...)
-		fieldCount++
-	}
-
-	if spec.JWTAuth != nil {
-		if !isPlus {
-			return append(allErrs, field.Forbidden(fieldPath.Child("jwt"), "jwt secrets are only supported in NGINX Plus"))
+	for _, pf := range policyFields() {
+		if !pf.isSet(spec) {
+			continue
 		}
 
-		allErrs = append(allErrs, validateJWT(spec.JWTAuth, fieldPath.Child("jwt"))...)
-		fieldCount++
-	}
-
-	if spec.BasicAuth != nil {
-		allErrs = append(allErrs, validateBasic(spec.BasicAuth, fieldPath.Child("basicAuth"))...)
-		fieldCount++
-	}
-
-	if spec.IngressMTLS != nil {
-		allErrs = append(allErrs, validateIngressMTLS(spec.IngressMTLS, fieldPath.Child("ingressMTLS"))...)
-		fieldCount++
-	}
-
-	if spec.EgressMTLS != nil {
-		allErrs = append(allErrs, validateEgressMTLS(spec.EgressMTLS, fieldPath.Child("egressMTLS"))...)
-		fieldCount++
-	}
-
-	if spec.OIDC != nil {
-		if !enableOIDC {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("oidc"),
-				"OIDC must be enabled via cli argument -enable-oidc to use OIDC policy"))
-		}
-		if !isPlus {
-			return append(allErrs, field.Forbidden(fieldPath.Child("oidc"), "OIDC is only supported in NGINX Plus"))
+		// Check feature-gate prerequisites before running validation.
+		if pf.gateCheck != nil {
+			gateErrs, earlyReturn := pf.gateCheck(fieldPath, cfg)
+			allErrs = append(allErrs, gateErrs...)
+			if earlyReturn {
+				return allErrs
+			}
 		}
 
-		allErrs = append(allErrs, validateOIDC(spec.OIDC, fieldPath.Child("oidc"))...)
-		fieldCount++
-	}
-
-	if spec.APIKey != nil {
-		allErrs = append(allErrs, validateAPIKey(spec.APIKey, fieldPath.Child("apiKey"))...)
-		fieldCount++
-	}
-
-	if spec.WAF != nil {
-		if !isPlus {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"), "WAF is only supported in NGINX Plus"))
-		}
-		if !enableAppProtect {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"),
-				"App Protect must be enabled via cli argument -enable-app-protect to use WAF policy"))
-		}
-
-		allErrs = append(allErrs, validateWAF(spec.WAF, fieldPath.Child("waf"))...)
-		fieldCount++
-	}
-
-	if spec.Cache != nil {
-		allErrs = append(allErrs, validateCache(spec.Cache, fieldPath.Child("cache"), isPlus)...)
-		fieldCount++
-	}
-
-	if spec.CORS != nil {
-		allErrs = append(allErrs, validateCORS(spec.CORS, fieldPath.Child("cors"))...)
+		allErrs = append(allErrs, pf.validate(spec, fieldPath, cfg)...)
 		fieldCount++
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`"
-		if isPlus {
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
+		if cfg.IsPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
@@ -400,7 +485,8 @@ func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 	// WAF Policy references either apPolicy or apBundle.
 	if waf.ApPolicy != "" && waf.ApBundle != "" {
 		msg := "apPolicy and apBundle fields in the WAF policy are mutually exclusive"
-		allErrs = append(allErrs,
+		allErrs = append(
+			allErrs,
 			field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg),
 			field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg),
 		)
@@ -625,7 +711,8 @@ func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode 
 
 	if logConf.ApLogConf != "" && logConf.ApLogBundle != "" {
 		msg := "apLogConf and apLogBundle fields in the securityLog are mutually exclusive"
-		allErrs = append(allErrs,
+		allErrs = append(
+			allErrs,
 			field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg),
 			field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg),
 		)
@@ -662,8 +749,8 @@ func validateClientID(client string, fieldPath *field.Path) field.ErrorList {
 		return field.ErrorList{field.Invalid(
 			fieldPath,
 			client,
-			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'
-		`)}
+			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'`,
+		)}
 	}
 	return nil
 }
@@ -1078,11 +1165,18 @@ func validateCORSAllowHeaders(headers []string, fieldPath *field.Path) field.Err
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard value for
+		// Access-Control-Allow-Headers. Browser handling may differ when
+		// credentials are used, but that is not enforced by this validator.
+		if header == "*" {
+			continue
+		}
+
 		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
 
-		// Check for wildcard
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
 		if strings.Contains(header, "*") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
 		}
 
 		// Check for forbidden request headers that cannot be set by JavaScript
@@ -1134,11 +1228,19 @@ func validateCORSExposeHeaders(headers []string, fieldPath *field.Path) field.Er
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard for
+		// Access-Control-Expose-Headers. Browsers apply additional CORS
+		// semantics for credentialed requests; that behavior is not enforced
+		// by this validator.
+		if header == "*" {
+			continue
+		}
+
 		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
 
-		// Check for wildcard
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
 		if strings.Contains(header, "*") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names for exposeHeaders"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
 		}
 
 		// Check for forbidden response headers that cannot be exposed
@@ -1213,4 +1315,116 @@ func containsDangerousChars(value string) bool {
 		}
 	}
 	return false
+}
+
+func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, enableSnippets bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate AuthSnippets requires enableSnippets
+	if externalAuth.AuthSnippets != "" && !enableSnippets {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("authSnippets"),
+			"snippets must be enabled via cli argument -enable-snippets to use authSnippets"))
+	}
+
+	// Validate AuthURI
+	allErrs = append(allErrs, validateAuthURI(externalAuth.AuthURI, fieldPath.Child("authURI"))...)
+
+	// Validate AuthServiceName
+	parts := strings.Split(externalAuth.AuthServiceName, "/")
+	if len(parts) > 2 || len(parts) < 1 {
+		return field.ErrorList{field.Invalid(fieldPath, externalAuth.AuthServiceName, "service reference must be in the format service-name or namespace/service-name")}
+	}
+	ns := ""
+	if len(parts) == 2 {
+		ns = parts[0]
+	}
+	name := parts[len(parts)-1]
+	if ns != "" {
+		allErrs = append(allErrs, validateDNS1123Label(ns, fieldPath.Child("authServiceName").Child("namespace"))...)
+	}
+	allErrs = append(allErrs, validateServiceName(name, fieldPath.Child("authServiceName").Child("name"))...)
+
+	// Validate AuthServicePorts
+	allErrs = append(allErrs, validateServicePorts(externalAuth.AuthServicePorts, fieldPath.Child("authServicePorts"))...)
+
+	// Validate AuthSigninURI
+	if externalAuth.AuthSigninURI != "" {
+		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninURI, fieldPath.Child("authSigninURI"))...)
+	}
+
+	// Validate AuthSigninRedirectBasePath
+	if externalAuth.AuthSigninRedirectBasePath != "" {
+		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninRedirectBasePath, fieldPath.Child("authSigninRedirectBasePath"))...)
+	}
+
+	// Validate SSL fields
+	allErrs = append(allErrs, validateExternalAuthSSLFields(externalAuth, fieldPath)...)
+
+	return allErrs
+}
+
+// validateExternalAuthSSLFields validates the SSL-related fields of an ExternalAuth policy.
+func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if externalAuth.SSLVerify && !externalAuth.SSLEnabled {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslEnabled must be true when sslVerify is true"))
+	}
+
+	if externalAuth.TrustedCertSecret != "" {
+		if !externalAuth.SSLEnabled {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslEnabled must be true when trustedCertSecret is set"))
+		}
+		if !externalAuth.SSLVerify {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslVerify must be true when trustedCertSecret is set"))
+		}
+		parts := strings.Split(externalAuth.TrustedCertSecret, "/")
+		if len(parts) > 2 || len(parts) < 1 {
+			return field.ErrorList{field.Invalid(fieldPath, externalAuth.TrustedCertSecret, "secret reference must be in the format secret-name or namespace/secret-name")}
+		}
+		ns := ""
+		if len(parts) == 2 {
+			ns = parts[0]
+		}
+		name := parts[len(parts)-1]
+		if ns != "" {
+			allErrs = append(allErrs, validateDNS1123Label(ns, fieldPath.Child("trustedCertSecret").Child("namespace"))...)
+		}
+		allErrs = append(allErrs, validateSecretName(name, fieldPath.Child("trustedCertSecret"))...)
+	}
+
+	if externalAuth.SNIName != "" && containsDangerousChars(externalAuth.SNIName) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniName"), externalAuth.SNIName, "contains invalid characters"))
+	}
+
+	if externalAuth.SSLVerifyDepth != nil {
+		if *externalAuth.SSLVerifyDepth < 0 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerifyDepth"), *externalAuth.SSLVerifyDepth, "must be a non-negative integer"))
+		}
+	}
+
+	return allErrs
+}
+
+// validateServicePorts validates the authServicePorts field to ensure it contains valid port numbers
+func validateServicePorts(ports []int, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	for i, port := range ports {
+		allErrs = append(allErrs, validatePortNumber(strconv.Itoa(port), fieldPath.Index(i))...)
+	}
+	return allErrs
+}
+
+// validateAuthURI validates that the authURI is a valid path and not empty
+func validateAuthURI(authURI string, child *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if authURI == "" {
+		return append(allErrs, field.Required(child, "authURI is required"))
+	}
+
+	allErrs = append(allErrs, validatePath(authURI, child)...)
+
+	return allErrs
 }

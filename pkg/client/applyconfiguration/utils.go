@@ -82,6 +82,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.ErrorPageRedirectApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("ErrorPageReturn"):
 		return &applyconfigurationconfigurationv1.ErrorPageReturnApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("ExternalAuth"):
+		return &applyconfigurationconfigurationv1.ExternalAuthApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("ExternalDNS"):
 		return &applyconfigurationconfigurationv1.ExternalDNSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("ExternalEndpoint"):

@@ -14,21 +14,6 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func createPointerFromBool(b bool) *bool {
-	return &b
-}
-
-func createPointerFromInt(n int) *int {
-	return &n
-}
-
-// createPointerFromUInt16 is a helper that takes a uint16
-// and returns a pointer to the value. It is used for testing
-// BackupService configuration for Virtual and Transport Servers.
-func createPointerFromUInt16(n uint16) *uint16 {
-	return &n
-}
-
 // vsEx returns Virtual Server Ex config struct.
 // It's safe to modify returned config for parallel test execution.
 func vsEx() VirtualServerEx {
@@ -919,6 +904,19 @@ var (
 			Spec: conf_v1.VirtualServerSpec{
 				Host:     "cafe.example.com",
 				Listener: nil,
+			},
+		},
+	}
+
+	virtualServerExWithAddHeaderInheritMerge = VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host:             "cafe.example.com",
+				AddHeaderInherit: "merge",
 			},
 		},
 	}

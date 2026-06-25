@@ -126,6 +126,9 @@ server {
     {{- if $s.Gunzip }}
     gunzip on;
     {{- end }}
+    {{- if $s.AddHeaderInherit }}
+    add_header_inherit {{ $s.AddHeaderInherit }};
+    {{- end }}
     {{ makeHTTPListener $s | printf }}
 
     server_name {{ $s.ServerName }};
@@ -369,6 +372,14 @@ server {
     proxy_ssl_name {{ .SSLName }};
     {{- end }}
 
+    {{- if $s.ExternalAuth }}
+    auth_request {{ $s.ExternalAuth.URI.InternalPath }};
+    {{- end }}
+
+    {{- range $e := $s.ErrorPages }}
+    error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    {{- end }}
+
     {{- with $s.APIKey}}
     js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
     js_var $apikey_auth_local_map "{{ .MapName}}";
@@ -444,7 +455,7 @@ server {
     location @hc-{{ $hc.Name }} {
         {{ $proxyOrGRPC := "proxy" }}{{ if $hc.GRPCPass }}{{ $proxyOrGRPC = "grpc" }}{{ end }}
         {{- range $n, $v := $hc.Headers }}
-        {{ $proxyOrGRPC }}_set_header {{ $n }} "{{ $v }}";
+        {{ $proxyOrGRPC }}_set_header {{ $n }} {{ printf "%q" $v }};
         {{- end }}
         {{ $proxyOrGRPC }}_connect_timeout {{ $hc.ProxyConnectTimeout }};
         {{ $proxyOrGRPC }}_read_timeout {{ $hc.ProxyReadTimeout }};
@@ -473,7 +484,7 @@ server {
         default_type "{{ $e.DefaultType }}";
         {{ end }}
         {{ range $h := $e.Headers }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" always;
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} always;
         {{ end }}
         # status code is ignored here, using 0
         return 0 "{{ $e.Return.Text }}";
@@ -484,7 +495,7 @@ server {
     location {{ $l.Name }} {
         default_type "{{ $l.DefaultType }}";
         {{ range $h := $l.Headers }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" always;
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} always;
         {{ end }}
         # status code is ignored here, using 0
         return 0 "{{ $l.Return.Text }}";
@@ -503,8 +514,17 @@ server {
         {{- if $l.Internal }}
         internal;
         {{- end }}
+        {{- if $l.AddHeaderInherit }}
+        add_header_inherit {{ $l.AddHeaderInherit }};
+        {{- end }}
         {{- range $snippet := $l.Snippets }}
         {{ $snippet }}
+        {{- end }}
+
+        {{- if $l.AuthRequestOff }}
+        auth_request off;
+        {{- else if $l.ExternalAuth }}
+        auth_request {{ $l.ExternalAuth.URI.InternalPath }};
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}
@@ -674,7 +694,7 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ $e.ResponseCode }}{{ end }} "{{ $e.Name }}";
+        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}
@@ -722,6 +742,9 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
+        {{- if $l.ProxyPassRequestBody }}
+        proxy_pass_request_body {{ $l.ProxyPassRequestBody }};
+        {{- end }}
             {{- end }}
 
         {{- $custom_headers := $l.ProxySetHeaders | headerListToCIMap }}
@@ -747,7 +770,7 @@ server {
         {{- end }}
 
         {{- range $h := $l.ProxySetHeaders }}
-        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} "{{ $h.Value }}";
+        {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ printf "%q" $h.Value }};
         {{- end }}
 
             {{- range $h := $l.ProxyHideHeaders }}
@@ -760,7 +783,7 @@ server {
         {{ $proxyOrGRPC }}_ignore_headers {{ $l.ProxyIgnoreHeaders }};
             {{- end }}
             {{- range $h := $l.AddHeaders }}
-        add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
+        add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
             {{- end }}
 
         {{- if $l.CORSEnabled }}
@@ -768,7 +791,7 @@ server {
         # Handle CORS preflight OPTIONS requests
         if ($request_method = 'OPTIONS') {
             {{- range $h := $l.AddHeaders }}
-            add_header {{ $h.Name }} "{{ $h.Value }}";
+            add_header {{ $h.Name }} {{ printf "%q" $h.Value }};
             {{- end }}
             add_header Content-Type text/plain;
             add_header Content-Length 0;
@@ -838,6 +861,15 @@ server {
             {{- else }}
         proxy_pass {{ $l.ProxyPass }}{{ $l.ProxyPassRewrite }};
             {{- end }}
+        {{- if $l.ProxySSLVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ $l.ProxySSLVerifyDepth }};
+        proxy_ssl_server_name on;
+        proxy_ssl_name {{ $l.ProxySSLName }};
+        {{- end }}
+        {{- if $l.ProxySSLTrustedCertificate }}
+        proxy_ssl_trusted_certificate {{ $l.ProxySSLTrustedCertificate }};
+        {{- end }}
         {{ $proxyOrGRPC }}_next_upstream {{ $l.ProxyNextUpstream }};
         {{ $proxyOrGRPC }}_next_upstream_timeout {{ $l.ProxyNextUpstreamTimeout }};
         {{ $proxyOrGRPC }}_next_upstream_tries {{ $l.ProxyNextUpstreamTries }};

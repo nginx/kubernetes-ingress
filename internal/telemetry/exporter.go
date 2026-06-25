@@ -148,4 +148,6 @@ type NICResourceCounts struct {
 	CachePolicies int64
 	// CORSPolicies is the number of CORS policies managed by NGINX Ingress Controller
 	CORSPolicies int64
+	// ExternalAuthPolicies is the number of ExternalAuth policies managed by NGINX Ingress Controller
+	ExternalAuthPolicies int64
 }

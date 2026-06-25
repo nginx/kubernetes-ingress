@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	"github.com/stretchr/testify/assert"
 
 	v1 "k8s.io/api/core/v1"
@@ -854,7 +853,7 @@ func TestParseMGMTConfigMapEnforceInitialReport(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				EnforceInitialReport: commonhelpers.BoolToPointerBool(false),
+				EnforceInitialReport: new(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -869,7 +868,7 @@ func TestParseMGMTConfigMapEnforceInitialReport(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				EnforceInitialReport: commonhelpers.BoolToPointerBool(true),
+				EnforceInitialReport: new(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -913,7 +912,7 @@ func TestParseMGMTConfigMapSSLVerify(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				SSLVerify: commonhelpers.BoolToPointerBool(false),
+				SSLVerify: new(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -928,7 +927,7 @@ func TestParseMGMTConfigMapSSLVerify(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				SSLVerify: commonhelpers.BoolToPointerBool(true),
+				SSLVerify: new(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -1255,7 +1254,7 @@ func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				ResolverIPV6: commonhelpers.BoolToPointerBool(false),
+				ResolverIPV6: new(false),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -1270,7 +1269,7 @@ func TestParseMGMTConfigMapResolverIPV6(t *testing.T) {
 				},
 			},
 			want: &MGMTConfigParams{
-				ResolverIPV6: commonhelpers.BoolToPointerBool(true),
+				ResolverIPV6: new(true),
 				Secrets: MGMTSecrets{
 					License: "license-token",
 				},
@@ -1890,7 +1889,7 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 			want: &ZoneSync{
 				Enable:            true,
 				Port:              12345,
-				ResolverIPV6:      commonhelpers.BoolToPointerBool(true),
+				ResolverIPV6:      new(true),
 				ResolverAddresses: []string{"example.com"},
 			},
 			msg: "zone-sync-resolver-ipv6 set to true",
@@ -1907,7 +1906,7 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 			want: &ZoneSync{
 				Enable:            true,
 				Port:              12345,
-				ResolverIPV6:      commonhelpers.BoolToPointerBool(false),
+				ResolverIPV6:      new(false),
 				ResolverAddresses: []string{"example.com"},
 			},
 			msg: "zone-sync-resolver-ipv6 set to false",
@@ -2988,6 +2987,229 @@ func TestParseConfigMapWithHTTPRedirectCode(t *testing.T) {
 	}
 }
 
+// TestParseAndValidateAddHeaders unit-tests the helper directly, covering all
+// validation branches without going through ParseConfigMap.
+func TestParseAndValidateAddHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		wantLen int
+		wantErr bool
+	}{
+		// Valid inputs
+		{name: "single header", raw: "X-Frame-Options:DENY", wantLen: 1},
+		{name: "header with always", raw: "X-Frame-Options:DENY:always", wantLen: 1},
+		{name: "multiple headers", raw: "X-Frame-Options:DENY, X-Content-Type-Options:nosniff", wantLen: 2},
+		{name: "empty string", raw: "", wantLen: 0},
+		// Invalid header names
+		{name: "name with space", raw: "X Bad:value", wantErr: true},
+		{name: "name with @", raw: "X-He@der:value", wantErr: true},
+		// Invalid header values
+		{name: "value with $", raw: "X-Header:$nginx_var", wantErr: true},
+		{name: "value with newline", raw: "X-Header:foo\nbar", wantErr: true},
+		{name: "value with carriage return", raw: "X-Header:foo\rbar", wantErr: true},
+		// All-or-nothing: first entry valid, second invalid → error
+		{name: "mixed valid and invalid", raw: "X-Good:ok, X-Bad:$inject", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parseAndValidateAddHeaders(tc.raw)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("want error, got nil (headers: %v)", got)
+				}
+				if len(got) != 0 {
+					t.Errorf("want no headers on error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != tc.wantLen {
+				t.Errorf("want %d headers, got %d: %v", tc.wantLen, len(got), got)
+			}
+		})
+	}
+}
+
+// TestParseConfigMapAddHeader verifies that the ConfigMap "add-header" key populates
+// ConfigParams.MainAddHeaders in the http {} context and does not populate
+// AddHeaders, which is reserved for the nginx.org/add-header annotation in server {} context.
+func TestParseConfigMapAddHeader(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		data            map[string]string
+		wantMainHeaders []string // expected header names in MainAddHeaders
+		wantNoHeaders   bool     // true when key is absent or all entries invalid
+		wantConfigOk    bool
+	}{
+		{
+			name:            "single header without always",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY"},
+			wantMainHeaders: []string{"X-Frame-Options"},
+			wantConfigOk:    true,
+		},
+		{
+			name:            "multiple headers",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY, X-Content-Type-Options:nosniff"},
+			wantMainHeaders: []string{"X-Frame-Options", "X-Content-Type-Options"},
+			wantConfigOk:    true,
+		},
+		{
+			name:          "key absent — MainAddHeaders stays nil",
+			data:          map[string]string{},
+			wantNoHeaders: true,
+			wantConfigOk:  true,
+		},
+		{
+			name:          "invalid header — configOk false, no headers set",
+			data:          map[string]string{"add-header": "X-Bad:$inject"},
+			wantNoHeaders: true,
+			wantConfigOk:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{Data: tc.data}
+			result, configOk := ParseConfigMap(context.Background(), cm,
+				false, false, false, false, false, makeEventLogger())
+
+			if configOk != tc.wantConfigOk {
+				t.Errorf("configOk: want %v, got %v", tc.wantConfigOk, configOk)
+			}
+
+			// ConfigMap "add-header" must populate MainAddHeaders (http {} context).
+			if tc.wantNoHeaders {
+				if len(result.MainAddHeaders) != 0 {
+					t.Errorf("want MainAddHeaders empty, got %v", result.MainAddHeaders)
+				}
+				return
+			}
+
+			if len(result.MainAddHeaders) != len(tc.wantMainHeaders) {
+				t.Fatalf("want %d MainAddHeaders, got %d: %v",
+					len(tc.wantMainHeaders), len(result.MainAddHeaders), result.MainAddHeaders)
+			}
+			for i, want := range tc.wantMainHeaders {
+				if got := result.MainAddHeaders[i].Name; got != want {
+					t.Errorf("MainAddHeaders[%d].Name: want %q, got %q", i, want, got)
+				}
+			}
+
+			// ConfigMap must never populate AddHeaders (annotation path → server {} context).
+			if len(result.AddHeaders) != 0 {
+				t.Errorf("ConfigMap must not populate AddHeaders (server context); got %v", result.AddHeaders)
+			}
+		})
+	}
+}
+
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
+}
+
+func TestParseConfigMapWithAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		value       string
+		expect      string
+		expectError bool
+		msg         string
+	}{
+		{
+			value:       "on",
+			expect:      "on",
+			expectError: false,
+			msg:         "valid value on",
+		},
+		{
+			value:       "off",
+			expect:      "off",
+			expectError: false,
+			msg:         "valid value off",
+		},
+		{
+			value:       "merge",
+			expect:      "merge",
+			expectError: false,
+			msg:         "valid value merge",
+		},
+		{
+			value:       "ON",
+			expect:      "on",
+			expectError: false,
+			msg:         "invalid value ON (mixed case)",
+		},
+		{
+			value:       "Merge",
+			expect:      "merge",
+			expectError: false,
+			msg:         "invalid value Merge (mixed case)",
+		},
+		{
+			value:       "MERGE",
+			expect:      "merge",
+			expectError: false,
+			msg:         "invalid value MERGE (mixed case)",
+		},
+		{
+			value:       "OFF",
+			expect:      "off",
+			expectError: false,
+			msg:         "invalid value OFF (mixed case)",
+		},
+		{
+			value:       "oFf",
+			expect:      "off",
+			expectError: false,
+			msg:         "invalid value oFf (mixed case)",
+		},
+		{
+			value:       "invalid",
+			expect:      "",
+			expectError: true,
+			msg:         "invalid value",
+		},
+		{
+			value:       "yes",
+			expect:      "",
+			expectError: true,
+			msg:         "invalid value yes",
+		},
+		{
+			value:       "",
+			expect:      "",
+			expectError: true,
+			msg:         "empty value",
+		},
+	}
+	for _, test := range tests {
+		cm := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+			Data: map[string]string{},
+		}
+		cm.Data["add-header-inherit"] = test.value
+		result, configOK := ParseConfigMap(context.Background(), cm, false, false, false, false, false, makeEventLogger())
+		if result.AddHeaderInherit != test.expect {
+			t.Errorf("ParseConfigMap() returned AddHeaderInherit=%q but expected %q for the case: %s", result.AddHeaderInherit, test.expect, test.msg)
+		}
+		if test.expectError && configOK {
+			t.Errorf("ParseConfigMap() returned configOK=true but expected false for the case: %s", test.msg)
+		}
+		if !test.expectError && !configOK {
+			t.Errorf("ParseConfigMap() returned configOK=false but expected true for the case: %s", test.msg)
+		}
+	}
 }

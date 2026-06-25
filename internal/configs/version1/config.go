@@ -80,10 +80,17 @@ type LimitReqZone struct {
 
 // Server describes an NGINX server.
 type Server struct {
+	AddHeaderInherit       string
 	ServerSnippets         []string
 	Name                   string
+	IsDefaultServer        bool
+	AccessLogOff           bool
+	DefaultServerReturn    string
+	HealthStatus           bool
+	HealthStatusURI        string
 	ServerTokens           string
 	Locations              []Location
+	EgressMTLS             *version2.EgressMTLS
 	SSL                    bool
 	SSLCertificate         string
 	SSLCertificateKey      string
@@ -92,6 +99,8 @@ type Server struct {
 	SSLRejectHandshake     bool
 	TLSPassthrough         bool
 	GRPCOnly               bool
+	IngressMTLS            *version2.IngressMTLS
+	HasGRPCLocations       bool
 	StatusZone             string
 	HTTP2                  bool
 	RedirectToHTTPS        bool
@@ -104,8 +113,10 @@ type Server struct {
 	HSTSBehindProxy        bool
 	ProxyHideHeaders       []string
 	ProxyPassHeaders       []string
+	AddHeaders             []version2.AddHeader
 	Allow                  []string
 	Deny                   []string
+	PoliciesErrorReturn    *version2.Return
 
 	HealthChecks map[string]HealthCheck
 
@@ -114,6 +125,7 @@ type Server struct {
 	RealIPRecursive bool
 
 	JWTAuth              *JWTAuth
+	ExternalAuth         *version2.ExternalAuth
 	BasicAuth            *BasicAuth
 	JWTRedirectLocations []JWTRedirectLocation
 
@@ -133,10 +145,14 @@ type Server struct {
 	AppProtectDosName            string
 	AppProtectDosAllowListPath   string
 	AppProtectDosAccessLogDst    string
+	WAF                          *version2.WAF
 
 	SpiffeCerts bool
 
 	DisableIPV6 bool
+
+	ProxyRedirectFrom string
+	ProxyRedirectTo   string
 
 	AppRoot string
 }
@@ -174,40 +190,56 @@ type LimitReq struct {
 
 // Location describes an NGINX location.
 type Location struct {
-	LocationSnippets     []string
-	Path                 string
-	Upstream             Upstream
-	ProxyConnectTimeout  string
-	ProxyReadTimeout     string
-	ProxySendTimeout     string
-	ProxySetHeaders      []version2.Header
-	ClientMaxBodySize    string
-	ClientBodyBufferSize string
-	Websocket            bool
-	Rewrite              string
-	RewriteTarget        string
-	SSL                  bool
-	GRPC                 bool
-	ProxyBuffering       bool
-	ProxyBuffers         string
-	ProxyBufferSize      string
-	ProxyBusyBuffersSize string
-	ProxyMaxTempFileSize string
-	ProxySSLName         string
-	AddHeaders           []version2.AddHeader
-	JWTAuth              *JWTAuth
-	BasicAuth            *BasicAuth
-	ServiceName          string
-	LimitReq             *LimitReq
-	CORSEnabled          bool
+	AddHeaderInherit        string
+	LocationSnippets        []string
+	Path                    string
+	Upstream                Upstream
+	ProxyPass               string
+	ProxyPassRequestBody    string
+	ProxyPassRequestHeaders string
+	ProxyConnectTimeout     string
+	ProxyReadTimeout        string
+	ProxySendTimeout        string
+	ProxySetHeaders         []version2.Header
+	ClientMaxBodySize       string
+	ClientBodyBufferSize    string
+	Websocket               bool
+	Rewrite                 string
+	RewriteTarget           string
+	SSL                     bool
+	GRPC                    bool
+	ProxyBuffering          bool
+	ProxyBuffers            string
+	ProxyBufferSize         string
+	ProxyBusyBuffersSize    string
+	ProxyMaxTempFileSize    string
+	ProxySSLName            string
+	AddHeaders              []version2.AddHeader
+	JWTAuth                 *JWTAuth
+	ExternalAuth            *version2.ExternalAuth
+	BasicAuth               *BasicAuth
+	ServiceName             string
+	LimitReq                *LimitReq
+	CORSEnabled             bool
+
+	AuthRequestOff bool
+	Internal       bool
 
 	MinionIngress *Ingress
 
-	ProxyNextUpstream        string
-	ProxyNextUpstreamTimeout string
-	ProxyNextUpstreamTries   *uint64
-	Allow                    []string
-	Deny                     []string
+	ProxyNextUpstream          string
+	ProxyNextUpstreamTimeout   string
+	ProxyNextUpstreamTries     *uint64
+	ProxyRedirectFrom          string
+	ProxyRedirectTo            string
+	ProxySSLVerify             bool
+	ProxySSLVerifyDepth        int
+	ProxySSLTrustedCertificate string
+	Allow                      []string
+	Deny                       []string
+	WAF                        *version2.WAF
+	EgressMTLS                 *version2.EgressMTLS
+	PoliciesErrorReturn        *version2.Return
 }
 
 // ZoneSyncConfig is tbe configuration for the zone_sync directives for state sharing.
@@ -256,16 +288,12 @@ type MGMTConfig struct {
 // MainConfig describe the main NGINX configuration file.
 type MainConfig struct {
 	AccessLog                          string
-	DefaultServerAccessLogOff          bool
-	DefaultServerReturn                string
+	AddHeaderInherit                   string
 	DisableIPV6                        bool
-	DefaultHTTPListenerPort            int
-	DefaultHTTPSListenerPort           int
 	ErrorLogLevel                      string
-	HealthStatus                       bool
-	HealthStatusURI                    string
 	HTTP2                              bool
 	HTTPSnippets                       []string
+	AddHeaders                         []version2.AddHeader
 	KeepaliveRequests                  int64
 	KeepaliveTimeout                   string
 	LogFormat                          []string
@@ -286,16 +314,12 @@ type MainConfig struct {
 	ResolverIPV6                       bool
 	ResolverTimeout                    string
 	ResolverValid                      string
-	RealIPHeader                       string
-	RealIPRecursive                    bool
 	SetRealIPFrom                      []string
 	ServerNamesHashBucketSize          string
 	ServerNamesHashMaxSize             string
 	MapHashBucketSize                  string
 	MapHashMaxSize                     string
 	ClientBodyBufferSize               string
-	ServerTokens                       string
-	SSLRejectHandshake                 bool
 	SSLCiphers                         string
 	SSLDHParam                         string
 	SSLPreferServerCiphers             bool

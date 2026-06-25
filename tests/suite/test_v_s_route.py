@@ -5,6 +5,7 @@ from settings import TEST_DATA
 from suite.utils.custom_assertions import (
     assert_event_and_count,
     assert_event_and_get_count,
+    assert_event_count_increased,
     assert_event_with_full_equality_and_count,
     assert_valid_vs,
     assert_valid_vsr,
@@ -13,8 +14,10 @@ from suite.utils.resources_utils import (
     create_service_with_name,
     delete_service,
     get_events,
+    get_events_for_object,
     get_first_pod_name,
     get_vs_nginx_template_conf,
+    print_events,
     read_service,
     replace_service,
     wait_before_test,
@@ -58,10 +61,21 @@ def assert_locations_not_in_config(config, paths):
     indirect=True,
 )
 class TestVirtualServerRoute:
-    @pytest.mark.flaky(max_runs=3)
     def test_responses_and_events_in_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup, v_s_route_app_setup
     ):
+        assert_valid_vs(
+            kube_apis,
+            v_s_route_setup.namespace,
+            v_s_route_setup.vs_name,
+        )
+
+        assert_valid_vsr(
+            kube_apis,
+            v_s_route_setup.route_s.namespace,
+            v_s_route_setup.route_s.name,
+        )
+
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
         ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         vs_name = f"{v_s_route_setup.namespace}/{v_s_route_setup.vs_name}"
@@ -83,14 +97,22 @@ class TestVirtualServerRoute:
         resp_1 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[0]}", headers={"host": v_s_route_setup.vs_host})
         resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
         resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name
+        )
+        events_vs = get_events_for_object(kube_apis.v1, v_s_route_setup.namespace, v_s_route_setup.vs_name)
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_s.namespace, v_s_route_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
         assert_locations_in_config(initial_config, v_s_route_setup.route_m.paths)
         assert_locations_in_config(initial_config, v_s_route_setup.route_s.paths)
-        initial_count_vsr_1 = assert_event_and_get_count(vsr_1_event_text, events_ns_1)
-        initial_count_vs = assert_event_and_get_count(vs_event_text, events_ns_1)
-        initial_count_vsr_2 = assert_event_and_get_count(vsr_2_event_text, events_ns_2)
+        initial_count_vsr_1 = assert_event_and_get_count(vsr_1_event_text, events_vsr_1)
+        initial_count_vs = assert_event_and_get_count(vs_event_text, events_vs)
+        initial_count_vsr_2 = assert_event_and_get_count(vsr_2_event_text, events_vsr_2)
 
         print("\nStep 2: update multiple VSRoute and check")
         patch_v_s_route_from_yaml(
@@ -105,12 +127,20 @@ class TestVirtualServerRoute:
         resp_2 = requests.get(f"{req_url}{new_vsr_paths[1]}", headers={"host": v_s_route_setup.vs_host})
         resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 1, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 1, events_ns_1)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name
+        )
+        events_vs = get_events_for_object(kube_apis.v1, v_s_route_setup.namespace, v_s_route_setup.vs_name)
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_s.namespace, v_s_route_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, initial_count_vsr_1, events_vsr_1)
+        current_vs_count = assert_event_count_increased(vs_event_text, initial_count_vs, events_vs)
         # 2nd VSRoute gets an event about update too
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 1, events_ns_2)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, initial_count_vsr_2, events_vsr_2)
 
         print("\nStep 3: restore VSRoute and check")
         patch_v_s_route_from_yaml(
@@ -124,11 +154,19 @@ class TestVirtualServerRoute:
         resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
         resp_3 = requests.get(f"{req_url}{v_s_route_setup.route_s.paths[0]}", headers={"host": v_s_route_setup.vs_host})
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 2, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 2, events_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 2, events_ns_2)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name
+        )
+        events_vs = get_events_for_object(kube_apis.v1, v_s_route_setup.namespace, v_s_route_setup.vs_name)
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_s.namespace, v_s_route_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_vsr_1)
+        current_vs_count = assert_event_count_increased(vs_event_text, current_vs_count, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_vsr_2)
 
         print("\nStep 4: update one backend service port and check")
         svc_1 = read_service(kube_apis.v1, "backend1-svc", v_s_route_setup.route_m.namespace)
@@ -139,11 +177,19 @@ class TestVirtualServerRoute:
         resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
         assert resp_1.status_code == 502
         assert resp_2.status_code == 200
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 3, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 3, events_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 3, events_ns_2)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name
+        )
+        events_vs = get_events_for_object(kube_apis.v1, v_s_route_setup.namespace, v_s_route_setup.vs_name)
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_s.namespace, v_s_route_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_vsr_1)
+        current_vs_count = assert_event_count_increased(vs_event_text, current_vs_count, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_vsr_2)
 
         print("\nStep 5: restore backend service and check")
         svc_1 = read_service(kube_apis.v1, "backend1-svc", v_s_route_setup.route_m.namespace)
@@ -154,11 +200,19 @@ class TestVirtualServerRoute:
         resp_2 = requests.get(f"{req_url}{v_s_route_setup.route_m.paths[1]}", headers={"host": v_s_route_setup.vs_host})
         assert resp_1.status_code == 200
         assert resp_2.status_code == 200
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 4, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 4, events_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 4, events_ns_2)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name
+        )
+        events_vs = get_events_for_object(kube_apis.v1, v_s_route_setup.namespace, v_s_route_setup.vs_name)
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_setup.route_s.namespace, v_s_route_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_vsr_1)
+        current_vs_count = assert_event_count_increased(vs_event_text, current_vs_count, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_vsr_2)
 
         print("\nStep 6: remove VSRoute and check")
         delete_v_s_route(kube_apis.custom_objects, v_s_route_setup.route_m.name, v_s_route_setup.namespace)
@@ -179,11 +233,12 @@ class TestVirtualServerRoute:
         events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
         events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
         assert_locations_not_in_config(new_config, v_s_route_setup.route_m.paths)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 4, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 4, events_ns_1)
+        # reset count to 0 because we want to check that the event is added, not just updated, and the event is about deletion of the VSRoute, not about update, so count is not increased but just set to 0 because the event is updated, not added
+        current_vsr1_count = assert_event_and_get_count(vsr_1_event_text, events_ns_1)
+        current_vs_count = assert_event_and_get_count(vs_event_text, events_ns_1)
         # a warning event because the VS references a non-existing VSR
         assert_event_with_full_equality_and_count(vs_warning_event_text, 1, events_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 5, events_ns_2)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_ns_2)
 
         print("\nStep 7: restore VSRoute and check")
         create_v_s_route_from_yaml(
@@ -204,9 +259,12 @@ class TestVirtualServerRoute:
         events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
         events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
         assert_locations_in_config(new_config, v_s_route_setup.route_m.paths)
-        assert_event_and_count(vsr_1_event_text, 1, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 5, events_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 6, events_ns_2)
+        # reset count to 1 because we want to check that the event is added, not just updated
+        current_vsr1_count = assert_event_and_get_count(vsr_1_event_text, events_ns_1)
+        # restore of the VSRoute gets an event about update but not about add, so count is not increased but just set to 1 because the event is updated, not added
+        current_vs_count = assert_event_and_get_count(vs_event_text, events_ns_1)
+        # restore of the 2nd VSRoute gets an event about update too
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_ns_2)
 
         print("\nStep 8: remove one backend service and check")
         delete_service(kube_apis.v1, "backend1-svc", v_s_route_setup.route_m.namespace)
@@ -219,9 +277,9 @@ class TestVirtualServerRoute:
         assert resp_3.status_code == 200
         events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
         events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, 2, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 6, events_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 7, events_ns_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_ns_1)
+        current_vs_count = assert_event_and_get_count(vs_event_text, events_ns_1)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_ns_2)
 
         print("\nStep 9: restore backend service and check")
         create_service_with_name(kube_apis.v1, v_s_route_setup.route_m.namespace, "backend1-svc")
@@ -232,9 +290,9 @@ class TestVirtualServerRoute:
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
         events_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
         events_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, 3, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 7, events_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 8, events_ns_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_ns_1)
+        current_vs_count = assert_event_and_get_count(vs_event_text, events_ns_1)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_ns_2)
 
         print("\nStep 10: remove VS and check")
         delete_virtual_server(kube_apis.custom_objects, v_s_route_setup.vs_name, v_s_route_setup.namespace)
@@ -247,9 +305,9 @@ class TestVirtualServerRoute:
         assert resp_3.status_code == 404
         list0_list_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
         list0_list_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, 3, list0_list_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 7, list0_list_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 8, list0_list_ns_2)
+        current_vsr1_count = assert_event_and_get_count(vsr_1_event_text, list0_list_ns_1)
+        current_vs_count = assert_event_and_get_count(vs_event_text, list0_list_ns_1)
+        current_vsr2_count = assert_event_and_get_count(vsr_2_event_text, list0_list_ns_2)
 
         print("\nStep 11: restore VS and check")
         create_virtual_server_from_yaml(
@@ -264,9 +322,9 @@ class TestVirtualServerRoute:
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
         list1_list_ns_1 = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
         list1_list_ns_2 = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, 4, list1_list_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, 1, list1_list_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 9, list1_list_ns_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, list1_list_ns_1)
+        current_vs_count = assert_event_and_get_count(vs_event_text, list1_list_ns_1)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, list1_list_ns_2)
 
 
 @pytest.mark.vsr
@@ -350,16 +408,12 @@ class TestVirtualServerRouteValidation:
             ingress_controller_prerequisites.namespace,
         )
         route_yaml = f"{TEST_DATA}/virtual-server-route/route-single-invalid-openapi.yaml"
-        try:
+        with pytest.raises(ApiException) as exc_info:
             patch_v_s_route_from_yaml(
                 kube_apis.custom_objects, v_s_route_setup.route_s.name, route_yaml, v_s_route_setup.route_s.namespace
             )
-        except ApiException as ex:
-            assert ex.status == 422 and "action.pass in body must be of type" in ex.body
-        except Exception as ex:
-            pytest.fail(f"An unexpected exception is raised: {ex}")
-        else:
-            pytest.fail("Expected an exception but there was none")
+        assert exc_info.value.status == 422
+        assert "action.pass in body must be of type" in exc_info.value.body
 
         wait_before_test(1)
         config_new = get_vs_nginx_template_conf(
@@ -459,7 +513,6 @@ class TestVirtualServerRouteSelector:
         vsr_2_name = f"{v_s_route_selector_setup.route_s.namespace}/{v_s_route_selector_setup.route_s.name}"
         vsr_1_event_text = f"Configuration for {vsr_1_name} was added or updated"
         vs_event_text = f"Configuration for {vs_name} was added or updated"
-        vs_warning_event_text = f"Configuration for {vs_name} was added or updated with warning(s): VirtualServerRoute {vsr_1_name} doesn't exist or invalid"
         vsr_2_event_text = f"Configuration for {vsr_2_name} was added or updated"
         initial_config = get_vs_nginx_template_conf(
             kube_apis.v1,
@@ -480,17 +533,24 @@ class TestVirtualServerRouteSelector:
         resp_3 = requests.get(
             f"{req_url}{v_s_route_selector_setup.route_s.paths[0]}", headers={"host": v_s_route_selector_setup.vs_host}
         )
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
-        events_vs = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_m.namespace, v_s_route_selector_setup.route_m.name
+        )
+        events_vs = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.namespace, v_s_route_selector_setup.vs_name
+        )
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_s.namespace, v_s_route_selector_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
         assert_locations_in_config(initial_config, v_s_route_selector_setup.route_m.paths)
         assert_locations_in_config(initial_config, v_s_route_selector_setup.route_s.paths)
-        initial_count_vsr_1 = assert_event_and_get_count(vsr_1_event_text, events_ns_1)
+        initial_count_vsr_1 = assert_event_and_get_count(vsr_1_event_text, events_vsr_1)
         initial_count_vs = assert_event_and_get_count(vs_event_text, events_vs)
-        initial_count_vsr_2 = assert_event_and_get_count(vsr_2_event_text, events_ns_2)
-
-        print(f"{initial_count_vsr_1}, {initial_count_vs}, {initial_count_vsr_2}, {vs_warning_event_text}")
+        initial_count_vsr_2 = assert_event_and_get_count(vsr_2_event_text, events_vsr_2)
 
         print("\nStep 2: update multiple VSRoute and check")
         patch_v_s_route_from_yaml(
@@ -507,13 +567,22 @@ class TestVirtualServerRouteSelector:
             f"{req_url}{v_s_route_selector_setup.route_s.paths[0]}", headers={"host": v_s_route_selector_setup.vs_host}
         )
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
-        events_vs = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 1, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 1, events_vs)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_m.namespace, v_s_route_selector_setup.route_m.name
+        )
+        events_vs = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.namespace, v_s_route_selector_setup.vs_name
+        )
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_s.namespace, v_s_route_selector_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, initial_count_vsr_1, events_vsr_1)
+        current_vs_count = assert_event_count_increased(vs_event_text, initial_count_vs, events_vs)
         # 2nd VSRoute gets an event about update too
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 1, events_ns_2)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, initial_count_vsr_2, events_vsr_2)
 
         print("\nStep 3: restore VSRoute and check")
         patch_v_s_route_from_yaml(
@@ -533,12 +602,21 @@ class TestVirtualServerRouteSelector:
             f"{req_url}{v_s_route_selector_setup.route_s.paths[0]}", headers={"host": v_s_route_selector_setup.vs_host}
         )
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
-        events_vs = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 2, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 2, events_vs)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 2, events_ns_2)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_m.namespace, v_s_route_selector_setup.route_m.name
+        )
+        events_vs = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.namespace, v_s_route_selector_setup.vs_name
+        )
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_s.namespace, v_s_route_selector_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_vsr_1)
+        current_vs_count = assert_event_count_increased(vs_event_text, current_vs_count, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_vsr_2)
 
         print("\nStep 4: update one backend service port and check")
         svc_1 = read_service(kube_apis.v1, "backend1-svc", v_s_route_selector_setup.route_m.namespace)
@@ -553,12 +631,21 @@ class TestVirtualServerRouteSelector:
         )
         assert resp_1.status_code == 502
         assert resp_2.status_code == 200
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
-        events_vs = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 3, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 3, events_vs)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 3, events_ns_2)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_m.namespace, v_s_route_selector_setup.route_m.name
+        )
+        events_vs = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.namespace, v_s_route_selector_setup.vs_name
+        )
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_s.namespace, v_s_route_selector_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_vsr_1)
+        current_vs_count = assert_event_count_increased(vs_event_text, current_vs_count, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_vsr_2)
 
         print("\nStep 5: restore backend service and check")
         svc_1 = read_service(kube_apis.v1, "backend1-svc", v_s_route_selector_setup.route_m.namespace)
@@ -573,12 +660,21 @@ class TestVirtualServerRouteSelector:
         )
         assert resp_1.status_code == 200
         assert resp_2.status_code == 200
-        events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
-        events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
-        events_vs = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 4, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 4, events_vs)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 4, events_ns_2)
+        events_vsr_1 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_m.namespace, v_s_route_selector_setup.route_m.name
+        )
+        events_vs = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.namespace, v_s_route_selector_setup.vs_name
+        )
+        events_vsr_2 = get_events_for_object(
+            kube_apis.v1, v_s_route_selector_setup.route_s.namespace, v_s_route_selector_setup.route_s.name
+        )
+        print_events(events_vsr_1)
+        print_events(events_vs)
+        print_events(events_vsr_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_vsr_1)
+        current_vs_count = assert_event_count_increased(vs_event_text, current_vs_count, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_vsr_2)
 
         print("\nStep 6: remove VSRoute and check")
         delete_v_s_route(
@@ -607,11 +703,8 @@ class TestVirtualServerRouteSelector:
         events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
         events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
         assert_locations_not_in_config(new_config, v_s_route_selector_setup.route_m.paths)
-        assert_event_and_count(vsr_1_event_text, initial_count_vsr_1 + 4, events_ns_1)
-        # assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 4, events_ns_1)
-        # # a warning event because the VS references a non-existing VSR
-        # assert_event_with_full_equality_and_count(vs_warning_event_text, 1, events_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 5, events_ns_2)
+        current_vsr1_count = assert_event_and_get_count(vsr_1_event_text, events_ns_1)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_ns_2)
 
         print("\nStep 7: restore VSRoute and check")
         create_v_s_route_from_yaml(
@@ -641,9 +734,9 @@ class TestVirtualServerRouteSelector:
         events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
         events_vs = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
         assert_locations_in_config(new_config, v_s_route_selector_setup.route_m.paths)
-        assert_event_and_count(vsr_1_event_text, 1, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 6, events_vs)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 6, events_ns_2)
+        current_vsr1_count = assert_event_and_get_count(vsr_1_event_text, events_ns_1)
+        current_vs_count = assert_event_and_get_count(vs_event_text, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_ns_2)
 
         print("\nStep 8: remove one backend service and check")
         delete_service(kube_apis.v1, "backend1-svc", v_s_route_selector_setup.route_m.namespace)
@@ -663,9 +756,9 @@ class TestVirtualServerRouteSelector:
         events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
         events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
         events_vs = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
-        assert_event_and_count(vsr_1_event_text, 2, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 7, events_vs)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 7, events_ns_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_ns_1)
+        current_vs_count = assert_event_and_get_count(vs_event_text, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_ns_2)
 
         print("\nStep 9: restore backend service and check")
         create_service_with_name(kube_apis.v1, v_s_route_selector_setup.route_m.namespace, "backend1-svc")
@@ -683,9 +776,9 @@ class TestVirtualServerRouteSelector:
         events_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
         events_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
         events_vs = get_events(kube_apis.v1, v_s_route_selector_setup.namespace)
-        assert_event_and_count(vsr_1_event_text, 3, events_ns_1)
-        assert_event_with_full_equality_and_count(vs_event_text, initial_count_vs + 8, events_vs)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 8, events_ns_2)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, events_ns_1)
+        current_vs_count = assert_event_and_get_count(vs_event_text, events_vs)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, events_ns_2)
 
         print("\nStep 10: remove VS and check")
         delete_virtual_server(
@@ -706,8 +799,8 @@ class TestVirtualServerRouteSelector:
         assert resp_3.status_code == 404
         list0_list_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
         list0_list_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, 3, list0_list_ns_1)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 8, list0_list_ns_2)
+        current_vsr1_count = assert_event_and_get_count(vsr_1_event_text, list0_list_ns_1)
+        current_vsr2_count = assert_event_and_get_count(vsr_2_event_text, list0_list_ns_2)
 
         print("\nStep 11: restore VS and check")
         create_virtual_server_from_yaml(
@@ -728,6 +821,6 @@ class TestVirtualServerRouteSelector:
         assert_responses_and_server_name(resp_1, resp_2, resp_3)
         list1_list_ns_1 = get_events(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
         list1_list_ns_2 = get_events(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
-        assert_event_and_count(vsr_1_event_text, 4, list1_list_ns_1)
+        current_vsr1_count = assert_event_count_increased(vsr_1_event_text, current_vsr1_count, list1_list_ns_1)
         assert_event_with_full_equality_and_count(vs_event_text, 1, list1_list_ns_2)
-        assert_event_and_count(vsr_2_event_text, initial_count_vsr_2 + 9, list1_list_ns_2)
+        current_vsr2_count = assert_event_count_increased(vsr_2_event_text, current_vsr2_count, list1_list_ns_2)

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,41 +30,6 @@ var ingress = networking.Ingress{
 		Kind:       "Ingress",
 		APIVersion: "extensions/v1beta1",
 	},
-}
-
-func TestParseProxySetHeader_ReturnsHeadersOnValidInput(t *testing.T) {
-	t.Parallel()
-
-	got := parseProxySetHeaders([]string{"abc:def"})
-	want := []version2.Header{
-		{
-			Name:  "abc",
-			Value: "def",
-		},
-	}
-	if !cmp.Equal(want, got) {
-		t.Errorf("want %v, got %v", want, got)
-	}
-}
-
-func TestParseProxySetHeaders_ReturnsEmptyHeaderOnEmptyInput(t *testing.T) {
-	t.Parallel()
-
-	got := parseProxySetHeaders([]string{""})
-	want := make([]version2.Header, 1)
-
-	if !cmp.Equal(want, got) {
-		t.Error(cmp.Diff(want, got))
-	}
-}
-
-func TestParseProxySetHeaders_ReturnsNilOnInputWithNoHeaders(t *testing.T) {
-	t.Parallel()
-
-	got := parseProxySetHeaders([]string{})
-	if got != nil {
-		t.Errorf("want nil headers, got %v", got)
-	}
 }
 
 func TestParseStickyServicesLists_FailsOnBogusInputString(t *testing.T) {
@@ -736,6 +700,31 @@ func TestParseBool(t *testing.T) {
 		if err == nil {
 			t.Errorf("TestParseBool(%q) does not return an error for invalid input", input)
 		}
+	}
+}
+
+func TestParseAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+
+	testsWithValidInput := []string{
+		addHeaderInheritOn,
+		addHeaderInheritOff,
+		addHeaderInheritMerge,
+	}
+
+	for _, input := range testsWithValidInput {
+		result, err := ParseAddHeaderInherit(input)
+		if err != nil {
+			t.Fatalf("TestParseAddHeaderInherit(%q) returned an error for valid input", input)
+		}
+
+		if result != input {
+			t.Errorf("TestParseAddHeaderInherit(%q) returned %q expected %q", input, result, input)
+		}
+	}
+
+	if _, err := ParseAddHeaderInherit(""); err == nil {
+		t.Error("TestParseAddHeaderInherit(\"\") does not return an error for invalid input")
 	}
 }
 
