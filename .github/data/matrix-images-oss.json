@@ -1,7 +1,7 @@
 {
   "image": [
-    "debian-oss",
-    "alpine-oss"
+    "debian",
+    "alpine"
   ],
   "platforms": [
     "linux/arm64, linux/amd64"
