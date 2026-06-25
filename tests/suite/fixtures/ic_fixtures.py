@@ -327,8 +327,12 @@ def crd_ingress_controller_with_waf_v5(
                 tty=False,
                 _preload_content=False,
             )
-            resp.write_stdin(file_content)
-            resp.write_stdin(None)  # signal EOF so cat exits cleanly
+            # Send data in chunks to avoid websocket frame size issues, then
+            # drain the stream so cat finishes writing before we close.
+            chunk_size = 1024 * 1024  # 1 MiB
+            for i in range(0, len(file_content), chunk_size):
+                resp.write_stdin(file_content[i : i + chunk_size])
+            # Allow the exec command to finish flushing to disk.
             while resp.is_open():
                 resp.update(timeout=5)
             resp.close()
