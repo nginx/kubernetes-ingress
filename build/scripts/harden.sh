@@ -32,7 +32,7 @@ is_plus() { echo "${BUILD_OS:-}" | grep -q "plus"; }
 is_waf_v4() { [ -f /opt/app_protect/VERSION.common ]; }
 
 is_waf_v5() {
-    [ -f /usr/lib/libsocketplugin.so ] || [ -f /usr/lib64/libsocketplugin.so ]
+    [ -f /opt/app_protect/VERSION ] && [ ! -f /opt/app_protect/VERSION.common ]
 }
 
 is_waf() { is_waf_v4 || is_waf_v5; }
