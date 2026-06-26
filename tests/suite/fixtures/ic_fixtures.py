@@ -312,9 +312,9 @@ def crd_ingress_controller_with_waf_v5(
             with open(f"{dir}/wafv5.tgz", "rb") as f:
                 file_content = f.read()
             dest_path = "/etc/app_protect/bundles/wafv5.tgz"
-            exec_command = ["sh", "-c", f"cat > {dest_path}"]
             pod_name = get_first_pod_name(kube_apis.v1, namespace)
             container_name = "nginx-plus-ingress"
+            exec_command = ["sh", "-c", f"head -c {len(file_content)} > {dest_path}"]
             resp = stream(
                 kube_apis.v1.connect_get_namespaced_pod_exec,
                 pod_name,
@@ -327,14 +327,9 @@ def crd_ingress_controller_with_waf_v5(
                 tty=False,
                 _preload_content=False,
             )
-            # Send data in chunks to avoid websocket frame size issues, then
-            # drain the stream so cat finishes writing before we close.
             chunk_size = 1024 * 1024  # 1 MiB
             for i in range(0, len(file_content), chunk_size):
                 resp.write_stdin(file_content[i : i + chunk_size])
-            # Allow the exec command to finish flushing to disk.
-            while resp.is_open():
-                resp.update(timeout=5)
             resp.close()
 
             # Verify the file was written completely.

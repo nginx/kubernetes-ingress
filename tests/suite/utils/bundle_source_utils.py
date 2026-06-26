@@ -89,7 +89,11 @@ def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str) -> None:
     with open(WAF_BUNDLE_PATH, "rb") as f:
         file_content = f.read()
 
-    exec_command = ["sh", "-c", "cat > /www/bundles/wafv5.tgz"]
+    # Use head -c to read exactly the right number of bytes — cat would
+    # hang forever waiting for EOF on stdin since the k8s websocket stream
+    # has no reliable way to signal EOF.
+    dest_path = "/www/bundles/wafv5.tgz"
+    exec_command = ["sh", "-c", f"head -c {len(file_content)} > {dest_path}"]
     resp = stream(
         v1.connect_get_namespaced_pod_exec,
         pod_name,
@@ -102,18 +106,12 @@ def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str) -> None:
         tty=False,
         _preload_content=False,
     )
-    # Send data in chunks to avoid websocket frame size issues, then
-    # drain the stream so cat finishes writing before we close.
     chunk_size = 1024 * 1024  # 1 MiB
     for i in range(0, len(file_content), chunk_size):
         resp.write_stdin(file_content[i : i + chunk_size])
-    # Allow the exec command to finish flushing to disk.
-    while resp.is_open():
-        resp.update(timeout=5)
     resp.close()
 
-    # Verify the file was written completely as a safety net.
-    dest_path = "/www/bundles/wafv5.tgz"
+    # Verify the file was written completely.
     result = stream(
         v1.connect_get_namespaced_pod_exec,
         pod_name,
