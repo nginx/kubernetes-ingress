@@ -257,7 +257,8 @@ def setup_bundle_server(kube_apis, namespace: str) -> BundleServerSetup:
     """
     create_bundle_server_secrets(kube_apis.v1, namespace)
     deploy_bundle_server(kube_apis, namespace)
-    wait_before_test(2)
+    # Allow time for service endpoints to fully propagate (especially mTLS on port 443).
+    wait_before_test(5)
 
     return BundleServerSetup(
         insecure_url=bundle_server_insecure_url(namespace),

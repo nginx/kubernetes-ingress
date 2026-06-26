@@ -54,7 +54,7 @@ def bundle_server(kube_apis, test_namespace) -> BundleServerSetup:
 
 IC_PARAMS = {
     "type": "complete",
-    "extra_args": ["-enable-app-protect"],
+    "extra_args": ["-enable-app-protect", "-enable-leader-election=false"],
 }
 VS_PARAMS = {
     "example": "ap-waf-v5",

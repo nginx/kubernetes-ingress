@@ -265,14 +265,14 @@ def crd_ingress_controller_with_waf_v5(
     )
 
     rbac = None
+    ap_pol_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_appolicies.yaml")
+    ap_log_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_aplogconfs.yaml")
+    ap_uds_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_apusersigs.yaml")
     try:
         print("--------------------Create roles and bindings for AppProtect------------------------")
         rbac = configure_rbac_with_ap(kube_apis.rbac_v1)
 
         print("------------------------- Register AP CRD -----------------------------------")
-        ap_pol_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_appolicies.yaml")
-        ap_log_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_aplogconfs.yaml")
-        ap_uds_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_apusersigs.yaml")
         create_crd_from_yaml(
             kube_apis.api_extensions_v1,
             ap_pol_crd_name,
