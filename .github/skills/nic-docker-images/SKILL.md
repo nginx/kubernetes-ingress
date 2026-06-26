@@ -14,7 +14,11 @@ nginx-files (scratch)           <- Collects repo files, signing keys, scripts
   |
 OS-specific base stages         <- One per variant (debian, alpine, ubi, *-plus, *-nap)
   |
-FROM ${BUILD_OS} AS common      <- Runs common.sh + patch-os.sh, sets permissions
+FROM ${BUILD_OS} AS common      <- patch-os.sh -> common.sh -> harden.sh
+  |                                 (harden.sh purges runtime-unused packages
+  |                                  and runs ldd verification; build fails
+  |                                  if any runtime binary loses a NEEDED lib)
+  |                                 Copies ldd-analyze.sh to /usr/local/bin
   |
 TARGET stages (final image)     <- local, container, goreleaser, debug, download, aws, patched
 ```
@@ -100,6 +104,56 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 | `nap-dos.sh` | Creates DoS directories (`/root/app_protect_dos`, `/shared/cores`) |
 | `ubi-setup.sh` | UBI-specific: installs shadow-utils, creates nginx user/group (101:0) |
 | `ubi-clean.sh` | UBI-specific: removes build-time packages, cleans dnf cache |
+| `harden.sh` | Universal image hardener: purges runtime-unused packages, verifies every runtime binary still resolves all NEEDED libs (build fails if not). Reads `BUILD_OS` + `NAP_MODULES`. Runs in the `common` stage. |
+| `ldd-analyze.sh` | Read-only runtime-dependency inspector. Shipped at `/usr/local/bin/ldd-analyze.sh` in every built image. |
+
+---
+
+## Hardening (harden.sh + ldd-analyze.sh)
+
+Every built image goes through `harden.sh` automatically in the `common` stage. Hardening removes packages that no runtime binary needs, gated by `BUILD_OS` and `NAP_MODULES`.
+
+### Variant helpers in `harden.sh`
+
+| Helper | True when |
+| --- | --- |
+| `is_plus` | `BUILD_OS` contains `plus` |
+| `is_waf` | `BUILD_OS` contains `nap` |
+| `is_waf_v5` | `BUILD_OS` contains `nap-v5` |
+| `is_waf_v4` | `is_waf && ! is_waf_v5` |
+| `is_dos` | `NAP_MODULES` contains `dos` |
+| `needs_control_plane_runtime` | Alias for `is_waf_v4` -- gates retention of perl/sed/tar/libcurl-chain on Debian + libcurl/krb5/idn2/nghttp2 on UBI |
+
+### Things hardening preserves on every image
+
+- `libtinfo6` / `ncurses-libs` -- bash dep in downstream `local`/`debug` stages
+- `libcap2-bin` / `libcap` -- `setcap` in downstream stages
+- `dpkg` / `rpm` / `apk` -- the package manager performing the purges
+- `libgcrypt20` + `libgpg-error0` -- `ngx_http_xslt_filter_module.so`
+- `libbrotli1` -- `ngx_http_image_filter_module.so`
+
+### Verifying or inspecting an image
+
+```bash
+# Full runtime dependency report
+docker run --rm --entrypoint /usr/local/bin/ldd-analyze.sh <image>
+
+# Just the missing-libraries section (should always be empty)
+docker run --rm --entrypoint /usr/local/bin/ldd-analyze.sh <image> \
+    | sed -n '/=== Missing Libraries/,/=== /p'
+
+# Diff two images' runtime graphs (e.g. before/after a hardening change)
+docker run --rm --entrypoint /usr/local/bin/ldd-analyze.sh <image-old> > /tmp/old.txt
+docker run --rm --entrypoint /usr/local/bin/ldd-analyze.sh <image-new> > /tmp/new.txt
+diff /tmp/old.txt /tmp/new.txt
+```
+
+### When changing hardening
+
+- Removing a package from a purge list: run `ldd-analyze.sh` first, confirm no runtime binary NEEDs it.
+- Adding a package to a purge list: run `harden.sh` against every affected variant via `docker run -v $PWD/build/scripts/harden.sh:/usr/local/bin/harden.sh:ro --entrypoint /bin/sh <built-image> -c '/usr/local/bin/harden.sh'`. The script's own `verify_binaries` step will fail loudly if a runtime binary loses a NEEDED lib.
+- Adding a new runtime binary path to a variant: extend `verify_binaries()` in `harden.sh` AND the `BINARIES` list in `ldd-analyze.sh`.
+- Debian package names: cover the time_t-transition aliases (`libfoo` AND `libfoot64`) so the purge works on both Bookworm and Trixie.
 
 ---
 
@@ -123,4 +177,5 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 - The `common` stage unifies all variants -- changes there affect every image
 - `common.sh` detects Plus via `BUILD_OS` containing "plus" and creates OIDC directories
 - `patch-os.sh` handles OS-level security updates at build time
-- When adding new image dependencies, update the relevant OS-specific stage AND the common stage if needed
+- `harden.sh` runs in `common` and **fails the build** if it removes a package a runtime binary still NEEDs -- if a build breaks with `ERROR: Some binaries have missing libraries!`, run `ldd-analyze.sh` against the pre-harden image to find the right gate
+- When adding new image dependencies, update the relevant OS-specific stage AND the common stage if needed; if the dep is shared-lib, also confirm `harden.sh` does not purge it
