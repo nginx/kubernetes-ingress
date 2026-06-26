@@ -22,6 +22,7 @@ permissions:
 jobs:
   variables:
     name: Set variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -50,6 +51,7 @@ jobs:
 
   update-release-draft:
     name: Update Release Draft
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: [variables]
     permissions:

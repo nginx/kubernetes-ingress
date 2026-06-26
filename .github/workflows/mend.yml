@@ -29,7 +29,7 @@ permissions:
 jobs:
   scan:
     name: Mend
-    if: ${{ github.event.repository.fork == false }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (github.event.repository.fork == false)
     uses: nginx/compliance-rules/.github/workflows/mend.yml@543d32464b56e6a695939f41ba8009cbb10e413a # v0.3.3
     secrets: inherit
     with:

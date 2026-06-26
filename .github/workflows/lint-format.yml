@@ -21,6 +21,7 @@ jobs:
 
   format:
     name: Format
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -38,6 +39,7 @@ jobs:
 
   lint:
     name: Lint
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -65,6 +67,7 @@ jobs:
 
   actionlint:
     name: Actionlint
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -74,8 +77,13 @@ jobs:
         with:
           actionlint_flags: -shellcheck ""
 
+      - name: Validate Workflow Gating
+        run: |
+          .github/scripts/validate-workflow-gating.sh
+
   chart-lint:
     name: Chart Lint
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -91,6 +99,7 @@ jobs:
 
   markdown-lint:
     name: Markdown Lint
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
