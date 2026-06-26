@@ -6,7 +6,6 @@ import time
 
 import pytest
 from kubernetes.client.rest import ApiException
-from kubernetes.stream import stream
 from settings import CRDS, DEPLOYMENTS, NGX_REG, TEST_DATA
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.resources_utils import (
@@ -309,46 +308,17 @@ def crd_ingress_controller_with_waf_v5(
                 request.param.get("extra_args", None),
             )
         try:
-            with open(f"{dir}/wafv5.tgz", "rb") as f:
-                file_content = f.read()
-            dest_path = "/etc/app_protect/bundles/wafv5.tgz"
             pod_name = get_first_pod_name(kube_apis.v1, namespace)
-            container_name = "nginx-plus-ingress"
-            exec_command = ["sh", "-c", f"head -c {len(file_content)} > {dest_path}"]
-            resp = stream(
-                kube_apis.v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
-                container=container_name,
-                command=exec_command,
-                stderr=True,
-                stdin=True,
-                stdout=True,
-                tty=False,
-                _preload_content=False,
+            dest_path = "/etc/app_protect/bundles/wafv5.tgz"
+            src_path = f"{dir}/wafv5.tgz"
+            result = subprocess.run(
+                ["kubectl", "cp", src_path, f"{namespace}/{pod_name}:{dest_path}", "-c", "nginx-plus-ingress"],
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
-            chunk_size = 1024 * 1024  # 1 MiB
-            for i in range(0, len(file_content), chunk_size):
-                resp.write_stdin(file_content[i : i + chunk_size])
-            resp.close()
-
-            # Verify the file was written completely.
-            result = stream(
-                kube_apis.v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
-                container=container_name,
-                command=["sh", "-c", f"wc -c < {dest_path}"],
-                stderr=True,
-                stdin=False,
-                stdout=True,
-                tty=False,
-            )
-            actual_size = int(result.strip())
-            if actual_size != len(file_content):
-                raise RuntimeError(
-                    f"Bundle copy incomplete: wrote {actual_size} of {len(file_content)} bytes to {dest_path}"
-                )
+            if result.returncode != 0:
+                raise RuntimeError(f"kubectl cp failed: {result.stderr}")
 
         except Exception as ex:
             pytest.fail(f"Failed to copy WAFv5 bundle into the pod: {ex}")

@@ -7,10 +7,10 @@ Policy CRDs with apBundleSource.
 
 import logging
 import os
+import subprocess
 
 from kubernetes.client import CoreV1Api, CustomObjectsApi
 from kubernetes.client.rest import ApiException
-from kubernetes.stream import stream
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
     create_items_from_yaml,
@@ -78,54 +78,25 @@ def deploy_bundle_server(kube_apis, namespace: str) -> None:
 def _copy_bundle_to_pod(v1: CoreV1Api, namespace: str) -> None:
     """Copy the pre-compiled WAF bundle into the bundle-server pod.
 
-    Uses the same exec-stream pattern as crd_ingress_controller_with_waf_v5.
+    Uses kubectl cp which handles buffering and EOF signaling reliably,
+    unlike the kubernetes python client's websocket stream which can
+    truncate large files.
     """
     if not os.path.exists(WAF_BUNDLE_PATH):
         raise FileNotFoundError(f"WAF bundle not found: {WAF_BUNDLE_PATH}")
 
     pod_name = _get_bundle_server_pod(v1, namespace)
+    dest_path = "/www/bundles/wafv5.tgz"
     print(f"Copy WAF bundle to bundle-server pod {pod_name}")
 
-    with open(WAF_BUNDLE_PATH, "rb") as f:
-        file_content = f.read()
-
-    # Use head -c to read exactly the right number of bytes — cat would
-    # hang forever waiting for EOF on stdin since the k8s websocket stream
-    # has no reliable way to signal EOF.
-    dest_path = "/www/bundles/wafv5.tgz"
-    exec_command = ["sh", "-c", f"head -c {len(file_content)} > {dest_path}"]
-    resp = stream(
-        v1.connect_get_namespaced_pod_exec,
-        pod_name,
-        namespace,
-        container="nginx",
-        command=exec_command,
-        stderr=True,
-        stdin=True,
-        stdout=True,
-        tty=False,
-        _preload_content=False,
+    result = subprocess.run(
+        ["kubectl", "cp", WAF_BUNDLE_PATH, f"{namespace}/{pod_name}:{dest_path}", "-c", "nginx"],
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
-    chunk_size = 1024 * 1024  # 1 MiB
-    for i in range(0, len(file_content), chunk_size):
-        resp.write_stdin(file_content[i : i + chunk_size])
-    resp.close()
-
-    # Verify the file was written completely.
-    result = stream(
-        v1.connect_get_namespaced_pod_exec,
-        pod_name,
-        namespace,
-        container="nginx",
-        command=["sh", "-c", f"wc -c < {dest_path}"],
-        stderr=True,
-        stdin=False,
-        stdout=True,
-        tty=False,
-    )
-    actual_size = int(result.strip())
-    if actual_size != len(file_content):
-        raise RuntimeError(f"Bundle copy incomplete: wrote {actual_size} of {len(file_content)} bytes to {dest_path}")
+    if result.returncode != 0:
+        raise RuntimeError(f"kubectl cp failed: {result.stderr}")
     print("WAF bundle copied to bundle-server pod")
 
 
