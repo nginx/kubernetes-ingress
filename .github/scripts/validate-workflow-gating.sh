@@ -43,10 +43,9 @@ for file in $workflows; do
 
   # List each job that has an issue in it.
   if [ -n "$failed_jobs" ]; then
-    echo "❌ File '$file' has ungated jobs:"
-    # Indent and display each failed job
-    echo "$failed_jobs" | sed 's/^/  - Job: /'
-    errors=$((errors + 1))
+    while IFS= read -r job; do
+      [ -n "$job" ] && echo "  - Job: $job"
+    done <<< "$failed_jobs"
   fi
 done
 
