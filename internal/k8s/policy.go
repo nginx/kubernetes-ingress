@@ -105,19 +105,27 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			msg := fmt.Sprintf("Policy %v/%v was added or updated", pol.Namespace, pol.Name)
 			lbc.recorder.Event(pol, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
 
-			// Only set Valid if all expected bundle files are already on disk.
-			// If any bundle is still pending its initial fetch, skip the status update here:
-			// performInitialFetch will set Warning on failure, or the poller's syncCb will
-			// trigger a re-sync (which will then find the files and set Valid).
-			if lbc.reportCustomResourceStatusEnabled() && (!hasBundleSource(pol) || lbc.bundleFilesReady(pol)) {
+			if lbc.reportCustomResourceStatusEnabled() {
+				// If the policy uses bundle sources and the files are not yet on disk,
+				// set Warning instead of Valid. performInitialFetch will update with the
+				// specific error on failure, or the poller's syncCb will trigger a re-sync
+				// that sets Valid after a successful fetch.
+				state := conf_v1.StateValid
+				reason := "AddedOrUpdated"
+				statusMsg := msg
+				if hasBundleSource(pol) && !lbc.bundleFilesReady(pol) {
+					state = conf_v1.StateWarning
+					reason = "BundlePending"
+					statusMsg = fmt.Sprintf("Policy %v/%v: WAF bundle fetch pending", pol.Namespace, pol.Name)
+				}
 				// Defer policy status updates during startup to avoid serial
 				// API calls that block readiness. See flushPendingStatusesAsync().
 				if !lbc.isNginxReady {
 					lbc.pendingStatusPolicies = append(lbc.pendingStatusPolicies, pendingPolicyStatus{
-						pol: pol, state: conf_v1.StateValid, reason: "AddedOrUpdated", message: msg,
+						pol: pol, state: state, reason: reason, message: statusMsg,
 					})
 				} else {
-					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "AddedOrUpdated", msg)
+					err = lbc.statusUpdater.UpdatePolicyStatus(pol, state, reason, statusMsg)
 					if err != nil {
 						nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
 					}
