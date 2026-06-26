@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# This is called from the lint-format.yml workflow file.
+#
+# Purpose of this is to make sure that every job in workflow files that don't start with
+# "mirror-" have a gate that only runs them on the main repository (nginx/kubernetes-ingress).
+#
+# Workflow files starting with "mirror-" will be used in mirror repositories where slightly
+# different workflows are needed due to access requirements and different jobs. Separating
+# them into different files allows us to keep various branches up to date where we don't need
+# to deal with merge conflicts in the workflow files.
+
 # Find all workflow files, excluding mirror-specific ones
 workflows=$(find .github/workflows -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) | grep -v "mirror-")
 
-# Determine which yq binary to use
+# Determine which yq binary to use. yq is used to validate that the workflow files
+# do have the necessary "if" gate.
 YQ_BIN="yq"
 if ! command -v yq &> /dev/null; then
   if [ -f "/tmp/yq" ]; then
@@ -30,6 +41,7 @@ for file in $workflows; do
     .[]
   ' "$file" 2>/dev/null || true)
 
+  # List each job that has an issue in it.
   if [ -n "$failed_jobs" ]; then
     echo "❌ File '$file' has ungated jobs:"
     # Indent and display each failed job
