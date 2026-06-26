@@ -139,8 +139,11 @@ It is the UID of the `kube-system` Namespace. */
 		/** ExternalAuthPolicies is the number of ExternalAuth policies managed by NGINX Ingress Controller */
 		long? ExternalAuthPolicies = null;
 		
-		/** WAFBundleSourceTypes is the deduplicated list of WAF bundle source types in use (e.g. "HTTPS", "NIM", "N1C"). */
+		/** WAFBundleSourceTypes is the deduplicated list of WAF policy bundle source types in use (e.g. "HTTPS", "NIM", "N1C"). */
 		union {null, array<string>} WAFBundleSourceTypes = null;
+		
+		/** WAFLogBundleSourceTypes is the deduplicated list of WAF log profile bundle source types in use (e.g. "HTTPS", "NIM", "N1C"). */
+		union {null, array<string>} WAFLogBundleSourceTypes = null;
 		
 	}
 }

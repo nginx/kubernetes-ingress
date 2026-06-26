@@ -345,7 +345,13 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 		}
 		logAuth, logErr := lbc.resolveWAFBundleAuth(sl.ApLogBundleSource, pol.Namespace)
 		if logErr != nil {
-			nl.Warnf(lbc.Logger, "WAF log bundle secret error for policy %s log %d: %v", polKey, idx, logErr)
+			msg := fmt.Sprintf("WAF log profile bundle: invalid or missing secret: %v", logErr)
+			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
+			if lbc.reportCustomResourceStatusEnabled() {
+				if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
+					nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+				}
+			}
 			continue
 		}
 		logFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx))
@@ -566,6 +572,10 @@ func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSour
 		if err := secrets.ValidateWAFBundleSecret(ref.Secret); err != nil {
 			return fmt.Errorf("secret %s: %w", secretKey, err)
 		}
+	} else { // HTTPS
+		if err := secrets.ValidateTLSSecret(ref.Secret); err != nil {
+			return fmt.Errorf("secret %s: %w", secretKey, err)
+		}
 	}
 
 	data := ref.Secret.Data
@@ -604,6 +614,9 @@ func (lbc *LoadBalancerController) resolveWAFTrustedCert(secretName, namespace s
 			msg = caRef.Error.Error()
 		}
 		return fmt.Errorf("trusted cert secret %s not found or invalid: %s", caSecretKey, msg)
+	}
+	if err := secrets.ValidateCASecret(caRef.Secret); err != nil {
+		return fmt.Errorf("trusted cert secret %s: %w", caSecretKey, err)
 	}
 	auth.TLSCA = caRef.Secret.Data[secrets.CAKey]
 	return nil
