@@ -12,7 +12,7 @@ from suite.utils.bundle_source_utils import (
     setup_bundle_server,
     teardown_bundle_server,
 )
-from suite.utils.custom_resources_utils import read_custom_resource
+from suite.utils.custom_resources_utils import read_custom_resource, wait_for_resource_status
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import wait_before_test
 from suite.utils.vs_vsr_resources_utils import (
@@ -193,17 +193,15 @@ class TestWAFBundleSourceFailureVS:
             virtual_server_setup.namespace,
         )
 
-        # Wait for the controller to attempt the fetch and update policy status.
-        wait_before_test(5)
-
-        policy_info = read_custom_resource(
+        # Poll until the controller sets a status (Warning/BundlePending or BundleFetchFailed).
+        policy_info = wait_for_resource_status(
             kube_apis.custom_objects,
             test_namespace,
             "policies",
             POLICY_NAME,
+            timeout=90,
         )
 
-        # The controller sets Warning + BundleFetchFailed when the initial fetch fails.
         assert "status" in policy_info, f"Policy has no status: {policy_info}"
         assert policy_info["status"]["state"] == "Warning", f"Expected Warning state, got: {policy_info['status']}"
 
