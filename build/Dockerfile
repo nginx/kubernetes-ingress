@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.24
+# syntax=docker/dockerfile:1.25
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
 ARG NGINX_OSS_VERSION=1.31.2
@@ -13,7 +13,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:928cf862e95827ac9db4a54e0ffc4f0884ecb9f985db3ea6b21d61a97a92d199
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:3998f88d4de99423119b61b47d2bd3d995be7a1368014f5edd8e63f93f946445
 
 
 ############################################# External dependency images #############################################
@@ -89,34 +89,29 @@ RUN --mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/pat
 	&& patch-os.sh
 USER 101
 
-
-############################################# NGINX OSS on Alpine Linux #############################################
-# Base:    nginx:1.31.2-alpine3.23 (official NGINX OSS Alpine image, OSS pre-installed)
-# Adds:    nginx-module-otel + nginx-agent v3
-# Used as: BUILD_OS=alpine
-FROM nginx:1.31.2-alpine3.23@sha256:20316569d8f81a160065d7d2a5eeffc7ca97d79022462ee255fd23fa103a6b5c AS alpine
-ARG PACKAGE_REPO
+############################################### NGINX OSS - Alpine #############################################
+FROM alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40 AS alpine
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
 RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
-	apk add --no-cache libcap libstdc++ \
+	apk add --no-cache openssl curl ca-certificates libcap libstdc++ libc-utils \
+    && apk add -X "https://nginx.org/packages/mainline/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+        nginx~${NGINX_OSS_VERSION} \
+        nginx-module-njs~${NGINX_OSS_VERSION} \
+        nginx-module-otel~${NGINX_OSS_VERSION} \
+    && apk add -X "https://packages.nginx.org/nginx-agent/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+        nginx-agent~${AGENT_V3_VERSION} \
 	&& export $(cat /tmp/user_agent) \
-	&& printf "%s%s%s\n" "http://packages.nginx.org/nginx/mainline/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
-	&& printf "%s%s%s\n" "http://packages.nginx.org/nginx-agent/alpine/v" `egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release` "/main" >> /etc/apk/repositories \
-	&& apk add --no-cache nginx-module-otel~${NGINX_OSS_VERSION} nginx-agent~${AGENT_V3_VERSION} \
 	&& ldconfig /usr/local/lib/ \
 	&& agent.sh \
 	&& sed -i -e '/nginx.org/d' /etc/apk/repositories
 
 
-############################################# NGINX OSS on Debian 13 #############################################
-# Base:    nginx:1.31.2 (official NGINX OSS Debian image, OSS pre-installed)
-# Adds:    nginx-module-otel + nginx-agent v3
-# Used as: BUILD_OS=debian (default)
-FROM nginx:1.31.2@sha256:42f2d24ae18df9b5251d1cc45548085656d2335e9338fd150a24e415462d151f AS debian
+############################################### NGINX OSS - Debian #############################################
+FROM debian:trixie-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e AS debian
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
@@ -134,14 +129,15 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
-	nginx-agent=${AGENT_V3_VERSION}* \
-	nginx-module-otel=${NGINX_OSS_VERSION}* \
+      nginx=${NGINX_OSS_VERSION}* \
+      nginx-module-njs=${NGINX_OSS_VERSION}* \
+      nginx-module-otel=${NGINX_OSS_VERSION}* \
+      nginx-agent=${AGENT_V3_VERSION}* \
 	&& apt-get purge --auto-remove -y gpg \
 	&& rm -rf /var/lib/apt/lists/* /etc/apt/preferences.d/99nginx /etc/apt/sources.list.d/nginx.list \
 	&& agent.sh
 
-
-############################################# NGINX OSS on Red Hat UBI 10 #############################################
+############################################# NGINX OSS - Red Hat UBI 10 #############################################
 # Base:    ubi-minimal (Red Hat UBI 10 minimal)
 # Adds:    nginx + nginx-module-njs/otel/image-filter/xslt + nginx-agent v3
 # Used as: BUILD_OS=ubi
@@ -182,7 +178,13 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
     && printf "%s\n" "[agent]" "name=agent repo" \
     "baseurl=https://packages.nginx.org/nginx-agent/centos/10/\$basearch/" \
     "gpgcheck=1" "enabled=1" "module_hotfixes=true" >> /etc/yum.repos.d/nginx.repo \
-	&& microdnf --nodocs install -y nginx-${NGINX_OSS_VERSION}* nginx-module-njs-${NGINX_OSS_VERSION}* nginx-module-otel-${NGINX_OSS_VERSION}* nginx-module-image-filter-${NGINX_OSS_VERSION}* nginx-module-xslt-${NGINX_OSS_VERSION}* nginx-agent-${AGENT_V3_VERSION}* \
+	&& microdnf --nodocs install -y \
+      nginx-${NGINX_OSS_VERSION}* \
+      nginx-module-njs-${NGINX_OSS_VERSION}* \
+      nginx-module-otel-${NGINX_OSS_VERSION}* \
+      nginx-module-image-filter-${NGINX_OSS_VERSION}* \
+      nginx-module-xslt-${NGINX_OSS_VERSION}* \
+      nginx-agent-${AGENT_V3_VERSION}* \
 	&& rm -rf /etc/yum.repos.d/nginx.repo /etc/yum.repos.d/local-deps.repo \
 	&& ubi-clean.sh
 
@@ -191,7 +193,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 # Base:    alpine:3.22
 # Adds:    nginx-plus, nginx-plus-module-njs/otel/fips-check, nginx-agent v3, tracking.info
 # Used as: BUILD_OS=alpine-plus
-FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus
+FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS alpine-plus
 ARG NGINX_PLUS_VERSION
 ARG PACKAGE_REPO
 ARG AGENT_V3_VERSION
@@ -235,7 +237,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 # Base:     alpine:3.22 (fresh — does not extend alpine-plus, keeps agent layer separate)
 # Installs: nginx-plus, app-protect (NAP WAF v4), attack-signatures, FIPS provider
 # Extended: alpine-plus-nap-fips (Agent v2)  •  alpine-plus-nap-fips-agent (Agent v3)
-FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus-nap-fips-base
+FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS alpine-plus-nap-fips-base
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG PACKAGE_REPO
@@ -307,7 +309,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Base:     alpine:3.22 (fresh — does not extend alpine-plus, keeps agent layer separate)
 # Installs: nginx-plus, app-protect-module-plus (NAP WAF v5), FIPS provider
 # Extended: alpine-plus-nap-v5-fips (Agent v2)  •  alpine-plus-nap-v5-fips-agent (Agent v3)
-FROM alpine:3.22@sha256:310c62b5e7ca5b08167e4384c68db0fd2905dd9c7493756d356e893909057601 AS alpine-plus-nap-v5-fips-base
+FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS alpine-plus-nap-v5-fips-base
 ARG NGINX_PLUS_VERSION
 ARG PACKAGE_REPO
 ARG NAP_WAF_VERSION
@@ -374,7 +376,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Base:     debian:13-slim
 # Installs: nginx-plus, nginx-plus-module-njs/otel/fips-check, libcap2-bin, libcurl4
 # Extended: debian-plus (Agent v3)  •  debian-plus-nap-base  •  debian-plus-nap-v5-base
-FROM debian:13-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e AS debian-plus-only
+FROM debian:13-slim@sha256:28de0877c2189802884ccd20f15ee41c203573bd87bb6b883f5f46362d24c5c2 AS debian-plus-only
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
