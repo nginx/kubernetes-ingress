@@ -29,28 +29,35 @@ fi
 errors=0
 
 for file in $workflows; do
-  # Run yq directly to find any jobs missing repository gating
-  failed_jobs=$($YQ_BIN '
+  # 1. Capture yq stderr and exit status; do not suppress failures
+  if ! failed_jobs=$($YQ_BIN '
     select(.jobs != null) |
     .jobs |
     with_entries(select(
       .value.if == null or
-      ((.value.if | (contains("nginx/kubernetes-ingress") or contains("github.repository_owner"))) | not)
+      ((.value.if | (contains("github.repository == '\''nginx/kubernetes-ingress'\''") or contains("github.repository == \"nginx/kubernetes-ingress\""))) | not)
     )) |
     keys |
     .[]
-  ' "$file" 2>/dev/null || true)
+  ' "$file" 2>&1); then
+    echo "❌ Error: Failed to parse or evaluate '$file' with yq:"
+    echo "   $failed_jobs"
+    errors=$((errors + 1))
+    continue
+  fi
 
-  # List each job that has an issue in it.
+  # 2. Use a native Bash loop instead of sed (resolves Shellcheck SC2001)
   if [ -n "$failed_jobs" ]; then
+    echo "❌ File '$file' has ungated jobs:"
     while IFS= read -r job; do
       [ -n "$job" ] && echo "  - Job: $job"
     done <<< "$failed_jobs"
+    errors=$((errors + 1))
   fi
 done
 
 if [ "$errors" -ne 0 ]; then
-  echo "❌ Workflow validation failed! All public jobs must have repository/owner gating."
+  echo "❌ Workflow validation failed! All public jobs must have strict repository gating."
   exit 1
 else
   echo "✅ All public workflows are successfully gated."
