@@ -13,6 +13,7 @@ set -euo pipefail
 workflows=$(find .github/workflows -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) ! -name "mirror-*")
 
 # Determine which yq binary to use.
+YQ_BIN="yq"
 if ! command -v yq &> /dev/null; then
   if [ -f "/tmp/yq" ]; then
     YQ_BIN="/tmp/yq"
