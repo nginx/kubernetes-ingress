@@ -195,6 +195,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
       nginx-module-njs-${NGINX_OSS_VERSION}* \
       nginx-module-otel-${NGINX_OSS_VERSION}* \
       nginx-module-xslt-${NGINX_OSS_VERSION}* \
+      nginx-module-image-filter-${NGINX_OSS_VERSION}* \
       nginx-agent-${AGENT_V3_VERSION}* \
 	&& rm -rf /etc/yum.repos.d/nginx.repo /etc/yum.repos.d/local-deps.repo \
 	&& ubi-clean.sh
