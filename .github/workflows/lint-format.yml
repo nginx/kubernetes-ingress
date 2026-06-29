@@ -79,7 +79,7 @@ jobs:
 
       - name: Validate Workflow Gating
         run: |
-          .github/scripts/validate-workflow-gating.sh
+          bash .github/scripts/validate-workflow-gating.sh
 
   chart-lint:
     name: Chart Lint

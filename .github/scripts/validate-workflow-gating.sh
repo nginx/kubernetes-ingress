@@ -10,13 +10,9 @@ set -euo pipefail
 # different workflows are needed due to access requirements and different jobs. Separating
 # them into different files allows us to keep various branches up to date where we don't need
 # to deal with merge conflicts in the workflow files.
+workflows=$(find .github/workflows -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) ! -name "mirror-*")
 
-# Find all workflow files, excluding mirror-specific ones
-workflows=$(find .github/workflows -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) | grep -v "mirror-")
-
-# Determine which yq binary to use. yq is used to validate that the workflow files
-# do have the necessary "if" gate.
-YQ_BIN="yq"
+# Determine which yq binary to use.
 if ! command -v yq &> /dev/null; then
   if [ -f "/tmp/yq" ]; then
     YQ_BIN="/tmp/yq"
