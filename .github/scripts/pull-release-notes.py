@@ -103,9 +103,9 @@ def format_pr_groups(prs, title):
 
 # Get release text
 def get_github_release(version, github_org, github_repo, token):
-    if token == "":
+    if not token:
         print("ERROR: GITHUB token variable cannot be empty")
-        return None
+        return None, None
     auth = Auth.Token(token)
     g = Github(auth=auth)
     repo = g.get_organization(github_org).get_repo(github_repo)
@@ -148,18 +148,28 @@ sections = parse_sections(release_body or "")
 # and format them accordingly
 categories = {}
 dependencies_title = ""
+go_dependencies = []
+docker_dependencies = []
 for title, changes in sections.items():
-    if any(x in title for x in ["Other Changes", "Documentation", "Maintenance", "Tests"]):
+    if any(x in title for x in ["Other Changes", "Documentation", "Maintenance", "Tests", "New Contributors"]):
         # These sections do not show up in the docs release notes
         continue
     parsed_changes = []
-    go_dependencies = []
-    docker_dependencies = []
     for line in changes:
         change = re.search(change_regex, line)
+        if not change:
+            print(f"WARNING: Skipping unrecognized line: {line}")
+            continue
         change_title = change.group(1)
         pr_link = change.group(2)
-        pr_number = re.search(pull_request_regex, pr_link).group(1)
+        pr_links = re.findall(r"https://github\.com/\S+/pull/\d+", pr_link)
+        if pr_links:
+            pr_link = pr_links[-1]
+        pr_match = re.search(pull_request_regex, pr_link)
+        if not pr_match:
+            print(f"WARNING: Could not extract PR number from: {pr_link}")
+            continue
+        pr_number = pr_match.group(1)
         pr = {"details": f"[{pr_number}]({pr_link})", "title": change_title.capitalize()}
         if "Dependencies" in title:
             # save section title for later use as lookup key to categories dict

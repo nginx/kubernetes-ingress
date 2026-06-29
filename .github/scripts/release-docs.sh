@@ -180,11 +180,11 @@ if [ "${DEBUG}" != "false" ] && [ -n "${current_year}" ]; then
     echo "DEBUG: Found year in header text: ${current_year}"
 fi
 
-# Second: if that fails, look for year in release headings like "## 5.2.1"
+# Second: if that fails, look for year in release date entries
 if [ -z "${current_year}" ]; then
-    current_year=$(grep -o "^## .*[0-9]\{4\}" "${index_file_path}" | grep -o "[0-9]\{4\}" | head -1)
+    current_year=$(grep -oE "[0-9]{1,2} [A-Z][a-z]+ [0-9]{4}" "${index_file_path}" | grep -o "[0-9]\{4\}" | head -1)
     if [ "${DEBUG}" != "false" ] && [ -n "${current_year}" ]; then
-        echo "DEBUG: Found year in release headings: ${current_year}"
+        echo "DEBUG: Found year in release date entries: ${current_year}"
     fi
 fi
 
@@ -329,6 +329,7 @@ if [ -n "${nginx_version}" ]; then
     # Run the consolidated tech specs update script (driven by tech-specs.json)
     python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
         --json-file "${ROOTDIR}/.github/scripts/tech-specs.json" \
+        --update-json \
         "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}" \
         ${NAP_WAF_VERSION:+"${NAP_WAF_VERSION}"}
 
