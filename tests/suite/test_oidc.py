@@ -159,9 +159,21 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
             },
             {"example": "virtual-server-tls", "app_type": "simple"},
             {"secure": False},
-        )
+        ),
+        (
+            {
+                "type": "complete",
+                "extra_args": [
+                    f"-enable-oidc",
+                    "-enable-config-safety",
+                ],
+            },
+            {"example": "virtual-server-tls", "app_type": "simple"},
+            {"secure": False},
+        ),
     ],
     indirect=True,
+    ids=["http_without_config_safety", "http_with_config_safety"],
 )
 class TestOIDCHttp:
     @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])
@@ -205,9 +217,21 @@ class TestOIDCHttp:
             },
             {"example": "virtual-server-tls", "app_type": "simple"},
             {"secure": True},
-        )
+        ),
+        (
+            {
+                "type": "complete",
+                "extra_args": [
+                    f"-enable-oidc",
+                    "-enable-config-safety",
+                ],
+            },
+            {"example": "virtual-server-tls", "app_type": "simple"},
+            {"secure": True},
+        ),
     ],
     indirect=True,
+    ids=["https_without_config_safety", "https_with_config_safety"],
 )
 class TestOIDCHttps:
     @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])

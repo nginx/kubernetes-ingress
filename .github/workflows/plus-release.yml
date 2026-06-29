@@ -79,7 +79,7 @@ jobs:
     if: ${{ inputs.gcr_release_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -135,7 +135,7 @@ jobs:
     if: ${{ inputs.nginx_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -206,7 +206,7 @@ jobs:
     if: ${{ inputs.gcr_mktpl_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -271,7 +271,7 @@ jobs:
     if: ${{ inputs.ecr_mktpl_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -312,7 +312,7 @@ jobs:
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@acca2b1b2070338fb9fd1ca27ecee81d687e58e5 # v6.1.2
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           aws-region: us-east-1
           role-to-assume: ${{ steps.secrets.outputs.AWS_ROLE_MARKETPLACE }}
@@ -341,7 +341,7 @@ jobs:
     if: ${{ inputs.az_mktpl_registry }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
