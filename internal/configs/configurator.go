@@ -1496,12 +1496,12 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx, parentIngress *ne
 		}
 	}
 
-	// Update external auth upstreams via the Plus API.
-	// These are generated from policies referenced by the Ingress
-	// and are not part of the Ingress spec, so they need separate handling.
 	return cnf.updatePlusExternalAuthEndpoints(ingEx.Policies, ingEx.Endpoints, parentIngress, cfg)
 }
 
+// updatePlusExternalAuthEndpoints updates external auth upstreams via the Plus API.
+// These are generated from policies referenced by the Ingress
+// and are not part of the Ingress spec, so they need separate handling.
 func (cnf *Configurator) updatePlusExternalAuthEndpoints(policies map[string]*conf_v1.Policy, endpoints map[string][]string, parentIngress *networking.Ingress, cfg nginx.ServerConfig) error {
 	for _, pol := range policies {
 		if pol.Spec.ExternalAuth == nil || pol.Spec.ExternalAuth.AuthServiceName == "" {
