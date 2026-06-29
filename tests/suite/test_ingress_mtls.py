@@ -4,7 +4,14 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
+from suite.utils.resources_utils import (
+    create_secret_from_yaml,
+    delete_secret,
+    get_reload_count,
+    replace_secret,
+    wait_before_test,
+    wait_for_reload,
+)
 from suite.utils.ssl_utils import create_sni_session
 from suite.utils.vs_vsr_resources_utils import (
     delete_and_create_vs_from_yaml,
@@ -72,6 +79,7 @@ def teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret
                 "type": "complete",
                 "extra_args": [
                     f"-enable-leader-election=false",
+                    f"-enable-prometheus-metrics",
                 ],
             },
             {
@@ -415,6 +423,115 @@ class TestIngressMtlsPolicyVS:
             virtual_server_setup.namespace,
         )
         assert resp.status_code == expected_code and expected_text in resp.text and exception in ssl_exception
+
+    def test_ingress_mtls_ca_secret_rotation_triggers_reload(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+    ):
+        session = create_sni_session()
+        mtls_secret, tls_secret, pol_name = setup_policy(
+            kube_apis,
+            test_namespace,
+            mtls_sec_valid_src,
+            tls_sec_valid_src,
+            mtls_pol_valid_src,
+        )
+
+        print(f"Patch vs with policy: {mtls_pol_valid_src}")
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            mtls_vs_spec_src,
+            virtual_server_setup.namespace,
+        )
+        wait_before_test()
+
+        resp_before_valid = mock.Mock()
+        counter = 0
+        while resp_before_valid.status_code != 200 and counter < 10:
+            resp_before_valid = session.get(
+                virtual_server_setup.backend_1_url_ssl,
+                cert=(crt, key),
+                headers={"host": virtual_server_setup.vs_host},
+                allow_redirects=False,
+                verify=False,
+            )
+            wait_before_test()
+            counter += 1
+        assert (
+            resp_before_valid.status_code == 200
+        ), f"Pre-rotation: expected 200 with original CA client cert, got {resp_before_valid.status_code}"
+
+        ssl_exception_before = ""
+        resp_before_new = mock.Mock()
+        resp_before_new.status_code = "None"
+        try:
+            resp_before_new = session.get(
+                virtual_server_setup.backend_1_url_ssl,
+                cert=(crt_not_revoked, key_not_revoked),
+                headers={"host": virtual_server_setup.vs_host},
+                allow_redirects=False,
+                verify=False,
+            )
+        except requests.exceptions.SSLError as e:
+            ssl_exception_before = str(e)
+        assert (
+            ssl_exception_before != "" or resp_before_new.status_code == 400
+        ), "Pre-rotation: not-revoked CA client cert should be rejected by the original CA"
+
+        count_before = get_reload_count(virtual_server_setup.metrics_url)
+        print(f"Reload count before CA secret rotation: {count_before}")
+        replace_secret(kube_apis.v1, mtls_secret, test_namespace, mtls_secret_crl)
+
+        wait_for_reload(virtual_server_setup.metrics_url, count_before)
+        count_after = get_reload_count(virtual_server_setup.metrics_url)
+        print(f"Reload count after CA secret rotation: {count_after}")
+
+        resp_after_new = mock.Mock()
+        counter = 0
+        while resp_after_new.status_code != 200 and counter < 10:
+            resp_after_new = session.get(
+                virtual_server_setup.backend_1_url_ssl,
+                cert=(crt_not_revoked, key_not_revoked),
+                headers={"host": virtual_server_setup.vs_host},
+                allow_redirects=False,
+                verify=False,
+            )
+            wait_before_test()
+            counter += 1
+
+        ssl_exception_after = ""
+        resp_after_old = mock.Mock()
+        resp_after_old.status_code = "None"
+        try:
+            resp_after_old = session.get(
+                virtual_server_setup.backend_1_url_ssl,
+                cert=(crt, key),
+                headers={"host": virtual_server_setup.vs_host},
+                allow_redirects=False,
+                verify=False,
+            )
+        except requests.exceptions.SSLError as e:
+            ssl_exception_after = str(e)
+
+        teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            std_vs_src,
+            virtual_server_setup.namespace,
+        )
+
+        assert count_after > count_before, "CA secret rotation did not trigger an NGINX reload"
+        assert (
+            resp_after_new.status_code == 200
+        ), f"Post-rotation: expected 200 with new CA client cert, got {resp_after_new.status_code}"
+        assert (
+            ssl_exception_after != "" or resp_after_old.status_code == 400
+        ), "Post-rotation: original CA client cert should be rejected by the new CA"
 
 
 @pytest.mark.policies
