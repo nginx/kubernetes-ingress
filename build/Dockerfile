@@ -98,8 +98,8 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	apk add --no-cache openssl curl ca-certificates libcap libstdc++ libc-utils \
-    && addgroup -S -g 101 nginx \
-    && adduser -S -D -H -G nginx -h /var/cache/nginx -s /sbin/nologin -g nginx -u 101 nginx \
+	&& addgroup -S -g 101 nginx \
+	&& adduser -S -D -H -G nginx -h /var/cache/nginx -s /sbin/nologin -g nginx -u 101 nginx \
     && apk add -X "https://nginx.org/packages/mainline/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
       nginx~${NGINX_OSS_VERSION} \
       nginx-module-njs~${NGINX_OSS_VERSION} \
