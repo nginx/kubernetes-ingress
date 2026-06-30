@@ -18,6 +18,7 @@ import (
 type IngressMtls struct {
 	Ca           CertificateInfo `json:"ca"`
 	Crl          CertificateInfo `json:"crl"`
+	Rotated      CertificateInfo `json:"rotated"`
 	Client       FilePaths       `json:"client"`
 	Valid        ClientCerts     `json:"valid"`
 	Invalid      ClientCerts     `json:"invalid"`
@@ -614,6 +615,19 @@ func generateCRLAndCertificateAuthority(logger *slog.Logger, details IngressMtls
 	err = writeFiles(logger, crlOut.Bytes(), details.Crl.RawCRL.FileName, details.Crl.RawCRL.Symlinks)
 	if err != nil {
 		return filenames, nil, fmt.Errorf("writing raw CRL %s to project root: %w", details.Crl.RawCRL.FileName, err)
+	}
+
+	filenames, err = checkForUniqueAndClean(logger, filenames, details.Rotated.FileName, details.Rotated.Symlinks, cleanPtr)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("checking for unique and clean filenames for rotated CA: %w", err)
+	}
+	rotatedContents, err := createYamlCA(details.Rotated.SecretName, caCrl, nil)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("marshaling rotated CA %s to yaml: %w", details.Rotated.FileName, err)
+	}
+	err = writeFiles(logger, rotatedContents, details.Rotated.FileName, details.Rotated.Symlinks)
+	if err != nil {
+		return filenames, nil, fmt.Errorf("writing rotated CA %s to project root: %w", details.Rotated.FileName, err)
 	}
 
 	return filenames, caCrl, nil

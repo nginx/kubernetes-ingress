@@ -264,6 +264,12 @@ func generateIngressMtlsIgnoreLines(ingressMtls IngressMtls) []string {
 		filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
 	}
 
+	// Rotated CA (same structure as standard CA, used for rotation tests)
+	filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, ingressMtls.Rotated.FileName))
+	for _, symlink := range ingressMtls.Rotated.Symlinks {
+		filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+	}
+
 	addFilesToIgnore(ingressMtls.Client)
 	addCertsToIgnore(ingressMtls.Valid)
 	addCertsToIgnore(ingressMtls.Invalid)
