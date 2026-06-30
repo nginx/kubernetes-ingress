@@ -81,37 +81,7 @@ curl --resolve webapp.example.com:$IC_HTTP_PORT:$IC_IP \
 
 The `Strict-Transport-Security` header should be absent from the response.
 
-## Step 5 - Removing the HSTS Policy
-
-HSTS instructs browsers to enforce HTTPS for the duration of `maxAge`. Follow this sequence to safely remove the policy.
-
-1. Update the policy and set `maxAge` to 0 to instruct browsers to immediately expire the HSTS policy:
-
-   ```console
-      kubectl apply -f hsts-policy.yaml
-   ```
-
-   Send a request to confirm:
-
-   ```console
-   curl --insecure --resolve webapp.example.com:$IC_HTTPS_PORT:$IC_IP \
-   https://webapp.example.com:$IC_HTTPS_PORT/ -v
-   ```
-
-   You should see:
-
-   ```text
-   < Strict-Transport-Security: max-age=0; includeSubDomains
-   ```
-
-1. Edit virtual-server.yaml to remove the policies entry, then apply:
-
-   ```console
-   kubectl apply -f virtual-server.yaml
-   ```
-
-1. Delete the HSTS policy:
-
-   ```console
-   kubectl delete -f hsts-policy.yaml
-   ```
+> **Note:** HSTS instructs browsers to enforce HTTPS for the duration of `maxAge`.
+> To safely remove the policy, first update `hsts-policy.yaml` to set `maxAge` to 0 and apply it so browsers immediately expire the cached directive.
+> Then edit `virtual-server.yaml` to remove the policies entry and apply it.
+> Finally, delete the policy with `kubectl delete -f hsts-policy.yaml`.

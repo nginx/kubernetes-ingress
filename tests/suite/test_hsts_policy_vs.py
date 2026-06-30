@@ -127,6 +127,7 @@ class TestHSTSPolicyVS:
             kube_apis.custom_objects, virtual_server_setup.vs_name, std_vs_src, test_namespace
         )
 
+        assert resp.status_code == 200
         assert "Strict-Transport-Security" not in resp.headers
 
     def test_hsts_include_subdomains(
@@ -160,6 +161,7 @@ class TestHSTSPolicyVS:
             kube_apis.custom_objects, virtual_server_setup.vs_name, std_vs_src, test_namespace
         )
 
+        assert resp.status_code == 200
         assert "Strict-Transport-Security" in resp.headers
         assert "includeSubDomains" in resp.headers["Strict-Transport-Security"]
 
@@ -207,6 +209,8 @@ class TestHSTSPolicyVS:
             kube_apis.custom_objects, virtual_server_setup.vs_name, std_vs_src, test_namespace
         )
 
+        assert resp_xfp_https.status_code == 200
+        assert resp_xfp_http.status_code == 200
         assert "Strict-Transport-Security" in resp_xfp_https.headers
         assert "Strict-Transport-Security" not in resp_xfp_http.headers
 
@@ -242,6 +246,7 @@ class TestHSTSPolicyVS:
             kube_apis.custom_objects, virtual_server_setup.vs_name, std_vs_src, test_namespace
         )
 
+        assert resp.status_code == 200
         assert "Strict-Transport-Security" in resp.headers
         assert "max-age=31536000" in resp.headers["Strict-Transport-Security"]
         assert "includeSubDomains" in resp.headers["Strict-Transport-Security"]

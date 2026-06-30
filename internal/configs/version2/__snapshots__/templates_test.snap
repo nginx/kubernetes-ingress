@@ -1721,7 +1721,7 @@ server {
     set $hsts_header_val "";
     proxy_hide_header Strict-Transport-Security;
     if ($https = on) {
-        set $hsts_header_val "max-age=2592000; ";
+        set $hsts_header_val "max-age=2592000";
     }
 
     add_header Strict-Transport-Security "$hsts_header_val" always;
@@ -1753,7 +1753,7 @@ server {
         set $hsts_header_val "";
         proxy_hide_header Strict-Transport-Security;
         if ($https = on) {
-            set $hsts_header_val "max-age=2592000; preload";
+            set $hsts_header_val "max-age=2592000";
         }
         add_header Strict-Transport-Security "$hsts_header_val" always;
         proxy_pass http://upstream;
@@ -1828,7 +1828,7 @@ server {
     set $hsts_header_val "";
     proxy_hide_header Strict-Transport-Security;
     if ($http_x_forwarded_proto = 'https') {
-        set $hsts_header_val "max-age=2592000; ";
+        set $hsts_header_val "max-age=2592000";
     }
 
     add_header Strict-Transport-Security "$hsts_header_val" always;
@@ -2048,7 +2048,7 @@ server {
     set $hsts_header_val "";
     proxy_hide_header Strict-Transport-Security;
     if ($https = on) {
-        set $hsts_header_val "max-age=2592000; ";
+        set $hsts_header_val "max-age=2592000";
     }
 
     add_header Strict-Transport-Security "$hsts_header_val" always;
@@ -2081,7 +2081,7 @@ server {
         set $hsts_header_val "";
         proxy_hide_header Strict-Transport-Security;
         if ($https = on) {
-            set $hsts_header_val "max-age=2592000; preload";
+            set $hsts_header_val "max-age=2592000";
         }
         add_header Strict-Transport-Security "$hsts_header_val" always;
         proxy_pass http://upstream;
@@ -2159,7 +2159,7 @@ server {
     set $hsts_header_val "";
     proxy_hide_header Strict-Transport-Security;
     if ($http_x_forwarded_proto = 'https') {
-        set $hsts_header_val "max-age=2592000; ";
+        set $hsts_header_val "max-age=2592000";
     }
 
     add_header Strict-Transport-Security "$hsts_header_val" always;
