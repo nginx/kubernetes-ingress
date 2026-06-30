@@ -174,6 +174,11 @@ def generate_compat_table_md(json_data, sc_row=None):
     sr = json_data["nic_k8s"]["shortcode_row"]
     rows = json_data["nic_k8s"]["rows"]
 
+    if sc_row is not None:
+        col_count = len(sc_row.split("|")[1:-1])
+        if col_count != 5:
+            sc_row = None
+
     header = (
         "| NIC version | Kubernetes versions tested  "
         "| NIC Helm Chart version | NIC Operator version "
@@ -276,14 +281,14 @@ def update_nginx_prose(md, nginx_new):
         if oss_match:
             current_oss = oss_match.group(1)
             if current_oss != new_oss:
-                md = re.sub(r"\b" + re.escape(current_oss) + r"(?![\.\d])", new_oss, md)
+                md = re.sub(r"\b" + re.escape(current_oss) + r"(?!\.?\d)", new_oss, md)
 
     if new_plus:
         plus_match = re.search(r"NGINX Plus images include NGINX Plus (R\d+(?:\.\d+)*(?:\s+P\d+)?)", md)
         if plus_match:
             current_plus = plus_match.group(1)
             if current_plus != new_plus:
-                md = re.sub(r"\b" + re.escape(current_plus) + r"(?![\.\d])", new_plus, md)
+                md = re.sub(r"\b" + re.escape(current_plus) + r"(?!\.?\d)", new_plus, md)
 
     return md
 
