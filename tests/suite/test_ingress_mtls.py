@@ -475,7 +475,9 @@ class TestIngressMtlsPolicyVS:
         reloads = count_after - count_before
         expected_reloads = 1
         assert reloads == expected_reloads, f"expected {expected_reloads} reloads, got {reloads}"
-        assert resp.status_code == 400, f"expected 400 after CA rotation invalidates old client cert, got {resp.status_code}"
+        assert (
+            resp.status_code == 400
+        ), f"expected 400 after CA rotation invalidates old client cert, got {resp.status_code}"
 
 
 @pytest.mark.policies
