@@ -25,32 +25,80 @@ fi
 
 errors=0
 
+validate_if_condition() {
+  local job_name="$1"
+  local cond="$2"
+
+  if [ -z "$cond" ]; then
+    echo "  - Job '$job_name' has no 'if:' condition (ungated)."
+    return 1
+  fi
+
+  # Normalize spaces without stripping quotes
+  cond=$(echo "$cond" | tr -s '[:space:]' ' ' | sed 's/^ //;s/ $//')
+
+  local gate_single="github.repository == 'nginx/kubernetes-ingress'"
+  local gate_double='github.repository == "nginx/kubernetes-ingress"'
+
+  if [[ "$cond" != *"$gate_single"* && "$cond" != *"$gate_double"* ]]; then
+    echo "  - Job '$job_name' does not contain the required repository gate."
+    return 1
+  fi
+
+  local prev=""
+  local simplified="$cond"
+  while [[ "$simplified" != "$prev" ]]; do
+    prev="$simplified"
+    simplified="${simplified//\(\)/}"
+    if [[ "$simplified" =~ \(([^()]+)\) ]]; then
+      local inner="${BASH_REMATCH[1]}"
+      local replacement="()"
+      if [[ "$inner" == *"$gate_single"* || "$inner" == *"$gate_double"* || "$inner" == *"GATE"* ]]; then
+        replacement="GATE"
+      fi
+      simplified="${simplified/\($inner\)/$replacement}"
+    fi
+  done
+
+  # Final cleanup of any empty parentheses
+  simplified="${simplified//\(\)/}"
+
+  if [[ "$simplified" != *"$gate_single"* && "$simplified" != *"$gate_double"* && "$simplified" != *"GATE"* ]]; then
+    echo "  - Job '$job_name': Gate is missing after simplifying."
+    return 1
+  fi
+
+  if [[ "$simplified" == *"||"* ]]; then
+    echo "  - Job '$job_name' has an ineffectual repository gate because of a top-level '||' operator: '$cond'"
+    return 1
+  fi
+
+  return 0
+}
+
 for file in $workflows; do
-  # 1. Capture yq stderr and exit status; do not suppress failures
-  if ! failed_jobs=$($YQ_BIN '
-    select(.jobs != null) |
-    .jobs |
-    with_entries(select(
-      .value.if == null or
-      ((.value.if | (contains("github.repository == '\''nginx/kubernetes-ingress'\''") or contains("github.repository == \"nginx/kubernetes-ingress\""))) | not)
-    )) |
-    keys |
-    .[]
-  ' "$file" 2>&1); then
+  # Extract job names and if conditions (removing internal newlines)
+  if ! jobs_data=$($YQ_BIN '.jobs | to_entries | .[] | .key + ":::" + (.value.if // "" | split("\n") | join(" "))' "$file" 2>&1); then
     echo "❌ Error: Failed to parse or evaluate '$file' with yq:"
-    echo "   $failed_jobs"
+    echo "   $jobs_data"
     errors=$((errors + 1))
     continue
   fi
 
-  # 2. Use a native Bash loop instead of sed (resolves Shellcheck SC2001)
-  if [ -n "$failed_jobs" ]; then
-    echo "❌ File '$file' has ungated jobs:"
-    while IFS= read -r job; do
-      [ -n "$job" ] && echo "  - Job: $job"
-    done <<< "$failed_jobs"
-    errors=$((errors + 1))
-  fi
+  file_has_errors=0
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    job_name="${line%%:::*}"
+    if_cond="${line#*:::}"
+
+    if ! validate_if_condition "$job_name" "$if_cond"; then
+      if [ "$file_has_errors" -eq 0 ]; then
+        echo "❌ File '$file' has ungated or poorly gated jobs:"
+        file_has_errors=1
+      fi
+      errors=$((errors + 1))
+    fi
+  done <<< "$jobs_data"
 done
 
 if [ "$errors" -ne 0 ]; then
