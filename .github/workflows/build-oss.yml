@@ -54,6 +54,7 @@ permissions:
 jobs:
   build:
     name: "OSS ${{ inputs.image }} ${{inputs.platforms }}"
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read # for docker/build-push-action to read repo content
