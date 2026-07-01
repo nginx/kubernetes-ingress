@@ -65,6 +65,7 @@ permissions:
 jobs:
   checks:
     name: Run regression
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read

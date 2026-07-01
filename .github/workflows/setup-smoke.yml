@@ -49,6 +49,7 @@ jobs:
     permissions:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login to GCR
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository

@@ -57,6 +57,7 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Parse versions
@@ -169,6 +170,7 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Parse versions

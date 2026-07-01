@@ -64,6 +64,7 @@ jobs:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login to AWS
       pull-requests: write # for scout report
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout Repository
