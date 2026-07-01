@@ -25,6 +25,7 @@ permissions:
 jobs:
   build:
     name: Build test image
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository

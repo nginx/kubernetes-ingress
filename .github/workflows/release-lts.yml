@@ -40,6 +40,7 @@ permissions:
 jobs:
   variables:
     name: Set Variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04-amd64
     permissions:
       contents: read
@@ -82,7 +83,7 @@ jobs:
           cat $GITHUB_OUTPUT
 
   build-artifacts:
-    if: ${{ !cancelled() && !failure() && !inputs.dry_run && !contains(inputs.skip_step, 'build-artifacts') }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && !failure() && !inputs.dry_run && !contains(inputs.skip_step, 'build-artifacts'))
     name: Build Artifacts
     needs: [variables]
     uses: ./.github/workflows/build-artifacts.yml
@@ -116,7 +117,7 @@ jobs:
     name: Create Tag on release branch in NIC repo
     runs-on: ubuntu-24.04
     needs: [build-artifacts]
-    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)))
     permissions:
       contents: write
     steps:
@@ -149,7 +150,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   mend:
-    if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'mend') }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'mend'))
     name: Run Mend workflow
     uses: ./.github/workflows/mend.yml
     needs: [tag]
@@ -158,7 +159,7 @@ jobs:
     secrets: inherit
 
   release-plus-gcr-nginx:
-    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-plus') }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-plus'))
     name: Release Docker Plus
     needs: [variables, build-artifacts]
     uses: ./.github/workflows/plus-release-lts.yml
@@ -181,7 +182,7 @@ jobs:
     secrets: inherit
 
   publish-helm-chart:
-    if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'publish-helm-chart') }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'publish-helm-chart'))
     name: Publish Helm Chart
     uses: ./.github/workflows/publish-helm.yml
     with:
@@ -198,7 +199,9 @@ jobs:
     secrets: inherit
 
   binaries:
-    if: ${{ !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && contains(inputs.skip_step, 'build-artifacts'))) }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && contains(inputs.skip_step, 'build-artifacts')))
+      )
     name: Process Binaries
     runs-on: ubuntu-24.04-amd64
     needs: [variables, build-artifacts]
@@ -240,7 +243,7 @@ jobs:
 
   # Upload packages, sboms & checksums to release storage
   azure-upload:
-    if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload') }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload'))
     name: Upload packages to Azure
     runs-on: ubuntu-24.04-amd64
     needs: [variables, binaries]
@@ -307,16 +310,18 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [binaries, release-plus-gcr-nginx, publish-helm-chart]
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       cancelled() == false &&
       needs.binaries.result == 'success' &&
       (needs.release-plus-gcr-nginx.result == 'success' || contains(inputs.skip_step, 'release-plus')) &&
       (needs.publish-helm-chart.result == 'success' || contains(inputs.skip_step, 'publish-helm-chart'))
+      )
     steps:
       - run: echo "All prerequisites met"
 
   github-release:
     needs: [variables, release-gate]
-    if: ${{ !cancelled() && needs.release-gate.result == 'success' && !contains(inputs.skip_step, 'github-release') }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && needs.release-gate.result == 'success' && !contains(inputs.skip_step, 'github-release'))
     name: Publish release to GitHub
     runs-on: ubuntu-24.04-amd64
     permissions:

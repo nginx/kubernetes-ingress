@@ -20,7 +20,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: ${{ github.event.repository.fork == false }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (github.event.repository.fork == false)
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 

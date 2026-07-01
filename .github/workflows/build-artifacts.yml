@@ -62,6 +62,7 @@ permissions:
 jobs:
   binaries:
     name: Build Binaries
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: read
@@ -200,7 +201,9 @@ jobs:
 
   build-docker:
     name: Build Docker OSS
-    if: ${{ fromJSON(inputs.image-matrix-oss).image[0] != null }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (
+      fromJSON(inputs.image-matrix-oss).image[0] != null
+      )
     needs: [binaries]
     strategy:
       fail-fast: false
@@ -233,6 +236,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-plus ) }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -256,7 +260,7 @@ jobs:
 
   build-docker-nap:
     name: Build Docker NAP
-    if: ${{ fromJSON(inputs.image-matrix-nap).image[0] != null }}
+    if: github.repository == 'nginx/kubernetes-ingress' && ( fromJSON(inputs.image-matrix-nap).image[0] != null )
     needs: [binaries]
     strategy:
       fail-fast: false
