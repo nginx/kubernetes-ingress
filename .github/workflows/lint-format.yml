@@ -81,6 +81,10 @@ jobs:
         with:
           actionlint_flags: -shellcheck ""
 
+      - name: Test Workflow Gating Script
+        run: |
+          bash .github/scripts/validate-workflow-gating_test.sh
+
       - name: Validate Workflow Gating
         run: |
           bash .github/scripts/validate-workflow-gating.sh
