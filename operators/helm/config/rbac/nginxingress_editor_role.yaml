@@ -1,0 +1,24 @@
+# permissions for end users to edit nginxingresses.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nginxingress-editor-role
+rules:
+- apiGroups:
+  - charts.nginx.org
+  resources:
+  - nginxingresses
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - charts.nginx.org
+  resources:
+  - nginxingresses/status
+  verbs:
+  - get

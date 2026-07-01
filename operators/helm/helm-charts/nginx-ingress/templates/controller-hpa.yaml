@@ -1,0 +1,41 @@
+{{- if and .Values.controller.autoscaling.enabled .Values.controller.autoscaling.create (eq .Values.controller.kind "deployment") (.Capabilities.APIVersions.Has "autoscaling/v2") -}}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "nginx-ingress.controller.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nginx-ingress.labels" . | nindent 4 }}
+{{- if .Values.controller.autoscaling.annotations }}
+  annotations:
+{{ toYaml .Values.controller.autoscaling.annotations | indent 4 }}
+{{- end }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "nginx-ingress.controller.fullname" . }}
+  minReplicas: {{ .Values.controller.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.controller.autoscaling.maxReplicas }}
+{{- if .Values.controller.autoscaling.behavior }}
+  behavior:
+{{ toYaml .Values.controller.autoscaling.behavior | indent 4 }}
+{{- end }}
+  metrics:
+    {{- if .Values.controller.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.controller.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.controller.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.controller.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+{{- end }}

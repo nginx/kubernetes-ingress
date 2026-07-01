@@ -1,0 +1,218 @@
+apiVersion: charts.nginx.org/v1alpha1
+kind: NginxIngress
+metadata:
+  name: nginxingress-sample
+spec:
+  # Default values copied from <project_dir>/deployments/helm-chart/values.yaml
+  controller:
+    name: controller
+    kind: deployment
+    selectorLabels: {}
+    annotations: {}
+    nginxplus: false
+    mgmt:
+      licenseTokenSecretName: license-token
+    nginxReloadTimeout: 60000
+    appprotect:
+      enable: false
+      # logLevel: fatal
+    appprotectdos:
+      enable: false
+      debug: false
+      maxWorkers: 0
+      maxDaemons: 0
+      memory: 0
+    hostNetwork: false
+    hostPort:
+      enable: false
+      http: 80
+      https: 443
+    containerPort:
+      http: 80
+      https: 443
+    dnsPolicy: ClusterFirst
+    nginxDebug: false
+    shareProcessNamespace: false
+    logLevel: info
+    logFormat: glog
+    customPorts: []
+    image:
+      repository: nginx/nginx-ingress
+      tag: "5.5.1-ubi"
+      # digest: "sha256:CHANGEME"
+      pullPolicy: IfNotPresent
+    lifecycle: {}
+    customConfigMap: ""
+    config:
+      # name: nginx-config
+      annotations: {}
+      entries: {}
+    defaultTLS:
+      cert: ""
+      key: ""
+      secret: ""
+    wildcardTLS:
+      cert: ""
+      key: ""
+      secret: ""
+    # nodeSelector: {}
+    terminationGracePeriodSeconds: 30
+    autoscaling:
+      enabled: false
+      annotations: {}
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 50
+      targetMemoryUtilizationPercentage: 50
+      behavior: {}
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      # limits:
+      #   cpu: 1
+      #   memory: 1Gi
+    initContainerResources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      # limits:
+      #   cpu: 1
+      #   memory: 1Gi
+    tolerations: []
+    affinity: {}
+    # topologySpreadConstraints: {}
+    env: []
+    # - name: MY_VAR
+    #   value: myvalue
+    volumes: []
+    # - name: extra-conf
+    #   configMap:
+    #     name: extra-conf
+    volumeMounts: []
+    # - name: extra-conf
+    #   mountPath: /etc/nginx/conf.d/extra.conf
+    #   subPath: extra.conf
+    initContainers: []
+    # - name: init-container
+    #   image: busybox:1.34
+    #   command: ['sh', '-c', 'echo this is initial setup!']
+    minReadySeconds: 0
+    podDisruptionBudget:
+      enabled: false
+      annotations: {}
+      # minAvailable: 1
+      # maxUnavailable: 1
+    strategy: {}
+    extraContainers: []
+    # - name: container
+    #   image: busybox:1.34
+    #   command: ['sh', '-c', 'echo this is a sidecar!']
+    replicaCount: 1
+    ingressClass:
+      name: nginx
+      create: true
+      setAsDefaultIngress: false
+    watchNamespace: ""
+    watchNamespaceLabel: ""
+    watchSecretNamespace: ""
+    enableCustomResources: true
+    enableOIDC: false
+    enableTLSPassthrough: false
+    tlsPassthroughPort: 443
+    enableCertManager: false
+    enableExternalDNS: false
+    globalConfiguration:
+      create: false
+      spec: {}
+      # listeners:
+      # - name: dns-udp
+      #   port: 5353
+      #   protocol: UDP
+      # - name: dns-tcp
+      #   port: 5353
+      #   protocol: TCP
+    enableSnippets: false
+    healthStatus: false
+    healthStatusURI: "/nginx-health"
+    nginxStatus:
+      enable: true
+      port: 8080
+      allowCidrs: "127.0.0.1"
+    service:
+      create: true
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+      extraLabels: {}
+      loadBalancerIP: ""
+      clusterIP: ""
+      externalIPs: []
+      loadBalancerSourceRanges: []
+      # allocateLoadBalancerNodePorts: false
+      # ipFamilyPolicy: SingleStack
+      # ipFamilies:
+      #   - IPv6
+      httpPort:
+        enable: true
+        port: 80
+        # nodePort: 80
+        targetPort: 80
+      httpsPort:
+        enable: true
+        port: 443
+        # nodePort: 443
+        targetPort: 443
+      customPorts: []
+    serviceAccount:
+      annotations: {}
+      # name: nginx-ingress
+      imagePullSecretName: ""
+      imagePullSecretsNames: []
+    reportIngressStatus:
+      enable: true
+      # externalService: nginx-ingress
+      ingressLink: ""
+      enableLeaderElection: true
+      leaderElectionLockName: "nginx-ingress-leader"
+      annotations: {}
+    pod:
+      annotations: {}
+      extraLabels: {}
+    # priorityClassName: ""
+    readyStatus:
+      enable: true
+      port: 8081
+      initialDelaySeconds: 0
+    enableLatencyMetrics: false
+    disableIPV6: false
+    defaultHTTPListenerPort: 80
+    defaultHTTPSListenerPort: 443
+    readOnlyRootFilesystem: false
+    enableSSLDynamicReload: true
+  rbac:
+    create: true
+  prometheus:
+    create: true
+    port: 9113
+    secret: ""
+    scheme: http
+    service:
+      create: false
+      labels:
+        service: "nginx-ingress-prometheus-service"
+    serviceMonitor:
+      create: false
+      labels: {}
+      selectorMatchLabels:
+        service: "nginx-ingress-prometheus-service"
+      endpoints:
+        - port: prometheus
+  serviceInsight:
+    create: false
+    port: 9114
+    secret: ""
+    scheme: http
+  nginxServiceMesh:
+    enable: false
+    enableEgress: false

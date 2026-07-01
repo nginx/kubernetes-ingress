@@ -1,0 +1,6 @@
+resources:
+- nginx-ingress-operator.clusterserviceversion.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+commonAnnotations:
+  containerImage: quay.io/nginx/nginx-ingress-operator:3.6.2

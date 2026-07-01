@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nginx-ingress-independent
+  namespace: nginx-ingress
+# imagePullSecrets:
+# - name: myImagePullSecretName
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nginx-ingress-independent
+subjects:
+- kind: ServiceAccount
+  name: nginx-ingress-independent
+  namespace: nginx-ingress
+roleRef:
+  kind: ClusterRole
+  name: nginx-ingress-operator-nginx-ingress-admin
+  apiGroup: rbac.authorization.k8s.io

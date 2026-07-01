@@ -1,0 +1,84 @@
+{{- if .Values.controller.service.create }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "nginx-ingress.controller.service.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "nginx-ingress.labels" . | nindent 4 }}
+{{- if .Values.controller.service.extraLabels }}
+{{ toYaml .Values.controller.service.extraLabels | indent 4 }}
+{{- end }}
+{{- if .Values.controller.service.annotations }}
+  annotations:
+{{ toYaml .Values.controller.service.annotations | indent 4 }}
+{{- end }}
+spec:
+{{- if .Values.controller.service.clusterIP }}
+  clusterIP: {{ .Values.controller.service.clusterIP }}
+{{- end }}
+{{- if or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort") }}
+  {{- if .Values.controller.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.controller.service.externalTrafficPolicy }}
+  {{- end }}
+{{- end }}
+{{- if eq .Values.controller.service.type "LoadBalancer" }}
+  {{- if hasKey .Values.controller.service "allocateLoadBalancerNodePorts" }}
+  allocateLoadBalancerNodePorts: {{ .Values.controller.service.allocateLoadBalancerNodePorts }}
+  {{- end }}
+  {{- if .Values.controller.service.loadBalancerIP }}
+  loadBalancerIP: {{ .Values.controller.service.loadBalancerIP }}
+  {{- end }}
+  {{- if .Values.controller.service.loadBalancerClass }}
+  loadBalancerClass: {{ .Values.controller.service.loadBalancerClass }}
+  {{- end }}
+  {{- if .Values.controller.service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+{{ toYaml .Values.controller.service.loadBalancerSourceRanges | indent 4 }}
+  {{- end }}
+{{- end }}
+  type: {{ .Values.controller.service.type }}
+  {{- if .Values.controller.service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ .Values.controller.service.ipFamilyPolicy }}
+  {{- end }}
+  {{- if .Values.controller.service.ipFamilies }}
+  ipFamilies:
+{{ toYaml .Values.controller.service.ipFamilies | indent 4 }}
+  {{- end }}
+  ports:
+{{- if .Values.controller.service.customPorts }}
+{{ toYaml .Values.controller.service.customPorts | indent 2 }}
+{{ end }}
+{{- if .Values.controller.service.httpPort.enable }}
+  - port: {{ .Values.controller.service.httpPort.port }}
+    targetPort: {{ .Values.controller.service.httpPort.targetPort }}
+    protocol: TCP
+    name: {{ .Values.controller.service.httpPort.name }}
+  {{- if or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort") }}
+    nodePort: {{ .Values.controller.service.httpPort.nodePort }}
+  {{- end }}
+{{- end }}
+{{- if .Values.controller.service.httpsPort.enable }}
+  - port: {{ .Values.controller.service.httpsPort.port }}
+    targetPort: {{ .Values.controller.service.httpsPort.targetPort }}
+    protocol: TCP
+    name: {{ .Values.controller.service.httpsPort.name }}
+  {{- if or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort") }}
+    nodePort: {{ .Values.controller.service.httpsPort.nodePort }}
+  {{- end }}
+{{- end }}
+  selector:
+    {{- include "nginx-ingress.selectorLabels" . | nindent 4 }}
+  {{- if .Values.controller.service.sessionAffinity.enable }}
+  sessionAffinity: {{ .Values.controller.service.sessionAffinity.type }}
+  {{- if eq .Values.controller.service.sessionAffinity.type "ClientIP" }}
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: {{ .Values.controller.service.sessionAffinity.timeoutSeconds }}
+  {{- end }}
+  {{- end }}
+  {{- if .Values.controller.service.externalIPs }}
+  externalIPs:
+{{ toYaml .Values.controller.service.externalIPs | indent 4 }}
+  {{- end }}
+{{- end }}
