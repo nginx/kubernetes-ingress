@@ -5255,6 +5255,262 @@ func TestGenerateNginxCfgForExternalAuthWithSignin(t *testing.T) {
 	}
 }
 
+func TestExternalAuthUpstreamNameUniquePerIngress(t *testing.T) {
+	t.Parallel()
+	sharedPolicy := map[string]*conf_v1.Policy{
+		"default/shared-ext-auth": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "shared-ext-auth",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "auth-svc",
+					AuthServicePorts: []int{8080},
+				},
+			},
+		},
+	}
+
+	// First Ingress: cafe-ingress on cafe1.example.com
+	ingEx1 := createCafeIngressEx()
+	ingEx1.Ingress.Name = "cafe-ingress"
+	ingEx1.Ingress.Spec.Rules[0].Host = "cafe1.example.com"
+	ingEx1.Ingress.Spec.TLS[0].Hosts = []string{"cafe1.example.com"}
+	ingEx1.ValidHosts = map[string]bool{"cafe1.example.com": true}
+	ingEx1.Ingress.Annotations["nginx.org/policies"] = "shared-ext-auth"
+	ingEx1.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	ingEx1.Policies = sharedPolicy
+
+	// Second Ingress: cafe-ingress2 on cafe2.example.com
+	ingEx2 := createCafeIngressEx()
+	ingEx2.Ingress.Name = "cafe-ingress2"
+	ingEx2.Ingress.Spec.Rules[0].Host = "cafe2.example.com"
+	ingEx2.Ingress.Spec.TLS[0].Hosts = []string{"cafe2.example.com"}
+	ingEx2.ValidHosts = map[string]bool{"cafe2.example.com": true}
+	ingEx2.Ingress.Annotations["nginx.org/policies"] = "shared-ext-auth"
+	ingEx2.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	ingEx2.Policies = sharedPolicy
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result1, warnings1 := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &ingEx1,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+	result2, warnings2 := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &ingEx2,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if len(warnings1) != 0 {
+		t.Errorf("ingress1: unexpected warnings: %v", warnings1)
+	}
+
+	if len(warnings2) != 0 {
+		t.Errorf("ingress2: unexpected warnings: %v", warnings2)
+	}
+
+	if result1.Servers[0].ExternalAuth == nil {
+		t.Fatal("ingress1: ExternalAuth should not be nil")
+	}
+
+	if result2.Servers[0].ExternalAuth == nil {
+		t.Fatal("ingress2: ExternalAuth should not be nil")
+	}
+
+	ups1 := result1.Servers[0].ExternalAuth.URI.Upstream
+	ups2 := result2.Servers[0].ExternalAuth.URI.Upstream
+
+	if ups1 == ups2 {
+		t.Errorf("two Ingresses with the same ExternalAuth policy must produce different upstream names, both got %q", ups1)
+	}
+
+	if !strings.Contains(ups1, "cafe-ingress_") {
+		t.Errorf("ingress1 upstream %q should contain the Ingress name 'cafe-ingress_'", ups1)
+	}
+
+	if !strings.Contains(ups2, "cafe-ingress2_") {
+		t.Errorf("ingress2 upstream %q should contain the Ingress name 'cafe-ingress2_'", ups2)
+	}
+}
+
+func TestExternalAuthUpstreamNameFormat(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.org/policies"] = "my-ext-auth-policy"
+	cafeIngressEx.Endpoints["default/auth-svc:8080"] = []string{"10.0.0.5:8080"}
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/my-ext-auth-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "my-ext-auth-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				ExternalAuth: &conf_v1.ExternalAuth{
+					AuthServiceName:  "auth-svc",
+					AuthServicePorts: []int{8080},
+				},
+			},
+		},
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+
+	if result.Servers[0].ExternalAuth == nil {
+		t.Fatal("ExternalAuth should not be nil")
+	}
+
+	// Verify the exact upstream name format: ing_<ingNS>_<ingName>_exauth_<polNS>_<polName>
+	wantUpstream := "ing_default_cafe-ingress_exauth_default_my-ext-auth-policy"
+	gotUpstream := result.Servers[0].ExternalAuth.URI.Upstream
+
+	if gotUpstream != wantUpstream {
+		t.Errorf("ExternalAuth upstream name = %q, want %q", gotUpstream, wantUpstream)
+	}
+
+	// Verify a matching upstream exists in the generated config
+	found := false
+	for _, ups := range result.Upstreams {
+		if ups.Name == wantUpstream {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("upstream %q not found in result.Upstreams", wantUpstream)
+	}
+}
+
+func TestExternalAuthUpstreamNameForCrossNamespacePolicy(t *testing.T) {
+	t.Parallel()
+	ingress := networking.Ingress{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "app-ingress",
+			Namespace: "app-ns",
+			Annotations: map[string]string{
+				"kubernetes.io/ingress.class": "nginx",
+				"nginx.org/policies":          "shared-policies/cross-ns-auth",
+			},
+		},
+		Spec: networking.IngressSpec{
+			TLS: []networking.IngressTLS{
+				{
+					Hosts:      []string{"app.example.com"},
+					SecretName: "app-secret",
+				},
+			},
+			Rules: []networking.IngressRule{
+				{
+					Host: "app.example.com",
+					IngressRuleValue: networking.IngressRuleValue{
+						HTTP: &networking.HTTPIngressRuleValue{
+							Paths: []networking.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: networking.IngressBackend{
+										Service: &networking.IngressServiceBackend{
+											Name: "app-svc",
+											Port: networking.ServiceBackendPort{
+												Number: 80,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ingEx := IngressEx{
+		Ingress: &ingress,
+		Endpoints: map[string][]string{
+			"app-svc80":            {"10.0.0.1:80"},
+			"app-ns/auth-svc:8080": {"10.0.0.5:8080"},
+		},
+		ExternalNameSvcs: map[string]bool{},
+		ValidHosts:       map[string]bool{"app.example.com": true},
+		SecretRefs: map[string]*secrets.SecretReference{
+			"app-secret": {
+				Secret: &v1.Secret{
+					Type: v1.SecretTypeTLS,
+				},
+				Path: "/etc/nginx/secrets/app-ns-app-secret",
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"shared-policies/cross-ns-auth": {
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "cross-ns-auth",
+					Namespace: "shared-policies",
+				},
+				Spec: conf_v1.PolicySpec{
+					ExternalAuth: &conf_v1.ExternalAuth{
+						AuthServiceName:  "auth-svc",
+						AuthServicePorts: []int{8080},
+					},
+				},
+			},
+		},
+	}
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &ingEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+
+	if result.Servers[0].ExternalAuth == nil {
+		t.Fatal("ExternalAuth should not be nil")
+	}
+
+	// Upstream name must use the Ingress's namespace/name, not the policy's
+	wantUpstream := "ing_app-ns_app-ingress_exauth_shared-policies_cross-ns-auth"
+	gotUpstream := result.Servers[0].ExternalAuth.URI.Upstream
+
+	if gotUpstream != wantUpstream {
+		t.Errorf("ExternalAuth upstream name = %q, want %q", gotUpstream, wantUpstream)
+	}
+
+	found := false
+	for _, ups := range result.Upstreams {
+		if ups.Name == wantUpstream {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("upstream %q not found in result.Upstreams", wantUpstream)
+	}
+}
+
 func TestGenerateNginxCfgForMergeableIngressesWithExternalAuth(t *testing.T) {
 	t.Parallel()
 	mergeableIngresses := createMergeableCafeIngress()
