@@ -464,6 +464,137 @@ func TestUpdateEndpointsMergeableIngress(t *testing.T) {
 	}
 }
 
+// Recording mock — embeds FakeManager, overrides UpdateServersInPlus to capture calls
+type recordingFakeManager struct {
+	*nginx.FakeManager
+	updatedUpstreams map[string][]string
+}
+
+func (m *recordingFakeManager) UpdateServersInPlus(upstream string, servers []string, _ nginx.ServerConfig) error {
+	m.updatedUpstreams[upstream] = servers
+	return nil
+}
+
+func TestUpdatePlusExternalAuthEndpoints(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		policies      map[string]*conf_v1.Policy
+		endpoints     map[string][]string
+		parentIngress *networking.Ingress
+		wantUpstreams map[string][]string
+		wantErr       bool
+	}{
+		{
+			name: "policy with nil ExternalAuth is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/no-extauth": {Spec: conf_v1.PolicySpec{}},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "policy with empty AuthServiceName is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/empty-svc": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{AuthServiceName: ""},
+					},
+				},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "valid policy with matching endpoints",
+			policies: map[string]*conf_v1.Policy{
+				"default/my-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "my-auth", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{8080},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{
+				"default/auth-svc:8080": {"10.0.0.5:8080"},
+			},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			},
+			wantUpstreams: map[string][]string{
+				"ing_default_cafe_exauth_default_my-auth": {"10.0.0.5:8080"},
+			},
+		},
+		{
+			name: "valid policy with no matching endpoints is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/my-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "my-auth", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{8080},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "cross-namespace policy uses parent ingress identity",
+			policies: map[string]*conf_v1.Policy{
+				"auth-ns/shared-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "shared-auth", Namespace: "auth-ns"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{9090},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{
+				"auth-ns/auth-svc:9090": {"10.0.0.10:9090"},
+			},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "app-ingress", Namespace: "app-ns"},
+			},
+			wantUpstreams: map[string][]string{
+				"ing_app-ns_app-ingress_exauth_auth-ns_shared-auth": {"10.0.0.10:9090"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			mgr := &recordingFakeManager{
+				FakeManager:      nginx.NewFakeManager("/etc/nginx"),
+				updatedUpstreams: make(map[string][]string),
+			}
+			cnf := createTestConfiguratorWithManager(t, mgr)
+			cnf.isReloadsEnabled = true
+
+			err := cnf.updatePlusExternalAuthEndpoints(
+				tt.policies, tt.endpoints, tt.parentIngress, nginx.ServerConfig{},
+			)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if diff := cmp.Diff(tt.wantUpstreams, mgr.updatedUpstreams); diff != "" {
+				t.Errorf("upstream mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestUpdateEndpointsFailsWithInvalidTemplate(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfiguratorInvalidIngressTemplate(t)
