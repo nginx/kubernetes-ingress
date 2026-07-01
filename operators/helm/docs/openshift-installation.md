@@ -23,10 +23,10 @@ Additional steps:
 
 In order to deploy NGINX Ingress Controller instances into OpenShift environments, a new SCC is required to be created on the cluster which will be used to bind the specific required capabilities to the NGINX Ingress service account(s). To do so for NIC deployments, please run the following command (assuming you are logged in with administrator access to the cluster):
 
-`kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-ingress-helm-operator/v3.6.2/resources/scc.yaml`
+`kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-ingress-helm-operator/v3.7.0/resources/scc.yaml`
 
 Alternatively, to create an SCC for NIC daemonsets, please run this command:
 
-`kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-ingress-helm-operator/v3.6.2/resources/scc-daemonset.yaml`
+`kubectl apply -f https://raw.githubusercontent.com/nginx/nginx-ingress-helm-operator/v3.7.0/resources/scc-daemonset.yaml`
 
 You can now deploy the NGINX Ingress Controller instances.

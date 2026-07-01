@@ -3,4 +3,4 @@ resources:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 commonAnnotations:
-  containerImage: quay.io/nginx/nginx-ingress-operator:3.6.2
+  containerImage: quay.io/nginx/nginx-ingress-operator:3.7.0
