@@ -34,12 +34,13 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     outputs:
-      docs_only: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.docs.outputs.docs_only == 'true' }}
+      docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
@@ -110,7 +111,6 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Setup secrets
         id: secrets
@@ -122,7 +122,6 @@ jobs:
           GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$GCR_SERVICE_ACCOUNT"
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-        if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -131,7 +130,6 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
-        if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
@@ -139,7 +137,6 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-        if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Check if stable image exists
         id: stable_exists
@@ -149,7 +146,6 @@ jobs:
             exists=true
           fi
           echo "exists=${exists}" >> $GITHUB_OUTPUT
-        if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
       - name: Check if docker build is needed
         id: docker_build
@@ -202,14 +198,16 @@ jobs:
 
   verify-codegen:
     name: Verify generated code
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      inputs.force ||
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit != 'true'
+      )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     needs: checks
-    if: >-
-      inputs.force ||
-      needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit != 'true'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -243,15 +241,16 @@ jobs:
 
   unit-tests:
     name: Unit Tests
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' &&
+      (inputs.force ||
+      (needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit != 'true'))
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write
     needs: checks
-    if: >-
-      inputs.force ||
-      (needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit != 'true')
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -269,7 +268,6 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Setup secrets
         id: secrets
@@ -278,7 +276,6 @@ jobs:
           CODECOV_TOKEN=$(az keyvault secret show --name code-cov --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$CODECOV_TOKEN"
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Setup Golang Environment
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -297,18 +294,19 @@ jobs:
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
   staticcheck:
     name: Static Check
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      inputs.force ||
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit != 'true'
+      )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     needs: checks
-    if: >-
-      inputs.force ||
-      needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit != 'true'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -333,14 +331,16 @@ jobs:
 
   govulncheck:
     name: Vulnerability Check
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      inputs.force ||
+      needs.checks.outputs.run_tests == 'true' &&
+      needs.checks.outputs.binary_cache_hit != 'true'
+      )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
     needs: checks
-    if: >-
-      inputs.force ||
-      needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit != 'true'
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
@@ -360,11 +360,12 @@ jobs:
 
   build-artifacts:
     name: Build Artifacts
-    needs: [checks, unit-tests]
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       !cancelled() &&
       needs.checks.result == 'success' &&
-      (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped')
+      (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped'))
+    needs: [checks, unit-tests]
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' }}
@@ -391,6 +392,12 @@ jobs:
 
   tag-target:
     name: Tag untested image with PR number
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.forked_workflow == 'false' &&
+      (needs.checks.outputs.run_tests == 'true' ||
+      needs.checks.outputs.docker_build == 'true')
+      )
     needs: [checks, build-artifacts]
     permissions:
       contents: read # To checkout repository
@@ -401,16 +408,15 @@ jobs:
       target_tag: ${{ needs.checks.outputs.additional_tag }}
       dry_run: false
     secrets: inherit
-    if: >-
-      needs.checks.outputs.forked_workflow == 'false' &&
-      (needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true')
 
   package-tests:
+    name: Package Tests
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.forked_workflow == 'false' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
-    name: Package Tests
+      ))
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
     permissions:
@@ -425,7 +431,6 @@ jobs:
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
         with:
           platforms: arm64
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -433,7 +438,6 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Setup secrets
         id: secrets
@@ -445,7 +449,6 @@ jobs:
           GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$GCR_SERVICE_ACCOUNT"
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -454,7 +457,6 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
@@ -462,23 +464,20 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Install Python dependencies
         run: |
           make -f tests/Makefile setup-venv
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Run tests
         id: packages
         run: |
           source tests/venv/bin/activate
           python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} --log package_output.txt
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Add comment
         run: |
-          # make sure the comment is formatted correctly, as a code block
+          # make sure the comment is formatted correctly, as a code block
           echo '### Package Report' > output.txt
           echo '<details>' >> output.txt
           cat package_output.txt | sed -r 's#^(.*)$#\1<br>#' >> output.txt
@@ -486,13 +485,15 @@ jobs:
           gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F output.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' && github.event.pull_request }}
 
   helm-tests:
+    name: Helm Tests ${{ matrix.base-os }}
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.forked_workflow == 'false' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
-    name: Helm Tests ${{ matrix.base-os }}
+      ))
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
     strategy:
@@ -525,7 +526,6 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ needs.checks.outputs.forked_workflow != 'true' }}
 
       - name: Setup secrets
         id: secrets
@@ -552,7 +552,6 @@ jobs:
             echo "::add-mask::${line}"
           done <<< "${KEY}"
           echo $KEY > nginx-repo.key
-        if: ${{ needs.checks.outputs.forked_workflow != 'true' }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -561,7 +560,6 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
@@ -569,7 +567,6 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Check if stable image exists
         id: stable_exists
@@ -577,23 +574,19 @@ jobs:
           if docker pull ${{ matrix.image }}:${{ needs.checks.outputs.stable_tag }}; then
             echo "exists=true" >> $GITHUB_OUTPUT
           fi
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Pull build image
         run: |
           docker pull ${{ matrix.image }}:${{ needs.checks.outputs.build_tag }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' && steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Fetch Cached Artifacts
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
-        if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
@@ -611,7 +604,6 @@ jobs:
           secret-files: |
             ${{ matrix.type == 'plus' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
             ${{ matrix.type == 'plus' && 'nginx-repo.key=nginx-repo.key' || '' }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Deploy Kubernetes
         id: k8s
@@ -677,10 +669,13 @@ jobs:
         if: always()
 
   setup-matrix:
+    name: Setup Matrix for Smoke Tests
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.forked_workflow == 'false' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
-    name: Setup Matrix for Smoke Tests
+      ))
     runs-on: ubuntu-24.04
     needs: [build-artifacts, checks]
     permissions:
@@ -709,7 +704,6 @@ jobs:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Setup secrets
         id: secrets
@@ -721,7 +715,6 @@ jobs:
           GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$GCR_SERVICE_ACCOUNT"
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -730,7 +723,6 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Login to GCR
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
@@ -738,7 +730,6 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Check if test image exists
         id: check-image
@@ -746,7 +737,6 @@ jobs:
           docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}
         shell: bash
         continue-on-error: true
-        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
       - name: Build Test-Runner Container
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
@@ -761,10 +751,13 @@ jobs:
         if: ${{ steps.check-image.outcome == 'failure' }}
 
   smoke-tests-oss:
+    name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.forked_workflow == 'false' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
-    name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
+      ))
     needs:
       - checks
       - setup-matrix
@@ -791,10 +784,13 @@ jobs:
       force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   smoke-tests-plus:
+    name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.forked_workflow == 'false' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
-    name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
+      ))
     needs:
       - checks
       - setup-matrix
@@ -821,10 +817,13 @@ jobs:
       force: ${{ needs.checks.outputs.run_tests == 'true' }}
 
   smoke-tests-nap:
+    name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.forked_workflow == 'false' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
-    name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
+      ))
     needs:
       - checks
       - setup-matrix
@@ -852,6 +851,12 @@ jobs:
 
   tag-stable:
     name: Tag tested image as stable
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.forked_workflow == 'false' && (
+      (needs.checks.outputs.forked_workflow == 'false' &&
+      needs.checks.outputs.stable_image_exists != 'true'))
+      )
     needs: [checks, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
     permissions:
       contents: read # To checkout repository
@@ -862,14 +867,11 @@ jobs:
       target_tag: ${{ needs.checks.outputs.stable_tag }}
       dry_run: false
     secrets: inherit
-    if: >-
-      (needs.checks.outputs.forked_workflow == 'false' &&
-      needs.checks.outputs.stable_image_exists != 'true')
 
   final-results:
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-24.04
     name: Final CI Results
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled())
+    runs-on: ubuntu-24.04
     needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck, unit-tests, verify-codegen]
     steps:
       - run: |
@@ -920,6 +922,9 @@ jobs:
 
   trigger-image-promotion:
     name: Promote images on Force Run
+    if: github.repository == 'nginx/kubernetes-ingress' && (
+      inputs.force &&
+      (github.ref_name == 'main' || startsWith(github.ref_name, 'release-')))
     needs:
       - final-results
       - build-artifacts
@@ -932,4 +937,3 @@ jobs:
       pull-requests: write # for scout report
     uses: ./.github/workflows/image-promotion.yml
     secrets: inherit
-    if: ${{ inputs.force && (github.ref_name == 'main' || startsWith(github.ref_name, 'release-')) }}

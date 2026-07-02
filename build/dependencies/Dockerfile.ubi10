@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.24
+# syntax=docker/dockerfile:1.25
 FROM scratch AS nginx-files
 
 ADD --link --chown=101:0 https://cs.nginx.com/static/files/plus-10.repo nginx-plus-10.repo

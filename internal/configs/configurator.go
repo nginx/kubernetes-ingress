@@ -1254,7 +1254,7 @@ func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) (Warnings, error)
 		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
-			err := cnf.updatePlusEndpoints(ingEx)
+			err := cnf.updatePlusEndpoints(ingEx, ingEx.Ingress)
 			if err != nil {
 				nl.Warnf(l, "Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
 				reloadPlus = true
@@ -1281,6 +1281,7 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 	allWarnings := newWarnings()
 
 	for i := range mergeableIngresses {
+		mergeableIng := mergeableIngresses[i]
 		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngresses[i])
 		if err != nil {
 			return allWarnings, fmt.Errorf("error adding or updating mergeableIngress %v/%v: %w", mergeableIngresses[i].Master.Ingress.Namespace, mergeableIngresses[i].Master.Ingress.Name, err)
@@ -1289,7 +1290,7 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 
 		if cnf.isPlus {
 			for _, ing := range mergeableIngresses[i].Minions {
-				err = cnf.updatePlusEndpoints(ing)
+				err = cnf.updatePlusEndpoints(ing, mergeableIng.Master.Ingress)
 				if err != nil {
 					nl.Warnf(l, "Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
 					reloadPlus = true
@@ -1446,7 +1447,7 @@ func (cnf *Configurator) updatePlusEndpointsForTransportServer(transportServerEx
 	return nil
 }
 
-func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
+func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx, parentIngress *networking.Ingress) error {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
 	ingCfg := parseAnnotations(ingEx, cnf.CfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.EnableInternalRoutes, cnf.staticCfgParams.IsDirectiveAutoadjustEnabled)
 
@@ -1495,26 +1496,29 @@ func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx) error {
 		}
 	}
 
-	// Update external auth upstreams via the Plus API.
-	// These are generated from policies referenced by the Ingress
-	// and are not part of the Ingress spec, so they need separate handling.
-	for _, pol := range ingEx.Policies {
+	return cnf.updatePlusExternalAuthEndpoints(ingEx.Policies, ingEx.Endpoints, parentIngress, cfg)
+}
+
+// updatePlusExternalAuthEndpoints updates external auth upstreams via the Plus API.
+// These are generated from policies referenced by the Ingress
+// and are not part of the Ingress spec, so they need separate handling.
+func (cnf *Configurator) updatePlusExternalAuthEndpoints(policies map[string]*conf_v1.Policy, endpoints map[string][]string, parentIngress *networking.Ingress, cfg nginx.ServerConfig) error {
+	for _, pol := range policies {
 		if pol.Spec.ExternalAuth == nil || pol.Spec.ExternalAuth.AuthServiceName == "" {
 			continue
 		}
 		exAuth := pol.Spec.ExternalAuth
-		upstreamName := fmt.Sprintf("ing_exauth_%s_%s", pol.Namespace, pol.Name)
+		upstreamName := fmt.Sprintf("ing_%s_%s_exauth_%s_%s", parentIngress.Namespace, parentIngress.Name, pol.Namespace, pol.Name)
 		port := getExternalAuthPort(exAuth)
 		ns, svcName := ParseServiceReference(exAuth.AuthServiceName, pol.Namespace)
 		endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
-		if endps, exists := ingEx.Endpoints[endpointKey]; exists {
+		if endps, exists := endpoints[endpointKey]; exists {
 			err := cnf.updateServersInPlus(upstreamName, endps, cfg)
 			if err != nil {
 				return fmt.Errorf("couldn't update the endpoints for external auth upstream %v: %w", upstreamName, err)
 			}
 		}
 	}
-
 	return nil
 }
 

@@ -44,6 +44,25 @@ repos:
         require_serial: true
         pass_filenames: false
 
+      - id: test-workflow-gating
+        name: test workflow gating script
+        description: Runs unit tests for the workflow repository-gating validator.
+        entry: .github/scripts/validate-workflow-gating_test.sh
+        language: script
+        files: ^\.github/scripts/validate-workflow-gating(_test)?\.sh$
+        pass_filenames: false
+        require_serial: true
+
+      - id: validate-workflow-gating
+        name: validate workflow gating
+        description: Ensures every non-mirror workflow job is gated to the nginx/kubernetes-ingress repository.
+        entry: .github/scripts/validate-workflow-gating.sh
+        language: golang
+        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.44.6"]
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: false
+        require_serial: true
+
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.21.2
     hooks:
@@ -72,7 +91,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.3
+    rev: 0.37.4
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
