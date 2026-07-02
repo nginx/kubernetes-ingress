@@ -314,6 +314,7 @@ func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
 
 // syncWAFBundleSource performs initial bundle fetches (if files are absent on disk)
 // and reconciles the background poller for the given WAF policy.
+// Initial fetches are performed asynchronously to avoid blocking the sync queue.
 func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	polKey := pol.Namespace + "/" + pol.Name
 	bs := pol.Spec.WAF.ApBundleSource
@@ -336,7 +337,9 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 		policyFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy")
 		policyPath := filepath.Join(lbc.wafBundlePath, policyFilename)
 		if _, statErr := os.Stat(policyPath); os.IsNotExist(statErr) {
-			lbc.performInitialFetch(pol, bs, auth, policyPath, wafbundle.PolicyBundle)
+			lbc.fetchBundleAsync(pol, bs, auth, policyPath, wafbundle.PolicyBundle)
+			// Return early; re-sync will occur when fetch completes.
+			return
 		}
 	}
 
@@ -358,7 +361,9 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 		logFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx))
 		logPath := filepath.Join(lbc.wafBundlePath, logFilename)
 		if _, statErr := os.Stat(logPath); os.IsNotExist(statErr) {
-			lbc.performInitialFetch(pol, sl.ApLogBundleSource, logAuth, logPath, wafbundle.LogProfileBundle)
+			lbc.fetchBundleAsync(pol, sl.ApLogBundleSource, logAuth, logPath, wafbundle.LogProfileBundle)
+			// Return early; re-sync will occur when fetch completes.
+			return
 		}
 	}
 
@@ -368,6 +373,22 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	} else {
 		lbc.bundlePollerMgr.StopPoller(polKey)
 	}
+}
+
+// fetchBundleAsync launches performInitialFetch in a background goroutine.
+// After fetch completes, re-enqueues the policy to trigger poller reconciliation.
+// This keeps the sync queue unblocked during long-running fetches.
+func (lbc *LoadBalancerController) fetchBundleAsync(
+	pol *conf_v1.Policy,
+	bs *conf_v1.BundleSource,
+	auth *wafbundle.BundleAuth,
+	path string,
+	kind wafbundle.BundleType,
+) {
+	go func() {
+		lbc.performInitialFetch(pol, bs, auth, path, kind)
+		lbc.AddSyncQueue(pol)
+	}()
 }
 
 // performInitialFetch synchronously fetches a single bundle and writes it to destPath.
