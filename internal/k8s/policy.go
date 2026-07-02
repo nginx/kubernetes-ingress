@@ -420,6 +420,14 @@ func (lbc *LoadBalancerController) performInitialFetch(
 				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
 			}
 		}
+		return
+	}
+
+	// Update status to Valid after successful bundle write.
+	if lbc.reportCustomResourceStatusEnabled() {
+		if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "BundleReady", "WAF bundle fetched and ready"); updateErr != nil {
+			nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+		}
 	}
 }
 
