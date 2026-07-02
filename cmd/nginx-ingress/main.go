@@ -304,6 +304,7 @@ func main() {
 		AppProtectEnabled:            *appProtect,
 		AppProtectDosEnabled:         *appProtectDos,
 		AppProtectVersion:            appProtectVersion,
+		WAFBundlePath:                appProtectBundlePath,
 		IsNginxPlus:                  *nginxPlus,
 		IngressClass:                 *ingressClass,
 		ExternalServiceName:          *externalService,
@@ -343,7 +344,6 @@ func main() {
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
 		ShuttingDown:                 false,
-		AppProtectBundlePath:         appProtectBundlePath,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)

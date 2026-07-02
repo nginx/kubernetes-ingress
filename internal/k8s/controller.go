@@ -235,10 +235,10 @@ type LoadBalancerController struct {
 	endpointSliceWarnings         map[string]bool // see updateEndpointSliceWarningState
 
 	// WAF bundle polling.
-	bundlePollerMgr      wafbundle.Manager
-	bundleFetcher        wafbundle.Fetcher
-	appProtectVersion    string
-	appProtectBundlePath string
+	bundlePollerMgr wafbundle.Manager
+	bundleFetcher   wafbundle.Fetcher
+	wafVersion      string
+	wafBundlePath   string
 
 	// Startup status deferral: pending slices accumulate status updates
 	// during the initial queue drain (!isNginxReady). They are snapshotted
@@ -269,6 +269,7 @@ type NewLoadBalancerControllerInput struct {
 	AppProtectEnabled            bool
 	AppProtectDosEnabled         bool
 	AppProtectVersion            string
+	WAFBundlePath                string
 	IsNginxPlus                  bool
 	IngressClass                 string
 	ExternalServiceName          string
@@ -308,7 +309,6 @@ type NewLoadBalancerControllerInput struct {
 	DynamicWeightChangesReload   bool
 	InstallationFlags            []string
 	ShuttingDown                 bool
-	AppProtectBundlePath         string
 }
 
 // NewLoadBalancerController creates a controller
@@ -356,16 +356,16 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		mgmtConfigMapName:            input.MGMTConfigMap,
 		ShuttingDown:                 input.ShuttingDown,
 		endpointSliceWarnings:        make(map[string]bool),
-		appProtectVersion:            input.AppProtectVersion,
-		appProtectBundlePath:         input.AppProtectBundlePath,
+		wafVersion:                   input.AppProtectVersion,
+		wafBundlePath:                input.WAFBundlePath,
 	}
 
-	if input.AppProtectEnabled && input.AppProtectBundlePath != "" {
+	if input.AppProtectEnabled && input.WAFBundlePath != "" {
 		fetcher := wafbundle.NewHTTPFetcher()
 		lbc.bundleFetcher = fetcher
 		lbc.bundlePollerMgr = wafbundle.NewPollerManager(
 			fetcher,
-			input.AppProtectBundlePath,
+			input.WAFBundlePath,
 			func(polKey string) {
 				parts := strings.SplitN(polKey, "/", 2)
 				if len(parts) == 2 {

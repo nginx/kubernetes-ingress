@@ -289,11 +289,11 @@ func hasBundleSource(pol *conf_v1.Policy) bool {
 // A false return means at least one bundle is still pending its initial fetch,
 // so syncPolicy should not set the policy status to Valid prematurely.
 func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
-	if pol.Spec.WAF == nil || lbc.appProtectBundlePath == "" {
+	if pol.Spec.WAF == nil || lbc.wafBundlePath == "" {
 		return true
 	}
 	if pol.Spec.WAF.ApBundleSource != nil {
-		path := filepath.Join(lbc.appProtectBundlePath,
+		path := filepath.Join(lbc.wafBundlePath,
 			wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return false
@@ -303,7 +303,7 @@ func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
 		if sl == nil || sl.ApLogBundleSource == nil {
 			continue
 		}
-		path := filepath.Join(lbc.appProtectBundlePath,
+		path := filepath.Join(lbc.wafBundlePath,
 			wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx)))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return false
@@ -334,7 +334,7 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 		}
 
 		policyFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy")
-		policyPath := filepath.Join(lbc.appProtectBundlePath, policyFilename)
+		policyPath := filepath.Join(lbc.wafBundlePath, policyFilename)
 		if _, statErr := os.Stat(policyPath); os.IsNotExist(statErr) {
 			lbc.performInitialFetch(pol, bs, auth, policyPath, wafbundle.PolicyBundle)
 		}
@@ -356,7 +356,7 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 			continue
 		}
 		logFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx))
-		logPath := filepath.Join(lbc.appProtectBundlePath, logFilename)
+		logPath := filepath.Join(lbc.wafBundlePath, logFilename)
 		if _, statErr := os.Stat(logPath); os.IsNotExist(statErr) {
 			lbc.performInitialFetch(pol, sl.ApLogBundleSource, logAuth, logPath, wafbundle.LogProfileBundle)
 		}
@@ -514,7 +514,7 @@ func (lbc *LoadBalancerController) buildFetchRequest(bs *conf_v1.BundleSource, a
 		Auth:               auth,
 		PolicyName:         bs.PolicyName,
 		PolicyNamespace:    bs.PolicyNamespace,
-		NAPRelease:         lbc.appProtectVersion,
+		NAPRelease:         lbc.wafVersion,
 		InsecureSkipVerify: bs.InsecureSkipVerify,
 		VerifyChecksum:     bs.VerifyChecksum,
 	}
@@ -625,14 +625,14 @@ func (lbc *LoadBalancerController) resolveWAFTrustedCert(secretName, namespace s
 
 // cleanupFetchedBundles removes any fetched bundle files for the given polKey.
 func (lbc *LoadBalancerController) cleanupFetchedBundles(polKey string) {
-	if lbc.appProtectBundlePath == "" {
+	if lbc.wafBundlePath == "" {
 		return
 	}
 	ns, name, _ := helpers.ParseNamespaceName(polKey)
-	_ = os.Remove(filepath.Join(lbc.appProtectBundlePath, wafbundle.FetchedBundleFilename(ns, name, "policy")))
+	_ = os.Remove(filepath.Join(lbc.wafBundlePath, wafbundle.FetchedBundleFilename(ns, name, "policy")))
 
 	// Glob for all log bundles belonging to this policy to avoid a hardcoded upper limit.
-	pattern := filepath.Join(lbc.appProtectBundlePath, fmt.Sprintf("fetched_%s_%s_log_*.tgz", ns, name))
+	pattern := filepath.Join(lbc.wafBundlePath, fmt.Sprintf("fetched_%s_%s_log_*.tgz", ns, name))
 	matches, _ := filepath.Glob(pattern)
 	for _, m := range matches {
 		_ = os.Remove(m)

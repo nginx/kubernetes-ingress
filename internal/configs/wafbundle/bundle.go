@@ -1,5 +1,5 @@
 // Package wafbundle implements fetching and background polling of pre-compiled
-// NGINX App Protect WAF policy bundles from remote sources (HTTPS endpoint,
+// WAF policy bundles from remote sources (HTTPS endpoint,
 // NGINX One Console, or NGINX Instance Manager).
 package wafbundle
 
@@ -25,7 +25,7 @@ const (
 	MaxBundleSize int64 = 100 << 20
 
 	// BundleReloadDelay is a stabilization window inserted between an atomic bundle
-	// file replacement and the NGINX reload. APP_PROTECT v5's waf-config-mgr detects
+	// file replacement and the NGINX reload. WAF v5's waf-config-mgr detects
 	// the new inode and performs its own internal re-read; triggering a reload before
 	// that completes causes a transient "File Not Found".
 	BundleReloadDelay = 2 * time.Second
