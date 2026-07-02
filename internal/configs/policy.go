@@ -12,6 +12,7 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
+	"github.com/nginx/kubernetes-ingress/internal/helpers"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
@@ -853,7 +854,7 @@ func (p *policiesCfg) addWAFConfig(
 
 	if waf.ApBundleSource != nil {
 		// Bundle was written to disk by syncPolicy() before config generation runs.
-		ns, name := splitPolKey(polKey)
+		ns, name, _ := helpers.ParseNamespaceName(polKey)
 		filename := wafbundle.FetchedBundleFilename(ns, name, "policy")
 		bundlePath, err := p.BundleValidator.validate(filename)
 		if err != nil {
@@ -899,7 +900,7 @@ func (p *policiesCfg) addWAFConfig(
 			}
 
 			if loco.ApLogBundleSource != nil {
-				ns, name := splitPolKey(polKey)
+				ns, name, _ := helpers.ParseNamespaceName(polKey)
 				filename := wafbundle.FetchedBundleFilename(ns, name, fmt.Sprintf("log_%d", idx))
 				logBundle, err := p.BundleValidator.validate(filename)
 				if err != nil {
@@ -1572,13 +1573,4 @@ func generateCacheConfig(cache *conf_v1.Cache, ownerDetails policyOwnerDetails) 
 
 func rfc1123ToSnake(rfc1123String string) string {
 	return strings.ReplaceAll(rfc1123String, "-", "_")
-}
-
-// splitPolKey splits "namespace/name" into its two components.
-func splitPolKey(polKey string) (ns, name string) {
-	ns, name, found := strings.Cut(polKey, "/")
-	if !found {
-		return "", polKey
-	}
-	return ns, name
 }

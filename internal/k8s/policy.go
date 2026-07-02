@@ -11,6 +11,7 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
+	"github.com/nginx/kubernetes-ingress/internal/helpers"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -627,7 +628,7 @@ func (lbc *LoadBalancerController) cleanupFetchedBundles(polKey string) {
 	if lbc.appProtectBundlePath == "" {
 		return
 	}
-	ns, name, _ := ParseNamespaceName(polKey)
+	ns, name, _ := helpers.ParseNamespaceName(polKey)
 	_ = os.Remove(filepath.Join(lbc.appProtectBundlePath, wafbundle.FetchedBundleFilename(ns, name, "policy")))
 
 	// Glob for all log bundles belonging to this policy to avoid a hardcoded upper limit.
