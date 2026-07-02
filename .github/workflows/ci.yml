@@ -40,7 +40,7 @@ jobs:
       contents: read
       id-token: write
     outputs:
-      docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
+      docs_only: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.docs.outputs.docs_only == 'true' }}
       k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
       go_path: ${{ steps.vars.outputs.go_path }}
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}

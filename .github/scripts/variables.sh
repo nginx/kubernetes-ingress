@@ -77,7 +77,12 @@ get_docs_only() {
   else
     range="HEAD^...HEAD"
   fi
-  non_doc_files=$(git diff --name-only "${range}" 2>/dev/null | grep -Ev '(\.md$|^docs/|^examples/|^site/|^\.github/ISSUE_TEMPLATE/|^\.github/PULL_REQUEST_TEMPLATE\.md$|^CHANGELOG|^LICENSE$|^CODEOWNERS$)')
+  local diff_output
+  if ! diff_output=$(git diff --name-only "${range}" 2>/dev/null); then
+    echo "docs_only=false"
+    return
+  fi
+  non_doc_files=$(echo "$diff_output" | grep -Ev '(\.md$|^docs/|^examples/|^site/|^\.github/ISSUE_TEMPLATE/|^\.github/PULL_REQUEST_TEMPLATE\.md$|^CHANGELOG|^LICENSE$|^CODEOWNERS$)' || true)
   if [ -z "$non_doc_files" ]; then
     echo "docs_only=true"
   else
