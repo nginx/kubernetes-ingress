@@ -146,7 +146,7 @@ jobs:
         id: stable_exists
         run: |
           exists=false
-          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.stable_tag }}; then
+          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-plus-ingress:${{ steps.vars.outputs.stable_tag }}; then
             exists=true
           fi
           echo "exists=${exists}" >> $GITHUB_OUTPUT
@@ -175,8 +175,7 @@ jobs:
             run_tests="false"
           elif [ "${{ steps.docs.outputs.docs_only }}" = "true" ]; then
             run_tests="false"
-          elif [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.vars.outputs.stable_image_exists }}" = "true" ]; then
-            run_tests="false"
+          elif [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "true" ]; then            run_tests="false"
           fi
           echo "run_tests=${run_tests}" >> $GITHUB_OUTPUT
 
