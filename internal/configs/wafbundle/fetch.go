@@ -300,6 +300,10 @@ type n1cCompileStatus struct {
 	Hash   string `json:"hash"`
 }
 
+// fetchN1CPolicyBundle fetches a WAF policy bundle from NGINX One Console (N1C).
+// It queries the N1C API to find the policy by name, polls for compilation, verifies the
+// checksum, and returns the compiled bundle data. Returns Unchanged if the checksum hasn't
+// changed since the last fetch.
 func fetchN1CPolicyBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
 	token := n1cToken(req)
 
@@ -333,6 +337,9 @@ func fetchN1CPolicyBundle(ctx context.Context, client *http.Client, req *Request
 	return Result{Data: data, Checksum: checksum}, nil
 }
 
+// fetchN1CLogProfileBundle fetches a WAF log profile bundle from NGINX One Console (N1C).
+// It queries the N1C API to find the log profile by name, compiles it for the target NAP release,
+// and returns the compiled bundle. Returns Unchanged if the checksum hasn't changed since the last fetch.
 func fetchN1CLogProfileBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
 	token := n1cToken(req)
 
@@ -354,8 +361,10 @@ func fetchN1CLogProfileBundle(ctx context.Context, client *http.Client, req *Req
 	return Result{Data: data, Checksum: checksum}, nil
 }
 
+// findN1CPolicy searches for a WAF policy by name in an N1C namespace.
+// Uses paginated search to find the policy with matching name.
 func findN1CPolicy(ctx context.Context, client *http.Client, baseURL, ns, name, token string) (n1cPolicyItem, error) {
-	item, found, err := paginatedSearch(
+	item, found, err := findN1CItemPaginated(
 		ctx, client, token,
 		func(pageToken string, pageSize int) string {
 			return buildN1CPoliciesURL(baseURL, ns, pageToken, pageSize)
@@ -371,8 +380,10 @@ func findN1CPolicy(ctx context.Context, client *http.Client, baseURL, ns, name, 
 	return item, nil
 }
 
+// findN1CLogProfile searches for a WAF log profile by name in an N1C namespace.
+// Returns the object ID of the matching log profile.
 func findN1CLogProfile(ctx context.Context, client *http.Client, baseURL, ns, name, token string) (string, error) {
-	item, found, err := paginatedSearch(
+	item, found, err := findN1CItemPaginated(
 		ctx, client, token,
 		func(pageToken string, pageSize int) string {
 			return buildN1CLogProfilesURL(baseURL, ns, pageToken, pageSize)
@@ -388,7 +399,10 @@ func findN1CLogProfile(ctx context.Context, client *http.Client, baseURL, ns, na
 	return item.ObjectID, nil
 }
 
-func paginatedSearch[T any](
+// findN1CItemPaginated performs a paginated search through N1C API results.
+// Pagination fetches results in pages (chunks) rather than all at once, calling matchFn
+// on each item until one matches. Returns the matched item, whether it was found, and any errors.
+func findN1CItemPaginated[T any](
 	ctx context.Context,
 	client *http.Client,
 	token string,
@@ -422,6 +436,8 @@ func paginatedSearch[T any](
 	}
 }
 
+// pollN1CCompileStatus polls the N1C compile status endpoint until compilation completes,
+// times out, or fails. Returns the compile status (with hash) when succeeded, or an error.
 func pollN1CCompileStatus(ctx context.Context, client *http.Client, statusURL, token string) (n1cCompileStatus, error) {
 	for attempt := 0; attempt < maxN1CCompilePolls; attempt++ {
 		body, err := n1cGet(ctx, client, statusURL, token)
@@ -451,6 +467,7 @@ func pollN1CCompileStatus(ctx context.Context, client *http.Client, statusURL, t
 	return n1cCompileStatus{}, &nonTransientError{fmt.Errorf("N1C policy compilation did not complete after %d polls", maxN1CCompilePolls)}
 }
 
+// n1cDownload downloads the compiled bundle from the N1C download endpoint.
 func n1cDownload(ctx context.Context, client *http.Client, downloadURL, token string) ([]byte, error) {
 	body, err := n1cGet(ctx, client, downloadURL, token)
 	if err != nil {
@@ -462,6 +479,7 @@ func n1cDownload(ctx context.Context, client *http.Client, downloadURL, token st
 	return body, nil
 }
 
+// n1cGet performs an HTTP GET request against an N1C API endpoint with APIToken authentication.
 func n1cGet(ctx context.Context, client *http.Client, targetURL, token string) (data []byte, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
@@ -601,10 +619,9 @@ type nimLogProfileBundleResponse struct {
 // NIM defaults startTime to now-24h when omitted, which silently excludes older compilations.
 var unixEpochRFC3339 = time.Unix(0, 0).UTC().Format(time.RFC3339)
 
-// fetchNIMPolicyBundle resolves the latest compilation for the named policy.
-// It first fetches metadata only (no bundle content) to check if the hash has
-// changed. The full bundle is downloaded only when a new version is detected,
-// avoiding unnecessary data transfer on each poll cycle.
+// fetchNIMPolicyBundle resolves the latest compilation for the named policy in NGINX Instance Manager (NIM).
+// It first fetches metadata to check if the hash has changed, then downloads the full bundle
+// only if a new version is detected, avoiding unnecessary data transfer on each poll cycle.
 func fetchNIMPolicyBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
 	auth := nimAuth(req)
 
@@ -743,6 +760,7 @@ func latestNIMItem(items []nimBundleItem) nimBundleItem {
 }
 
 // setNIMAuth applies authentication credentials to an HTTP request.
+// Supports Bearer token or Basic Auth.
 func setNIMAuth(req *http.Request, auth *BundleAuth) {
 	if auth == nil {
 		return
@@ -755,7 +773,7 @@ func setNIMAuth(req *http.Request, auth *BundleAuth) {
 	}
 }
 
-// nimGet performs an HTTP GET with NIM authentication (Bearer token or Basic Auth).
+// nimGet performs an HTTP GET request against a NIM API endpoint with Bearer token or Basic Auth.
 func nimGet(ctx context.Context, client *http.Client, targetURL string, auth *BundleAuth) (data []byte, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, targetURL, nil)
 	if err != nil {
