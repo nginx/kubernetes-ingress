@@ -13,6 +13,9 @@ import (
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 )
 
+// Mutex (sync.Mutex) prevents data races when multiple goroutines access the same data.
+// Without it, concurrent reads and writes to the same field can corrupt data.
+
 // Manager manages the lifecycle of per-Policy bundle pollers.
 type Manager interface {
 	ReconcilePoller(polKey string, sources []PollSource)
@@ -21,7 +24,9 @@ type Manager interface {
 }
 
 // PollSource describes one bundle to be fetched and kept current by a poller.
+// mu protects concurrent access: poller goroutines and sync queue workers both read/write Req and disabled.
 type PollSource struct {
+	mu       sync.Mutex
 	Filename string
 	Kind     BundleType
 	Req      Request
@@ -46,12 +51,18 @@ type pollerManager struct {
 	logger     *slog.Logger
 }
 
+// activePoller represents a running poller goroutine for a single Policy.
+// It holds cancel to stop the poller and sources to poll.
 type activePoller struct {
 	cancel  context.CancelFunc
 	sources []PollSource
 }
 
-// NewPollerManager creates a Manager.
+// NewPollerManager creates a Manager that orchestrates background polling of WAF bundles.
+// It manages one poller goroutine per Policy, each polling one or more bundle sources
+// at configured intervals. When a bundle is successfully fetched and differs from the
+// previous version, the poller invokes syncCb to trigger policy re-sync. Non-transient
+// fetch errors invoke errorCb to allow the caller to surface warnings.
 func NewPollerManager(fetcher Fetcher, bundlePath string, syncCb SyncCallback, errorCb RefreshErrorCallback, logger *slog.Logger) Manager {
 	return &pollerManager{
 		pollers:    make(map[string]*activePoller),
@@ -63,6 +74,15 @@ func NewPollerManager(fetcher Fetcher, bundlePath string, syncCb SyncCallback, e
 	}
 }
 
+// ReconcilePoller creates or updates a background poller for the given Policy key.
+// If a poller already exists for this key:
+//   - It compares the new sources against the existing ones (ignoring runtime-mutable
+//     fields like LastHash, ETag, LastModified so that config changes trigger restart)
+//   - If config has changed, it stops the old poller and starts a new one
+//   - If config is unchanged, it returns without restarting (preserves poller state)
+//
+// If no poller exists, it creates a new one.
+// Sources are polled on configured intervals; successful updates trigger syncCb.
 func (m *pollerManager) ReconcilePoller(polKey string, sources []PollSource) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -77,6 +97,7 @@ func (m *pollerManager) ReconcilePoller(polKey string, sources []PollSource) {
 	go m.runPoller(ctx, polKey, sources)
 }
 
+// StopPoller stops the background poller for the given Policy key (if running).
 func (m *pollerManager) StopPoller(polKey string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -86,6 +107,7 @@ func (m *pollerManager) StopPoller(polKey string) {
 	}
 }
 
+// StopAll stops all running pollers and cleans up the manager.
 func (m *pollerManager) StopAll() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -95,6 +117,9 @@ func (m *pollerManager) StopAll() {
 	}
 }
 
+// runPoller coordinates background polling of multiple bundle sources for a single Policy.
+// It maintains one ticker per source at the configured interval. When a ticker fires,
+// pollSource is invoked to fetch that bundle. The poller runs until ctx is canceled.
 func (m *pollerManager) runPoller(ctx context.Context, polKey string, sources []PollSource) {
 	if len(sources) == 0 {
 		return
@@ -103,8 +128,8 @@ func (m *pollerManager) runPoller(ctx context.Context, polKey string, sources []
 	tickCh := make(chan tick, len(sources))
 
 	tickers := make([]*time.Ticker, len(sources))
-	for i, src := range sources {
-		interval := src.Interval
+	for i := range sources {
+		interval := sources[i].Interval
 		if interval <= 0 {
 			interval = DefaultPollInterval
 		}
@@ -141,27 +166,43 @@ func (m *pollerManager) runPoller(ctx context.Context, polKey string, sources []
 	}
 }
 
+// pollSource fetches one bundle from its configured source and updates it on disk if changed.
+// It handles transient fetch errors gracefully (logs warning, keeps existing bundle) and
+// permanent errors by marking the source as disabled (stops future polls).
+// Thread-safe: acquires src.mu when reading LastHash/ETag/LastModified and when writing updates.
+// After a successful fetch and write:
+//  1. Updates src.Req tracking fields (LastHash, ETag, LastModified) under lock
+//  2. Waits for BundleReloadDelay (stabilization window for NGINX to re-read inode)
+//  3. Invokes syncCb to trigger policy re-sync
 func (m *pollerManager) pollSource(ctx context.Context, polKey string, src *PollSource) {
+	src.mu.Lock()
 	if src.disabled {
+		src.mu.Unlock()
 		return
 	}
-
-	fetchCtx, cancel := context.WithTimeout(ctx, effectiveTimeout(&src.Req))
+	// Copy Req under lock to safely read fields that poller might mutate.
+	// Fetch outside lock to avoid blocking other pollers.
+	reqCopy := src.Req
+	src.mu.Unlock()
+	fetchCtx, cancel := context.WithTimeout(ctx, effectiveTimeout(&reqCopy))
 	defer cancel()
 
 	var result Result
 	var err error
 	if src.Kind == LogProfileBundle {
-		result, err = m.fetcher.FetchLogProfileBundle(fetchCtx, &src.Req)
+		result, err = m.fetcher.FetchLogProfileBundle(fetchCtx, &reqCopy)
 	} else {
-		result, err = m.fetcher.FetchPolicyBundle(fetchCtx, &src.Req)
+		result, err = m.fetcher.FetchPolicyBundle(fetchCtx, &reqCopy)
 	}
 
 	if err != nil {
 		if isNonTransient(err) {
 			nl.Warnf(m.logger, "permanent fetch failure for policy %s file %s — stopping poll (re-apply policy to retry): %v",
 				polKey, src.Filename, err)
+			// Mark disabled under lock to prevent data race with sync queue.
+			src.mu.Lock()
 			src.disabled = true
+			src.mu.Unlock()
 		} else {
 			nl.Warnf(m.logger, "bundle re-fetch failed for policy %s file %s (keeping existing bundle): %v",
 				polKey, src.Filename, err)
@@ -182,6 +223,8 @@ func (m *pollerManager) pollSource(ctx context.Context, polKey string, src *Poll
 		return
 	}
 
+	// Update tracking fields under lock so sync queue sees consistent state.
+	src.mu.Lock()
 	src.Req.LastHash = result.Checksum
 	if result.ETag != "" {
 		src.Req.ETag = result.ETag
@@ -189,6 +232,7 @@ func (m *pollerManager) pollSource(ctx context.Context, polKey string, src *Poll
 	if result.LastModified != "" {
 		src.Req.LastModified = result.LastModified
 	}
+	src.mu.Unlock()
 
 	if reloadDelay := bundleReloadDelay(); reloadDelay > 0 {
 		select {
@@ -203,6 +247,9 @@ func (m *pollerManager) pollSource(ctx context.Context, polKey string, src *Poll
 	m.syncCb(polKey)
 }
 
+// writeAtomic writes data to a temporary file, then atomically renames it to dst.
+// This prevents partial writes or reads of incomplete bundle files if the process
+// crashes mid-write or NGINX reloads before the write completes.
 func writeAtomic(dst string, data []byte) error {
 	tmp := dst + ".tmp"
 	if err := os.WriteFile(tmp, data, 0o600); err != nil {
@@ -216,19 +263,29 @@ func writeAtomic(dst string, data []byte) error {
 }
 
 // pollSourcesEqual compares two PollSource slices for config equality.
-// Runtime-mutable fields (LastHash, ETag, LastModified) are zeroed before
-// comparison so that only config changes trigger a poller restart.
-// Uses reflect.DeepEqual so new fields are automatically included.
+// Mutable fields are zeroed before comparison so only config changes trigger restart.
 func pollSourcesEqual(a, b []PollSource) bool {
 	if len(a) != len(b) {
 		return false
 	}
 	for i := range a {
-		copyA, copyB := a[i], b[i]
-		copyA.Req.LastHash, copyB.Req.LastHash = "", ""
-		copyA.Req.ETag, copyB.Req.ETag = "", ""
-		copyA.Req.LastModified, copyB.Req.LastModified = "", ""
-		if !reflect.DeepEqual(copyA, copyB) {
+		// Extract fields under lock to safely read without concurrent mutations.
+		a[i].mu.Lock()
+		aFilename, aKind, aReq, aInterval, aDisabled := a[i].Filename, a[i].Kind, a[i].Req, a[i].Interval, a[i].disabled
+		a[i].mu.Unlock()
+
+		b[i].mu.Lock()
+		bFilename, bKind, bReq, bInterval, bDisabled := b[i].Filename, b[i].Kind, b[i].Req, b[i].Interval, b[i].disabled
+		b[i].mu.Unlock()
+
+		// Zero mutable fields before comparing so runtime state changes don't trigger restart.
+		aReq.LastHash, bReq.LastHash = "", ""
+		aReq.ETag, bReq.ETag = "", ""
+		aReq.LastModified, bReq.LastModified = "", ""
+
+		// Compare fields.
+		if aFilename != bFilename || aKind != bKind || aInterval != bInterval || aDisabled != bDisabled ||
+			!reflect.DeepEqual(aReq, bReq) {
 			return false
 		}
 	}
