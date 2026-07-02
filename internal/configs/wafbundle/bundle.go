@@ -90,6 +90,7 @@ type Request struct {
 	Timeout            time.Duration
 	RetryAttempts      int
 	VerifyChecksum     bool
+	ExpectedChecksum   string // Expected SHA-256 checksum for HTTPS bundles; used if VerifyChecksum is true
 	ETag               string
 	LastModified       string
 	LastHash           string

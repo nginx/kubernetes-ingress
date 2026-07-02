@@ -208,9 +208,25 @@ func doHTTPSFetch(client *http.Client, req *http.Request, bundleReq *Request) (r
 	}
 
 	checksum := ComputeChecksum(data)
-	if bundleReq.VerifyChecksum && bundleReq.LastHash != "" && checksum == bundleReq.LastHash {
+
+	// Verify checksum if requested. Use ExpectedChecksum if set (initial fetch), otherwise LastHash (update flow).
+	if bundleReq.VerifyChecksum {
+		expectedHash := bundleReq.ExpectedChecksum
+		if expectedHash == "" {
+			expectedHash = bundleReq.LastHash
+		}
+		if expectedHash != "" && checksum != expectedHash {
+			return Result{}, &nonTransientError{
+				fmt.Errorf("HTTPS bundle checksum mismatch: got %s, expected %s", checksum, expectedHash),
+			}
+		}
+	}
+
+	// Check if unchanged (based on LastHash from previous fetch)
+	if bundleReq.LastHash != "" && checksum == bundleReq.LastHash {
 		return Result{Unchanged: true}, nil
 	}
+
 	return Result{
 		Data: data, Checksum: checksum,
 		ETag: resp.Header.Get("ETag"), LastModified: resp.Header.Get("Last-Modified"),
