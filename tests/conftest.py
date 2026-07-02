@@ -305,6 +305,48 @@ def pytest_runtest_teardown(item, nextitem) -> None:
     print()
 
 
+def _iter_log_lines(log_output: str):
+    """
+    Yield individual log lines from an IC pod log payload.
+
+    ``read_namespaced_pod_log`` normally returns a decoded string with real
+    newline separators, but some responses arrive as an already-escaped string
+    (for example when a Kubernetes event message that itself contains ``\\n``
+    is written by the controller as a single line, or when a bytes payload is
+    coerced via ``str(...)`` further up the stack). In those cases splitting
+    on ``\\n`` alone leaves everything on one line.
+
+    This helper handles both cases: it first normalises common backslash
+    escape sequences (``\\r\\n``, ``\\n``, ``\\r``, ``\\t``, ``\\'``, ``\\"``)
+    to their real equivalents, strips any surrounding ``b'...'`` / ``b"..."``
+    bytes-repr wrapper, and then splits on real line breaks.
+    """
+    if log_output is None:
+        return
+
+    text = log_output
+
+    # Strip a bytes-repr wrapper if one snuck in (``b'...'`` or ``b"..."``).
+    if len(text) >= 3 and text[:2] in ("b'", 'b"') and text[-1] == text[1]:
+        text = text[2:-1]
+
+    # If the payload contains more escaped newlines than real ones, treat the
+    # common escape sequences as literals and expand them. Guarding on the
+    # counts keeps real log content (which may legitimately contain a ``\\n``
+    # substring) untouched in the normal case.
+    if text.count("\\n") > text.count("\n"):
+        text = (
+            text.replace("\\r\\n", "\n")
+            .replace("\\n", "\n")
+            .replace("\\r", "\n")
+            .replace("\\t", "\t")
+            .replace("\\'", "'")
+            .replace('\\"', '"')
+        )
+
+    yield from text.splitlines()
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
 def pytest_runtest_makereport(item) -> None:
     """
@@ -332,7 +374,11 @@ def pytest_runtest_makereport(item) -> None:
         log_output = item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace)
         if isinstance(log_output, bytes):
             log_output = log_output.decode("utf-8", errors="replace")
-        for line in log_output.splitlines():
+        # Some code paths deliver the log as an already-escaped string (e.g. the
+        # payload contains literal "\n" / "\r" / "\'" sequences rather than real
+        # control characters). Split on both real and escaped newlines so each
+        # log entry ends up on its own line in the terminal.
+        for line in _iter_log_lines(log_output):
             print(line)
         print("\n===================== IC Logs End =====================")
 
