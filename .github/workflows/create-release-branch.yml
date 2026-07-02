@@ -33,6 +33,7 @@ permissions:
 jobs:
   create:
     name: Create release branch
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-latest
     permissions:
       contents: write

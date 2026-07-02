@@ -38,6 +38,7 @@ permissions:
 jobs:
   patch-image:
     name: Patch image
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04-amd64
     permissions:
       contents: read

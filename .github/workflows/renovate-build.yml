@@ -23,7 +23,7 @@ jobs:
       generate: ${{ steps.filter.outputs.generate }}
     permissions:
       pull-requests: read
-    if: ${{ github.actor == 'renovate[bot]' }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (github.actor == 'renovate[bot]')
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -44,7 +44,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    if: ${{ needs.check.outputs.generate == 'true' }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (needs.check.outputs.generate == 'true')
     steps:
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0

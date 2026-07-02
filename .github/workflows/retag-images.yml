@@ -34,6 +34,7 @@ permissions:
 jobs:
   copy-to-gcr-dev-registry:
     name: Re-tag images in GCR Dev Registry
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
