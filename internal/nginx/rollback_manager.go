@@ -55,6 +55,12 @@ type ConfigRollbackManager struct {
 	// batchExcluded tracks resources removed during failure isolation in CompleteBatch.
 	// After batch completes, this is returned to the caller for logging and event reporting.
 	batchExcluded []BatchExclusion
+
+	// preBatchDefaultServer holds the on-disk contents of _default-server.conf captured
+	// when batch mode is enabled. If a bad empty-host Ingress overwrites the shared
+	// default-server file during batch mode and isolation excludes it, excludeConfig
+	// restores this snapshot instead of leaving the file missing.
+	preBatchDefaultServer []byte
 }
 
 // NewConfigRollbackManager creates a ConfigRollbackManager.
@@ -207,6 +213,18 @@ func (cm *ConfigRollbackManager) EnableBatchMode() {
 	cm.batchMode = true
 	cm.batchFiles = make(map[string]string)
 	cm.batchExcluded = nil
+
+	// Snapshot the bootstrap synthetic _default-server.conf written by main.go before any
+	// empty-host Ingress can overwrite it in batch mode. If that batch entry is later
+	// excluded during isolation, excludeConfig restores this snapshot instead of deleting
+	// the file, keeping port 80/443 responsive to unmatched hosts.
+	cm.preBatchDefaultServer = nil
+	// #nosec G304 -- defaultServerConfFilename is a constant NIC-owned path
+	if snapshot, err := os.ReadFile(cm.defaultServerConfFilename); err == nil {
+		cm.preBatchDefaultServer = snapshot
+	} else if !os.IsNotExist(err) {
+		nl.Warnf(cm.logger, "Batch mode: could not snapshot %s for restore-on-exclusion: %v", cm.defaultServerConfFilename, err)
+	}
 }
 
 // IsBatchMode returns whether the manager is currently in batch mode.
@@ -425,13 +443,24 @@ func (cm *ConfigRollbackManager) enableConfigs(paths []string) {
 
 // excludeConfig removes a bad config file and records it as an excluded resource.
 //
-// Returns an error when the file cannot be removed. Silently continuing would leave
-// the bad content on disk while dropping the file from batchFiles tracking, which
-// cascades into false attribution during subsequent isolation iterations. Callers
+// For the shared _default-server.conf, the pre-batch snapshot captured in EnableBatchMode
+// is written back in place of the delete so nginx still has a valid default server after
+// an empty-host Ingress is excluded. For every other file, the delete is unconditional.
+//
+// Returns an error when the file cannot be removed (or restored). Silently continuing
+// would leave the bad content on disk while dropping the file from batchFiles tracking,
+// which cascades into false attribution during subsequent isolation iterations. Callers
 // must treat this error as a signal to escalate to nuclear fallback.
 func (cm *ConfigRollbackManager) excludeConfig(configPath, resourceName string, reason error) error {
-	if err := os.Remove(configPath); err != nil {
-		return fmt.Errorf("failed to remove excluded config %s: %w", configPath, err)
+	if configPath == cm.defaultServerConfFilename && cm.preBatchDefaultServer != nil {
+		if err := createFileAndWrite(configPath, cm.preBatchDefaultServer); err != nil {
+			return fmt.Errorf("failed to restore pre-batch default server config %s: %w", configPath, err)
+		}
+		nl.Infof(cm.logger, "Batch isolation: restored pre-batch %s after excluding %s", configPath, resourceName)
+	} else {
+		if err := os.Remove(configPath); err != nil {
+			return fmt.Errorf("failed to remove excluded config %s: %w", configPath, err)
+		}
 	}
 	cm.batchExcluded = append(cm.batchExcluded, BatchExclusion{
 		ConfigPath:   configPath,
