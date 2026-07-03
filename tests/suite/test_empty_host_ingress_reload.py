@@ -315,6 +315,13 @@ class TestEmptyHostIngressStartupProtection:
             test_namespace,
             reload_failure_buffer_size_ingress_src,
         )
+        # A valid named-host ingress ensures partial exclusion (not total) at startup,
+        # so the pod becomes Ready and the test can proceed with normal assertions.
+        valid_ingress_name = create_ingress_from_yaml(
+            kube_apis.networking_v1,
+            test_namespace,
+            named_host_ingress_src,
+        )
         wait_before_test()
 
         print("Step 2: start NIC and let it try to apply the invalid startup config")
@@ -331,6 +338,7 @@ class TestEmptyHostIngressStartupProtection:
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
                 delete_ingress(kube_apis.networking_v1, ingress_name, test_namespace)
+                delete_ingress(kube_apis.networking_v1, valid_ingress_name, test_namespace)
                 delete_common_app(kube_apis, "simple", test_namespace)
                 delete_ingress_controller(
                     kube_apis.apps_v1_api,
@@ -368,11 +376,12 @@ class TestEmptyHostIngressStartupProtection:
 
         assert "server_name _" in conf
         if expect_rollback:
-            # With config-safety enabled on top of PR1, NIC keeps the bootstrapped synthetic
-            # default server on disk instead of leaving the failed empty-host config in place.
+            # With config-safety, the startup batch excludes the invalid empty-host ingress and
+            # keeps the bootstrapped synthetic default server on disk.
             assert "backend1-svc" not in conf
             assert "proxy_buffer_size 16k" not in conf
-            assert "rolled back to previous working config" in messages
+            ic_logs = kube_apis.v1.read_namespaced_pod_log(ic_pod, ingress_controller_prerequisites.namespace)
+            assert "Config safety: startup batch excluded" in ic_logs
         else:
             # Without config-safety, the failed empty-host config can still be left on disk even
             # though runtime traffic stays on the startup default server.
