@@ -1833,38 +1833,38 @@ func (cnf *Configurator) completeBatchAndIsolate(
 	}
 
 	// Nuclear fallback: CompleteBatch could not isolate the bad file(s). All batch
-	// files have been removed or restored from shadows. Before doing the O(N)
-	// per-file replay, probe the on-disk state once. If nginx -t still fails, the
-	// bad content lives in a file that had no previous-good version to restore
-	// (first-boot bad ConfigMap → bad nginx.conf, bad WAF policy file, etc.).
-	// Replaying every resource against that broken foundation would just fail N
+	// files have been deleted, leaving only the pre-batch bootstrap on disk. Before
+	// doing the O(N) per-file replay, probe the on-disk state once. If nginx -t
+	// still fails, the bad content lives in a file we never tracked (bootstrap
+	// nginx.conf from a bad ConfigMap render, bad WAF policy file, etc.) and
+	// replaying every resource against that broken foundation would just fail N
 	// times and mis-attribute each failure to the resource instead of the real
 	// root cause. Skip the replay and mark every resource with a clear
 	// unrecoverable-main-config error.
 	if rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager); ok {
 		if probeErr := rm.TestConfig(); probeErr != nil {
-			nl.Errorf(l, "NGINX config still invalid after batch rollback; skipping per-file replay "+
-				"(no previous-good foundation to fall back to). Correct the triggering "+
+			nl.Errorf(l, "NGINX config still invalid after batch cleanup; skipping per-file replay "+
+				"(pre-batch bootstrap alone does not pass nginx -t). Correct the triggering "+
 				"ConfigMap/Secret to recover: %v", probeErr)
 			clear(resourceErrors)
 			uniqueUnrecoverable := make(map[string]struct{}, len(tasks))
 			for _, task := range tasks {
 				key := MakeResourceErrorKey(task.kind, task.namespace, task.name)
-				resourceErrors[key] = fmt.Errorf("NGINX main configuration is invalid and no "+
-					"previous-good version is available to fall back to; correct the triggering "+
-					"ConfigMap/Secret to recover: %w", probeErr)
+				resourceErrors[key] = fmt.Errorf("NGINX main configuration is invalid; "+
+					"no resources can be applied until the triggering ConfigMap/Secret is corrected: %w",
+					probeErr)
 				uniqueUnrecoverable[key] = struct{}{}
 			}
 			cnf.effectiveBatchExclusionCount = len(uniqueUnrecoverable)
 			return allWarnings, allWeightUpdates, fmt.Errorf("batch validation failed and "+
-				"NGINX config remains invalid after rollback: %w", probeErr)
+				"NGINX config remains invalid after batch cleanup: %w", probeErr)
 		}
 	}
 
-	// Nginx -t passes after rollback, so the previous-good foundation is intact.
-	// Replay each write through createConfigWithRollback (real per-file nginx -t
-	// + rollback). Early exit is disabled — we want a definitive per-resource
-	// picture rather than the shared-input heuristic.
+	// Nginx -t passes against the pre-batch bootstrap on disk, so it is a viable
+	// foundation for per-file replay. Replay each write through createConfigWithRollback
+	// (real per-file nginx -t + rollback). Early exit is disabled — we want a
+	// definitive per-resource picture rather than the shared-input heuristic.
 	nl.Warnf(l, "Batch validation failed completely (%v), falling back to per-file validation", batchErr)
 	clear(resourceErrors)
 	replayWarnings := newWarnings()
