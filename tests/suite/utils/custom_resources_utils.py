@@ -61,6 +61,29 @@ def delete_crd(api_extensions_v1: ApiextensionsV1Api, name) -> None:
     print(f"CRD was removed with name '{name}'")
 
 
+def cleanup_crd(api_extensions_v1: ApiextensionsV1Api, name) -> None:
+    """
+    Delete a CRD if it exists and wait for full removal, otherwise no-op.
+
+    Use this at the start of session-scoped CRD fixtures to remove any CRDs
+    left behind by a previous interrupted test run before re-registering them.
+
+    :param api_extensions_v1: ApiextensionsV1Api
+    :param name: CRD name
+    :return:
+    """
+    try:
+        print(f"Cleaning up pre-existing CRD if present: {name}")
+        api_extensions_v1.delete_custom_resource_definition(name)
+        ensure_item_removal(api_extensions_v1.read_custom_resource_definition, name)
+        print(f"Pre-existing CRD '{name}' removed")
+    except ApiException as ex:
+        if ex.status == 404:
+            print(f"CRD '{name}' not present, nothing to clean up")
+        else:
+            raise
+
+
 def read_custom_resource(
     custom_objects: CustomObjectsApi, namespace, plural, name, api_group="k8s.nginx.org"
 ) -> object:

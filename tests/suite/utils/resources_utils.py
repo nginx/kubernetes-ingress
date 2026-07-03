@@ -51,21 +51,25 @@ def configure_rbac(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorization:
     :return: RBACAuthorization
     """
     with open(f"{DEPLOYMENTS}/rbac/rbac.yaml") as f:
-        docs = yaml.safe_load_all(f)
-        role_name = ""
-        binding_name = ""
-        for dep in docs:
-            if dep["kind"] == "ClusterRole":
-                print("Create cluster role")
-                role_name = dep["metadata"]["name"]
-                rbac_v1.create_cluster_role(dep)
-                print(f"Created role '{role_name}'")
-            elif dep["kind"] == "ClusterRoleBinding":
-                print("Create binding")
-                binding_name = dep["metadata"]["name"]
-                rbac_v1.create_cluster_role_binding(dep)
-                print(f"Created binding '{binding_name}'")
-        return RBACAuthorization(role_name, binding_name)
+        docs = list(yaml.safe_load_all(f))
+    role_name = ""
+    binding_name = ""
+    for dep in docs:
+        if dep["kind"] == "ClusterRole":
+            role_name = dep["metadata"]["name"]
+        elif dep["kind"] == "ClusterRoleBinding":
+            binding_name = dep["metadata"]["name"]
+    cleanup_rbac_if_exists(rbac_v1, role_name, binding_name)
+    for dep in docs:
+        if dep["kind"] == "ClusterRole":
+            print("Create cluster role")
+            rbac_v1.create_cluster_role(dep)
+            print(f"Created role '{role_name}'")
+        elif dep["kind"] == "ClusterRoleBinding":
+            print("Create binding")
+            rbac_v1.create_cluster_role_binding(dep)
+            print(f"Created binding '{binding_name}'")
+    return RBACAuthorization(role_name, binding_name)
 
 
 def configure_rbac_with_ap(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorization:
@@ -75,21 +79,25 @@ def configure_rbac_with_ap(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorization
     :return: RBACAuthorization
     """
     with open(f"{DEPLOYMENTS}/rbac/ap-rbac.yaml") as f:
-        docs = yaml.safe_load_all(f)
-        role_name = ""
-        binding_name = ""
-        for dep in docs:
-            if dep["kind"] == "ClusterRole":
-                print("Create cluster role for AppProtect")
-                role_name = dep["metadata"]["name"]
-                rbac_v1.create_cluster_role(dep)
-                print(f"Created role '{role_name}'")
-            elif dep["kind"] == "ClusterRoleBinding":
-                print("Create binding for AppProtect")
-                binding_name = dep["metadata"]["name"]
-                rbac_v1.create_cluster_role_binding(dep)
-                print(f"Created binding '{binding_name}'")
-        return RBACAuthorization(role_name, binding_name)
+        docs = list(yaml.safe_load_all(f))
+    role_name = ""
+    binding_name = ""
+    for dep in docs:
+        if dep["kind"] == "ClusterRole":
+            role_name = dep["metadata"]["name"]
+        elif dep["kind"] == "ClusterRoleBinding":
+            binding_name = dep["metadata"]["name"]
+    cleanup_rbac_if_exists(rbac_v1, role_name, binding_name)
+    for dep in docs:
+        if dep["kind"] == "ClusterRole":
+            print("Create cluster role for AppProtect")
+            rbac_v1.create_cluster_role(dep)
+            print(f"Created role '{role_name}'")
+        elif dep["kind"] == "ClusterRoleBinding":
+            print("Create binding for AppProtect")
+            rbac_v1.create_cluster_role_binding(dep)
+            print(f"Created binding '{binding_name}'")
+    return RBACAuthorization(role_name, binding_name)
 
 
 def configure_rbac_with_dos(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorization:
@@ -99,21 +107,25 @@ def configure_rbac_with_dos(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorizatio
     :return: RBACAuthorization
     """
     with open(f"{DEPLOYMENTS}/rbac/apdos-rbac.yaml") as f:
-        docs = yaml.safe_load_all(f)
-        role_name = ""
-        binding_name = ""
-        for dep in docs:
-            if dep["kind"] == "ClusterRole":
-                print("Create cluster role for DOS")
-                role_name = dep["metadata"]["name"]
-                rbac_v1.create_cluster_role(dep)
-                print(f"Created role '{role_name}'")
-            elif dep["kind"] == "ClusterRoleBinding":
-                print("Create binding for DOS")
-                binding_name = dep["metadata"]["name"]
-                rbac_v1.create_cluster_role_binding(dep)
-                print(f"Created binding '{binding_name}'")
-        return RBACAuthorization(role_name, binding_name)
+        docs = list(yaml.safe_load_all(f))
+    role_name = ""
+    binding_name = ""
+    for dep in docs:
+        if dep["kind"] == "ClusterRole":
+            role_name = dep["metadata"]["name"]
+        elif dep["kind"] == "ClusterRoleBinding":
+            binding_name = dep["metadata"]["name"]
+    cleanup_rbac_if_exists(rbac_v1, role_name, binding_name)
+    for dep in docs:
+        if dep["kind"] == "ClusterRole":
+            print("Create cluster role for DOS")
+            rbac_v1.create_cluster_role(dep)
+            print(f"Created role '{role_name}'")
+        elif dep["kind"] == "ClusterRoleBinding":
+            print("Create binding for DOS")
+            rbac_v1.create_cluster_role_binding(dep)
+            print(f"Created binding '{binding_name}'")
+    return RBACAuthorization(role_name, binding_name)
 
 
 def patch_rbac(rbac_v1: RbacAuthorizationV1Api, yaml_manifest) -> RBACAuthorization:
@@ -153,6 +165,33 @@ def cleanup_rbac(rbac_v1: RbacAuthorizationV1Api, rbac: RBACAuthorization) -> No
     print("Delete binding and cluster role")
     rbac_v1.delete_cluster_role_binding(rbac.binding)
     rbac_v1.delete_cluster_role(rbac.role)
+
+
+def cleanup_rbac_if_exists(rbac_v1: RbacAuthorizationV1Api, role_name: str, binding_name: str) -> None:
+    """
+    Delete a ClusterRoleBinding and ClusterRole if they exist, otherwise no-op.
+
+    Use this at the start of session-scoped RBAC fixtures to remove any resources
+    left behind by a previous interrupted test run before re-creating them.
+
+    :param rbac_v1: RbacAuthorizationV1Api
+    :param role_name: name of the ClusterRole
+    :param binding_name: name of the ClusterRoleBinding
+    :return:
+    """
+    for delete_fn, kind, name in [
+        (rbac_v1.delete_cluster_role_binding, "ClusterRoleBinding", binding_name),
+        (rbac_v1.delete_cluster_role, "ClusterRole", role_name),
+    ]:
+        try:
+            print(f"Cleaning up pre-existing {kind} if present: {name}")
+            delete_fn(name)
+            print(f"Pre-existing {kind} '{name}' removed")
+        except ApiException as ex:
+            if ex.status == 404:
+                print(f"{kind} '{name}' not present, nothing to clean up")
+            else:
+                raise
 
 
 def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest) -> str:
@@ -315,15 +354,19 @@ def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None
     :param timeout: maximum seconds to wait before raising (default 600)
     :return:
     """
-    print("Start waiting for all pods in a namespace to be Ready")
+    print(f"waiting for all pods in {namespace} namespace to be Ready...")
     counter = 0
     while not are_all_pods_in_ready_state(v1, namespace):
-        print("There are pods that are not Ready. Wait ...")
+        print(".", end="")
         wait_before_test()
         counter = counter + 1
         if counter * 3 >= timeout:
-            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}' to be Ready")
-    print("All pods are Ready")
+            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}'")
+    print("All pods are Ready" + " " * 40)
+    pods = v1.list_namespaced_pod(namespace)
+    for pod in pods.items:
+        images = ", ".join(c.image for c in pod.spec.containers)
+        print(f"  {pod.metadata.name}: {images}")
 
 
 def get_pod_list(v1: CoreV1Api, namespace) -> []:
@@ -362,7 +405,6 @@ def are_all_pods_in_ready_state(v1: CoreV1Api, namespace) -> bool:
         return False
     pod_ready_amount = 0
     for pod in pods.items:
-        print(f"Pod {pod.metadata.name} has image {pod.spec.containers[0].image}")
         if pod.status.conditions is None:
             return False
         for condition in pod.status.conditions:
@@ -1571,7 +1613,7 @@ def create_ns_and_sa_from_yaml(v1: CoreV1Api, yaml_manifest) -> str:
     :param yaml_manifest: an absolute path to a file
     :return: str
     """
-    print("Load yaml:")
+    print(f"Load yaml: {yaml_manifest}")
     res = {}
     with open(yaml_manifest) as f:
         docs = yaml.safe_load_all(f)
@@ -1594,7 +1636,7 @@ def create_items_from_yaml(kube_apis, yaml_manifest, namespace) -> {}:
     :return:
     """
     res = {}
-    print("Load yaml:")
+    print(f"Load yaml: {yaml_manifest}")
     with open(yaml_manifest) as f:
         docs = yaml.safe_load_all(f)
         for doc in docs:
@@ -1710,7 +1752,7 @@ def delete_items_from_yaml(kube_apis, yaml_manifest, namespace) -> None:
     :param namespace: namespace
     :return:
     """
-    print("Load yaml:")
+    print(f"Load yaml: {yaml_manifest}")
     with open(yaml_manifest) as f:
         docs = yaml.safe_load_all(f)
         for doc in docs:
@@ -1731,15 +1773,16 @@ def delete_items_from_yaml(kube_apis, yaml_manifest, namespace) -> None:
                     delete_configmap(kube_apis.v1, doc["metadata"]["name"], namespace)
 
 
-def ensure_connection(request_url, expected_code=404, headers={}) -> None:
+def ensure_connection(request_url, expected_code=404, headers={}, retries=20) -> None:
     """
     Wait for connection.
 
     :param request_url: url to request
     :param expected_code: response code
+    :param retries: number of retry attempts (default 20, ~60s total)
     :return:
     """
-    for _ in range(10):
+    for _ in range(retries):
         try:
             resp = requests.get(request_url, headers=headers, verify=False, timeout=5)
             if resp.status_code == expected_code:
@@ -1747,7 +1790,7 @@ def ensure_connection(request_url, expected_code=404, headers={}) -> None:
         except Exception as ex:
             print(f"Warning: there was an exception {str(ex)}")
         time.sleep(3)
-    pytest.fail("Connection failed after several attempts")
+    pytest.fail(f"Connection failed after {retries} attempts")
 
 
 def ensure_connection_to_public_endpoint(ip_address, port, port_ssl) -> None:

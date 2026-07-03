@@ -231,7 +231,6 @@ class TestIngressMtlsPolicyVS:
                     verify=False,
                 )
                 wait_before_test()
-                counter += 1
 
             except requests.exceptions.SSLError as e:
                 print(f"SSL certificate exception: {e}")
@@ -239,6 +238,7 @@ class TestIngressMtlsPolicyVS:
                 resp = mock.Mock()
                 resp.status_code = "None"
                 resp.text = "None"
+            counter += 1
 
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 
@@ -398,13 +398,13 @@ class TestIngressMtlsPolicyVS:
                     verify=False,
                 )
                 wait_before_test()
-                counter += 1
             except requests.exceptions.SSLError as e:
                 print(f"SSL certificate exception: {e}")
                 ssl_exception = str(e)
                 resp = mock.Mock()
                 resp.status_code = "None"
                 resp.text = "None"
+            counter += 1
 
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 
