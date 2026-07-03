@@ -1330,8 +1330,8 @@ func (lbc *LoadBalancerController) sync(task task) {
 			for _, excl := range exclusions {
 				msgs = append(msgs, fmt.Sprintf("  - %s (%s): %v", excl.ConfigPath, excl.ResourceName, excl.Error))
 			}
-			nl.Infof(lbc.Logger, "Config safety: startup batch excluded %d file(s) covering %d resource(s) due to invalid configuration:\n%s",
-				len(exclusions), effectiveCount, strings.Join(msgs, "\n"))
+			nl.Infof(lbc.Logger, "Config safety: startup batch excluded %d resource(s) across %d file(s) due to invalid configuration:\n%s",
+				effectiveCount, len(exclusions), strings.Join(msgs, "\n"))
 		}
 
 		// Step 4: Flush deferred status updates in a background goroutine
