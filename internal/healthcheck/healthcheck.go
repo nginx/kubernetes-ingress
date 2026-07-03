@@ -101,14 +101,14 @@ func (hs *HealthServer) UpstreamStats(w http.ResponseWriter, r *http.Request) {
 
 	upstreamNames := hs.UpstreamsForHost(host)
 	if len(upstreamNames) == 0 {
-		nl.Errorf(hs.Logger, "no upstreams for requested hostname %s or hostname does not exist", host)
+		nl.Errorf(hs.Logger, nil, "no upstreams for requested hostname %s or hostname does not exist", host)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
 	upstreams, err := hs.NginxUpstreams(context.Background())
 	if err != nil {
-		nl.Errorf(hs.Logger, "error retrieving upstreams for requested hostname: %s", host)
+		nl.Errorf(hs.Logger, nil, "error retrieving upstreams for requested hostname: %s", host)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -116,7 +116,7 @@ func (hs *HealthServer) UpstreamStats(w http.ResponseWriter, r *http.Request) {
 	stats := countStats(upstreams, upstreamNames)
 	data, err := json.Marshal(stats)
 	if err != nil {
-		nl.Error(hs.Logger, "error marshaling result", err)
+		nl.Error(hs.Logger, nil, "error marshaling result", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -128,7 +128,7 @@ func (hs *HealthServer) UpstreamStats(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	if _, err = w.Write(data); err != nil {
-		nl.Error(hs.Logger, "error writing result", err)
+		nl.Error(hs.Logger, nil, "error writing result", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
 }
@@ -140,20 +140,20 @@ func (hs *HealthServer) StreamStats(w http.ResponseWriter, r *http.Request) {
 	n := sanitize(name)
 	streamUpstreamNames := hs.StreamUpstreamsForName(n)
 	if len(streamUpstreamNames) == 0 {
-		nl.Errorf(hs.Logger, "no stream upstreams for requested name '%s' or name does not exist", n)
+		nl.Errorf(hs.Logger, nil, "no stream upstreams for requested name '%s' or name does not exist", n)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	streams, err := hs.NginxStreamUpstreams(context.Background())
 	if err != nil {
-		nl.Errorf(hs.Logger, "error retrieving stream upstreams for requested name: %s", n)
+		nl.Errorf(hs.Logger, nil, "error retrieving stream upstreams for requested name: %s", n)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	stats := countStreamStats(streams, streamUpstreamNames)
 	data, err := json.Marshal(stats)
 	if err != nil {
-		nl.Error(hs.Logger, "error marshaling result", err)
+		nl.Error(hs.Logger, nil, "error marshaling result", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -165,7 +165,7 @@ func (hs *HealthServer) StreamStats(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}
 	if _, err := w.Write(data); err != nil {
-		nl.Error(hs.Logger, "error writing result", err)
+		nl.Error(hs.Logger, nil, "error writing result", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 	}
 }

@@ -63,7 +63,7 @@ func SyncFnFor(
 		l := nl.LoggerFromContext(ctx)
 		issuerName, issuerKind, issuerGroup, err := issuerForVirtualServer(vs)
 		if err != nil {
-			nl.Errorf(l, "Failed to determine issuer to be used for VirtualServer resource: %v", err)
+			nl.Errorf(l, nl.ResourceNSAttr(vs.GetNamespace()), "Failed to determine issuer to be used for VirtualServer resource: %v", err)
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Could not determine issuer for virtual server due to bad config: %s",
 				err)
 			return err
@@ -73,7 +73,7 @@ func SyncFnFor(
 
 		newCrts, updateCrts, err := buildCertificates(ctx, nsi.cmLister, vs, issuerName, issuerKind, issuerGroup)
 		if err != nil {
-			nl.Errorf(l, "Incorrect cert-manager configuration for VirtualServer resource: %v", err)
+			nl.Errorf(l, nl.ResourceNSAttr(vs.GetNamespace()), "Incorrect cert-manager configuration for VirtualServer resource: %v", err)
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Incorrect cert-manager configuration for VirtualServer resource: %s",
 				err)
 			return err
@@ -82,7 +82,7 @@ func SyncFnFor(
 		for _, crt := range newCrts {
 			_, err := cmClient.CertmanagerV1().Certificates(crt.Namespace).Create(ctx, crt, metav1.CreateOptions{})
 			if err != nil {
-				nl.Errorf(l, "Error issuing Certificate for VirtualServer resource: %v", err)
+				nl.Errorf(l, nl.ResourceNSAttr(vs.GetNamespace()), "Error issuing Certificate for VirtualServer resource: %v", err)
 				rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Error issuing Certificate for VirtualServer resource: %s",
 					err)
 				return err
@@ -93,7 +93,7 @@ func SyncFnFor(
 		for _, crt := range updateCrts {
 			_, err := cmClient.CertmanagerV1().Certificates(crt.Namespace).Update(ctx, crt, metav1.UpdateOptions{})
 			if err != nil {
-				nl.Errorf(l, "Error updating Certificate for VirtualServer resource: %v", err)
+				nl.Errorf(l, nl.ResourceNSAttr(vs.GetNamespace()), "Error updating Certificate for VirtualServer resource: %v", err)
 				rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Error updating Certificate for VirtualServer resource: %s",
 					err)
 				return err
@@ -111,7 +111,7 @@ func SyncFnFor(
 		for _, certName := range unrequiredCertNames {
 			err = cmClient.CertmanagerV1().Certificates(vs.GetNamespace()).Delete(ctx, certName, metav1.DeleteOptions{})
 			if err != nil {
-				nl.Errorf(l, "Error deleting Certificate for VirtualServer resource: %v", err)
+				nl.Errorf(l, nl.ResourceNSAttr(vs.GetNamespace()), "Error deleting Certificate for VirtualServer resource: %v", err)
 				return err
 			}
 			rec.Eventf(vs, corev1.EventTypeNormal, nl.EventReasonDeleteCertificate, "Successfully deleted unrequired Certificate %q", certName)

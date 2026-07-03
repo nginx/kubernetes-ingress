@@ -392,7 +392,7 @@ func (lm *LocalManager) Quit() {
 	if lm.nginxPlus {
 		isR33OrGreater, err := lm.Version().PlusGreaterThanOrEqualTo("nginx-plus-r33")
 		if err != nil {
-			nl.Errorf(lm.logger, "Error determining whether nginx version is >= r33: %v", err)
+			nl.Errorf(lm.logger, nil, "Error determining whether nginx version is >= r33: %v", err)
 		}
 		if isR33OrGreater && lm.licenseReporterCancel != nil {
 			lm.licenseReporterCancel()

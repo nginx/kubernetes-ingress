@@ -189,13 +189,13 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if lbMethod, exists := ingEx.Ingress.Annotations["nginx.org/lb-method"]; exists {
 		if isPlus {
 			if parsedMethod, err := ParseLBMethodForPlus(lbMethod); err != nil {
-				nl.Errorf(l, "Ingress %s/%s: Invalid value for the nginx.org/lb-method: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), lbMethod, err)
+				nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value for the nginx.org/lb-method: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), lbMethod, err)
 			} else {
 				cfgParams.LBMethod = parsedMethod
 			}
 		} else {
 			if parsedMethod, err := ParseLBMethod(lbMethod); err != nil {
-				nl.Errorf(l, "Ingress %s/%s: Invalid value for the nginx.org/lb-method: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), lbMethod, err)
+				nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value for the nginx.org/lb-method: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), lbMethod, err)
 			} else {
 				cfgParams.LBMethod = parsedMethod
 			}
@@ -204,7 +204,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if healthCheckEnabled, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.com/health-checks", ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		}
 		if isPlus {
 			cfgParams.HealthCheckEnabled = healthCheckEnabled
@@ -216,7 +216,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if cfgParams.HealthCheckEnabled {
 		if healthCheckMandatory, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.com/health-checks-mandatory", ingEx.Ingress); exists {
 			if err != nil {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 			}
 			cfgParams.HealthCheckMandatory = healthCheckMandatory
 		}
@@ -225,7 +225,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if cfgParams.HealthCheckMandatory {
 		if healthCheckQueue, exists, err := GetMapKeyAsInt64(ingEx.Ingress.Annotations, "nginx.com/health-checks-mandatory-queue", ingEx.Ingress); exists {
 			if err != nil {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 			}
 			cfgParams.HealthCheckMandatoryQueue = healthCheckQueue
 		}
@@ -233,7 +233,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if slowStart, exists := ingEx.Ingress.Annotations["nginx.com/slow-start"]; exists {
 		if parsedSlowStart, err := ParseTime(slowStart); err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/slow-start: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), slowStart, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value nginx.org/slow-start: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), slowStart, err)
 		} else {
 			if isPlus {
 				cfgParams.SlowStart = parsedSlowStart
@@ -248,7 +248,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			if isPlus {
 				cfgParams.ServerTokens = ingEx.Ingress.Annotations["nginx.org/server-tokens"]
 			} else {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 			}
 		} else {
 			cfgParams.ServerTokens = "off"
@@ -268,7 +268,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if addHeaderInherit, exists := ingEx.Ingress.Annotations[AddHeaderInheritAnnotation]; exists {
 		if parsedAddHeaderInherit, err := ParseAddHeaderInherit(addHeaderInherit); err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value %s: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), AddHeaderInheritAnnotation, addHeaderInherit, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value %s: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), AddHeaderInheritAnnotation, addHeaderInherit, err)
 		} else {
 			cfgParams.AddHeaderInherit = parsedAddHeaderInherit
 		}
@@ -276,7 +276,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxyConnectTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-connect-timeout"]; exists {
 		if parsedProxyConnectTimeout, err := ParseTime(proxyConnectTimeout); err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-connect-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyConnectTimeout, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value nginx.org/proxy-connect-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyConnectTimeout, err)
 		} else {
 			cfgParams.ProxyConnectTimeout = parsedProxyConnectTimeout
 		}
@@ -284,7 +284,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxyReadTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-read-timeout"]; exists {
 		if parsedProxyReadTimeout, err := ParseTime(proxyReadTimeout); err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-read-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyReadTimeout, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value nginx.org/proxy-read-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyReadTimeout, err)
 		} else {
 			cfgParams.ProxyReadTimeout = parsedProxyReadTimeout
 		}
@@ -292,7 +292,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxySendTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-send-timeout"]; exists {
 		if parsedProxySendTimeout, err := ParseTime(proxySendTimeout); err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-send-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxySendTimeout, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value nginx.org/proxy-send-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxySendTimeout, err)
 		} else {
 			cfgParams.ProxySendTimeout = parsedProxySendTimeout
 		}
@@ -321,7 +321,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxyNextUpstreamTimeout, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamTimeoutAnnotation]; exists {
 		if parsedProxyNextUpstreamTimeout, err := ParseTime(proxyNextUpstreamTimeout); err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-next-upstream-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyNextUpstreamTimeout, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value nginx.org/proxy-next-upstream-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyNextUpstreamTimeout, err)
 		} else {
 			cfgParams.ProxyNextUpstreamTimeout = parsedProxyNextUpstreamTimeout
 		}
@@ -329,7 +329,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxyNextUpstreamTries, exists, err := GetMapKeyAsUint64(ingEx.Ingress.Annotations, ProxyNextUpstreamTriesAnnotation, ingEx.Ingress, false); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		}
 		cfgParams.ProxyNextUpstreamTries = &proxyNextUpstreamTries
 	}
@@ -341,14 +341,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if clientBodyBufferSize, exists := ingEx.Ingress.Annotations["nginx.org/client-body-buffer-size"]; exists {
 		size, err := ParseSize(clientBodyBufferSize)
 		if err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/client-body-buffer-size: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), clientBodyBufferSize, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value nginx.org/client-body-buffer-size: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), clientBodyBufferSize, err)
 		}
 		cfgParams.ClientBodyBufferSize = size
 	}
 
 	if redirectToHTTPS, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, RedirectToHTTPSAnnotation, ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.RedirectToHTTPS = redirectToHTTPS
 		}
@@ -356,13 +356,13 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, SSLRedirectAnnotation, ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
 		}
 	} else if sslRedirect, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "ingress.kubernetes.io/ssl-redirect", ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.SSLRedirect = sslRedirect
 		}
@@ -370,7 +370,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if httpRedirectCode, exists := ingEx.Ingress.Annotations[HTTPRedirectCodeAnnotation]; exists {
 		if code, err := ParseHTTPRedirectCode(httpRedirectCode); err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value for nginx.org/http-redirect-code: %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), httpRedirectCode, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value for nginx.org/http-redirect-code: %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), httpRedirectCode, err)
 		} else {
 			cfgParams.HTTPRedirectCode = code
 		}
@@ -382,7 +382,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if sslPreferServerCiphers, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, SSLPreferServerCiphersAnnotation, ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.ServerSSLPreferServerCiphers = sslPreferServerCiphers
 		}
@@ -390,7 +390,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxyBuffering, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/proxy-buffering", ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.ProxyBuffering = proxyBuffering
 		}
@@ -398,28 +398,28 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if hsts, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts", ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			parsingErrors := false
 
 			hstsMaxAge, existsMA, err := GetMapKeyAsInt64(ingEx.Ingress.Annotations, "nginx.org/hsts-max-age", ingEx.Ingress)
 			if existsMA && err != nil {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 				parsingErrors = true
 			}
 			hstsIncludeSubdomains, existsIS, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts-include-subdomains", ingEx.Ingress)
 			if existsIS && err != nil {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 				parsingErrors = true
 			}
 			hstsBehindProxy, existsBP, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "nginx.org/hsts-behind-proxy", ingEx.Ingress)
 			if existsBP && err != nil {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 				parsingErrors = true
 			}
 
 			if parsingErrors {
-				nl.Errorf(l, "Ingress %s/%s: There are configuration issues with hsts annotations, skipping annotations for all hsts settings", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName())
+				nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: There are configuration issues with hsts annotations, skipping annotations for all hsts settings", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName())
 			} else {
 				cfgParams.HSTS = hsts
 				if existsMA {
@@ -505,7 +505,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if values, exists := ingEx.Ingress.Annotations["nginx.org/listen-ports"]; exists {
 		ports, err := ParsePortList(values)
 		if err != nil {
-			nl.Errorf(l, "In %v nginx.org/listen-ports contains invalid declaration: %v, ignoring", ingEx.Ingress.Name, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "In %v nginx.org/listen-ports contains invalid declaration: %v, ignoring", ingEx.Ingress.Name, err)
 		}
 		if len(ports) > 0 {
 			cfgParams.Ports = ports
@@ -515,7 +515,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if values, exists := ingEx.Ingress.Annotations["nginx.org/listen-ports-ssl"]; exists {
 		sslPorts, err := ParsePortList(values)
 		if err != nil {
-			nl.Errorf(l, "In %v nginx.org/listen-ports-ssl contains invalid declaration: %v, ignoring", ingEx.Ingress.Name, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "In %v nginx.org/listen-ports-ssl contains invalid declaration: %v, ignoring", ingEx.Ingress.Name, err)
 		}
 		if len(sslPorts) > 0 {
 			cfgParams.SSLPorts = sslPorts
@@ -524,7 +524,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if keepalive, exists, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/keepalive", ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.Keepalive = keepalive
 		}
@@ -532,7 +532,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if maxFails, exists, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/max-fails", ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.MaxFails = maxFails
 		}
@@ -540,7 +540,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if maxConns, exists, err := GetMapKeyAsInt(ingEx.Ingress.Annotations, "nginx.org/max-conns", ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.MaxConns = maxConns
 		}
@@ -548,7 +548,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if failTimeout, exists := ingEx.Ingress.Annotations["nginx.org/fail-timeout"]; exists {
 		if parsedFailTimeout, err := ParseTime(failTimeout); err != nil {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/fail-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), failTimeout, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value nginx.org/fail-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), failTimeout, err)
 		} else {
 			cfgParams.FailTimeout = parsedFailTimeout
 		}
@@ -557,7 +557,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if hasAppProtect {
 		if appProtectEnable, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "appprotect.f5.com/app-protect-enable", ingEx.Ingress); exists {
 			if err != nil {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 			} else {
 				if appProtectEnable {
 					cfgParams.AppProtectEnable = "on"
@@ -569,7 +569,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 		if appProtectLogEnable, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, "appprotect.f5.com/app-protect-security-log-enable", ingEx.Ingress); exists {
 			if err != nil {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 			} else {
 				if appProtectLogEnable {
 					cfgParams.AppProtectLogEnable = "on"
@@ -588,7 +588,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if enableInternalRoutes {
 		if spiffeServerCerts, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, nginxMeshInternalRouteAnnotation, ingEx.Ingress); exists {
 			if err != nil {
-				nl.Error(l, err)
+				nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 			} else {
 				cfgParams.SpiffeServerCerts = spiffeServerCerts
 			}
@@ -598,7 +598,7 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if pathRegex, exists := ingEx.Ingress.Annotations[PathRegexAnnotation]; exists {
 		_, ok := validPathRegex[pathRegex]
 		if !ok {
-			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/path-regex: got %q. Allowed values: 'case_sensitive', 'case_insensitive', 'exact'", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), pathRegex)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: Invalid value nginx.org/path-regex: got %q. Allowed values: 'case_sensitive', 'case_insensitive', 'exact'", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), pathRegex)
 		}
 	}
 
@@ -608,14 +608,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if useClusterIP, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, UseClusterIPAnnotation, ingEx.Ingress); exists {
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		} else {
 			cfgParams.UseClusterIP = useClusterIP
 		}
 	}
 
 	for _, err := range parseRateLimitAnnotations(ingEx.Ingress.Annotations, &cfgParams, ingEx.Ingress) {
-		nl.Error(l, err)
+		nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 	}
 
 	return cfgParams
@@ -707,7 +707,7 @@ func getRewrites(ctx context.Context, ingEx *IngressEx) map[string]string {
 	if value, exists := ingEx.Ingress.Annotations["nginx.org/rewrites"]; exists {
 		rewrites, err := ParseRewriteList(value)
 		if err != nil {
-			nl.Error(l, err)
+			nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 		}
 		return rewrites
 	}
@@ -722,7 +722,7 @@ func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) 
 	if _, hasRewrites := ingEx.Ingress.Annotations["nginx.org/rewrites"]; hasRewrites {
 		if _, hasRewriteTarget := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; hasRewriteTarget {
 			warningMsg := "nginx.org/rewrites and nginx.org/rewrite-target annotations are mutually exclusive; nginx.org/rewrites will take precedence"
-			nl.Errorf(l, "Ingress %s/%s: %s", ingEx.Ingress.Namespace, ingEx.Ingress.Name, warningMsg)
+			nl.Errorf(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), "Ingress %s/%s: %s", ingEx.Ingress.Namespace, ingEx.Ingress.Name, warningMsg)
 			warnings.AddWarning(ingEx.Ingress, warningMsg)
 			return "", warnings
 		}
@@ -773,7 +773,7 @@ func getSessionPersistenceServices(ctx context.Context, ingEx *IngressEx) map[st
 
 	services, err := ParseStickyServiceList(value)
 	if err != nil {
-		nl.Error(l, err)
+		nl.Error(l, nl.ResourceNSAttr(ingEx.Ingress.GetNamespace()), err)
 	}
 	return services
 }

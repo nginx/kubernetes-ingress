@@ -95,7 +95,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.IngressExes)
 				cfgWarnings, err := lbc.configurator.UpdateEndpoints(resourceExes.IngressExes)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.IngressExes, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(endpointSlice.Namespace), "Error updating EndpointSlices for %v: %v", resourceExes.IngressExes, err)
 				}
 				lbc.updateEndpointSliceWarningState(svcResource, resourceExes, cfgWarnings)
 				break
@@ -110,7 +110,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 				nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.MergeableIngresses)
 				cfgWarnings, err := lbc.configurator.UpdateEndpointsMergeableIngress(resourceExes.MergeableIngresses)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.MergeableIngresses, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(endpointSlice.Namespace), "Error updating EndpointSlices for %v: %v", resourceExes.MergeableIngresses, err)
 				}
 				lbc.updateEndpointSliceWarningState(svcResource, resourceExes, cfgWarnings)
 				break
@@ -126,7 +126,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 					nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.VirtualServerExes)
 					cfgWarnings, err := lbc.configurator.UpdateEndpointsForVirtualServers(resourceExes.VirtualServerExes)
 					if err != nil {
-						nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.VirtualServerExes, err)
+						nl.Errorf(lbc.Logger, nl.ResourceNSAttr(endpointSlice.Namespace), "Error updating EndpointSlices for %v: %v", resourceExes.VirtualServerExes, err)
 					}
 					lbc.updateEndpointSliceWarningState(svcResource, resourceExes, cfgWarnings)
 					break
@@ -139,7 +139,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 			nl.Debugf(lbc.Logger, "Updating EndpointSlices for %v", resourceExes.TransportServerExes)
 			err := lbc.configurator.UpdateEndpointsForTransportServers(resourceExes.TransportServerExes)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Error updating EndpointSlices for %v: %v", resourceExes.TransportServerExes, err)
+				nl.Errorf(lbc.Logger, nl.ResourceNSAttr(endpointSlice.Namespace), "Error updating EndpointSlices for %v: %v", resourceExes.TransportServerExes, err)
 			}
 		}
 	}

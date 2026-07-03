@@ -272,7 +272,7 @@ func (c *ExtDNSController) AddNewNamespacedInformer(ns string) {
 		var err error
 		nsi, err = c.newNamespacedInformer(ns)
 		if err != nil {
-			nl.Errorf(l, "Failed to create external-dns namespaced informer for namespace %s: %v", ns, err)
+			nl.Errorf(l, nl.ResourceNSAttr(ns), "Failed to create external-dns namespaced informer for namespace %s: %v", ns, err)
 			return
 		}
 		nsi.start()

@@ -35,7 +35,7 @@ func NewLatencyMetricsListener(ctx context.Context, sockPath string, c collector
 		Net:  "unixgram",
 	})
 	if err != nil {
-		nl.Errorf(l, "Failed to create latency metrics listener: %v. Latency metrics will not be collected.", err)
+		nl.Errorf(l, nil, "Failed to create latency metrics listener: %v. Latency metrics will not be collected.", err)
 		return NewSyslogFakeServer()
 	}
 	return &LatencyMetricsListener{conn: conn, addr: sockPath, collector: c, logger: l}
@@ -60,7 +60,7 @@ func (l LatencyMetricsListener) Run() {
 func (l LatencyMetricsListener) Stop() {
 	err := l.conn.Close()
 	if err != nil {
-		nl.Errorf(l.logger, "error closing latency metrics unix connection: %v", err)
+		nl.Errorf(l.logger, nil, "error closing latency metrics unix connection: %v", err)
 	}
 }
 

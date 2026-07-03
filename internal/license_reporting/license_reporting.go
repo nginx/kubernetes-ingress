@@ -46,12 +46,12 @@ func newLicenseInfo(clusterID, installationID string, clusterNodeCount int) *lic
 func writeLicenseInfo(l *slog.Logger, info *licenseInfo) {
 	jsonData, err := json.Marshal(info)
 	if err != nil {
-		nl.Errorf(l, "failed to marshal LicenseInfo to JSON: %v", err)
+		nl.Errorf(l, nil, "failed to marshal LicenseInfo to JSON: %v", err)
 		return
 	}
 	filePath := filepath.Join(reportingDir, reportingFile)
 	if err := os.WriteFile(filePath, jsonData, 0o600); err != nil {
-		nl.Errorf(l, "failed to write license reporting info to file: %v", err)
+		nl.Errorf(l, nil, "failed to write license reporting info to file: %v", err)
 	}
 }
 
@@ -92,15 +92,15 @@ func (lr *LicenseReporter) collectAndWrite(ctx context.Context) {
 	l := nl.LoggerFromContext(ctx)
 	clusterID, err := clusterInfo.GetClusterID(ctx, lr.Config.K8sClientReader)
 	if err != nil {
-		nl.Errorf(l, "Error collecting ClusterIDS: %v", err)
+		nl.Errorf(l, nil, "Error collecting ClusterIDS: %v", err)
 	}
 	nodeCount, err := clusterInfo.GetNodeCount(ctx, lr.Config.K8sClientReader)
 	if err != nil {
-		nl.Errorf(l, "Error collecting ClusterNodeCount: %v", err)
+		nl.Errorf(l, nil, "Error collecting ClusterNodeCount: %v", err)
 	}
 	installationID, err := clusterInfo.GetInstallationID(ctx, lr.Config.K8sClientReader, lr.Config.PodNSName)
 	if err != nil {
-		nl.Errorf(l, "Error collecting InstallationID: %v", err)
+		nl.Errorf(l, nil, "Error collecting InstallationID: %v", err)
 	}
 	info := newLicenseInfo(clusterID, installationID, nodeCount)
 	writeLicenseInfo(l, info)
@@ -113,7 +113,7 @@ func (lr *LicenseReporter) checkLicenseExpiry(ctx context.Context) {
 	l := nl.LoggerFromContext(ctx)
 	licenseData, err := lr.Config.PlusClient.GetNginxLicense(context.Background())
 	if err != nil {
-		nl.Errorf(l, "could not get license data, %v", err)
+		nl.Errorf(l, nil, "could not get license data, %v", err)
 		return
 	}
 	var licenseEventText string

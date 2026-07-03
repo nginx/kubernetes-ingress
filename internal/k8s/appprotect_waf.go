@@ -472,7 +472,7 @@ func (lbc *LoadBalancerController) processAppProtectUserSigChange(change appprot
 
 	warnings, err := lbc.configurator.RefreshAppProtectUserSigs(change.UserSigs, delPols, allIngExes, allMergeableIngresses, allVsExes)
 	if err != nil {
-		nl.Errorf(lbc.Logger, "Error when refreshing App Protect Policy User defined signatures: %v", err)
+		nl.Errorf(lbc.Logger, nil, "Error when refreshing App Protect Policy User defined signatures: %v", err)
 	}
 	lbc.updateResourcesStatusAndEvents(allResources, warnings, err)
 }

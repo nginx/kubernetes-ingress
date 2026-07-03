@@ -98,7 +98,7 @@ func (s *Server) Home(w http.ResponseWriter, r *http.Request) { //nolint:revive
 			</body>
 			</html>`))
 	if err != nil {
-		nl.Errorf(s.logger, "error while sending a response for the '/' path: %v", err)
+		nl.Errorf(s.logger, nil, "error while sending a response for the '/' path: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}

@@ -237,7 +237,7 @@ func (lbc *LoadBalancerController) syncService(task task) {
 
 			err := lbc.statusUpdater.UpdateExternalEndpointsForResources(ingresses)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "error updating ingress status in syncService: %v", err)
+				nl.Errorf(lbc.Logger, nil, "error updating ingress status in syncService: %v", err)
 			}
 		}
 

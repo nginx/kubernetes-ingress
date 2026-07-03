@@ -747,7 +747,7 @@ func (lbc *LoadBalancerController) Run() {
 			for {
 				select {
 				case err := <-lbc.spiffeCertFetcher.WatchErrCh:
-					nl.Errorf(lbc.Logger, "error watching for SVID rotations: %v", err)
+					nl.Errorf(lbc.Logger, nil, "error watching for SVID rotations: %v", err)
 					return
 				case cert := <-lbc.spiffeCertFetcher.CertCh:
 					lbc.syncSVIDRotation(cert)
@@ -880,14 +880,14 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			found = true
 			_, err := lbc.configurator.AddOrUpdateIngress(ingress)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Error updating ratelimit for Ingress %s/%s: %s", ingress.Ingress.Namespace, ingress.Ingress.Name, err)
+				nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ingress.Ingress.Namespace), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Ingress.Namespace, ingress.Ingress.Name, err)
 			}
 		}
 		for _, ingress := range resourceExes.MergeableIngresses {
 			found = true
 			_, err := lbc.configurator.AddOrUpdateMergeableIngress(ingress)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Error updating ratelimit for Ingress %s/%s: %s", ingress.Master.Ingress.Namespace, ingress.Master.Ingress.Name, err)
+				nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ingress.Master.Ingress.Namespace), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Master.Ingress.Namespace, ingress.Master.Ingress.Name, err)
 			}
 		}
 
@@ -899,7 +899,7 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 				found = true
 				_, err := lbc.configurator.AddOrUpdateVirtualServer(vserver)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error updating ratelimit for VirtualServer %s/%s: %s", vserver.VirtualServer.Namespace, vserver.VirtualServer.Name, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(vserver.VirtualServer.Namespace), "Error updating ratelimit for VirtualServer %s/%s: %s", vserver.VirtualServer.Namespace, vserver.VirtualServer.Name, err)
 				}
 			}
 		}
@@ -1050,7 +1050,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
 		mgmtCfgParams, mgmtConfigHasWarnings, mgmtErr = configs.ParseMGMTConfigMap(ctx, lbc.mgmtConfigMap, lbc.recorder)
 		if mgmtErr != nil {
-			nl.Errorf(lbc.Logger, "configmap %s/%s: %v", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName(), mgmtErr)
+			nl.Errorf(lbc.Logger, nil, "configmap %s/%s: %v", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName(), mgmtErr)
 		}
 	}
 
@@ -1063,7 +1063,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 		if mgmtCfgParams.Secrets.License != "" {
 			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.License, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.License, err)
+				nl.Errorf(lbc.Logger, nil, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.License, err)
 			}
 			lbc.specialSecrets.licenseSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
 			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
@@ -1072,7 +1072,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 		if mgmtCfgParams.Secrets.TrustedCert != "" {
 			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.TrustedCert, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.TrustedCert, err)
+				nl.Errorf(lbc.Logger, nil, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.TrustedCert, err)
 			}
 			if _, hasCRL := secret.Data[configs.CACrlKey]; hasCRL {
 				lbc.configurator.MgmtCfgParams.Secrets.TrustedCRL = secret.Name
@@ -1084,7 +1084,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 		if mgmtCfgParams.Secrets.ClientAuth != "" {
 			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.ClientAuth, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.ClientAuth, err)
+				nl.Errorf(lbc.Logger, nil, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.ClientAuth, err)
 			}
 			lbc.specialSecrets.clientAuthSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
 			lbc.handleSpecialSecretUpdate(secret, reloadNginx)
@@ -1253,7 +1253,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		if task.Kind == configMap || task.Kind == service {
 			err := lbc.syncZoneSyncHeadlessService(fmt.Sprintf("%s-hl", lbc.configurator.CfgParams.ZoneSync.Domain))
 			if err != nil {
-				nl.Errorf(lbc.Logger, "error syncing zone sync headless service: %v", err)
+				nl.Errorf(lbc.Logger, nil, "error syncing zone sync headless service: %v", err)
 			}
 		}
 	}
@@ -1309,7 +1309,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 			lbc.updateAllConfigs()
 		} else {
 			if err := lbc.configurator.ReloadForBatchUpdates(lbc.enableBatchReload); err != nil {
-				nl.Errorf(lbc.Logger, "error reloading for batch updates: %v", err)
+				nl.Errorf(lbc.Logger, nil, "error reloading for batch updates: %v", err)
 			}
 		}
 
@@ -1464,23 +1464,23 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 			case *networking.Ingress:
 				err := lbc.statusUpdater.ClearIngressStatus(*obj)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when updating the status for Ingress %v/%v: %v", obj.Namespace, obj.Name, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(obj.Namespace), "Error when updating the status for Ingress %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServer:
 				err := lbc.statusUpdater.UpdateVirtualServerStatus(obj, state, p.Reason, p.Message)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServer %v/%v: %v", obj.Namespace, obj.Name, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(obj.Namespace), "Error when updating the status for VirtualServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.TransportServer:
 				err := lbc.statusUpdater.UpdateTransportServerStatus(obj, state, p.Reason, p.Message)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(obj.Namespace), "Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServerRoute:
 				var emptyVSes []*conf_v1.VirtualServer
 				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(obj, state, p.Reason, p.Message, emptyVSes)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServerRoute %v/%v: %v", obj.Namespace, obj.Name, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(obj.Namespace), "Error when updating the status for VirtualServerRoute %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			}
 		}
@@ -1522,19 +1522,19 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 			switch impl := c.Resource.(type) {
 			case *VirtualServerConfiguration:
 				key := getResourceKey(&impl.VirtualServer.ObjectMeta)
+				ns, _, _ := cache.SplitMetaNamespaceKey(key)
 
 				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
 				if deleteErr != nil {
-					nl.Errorf(lbc.Logger, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
 				}
 
 				var vsExists bool
 				var err error
 
-				ns, _, _ := cache.SplitMetaNamespaceKey(key)
 				_, vsExists, err = lbc.getNamespacedInformer(ns).virtualServerLister.GetByKey(key)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when getting VirtualServer for %v: %v", key, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Error when getting VirtualServer for %v: %v", key, err)
 				}
 
 				if vsExists {
@@ -1542,21 +1542,21 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 				}
 			case *IngressConfiguration:
 				key := getResourceKey(&impl.Ingress.ObjectMeta)
+				ns, _, _ := cache.SplitMetaNamespaceKey(key)
 
 				nl.Debugf(lbc.Logger, "Deleting Ingress: %v\n", key)
 
 				deleteErr := lbc.configurator.DeleteIngress(key, false)
 				if deleteErr != nil {
-					nl.Errorf(lbc.Logger, "Error when deleting configuration for Ingress %v: %v", key, deleteErr)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Error when deleting configuration for Ingress %v: %v", key, deleteErr)
 				}
 
 				var ingExists bool
 				var err error
 
-				ns, _, _ := cache.SplitMetaNamespaceKey(key)
 				_, ingExists, err = lbc.getNamespacedInformer(ns).ingressLister.GetByKeySafe(key)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when getting Ingress for %v: %v", key, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Error when getting Ingress for %v: %v", key, err)
 				}
 
 				if ingExists {
@@ -1564,20 +1564,20 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 				}
 			case *TransportServerConfiguration:
 				key := getResourceKey(&impl.TransportServer.ObjectMeta)
+				ns, _, _ := cache.SplitMetaNamespaceKey(key)
 
 				deleteErr := lbc.configurator.DeleteTransportServer(key)
 
 				if deleteErr != nil {
-					nl.Errorf(lbc.Logger, "Error when deleting configuration for TransportServer %v: %v", key, deleteErr)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Error when deleting configuration for TransportServer %v: %v", key, deleteErr)
 				}
 
 				var tsExists bool
 				var err error
 
-				ns, _, _ := cache.SplitMetaNamespaceKey(key)
 				_, tsExists, err = lbc.getNamespacedInformer(ns).transportServerLister.GetByKey(key)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when getting TransportServer for %v: %v", key, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Error when getting TransportServer for %v: %v", key, err)
 				}
 				if tsExists {
 					lbc.updateTransportServerStatusAndEventsOnDelete(impl, c.Error, deleteErr)
@@ -1620,7 +1620,7 @@ func (lbc *LoadBalancerController) UpdateVirtualServerStatusAndEventsOnDelete(vs
 		if lbc.reportCustomResourceStatusEnabled() {
 			err := lbc.statusUpdater.UpdateVirtualServerStatus(vsConfig.VirtualServer, state, eventTitle, msg)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServer %v/%v: %v", vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name, err)
+				nl.Errorf(lbc.Logger, nl.ResourceNSAttr(vsConfig.VirtualServer.Namespace), "Error when updating the status for VirtualServer %v/%v: %v", vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name, err)
 			}
 		}
 	}
@@ -1767,7 +1767,7 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 
 		err := lbc.statusUpdater.BulkUpdateIngressStatus(ings)
 		if err != nil {
-			nl.Errorf(lbc.Logger, "error updating ing status: %v", err)
+			nl.Errorf(lbc.Logger, nil, "error updating ing status: %v", err)
 		}
 	}
 }
@@ -1808,7 +1808,7 @@ func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig
 
 		err := lbc.statusUpdater.UpdateIngressStatus(*ingConfig.Ingress)
 		if err != nil {
-			nl.Errorf(lbc.Logger, "error updating ingress status: %v", err)
+			nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ingConfig.Ingress.Namespace), "error updating ingress status: %v", err)
 		}
 	}
 }
@@ -1853,7 +1853,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 		} else {
 			err := lbc.statusUpdater.UpdateVirtualServerStatus(vsConfig.VirtualServer, state, eventTitle, msg)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServer %v/%v: %v", vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name, err)
+				nl.Errorf(lbc.Logger, nl.ResourceNSAttr(vsConfig.VirtualServer.Namespace), "Error when updating the status for VirtualServer %v/%v: %v", vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name, err)
 			}
 		}
 	}
@@ -1891,7 +1891,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 			} else {
 				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(vsr, vsrState, vsrEventTitle, msg, vss)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when updating the status for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(vsr.Namespace), "Error when updating the status for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 				}
 			}
 		}
@@ -2176,7 +2176,7 @@ func (lbc *LoadBalancerController) launchStatusWorker(sem chan struct{}, wg *syn
 		defer wg.Done()
 		defer func() { <-sem }()
 		if err := fn(); err != nil {
-			nl.Errorf(lbc.Logger, "error flushing %s status: %v", resource, err)
+			nl.Errorf(lbc.Logger, nil, "error flushing %s status: %v", resource, err)
 		}
 	}()
 }
@@ -2292,7 +2292,7 @@ func (lbc *LoadBalancerController) handleSecretUpdate(secret *api_v1.Secret, res
 
 	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, !lbc.configurator.DynamicSSLReloadEnabled())
 	if addOrUpdateErr != nil {
-		nl.Errorf(lbc.Logger, "Error when updating Secret %v: %v", secretNsName, addOrUpdateErr)
+		nl.Errorf(lbc.Logger, nl.ResourceNSAttr(secret.Namespace), "Error when updating Secret %v: %v", secretNsName, addOrUpdateErr)
 		lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "%v was updated, but not applied: %v", secretNsName, addOrUpdateErr)
 	}
 
@@ -2363,7 +2363,7 @@ func (lbc *LoadBalancerController) writeSpecialSecrets(secret *api_v1.Secret, sp
 	case secrets.SecretTypeLicense:
 		err := lbc.configurator.AddOrUpdateLicenseSecret(secret)
 		if err != nil {
-			nl.Error(lbc.Logger, err)
+			nl.Error(lbc.Logger, nl.ResourceNSAttr(secret.Namespace), err)
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "the license Secret %v was updated, but not applied: %v", secretNsName, err)
 			return false
 		}
@@ -2384,7 +2384,7 @@ func (lbc *LoadBalancerController) specialSecretValidation(secretNsName string, 
 	if secretNsName == lbc.specialSecrets.defaultServerSecret {
 		err := lbc.validationTLSSpecialSecret(secret, configs.DefaultServerSecretFileName, specialTLSSecretsToUpdate)
 		if err != nil {
-			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			nl.Errorf(lbc.Logger, nl.ResourceNSAttr(secret.Namespace), "Couldn't validate the special Secret %v: %v", secretNsName, err)
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
 			return false
 		}
@@ -2392,7 +2392,7 @@ func (lbc *LoadBalancerController) specialSecretValidation(secretNsName string, 
 	if secretNsName == lbc.specialSecrets.wildcardTLSSecret {
 		err := lbc.validationTLSSpecialSecret(secret, configs.WildcardSecretFileName, specialTLSSecretsToUpdate)
 		if err != nil {
-			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			nl.Errorf(lbc.Logger, nl.ResourceNSAttr(secret.Namespace), "Couldn't validate the special Secret %v: %v", secretNsName, err)
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
 			return false
 		}
@@ -2400,7 +2400,7 @@ func (lbc *LoadBalancerController) specialSecretValidation(secretNsName string, 
 	if secretNsName == lbc.specialSecrets.licenseSecret {
 		err := secrets.ValidateLicenseSecret(secret)
 		if err != nil {
-			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			nl.Errorf(lbc.Logger, nl.ResourceNSAttr(secret.Namespace), "Couldn't validate the special Secret %v: %v", secretNsName, err)
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
 			return false
 		}
@@ -2408,7 +2408,7 @@ func (lbc *LoadBalancerController) specialSecretValidation(secretNsName string, 
 	if secretNsName == lbc.specialSecrets.trustedCertSecret {
 		err := secrets.ValidateCASecret(secret)
 		if err != nil {
-			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			nl.Errorf(lbc.Logger, nl.ResourceNSAttr(secret.Namespace), "Couldn't validate the special Secret %v: %v", secretNsName, err)
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
 			return false
 		}
@@ -2416,7 +2416,7 @@ func (lbc *LoadBalancerController) specialSecretValidation(secretNsName string, 
 	if secretNsName == lbc.specialSecrets.clientAuthSecret {
 		err := secrets.ValidateTLSSecret(secret)
 		if err != nil {
-			nl.Errorf(lbc.Logger, "Couldn't validate the special Secret %v: %v", secretNsName, err)
+			nl.Errorf(lbc.Logger, nl.ResourceNSAttr(secret.Namespace), "Couldn't validate the special Secret %v: %v", secretNsName, err)
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonRejected, "the special Secret %v was rejected, using the previous version: %v", secretNsName, err)
 			return false
 		}
@@ -2434,7 +2434,7 @@ func (lbc *LoadBalancerController) performDynamicSSLReload(secret *api_v1.Secret
 func (lbc *LoadBalancerController) performNGINXReload(secret *api_v1.Secret) bool {
 	secretNsName := generateSecretNSName(secret)
 	if err := lbc.configurator.Reload(false); err != nil {
-		nl.Errorf(lbc.Logger, "error when reloading NGINX when updating the special Secrets: %v", err)
+		nl.Errorf(lbc.Logger, nl.ResourceNSAttr(secret.Namespace), "error when reloading NGINX when updating the special Secrets: %v", err)
 		lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "the special Secret %v was updated, but not applied: %v", secretNsName, err)
 		return false
 	}
@@ -4136,7 +4136,7 @@ func (lbc *LoadBalancerController) HasCorrectIngressClass(obj interface{}) bool 
 func (lbc *LoadBalancerController) isHealthCheckEnabled(ing *networking.Ingress) bool {
 	if healthCheckEnabled, exists, err := configs.GetMapKeyAsBool(ing.Annotations, "nginx.com/health-checks", ing); exists {
 		if err != nil {
-			nl.Error(lbc.Logger, err)
+			nl.Error(lbc.Logger, nil, err)
 		}
 		return healthCheckEnabled
 	}
@@ -4153,7 +4153,7 @@ func (lbc *LoadBalancerController) syncSVIDRotation(svidResponse *workloadapi.X5
 	nl.Debug(lbc.Logger, "Rotating SPIFFE Certificates")
 	err := lbc.configurator.AddOrUpdateSpiffeCerts(svidResponse)
 	if err != nil {
-		nl.Errorf(lbc.Logger, "failed to rotate SPIFFE certificates: %v", err)
+		nl.Errorf(lbc.Logger, nil, "failed to rotate SPIFFE certificates: %v", err)
 	}
 }
 
@@ -4381,19 +4381,19 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 			switch impl := c.Resource.(type) {
 			case *VirtualServerConfiguration:
 				key := getResourceKey(&impl.VirtualServer.ObjectMeta)
+				ns, _, _ := cache.SplitMetaNamespaceKey(key)
 
 				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
 				if deleteErr != nil {
-					nl.Errorf(lbc.Logger, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
 				}
 
 				var vsExists bool
 				var err error
 
-				ns, _, _ := cache.SplitMetaNamespaceKey(key)
 				_, vsExists, err = lbc.getNamespacedInformer(ns).virtualServerLister.GetByKey(key)
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error when getting VirtualServer for %v: %v", key, err)
+					nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Error when getting VirtualServer for %v: %v", key, err)
 				}
 
 				if vsExists {

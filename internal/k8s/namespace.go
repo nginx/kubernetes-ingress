@@ -109,7 +109,7 @@ func (lbc *LoadBalancerController) syncNamespace(task task) {
 			var err error
 			nsi, err = lbc.newNamespacedInformer(key)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Failed to create namespaced informer for namespace %s: %v", key, err)
+				nl.Errorf(lbc.Logger, nl.ResourceNSAttr(key), "Failed to create namespaced informer for namespace %s: %v", key, err)
 				lbc.syncQueue.Requeue(task, err)
 				return
 			}

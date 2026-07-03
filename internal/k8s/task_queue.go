@@ -68,7 +68,7 @@ func (tq *taskQueue) Enqueue(obj interface{}) {
 
 // Requeue adds the task to the queue again and logs the given error
 func (tq *taskQueue) Requeue(task task, err error) {
-	nl.Errorf(tq.logger, "Requeuing %v, err %v", task.Key, err)
+	nl.Errorf(tq.logger, nil, "Requeuing %v, err %v", task.Key, err)
 	tq.queue.Add(task)
 }
 
@@ -80,7 +80,7 @@ func (tq *taskQueue) Len() int {
 
 // RequeueAfter adds the task to the queue after the given duration
 func (tq *taskQueue) RequeueAfter(t task, err error, after time.Duration) {
-	nl.Errorf(tq.logger, "Requeuing %v after %s, err %v", t.Key, after.String(), err)
+	nl.Errorf(tq.logger, nil, "Requeuing %v after %s, err %v", t.Key, after.String(), err)
 	go func(t task, after time.Duration) {
 		time.Sleep(after)
 		tq.queue.Add(t)

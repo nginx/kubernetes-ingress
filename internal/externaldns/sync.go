@@ -56,7 +56,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 
 		targets, err := getValidTargets(ctx, vs.Status.ExternalEndpoints)
 		if err != nil {
-			nl.Error(l, "Invalid external endpoint")
+			nl.Error(l, nl.ResourceNSAttr(vs.Namespace), "Invalid external endpoint")
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Invalid external endpoint")
 			return err
 		}
@@ -65,7 +65,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 
 		newDNSEndpoint, updateDNSEndpoint, err := buildDNSEndpoint(ctx, nsi.extdnslister, vs, targets)
 		if err != nil {
-			nl.Errorf(l, "incorrect DNSEndpoint config for VirtualServer resource: %s", err)
+			nl.Errorf(l, nl.ResourceNSAttr(vs.Namespace), "incorrect DNSEndpoint config for VirtualServer resource: %s", err)
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Incorrect DNSEndpoint config for VirtualServer resource: %s", err)
 			return err
 		}
@@ -82,7 +82,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 					nl.Debugf(l, "DNSEndpoint has been created since we last checked - retrying")
 					return fmt.Errorf("DNSEndpoint has already been created")
 				}
-				nl.Errorf(l, "Error creating DNSEndpoint for VirtualServer resource: %v", err)
+				nl.Errorf(l, nl.ResourceNSAttr(vs.Namespace), "Error creating DNSEndpoint for VirtualServer resource: %v", err)
 				rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Error creating DNSEndpoint for VirtualServer resource %s", err)
 				return err
 			}
@@ -95,7 +95,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 			nl.Debugf(l, "Updating DNSEndpoint for VirtualServer resource: %v", vs.Name)
 			dep, err = client.ExternaldnsV1().DNSEndpoints(updateDNSEndpoint.Namespace).Update(ctx, updateDNSEndpoint, metav1.UpdateOptions{})
 			if err != nil {
-				nl.Errorf(l, "Error updating DNSEndpoint endpoint for VirtualServer resource: %v", err)
+				nl.Errorf(l, nl.ResourceNSAttr(vs.Namespace), "Error updating DNSEndpoint endpoint for VirtualServer resource: %v", err)
 				rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Error updating DNSEndpoint for VirtualServer resource: %s", err)
 				return err
 			}

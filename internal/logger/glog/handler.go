@@ -17,9 +17,10 @@ import (
 
 // Handler holds all the parameters for the handler
 type Handler struct {
-	opts Options
-	mu   *sync.Mutex
-	out  io.Writer
+	opts  Options
+	mu    *sync.Mutex
+	out   io.Writer
+	attrs []slog.Attr
 }
 
 // Options contains the log Level
@@ -53,16 +54,21 @@ func (h *Handler) WithGroup(_ string) slog.Handler {
 	return h
 }
 
-// WithAttrs - not needed
-func (h *Handler) WithAttrs(_ []slog.Attr) slog.Handler {
-	// not needed.
-	return h
+// WithAttrs returns a new Handler with the given attributes appended
+func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	if len(attrs) == 0 {
+		return h
+	}
+	newAttrs := make([]slog.Attr, len(h.attrs)+len(attrs))
+	copy(newAttrs, h.attrs)
+	copy(newAttrs[len(h.attrs):], attrs)
+	return &Handler{opts: h.opts, mu: h.mu, out: h.out, attrs: newAttrs}
 }
 
 // Handle log event
-// Format F20240920 16:53:18.817844   70741 main.go:285] message
+// Format F20240920 16:53:18.817844   70741 main.go:285] key=value message
 //
-//	<Level>YYYYMMDD HH:MM:SS.NNNNNN   <pid> <file>:<line> <msg>
+//	<Level>YYYYMMDD HH:MM:SS.NNNNNN   <pid> <file>:<line> [<key>=<value> ...] <msg>
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	buf := make([]byte, 0, 1024)
 	// LogLevel
@@ -101,6 +107,24 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		buf = append(buf, strconv.Itoa(f.Line)...)
 	}
 	buf = append(buf, "]"...)
+
+	// Render handler-level attrs (from WithAttrs)
+	for _, a := range h.attrs {
+		buf = append(buf, " "...)
+		buf = append(buf, a.Key...)
+		buf = append(buf, "="...)
+		buf = append(buf, a.Value.String()...)
+	}
+
+	// Render record-level attrs (from AddAttrs)
+	r.Attrs(func(a slog.Attr) bool {
+		buf = append(buf, " "...)
+		buf = append(buf, a.Key...)
+		buf = append(buf, "="...)
+		buf = append(buf, a.Value.String()...)
+		return true
+	})
+
 	buf = append(buf, " "...)
 	buf = append(buf, r.Message...)
 	buf = append(buf, "\n"...)

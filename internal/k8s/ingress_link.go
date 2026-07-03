@@ -92,10 +92,10 @@ func (lbc *LoadBalancerController) syncIngressLink(task task) {
 		// spec.virtualServerAddress contains the IP of the BIG-IP device
 		ip, found, err := unstructured.NestedString(link.Object, "spec", "virtualServerAddress")
 		if err != nil {
-			nl.Errorf(lbc.Logger, "Failed to get virtualServerAddress from IngressLink %s: %v", key, err)
+			nl.Errorf(lbc.Logger, nil, "Failed to get virtualServerAddress from IngressLink %s: %v", key, err)
 			lbc.statusUpdater.ClearStatusFromIngressLink()
 		} else if !found {
-			nl.Errorf(lbc.Logger, "virtualServerAddress is not found in IngressLink %s", key)
+			nl.Errorf(lbc.Logger, nil, "virtualServerAddress is not found in IngressLink %s", key)
 			lbc.statusUpdater.ClearStatusFromIngressLink()
 		} else if ip == "" {
 			nl.Warnf(lbc.Logger, "IngressLink %s has the empty virtualServerAddress field", key)
@@ -112,7 +112,7 @@ func (lbc *LoadBalancerController) syncIngressLink(task task) {
 
 		err := lbc.statusUpdater.UpdateExternalEndpointsForResources(ingresses)
 		if err != nil {
-			nl.Errorf(lbc.Logger, "Error updating ingress status in syncIngressLink: %v", err)
+			nl.Errorf(lbc.Logger, nil, "Error updating ingress status in syncIngressLink: %v", err)
 		}
 	}
 

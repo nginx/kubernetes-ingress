@@ -200,7 +200,7 @@ func (l *LatencyMetricsCollector) RecordLatency(syslogMsg string) {
 
 	labelValues, err := l.createLatencyLabelValues(lm)
 	if err != nil {
-		nl.Errorf(l.logger, "cannot record latency for upstream %s and server %s: %v", lm.Upstream, lm.Server, err)
+		nl.Errorf(l.logger, nil, "cannot record latency for upstream %s and server %s: %v", lm.Upstream, lm.Server, err)
 		return
 	}
 	l.httpLatency.WithLabelValues(labelValues...).Observe(lm.Latency * 1000)
