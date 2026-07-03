@@ -296,19 +296,16 @@ func (cm *ConfigRollbackManager) batchWriteConfig(name, configPath string, conte
 //
 // Returns an error only if isolation completely fails (nuclear fallback needed).
 // Batch mode is always disabled after this call regardless of outcome.
+//
+// The full-tree nginx -t is run unconditionally, even when batchFiles is empty.
 func (cm *ConfigRollbackManager) CompleteBatch() error {
 	cm.batchMode = false
 
-	if len(cm.batchFiles) == 0 {
-		nl.Debugf(cm.logger, "No configs written during batch mode, skipping validation")
-		return nil
-	}
-
-	nl.Infof(cm.logger, "Validating %d batch-written configs with single nginx -t test", len(cm.batchFiles))
+	nl.Infof(cm.logger, "Validating batch state with single nginx -t test (%d batch-tracked configs)", len(cm.batchFiles))
 
 	// Run a single full-tree nginx -t. This is the happy path: O(N) cost for N files.
 	if err := cm.testConfig(); err == nil {
-		nl.Infof(cm.logger, "Batch validation passed for %d configs", len(cm.batchFiles))
+		nl.Infof(cm.logger, "Batch validation passed (%d configs tracked)", len(cm.batchFiles))
 		cm.cleanupShadows()
 		cm.batchFiles = make(map[string]string)
 		return nil
@@ -533,7 +530,7 @@ func (cm *ConfigRollbackManager) removeAllBatchFiles() {
 	cm.batchShadows = make(map[string]bool)
 }
 
-// candidatePaths returns a sorted slice of all remaining batch file paths.
+// candidatePaths returns a slice of all remaining batch file paths.
 // Used as input for binary search isolation.
 func (cm *ConfigRollbackManager) candidatePaths() []string {
 	paths := make([]string, 0, len(cm.batchFiles))
