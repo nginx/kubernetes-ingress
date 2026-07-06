@@ -1,9 +1,9 @@
+# NGINX Ingress Operator
+
 [![Continuous Integration](https://github.com/nginx/nginx-ingress-helm-operator/workflows/Continuous%20Integration/badge.svg)](https://github.com/nginx/nginx-ingress-helm-operator/actions)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/nginx/nginx-ingress-helm-operator/badge)](https://api.securityscorecards.dev/projects/github.com/nginx/nginx-ingress-helm-operator)
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 ![Commercial Support](https://badgen.net/badge/support/commercial/green?icon=awesome)
-
-# NGINX Ingress Operator
 
 The NGINX Ingress Operator is a Kubernetes/OpenShift component which deploys and manages one or more [NGINX/NGINX Plus Ingress Controllers](https://github.com/nginx/kubernetes-ingress) which in turn handle Ingress traffic for applications running in a cluster.
 
@@ -51,7 +51,8 @@ Note: The NGINX Ingress Operator works only for NGINX Ingress Controller version
 ## Getting Started
 
 1. Install the NGINX Ingress Operator. See [docs](./docs/installation.md).
-   <br> NOTE: To use TransportServers as part of your NGINX Ingress Controller configuration, a GlobalConfiguration resource must be created _before_ starting the Operator - [see the notes](./examples/deployment-oss-min/README.md#TransportServers)
+
+   NOTE: To use TransportServers as part of your NGINX Ingress Controller configuration, a GlobalConfiguration resource must be created _before_ starting the Operator - [see the notes](./examples/deployment-oss-min/README.md#TransportServers)
 2. Creating the default-server-secret.yaml is optional and it is recommended that users provide their own certificate. An example yaml for this can be found in the [examples folder](https://github.com/nginx/nginx-ingress-helm-operator/blob/main/examples/default-server-secret.yaml)
 3. (If using OpenShift) Create the scc resource on the cluster by applying the scc.yaml file found in the `resources` folder of this repo:
 
@@ -65,7 +66,7 @@ Note: The NGINX Ingress Operator works only for NGINX Ingress Controller version
      - Set the `controller.nginxPlus` to true
      - Set the `controller.image.repository` and `controller.image.tag` to the appropriate values
      - Set the `controller.serviceAccount.imagePullSecretName` if applicable
-   - For full configuration details see the Helm documentation [here](https://docs.nginx.com/nginx-ingress-controller/install/helm/#configuration).
+   - For full configuration details see the [Helm documentation](https://docs.nginx.com/nginx-ingress-controller/install/helm/#configuration).
 
 ## Notes: Multiple NIC Deployments
 

@@ -17,7 +17,7 @@ OpenShift will install the NGINX Ingress Operator:
 
 ![alt text](./images/openshift4.png "NGINX Ingress Operator Subscribe")
 
-**Note: If you're upgrading your operator installation to a later release, navigate [here](../helm-charts/nginx-ingress/) and run `kubectl apply -f crds/` or `oc apply -f crds/` as a prerequisite**
+**Note: If you're upgrading your operator installation to a later release, navigate to the [Helm charts directory](../helm-charts/nginx-ingress/) and run `kubectl apply -f crds/` or `oc apply -f crds/` as a prerequisite**
 
 Additional steps:
 

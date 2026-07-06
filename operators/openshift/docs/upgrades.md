@@ -16,7 +16,7 @@ Release 1.0.0 includes a backward incompatible change from version 0.5.1 as we h
 
 ### 1. Upgrade the existing NIC crds
 
-Navigate [here](../helm-charts/nginx-ingress/) and run `kubectl apply -f crds/`
+Navigate to the [Helm charts directory](../helm-charts/nginx-ingress/) and run `kubectl apply -f crds/`
 
 ### 2. Uninstall the existing 0.5.1 operator, the nginx ingress controller CRD, and the ingressClass
 
@@ -32,7 +32,7 @@ Install the latest version of the Operator following the steps outlined in [Open
 
 ### 4. Deploy new ingress controller deployments
 
-Use the new Nginx Ingress Operator installation to deploy Nginx Ingress Controller - see the release notes [here](https://docs.nginx.com/nginx-ingress-controller/releases/#nginx-ingress-controller-3-5-1) and a guide to the Helm configuration parameters [here](https://docs.nginx.com/nginx-ingress-controller/install/helm/#configuration)
+Use the new Nginx Ingress Operator installation to deploy Nginx Ingress Controller - see the [release notes](https://docs.nginx.com/nginx-ingress-controller/releases/#nginx-ingress-controller-3-5-1) and a guide to the Helm [configuration parameters](https://docs.nginx.com/nginx-ingress-controller/install/helm/#configuration)
 
 ## Manual upgrade - 0.5.1 to 1.0.0
 
@@ -57,4 +57,4 @@ Install the latest version of the Operator following the steps outlined in [manu
 
 ### 4. Deploy new ingress controller deployments
 
-Use the new Nginx Ingress Operator installation to deploy Nginx Ingress Controller - see the release notes [here](https://docs.nginx.com/nginx-ingress-controller/releases/#nginx-ingress-controller-3-5-1) and a guide to the Helm configuration parameters [here](https://docs.nginx.com/nginx-ingress-controller/install/helm/#configuration)
+Use the new Nginx Ingress Operator installation to deploy Nginx Ingress Controller - see the [release notes](https://docs.nginx.com/nginx-ingress-controller/releases/#nginx-ingress-controller-3-5-1) and a guide to the Helm [configuration parameters](https://docs.nginx.com/nginx-ingress-controller/install/helm/#configuration)
