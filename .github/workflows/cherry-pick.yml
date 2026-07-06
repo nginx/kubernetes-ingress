@@ -16,9 +16,11 @@ jobs:
     runs-on: ubuntu-24.04
     name: Cherry pick into release branch
     if: |
+      github.repository == 'nginx/kubernetes-ingress' && (
       github.event.issue.pull_request != null &&
       contains(github.event.comment.body, '/cherry-pick to') &&
       (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
+      )
     steps:
       - name: Check PR is merged
         id: pr
