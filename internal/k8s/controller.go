@@ -234,6 +234,11 @@ type LoadBalancerController struct {
 	ShuttingDown                  bool
 	endpointSliceWarnings         map[string]bool // see updateEndpointSliceWarningState
 
+	// heldForConfigSafety is set at startup by the ready-flip block when the
+	// config-safety readiness gate refuses to mark the pod Ready because every
+	// resource was excluded (shared-input failure)
+	heldForConfigSafety bool
+
 	// WAF bundle polling.
 	bundlePollerMgr wafbundle.Manager
 	bundleFetcher   wafbundle.Fetcher
@@ -1135,6 +1140,16 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	resourceExes := lbc.createExtendedResources(resources)
 	warnings, resourceErrors, updateErr := lbc.configurator.UpdateConfig(resourceExes)
 
+	// Config safety self-healing: when the startup ready-flip branch below held
+	// the pod Not Ready because every resource was excluded (shared-input
+	// failure), a subsequent successful UpdateConfig must flip the
+	// pod back to Ready.
+	if lbc.configurator.IsConfigSafetyEnabled() && lbc.heldForConfigSafety && len(resourceErrors) == 0 && updateErr == nil {
+		lbc.heldForConfigSafety = false
+		lbc.isNginxReady = true
+		nl.Infof(lbc.Logger, "Config safety: shared input fixed; pod now Ready (recovered from startup exclusion)")
+	}
+
 	eventTitle := nl.EventReasonUpdated
 	eventType := api_v1.EventTypeNormal
 	eventWarningMessage := ""
@@ -1348,19 +1363,20 @@ func (lbc *LoadBalancerController) sync(task task) {
 		effectiveCount := lbc.configurator.EffectiveBatchExclusionCount()
 		totalResources := len(lbc.configuration.GetResources())
 
-		if effectiveCount > 0 && effectiveCount >= totalResources {
+		// !isNginxReady covers block re-entry: if the self-heal branch in
+		// updateAllConfigs() above just flipped the pod Ready, skip this WARN
+		// and the heldForConfigSafety re-set so the log stays self-consistent.
+		if !lbc.isNginxReady && effectiveCount > 0 && effectiveCount >= totalResources {
+			lbc.heldForConfigSafety = true
 			nl.Warnf(lbc.Logger, "Config safety: ALL %d resource(s) excluded at startup — pod NOT marked ready (shared-input failure suspected). "+
-				"Fix the shared input (e.g., ConfigMap server-snippets) and restart the pod.", effectiveCount)
+				"Fix the shared input (e.g., ConfigMap server-snippets) and the pod will become Ready automatically once the next successful reconcile applies a clean config.", effectiveCount)
 		} else {
 			lbc.isNginxReady = true
 			nl.Debug(lbc.Logger, "NGINX is ready")
 		}
 
 		// Log any resources excluded by config safety batch validation.
-		// These resources had invalid NGINX config and were removed during startup
-		// isolation. Their K8s objects already received AddedOrUpdatedWithError events
-		// via the resourceErrors path in updateAllConfigs().
-		if len(exclusions) > 0 {
+		if lbc.heldForConfigSafety && len(exclusions) > 0 {
 			var msgs []string
 			for _, excl := range exclusions {
 				msgs = append(msgs, fmt.Sprintf("  - %s (%s): %v", excl.ConfigPath, excl.ResourceName, excl.Error))

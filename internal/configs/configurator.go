@@ -1551,6 +1551,13 @@ func (cnf *Configurator) EnableBatchMode() {
 	}
 }
 
+// IsConfigSafetyEnabled reports whether the controller is running with -enable-config-safety.
+// It is true iff the underlying nginx manager is a *ConfigRollbackManager
+func (cnf *Configurator) IsConfigSafetyEnabled() bool {
+	_, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	return ok
+}
+
 // CompleteBatch finalizes batch mode on the underlying ConfigRollbackManager.
 // Runs a single nginx -t against the full config tree. On failure, isolates and excludes
 // bad configs. Returns the list of excluded resources (nil if all valid) and an error
