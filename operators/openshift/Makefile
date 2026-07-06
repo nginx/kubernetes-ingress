@@ -71,10 +71,10 @@ KUSTOMIZE_VERSION ?= 5.8.1
 # Image URL to use all building/pushing image targets
 IMG ?= $(IMAGE_TAG_BASE):$(VERSION)
 
-# kube-rbac-proxy image base
+# kube-rbac-proxy image base
 KRP_IMAGE_BASE ?= quay.io/brancz/kube-rbac-proxy
 
-# kube-rbac-proxy image tag
+# kube-rbac-proxy image tag
 # renovate: datasource=docker depName=kube-rbac-proxy packageName=quay.io/brancz/kube-rbac-proxy
 KRP_IMAGE_VERSION ?= v0.22.0
 

@@ -2,7 +2,7 @@
 - group: charts.nginx.org
   version: v1alpha1
   kind: NginxIngress
-  chart: helm-charts/nginx-ingress
+  chart: openshift-charts/nginx-ingress
   overrideValues:
     controller.serviceAccount.name: nginx-ingress
     controller.defaultTLS.cert: ""

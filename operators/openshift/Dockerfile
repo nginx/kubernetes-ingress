@@ -11,7 +11,7 @@ RUN git init . && \
     git fetch --depth 1 origin ${HELM_OPERATOR_COMMIT} && \
     git checkout FETCH_HEAD
 RUN go mod download
-RUN GOOS=$TARGETOS GOARCH=$TARGETARCH make build/helm-operator
+RUN GOOS=$TARGETOS GOARCH=$TARGETARCH make build/openshift-operator
 
 FROM registry.access.redhat.com/ubi10/ubi-minimal:10.2-1782798957
 

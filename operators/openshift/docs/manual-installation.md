@@ -8,7 +8,7 @@ This will deploy the operator in the `nginx-ingress-operator-system` namespace.
 
    ```shell
    git clone https://github.com/nginx/nginx-ingress-helm-operator/ --branch v3.7.0
-   cd nginx-ingress-helm-operator/
+   cd nginx-ingress-openshift-operator/
    ```
 
    1. To deploy the Operator and associated resources to all environments, run:

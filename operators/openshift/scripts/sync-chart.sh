@@ -2,10 +2,10 @@
 #
 # sync-chart.sh
 #
-# Regenerates operators/helm/helm-charts/nginx-ingress from the in-repo NGINX
+# Regenerates operators/openshift/openshift-charts/nginx-ingress from the in-repo NGINX
 # Ingress Controller Helm chart (charts/nginx-ingress).
 #
-# In the standalone nginx-ingress-helm-operator repo this was done by pulling
+# In the standalone nginx-ingress-openshift-operator repo this was done by pulling
 # the released chart from the OCI registry. In the monorepo the chart lives in
 # the same tree, so we vendor it directly and apply the operator-specific
 # modifications:
@@ -14,8 +14,8 @@
 #   * pin the ClusterRoleBinding roleRef to the operator-managed ClusterRole
 #   * rewrite values.schema.json $ref URLs to the bundled k8s definitions file
 #
-# Usage: operators/helm/scripts/sync-chart.sh [K8S_VERSION]
-#   K8S_VERSION defaults to the version already bundled under helm-charts/nginx-ingress/.
+# Usage: operators/openshift/scripts/sync-chart.sh [K8S_VERSION]
+#   K8S_VERSION defaults to the version already bundled under openshift-charts/nginx-ingress/.
 
 set -euo pipefail
 

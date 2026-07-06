@@ -417,7 +417,7 @@ controller:
     ## The Ingress Controller processes all the resources that do not have the "ingressClassName" field for all versions of kubernetes.
     name: nginx
 
-    ## Creates a new IngressClass object with the name "controller.ingressClass.name". To use an existing IngressClass with the same name, set this value to false. If you use helm upgrade, do not change the values from the previous release as helm will delete IngressClass objects managed by helm. If you are upgrading from a release earlier than 3.3.0, do not set the value to false.
+    ## Creates a new IngressClass object with the name "controller.ingressClass.name". To use an existing IngressClass with the same name, set this value to false. If you use openshift upgrade, do not change the values from the previous release as openshift will delete IngressClass objects managed by openshift. If you are upgrading from a release earlier than 3.3.0, do not set the value to false.
     create: true
 
     ## New Ingresses without an ingressClassName field specified will be assigned the class specified in `controller.ingressClass`. Requires "controller.ingressClass.create".
@@ -582,11 +582,11 @@ controller:
     # name: nginx-ingress
 
     ## The name of the secret containing docker registry credentials.
-    ## Secret must exist in the same namespace as the helm release.
+    ## Secret must exist in the same namespace as the openshift release.
     imagePullSecretName: ""
 
     ## A list of secret names containing docker registry credentials.
-    ## Secrets must exist in the same namespace as the helm release.
+    ## Secrets must exist in the same namespace as the openshift release.
     imagePullSecretsNames: []
 
   reportIngressStatus:

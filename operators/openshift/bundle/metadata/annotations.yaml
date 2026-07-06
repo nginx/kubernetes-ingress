@@ -8,7 +8,7 @@ annotations:
   operators.operatorframework.io.bundle.channel.default.v1: alpha
   operators.operatorframework.io.metrics.builder: operator-sdk-v1.42.2
   operators.operatorframework.io.metrics.mediatype.v1: metrics+v1
-  operators.operatorframework.io.metrics.project_layout: helm.sdk.operatorframework.io/v1
+  operators.operatorframework.io.metrics.project_layout: openshift.sdk.operatorframework.io/v1
 
   # Annotations for testing.
   operators.operatorframework.io.test.mediatype.v1: scorecard+v1
