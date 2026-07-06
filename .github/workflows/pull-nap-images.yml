@@ -30,6 +30,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository

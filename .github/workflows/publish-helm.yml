@@ -68,6 +68,7 @@ permissions:
 jobs:
   publish-helm:
     name: Package and Publish Helm Chart
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: write # for pushing to Helm Charts repository

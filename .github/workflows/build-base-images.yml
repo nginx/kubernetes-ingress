@@ -20,6 +20,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     outputs:
       docker_md5: ${{ steps.vars.outputs.docker_md5 }}
@@ -44,6 +45,7 @@ jobs:
 
   build-oss:
     name: Build OSS base images
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: checks
     permissions:
@@ -127,6 +129,7 @@ jobs:
 
   build-plus:
     name: Build Plus base images
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: checks
     permissions:
@@ -230,6 +233,7 @@ jobs:
 
   build-plus-nap:
     name: Build Plus NAP base images
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: checks
     permissions:
