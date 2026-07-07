@@ -17,6 +17,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     outputs:
       go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
@@ -44,6 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-oss.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -69,6 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -93,6 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}

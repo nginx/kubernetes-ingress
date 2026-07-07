@@ -16,9 +16,11 @@ jobs:
     runs-on: ubuntu-24.04
     name: Cherry pick into release branch
     if: |
+      github.repository == 'nginx/kubernetes-ingress' && (
       github.event.issue.pull_request != null &&
       contains(github.event.comment.body, '/cherry-pick to') &&
       (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
+      )
     steps:
       - name: Check PR is merged
         id: pr
@@ -73,14 +75,31 @@ jobs:
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
+      - name: Get secrets from vault
+        if: ${{ steps.branch.outputs.branch }}
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+        with:
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-cherry-pick-app-client-id, nginx-bot-cherry-pick-app-private-key"
+          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+      - name: Decode GitHub App private key
+        id: app_key
         if: ${{ steps.branch.outputs.branch }}
         run: |
-          echo "Setting secrets for job"
-          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_PAT"
-          echo "NGINX_PAT=$NGINX_PAT" >> "$GITHUB_OUTPUT"
+          private_key=$(echo "$APP_PRIVATE_KEY_B64" | base64 -d | awk 'BEGIN {ORS="\\n"} {print}' | sed 's/\\n$//')
+          echo "::add-mask::$private_key"
+          echo "private_key=$private_key" >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App token
+        id: app_token
+        if: ${{ steps.branch.outputs.branch }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.app_key.outputs.private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
 
       - name: Check if actor is authorized for cherry-pick
         if: ${{ steps.branch.outputs.branch }}
@@ -99,7 +118,7 @@ jobs:
       - name: Cherry pick into ${{ steps.branch.outputs.branch }}
         if: ${{ steps.branch.outputs.branch }}
         env:
-          GH_TOKEN: ${{ steps.secrets.outputs.NGINX_PAT }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
           TARGET_BRANCH: ${{ steps.branch.outputs.branch }}
           MERGE_SHA: ${{ steps.pr.outputs.merge_commit_sha }}
           PR_TITLE: ${{ github.event.issue.title }}
