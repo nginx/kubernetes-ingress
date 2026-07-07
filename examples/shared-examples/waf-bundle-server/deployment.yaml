@@ -1,0 +1,198 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: waf-policy-definitions
+  namespace: default
+data:
+  attack-signatures-blocking.json: |
+    {
+      "policy": {
+        "name": "attack-signatures-blocking",
+        "template": {
+          "name": "POLICY_TEMPLATE_NGINX_BASE"
+        },
+        "applicationLanguage": "utf-8",
+        "enforcementMode": "blocking",
+        "signature-sets": [
+          {
+            "name": "All Signatures",
+            "block": true,
+            "alarm": true
+          }
+        ]
+      }
+    }
+  log-default.json: |
+    {
+      "filter": {
+        "request_type": "all"
+      },
+      "content": {
+        "format": "default",
+        "max_request_size": "any",
+        "max_message_size": "64k"
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bundle-server-nginx-conf
+  namespace: default
+data:
+  nginx.conf: |
+    worker_processes auto;
+    pid /tmp/nginx.pid;
+    error_log /var/log/nginx/error.log notice;
+
+    events {
+        worker_connections 1024;
+    }
+
+    http {
+        default_type application/octet-stream;
+        access_log /var/log/nginx/access.log;
+        sendfile on;
+        keepalive_timeout 75s;
+
+        server {
+            listen 80;
+
+            location /health {
+                return 200 "ok\n";
+            }
+        }
+
+        server {
+            listen 443 ssl;
+
+            ssl_certificate     /etc/nginx/ssl/tls.crt;
+            ssl_certificate_key /etc/nginx/ssl/tls.key;
+            ssl_protocols       TLSv1.2 TLSv1.3;
+
+            # Require client certificates (mTLS).
+            ssl_client_certificate /etc/nginx/ssl/ca.crt;
+            ssl_verify_client on;
+
+            location /health {
+                return 200 "ok\n";
+            }
+
+            location /bundles/ {
+                root /www/;
+            }
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bundle-server
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bundle-server
+  template:
+    metadata:
+      labels:
+        app: bundle-server
+    spec:
+      imagePullSecrets:
+      - name: regcred
+      initContainers:
+      - name: compile-policy
+        image: private-registry.nginx.com/nap/waf-compiler:5.13.1
+        args:
+        - -p
+        - /policies/attack-signatures-blocking.json
+        - -o
+        - /bundles/attack-signatures-blocking.tgz
+        volumeMounts:
+        - name: policies
+          mountPath: /policies
+        - name: bundles
+          mountPath: /bundles
+      - name: compile-log-profile
+        image: private-registry.nginx.com/nap/waf-compiler:5.13.1
+        args:
+        - -l
+        - /policies/log-default.json
+        - -o
+        - /bundles/log-default.tgz
+        volumeMounts:
+        - name: policies
+          mountPath: /policies
+        - name: bundles
+          mountPath: /bundles
+      containers:
+      - name: bundle-server
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+          name: http
+        - containerPort: 443
+          name: https
+        volumeMounts:
+        - name: bundles
+          mountPath: /www/bundles
+        - name: nginx-conf
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: tls
+          mountPath: /etc/nginx/ssl/tls.crt
+          subPath: tls.crt
+          readOnly: true
+        - name: tls
+          mountPath: /etc/nginx/ssl/tls.key
+          subPath: tls.key
+          readOnly: true
+        - name: ca
+          mountPath: /etc/nginx/ssl/ca.crt
+          subPath: ca.crt
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: policies
+        configMap:
+          name: waf-policy-definitions
+      - name: bundles
+        emptyDir: {}
+      - name: nginx-conf
+        configMap:
+          name: bundle-server-nginx-conf
+      - name: tls
+        secret:
+          secretName: bundle-server-tls
+      - name: ca
+        secret:
+          secretName: bundle-server-ca
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bundle-server
+  namespace: default
+spec:
+  selector:
+    app: bundle-server
+  ports:
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  type: ClusterIP

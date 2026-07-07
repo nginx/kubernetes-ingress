@@ -1,7 +1,7 @@
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
+from suite.utils.ap_resources_utils import send_malicious_request_with_retry
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
     create_example_app,
@@ -30,16 +30,6 @@ def assert_waf_rejected(response):
     assert response.status_code == 200
     assert "Request Rejected" in response.text
     assert "The requested URL was rejected. Please consult with your administrator." in response.text
-
-
-def send_malicious_request_with_retry(url, host):
-    response = requests.get(url + "</script>", headers={"host": host})
-    retries = 0
-    while retries < 5 and "Request Rejected" not in response.text:
-        wait_before_test(1)
-        response = requests.get(url + "</script>", headers={"host": host})
-        retries += 1
-    return response
 
 
 def create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, ingress_src):
@@ -106,7 +96,7 @@ class TestAppProtectWAFv5PolicyIngress:
         wait_before_test()
 
         request_url = f"http://{ingress_setup.public_endpoint.public_ip}:{ingress_setup.public_endpoint.port}/backend1"
-        response = send_malicious_request_with_retry(request_url, ingress_setup.ingress_host)
+        response = send_malicious_request_with_retry(request_url, ingress_setup.ingress_host, retries=5, wait_seconds=1)
 
         delete_policy(kube_apis.custom_objects, "waf-policy", test_namespace)
         assert_waf_rejected(response)
@@ -144,7 +134,9 @@ class TestAppProtectWAFv5PolicyMergeableIngress:
             f"http://{mergeable_ingress_setup.public_endpoint.public_ip}:"
             f"{mergeable_ingress_setup.public_endpoint.port}/backend1"
         )
-        response = send_malicious_request_with_retry(request_url, mergeable_ingress_setup.ingress_host)
+        response = send_malicious_request_with_retry(
+            request_url, mergeable_ingress_setup.ingress_host, retries=5, wait_seconds=1
+        )
 
         delete_policy(kube_apis.custom_objects, "waf-policy", test_namespace)
         assert_waf_rejected(response)

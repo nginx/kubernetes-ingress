@@ -168,6 +168,8 @@ func (c *Collector) Collect(ctx context.Context) {
 			CachePolicies:              int64(report.CacheCount),
 			CORSPolicies:               int64(report.CORSCount),
 			ExternalAuthPolicies:       int64(report.ExternalAuthCount),
+			WAFBundleSourceTypes:       report.WAFBundleSourceTypes,
+			WAFLogBundleSourceTypes:    report.WAFLogBundleSourceTypes,
 
 			GlobalConfiguration: report.GlobalConfiguration,
 			IngressAnnotations:  report.IngressAnnotations,
@@ -226,6 +228,8 @@ type Report struct {
 	CacheCount              int
 	CORSCount               int
 	ExternalAuthCount       int
+	WAFBundleSourceTypes    []string
+	WAFLogBundleSourceTypes []string
 	GlobalConfiguration     bool
 	IngressAnnotations      []string
 	AppProtectVersion       string
@@ -327,6 +331,8 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		externalAuthCount = policies["ExternalAuth"]
 	}
 
+	wafBundleSourceTypes := c.WAFBundleSourceTypes()
+	wafLogBundleSourceTypes := c.WAFLogBundleSourceTypes()
 	ingressAnnotations := c.IngressAnnotations()
 	appProtectVersion := c.AppProtectVersion()
 	isPlus := c.IsPlusEnabled()
@@ -398,5 +404,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		BuildOS:                 c.BuildOS(),
 		MainConfigMapKeys:       configMapKeys,
 		MGMTConfigMapKeys:       mgmtConfigMapKeys,
+		WAFBundleSourceTypes:    wafBundleSourceTypes,
+		WAFLogBundleSourceTypes: wafLogBundleSourceTypes,
 	}, err
 }

@@ -486,6 +486,41 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 	}
 }
 
+func TestCollectWAFBundleSourceTypes(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+	cfg := telemetry.CollectorConfig{
+		Configurator:    newConfigurator(t),
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+		Policies: func() []*conf_v1.Policy {
+			return []*conf_v1.Policy{
+				wafBundleSourceN1CPolicy,
+				wafBundleSourceNIMPolicy,
+				wafPolicy, // plain WAF without bundle source
+			}
+		},
+		CustomResourcesEnabled: true,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	got := buf.String()
+	// Verify bundle source types are reported (sorted: N1C, NIM)
+	if !strings.Contains(got, "N1C") {
+		t.Error("expected WAFBundleSourceTypes to contain N1C")
+	}
+	if !strings.Contains(got, "NIM") {
+		t.Error("expected WAFBundleSourceTypes to contain NIM")
+	}
+}
+
 func TestCollectRateLimitPoliciesReportOnEnabledCustomResources(t *testing.T) {
 	t.Parallel()
 
@@ -2938,5 +2973,43 @@ var (
 			ExternalAuth: &conf_v1.ExternalAuth{},
 		},
 		Status: conf_v1.PolicyStatus{},
+	}
+
+	wafBundleSourceN1CPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "waf-bundle-n1c",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypeN1C,
+					URL:  "https://tenant.console.ves.volterra.io",
+				},
+			},
+		},
+	}
+
+	wafBundleSourceNIMPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "waf-bundle-nim",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypeNIM,
+					URL:  "https://nim.example.com",
+				},
+			},
+		},
 	}
 )

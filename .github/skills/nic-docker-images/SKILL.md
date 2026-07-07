@@ -80,13 +80,16 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 
 ## Key Build Args
 
-| Arg | Purpose | Example |
+| Arg | Purpose | Source of truth |
 | --- | --- | --- |
-| `BUILD_OS` | Base image stage | `debian`, `alpine-plus`, `ubi-10-plus-nap` |
-| `IC_VERSION` | Ingress controller version | `5.5.0` |
-| `NGINX_PLUS_VERSION` | NGINX Plus version | `R36` |
-| `NAP_MODULES` | App Protect modules | `waf`, `dos`, `waf,dos` |
-| `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref |
+| `BUILD_OS` | Base image stage | `Makefile` targets + Dockerfile stages |
+| `IC_VERSION` | Ingress controller version | `.github/data/version.txt` |
+| `NGINX_PLUS_VERSION` | NGINX Plus version | `build/Dockerfile` |
+| `NGINX_OSS_VERSION` | NGINX OSS version | `build/Dockerfile` |
+| `NAP_MODULES` | App Protect modules | Any of `waf`, `dos`, or `waf,dos` |
+| `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref (set by CI) |
+
+Do not hard-code `IC_VERSION` or `NGINX_VERSION` values in this file or in other docs as they change every release. Always reference `.github/data/version.txt` or the Renovate-managed Dockerfile pin.
 
 ---
 

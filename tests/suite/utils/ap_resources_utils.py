@@ -3,10 +3,11 @@
 import logging
 import time
 
+import requests
 import yaml
 from kubernetes.client import CustomObjectsApi
 from kubernetes.client.rest import ApiException
-from suite.utils.resources_utils import ensure_item_removal
+from suite.utils.resources_utils import ensure_item_removal, wait_before_test
 
 
 def read_ap_custom_resource(custom_objects: CustomObjectsApi, namespace, plural, name) -> object:
@@ -67,7 +68,10 @@ def create_ap_waf_policy_from_yaml(
         print(f"Policy created: {dep}")
         return dep["metadata"]["name"]
     except ApiException:
-        logging.error(f"Exception occurred while creating Policy: {dep['metadata']['name']}", exc_info=True)
+        logging.error(
+            f"Exception occurred while creating Policy: {dep['metadata']['name']}",
+            exc_info=True,
+        )
         raise
 
 
@@ -105,11 +109,18 @@ def create_ap_multilog_waf_policy_from_yaml(
         try:
             for i in range(len(aplogconfs)):
                 seclogs.append(
-                    {"enable": True, "apLogConf": f"{ap_namespace}/{aplogconfs[i]}", "logDest": f"{logdests[i]}"}
+                    {
+                        "enable": True,
+                        "apLogConf": f"{ap_namespace}/{aplogconfs[i]}",
+                        "logDest": f"{logdests[i]}",
+                    }
                 )
             dep["spec"]["waf"]["securityLogs"] = seclogs
         except KeyError:
-            logging.error(f"Exception occurred while creating Policy: {dep['metadata']['name']}", exc_info=True)
+            logging.error(
+                f"Exception occurred while creating Policy: {dep['metadata']['name']}",
+                exc_info=True,
+            )
             raise
         del dep["spec"]["waf"]["securityLog"]
 
@@ -117,7 +128,10 @@ def create_ap_multilog_waf_policy_from_yaml(
         print(f"Policy created: {dep}")
         return dep["metadata"]["name"]
     except ApiException:
-        logging.error(f"Exception occurred while creating Policy: {dep['metadata']['name']}", exc_info=True)
+        logging.error(
+            f"Exception occurred while creating Policy: {dep['metadata']['name']}",
+            exc_info=True,
+        )
         raise
 
 
@@ -250,3 +264,20 @@ def delete_ap_policy(custom_objects: CustomObjectsApi, name, namespace) -> None:
     )
     time.sleep(3)
     print(f"AP policy was removed with name: {name}")
+
+
+def send_malicious_request_with_retry(url, host, retries=20, wait_seconds=3):
+    """Send a request with an embedded XSS payload, retrying until WAF blocks it."""
+    response = requests.get(url + "</script>", headers={"host": host})
+    count = 0
+    while count < retries and "Request Rejected" not in response.text:
+        wait_before_test(wait_seconds)
+        response = requests.get(url + "</script>", headers={"host": host})
+        count += 1
+    return response
+
+
+def assert_waf_blocked(response):
+    """Assert that the response was rejected by App Protect WAF."""
+    assert response.status_code == 200
+    assert "The requested URL was rejected. Please consult with your administrator." in response.text
