@@ -197,7 +197,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
 		if cfg.IsPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
@@ -1569,6 +1569,8 @@ func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *fie
 func validateHSTS(hsts *v1.HSTS, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
+	minAgeValForPreload := 31536000
+
 	if hsts.MaxAge == nil {
 		return append(allErrs, field.Required(fieldPath.Child("maxAge"), "maxAge is required for HSTS policy"))
 	}
@@ -1583,7 +1585,7 @@ func validateHSTS(hsts *v1.HSTS, fieldPath *field.Path) field.ErrorList {
 			))
 		}
 
-		if *hsts.MaxAge < 31536000 {
+		if *hsts.MaxAge < minAgeValForPreload {
 			allErrs = append(allErrs, field.Invalid(
 				fieldPath.Child("preload"), hsts.Preload,
 				"preload requires maxAge to be at least 31536000 (one year)",
