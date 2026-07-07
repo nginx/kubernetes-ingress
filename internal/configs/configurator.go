@@ -1755,20 +1755,28 @@ func buildFilenameToErrorKey(resources ExtendedResources) map[string][]string {
 			len(resources.VirtualServerExes)+len(resources.TransportServerExes))
 	for _, ingEx := range resources.IngressExes {
 		errKey := MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
-		fileName := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
-		m[fileName] = append(m[fileName], errKey)
+		// Empty-host Ingresses route their generated content into the shared
+		// _default-server.conf via addOrUpdateIngress; the per-Ingress filename
+		// ("namespace-name") is never written, so it will never appear in
+		// batchFiles and adding it to the map would be dead attribution.
 		if ingEx.ValidHosts[emptyHostName] {
 			m[DefaultServerConfigName] = append(m[DefaultServerConfigName], errKey)
+			continue
 		}
+		fileName := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+		m[fileName] = append(m[fileName], errKey)
 	}
 	for _, mergeableIng := range resources.MergeableIngresses {
 		errKey := MakeResourceErrorKey("Ingress",
 			mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
-		fileName := objectMetaToFileName(&mergeableIng.Master.Ingress.ObjectMeta)
-		m[fileName] = append(m[fileName], errKey)
+		// Same as above: an empty-host mergeable master writes only into
+		// _default-server.conf, so skip the per-master filename entry.
 		if mergeableIng.Master.ValidHosts[emptyHostName] {
 			m[DefaultServerConfigName] = append(m[DefaultServerConfigName], errKey)
+			continue
 		}
+		fileName := objectMetaToFileName(&mergeableIng.Master.Ingress.ObjectMeta)
+		m[fileName] = append(m[fileName], errKey)
 	}
 	for _, vsEx := range resources.VirtualServerExes {
 		fileName := getFileNameForVirtualServer(vsEx.VirtualServer)
@@ -1986,8 +1994,6 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	}
 	allWarnings.Add(updateRes.warnings)
 	allWeightUpdates = append(allWeightUpdates, updateRes.weightUpdates...)
-	sharedInputFailure := updateRes.sharedInputFailure
-	skippedByEarlyExit := len(tasks) - updateRes.processedCount
 
 	// If running under ConfigRollbackManager in batch mode, validate the entire
 	// config tree with a single nginx -t and, on failure, isolate bad configs
@@ -2006,12 +2012,12 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	// (e.g., bad server-snippets from ConfigMap), skip the final reload. All failed files
 	// were already rolled back to previous-good by createConfigWithRollback, and NGINX was
 	// reloaded to the previous-good state during rollback. No further action needed.
-	if sharedInputFailure {
+	if updateRes.sharedInputFailure {
 		l := nl.LoggerFromContext(cnf.CfgParams.Context)
 		nl.Warnf(l, "Shared-input failure detected: %d consecutive resource configs failed validation. "+
 			"Likely cause is a bad ConfigMap snippet (e.g., server-snippets). "+
 			"Skipping remaining %d resource(s) and final reload — NGINX continues serving previous-good config.",
-			updateRes.consecutiveFailures, skippedByEarlyExit)
+			updateRes.consecutiveFailures, len(tasks)-updateRes.processedCount)
 		return allWarnings, resourceErrors, nil
 	}
 

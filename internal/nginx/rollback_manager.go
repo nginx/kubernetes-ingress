@@ -456,6 +456,8 @@ func (cm *ConfigRollbackManager) excludeConfig(configPath, resourceName string, 
 		if err := createFileAndWrite(configPath, cm.preBatchDefaultServer); err != nil {
 			return fmt.Errorf("failed to restore pre-batch default server config %s: %w", configPath, err)
 		}
+
+		cm.preBatchDefaultServer = nil
 		nl.Infof(cm.logger, "Batch isolation: restored pre-batch %s after excluding %s", configPath, resourceName)
 	} else {
 		if err := os.Remove(configPath); err != nil {

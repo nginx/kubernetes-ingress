@@ -4136,9 +4136,10 @@ func TestApplyResourceUpdates_NonRollbackManagerFailsFast(t *testing.T) {
 
 func TestBuildFilenameToErrorKey_EmptyHostMapsToDefaultServer(t *testing.T) {
 	// An empty-host Ingress writes to _default-server.conf (not namespace-name.conf),
-	// so batch isolation records BatchExclusion{ResourceName: "_default-server"}.
-	// The map must contain both the fileName key AND the DefaultServerConfigName key so
-	// that error attribution finds the resource in either case.
+	// so batch isolation records BatchExclusion{ResourceName: "_default-server"} and
+	// the per-Ingress "namespace-name" file is never in batchFiles. The map must
+	// therefore contain the DefaultServerConfigName key and must NOT contain an
+	// entry for the per-Ingress filename (which would be dead attribution).
 	resources := ExtendedResources{
 		IngressExes: []*IngressEx{
 			{
@@ -4164,8 +4165,8 @@ func TestBuildFilenameToErrorKey_EmptyHostMapsToDefaultServer(t *testing.T) {
 	if got := m[DefaultServerConfigName]; len(got) != 1 || got[0] != wantEmptyKey {
 		t.Errorf("m[%q] = %v, want [%q] — empty-host Ingress must map to DefaultServerConfigName", DefaultServerConfigName, got, wantEmptyKey)
 	}
-	if got := m["default-empty"]; len(got) != 1 || got[0] != wantEmptyKey {
-		t.Errorf("m[default-empty] = %v, want [%q] — empty-host Ingress must also map to its file-name key", got, wantEmptyKey)
+	if got, ok := m["default-empty"]; ok {
+		t.Errorf("m[default-empty] = %v, want no entry — empty-host Ingress never writes its per-Ingress file, so it must not appear in the attribution map", got)
 	}
 	if got := m["default-named"]; len(got) != 1 || got[0] != wantNamedKey {
 		t.Errorf("m[default-named] = %v, want [%q] — named Ingress must map to its file-name key", got, wantNamedKey)

@@ -1144,7 +1144,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	// the pod Not Ready because every resource was excluded (shared-input
 	// failure), a subsequent successful UpdateConfig must flip the
 	// pod back to Ready.
-	if lbc.configurator.IsConfigSafetyEnabled() && lbc.heldForConfigSafety && len(resourceErrors) == 0 && updateErr == nil {
+	if lbc.heldForConfigSafety && len(resourceErrors) == 0 && updateErr == nil {
 		lbc.heldForConfigSafety = false
 		lbc.isNginxReady = true
 		nl.Infof(lbc.Logger, "Config safety: shared input fixed; pod now Ready (recovered from startup exclusion)")
