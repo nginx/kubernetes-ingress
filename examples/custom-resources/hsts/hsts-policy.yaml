@@ -10,5 +10,5 @@ spec:
     includeSubDomains: true
     # when behindProxy is true, the HSTS headers are set based on the X-Forwarded-Proto header
     behindProxy: false
-    # when preload is true, the preload directive id added to the header allowing the site to be added to the browser HSTS preload lists
+    # when preload is true, the preload directive is added to the header allowing the site to be added to the browser HSTS preload lists
     preload: false
