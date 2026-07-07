@@ -540,14 +540,14 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 		{
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{
-					OIDCv2: &v1.OIDCv2{
+					OIDCNative: &v1.OIDCNative{
 						Issuer:   "https://accounts.google.com",
 						ClientID: "my-client-id",
 					},
 				},
 			},
 			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: true},
-			msg: "use OIDCv2 (plus only)",
+			msg: "use OIDCNative (plus only)",
 		},
 	}
 	for _, test := range tests {
@@ -2040,21 +2040,21 @@ func TestValidateAPIKeyPolicy_FailsOnInvalidInput(t *testing.T) {
 	}
 }
 
-func TestValidateOIDCv2_PassesOnValidInput(t *testing.T) {
+func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		oidcv2 *v1.OIDCv2
-		msg    string
+		oidcNative *v1.OIDCNative
+		msg        string
 	}{
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:   "https://accounts.google.com",
 				ClientID: "my-client-id",
 			},
 			msg: "minimal valid config",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:                "https://accounts.google.com",
 				ClientID:              "my-client-id",
 				ClientSecret:          "my-oidc-secret",
@@ -2067,7 +2067,7 @@ func TestValidateOIDCv2_PassesOnValidInput(t *testing.T) {
 			msg: "full config with all optional fields",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:       "https://login.microsoftonline.com/tenant-id",
 				ClientID:     "azure-client",
 				ClientSecret: "azure-secret",
@@ -2076,7 +2076,7 @@ func TestValidateOIDCv2_PassesOnValidInput(t *testing.T) {
 			msg: "azure provider with offline_access scope",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:   "https://keycloak.example.com/realms/master",
 				ClientID: "keycloak-client",
 			},
@@ -2087,90 +2087,90 @@ func TestValidateOIDCv2_PassesOnValidInput(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateOIDCv2(test.oidcv2, field.NewPath("oidcv2"))
+			allErrs := validateOIDCNative(test.oidcNative, field.NewPath("oidcNative"))
 			if len(allErrs) != 0 {
-				t.Errorf("validateOIDCv2() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+				t.Errorf("validateOIDCNative() returned errors %v for valid input for the case of %v", allErrs, test.msg)
 			}
 		})
 	}
 }
 
-func TestValidateOIDCv2_FailsOnInvalidInput(t *testing.T) {
+func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		oidcv2    *v1.OIDCv2
-		fieldPath string
-		msg       string
+		oidcNative *v1.OIDCNative
+		fieldPath  string
+		msg        string
 	}{
 		{
-			oidcv2:    &v1.OIDCv2{ClientID: "my-client"},
-			fieldPath: "oidcv2.issuer",
-			msg:       "missing required issuer",
+			oidcNative: &v1.OIDCNative{ClientID: "my-client"},
+			fieldPath:  "oidcNative.issuer",
+			msg:        "missing required issuer",
 		},
 		{
-			oidcv2:    &v1.OIDCv2{Issuer: "https://accounts.google.com"},
-			fieldPath: "oidcv2.clientID",
-			msg:       "missing required clientID",
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com"},
+			fieldPath:  "oidcNative.clientID",
+			msg:        "missing required clientID",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:   "not-a-url",
 				ClientID: "my-client",
 			},
-			fieldPath: "oidcv2.issuer",
+			fieldPath: "oidcNative.issuer",
 			msg:       "invalid issuer URL",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:   "https://accounts.google.com",
 				ClientID: "$invalid$chars",
 			},
-			fieldPath: "oidcv2.clientID",
+			fieldPath: "oidcNative.clientID",
 			msg:       "invalid chars in clientID",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:       "https://accounts.google.com",
 				ClientID:     "my-client",
 				ClientSecret: "-invalid-secret-name-",
 			},
-			fieldPath: "oidcv2.clientSecret",
+			fieldPath: "oidcNative.clientSecret",
 			msg:       "invalid secret name",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:   "https://accounts.google.com",
 				ClientID: "my-client",
 				Scope:    "bogus",
 			},
-			fieldPath: "oidcv2.scope",
+			fieldPath: "oidcNative.scope",
 			msg:       "missing openid in scope",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:      "https://accounts.google.com",
 				ClientID:    "my-client",
 				RedirectURI: "http://external.example.com/callback",
 			},
-			fieldPath: "oidcv2.redirectURI",
+			fieldPath: "oidcNative.redirectURI",
 			msg:       "redirectURI must be a path not a URL",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:    "https://accounts.google.com",
 				ClientID:  "my-client",
 				LogoutURI: "http://external.example.com/logout",
 			},
-			fieldPath: "oidcv2.logoutURI",
+			fieldPath: "oidcNative.logoutURI",
 			msg:       "logoutURI must be a path not a URL",
 		},
 		{
-			oidcv2: &v1.OIDCv2{
+			oidcNative: &v1.OIDCNative{
 				Issuer:                "https://accounts.google.com",
 				ClientID:              "my-client",
 				PostLogoutRedirectURI: "http://external.example.com/done",
 			},
-			fieldPath: "oidcv2.postLogoutRedirectURI",
+			fieldPath: "oidcNative.postLogoutRedirectURI",
 			msg:       "postLogoutRedirectURI must be a path not a URL",
 		},
 	}
@@ -2178,20 +2178,20 @@ func TestValidateOIDCv2_FailsOnInvalidInput(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			t.Parallel()
-			allErrs := validateOIDCv2(test.oidcv2, field.NewPath("oidcv2"))
+			allErrs := validateOIDCNative(test.oidcNative, field.NewPath("oidcNative"))
 			if len(allErrs) == 0 {
-				t.Errorf("validateOIDCv2() returned no errors for invalid input for the case of %v", test.msg)
+				t.Errorf("validateOIDCNative() returned no errors for invalid input for the case of %v", test.msg)
 			} else if allErrs[0].Field != test.fieldPath {
-				t.Errorf("validateOIDCv2() returned error on wrong field for the case of %v, want %v, got %v", test.msg, test.fieldPath, allErrs[0].Field)
+				t.Errorf("validateOIDCNative() returned error on wrong field for the case of %v, want %v, got %v", test.msg, test.fieldPath, allErrs[0].Field)
 			}
 			t.Log(allErrs)
 		})
 	}
 }
 
-func TestValidatePolicy_OIDCv2_GateChecks(t *testing.T) {
+func TestValidatePolicy_OIDCNative_GateChecks(t *testing.T) {
 	t.Parallel()
-	validOIDCv2 := &v1.OIDCv2{
+	validOIDCNative := &v1.OIDCNative{
 		Issuer:   "https://accounts.google.com",
 		ClientID: "my-client-id",
 	}
@@ -2215,7 +2215,7 @@ func TestValidatePolicy_OIDCv2_GateChecks(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			t.Parallel()
-			policy := &v1.Policy{Spec: v1.PolicySpec{OIDCv2: validOIDCv2}}
+			policy := &v1.Policy{Spec: v1.PolicySpec{OIDCNative: validOIDCNative}}
 			err := ValidatePolicy(policy, test.cfg)
 			if err == nil {
 				t.Errorf("ValidatePolicy() should have returned error for the case of %v", test.msg)

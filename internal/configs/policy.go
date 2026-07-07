@@ -765,8 +765,8 @@ func (p *policiesCfg) addOIDCConfig(
 	return res
 }
 
-func (p *policiesCfg) addOIDCv2Config(
-	oidcv2 *conf_v1.OIDCv2,
+func (p *policiesCfg) addOIDCNativeConfig(
+	oidcNative *conf_v1.OIDCNative,
 	polKey string,
 	polNamespace string,
 	ownerDetails policyOwnerDetails,
@@ -777,7 +777,7 @@ func (p *policiesCfg) addOIDCv2Config(
 
 	if p.OIDCProvider != nil {
 		res.addWarningf(
-			"Multiple oidcv2 policies in the same context is not valid. OIDCv2 policy %s will be ignored",
+			"Multiple oidcNative policies in the same context is not valid. OIDCNative policy %s will be ignored",
 			polKey,
 		)
 		return res
@@ -785,11 +785,11 @@ func (p *policiesCfg) addOIDCv2Config(
 
 	// Resolve client secret if specified.
 	clientSecret := ""
-	if oidcv2.ClientSecret != "" {
-		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidcv2.ClientSecret)
+	if oidcNative.ClientSecret != "" {
+		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidcNative.ClientSecret)
 		secretRef, ok := secretRefs[secretKey]
 		if !ok {
-			res.addWarningf("OIDCv2 policy %s references a missing secret %s", polKey, secretKey)
+			res.addWarningf("OIDCNative policy %s references a missing secret %s", polKey, secretKey)
 			res.isError = true
 			return res
 		}
@@ -799,12 +799,12 @@ func (p *policiesCfg) addOIDCv2Config(
 			secretType = secretRef.Secret.Type
 		}
 		if secretType != "" && secretType != secrets.SecretTypeOIDC {
-			res.addWarningf("OIDCv2 policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+			res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
 			res.isError = true
 			return res
 		}
 		if secretRef.Error != nil {
-			res.addWarningf("OIDCv2 policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+			res.addWarningf("OIDCNative policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
 			res.isError = true
 			return res
 		}
@@ -817,20 +817,20 @@ func (p *policiesCfg) addOIDCv2Config(
 	p.OIDCProvider = &version2.OIDCProvider{
 		Name:            providerName,
 		PolicyKey:       polKey,
-		Issuer:          oidcv2.Issuer,
-		ClientID:        oidcv2.ClientID,
+		Issuer:          oidcNative.Issuer,
+		ClientID:        oidcNative.ClientID,
 		ClientSecret:    clientSecret,
-		ConfigURL:       oidcv2.ConfigURL,
-		Scope:           oidcv2.Scope,
-		RedirectURI:     oidcv2.RedirectURI,
-		CookieName:      oidcv2.CookieName,
-		ExtraAuthArgs:   oidcv2.ExtraAuthArgs,
-		PKCE:            oidcv2.PKCE,
-		LogoutURI:       oidcv2.LogoutURI,
-		PostLogoutURI:   oidcv2.PostLogoutRedirectURI,
-		LogoutTokenHint: oidcv2.LogoutTokenHint,
-		SessionTimeout:  oidcv2.SessionTimeout,
-		UserInfoEnable:  oidcv2.UserInfoEnable,
+		ConfigURL:       oidcNative.ConfigURL,
+		Scope:           oidcNative.Scope,
+		RedirectURI:     oidcNative.RedirectURI,
+		CookieName:      oidcNative.CookieName,
+		ExtraAuthArgs:   oidcNative.ExtraAuthArgs,
+		PKCE:            oidcNative.PKCE,
+		LogoutURI:       oidcNative.LogoutURI,
+		PostLogoutURI:   oidcNative.PostLogoutRedirectURI,
+		LogoutTokenHint: oidcNative.LogoutTokenHint,
+		SessionTimeout:  oidcNative.SessionTimeout,
+		UserInfoEnable:  oidcNative.UserInfoEnable,
 	}
 
 	return res
@@ -1314,8 +1314,8 @@ func generatePolicies(
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
 				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts)
-			case pol.Spec.OIDCv2 != nil:
-				res = config.addOIDCv2Config(pol.Spec.OIDCv2, key, polNamespace, ownerDetails, policyOpts)
+			case pol.Spec.OIDCNative != nil:
+				res = config.addOIDCNativeConfig(pol.Spec.OIDCNative, key, polNamespace, ownerDetails, policyOpts)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:

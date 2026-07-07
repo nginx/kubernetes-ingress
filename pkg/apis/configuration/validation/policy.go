@@ -126,22 +126,22 @@ func policyFields() []policyFieldValidator {
 			},
 		},
 		{
-			name:  "oidcv2",
-			isSet: func(s *v1.PolicySpec) bool { return s.OIDCv2 != nil },
+			name:  "oidcNative",
+			isSet: func(s *v1.PolicySpec) bool { return s.OIDCNative != nil },
 			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
 				var errs field.ErrorList
 				if !cfg.EnableOIDC {
-					errs = append(errs, field.Forbidden(p.Child("oidcv2"),
-						"OIDC must be enabled via cli argument -enable-oidc to use OIDCv2 policy"))
+					errs = append(errs, field.Forbidden(p.Child("oidcNative"),
+						"OIDC must be enabled via cli argument -enable-oidc to use OIDCNative policy"))
 				}
 				if !cfg.IsPlus {
-					errs = append(errs, field.Forbidden(p.Child("oidcv2"), "OIDCv2 is only supported in NGINX Plus"))
+					errs = append(errs, field.Forbidden(p.Child("oidcNative"), "OIDCNative is only supported in NGINX Plus"))
 					return errs, true
 				}
 				return errs, false
 			},
 			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
-				return validateOIDCv2(s.OIDCv2, p.Child("oidcv2"))
+				return validateOIDCNative(s.OIDCNative, p.Child("oidcNative"))
 			},
 		},
 		{
@@ -211,7 +211,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	if fieldCount != 1 {
 		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
 		if cfg.IsPlus {
-			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `oidcv2`, `waf`")
+			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `oidcNative`, `waf`")
 		}
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
 	}
@@ -455,33 +455,33 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	return append(allErrs, validateClientID(oidc.ClientID, fieldPath.Child("clientID"))...)
 }
 
-func validateOIDCv2(oidcv2 *v1.OIDCv2, fieldPath *field.Path) field.ErrorList {
-	if oidcv2.Issuer == "" {
+func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	if oidcNative.Issuer == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("issuer"), "")}
 	}
-	if oidcv2.ClientID == "" {
+	if oidcNative.ClientID == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("clientID"), "")}
 	}
 
 	allErrs := field.ErrorList{}
 
-	allErrs = append(allErrs, validateIssuerURL(oidcv2.Issuer, fieldPath.Child("issuer"))...)
-	allErrs = append(allErrs, validateClientID(oidcv2.ClientID, fieldPath.Child("clientID"))...)
+	allErrs = append(allErrs, validateIssuerURL(oidcNative.Issuer, fieldPath.Child("issuer"))...)
+	allErrs = append(allErrs, validateClientID(oidcNative.ClientID, fieldPath.Child("clientID"))...)
 
-	if oidcv2.ClientSecret != "" {
-		allErrs = append(allErrs, validateSecretName(oidcv2.ClientSecret, fieldPath.Child("clientSecret"))...)
+	if oidcNative.ClientSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
 	}
-	if oidcv2.Scope != "" {
-		allErrs = append(allErrs, validateOIDCScope(oidcv2.Scope, fieldPath.Child("scope"))...)
+	if oidcNative.Scope != "" {
+		allErrs = append(allErrs, validateOIDCScope(oidcNative.Scope, fieldPath.Child("scope"))...)
 	}
-	if oidcv2.RedirectURI != "" {
-		allErrs = append(allErrs, validatePath(oidcv2.RedirectURI, fieldPath.Child("redirectURI"))...)
+	if oidcNative.RedirectURI != "" {
+		allErrs = append(allErrs, validatePath(oidcNative.RedirectURI, fieldPath.Child("redirectURI"))...)
 	}
-	if oidcv2.LogoutURI != "" {
-		allErrs = append(allErrs, validatePath(oidcv2.LogoutURI, fieldPath.Child("logoutURI"))...)
+	if oidcNative.LogoutURI != "" {
+		allErrs = append(allErrs, validatePath(oidcNative.LogoutURI, fieldPath.Child("logoutURI"))...)
 	}
-	if oidcv2.PostLogoutRedirectURI != "" {
-		allErrs = append(allErrs, validatePath(oidcv2.PostLogoutRedirectURI, fieldPath.Child("postLogoutRedirectURI"))...)
+	if oidcNative.PostLogoutRedirectURI != "" {
+		allErrs = append(allErrs, validatePath(oidcNative.PostLogoutRedirectURI, fieldPath.Child("postLogoutRedirectURI"))...)
 	}
 
 	return allErrs

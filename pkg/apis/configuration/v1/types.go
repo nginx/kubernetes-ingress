@@ -803,7 +803,7 @@ type PolicySpec struct {
 	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
 	OIDC *OIDC `json:"oidc"`
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native.
-	OIDCv2 *OIDCv2 `json:"oidcv2"`
+	OIDCNative *OIDCNative `json:"oidcNative"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAF `json:"waf"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
@@ -1100,8 +1100,8 @@ type BundleSource struct {
 	VerifyChecksum bool `json:"verifyChecksum,omitempty"`
 }
 
-// The OIDCv2 policy configures NGINX Plus as a relying party for OpenID Connect authentication using the native ngx_http_oidc_module.
-type OIDCv2 struct {
+// The OIDCNative policy configures NGINX Plus as a relying party for OpenID Connect authentication using the native ngx_http_oidc_module.
+type OIDCNative struct {
 	// Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme.
 	// +kubebuilder:validation:Pattern=`^https://([^/\s]+)(/.*)?$`
 	// +kubebuilder:validation:Required

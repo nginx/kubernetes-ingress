@@ -118,21 +118,21 @@ The `.spec` object supports the following fields:
 | `oidc.tokenEndpoint` | `string` | URL for the token endpoint provided by your OpenID Connect provider. |
 | `oidc.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt. |
 | `oidc.zoneSyncLeeway` | `integer` | Specifies the maximum timeout in milliseconds for synchronizing ID/access tokens and shared values between Ingress Controller pods. The default is 200. |
-| `oidcv2` | `object` | The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native. |
-| `oidcv2.clientID` | `string` | The client ID provided by your OpenID Connect provider. |
-| `oidcv2.clientSecret` | `string` | The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured. |
-| `oidcv2.configURL` | `string` | ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification. |
-| `oidcv2.cookieName` | `string` | Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION. |
-| `oidcv2.extraAuthArgs` | `string` | Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login". |
-| `oidcv2.issuer` | `string` | Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme. |
-| `oidcv2.logoutTokenHint` | `boolean` | Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers. |
-| `oidcv2.logoutURI` | `string` | Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page. |
-| `oidcv2.pkce` | `string` | Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata. Allowed values: `"on"`, `"off"`. |
-| `oidcv2.postLogoutRedirectURI` | `string` | Defines the path or absolute URI to redirect the user to after logout. |
-| `oidcv2.redirectURI` | `string` | Allows overriding the default redirect URI. The module defaults to /oidc_callback. |
-| `oidcv2.scope` | `string` | List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The module defaults to openid. |
-| `oidcv2.sessionTimeout` | `string` | Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h. |
-| `oidcv2.userInfoEnable` | `boolean` | Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables. |
+| `oidcNative` | `object` | The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native. |
+| `oidcNative.clientID` | `string` | The client ID provided by your OpenID Connect provider. |
+| `oidcNative.clientSecret` | `string` | The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. |
+| `oidcNative.configURL` | `string` | ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification. |
+| `oidcNative.cookieName` | `string` | Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION. |
+| `oidcNative.extraAuthArgs` | `string` | Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login". |
+| `oidcNative.issuer` | `string` | Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme. |
+| `oidcNative.logoutTokenHint` | `boolean` | Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers. |
+| `oidcNative.logoutURI` | `string` | Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page. |
+| `oidcNative.pkce` | `string` | Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata. Allowed values: `"on"`, `"off"`. |
+| `oidcNative.postLogoutRedirectURI` | `string` | Defines the path or absolute URI to redirect the user to after logout. |
+| `oidcNative.redirectURI` | `string` | Allows overriding the default redirect URI. The module defaults to /oidc_callback. |
+| `oidcNative.scope` | `string` | List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The module defaults to openid. |
+| `oidcNative.sessionTimeout` | `string` | Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h. |
+| `oidcNative.userInfoEnable` | `boolean` | Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables. |
 | `rateLimit` | `object` | The rate limit policy controls the rate of processing requests per a defined key. |
 | `rateLimit.burst` | `integer` | Excessive requests are delayed until their number exceeds the burst size, in which case the request is terminated with an error. |
 | `rateLimit.condition` | `object` | Add a condition to a rate-limit policy. |

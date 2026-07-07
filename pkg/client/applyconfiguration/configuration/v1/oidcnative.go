@@ -2,16 +2,16 @@
 
 package v1
 
-// OIDCv2ApplyConfiguration represents a declarative configuration of the OIDCv2 type for use
+// OIDCNativeApplyConfiguration represents a declarative configuration of the OIDCNative type for use
 // with apply.
 //
-// The OIDCv2 policy configures NGINX Plus as a relying party for OpenID Connect authentication using the native ngx_http_oidc_module.
-type OIDCv2ApplyConfiguration struct {
+// The OIDCNative policy configures NGINX Plus as a relying party for OpenID Connect authentication using the native ngx_http_oidc_module.
+type OIDCNativeApplyConfiguration struct {
 	// Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme.
 	Issuer *string `json:"issuer,omitempty"`
 	// The client ID provided by your OpenID Connect provider.
 	ClientID *string `json:"clientID,omitempty"`
-	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured.
+	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid.
 	ClientSecret *string `json:"clientSecret,omitempty"`
 	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	ConfigURL *string `json:"configURL,omitempty"`
@@ -37,16 +37,16 @@ type OIDCv2ApplyConfiguration struct {
 	UserInfoEnable *bool `json:"userInfoEnable,omitempty"`
 }
 
-// OIDCv2ApplyConfiguration constructs a declarative configuration of the OIDCv2 type for use with
+// OIDCNativeApplyConfiguration constructs a declarative configuration of the OIDCNative type for use with
 // apply.
-func OIDCv2() *OIDCv2ApplyConfiguration {
-	return &OIDCv2ApplyConfiguration{}
+func OIDCNative() *OIDCNativeApplyConfiguration {
+	return &OIDCNativeApplyConfiguration{}
 }
 
 // WithIssuer sets the Issuer field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Issuer field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithIssuer(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithIssuer(value string) *OIDCNativeApplyConfiguration {
 	b.Issuer = &value
 	return b
 }
@@ -54,7 +54,7 @@ func (b *OIDCv2ApplyConfiguration) WithIssuer(value string) *OIDCv2ApplyConfigur
 // WithClientID sets the ClientID field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ClientID field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithClientID(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithClientID(value string) *OIDCNativeApplyConfiguration {
 	b.ClientID = &value
 	return b
 }
@@ -62,7 +62,7 @@ func (b *OIDCv2ApplyConfiguration) WithClientID(value string) *OIDCv2ApplyConfig
 // WithClientSecret sets the ClientSecret field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ClientSecret field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithClientSecret(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithClientSecret(value string) *OIDCNativeApplyConfiguration {
 	b.ClientSecret = &value
 	return b
 }
@@ -70,7 +70,7 @@ func (b *OIDCv2ApplyConfiguration) WithClientSecret(value string) *OIDCv2ApplyCo
 // WithConfigURL sets the ConfigURL field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ConfigURL field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithConfigURL(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithConfigURL(value string) *OIDCNativeApplyConfiguration {
 	b.ConfigURL = &value
 	return b
 }
@@ -78,7 +78,7 @@ func (b *OIDCv2ApplyConfiguration) WithConfigURL(value string) *OIDCv2ApplyConfi
 // WithScope sets the Scope field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Scope field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithScope(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithScope(value string) *OIDCNativeApplyConfiguration {
 	b.Scope = &value
 	return b
 }
@@ -86,7 +86,7 @@ func (b *OIDCv2ApplyConfiguration) WithScope(value string) *OIDCv2ApplyConfigura
 // WithRedirectURI sets the RedirectURI field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the RedirectURI field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithRedirectURI(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithRedirectURI(value string) *OIDCNativeApplyConfiguration {
 	b.RedirectURI = &value
 	return b
 }
@@ -94,7 +94,7 @@ func (b *OIDCv2ApplyConfiguration) WithRedirectURI(value string) *OIDCv2ApplyCon
 // WithCookieName sets the CookieName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the CookieName field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithCookieName(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithCookieName(value string) *OIDCNativeApplyConfiguration {
 	b.CookieName = &value
 	return b
 }
@@ -102,7 +102,7 @@ func (b *OIDCv2ApplyConfiguration) WithCookieName(value string) *OIDCv2ApplyConf
 // WithExtraAuthArgs sets the ExtraAuthArgs field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the ExtraAuthArgs field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithExtraAuthArgs(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithExtraAuthArgs(value string) *OIDCNativeApplyConfiguration {
 	b.ExtraAuthArgs = &value
 	return b
 }
@@ -110,7 +110,7 @@ func (b *OIDCv2ApplyConfiguration) WithExtraAuthArgs(value string) *OIDCv2ApplyC
 // WithPKCE sets the PKCE field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the PKCE field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithPKCE(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithPKCE(value string) *OIDCNativeApplyConfiguration {
 	b.PKCE = &value
 	return b
 }
@@ -118,7 +118,7 @@ func (b *OIDCv2ApplyConfiguration) WithPKCE(value string) *OIDCv2ApplyConfigurat
 // WithLogoutURI sets the LogoutURI field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogoutURI field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithLogoutURI(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithLogoutURI(value string) *OIDCNativeApplyConfiguration {
 	b.LogoutURI = &value
 	return b
 }
@@ -126,7 +126,7 @@ func (b *OIDCv2ApplyConfiguration) WithLogoutURI(value string) *OIDCv2ApplyConfi
 // WithPostLogoutRedirectURI sets the PostLogoutRedirectURI field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the PostLogoutRedirectURI field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithPostLogoutRedirectURI(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithPostLogoutRedirectURI(value string) *OIDCNativeApplyConfiguration {
 	b.PostLogoutRedirectURI = &value
 	return b
 }
@@ -134,7 +134,7 @@ func (b *OIDCv2ApplyConfiguration) WithPostLogoutRedirectURI(value string) *OIDC
 // WithLogoutTokenHint sets the LogoutTokenHint field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogoutTokenHint field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithLogoutTokenHint(value bool) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithLogoutTokenHint(value bool) *OIDCNativeApplyConfiguration {
 	b.LogoutTokenHint = &value
 	return b
 }
@@ -142,7 +142,7 @@ func (b *OIDCv2ApplyConfiguration) WithLogoutTokenHint(value bool) *OIDCv2ApplyC
 // WithSessionTimeout sets the SessionTimeout field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the SessionTimeout field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithSessionTimeout(value string) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithSessionTimeout(value string) *OIDCNativeApplyConfiguration {
 	b.SessionTimeout = &value
 	return b
 }
@@ -150,7 +150,7 @@ func (b *OIDCv2ApplyConfiguration) WithSessionTimeout(value string) *OIDCv2Apply
 // WithUserInfoEnable sets the UserInfoEnable field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the UserInfoEnable field is set to the value of the last call.
-func (b *OIDCv2ApplyConfiguration) WithUserInfoEnable(value bool) *OIDCv2ApplyConfiguration {
+func (b *OIDCNativeApplyConfiguration) WithUserInfoEnable(value bool) *OIDCNativeApplyConfiguration {
 	b.UserInfoEnable = &value
 	return b
 }

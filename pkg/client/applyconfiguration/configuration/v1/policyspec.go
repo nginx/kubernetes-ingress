@@ -26,7 +26,7 @@ type PolicySpecApplyConfiguration struct {
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak.
 	OIDC *OIDCApplyConfiguration `json:"oidc,omitempty"`
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native.
-	OIDCv2 *OIDCv2ApplyConfiguration `json:"oidcv2,omitempty"`
+	OIDCNative *OIDCNativeApplyConfiguration `json:"oidcNative,omitempty"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAFApplyConfiguration `json:"waf,omitempty"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
@@ -109,11 +109,11 @@ func (b *PolicySpecApplyConfiguration) WithOIDC(value *OIDCApplyConfiguration) *
 	return b
 }
 
-// WithOIDCv2 sets the OIDCv2 field in the declarative configuration to the given value
+// WithOIDCNative sets the OIDCNative field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the OIDCv2 field is set to the value of the last call.
-func (b *PolicySpecApplyConfiguration) WithOIDCv2(value *OIDCv2ApplyConfiguration) *PolicySpecApplyConfiguration {
-	b.OIDCv2 = value
+// If called multiple times, the OIDCNative field is set to the value of the last call.
+func (b *PolicySpecApplyConfiguration) WithOIDCNative(value *OIDCNativeApplyConfiguration) *PolicySpecApplyConfiguration {
+	b.OIDCNative = value
 	return b
 }
 
