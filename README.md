@@ -9,6 +9,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/nginx/kubernetes-ingress?logo=github&sort=semver)](https://github.com/nginx/kubernetes-ingress/releases/latest)
 [![Docker Pulls](https://img.shields.io/docker/pulls/nginx/nginx-ingress?logo=docker&logoColor=white)](https://hub.docker.com/r/nginx/nginx-ingress)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nginx/kubernetes-ingress)](https://goreportcard.com/report/github.com/nginx/kubernetes-ingress)
+[![Regression](https://github.com/nginx/kubernetes-ingress/actions/workflows/regression.yml/badge.svg?event=schedule)](https://github.com/nginx/kubernetes-ingress/actions/workflows/regression.yml?query=event%3Aschedule)
 [![codecov](https://codecov.io/gh/nginx/kubernetes-ingress/branch/main/graph/badge.svg?token=snCn7Y0zC7)](https://codecov.io/gh/nginx/kubernetes-ingress)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSFScorecard](https://api.securityscorecards.dev/projects/github.com/nginx/kubernetes-ingress/badge)](https://scorecard.dev/viewer/?uri=github.com/nginx/kubernetes-ingress)
@@ -57,7 +58,11 @@ helm install nginx-ingress nginx-ingress/nginx-ingress --namespace nginx-ingress
 
 ### Install with Manifests
 
+> **Note**: Replace `v5.5.0` in the commands below with the [latest release tag](https://github.com/nginx/kubernetes-ingress/releases/latest).
+
 ```shell
+    # Install the Custom Resource Definitions (required for the default configuration)
+    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deploy/crds.yaml
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ns-and-sa.yaml
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/rbac/rbac.yaml
     kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/nginx-config.yaml
@@ -75,6 +80,7 @@ Once installed, deploy a sample application:
 ```bash
 # Deploy the Cafe example app
 kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/examples/ingress-resources/complete-example/cafe.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/examples/ingress-resources/complete-example/cafe-secret.yaml
 kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/examples/ingress-resources/complete-example/cafe-ingress.yaml
 ```
 
@@ -162,8 +168,6 @@ We'd love to hear from you! Here's how to get involved:
 
 | **Community Call Dates** |
 | --- |
-| **2026-06-15** |
-| **2026-06-29** |
 | **2026-07-13** |
 | **2026-07-27** |
 | **2026-08-10** |
