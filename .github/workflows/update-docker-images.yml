@@ -26,6 +26,7 @@ permissions:
 jobs:
   variables:
     name: Set variables for workflow
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.kic.outputs.tag }}
@@ -36,7 +37,7 @@ jobs:
       lts_release_matrix: ${{ steps.kic.outputs.lts_release_matrix }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -74,6 +75,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON( needs.variables.outputs.matrix ) }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/patch-image.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -90,6 +92,7 @@ jobs:
   release-oss-internal:
     name: "Publish Docker OSS ${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }} to internal release Registries"
     needs: [variables, patch-images]
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/oss-release.yml
     with:
       gcr_release_registry: true
@@ -118,6 +121,7 @@ jobs:
           - "${{ needs.variables.outputs.short_tag }}"
           - "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
           - "latest"
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/oss-release.yml
     with:
       gcr_release_registry: false
@@ -146,6 +150,7 @@ jobs:
           - "${{ needs.variables.outputs.short_tag }}"
           - "${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }}"
           - "latest"
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/plus-release.yml
     with:
       nginx_registry: true
@@ -165,6 +170,7 @@ jobs:
   release-plus-internal:
     name: Publish Docker Plus ${{ needs.variables.outputs.tag }}-${{ needs.variables.outputs.date }} to internal release Registries
     needs: [variables, patch-images]
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/plus-release.yml
     with:
       nginx_registry: false
@@ -183,6 +189,7 @@ jobs:
 
   certify-openshift-images:
     name: Certify OpenShift UBI images
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -190,7 +197,7 @@ jobs:
     needs: [variables, release-oss-public]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -217,12 +224,12 @@ jobs:
           project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
           platforms: ""
-          preflight_version: 1.19.0 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
+          preflight_version: 1.19.1 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
           submit: ${{ ! inputs.dry_run || true }}
 
   patch-images-lts:
     name: Patch Images LTS
-    if: needs.variables.outputs.lts_release_matrix != '[]'
+    if: github.repository == 'nginx/kubernetes-ingress' && (needs.variables.outputs.lts_release_matrix != '[]')
     needs: [variables]
     strategy:
       fail-fast: false
@@ -243,7 +250,7 @@ jobs:
 
   release-plus-external-lts:
     name: Publish Docker Plus ${{ matrix.tag }}-${{ needs.variables.outputs.date }} to external release Registries
-    if: needs.variables.outputs.lts_release_matrix != '[]'
+    if: github.repository == 'nginx/kubernetes-ingress' && (needs.variables.outputs.lts_release_matrix != '[]')
     needs: [variables, patch-images-lts]
     strategy:
       fail-fast: false
@@ -264,7 +271,7 @@ jobs:
 
   release-plus-internal-lts:
     name: Publish Docker Plus ${{ matrix.tag }}-${{ needs.variables.outputs.date }} to internal release Registries
-    if: needs.variables.outputs.lts_release_matrix != '[]'
+    if: github.repository == 'nginx/kubernetes-ingress' && (needs.variables.outputs.lts_release_matrix != '[]')
     needs: [variables, patch-images-lts]
     strategy:
       fail-fast: false

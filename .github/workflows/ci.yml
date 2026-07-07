@@ -34,6 +34,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -60,7 +61,7 @@ jobs:
       run_tests: ${{ steps.run_tests.outputs.run_tests }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -72,7 +73,7 @@ jobs:
         shell: bash --noprofile --norc -o pipefail {0}
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
 
@@ -207,17 +208,19 @@ jobs:
       contents: read
     needs: checks
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       inputs.force ||
       needs.checks.outputs.run_tests == 'true' &&
       needs.checks.outputs.binary_cache_hit != 'true'
+      )
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
 
@@ -243,6 +246,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -252,12 +256,12 @@ jobs:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup Helm
-        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.18.6'
+          version: 'v3.21.2'
         if: >-
           inputs.force ||
           needs.checks.outputs.run_tests == 'true' &&
@@ -289,7 +293,7 @@ jobs:
           needs.checks.outputs.binary_cache_hit != 'true')
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
         if: >-
@@ -313,7 +317,7 @@ jobs:
           needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@e79a6962e0d4c0c17b229090214935d2e33f8354 # v6.0.1
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
@@ -330,17 +334,19 @@ jobs:
       contents: read
     needs: checks
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       inputs.force ||
       needs.checks.outputs.run_tests == 'true' &&
       needs.checks.outputs.binary_cache_hit != 'true'
+      )
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
 
@@ -362,17 +368,19 @@ jobs:
       contents: read
     needs: checks
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       inputs.force ||
       needs.checks.outputs.run_tests == 'true' &&
       needs.checks.outputs.binary_cache_hit != 'true'
+      )
     env:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
 
@@ -385,6 +393,7 @@ jobs:
   build-artifacts:
     name: Build Artifacts
     needs: [checks, unit-tests]
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-artifacts.yml
     with:
       force: ${{ needs.checks.outputs.docker_build == 'true' }}
@@ -422,14 +431,18 @@ jobs:
       dry_run: false
     secrets: inherit
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       needs.checks.outputs.forked_workflow == 'false' &&
       (needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true')
 
+      )
   package-tests:
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
+      )
     name: Package Tests
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -439,10 +452,10 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
         with:
           platforms: arm64
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
@@ -510,8 +523,10 @@ jobs:
 
   helm-tests:
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
+      )
     name: Helm Tests ${{ matrix.base-os }}
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -532,12 +547,12 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup Helm
-        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.18.6'
+          version: 'v3.21.2'
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -698,8 +713,10 @@ jobs:
 
   setup-matrix:
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
+      )
     name: Setup Matrix for Smoke Tests
     runs-on: ubuntu-24.04
     needs: [build-artifacts, checks]
@@ -712,7 +729,7 @@ jobs:
       matrix_nap: ${{ steps.set-matrix.outputs.matrix_nap }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - id: set-matrix
         run: |
@@ -782,8 +799,10 @@ jobs:
 
   smoke-tests-oss:
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
+      )
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -812,8 +831,10 @@ jobs:
 
   smoke-tests-plus:
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
+      )
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -842,8 +863,10 @@ jobs:
 
   smoke-tests-nap:
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       needs.checks.outputs.run_tests == 'true' ||
       needs.checks.outputs.docker_build == 'true'
+      )
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     needs:
       - checks
@@ -883,11 +906,13 @@ jobs:
       dry_run: false
     secrets: inherit
     if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
       (needs.checks.outputs.forked_workflow == 'false' &&
       needs.checks.outputs.stable_image_exists != 'true')
 
+      )
   final-results:
-    if: ${{ !cancelled() }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled())
     runs-on: ubuntu-24.04
     name: Final CI Results
     needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck]
@@ -944,4 +969,4 @@ jobs:
       pull-requests: write # for scout report
     uses: ./.github/workflows/image-promotion.yml
     secrets: inherit
-    if: ${{ inputs.force && (github.ref_name == 'main' || startsWith(github.ref_name, 'release-')) }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.force && (github.ref_name == 'main' || startsWith(github.ref_name, 'release-')))

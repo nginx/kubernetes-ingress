@@ -4,7 +4,7 @@ GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.1
+NGINX_OSS_VERSION             ?= 1.31.2
 NGINX_PLUS_VERSION            ?= R37.0
 NAP_WAF_VERSION               ?= 37.0+5.635
 NAP_WAF_COMMON_VERSION        ?= 11.665
@@ -40,7 +40,7 @@ TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.12.2 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.45.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.47.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.10.0 ## The version of gofumpt to use
 
@@ -197,14 +197,32 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 debian-image-profiling: build-debug ## Create Docker image for profiling (Debian + pprof on :6060, includes Delve)
 	docker build --platform linux/$(strip $(ARCH)) $(strip $(DOCKER_BUILD_OPTIONS)) --target profiling -f build/Dockerfile -t $(BUILD_IMAGE) . --build-arg BUILD_OS=debian --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
-.PHONY: debian-image
-debian-image: build ## Create Docker image for Ingress Controller (Debian)
-	$(DOCKER_CMD) --build-arg BUILD_OS=debian --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+###### NIC + NGINX OSS Images (built from scratch) ######
 
 .PHONY: alpine-image
-alpine-image: build ## Create Docker image for Ingress Controller (Alpine)
-	$(DOCKER_CMD) --build-arg BUILD_OS=alpine --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+alpine-image: ## Build OSS Alpine-based image
+	$(DOCKER_CMD) \
+		--build-arg BUILD_OS=alpine \
+		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
+.PHONY: debian-image
+debian-image: ## Build OSS Debian-based image
+	$(DOCKER_CMD) \
+		--build-arg BUILD_OS=debian \
+		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+
+.PHONY: ubi-image
+ubi-image: build ## Create OSS UBI-based image
+	$(DOCKER_CMD) \
+		--build-arg BUILD_OS=ubi \
+		--build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE) \
+		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+
+
+###### NIC + NGINX PLUS Images ######
 .PHONY: alpine-image-plus
 alpine-image-plus: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
@@ -277,10 +295,6 @@ debian-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Contro
 		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
 		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
-
-.PHONY: ubi-image
-ubi-image: build ## Create Docker image for Ingress Controller (UBI)
-	$(DOCKER_CMD) --build-arg BUILD_OS=ubi --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi-image-plus
 ubi-image-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus)

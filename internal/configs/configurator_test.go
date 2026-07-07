@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -461,6 +463,137 @@ func TestUpdateEndpointsMergeableIngress(t *testing.T) {
 	_, err = cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 	if err != nil {
 		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", err, nil)
+	}
+}
+
+// Recording mock — embeds FakeManager, overrides UpdateServersInPlus to capture calls
+type recordingFakeManager struct {
+	*nginx.FakeManager
+	updatedUpstreams map[string][]string
+}
+
+func (m *recordingFakeManager) UpdateServersInPlus(upstream string, servers []string, _ nginx.ServerConfig) error {
+	m.updatedUpstreams[upstream] = servers
+	return nil
+}
+
+func TestUpdatePlusExternalAuthEndpoints(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		policies      map[string]*conf_v1.Policy
+		endpoints     map[string][]string
+		parentIngress *networking.Ingress
+		wantUpstreams map[string][]string
+		wantErr       bool
+	}{
+		{
+			name: "policy with nil ExternalAuth is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/no-extauth": {Spec: conf_v1.PolicySpec{}},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "policy with empty AuthServiceName is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/empty-svc": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{AuthServiceName: ""},
+					},
+				},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "valid policy with matching endpoints",
+			policies: map[string]*conf_v1.Policy{
+				"default/my-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "my-auth", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{8080},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{
+				"default/auth-svc:8080": {"10.0.0.5:8080"},
+			},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			},
+			wantUpstreams: map[string][]string{
+				"ing_default_cafe_exauth_default_my-auth": {"10.0.0.5:8080"},
+			},
+		},
+		{
+			name: "valid policy with no matching endpoints is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/my-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "my-auth", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{8080},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "cross-namespace policy uses parent ingress identity",
+			policies: map[string]*conf_v1.Policy{
+				"auth-ns/shared-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "shared-auth", Namespace: "auth-ns"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{9090},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{
+				"auth-ns/auth-svc:9090": {"10.0.0.10:9090"},
+			},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "app-ingress", Namespace: "app-ns"},
+			},
+			wantUpstreams: map[string][]string{
+				"ing_app-ns_app-ingress_exauth_auth-ns_shared-auth": {"10.0.0.10:9090"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			mgr := &recordingFakeManager{
+				FakeManager:      nginx.NewFakeManager("/etc/nginx"),
+				updatedUpstreams: make(map[string][]string),
+			}
+			cnf := createTestConfiguratorWithManager(t, mgr)
+			cnf.isReloadsEnabled = true
+
+			err := cnf.updatePlusExternalAuthEndpoints(
+				tt.policies, tt.endpoints, tt.parentIngress, nginx.ServerConfig{},
+			)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if diff := cmp.Diff(tt.wantUpstreams, mgr.updatedUpstreams); diff != "" {
+				t.Errorf("upstream mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -3670,3 +3803,175 @@ server {
     {{- end }}
 }`
 )
+
+// oidcIncludePattern matches the `include oidc-conf.d/<basename>.conf;` directive emitted by
+// the Plus VirtualServer template when Server.OIDC is set.
+var oidcIncludePattern = regexp.MustCompile(`include oidc-conf\.d/([^;\s]+)\.conf;`)
+
+// configSafetyEnabledFakeManager simulates the ConfigRollbackManager behavior that is active
+// only when the controller runs with -enable-config-safety=true: every CreateConfig call runs
+// `nginx -t` synchronously and fails if any `include oidc-conf.d/*.conf;` directive points at
+// a file that has not yet been written.
+// With config safety disabled, LocalManager.CreateConfig just writes the file and the validation
+// is deferred to Reload().
+type configSafetyEnabledFakeManager struct {
+	*nginx.FakeManager
+	mu          sync.Mutex
+	writtenOIDC map[string]bool
+	oidcCalls   int
+	vsCalls     int
+}
+
+func (m *configSafetyEnabledFakeManager) CreateOIDCConfig(name string, content []byte) bool {
+	m.mu.Lock()
+	if m.writtenOIDC == nil {
+		m.writtenOIDC = map[string]bool{}
+	}
+	m.writtenOIDC[name] = true
+	m.oidcCalls++
+	m.mu.Unlock()
+	return m.FakeManager.CreateOIDCConfig(name, content)
+}
+
+func (m *configSafetyEnabledFakeManager) CreateConfig(name string, content []byte) (bool, error) {
+	for _, match := range oidcIncludePattern.FindAllSubmatch(content, -1) {
+		included := string(match[1])
+		m.mu.Lock()
+		present := m.writtenOIDC[included]
+		m.mu.Unlock()
+		if !present {
+			return false, fmt.Errorf(
+				`nginx: [emerg] open() "/etc/nginx/oidc-conf.d/%s.conf" failed (2: No such file or directory) in /etc/nginx/conf.d/%s.conf`,
+				included, name,
+			)
+		}
+	}
+	m.mu.Lock()
+	m.vsCalls++
+	m.mu.Unlock()
+	return m.FakeManager.CreateConfig(name, content)
+}
+
+func createOIDCVirtualServerEx() *VirtualServerEx {
+	return &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Policies: []conf_v1.PolicyReference{
+					{Name: "oidc-policy"},
+				},
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea-svc", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/oidc-policy": {
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+				Spec: conf_v1.PolicySpec{
+					OIDC: &conf_v1.OIDC{
+						AuthEndpoint:  "https://auth.example.com",
+						TokenEndpoint: "https://token.example.com",
+						JWKSURI:       "https://jwks.example.com",
+						ClientID:      "example-client-id",
+						ClientSecret:  "example-client-secret",
+						Scope:         "openid",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {"10.0.0.10:80"},
+		},
+		SecretRefs: map[string]*secrets.SecretReference{
+			"default/example-client-secret": {
+				Secret: &api_v1.Secret{
+					Type: secrets.SecretTypeOIDC,
+					Data: map[string][]byte{
+						"client-secret": []byte("c2VjcmV0"),
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestAddOrUpdateVirtualServer_WithOIDCAndConfigSafetyEnabled_AppliesSuccessfully is the
+// test to make sure oidc config is written before the virtual server config when -enable-config-safety is enabled.
+func TestAddOrUpdateVirtualServer_WithOIDCAndConfigSafetyEnabled_AppliesSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	manager := &configSafetyEnabledFakeManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	cnf.isPlus = true
+
+	vsEx := createOIDCVirtualServerEx()
+
+	if _, err := cnf.AddOrUpdateVirtualServer(vsEx); err != nil {
+		t.Fatalf("AddOrUpdateVirtualServer failed under -enable-config-safety (OIDC config likely written after VS config): %v", err)
+	}
+
+	if manager.oidcCalls != 1 {
+		t.Errorf("expected exactly one CreateOIDCConfig call, got %d", manager.oidcCalls)
+	}
+	if manager.vsCalls != 1 {
+		t.Errorf("expected exactly one CreateConfig call for the VS, got %d", manager.vsCalls)
+	}
+
+	wantOIDC := getFileNameForOIDCVirtualServer(vsEx.VirtualServer)
+	if !manager.writtenOIDC[wantOIDC] {
+		t.Errorf("expected OIDC config %q to be written, written set: %v", wantOIDC, manager.writtenOIDC)
+	}
+}
+
+// TestAddOrUpdateVirtualServer_WithoutOIDCAndConfigSafetyEnabled_DoesNotWriteOIDCConfig
+// is the test to make sure oidc config is not written when the virtual server does not have OIDC and -enable-config-safety is enabled.
+func TestAddOrUpdateVirtualServer_WithoutOIDCAndConfigSafetyEnabled_DoesNotWriteOIDCConfig(t *testing.T) {
+	t.Parallel()
+
+	manager := &configSafetyEnabledFakeManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	cnf.isPlus = true
+
+	vsEx := &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea-svc", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {"10.0.0.10:80"},
+		},
+	}
+
+	if _, err := cnf.AddOrUpdateVirtualServer(vsEx); err != nil {
+		t.Fatalf("AddOrUpdateVirtualServer returned unexpected error: %v", err)
+	}
+
+	if manager.oidcCalls != 0 {
+		t.Errorf("expected no CreateOIDCConfig calls for a VS without OIDC, got %d", manager.oidcCalls)
+	}
+	if manager.vsCalls != 1 {
+		t.Errorf("expected exactly one CreateConfig call for the VS, got %d", manager.vsCalls)
+	}
+}

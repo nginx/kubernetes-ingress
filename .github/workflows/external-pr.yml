@@ -11,8 +11,10 @@ permissions:
 jobs:
   pr-details:
     if: >
+      github.repository == 'nginx/kubernetes-ingress' && (
       github.event.issue.pull_request &&
       github.event.comment.body == '/approve-pipeline-run'
+      )
     runs-on: ubuntu-24.04
     outputs:
         is_fork: ${{ steps.pr-info.outputs.is_fork }}
@@ -53,7 +55,9 @@ jobs:
       issues: read
       pull-requests: read
     if: >
+      github.repository == 'nginx/kubernetes-ingress' && (
       needs.pr-details.outputs.is_fork == 'true'
+      )
     runs-on: ubuntu-24.04
     steps:
       - name: Check commenter permissions
@@ -89,7 +93,7 @@ jobs:
           echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
 
       - name: Checkout fork branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: ${{ needs.pr-details.outputs.fork_owner }}/${{ needs.pr-details.outputs.fork_repo }}
           ref: ${{ needs.pr-details.outputs.sha }}
