@@ -1569,7 +1569,7 @@ func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *fie
 func validateHSTS(hsts *v1.HSTS, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	minAgeValForPreload := 31536000
+	const minAgeValueForPreload = 31536000
 
 	if hsts.MaxAge == nil {
 		return append(allErrs, field.Required(fieldPath.Child("maxAge"), "maxAge is required for HSTS policy"))
@@ -1585,7 +1585,7 @@ func validateHSTS(hsts *v1.HSTS, fieldPath *field.Path) field.ErrorList {
 			))
 		}
 
-		if *hsts.MaxAge < minAgeValForPreload {
+		if *hsts.MaxAge < minAgeValueForPreload {
 			allErrs = append(allErrs, field.Invalid(
 				fieldPath.Child("preload"), hsts.Preload,
 				"preload requires maxAge to be at least 31536000 (one year)",
