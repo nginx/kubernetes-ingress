@@ -537,6 +537,18 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 			cfg: PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
 			msg: "use WAF(plus only) policy",
 		},
+		{
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					OIDCv2: &v1.OIDCv2{
+						Issuer:   "https://accounts.google.com",
+						ClientID: "my-client-id",
+					},
+				},
+			},
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: true},
+			msg: "use OIDCv2 (plus only)",
+		},
 	}
 	for _, test := range tests {
 		err := ValidatePolicy(test.policy, test.cfg)
@@ -2025,6 +2037,190 @@ func TestValidateAPIKeyPolicy_FailsOnInvalidInput(t *testing.T) {
 		if len(allErrs) == 0 {
 			t.Errorf("validateAPIKey() returned no errors for invalid input for the case of %v", test.msg)
 		}
+	}
+}
+
+func TestValidateOIDCv2_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		oidcv2 *v1.OIDCv2
+		msg    string
+	}{
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+			},
+			msg: "minimal valid config",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client-id",
+				ClientSecret:          "my-oidc-secret",
+				Scope:                 "openid+profile+email",
+				RedirectURI:           "/oidc_callback",
+				LogoutURI:             "/logout",
+				PostLogoutRedirectURI: "/logged_out",
+				UserInfoEnable:        true,
+			},
+			msg: "full config with all optional fields",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:       "https://login.microsoftonline.com/tenant-id",
+				ClientID:     "azure-client",
+				ClientSecret: "azure-secret",
+				Scope:        "openid+offline_access",
+			},
+			msg: "azure provider with offline_access scope",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:   "https://keycloak.example.com/realms/master",
+				ClientID: "keycloak-client",
+			},
+			msg: "keycloak provider with path in issuer",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateOIDCv2(test.oidcv2, field.NewPath("oidcv2"))
+			if len(allErrs) != 0 {
+				t.Errorf("validateOIDCv2() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateOIDCv2_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		oidcv2    *v1.OIDCv2
+		fieldPath string
+		msg       string
+	}{
+		{
+			oidcv2:    &v1.OIDCv2{ClientID: "my-client"},
+			fieldPath: "oidcv2.issuer",
+			msg:       "missing required issuer",
+		},
+		{
+			oidcv2:    &v1.OIDCv2{Issuer: "https://accounts.google.com"},
+			fieldPath: "oidcv2.clientID",
+			msg:       "missing required clientID",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:   "not-a-url",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcv2.issuer",
+			msg:       "invalid issuer URL",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "$invalid$chars",
+			},
+			fieldPath: "oidcv2.clientID",
+			msg:       "invalid chars in clientID",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client",
+				ClientSecret: "-invalid-secret-name-",
+			},
+			fieldPath: "oidcv2.clientSecret",
+			msg:       "invalid secret name",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "bogus",
+			},
+			fieldPath: "oidcv2.scope",
+			msg:       "missing openid in scope",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:      "https://accounts.google.com",
+				ClientID:    "my-client",
+				RedirectURI: "http://external.example.com/callback",
+			},
+			fieldPath: "oidcv2.redirectURI",
+			msg:       "redirectURI must be a path not a URL",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				LogoutURI: "http://external.example.com/logout",
+			},
+			fieldPath: "oidcv2.logoutURI",
+			msg:       "logoutURI must be a path not a URL",
+		},
+		{
+			oidcv2: &v1.OIDCv2{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client",
+				PostLogoutRedirectURI: "http://external.example.com/done",
+			},
+			fieldPath: "oidcv2.postLogoutRedirectURI",
+			msg:       "postLogoutRedirectURI must be a path not a URL",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateOIDCv2(test.oidcv2, field.NewPath("oidcv2"))
+			if len(allErrs) == 0 {
+				t.Errorf("validateOIDCv2() returned no errors for invalid input for the case of %v", test.msg)
+			} else if allErrs[0].Field != test.fieldPath {
+				t.Errorf("validateOIDCv2() returned error on wrong field for the case of %v, want %v, got %v", test.msg, test.fieldPath, allErrs[0].Field)
+			}
+			t.Log(allErrs)
+		})
+	}
+}
+
+func TestValidatePolicy_OIDCv2_GateChecks(t *testing.T) {
+	t.Parallel()
+	validOIDCv2 := &v1.OIDCv2{
+		Issuer:   "https://accounts.google.com",
+		ClientID: "my-client-id",
+	}
+	tests := []struct {
+		cfg PolicyValidationConfig
+		msg string
+	}{
+		{
+			cfg: PolicyValidationConfig{IsPlus: false, EnableOIDC: true},
+			msg: "rejected when not Plus",
+		},
+		{
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: false},
+			msg: "rejected when OIDC not enabled",
+		},
+		{
+			cfg: PolicyValidationConfig{IsPlus: false, EnableOIDC: false},
+			msg: "rejected when neither Plus nor OIDC enabled",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			policy := &v1.Policy{Spec: v1.PolicySpec{OIDCv2: validOIDCv2}}
+			err := ValidatePolicy(policy, test.cfg)
+			if err == nil {
+				t.Errorf("ValidatePolicy() should have returned error for the case of %v", test.msg)
+			}
+		})
 	}
 }
 

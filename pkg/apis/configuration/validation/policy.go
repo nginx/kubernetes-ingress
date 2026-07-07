@@ -126,6 +126,25 @@ func policyFields() []policyFieldValidator {
 			},
 		},
 		{
+			name:  "oidcv2",
+			isSet: func(s *v1.PolicySpec) bool { return s.OIDCv2 != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				var errs field.ErrorList
+				if !cfg.EnableOIDC {
+					errs = append(errs, field.Forbidden(p.Child("oidcv2"),
+						"OIDC must be enabled via cli argument -enable-oidc to use OIDCv2 policy"))
+				}
+				if !cfg.IsPlus {
+					errs = append(errs, field.Forbidden(p.Child("oidcv2"), "OIDCv2 is only supported in NGINX Plus"))
+					return errs, true
+				}
+				return errs, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateOIDCv2(s.OIDCv2, p.Child("oidcv2"))
+			},
+		},
+		{
 			name:  "apiKey",
 			isSet: func(s *v1.PolicySpec) bool { return s.APIKey != nil },
 			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
@@ -192,7 +211,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	if fieldCount != 1 {
 		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
 		if cfg.IsPlus {
-			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
+			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `oidcv2`, `waf`")
 		}
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
 	}
@@ -434,6 +453,38 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	allErrs = append(allErrs, validateURL(oidc.JWKSURI, fieldPath.Child("jwksURI"))...)
 	allErrs = append(allErrs, validateSecretName(oidc.ClientSecret, fieldPath.Child("clientSecret"))...)
 	return append(allErrs, validateClientID(oidc.ClientID, fieldPath.Child("clientID"))...)
+}
+
+func validateOIDCv2(oidcv2 *v1.OIDCv2, fieldPath *field.Path) field.ErrorList {
+	if oidcv2.Issuer == "" {
+		return field.ErrorList{field.Required(fieldPath.Child("issuer"), "")}
+	}
+	if oidcv2.ClientID == "" {
+		return field.ErrorList{field.Required(fieldPath.Child("clientID"), "")}
+	}
+
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validateIssuerURL(oidcv2.Issuer, fieldPath.Child("issuer"))...)
+	allErrs = append(allErrs, validateClientID(oidcv2.ClientID, fieldPath.Child("clientID"))...)
+
+	if oidcv2.ClientSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcv2.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+	if oidcv2.Scope != "" {
+		allErrs = append(allErrs, validateOIDCScope(oidcv2.Scope, fieldPath.Child("scope"))...)
+	}
+	if oidcv2.RedirectURI != "" {
+		allErrs = append(allErrs, validatePath(oidcv2.RedirectURI, fieldPath.Child("redirectURI"))...)
+	}
+	if oidcv2.LogoutURI != "" {
+		allErrs = append(allErrs, validatePath(oidcv2.LogoutURI, fieldPath.Child("logoutURI"))...)
+	}
+	if oidcv2.PostLogoutRedirectURI != "" {
+		allErrs = append(allErrs, validatePath(oidcv2.PostLogoutRedirectURI, fieldPath.Child("postLogoutRedirectURI"))...)
+	}
+
+	return allErrs
 }
 
 func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
@@ -960,6 +1011,33 @@ func validatePKCE(PKCEEnable bool, clientSecret string,
 	}
 
 	return nil
+}
+
+// validateIssuerURL validates an OIDC issuer URL, which requires https scheme and a hostname
+// but does not require a path (unlike validateURL). Per the OpenID Connect spec, the issuer
+// identifier is a URL using the https scheme with no query or fragment components.
+func validateIssuerURL(issuer string, fieldPath *field.Path) field.ErrorList {
+	u, err := url.Parse(issuer)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, err.Error())}
+	}
+	if u.Scheme != "https" {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "scheme must be https")}
+	}
+	if u.Host == "" {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "hostname required")}
+	}
+
+	host, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		host = u.Host
+	}
+
+	allErrs := validateSSLName(host, fieldPath)
+	if port != "" {
+		allErrs = append(allErrs, validatePortNumber(port, fieldPath)...)
+	}
+	return allErrs
 }
 
 func validateURL(name string, fieldPath *field.Path) field.ErrorList {
