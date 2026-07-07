@@ -59,7 +59,7 @@ repos:
         description: Ensures every non-mirror workflow job is gated to the nginx/kubernetes-ingress repository.
         entry: .github/scripts/validate-workflow-gating.sh
         language: golang
-        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.44.6"]
+        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.53.3"]
         files: ^\.github/workflows/.*\.ya?ml$
         pass_filenames: false
         require_serial: true
