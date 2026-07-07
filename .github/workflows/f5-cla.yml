@@ -19,6 +19,7 @@ permissions:
 jobs:
   f5-cla:
     name: F5 CLA
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       actions: write

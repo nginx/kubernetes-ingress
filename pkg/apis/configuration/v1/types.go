@@ -1008,21 +1008,117 @@ type OIDC struct {
 	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
+// BundleSourceType specifies the remote source backend for a WAF bundle.
+// +kubebuilder:validation:Enum=HTTPS;NIM;N1C
+type BundleSourceType string
+
+const (
+	// BundleSourceTypeHTTPS fetches a pre-compiled .tgz bundle from any HTTPS endpoint.
+	BundleSourceTypeHTTPS BundleSourceType = "HTTPS"
+	// BundleSourceTypeNIM fetches a managed policy bundle from NGINX Instance Manager.
+	BundleSourceTypeNIM BundleSourceType = "NIM"
+	// BundleSourceTypeN1C fetches a managed policy bundle from NGINX One Console.
+	BundleSourceTypeN1C BundleSourceType = "N1C"
+)
+
+// BundleSource configures fetching a pre-compiled WAF bundle from a remote source.
+//
+// Three source types are supported:
+//   - HTTPS (default): fetch a pre-compiled .tgz bundle from any HTTPS server.
+//   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
+//   - N1C: pull a named managed policy from NGINX One Console via its API.
+//
+// Type-specific field requirements (policyName required for NIM/N1C, policyNamespace
+// required for N1C) are enforced by the controller's Go validation layer.
+type BundleSource struct {
+	// Type is the bundle source backend. Defaults to HTTPS.
+	// +kubebuilder:default=HTTPS
+	// +optional
+	Type BundleSourceType `json:"type,omitempty"`
+
+	// URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=2083
+	// +kubebuilder:validation:Pattern=`^https://`
+	URL string `json:"url"`
+
+	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
+	// For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
+	// For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+	// For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +optional
+	Secret string `json:"secret,omitempty"`
+
+	// TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+	// for verifying the remote endpoint TLS certificate. The secret must be in the same
+	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +optional
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
+
+	// PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	PolicyName string `json:"policyName,omitempty"`
+
+	// PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only.
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	PolicyNamespace string `json:"policyNamespace,omitempty"`
+
+	// EnablePolling enables background polling to automatically detect and fetch
+	// updated bundles at the configured PollInterval. When false, the bundle is
+	// fetched once on policy creation or update; subsequent updates require
+	// modifying the Policy resource to trigger a new fetch.
+	// +kubebuilder:validation:Required
+	EnablePolling bool `json:"enablePolling"`
+
+	// PollInterval is how often to re-fetch the bundle when enablePolling is true.
+	// Minimum 1m. Default 5m. Ignored when enablePolling is false.
+	// +optional
+	PollInterval *metav1.Duration `json:"pollInterval,omitempty"`
+
+	// Timeout is the per-request HTTP timeout. Default 60s.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+
+	// RetryAttempts is the number of retry attempts on transient failure. Range 1–10.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=10
+	// +optional
+	RetryAttempts *int `json:"retryAttempts,omitempty"`
+
+	// InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+	// Not recommended for production use.
+	// +optional
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+
+	// VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only.
+	// +optional
+	VerifyChecksum bool `json:"verifyChecksum,omitempty"`
+}
+
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.
+// Mutual exclusivity of apPolicy, apBundle, and apBundleSource is enforced by the Go validation layer.
 type WAF struct {
 	// Enables NGINX App Protect WAF.
 	Enable bool `json:"enable"`
-	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle.
+	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource.
 	ApPolicy string `json:"apPolicy"`
-	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy.
+	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundleSource.
 	ApBundle string `json:"apBundle"`
-	//
-	SecurityLog *SecurityLog `json:"securityLog"`
-	//
-	SecurityLogs []*SecurityLog `json:"securityLogs"`
+	// ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
+	// Mutually exclusive with ApPolicy and ApBundle.
+	// +optional
+	ApBundleSource *BundleSource  `json:"apBundleSource,omitempty"`
+	SecurityLog    *SecurityLog   `json:"securityLog"`
+	SecurityLogs   []*SecurityLog `json:"securityLogs"`
 }
 
 // SecurityLog defines the security log of a WAF policy.
+// Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer.
 type SecurityLog struct {
 	// Enables security log.
 	Enable bool `json:"enable"`
@@ -1030,6 +1126,10 @@ type SecurityLog struct {
 	ApLogConf string `json:"apLogConf"`
 	// The App Protect WAF log bundle resource. Only works with apBundle.
 	ApLogBundle string `json:"apLogBundle"`
+	// ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
+	// Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
+	// +optional
+	ApLogBundleSource *BundleSource `json:"apLogBundleSource,omitempty"`
 	// The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>.
 	LogDest string `json:"logDest"`
 }
