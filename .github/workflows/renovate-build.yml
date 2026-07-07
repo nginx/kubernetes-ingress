@@ -93,15 +93,23 @@ jobs:
           make update-codegen
         if: needs.check.outputs.generate == 'true'
 
+      - name: Check for Helm version changes
+        id: helm-diff
+        run: |
+          if git diff "origin/${{ github.base_ref }}..HEAD" -- '.github/workflows/*.yml' | grep -q 'depName=helm/helm'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        if: needs.check.outputs.helm == 'true'
+
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
           version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
-        if: needs.check.outputs.helm == 'true'
+        if: steps.helm-diff.outputs.changed == 'true'
 
       - name: Update snapshots
         run: make test-update-snaps
-        if: needs.check.outputs.helm == 'true'
+        if: steps.helm-diff.outputs.changed == 'true'
 
       - name: Commit changes
         id: commit
