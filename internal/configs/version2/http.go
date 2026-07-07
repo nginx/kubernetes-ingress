@@ -102,6 +102,7 @@ type Server struct {
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
 	OIDC                      *OIDC
+	OIDCProviderName          string
 	APIKey                    *APIKey
 	APIKeyEnabled             bool
 	WAF                       *WAF
@@ -235,6 +236,7 @@ type Location struct {
 	LimitReqOptions            LimitReqOptions
 	LimitReqs                  []LimitReq
 	JWTAuth                    *JWTAuth
+	OIDCProviderName           string
 	AuthRequestOff             bool
 	ExternalAuth               *ExternalAuth
 	BasicAuth                  *BasicAuth
@@ -394,9 +396,10 @@ type Queue struct {
 	Timeout string
 }
 
-// OIDCProvider defines an OIDC provider.
+// OIDCProvider defines an OIDC provider for the native ngx_http_oidc_module.
 type OIDCProvider struct {
 	Name            string
+	PolicyKey       string
 	Issuer          string
 	ClientID        string
 	ClientSecret    string

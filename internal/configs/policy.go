@@ -119,8 +119,6 @@ func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
 		pol.Spec.ExternalAuth != nil ||
 		pol.Spec.IngressMTLS != nil ||
 		pol.Spec.EgressMTLS != nil ||
-		pol.Spec.OIDC != nil ||
-		pol.Spec.OIDCv2 != nil ||
 		pol.Spec.WAF != nil
 }
 
@@ -767,6 +765,81 @@ func (p *policiesCfg) addOIDCConfig(
 	return res
 }
 
+func (p *policiesCfg) addOIDCv2Config(
+	oidcv2 *conf_v1.OIDCv2,
+	polKey string,
+	polNamespace string,
+	ownerDetails policyOwnerDetails,
+	policyOpts policyOptions,
+) *validationResults {
+	secretRefs := policyOpts.secretRefs
+	res := newValidationResults()
+
+	if p.OIDCProvider != nil {
+		res.addWarningf(
+			"Multiple oidcv2 policies in the same context is not valid. OIDCv2 policy %s will be ignored",
+			polKey,
+		)
+		return res
+	}
+
+	// Resolve client secret if specified.
+	clientSecret := ""
+	if oidcv2.ClientSecret != "" {
+		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidcv2.ClientSecret)
+		secretRef, ok := secretRefs[secretKey]
+		if !ok {
+			res.addWarningf("OIDCv2 policy %s references a missing secret %s", polKey, secretKey)
+			res.isError = true
+			return res
+		}
+
+		var secretType api_v1.SecretType
+		if secretRef.Secret != nil {
+			secretType = secretRef.Secret.Type
+		}
+		if secretType != "" && secretType != secrets.SecretTypeOIDC {
+			res.addWarningf("OIDCv2 policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+			res.isError = true
+			return res
+		}
+		if secretRef.Error != nil {
+			res.addWarningf("OIDCv2 policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+			res.isError = true
+			return res
+		}
+
+		clientSecret = string(secretRef.Secret.Data[ClientSecretKey])
+	}
+
+	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, extractPolicyName(polKey), ownerDetails.parentNamespace, ownerDetails.parentName))
+
+	p.OIDCProvider = &version2.OIDCProvider{
+		Name:           providerName,
+		PolicyKey:      polKey,
+		Issuer:         oidcv2.Issuer,
+		ClientID:       oidcv2.ClientID,
+		ClientSecret:   clientSecret,
+		ConfigURL:      oidcv2.ConfigURL,
+		Scope:          oidcv2.Scope,
+		RedirectURI:    oidcv2.RedirectURI,
+		LogoutURI:      oidcv2.LogoutURI,
+		PostLogoutURI:  oidcv2.PostLogoutRedirectURI,
+		UserInfoEnable: oidcv2.UserInfoEnable,
+	}
+
+	return res
+}
+
+// extractPolicyName extracts the policy name from a "namespace/name" key.
+func extractPolicyName(polKey string) string {
+	parts := strings.SplitN(polKey, "/", 2)
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return polKey
+}
+
 func (p *policiesCfg) addAPIKeyConfig(
 	apiKey *conf_v1.APIKey,
 	polKey string,
@@ -1236,6 +1309,8 @@ func generatePolicies(
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
 				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts)
+			case pol.Spec.OIDCv2 != nil:
+				res = config.addOIDCv2Config(pol.Spec.OIDCv2, key, polNamespace, ownerDetails, policyOpts)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:

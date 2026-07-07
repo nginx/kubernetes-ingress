@@ -500,7 +500,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
-	oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
+	if policiesCfg.OIDCProvider != nil {
+		oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
+	}
 
 	// Add cache zone from global policy if present
 	addCacheZone(&cacheZones, policiesCfg.Cache)
@@ -803,7 +805,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
-		oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
+		if routePoliciesCfg.OIDCProvider != nil {
+			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
+		}
 
 		// Add cache zone from route policy if present
 		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -1035,7 +1039,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
-			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
+			if routePoliciesCfg.OIDCProvider != nil {
+				oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
+			}
 
 			// Add cache zone from subroute policy if present
 			addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -1413,8 +1419,11 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 }
 
 func removeDuplicateOIDCProviders(providers []version2.OIDCProvider) []version2.OIDCProvider {
+	if len(providers) == 0 {
+		return nil
+	}
 	encountered := make(map[string]bool)
-	result := []version2.OIDCProvider{}
+	var result []version2.OIDCProvider
 
 	for _, v := range providers {
 		if !encountered[v.Name] {

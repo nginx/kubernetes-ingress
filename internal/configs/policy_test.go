@@ -4272,6 +4272,11 @@ func TestIsPolicySupportedOnIngress(t *testing.T) {
 			expected: false,
 		},
 		{
+			name:     "OIDCv2 is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{OIDCv2: &conf_v1.OIDCv2{}}},
+			expected: false,
+		},
+		{
 			name:     "APIKey is not supported",
 			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
 			expected: false,
@@ -4315,6 +4320,7 @@ func TestGeneratePolicies_UnsupportedOnIngress(t *testing.T) {
 		"JWTAuth":   {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
 		"BasicAuth": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
 		"OIDC":      {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
+		"OIDCv2":    {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDCv2: &conf_v1.OIDCv2{}}},
 		"APIKey":    {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
 		"Cache":     {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
 	}
