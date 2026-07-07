@@ -1109,31 +1109,45 @@ type OIDCv2 struct {
 	// The client ID provided by your OpenID Connect provider.
 	// +kubebuilder:validation:Required
 	ClientID string `json:"clientID"`
-	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured.
+	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid.
 	// +kubebuilder:validation:Optional
-	ClientSecret string `json:"clientSecret"`
-	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, it will be default to https://<issuer>/.well-known/openid-configuration.
-	// +kubebuilder:default:=.well-known/openid-configuration
+	ClientSecret string `json:"clientSecret,omitempty"` //nolint:gosec // G117: references a K8s secret name, not a credential
+	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	// +kubebuilder:validation:Optional
-	ConfigURL string `json:"configURL"`
-	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The default is openid.
+	ConfigURL string `json:"configURL,omitempty"`
+	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The module defaults to openid.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:=openid
-	Scope string `json:"scope"`
-	// Allows overriding the default redirect URI. The default is /oidc_callback.
+	Scope string `json:"scope,omitempty"`
+	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:default:=/oidc_callback
-	RedirectURI string `json:"redirectURI"`
-	// URL provided by your OpenID Connect provider to request the end user be logged out.
+	RedirectURI string `json:"redirectURI,omitempty"`
+	// Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION.
 	// +kubebuilder:validation:Optional
-	LogoutURI string `json:"logoutURI"`
-	// URI to redirect to after the logout has been performed. Requires endSessionEndpoint.
+	CookieName string `json:"cookieName,omitempty"`
+	// Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login".
 	// +kubebuilder:validation:Optional
-	PostLogoutRedirectURI string `json:"postLogoutRedirectURI"`
-	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables
+	ExtraAuthArgs string `json:"extraAuthArgs,omitempty"`
+	// Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=on;off
+	PKCE string `json:"pkce,omitempty"`
+	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page.
+	// +kubebuilder:validation:Optional
+	LogoutURI string `json:"logoutURI,omitempty"`
+	// Defines the path or absolute URI to redirect the user to after logout.
+	// +kubebuilder:validation:Optional
+	PostLogoutRedirectURI string `json:"postLogoutRedirectURI,omitempty"`
+	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
-	UserInfoEnable bool `json:"userInfoEnable"`
+	LogoutTokenHint bool `json:"logoutTokenHint,omitempty"`
+	// Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h.
+	// +kubebuilder:validation:Optional
+	SessionTimeout string `json:"sessionTimeout,omitempty"`
+	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	UserInfoEnable bool `json:"userInfoEnable,omitempty"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.

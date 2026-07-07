@@ -905,9 +905,17 @@ spec:
                       invalid. If PKCE is enabled, this should be not configured.
                     type: string
                   configURL:
-                    default: .well-known/openid-configuration
                     description: ConfigURL is the URL of the OpenID Provider Configuration
-                      Information. If not set, it will be default to https://<issuer>/.well-known/openid-configuration.
+                      Information. If not set, defaults to <issuer>/.well-known/openid-configuration
+                      as per the OpenID Connect Discovery specification.
+                    type: string
+                  cookieName:
+                    description: Sets the name of the session cookie. The module defaults
+                      to NGX_OIDC_SESSION.
+                    type: string
+                  extraAuthArgs:
+                    description: Sets additional query arguments for the authentication
+                      request URL, for example "display=page&prompt=login".
                     type: string
                   issuer:
                     description: Sets the Issuer Identifier URL of the OpenID Provider;
@@ -916,30 +924,46 @@ spec:
                       scheme.
                     pattern: ^https://([^/\s]+)(/.*)?$
                     type: string
+                  logoutTokenHint:
+                    default: false
+                    description: Adds the id_token_hint argument to the Provider's
+                      Logout Endpoint when redirecting user during logout. Required
+                      by some providers.
+                    type: boolean
                   logoutURI:
-                    description: URL provided by your OpenID Connect provider to request
-                      the end user be logged out.
+                    description: Defines the URI path for initiating session logout.
+                      Upon session termination, the user is redirected to the Provider's
+                      logout endpoint or the post logout page.
+                    type: string
+                  pkce:
+                    description: Explicitly enables or disables PKCE. By default,
+                      PKCE is automatically enabled based on OpenID Provider metadata.
+                    enum:
+                    - "on"
+                    - "off"
                     type: string
                   postLogoutRedirectURI:
-                    description: URI to redirect to after the logout has been performed.
-                      Requires endSessionEndpoint.
+                    description: Defines the path or absolute URI to redirect the
+                      user to after logout.
                     type: string
                   redirectURI:
-                    default: /oidc_callback
-                    description: Allows overriding the default redirect URI. The default
-                      is /oidc_callback.
+                    description: Allows overriding the default redirect URI. The module
+                      defaults to /oidc_callback.
                     type: string
                   scope:
-                    default: openid
                     description: List of OpenID Connect scopes. The scope openid always
                       needs to be present and others can be added concatenating them
                       with a + sign, for example openid+profile+email, openid+email+userDefinedScope.
-                      The default is openid.
+                      The module defaults to openid.
+                    type: string
+                  sessionTimeout:
+                    description: Sets a timeout after which the session is deleted,
+                      unless it was refreshed. The module defaults to 8h.
                     type: string
                   userInfoEnable:
                     default: false
                     description: Enables downloading of the UserInfo data and makes
-                      UserInfo claims available via the $oidc_claim_name variables
+                      UserInfo claims available via the $oidc_claim_name variables.
                     type: boolean
                 required:
                 - clientID

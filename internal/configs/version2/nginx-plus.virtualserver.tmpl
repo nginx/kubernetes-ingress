@@ -102,6 +102,9 @@ oidc_provider {{ $p.Name }} {
     {{- if $p.ExtraAuthArgs }}
     extra_auth_args "{{ $p.ExtraAuthArgs }}";
     {{- end }}
+    {{- if $p.PKCE }}
+    pkce {{ $p.PKCE }};
+    {{- end }}
     {{- if $p.LogoutTokenHint }}
     logout_token_hint on;
     {{- end }}

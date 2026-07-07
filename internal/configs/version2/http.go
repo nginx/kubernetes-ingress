@@ -406,6 +406,7 @@ type OIDCProvider struct {
 	ConfigURL       string
 	CookieName      string
 	ExtraAuthArgs   string
+	PKCE            string
 	RedirectURI     string
 	LogoutURI       string
 	PostLogoutURI   string

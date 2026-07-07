@@ -815,17 +815,22 @@ func (p *policiesCfg) addOIDCv2Config(
 	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, extractPolicyName(polKey), ownerDetails.parentNamespace, ownerDetails.parentName))
 
 	p.OIDCProvider = &version2.OIDCProvider{
-		Name:           providerName,
-		PolicyKey:      polKey,
-		Issuer:         oidcv2.Issuer,
-		ClientID:       oidcv2.ClientID,
-		ClientSecret:   clientSecret,
-		ConfigURL:      oidcv2.ConfigURL,
-		Scope:          oidcv2.Scope,
-		RedirectURI:    oidcv2.RedirectURI,
-		LogoutURI:      oidcv2.LogoutURI,
-		PostLogoutURI:  oidcv2.PostLogoutRedirectURI,
-		UserInfoEnable: oidcv2.UserInfoEnable,
+		Name:            providerName,
+		PolicyKey:       polKey,
+		Issuer:          oidcv2.Issuer,
+		ClientID:        oidcv2.ClientID,
+		ClientSecret:    clientSecret,
+		ConfigURL:       oidcv2.ConfigURL,
+		Scope:           oidcv2.Scope,
+		RedirectURI:     oidcv2.RedirectURI,
+		CookieName:      oidcv2.CookieName,
+		ExtraAuthArgs:   oidcv2.ExtraAuthArgs,
+		PKCE:            oidcv2.PKCE,
+		LogoutURI:       oidcv2.LogoutURI,
+		PostLogoutURI:   oidcv2.PostLogoutRedirectURI,
+		LogoutTokenHint: oidcv2.LogoutTokenHint,
+		SessionTimeout:  oidcv2.SessionTimeout,
+		UserInfoEnable:  oidcv2.UserInfoEnable,
 	}
 
 	return res

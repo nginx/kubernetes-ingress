@@ -13,17 +13,27 @@ type OIDCv2ApplyConfiguration struct {
 	ClientID *string `json:"clientID,omitempty"`
 	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured.
 	ClientSecret *string `json:"clientSecret,omitempty"`
-	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, it will be default to https://<issuer>/.well-known/openid-configuration.
+	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	ConfigURL *string `json:"configURL,omitempty"`
-	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The default is openid.
+	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The module defaults to openid.
 	Scope *string `json:"scope,omitempty"`
-	// Allows overriding the default redirect URI. The default is /oidc_callback.
+	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
 	RedirectURI *string `json:"redirectURI,omitempty"`
-	// URL provided by your OpenID Connect provider to request the end user be logged out.
+	// Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION.
+	CookieName *string `json:"cookieName,omitempty"`
+	// Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login".
+	ExtraAuthArgs *string `json:"extraAuthArgs,omitempty"`
+	// Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata.
+	PKCE *string `json:"pkce,omitempty"`
+	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page.
 	LogoutURI *string `json:"logoutURI,omitempty"`
-	// URI to redirect to after the logout has been performed. Requires endSessionEndpoint.
+	// Defines the path or absolute URI to redirect the user to after logout.
 	PostLogoutRedirectURI *string `json:"postLogoutRedirectURI,omitempty"`
-	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables
+	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
+	LogoutTokenHint *bool `json:"logoutTokenHint,omitempty"`
+	// Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h.
+	SessionTimeout *string `json:"sessionTimeout,omitempty"`
+	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables.
 	UserInfoEnable *bool `json:"userInfoEnable,omitempty"`
 }
 
@@ -81,6 +91,30 @@ func (b *OIDCv2ApplyConfiguration) WithRedirectURI(value string) *OIDCv2ApplyCon
 	return b
 }
 
+// WithCookieName sets the CookieName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the CookieName field is set to the value of the last call.
+func (b *OIDCv2ApplyConfiguration) WithCookieName(value string) *OIDCv2ApplyConfiguration {
+	b.CookieName = &value
+	return b
+}
+
+// WithExtraAuthArgs sets the ExtraAuthArgs field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ExtraAuthArgs field is set to the value of the last call.
+func (b *OIDCv2ApplyConfiguration) WithExtraAuthArgs(value string) *OIDCv2ApplyConfiguration {
+	b.ExtraAuthArgs = &value
+	return b
+}
+
+// WithPKCE sets the PKCE field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PKCE field is set to the value of the last call.
+func (b *OIDCv2ApplyConfiguration) WithPKCE(value string) *OIDCv2ApplyConfiguration {
+	b.PKCE = &value
+	return b
+}
+
 // WithLogoutURI sets the LogoutURI field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogoutURI field is set to the value of the last call.
@@ -94,6 +128,22 @@ func (b *OIDCv2ApplyConfiguration) WithLogoutURI(value string) *OIDCv2ApplyConfi
 // If called multiple times, the PostLogoutRedirectURI field is set to the value of the last call.
 func (b *OIDCv2ApplyConfiguration) WithPostLogoutRedirectURI(value string) *OIDCv2ApplyConfiguration {
 	b.PostLogoutRedirectURI = &value
+	return b
+}
+
+// WithLogoutTokenHint sets the LogoutTokenHint field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LogoutTokenHint field is set to the value of the last call.
+func (b *OIDCv2ApplyConfiguration) WithLogoutTokenHint(value bool) *OIDCv2ApplyConfiguration {
+	b.LogoutTokenHint = &value
+	return b
+}
+
+// WithSessionTimeout sets the SessionTimeout field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SessionTimeout field is set to the value of the last call.
+func (b *OIDCv2ApplyConfiguration) WithSessionTimeout(value string) *OIDCv2ApplyConfiguration {
+	b.SessionTimeout = &value
 	return b
 }
 
