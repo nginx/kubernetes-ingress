@@ -1376,7 +1376,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		}
 
 		// Log any resources excluded by config safety batch validation.
-		if lbc.heldForConfigSafety && len(exclusions) > 0 {
+		if len(exclusions) > 0 && (lbc.heldForConfigSafety || effectiveCount < totalResources) {
 			var msgs []string
 			for _, excl := range exclusions {
 				msgs = append(msgs, fmt.Sprintf("  - %s (%s): %v", excl.ConfigPath, excl.ResourceName, excl.Error))
