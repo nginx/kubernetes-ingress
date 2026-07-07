@@ -800,7 +800,7 @@ spec:
               oidc:
                 description: The OpenID Connect policy configures NGINX to authenticate
                   client requests by validating a JWT token against an OAuth2/OIDC
-                  token provider, such as Auth0 or Keycloak.  NJS based.
+                  token provider, such as Auth0 or Keycloak.
                 properties:
                   accessTokenEnable:
                     description: Option of whether Bearer token is used to authorize

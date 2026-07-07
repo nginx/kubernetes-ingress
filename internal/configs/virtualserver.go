@@ -500,7 +500,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
-	oidcProviders = append(oidcProviders, policiesCfg.OIDCv2Providers...)
+	oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
 
 	// Add cache zone from global policy if present
 	addCacheZone(&cacheZones, policiesCfg.Cache)
@@ -803,7 +803,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
-		oidcProviders = append(oidcProviders, routePoliciesCfg.OIDCv2Providers...)
+		oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
 
 		// Add cache zone from route policy if present
 		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -1035,7 +1035,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
-			oidcProviders = append(oidcProviders, routePoliciesCfg.OIDCv2Providers...)
+			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
 
 			// Add cache zone from subroute policy if present
 			addCacheZone(&cacheZones, routePoliciesCfg.Cache)

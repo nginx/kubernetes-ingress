@@ -67,6 +67,7 @@ type policiesCfg struct {
 	IngressMTLS     *version2.IngressMTLS
 	EgressMTLS      *version2.EgressMTLS
 	OIDC            *version2.OIDC
+	OIDCProvider    *version2.OIDCProvider
 	APIKey          apiKeyAuth
 	WAF             *version2.WAF
 	Cache           *version2.Cache
@@ -118,6 +119,8 @@ func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
 		pol.Spec.ExternalAuth != nil ||
 		pol.Spec.IngressMTLS != nil ||
 		pol.Spec.EgressMTLS != nil ||
+		pol.Spec.OIDC != nil ||
+		pol.Spec.OIDCv2 != nil ||
 		pol.Spec.WAF != nil
 }
 
