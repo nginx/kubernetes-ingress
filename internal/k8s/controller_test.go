@@ -2376,7 +2376,7 @@ func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
 		Logger:                    nl.LoggerFromContext(context.Background()),
 	}
 
-	ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+	ingEx := lbc.createIngressEx(lbc.Logger, ing, map[string]bool{"example.com": true}, nil)
 	if len(ingEx.PolicyWarnings) == 0 {
 		t.Fatalf("expected policy warning when referenced policy is missing")
 	}
@@ -2417,7 +2417,7 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 				Logger:                    nl.LoggerFromContext(context.Background()),
 			}
 
-			ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+			ingEx := lbc.createIngressEx(lbc.Logger, ing, map[string]bool{"example.com": true}, nil)
 			if len(ingEx.PolicyWarnings) == 0 {
 				t.Fatalf("expected warning when policies annotation is used without custom resources enabled")
 			}
@@ -2524,7 +2524,7 @@ func TestProcessChangesHostlessDeleteFailureStillProcessesNextAdd(t *testing.T) 
 	lbc := createIngressProcessChangesController(t, manager)
 
 	oldCfg := newHostlessIngressChange("hostless-old")
-	oldEx := lbc.createIngressEx(oldCfg.Ingress, oldCfg.ValidHosts, nil)
+	oldEx := lbc.createIngressEx(lbc.Logger, oldCfg.Ingress, oldCfg.ValidHosts, nil)
 	_, err := lbc.configurator.AddOrUpdateIngress(oldEx)
 	if err != nil {
 		t.Fatalf("failed to seed old hostless ingress: %v", err)
@@ -2541,7 +2541,7 @@ func TestProcessChangesHostlessDeleteFailureStillProcessesNextAdd(t *testing.T) 
 		{Op: AddOrUpdate, Resource: newCfg},
 	}
 
-	lbc.processChanges(changes)
+	lbc.processChanges(lbc.Logger, changes)
 
 	if lbc.configurator.HasIngress(oldCfg.Ingress) {
 		t.Fatal("expected old hostless ingress to be removed")
@@ -2561,7 +2561,7 @@ func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *t
 	lbc := createIngressProcessChangesController(t, manager)
 
 	oldCfg := newHostlessIngressChange("hostless-old")
-	oldEx := lbc.createIngressEx(oldCfg.Ingress, oldCfg.ValidHosts, nil)
+	oldEx := lbc.createIngressEx(lbc.Logger, oldCfg.Ingress, oldCfg.ValidHosts, nil)
 	_, err := lbc.configurator.AddOrUpdateIngress(oldEx)
 	if err != nil {
 		t.Fatalf("failed to seed old hostless ingress: %v", err)
@@ -2578,7 +2578,7 @@ func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *t
 		{Op: AddOrUpdate, Resource: newCfg},
 	}
 
-	lbc.processChanges(changes)
+	lbc.processChanges(lbc.Logger, changes)
 
 	if lbc.configurator.HasIngress(oldCfg.Ingress) {
 		t.Fatal("expected old hostless ingress to be removed")
@@ -2795,7 +2795,7 @@ func TestUpdateEndpointSliceWarningState(t *testing.T) {
 			svcResources := []Resource{resource}
 			resourceExes := configs.ExtendedResources{}
 
-			lbc.updateEndpointSliceWarningState(svcResources, resourceExes, tc.cfgWarnings)
+			lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, tc.cfgWarnings)
 
 			if len(lbc.endpointSliceWarnings) != len(tc.expectedWarnings) {
 				t.Errorf("expected %d warning entries, got %d", len(tc.expectedWarnings), len(lbc.endpointSliceWarnings))
@@ -2824,26 +2824,26 @@ func TestUpdateEndpointSliceWarningState_WarningToClearTransition(t *testing.T) 
 	resourceExes := configs.ExtendedResources{}
 
 	// Step 1: clean -> clean (no-op)
-	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
+	lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 1: expected empty map, got %v", lbc.endpointSliceWarnings)
 	}
 
 	// Step 2: clean -> warning
 	warningCfg := configs.Warnings{&networking.Ingress{}: {"no endpoints for auth service"}}
-	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, warningCfg)
+	lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, warningCfg)
 	if !lbc.endpointSliceWarnings["Ingress/default/my-ingress"] {
 		t.Fatalf("step 2: expected warning tracked, got %v", lbc.endpointSliceWarnings)
 	}
 
 	// Step 3: warning -> clean (recovery)
-	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
+	lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 3: expected empty map after recovery, got %v", lbc.endpointSliceWarnings)
 	}
 
 	// Step 4: clean -> clean again (should be silent)
-	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
+	lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 4: expected empty map, got %v", lbc.endpointSliceWarnings)
 	}
@@ -4073,7 +4073,7 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		lbc := NewLoadBalancerController(tc.input)
-		vsEx := lbc.createVirtualServerEx(&tc.vs, tc.vsr, nil)
+		vsEx := lbc.createVirtualServerEx(lbc.Logger, &tc.vs, tc.vsr, nil)
 		if reflect.DeepEqual(vsEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, vsEx)
 		}
@@ -4118,7 +4118,7 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		lbc := NewLoadBalancerController(tc.input)
-		ingressEx := lbc.createIngressEx(tc.ingress, nil, nil)
+		ingressEx := lbc.createIngressEx(lbc.Logger, tc.ingress, nil, nil)
 		if reflect.DeepEqual(ingressEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, ingressEx)
 		}
@@ -4724,7 +4724,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				endpoints[k] = v
 			}
 
-			lbc.generateExternalAuthEndpoints(tc.policies, endpoints)
+			lbc.generateExternalAuthEndpoints(lbc.Logger, tc.policies, endpoints)
 
 			if len(endpoints) != len(tc.expectedEndpoints) {
 				t.Fatalf("expected %d endpoint entries, got %d: %v", len(tc.expectedEndpoints), len(endpoints), endpoints)

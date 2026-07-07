@@ -316,7 +316,7 @@ func (c *CmController) AddNewNamespacedInformer(ns string) {
 		var err error
 		nsi, err = c.newNamespacedInformer(ns)
 		if err != nil {
-			nl.Errorf(l, nl.ResourceNSAttr(ns), "Failed to create cert-manager namespaced informer for namespace %s: %v", ns, err)
+			nl.Errorf(l, "Failed to create cert-manager namespaced informer for namespace %s: %v", ns, err)
 			return
 		}
 		nsi.start()

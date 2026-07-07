@@ -221,9 +221,10 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 			case *appprotectdos.DosProtectedResourceEx:
 				nl.Debugf(lbc.Logger, "handling change UPDATE OR ADD for DOS protected %s/%s", impl.Obj.Namespace, impl.Obj.Name)
 				resources := lbc.configuration.FindResourcesForAppProtectDosProtected(impl.Obj.Namespace, impl.Obj.Name)
-				resourceExes := lbc.createExtendedResources(resources)
+				l := lbc.Logger.With("resource_namespace", impl.Obj.Namespace)
+				resourceExes := lbc.createExtendedResources(l, resources)
 				warnings, err := lbc.configurator.AddOrUpdateResourcesThatUseDosProtected(resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
-				lbc.updateResourcesStatusAndEvents(resources, warnings, err)
+				lbc.updateResourcesStatusAndEvents(l, resources, warnings, err)
 				msg := fmt.Sprintf("Configuration for %s/%s was added or updated", impl.Obj.Namespace, impl.Obj.Name)
 				lbc.recorder.Event(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
 			case *appprotectdos.DosPolicyEx:
@@ -251,9 +252,10 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 			case *appprotectdos.DosProtectedResourceEx:
 				nl.Debugf(lbc.Logger, "handling change DELETE for DOS protected %s/%s", impl.Obj.Namespace, impl.Obj.Name)
 				resources := lbc.configuration.FindResourcesForAppProtectDosProtected(impl.Obj.Namespace, impl.Obj.Name)
-				resourceExes := lbc.createExtendedResources(resources)
+				l := lbc.Logger.With("resource_namespace", impl.Obj.Namespace)
+				resourceExes := lbc.createExtendedResources(l, resources)
 				warnings, err := lbc.configurator.AddOrUpdateResourcesThatUseDosProtected(resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
-				lbc.updateResourcesStatusAndEvents(resources, warnings, err)
+				lbc.updateResourcesStatusAndEvents(l, resources, warnings, err)
 			}
 		}
 	}

@@ -370,30 +370,32 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 			case *appprotect.PolicyEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
+				l := lbc.Logger.With("resource_namespace", namespace)
 				resources := lbc.configuration.FindResourcesForAppProtectPolicyAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectPolicy(lbc.getAllPolicies(), namespace+"/"+name) {
 					resources = append(resources, lbc.configuration.FindResourcesForPolicy(wafPol.Namespace, wafPol.Name)...)
 				}
 
-				resourceExes := lbc.createExtendedResources(resources)
+				resourceExes := lbc.createExtendedResources(l, resources)
 
 				warnings, updateErr := lbc.configurator.AddOrUpdateAppProtectResource(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
-				lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+				lbc.updateResourcesStatusAndEvents(l, resources, warnings, updateErr)
 				lbc.recorder.Eventf(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, "AppProtectPolicy %v was added or updated", namespace+"/"+name)
 			case *appprotect.LogConfEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
+				l := lbc.Logger.With("resource_namespace", namespace)
 				resources := lbc.configuration.FindResourcesForAppProtectLogConfAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectLogConf(lbc.getAllPolicies(), namespace+"/"+name) {
 					resources = append(resources, lbc.configuration.FindResourcesForPolicy(wafPol.Namespace, wafPol.Name)...)
 				}
 
-				resourceExes := lbc.createExtendedResources(resources)
+				resourceExes := lbc.createExtendedResources(l, resources)
 
 				warnings, updateErr := lbc.configurator.AddOrUpdateAppProtectResource(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
-				lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+				lbc.updateResourcesStatusAndEvents(l, resources, warnings, updateErr)
 				lbc.recorder.Eventf(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, "AppProtectLogConfig %v was added or updated", namespace+"/"+name)
 			}
 		} else if c.Op == appprotect.Delete {
@@ -401,32 +403,34 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 			case *appprotect.PolicyEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
+				l := lbc.Logger.With("resource_namespace", namespace)
 				resources := lbc.configuration.FindResourcesForAppProtectPolicyAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectPolicy(lbc.getAllPolicies(), namespace+"/"+name) {
 					resources = append(resources, lbc.configuration.FindResourcesForPolicy(wafPol.Namespace, wafPol.Name)...)
 				}
 
-				resourceExes := lbc.createExtendedResources(resources)
+				resourceExes := lbc.createExtendedResources(l, resources)
 
 				warnings, deleteErr := lbc.configurator.DeleteAppProtectPolicy(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 
-				lbc.updateResourcesStatusAndEvents(resources, warnings, deleteErr)
+				lbc.updateResourcesStatusAndEvents(l, resources, warnings, deleteErr)
 
 			case *appprotect.LogConfEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
+				l := lbc.Logger.With("resource_namespace", namespace)
 				resources := lbc.configuration.FindResourcesForAppProtectLogConfAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectLogConf(lbc.getAllPolicies(), namespace+"/"+name) {
 					resources = append(resources, lbc.configuration.FindResourcesForPolicy(wafPol.Namespace, wafPol.Name)...)
 				}
 
-				resourceExes := lbc.createExtendedResources(resources)
+				resourceExes := lbc.createExtendedResources(l, resources)
 
 				warnings, deleteErr := lbc.configurator.DeleteAppProtectLogConf(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 
-				lbc.updateResourcesStatusAndEvents(resources, warnings, deleteErr)
+				lbc.updateResourcesStatusAndEvents(l, resources, warnings, deleteErr)
 			}
 		}
 	}
@@ -446,7 +450,7 @@ func (lbc *LoadBalancerController) processAppProtectUserSigChange(change appprot
 			resources = append(resources, lbc.configuration.FindResourcesForPolicy(wafPol.Namespace, wafPol.Name)...)
 		}
 
-		resourceExes := lbc.createExtendedResources(resources)
+		resourceExes := lbc.createExtendedResources(lbc.Logger, resources)
 		allIngExes = append(allIngExes, resourceExes.IngressExes...)
 		allMergeableIngresses = append(allMergeableIngresses, resourceExes.MergeableIngresses...)
 		allVsExes = append(allVsExes, resourceExes.VirtualServerExes...)
@@ -460,7 +464,7 @@ func (lbc *LoadBalancerController) processAppProtectUserSigChange(change appprot
 			resources = append(resources, lbc.configuration.FindResourcesForPolicy(wafPol.Namespace, wafPol.Name)...)
 		}
 
-		resourceExes := lbc.createExtendedResources(resources)
+		resourceExes := lbc.createExtendedResources(lbc.Logger, resources)
 		allIngExes = append(allIngExes, resourceExes.IngressExes...)
 		allMergeableIngresses = append(allMergeableIngresses, resourceExes.MergeableIngresses...)
 		allVsExes = append(allVsExes, resourceExes.VirtualServerExes...)
@@ -472,9 +476,9 @@ func (lbc *LoadBalancerController) processAppProtectUserSigChange(change appprot
 
 	warnings, err := lbc.configurator.RefreshAppProtectUserSigs(change.UserSigs, delPols, allIngExes, allMergeableIngresses, allVsExes)
 	if err != nil {
-		nl.Errorf(lbc.Logger, nil, "Error when refreshing App Protect Policy User defined signatures: %v", err)
+		nl.Errorf(lbc.Logger, "Error when refreshing App Protect Policy User defined signatures: %v", err)
 	}
-	lbc.updateResourcesStatusAndEvents(allResources, warnings, err)
+	lbc.updateResourcesStatusAndEvents(lbc.Logger, allResources, warnings, err)
 }
 
 func (lbc *LoadBalancerController) processAppProtectProblems(problems []appprotect.Problem) {

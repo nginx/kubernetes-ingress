@@ -260,7 +260,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 	// HTTP2 is required for gRPC to function
 	if len(grpcServices) > 0 && !cfgParams.HTTP2 {
-		nl.Errorf(l, nl.ResourceNSAttr(ncp.ingEx.Ingress.Namespace), "Ingress %s/%s: annotation nginx.org/grpc-services requires HTTP2, ignoring", ncp.ingEx.Ingress.Namespace, ncp.ingEx.Ingress.Name)
+		nl.Errorf(l, "Ingress %s/%s: annotation nginx.org/grpc-services requires HTTP2, ignoring", ncp.ingEx.Ingress.Namespace, ncp.ingEx.Ingress.Name)
 		grpcServices = make(map[string]bool)
 	}
 
@@ -1187,7 +1187,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	removedAnnotations := filterMasterAnnotations(ncp.mergeableIngs.Master.Ingress.Annotations)
 	if len(removedAnnotations) != 0 {
-		nl.Errorf(l, nl.ResourceNSAttr(ncp.mergeableIngs.Master.Ingress.Namespace), "Ingress Resource %v/%v with the annotation 'nginx.org/mergeable-ingress-type' set to 'master' cannot contain the '%v' annotation(s). They will be ignored",
+		nl.Errorf(l, "Ingress Resource %v/%v with the annotation 'nginx.org/mergeable-ingress-type' set to 'master' cannot contain the '%v' annotation(s). They will be ignored",
 			ncp.mergeableIngs.Master.Ingress.Namespace, ncp.mergeableIngs.Master.Ingress.Name, strings.Join(removedAnnotations, ","))
 	}
 	isMinion := false
@@ -1248,7 +1248,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 		removedAnnotations = filterMinionAnnotations(minion.Ingress.Annotations)
 		if len(removedAnnotations) != 0 {
-			nl.Errorf(l, nl.ResourceNSAttr(minion.Ingress.Namespace), "Ingress Resource %v/%v with the annotation 'nginx.org/mergeable-ingress-type' set to 'minion' cannot contain the %v annotation(s). They will be ignored",
+			nl.Errorf(l, "Ingress Resource %v/%v with the annotation 'nginx.org/mergeable-ingress-type' set to 'minion' cannot contain the %v annotation(s). They will be ignored",
 				minion.Ingress.Namespace, minion.Ingress.Name, strings.Join(removedAnnotations, ","))
 		}
 

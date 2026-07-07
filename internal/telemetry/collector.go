@@ -126,7 +126,7 @@ func (c *Collector) Collect(ctx context.Context) {
 	nl.Debug(l, "Collecting telemetry data")
 	report, err := c.BuildReport(ctx)
 	if err != nil {
-		nl.Errorf(l, nil, "Error collecting telemetry data: %v", err)
+		nl.Errorf(l, "Error collecting telemetry data: %v", err)
 	}
 
 	nicData := Data{
@@ -182,7 +182,7 @@ func (c *Collector) Collect(ctx context.Context) {
 
 	err = c.Exporter.Export(ctx, &nicData)
 	if err != nil {
-		nl.Errorf(l, nil, "Error exporting telemetry data: %v", err)
+		nl.Errorf(l, "Error exporting telemetry data: %v", err)
 	}
 	nl.Debugf(l, "Telemetry data collected: %+v", nicData)
 }

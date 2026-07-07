@@ -74,7 +74,7 @@ func (cm *ConfigRollbackManager) createConfigWithRollback(name string, configPat
 		if hasBackup {
 			nl.Infof(cm.logger, "Rolling back %s to previous working configuration", name)
 			if rollbackErr := createFileAndWrite(configPath, backup); rollbackErr != nil {
-				nl.Errorf(cm.logger, nil, "Failed to rollback %s to previous config: %v", name, rollbackErr)
+				nl.Errorf(cm.logger, "Failed to rollback %s to previous config: %v", name, rollbackErr)
 				if !protectFromDeletion {
 					deleteConfig(cm.logger, configPath)
 				}

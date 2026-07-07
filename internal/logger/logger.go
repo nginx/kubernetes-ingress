@@ -27,11 +27,6 @@ func LoggerFromContext(ctx context.Context) *slog.Logger {
 	return slog.New(glog.New(os.Stdout, nil))
 }
 
-// ResourceNSAttr returns a resource_namespace attribute for structured error logging.
-func ResourceNSAttr(ns string) []slog.Attr {
-	return []slog.Attr{slog.String("resource_namespace", ns)}
-}
-
 // Tracef returns formatted trace log
 func Tracef(logger *slog.Logger, format string, args ...any) {
 	if !logger.Enabled(context.Background(), levels.LevelTrace) {
@@ -121,26 +116,24 @@ func Warn(logger *slog.Logger, args ...any) {
 }
 
 // Errorf returns formatted trace log
-func Errorf(logger *slog.Logger, attrs []slog.Attr, format string, args ...any) {
+func Errorf(logger *slog.Logger, format string, args ...any) {
 	if !logger.Enabled(context.Background(), levels.LevelError) {
 		return
 	}
 	var pcs [1]uintptr
 	runtime.Callers(2, pcs[:]) // skip [Callers, Errorf]
 	r := slog.NewRecord(time.Now(), levels.LevelError, fmt.Sprintf(format, args...), pcs[0])
-	r.AddAttrs(attrs...)
 	_ = logger.Handler().Handle(context.Background(), r)
 }
 
 // Error returns raw trace log
-func Error(logger *slog.Logger, attrs []slog.Attr, args ...any) {
+func Error(logger *slog.Logger, args ...any) {
 	if !logger.Enabled(context.Background(), levels.LevelError) {
 		return
 	}
 	var pcs [1]uintptr
 	runtime.Callers(2, pcs[:]) // skip [Callers, Error]
 	r := slog.NewRecord(time.Now(), levels.LevelError, fmt.Sprint(args...), pcs[0])
-	r.AddAttrs(attrs...)
 	_ = logger.Handler().Handle(context.Background(), r)
 }
 

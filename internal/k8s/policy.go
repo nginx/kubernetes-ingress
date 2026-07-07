@@ -1,6 +1,7 @@
 package k8s
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 
@@ -65,13 +66,14 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With("resource_namespace", ns)
 	obj, polExists, err = lbc.getNamespacedInformer(ns).policyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
 	}
 
-	nl.Debugf(lbc.Logger, "Adding, Updating or Deleting Policy: %v\n", key)
+	nl.Debugf(l, "Adding, Updating or Deleting Policy: %v\n", key)
 
 	if polExists && lbc.HasCorrectIngressClass(obj) {
 		pol := obj.(*conf_v1.Policy)
@@ -90,7 +92,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				} else {
 					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateInvalid, "Rejected", msg)
 					if err != nil {
-						nl.Errorf(lbc.Logger, nl.ResourceNSAttr(pol.Namespace), "Failed to update policy %s status: %v", key, err)
+						nl.Errorf(l, "Failed to update policy %s status: %v", key, err)
 					}
 				}
 			}
@@ -108,7 +110,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				} else {
 					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "AddedOrUpdated", msg)
 					if err != nil {
-						nl.Errorf(lbc.Logger, nl.ResourceNSAttr(ns), "Failed to update policy %s status: %v", key, err)
+						nl.Errorf(l, "Failed to update policy %s status: %v", key, err)
 					}
 				}
 			}
@@ -147,7 +149,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			if !configs.IsPolicySupportedOnIngress(pol) {
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
 					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
-				nl.Error(lbc.Logger, nl.ResourceNSAttr(pol.Namespace), msg)
+				nl.Error(l, msg)
 				lbc.recorder.Event(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
 				// The reload still proceeds so that generatePolicies() surfaces the error
 				// (ErrorReturn 500) consistently regardless of which path triggered the sync.
@@ -157,7 +159,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		}
 	}
 
-	resourceExes := lbc.createExtendedResources(resources)
+	resourceExes := lbc.createExtendedResources(l, resources)
 
 	// Only VirtualServers and Ingresses support policies
 	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 && len(resourceExes.MergeableIngresses) == 0 {
@@ -172,6 +174,8 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	var mergeableIngressWarnings configs.Warnings
 	mergeableIngressErrors := make(map[string]error)
+
+	lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
 
 	if len(resourceExes.VirtualServerExes) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)
@@ -219,12 +223,12 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		}
 	}
 
-	lbc.updateResourcesStatusAndEvents(virtualServerResources, virtualServerWarnings, virtualServerErr)
-	lbc.updateResourcesStatusAndEvents(ingressResources, ingressWarnings, ingressErr)
+	lbc.updateResourcesStatusAndEvents(l, virtualServerResources, virtualServerWarnings, virtualServerErr)
+	lbc.updateResourcesStatusAndEvents(l, ingressResources, ingressWarnings, ingressErr)
 	for _, mergeableIngressResource := range mergeableIngressResources {
 		ingressCfg := mergeableIngressResource.(*IngressConfiguration)
 		mergeableIngressErr := mergeableIngressErrors[getResourceKey(&ingressCfg.Ingress.ObjectMeta)]
-		lbc.updateResourcesStatusAndEvents([]Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
+		lbc.updateResourcesStatusAndEvents(l, []Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
 	}
 
 	// Note: updating the status of a policy based on a reload is not needed.

@@ -63,6 +63,7 @@ func (lbc *LoadBalancerController) addNamespaceHandler(handlers cache.ResourceEv
 
 func (lbc *LoadBalancerController) syncNamespace(task task) {
 	key := task.Key
+	l := lbc.Logger.With("resource_namespace", key)
 	// process namespace and add to / remove from watched namespace list
 	_, exists, err := lbc.namespaceLabeledLister.GetByKey(key)
 	if err != nil {
@@ -76,16 +77,16 @@ func (lbc *LoadBalancerController) syncNamespace(task task) {
 
 		if ns != nil && ns.Status.Phase == api_v1.NamespaceActive {
 			// namespace still exists
-			nl.Infof(lbc.Logger, "Removing Configuration for Unwatched Namespace: %v", key)
+			nl.Infof(l, "Removing Configuration for Unwatched Namespace: %v", key)
 			// Watched label for namespace was removed
 			// delete any now unwatched namespaced informer groups if required
 			nsi := lbc.getNamespacedInformer(key)
 			if nsi != nil {
-				lbc.cleanupUnwatchedNamespacedResources(nsi)
+				lbc.cleanupUnwatchedNamespacedResources(l, nsi)
 				delete(lbc.namespacedInformers, key)
 			}
 		} else {
-			nl.Infof(lbc.Logger, "Deleting Watchers for Deleted Namespace: %v", key)
+			nl.Infof(l, "Deleting Watchers for Deleted Namespace: %v", key)
 			nsi := lbc.getNamespacedInformer(key)
 			if nsi != nil {
 				lbc.removeNamespacedInformer(nsi, key)
@@ -102,14 +103,14 @@ func (lbc *LoadBalancerController) syncNamespace(task task) {
 		// if not create new namespaced informer group
 		// update cert-manager informer group if required
 		// update external-dns informer group if required
-		nl.Debugf(lbc.Logger, "Adding or Updating Watched Namespace: %v", key)
+		nl.Debugf(l, "Adding or Updating Watched Namespace: %v", key)
 		nsi := lbc.getNamespacedInformer(key)
 		if nsi == nil {
-			nl.Infof(lbc.Logger, "Adding New Watched Namespace: %v", key)
+			nl.Infof(l, "Adding New Watched Namespace: %v", key)
 			var err error
 			nsi, err = lbc.newNamespacedInformer(key)
 			if err != nil {
-				nl.Errorf(lbc.Logger, nl.ResourceNSAttr(key), "Failed to create namespaced informer for namespace %s: %v", key, err)
+				nl.Errorf(l, "Failed to create namespaced informer for namespace %s: %v", key, err)
 				lbc.syncQueue.Requeue(task, err)
 				return
 			}

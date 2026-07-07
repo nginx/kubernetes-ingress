@@ -476,7 +476,7 @@ func checkNamespaces(ctx context.Context, kubeClient kubernetes.Interface) {
 		var newWatchNamespaces []string
 		nsList, err := kubeClient.CoreV1().Namespaces().List(context.TODO(), meta_v1.ListOptions{LabelSelector: *watchNamespaceLabel})
 		if err != nil {
-			nl.Errorf(l, nil, "error when getting Namespaces with the label selector %v: %v", watchNamespaceLabel, err)
+			nl.Errorf(l, "error when getting Namespaces with the label selector %v: %v", watchNamespaceLabel, err)
 		}
 		for _, ns := range nsList.Items {
 			newWatchNamespaces = append(newWatchNamespaces, ns.Name)
@@ -876,14 +876,14 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 func cleanupSocketFiles(l *slog.Logger) {
 	files, readErr := os.ReadDir(socketPath)
 	if readErr != nil {
-		nl.Errorf(l, nil, "error trying to read directory %s: %v", socketPath, readErr)
+		nl.Errorf(l, "error trying to read directory %s: %v", socketPath, readErr)
 	} else {
 		for _, f := range files {
 			if !f.IsDir() && strings.HasSuffix(f.Name(), ".sock") {
 				fullPath := filepath.Join(socketPath, f.Name())
 				nl.Infof(l, "Removing socket file %s", fullPath)
 				if removeErr := os.Remove(fullPath); removeErr != nil {
-					nl.Errorf(l, nil, "error trying to remove file %s: %v", fullPath, removeErr)
+					nl.Errorf(l, "error trying to remove file %s: %v", fullPath, removeErr)
 				}
 			}
 		}
@@ -899,7 +899,7 @@ func ready(lbc *k8s.LoadBalancerController) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		if _, err := fmt.Fprintln(w, "Ready"); err != nil {
 			// Log error but don't fail the handler since status was already written
-			nl.Error(lbc.Logger, nil, "Failed to write readiness response", err)
+			nl.Error(lbc.Logger, "Failed to write readiness response", err)
 		}
 	}
 }
@@ -923,22 +923,22 @@ func createManagerAndControllerCollectors(ctx context.Context, constLabels map[s
 
 		err = mc.Register(registry)
 		if err != nil {
-			nl.Errorf(l, nil, "Error registering Manager Prometheus metrics: %v", err)
+			nl.Errorf(l, "Error registering Manager Prometheus metrics: %v", err)
 		}
 
 		err = cc.Register(registry)
 		if err != nil {
-			nl.Errorf(l, nil, "Error registering Controller Prometheus metrics: %v", err)
+			nl.Errorf(l, "Error registering Controller Prometheus metrics: %v", err)
 		}
 
 		err = processCollector.Register(registry)
 		if err != nil {
-			nl.Errorf(l, nil, "Error registering NginxProcess Prometheus metrics: %v", err)
+			nl.Errorf(l, "Error registering NginxProcess Prometheus metrics: %v", err)
 		}
 
 		err = workQueueCollector.Register(registry)
 		if err != nil {
-			nl.Errorf(l, nil, "Error registering WorkQueue Prometheus metrics: %v", err)
+			nl.Errorf(l, "Error registering WorkQueue Prometheus metrics: %v", err)
 		}
 	}
 	return mc, cc, registry
@@ -992,7 +992,7 @@ func createPlusAndLatencyCollectors(
 		if *enableLatencyMetrics {
 			lc = collectors.NewLatencyMetricsCollector(ctx, constLabels, upstreamServerVariableLabels, upstreamServerPeerVariableLabelNames)
 			if err := lc.Register(registry); err != nil {
-				nl.Errorf(l, nil, "Error registering Latency Prometheus metrics: %v", err)
+				nl.Errorf(l, "Error registering Latency Prometheus metrics: %v", err)
 			}
 			syslogListener = metrics.NewLatencyMetricsListener(ctx, filepath.Join(socketPath, "nginx-syslog.sock"), lc)
 			go syslogListener.Run()
@@ -1099,7 +1099,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 		}
 		pod, err := kubeClient.CoreV1().Pods(os.Getenv("POD_NAMESPACE")).Get(context.TODO(), os.Getenv("POD_NAME"), meta_v1.GetOptions{})
 		if err != nil {
-			nl.Errorf(l, nil, "Error getting pod on attempt %d of %d: %v", i+1, maxRetries, err)
+			nl.Errorf(l, "Error getting pod on attempt %d of %d: %v", i+1, maxRetries, err)
 			continue
 		}
 
@@ -1122,7 +1122,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 
 		_, err = kubeClient.CoreV1().Pods(newPod.ObjectMeta.Namespace).Update(context.TODO(), newPod, meta_v1.UpdateOptions{})
 		if err != nil {
-			nl.Errorf(l, nil, "Error updating pod with labels on attempt %d of %d: %v", i+1, maxRetries, err)
+			nl.Errorf(l, "Error updating pod with labels on attempt %d of %d: %v", i+1, maxRetries, err)
 			continue
 		}
 
@@ -1136,7 +1136,7 @@ func updateSelfWithVersionInfo(ctx context.Context, eventLog record.EventRecorde
 	}
 
 	if !podUpdated {
-		nl.Errorf(l, nil, "Failed to update pod labels after %d attempts", maxRetries)
+		nl.Errorf(l, "Failed to update pod labels after %d attempts", maxRetries)
 	}
 }
 

@@ -40,7 +40,7 @@ func NewNginxProcessesMetricsCollector(ctx context.Context, constLabels map[stri
 func (pc *NginxProcessesMetricsCollector) updateWorkerProcessCount() {
 	currWorkerProcesses, prevWorkerProcesses, err := getWorkerProcesses()
 	if err != nil {
-		nl.Errorf(pc.logger, nil, "unable to collect process metrics : %v", err)
+		nl.Errorf(pc.logger, "unable to collect process metrics : %v", err)
 		return
 	}
 	pc.workerProcessTotal.WithLabelValues("current").Set(float64(currWorkerProcesses))
