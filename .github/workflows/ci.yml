@@ -57,8 +57,13 @@ jobs:
       image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
       image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
-      docker_build: ${{ steps.docker_build.outputs.docker_build }}
-      run_tests: ${{ steps.run_tests.outputs.run_tests }}
+      docker_build: ${{ steps.flags.outputs.docker_build }}
+      run_tests: ${{ steps.flags.outputs.run_tests }}
+      run_unit_tests: ${{ steps.flags.outputs.run_unit_tests }}
+      run_build: ${{ steps.flags.outputs.run_build }}
+      run_e2e: ${{ steps.flags.outputs.run_e2e }}
+      tag_stable: ${{ steps.flags.outputs.tag_stable }}
+      promote: ${{ steps.flags.outputs.promote }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -152,33 +157,18 @@ jobs:
           echo "exists=${exists}" >> $GITHUB_OUTPUT
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
-      - name: Check if docker build is needed
-        id: docker_build
+      - name: Compute CI flags
+        id: flags
         run: |
-          docker_build="false"
-          if [ "${{ inputs.force }}" = "true" ]; then
-            docker_build="true"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "true" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ]; then
-            docker_build="true"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.binary-cache.outputs.cache-hit }}" != "true" ]; then
-            docker_build="true"
-          elif [ "${{ steps.vars.outputs.forked_workflow }}" = "false" ] && [ "${{ steps.docs.outputs.docs_only }}" = "false" ] && [ "${{ steps.stable_exists.outputs.exists }}" != "true" ]; then
-            docker_build="true"
-          fi
-          echo "docker_build=${docker_build}" >> $GITHUB_OUTPUT
-
-      - name: Check if tests should be run
-        id: run_tests
-        run: |
-          run_tests="true"
-          if [ "${{ inputs.run_tests }}" = "false" ]; then
-            run_tests="false"
-          elif [ "${{ steps.docs.outputs.docs_only }}" = "true" ]; then
-            run_tests="false"
-          elif [ "${{ steps.binary-cache.outputs.cache-hit }}" = "true" ] && [ "${{ steps.stable_exists.outputs.exists }}" = "true" ]; then
-            run_tests="false"
-          fi
-          echo "run_tests=${run_tests}" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh ci_flags >> $GITHUB_OUTPUT
+        env:
+          FORCE: ${{ inputs.force }}
+          RUN_TESTS_INPUT: ${{ inputs.run_tests }}
+          DOCS_ONLY: ${{ steps.docs.outputs.docs_only }}
+          FORKED: ${{ steps.vars.outputs.forked_workflow }}
+          BINARY_CACHE_HIT: ${{ steps.binary-cache.outputs.cache-hit }}
+          STABLE_EXISTS: ${{ steps.stable_exists.outputs.exists }}
+          REF_NAME: ${{ github.ref_name }}
 
       - name: Output variables
         run: |
@@ -198,17 +188,19 @@ jobs:
           echo 'image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}'
           echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
           echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
-          echo 'docker_build: ${{ steps.docker_build.outputs.docker_build }}'
-          echo 'run_tests: ${{ steps.run_tests.outputs.run_tests }}'
+          echo 'docker_build: ${{ steps.flags.outputs.docker_build }}'
+          echo 'run_tests: ${{ steps.flags.outputs.run_tests }}'
+          echo 'run_unit_tests: ${{ steps.flags.outputs.run_unit_tests }}'
+          echo 'run_build: ${{ steps.flags.outputs.run_build }}'
+          echo 'run_e2e: ${{ steps.flags.outputs.run_e2e }}'
+          echo 'tag_stable: ${{ steps.flags.outputs.tag_stable }}'
+          echo 'promote: ${{ steps.flags.outputs.promote }}'
 
   verify-codegen:
     name: Verify generated code
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      inputs.force ||
-      needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit != 'true'
-      )
+      needs.checks.outputs.run_unit_tests == 'true' )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -247,10 +239,8 @@ jobs:
   unit-tests:
     name: Unit Tests
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' &&
-      (inputs.force ||
-      (needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit != 'true'))
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.run_unit_tests == 'true' )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -307,10 +297,7 @@ jobs:
     name: Static Check
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      inputs.force ||
-      needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit != 'true'
-      )
+      needs.checks.outputs.run_unit_tests == 'true' )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -341,10 +328,7 @@ jobs:
     name: Vulnerability Check
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      inputs.force ||
-      needs.checks.outputs.run_tests == 'true' &&
-      needs.checks.outputs.binary_cache_hit != 'true'
-      )
+      needs.checks.outputs.run_unit_tests == 'true' )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -373,9 +357,7 @@ jobs:
       !cancelled() &&
       needs.checks.result == 'success' &&
       (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped') &&
-      (inputs.force ||
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'))
+      needs.checks.outputs.run_build == 'true')
     needs: [checks, unit-tests]
     uses: ./.github/workflows/build-artifacts.yml
     with:
@@ -405,10 +387,7 @@ jobs:
     name: Tag untested image with PR number
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.forked_workflow == 'false' &&
-      (needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true')
-      )
+      needs.checks.outputs.run_e2e == 'true' )
     needs: [checks, build-artifacts]
     permissions:
       contents: read # To checkout repository
@@ -424,10 +403,7 @@ jobs:
     name: Package Tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.forked_workflow == 'false' && (
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'
-      ))
+      needs.checks.outputs.run_e2e == 'true' )
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
     permissions:
@@ -502,10 +478,7 @@ jobs:
     name: Helm Tests ${{ matrix.base-os }}
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.forked_workflow == 'false' && (
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'
-      ))
+      needs.checks.outputs.run_e2e == 'true' )
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
     strategy:
@@ -684,10 +657,7 @@ jobs:
     name: Setup Matrix for Smoke Tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.forked_workflow == 'false' && (
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'
-      ))
+      needs.checks.outputs.run_e2e == 'true' )
     runs-on: ubuntu-24.04
     needs: [build-artifacts, checks]
     permissions:
@@ -766,10 +736,7 @@ jobs:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.forked_workflow == 'false' && (
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'
-      ))
+      needs.checks.outputs.run_e2e == 'true' )
     needs:
       - checks
       - setup-matrix
@@ -799,10 +766,7 @@ jobs:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.forked_workflow == 'false' && (
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'
-      ))
+      needs.checks.outputs.run_e2e == 'true' )
     needs:
       - checks
       - setup-matrix
@@ -832,10 +796,7 @@ jobs:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.forked_workflow == 'false' && (
-      needs.checks.outputs.run_tests == 'true' ||
-      needs.checks.outputs.docker_build == 'true'
-      ))
+      needs.checks.outputs.run_e2e == 'true' )
     needs:
       - checks
       - setup-matrix
@@ -865,8 +826,7 @@ jobs:
     name: Tag tested image as stable
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.forked_workflow == 'false' &&
-      needs.checks.outputs.stable_image_exists != 'true')
+      needs.checks.outputs.tag_stable == 'true' )
     needs: [checks, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
     permissions:
       contents: read # To checkout repository
@@ -880,62 +840,36 @@ jobs:
 
   final-results:
     name: Final CI Results
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled())
+    # Always runs (unless the whole workflow is cancelled) so it can act as the
+    # single required status check for branch protection. It fails if ANY
+    # dependency failed or was cancelled; "skipped" is treated as OK so the
+    # docs-only / cache-hit fast paths still pass. `checks` and `setup-matrix`
+    # are included so their failure cannot hide behind skipped downstream jobs.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() )
     runs-on: ubuntu-24.04
-    needs: [tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck, unit-tests, verify-codegen]
+    needs: [checks, setup-matrix, tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck, unit-tests, verify-codegen]
     steps:
-      - run: |
-          tagResult="${{ needs.tag-stable.result }}"
-          packageResult="${{ needs.package-tests.result }}"
-          helmResult="${{ needs.helm-tests.result }}"
-          smokeOSSResult="${{ needs.smoke-tests-oss.result }}"
-          smokePlusResult="${{ needs.smoke-tests-plus.result }}"
-          smokeNAPResult="${{ needs.smoke-tests-nap.result }}"
-          buildArtifactsResult="${{ needs.build-artifacts.result }}"
-          staticcheckResult="${{ needs.staticcheck.result }}"
-          govulncheckResult="${{ needs.govulncheck.result }}"
-          unitTestsResult="${{ needs.unit-tests.result }}"
-          verifyCodegenResult="${{ needs.verify-codegen.result }}"
-          if [[ $tagResult != "success" && $tagResult != "skipped" ]]; then
+      - name: Check results of all required jobs
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "Dependent job results: ${RESULTS}"
+          if [ "${FAILED}" = "true" ]; then
+            echo "::error::One or more required jobs failed or were cancelled."
             exit 1
           fi
-          if [[ $smokeOSSResult != "success" && $smokeOSSResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $smokePlusResult != "success" && $smokePlusResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $smokeNAPResult != "success" && $smokeNAPResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $buildArtifactsResult != "success" && $buildArtifactsResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $helmResult != "success" && $helmResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $packageResult != "success" && $packageResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $staticcheckResult != "success" && $staticcheckResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $govulncheckResult != "success" && $govulncheckResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $unitTestsResult != "success" && $unitTestsResult != "skipped" ]]; then
-            exit 1
-          fi
-          if [[ $verifyCodegenResult != "success" && $verifyCodegenResult != "skipped" ]]; then
-            exit 1
-          fi
+          echo "All required jobs succeeded or were safely skipped."
 
   trigger-image-promotion:
     name: Promote images on Force Run
-    if: github.repository == 'nginx/kubernetes-ingress' && (
-      inputs.force &&
-      (github.ref_name == 'main' || startsWith(github.ref_name, 'release-')))
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.promote == 'true' )
     needs:
+      - checks
       - final-results
       - build-artifacts
     permissions:

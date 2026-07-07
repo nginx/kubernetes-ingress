@@ -1,17 +1,5 @@
 #!/usr/bin/env bash
 
-if [ "$1" = "" ]; then
-    echo "ERROR: paramater needed"
-    exit 2
-fi
-
-INPUT=$1
-ROOTDIR=$(git rev-parse --show-toplevel || echo ".")
-if [ "$PWD" != "$ROOTDIR" ]; then
-    # shellcheck disable=SC2164
-    cd "$ROOTDIR";
-fi
-
 # renovate: datasource=docker depName=kindest/node
 K8S_LATEST_VERSION=1.36.1
 
@@ -94,7 +82,139 @@ get_lts_tags() {
   git tag --sort=-version:refname | grep -E -- '-lts-r[0-9]+' | awk -F'-r' '!seen[$1]++' | head -n3 | jq -R -s -c 'split("\n")[:-1]'
 }
 
-case $INPUT in
+# ---------------------------------------------------------------------------
+# CI decision logic.
+#
+# The functions below centralise the branching logic that used to live as
+# inline bash steps and composite `if:` expressions in .github/workflows/ci.yml.
+# Each reads its inputs from environment variables (so they are pure and
+# testable) and echoes a literal "true" or "false".
+#
+# Inputs (all optional; unset is treated as empty/false unless noted):
+#   FORCE            - workflow_dispatch "force" input.
+#   RUN_TESTS_INPUT  - workflow_dispatch "run_tests" input (defaults to true
+#                      when empty, e.g. on pull_request / merge_group events).
+#   DOCS_ONLY        - "true" when the change only touches documentation.
+#   FORKED           - "true" when running from a fork / mirror.
+#   BINARY_CACHE_HIT - "true" when the Go binary cache was hit.
+#   STABLE_EXISTS    - "true" when a stable image already exists in the registry.
+#   REF_NAME         - github.ref_name (used to gate image promotion).
+# ---------------------------------------------------------------------------
+
+# Whether a docker image build is required.
+get_docker_build() {
+  if [ "${FORCE:-}" = "true" ]; then
+    echo "true"
+  elif [ "${FORKED:-}" = "true" ] && [ "${DOCS_ONLY:-}" != "true" ]; then
+    echo "true"
+  elif [ "${FORKED:-}" != "true" ] && [ "${DOCS_ONLY:-}" != "true" ] && [ "${BINARY_CACHE_HIT:-}" != "true" ]; then
+    echo "true"
+  elif [ "${FORKED:-}" != "true" ] && [ "${DOCS_ONLY:-}" != "true" ] && [ "${STABLE_EXISTS:-}" != "true" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Whether unit/e2e tests should run at all.
+get_run_tests() {
+  if [ "${RUN_TESTS_INPUT:-}" = "false" ]; then
+    echo "false"
+  elif [ "${DOCS_ONLY:-}" = "true" ]; then
+    echo "false"
+  elif [ "${BINARY_CACHE_HIT:-}" = "true" ] && [ "${STABLE_EXISTS:-}" = "true" ]; then
+    echo "false"
+  else
+    echo "true"
+  fi
+}
+
+# Gate for the Go-only jobs (verify-codegen, unit-tests, staticcheck,
+# govulncheck): force, or tests requested without a binary cache hit.
+get_run_unit_tests() {
+  local run_tests
+  run_tests=$(get_run_tests)
+  if [ "${FORCE:-}" = "true" ]; then
+    echo "true"
+  elif [ "$run_tests" = "true" ] && [ "${BINARY_CACHE_HIT:-}" != "true" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Data-driven part of the build-artifacts gate. The workflow keeps the runtime
+# `needs.*.result` / `!cancelled()` checks in YAML and ANDs them with this.
+get_run_build() {
+  local run_tests docker_build
+  run_tests=$(get_run_tests)
+  docker_build=$(get_docker_build)
+  if [ "${FORCE:-}" = "true" ] || [ "$run_tests" = "true" ] || [ "$docker_build" = "true" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Gate for the authenticated e2e jobs (tag-target, package-tests, helm-tests,
+# setup-matrix, smoke-tests-*): only on the main repo, when there is work to do.
+get_run_e2e() {
+  local run_tests docker_build
+  run_tests=$(get_run_tests)
+  docker_build=$(get_docker_build)
+  if [ "${FORKED:-}" != "true" ] && { [ "$run_tests" = "true" ] || [ "$docker_build" = "true" ]; }; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Gate for the tag-stable job: on the main repo when no stable image exists yet.
+get_tag_stable() {
+  if [ "${FORKED:-}" != "true" ] && [ "${STABLE_EXISTS:-}" != "true" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Gate for image promotion on a forced run of a release-able branch.
+get_promote() {
+  if [ "${FORCE:-}" = "true" ] && { [ "${REF_NAME:-}" = "main" ] || [[ "${REF_NAME:-}" == release-* ]]; }; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Emits every CI decision flag as key=value lines for $GITHUB_OUTPUT.
+get_ci_flags() {
+  echo "run_tests=$(get_run_tests)"
+  echo "docker_build=$(get_docker_build)"
+  echo "run_unit_tests=$(get_run_unit_tests)"
+  echo "run_build=$(get_run_build)"
+  echo "run_e2e=$(get_run_e2e)"
+  echo "tag_stable=$(get_tag_stable)"
+  echo "promote=$(get_promote)"
+}
+
+# Dispatches the requested variable/flag. Kept in a function so the script can
+# be sourced (e.g. by variables_test.sh) without executing anything.
+main() {
+  if [ "$1" = "" ]; then
+    echo "ERROR: parameter needed"
+    exit 2
+  fi
+
+  local INPUT=$1
+  local ROOTDIR
+  ROOTDIR=$(git rev-parse --show-toplevel || echo ".")
+  if [ "$PWD" != "$ROOTDIR" ]; then
+    # shellcheck disable=SC2164
+    cd "$ROOTDIR"
+  fi
+
+  case $INPUT in
   docker_md5)
     echo "docker_md5=$(get_docker_md5)"
     ;;
@@ -127,8 +247,18 @@ case $INPUT in
     echo "lts_tags=$(get_lts_tags)"
     ;;
 
+  ci_flags)
+    get_ci_flags
+    ;;
+
   *)
     echo "ERROR: option not found"
     exit 2
     ;;
-esac
+  esac
+}
+
+# Only run the driver when executed directly, not when sourced (e.g. by tests).
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

@@ -53,6 +53,15 @@ repos:
         pass_filenames: false
         require_serial: true
 
+      - id: test-ci-variables
+        name: test ci variables script
+        description: Runs unit tests for the CI decision logic in variables.sh.
+        entry: .github/scripts/variables_test.sh
+        language: script
+        files: ^\.github/scripts/variables(_test)?\.sh$
+        pass_filenames: false
+        require_serial: true
+
       - id: validate-workflow-gating
         name: validate workflow gating
         description: Ensures every non-mirror workflow job is gated to the nginx/kubernetes-ingress repository.
