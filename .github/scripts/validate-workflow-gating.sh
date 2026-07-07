@@ -110,7 +110,9 @@ main() {
 
       if ! validate_if_condition "$job_name" "$if_cond"; then
         if [ "$file_has_errors" -eq 0 ]; then
-          echo "    ❌ File '$file' has ungated or poorly gated jobs:"
+          # Blank line separates each file's group of errors for readability.
+          echo ""
+          echo "❌ File '$file' has ungated or poorly gated jobs:"
           file_has_errors=1
         fi
         errors=$((errors + 1))
@@ -118,8 +120,9 @@ main() {
     done <<<"$jobs_data"
   done
 
-  if [ "$errors" -gt 0 ]; then
-    echo " ❌ Workflow validation failed! Found ${errors} issues."
+  if [ "$errors" -ne 0 ]; then
+    echo ""
+    echo "❌ Workflow validation failed! Found ${errors} issues."
     exit 1
   else
     echo "✅ All public workflows are successfully gated."
