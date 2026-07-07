@@ -74,6 +74,55 @@ limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.
 proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }}{{ if $c.Inactive }} inactive={{ $c.Inactive }}{{ end }}{{ if $c.MaxSize }} max_size={{ $c.MaxSize }}{{ end }}{{ if $c.MinFree }} min_free={{ $c.MinFree }}{{ end }}{{ if $c.ManagerFiles }} manager_files={{ $c.ManagerFiles }}{{ end }}{{ if $c.ManagerSleep }} manager_sleep={{ $c.ManagerSleep }}{{ end }}{{ if $c.ManagerThreshold }} manager_threshold={{ $c.ManagerThreshold }}{{ end }}{{ if not $c.UseTempPath }} use_temp_path=off{{ end }};
 {{- end }}
 
+{{- range $p := .OIDCProviders }}
+oidc_provider {{ $p.Name }} {
+    issuer {{ $p.Issuer }};
+    client_id {{ $p.ClientID }};
+    {{- if $p.ClientSecret }}
+    client_secret {{ $p.ClientSecret }};
+    {{- end }}
+    {{- if $p.ConfigURL }}
+    config_url {{ $p.ConfigURL }};
+    {{- end }}
+    {{- if $p.Scope }}
+    scope {{ $p.Scope }};
+    {{- end }}
+    {{- if $p.RedirectURI }}
+    redirect_uri {{ $p.RedirectURI }};
+    {{- end }}
+    {{- if $p.LogoutURI }}
+    logout_uri {{ $p.LogoutURI }};
+    {{- end }}
+    {{- if $p.PostLogoutURI }}
+    post_logout_uri {{ $p.PostLogoutURI }};
+    {{- end }}
+    {{- if $p.CookieName }}
+    cookie_name {{ $p.CookieName }};
+    {{- end }}
+    {{- if $p.ExtraAuthArgs }}
+    extra_auth_args "{{ $p.ExtraAuthArgs }}";
+    {{- end }}
+    {{- if $p.LogoutTokenHint }}
+    logout_token_hint on;
+    {{- end }}
+    {{- if $p.SessionStore }}
+    session_store {{ $p.SessionStore }};
+    {{- end }}
+    {{- if $p.SessionTimeout }}
+    session_timeout {{ $p.SessionTimeout }};
+    {{- end }}
+    {{- if $p.SSLCrl }}
+    ssl_crl {{ $p.SSLCrl }};
+    {{- end }}
+    {{- if $p.SSLTrustedCert }}
+    ssl_trusted_certificate {{ $p.SSLTrustedCert }};
+    {{- end }}
+    {{- if $p.UserInfoEnable }}
+    userinfo on;
+    {{- end }}
+}
+{{- end }}
+
 {{- range $m := .StatusMatches }}
 match {{ $m.Name }} {
     status {{ $m.Code }};
@@ -159,6 +208,10 @@ server {
     set $oidc_scopes "{{ $oidc.Scope }}";
     set $oidc_client "{{ $oidc.ClientID }}";
     set $oidc_client_secret "{{ $oidc.ClientSecret }}";
+    {{- end }}
+
+    {{- if $s.OIDCProviderName }}
+    auth_oidc {{ $s.OIDCProviderName }};
     {{- end }}
 
     {{- with $ssl := $s.SSL }}
@@ -605,6 +658,9 @@ server {
             {{- end }}
         {{- end }}
 
+        {{- if $l.OIDCProviderName }}
+        auth_oidc {{ $l.OIDCProviderName }};
+        {{- end }}
 
         {{- with $l.APIKey}}
         set $apikey_auth_local_map  "{{ .MapName }}";

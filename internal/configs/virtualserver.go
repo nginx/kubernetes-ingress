@@ -1181,6 +1181,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			APIKey:                    policiesCfg.APIKey.Key,
 			APIKeyEnabled:             policiesCfg.APIKey.Enabled,
 			OIDC:                      policiesCfg.OIDC,
+			OIDCProviderName:          getOIDCProviderName(policiesCfg),
 			WAF:                       policiesCfg.WAF,
 			Dos:                       dosCfg,
 			Cache:                     policiesCfg.Cache,
@@ -1479,6 +1480,13 @@ func hasDuplicateMapDefaults(m *version2.Map) bool {
 	return count > 1
 }
 
+func getOIDCProviderName(cfg policiesCfg) string {
+	if cfg.OIDCProvider != nil {
+		return cfg.OIDCProvider.Name
+	}
+	return ""
+}
+
 func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.Allow = cfg.Allow
 	location.Deny = cfg.Deny
@@ -1490,6 +1498,9 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.EgressMTLS = cfg.EgressMTLS
 	if cfg.OIDC != nil {
 		location.OIDC = true
+	}
+	if cfg.OIDCProvider != nil {
+		location.OIDCProviderName = cfg.OIDCProvider.Name
 	}
 	location.WAF = cfg.WAF
 	location.APIKey = cfg.APIKey.Key
