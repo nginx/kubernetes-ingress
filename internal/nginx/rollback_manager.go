@@ -391,33 +391,47 @@ func (cm *ConfigRollbackManager) parsePathFromError(err error) string {
 //
 // This works because NIC-generated configs are self-contained: each has its own
 // server{} + upstream{} blocks with no cross-file dependencies.
+//
+// Multi-bad-file safety: files outside the currently-searched subset stay disabled
+// throughout the recursive descent and are re-enabled only on unwind. Re-enabling
+// the non-target half between recursive iterations would let a bad file elsewhere
+// in the candidate set (e.g. the not-yet-searched other half) fail the nginx -t of
+// the current subset and misattribute the failure — driving the search to a valid
+// candidate.
 func (cm *ConfigRollbackManager) binarySearchBadConfig(candidates []string) (string, error) {
 	if len(candidates) == 0 {
 		return "", fmt.Errorf("empty candidate set")
 	}
 	if len(candidates) == 1 {
-		// Base case: single candidate must be the bad one
 		return candidates[0], nil
 	}
 
 	mid := len(candidates) / 2
+	firstHalf := candidates[:mid]
 	secondHalf := candidates[mid:]
 
-	// Temporarily disable the second half by renaming files so NGINX's include glob won't match them
+	// Disable the second half and test with only the first half active.
 	cm.disableConfigs(secondHalf)
-
-	// Test with only the first half active
 	testErr := cm.testConfig()
 
-	// Restore the second half regardless of test result
-	cm.enableConfigs(secondHalf)
-
-	if testErr == nil {
-		// First half is clean — bad file is in the second half
-		return cm.binarySearchBadConfig(secondHalf)
+	if testErr != nil {
+		// First half contains a bad file. Keep the second half disabled while we
+		// recurse, then restore it on unwind. If we re-enabled it now, any bad
+		// file in secondHalf would fail the inner testConfig() and misattribute
+		// the failure onto an innocent file in firstHalf.
+		bad, err := cm.binarySearchBadConfig(firstHalf)
+		cm.enableConfigs(secondHalf)
+		return bad, err
 	}
-	// First half contains (at least one) bad file
-	return cm.binarySearchBadConfig(candidates[:mid])
+
+	// First half is clean; the bad file must be in the second half. Re-enable
+	// the second half and disable the first half so the same invariant holds
+	// for the inner recursion (files outside the search subset stay disabled).
+	cm.enableConfigs(secondHalf)
+	cm.disableConfigs(firstHalf)
+	bad, err := cm.binarySearchBadConfig(secondHalf)
+	cm.enableConfigs(firstHalf)
+	return bad, err
 }
 
 // disableConfigs renames config files by replacing .conf suffix with .conf.disabled,
