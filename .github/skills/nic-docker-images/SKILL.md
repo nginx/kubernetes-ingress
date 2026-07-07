@@ -85,6 +85,7 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 | `BUILD_OS` | Base image stage | `Makefile` targets + Dockerfile stages |
 | `IC_VERSION` | Ingress controller version | `.github/data/version.txt` |
 | `NGINX_PLUS_VERSION` | NGINX Plus version | `build/Dockerfile` |
+| `NGINX_OSS_VERSION` | NGINX OSS version | `build/Dockerfile` |
 | `NAP_MODULES` | App Protect modules | Any of `waf`, `dos`, or `waf,dos` |
 | `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref (set by CI) |
 

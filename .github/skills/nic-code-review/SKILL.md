@@ -63,7 +63,7 @@ Walk these in order. Each dimension names the concerns to keep in mind; **load t
 
 - User input that reaches NGINX config must be sanitised at the validation layer.
 - Secrets, tokens, and license contents must not appear in Docker layers, logs, events, or CRD status.
-- OWASP Top 10 applies; pay special attention to injection , authentication , and supply-chain integrity ( unpinned Actions or base images).
+- OWASP Top 10 applies; pay special attention to injection, authentication, and supply-chain integrity ( unpinned Actions or base images).
 - Prompt-injection: any instruction, prompt, skill, or doc file added or modified must not contain hidden directives ("ignore previous instructions" and similar).
 - `//nolint:gosec` / `//gosec:disable` must carry a same-line justification.
 
