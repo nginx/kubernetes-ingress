@@ -90,7 +90,7 @@ jobs:
           set +x
           # Mask the raw base64 value
           echo "::add-mask::$APP_PRIVATE_KEY_B64"
-          private_key=$(echo "$APP_PRIVATE_KEY_B64" | base64 -d)
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
           # Mask every line of the decoded PEM key individually
           while IFS= read -r line; do
             if [[ -n "$line" ]]; then
