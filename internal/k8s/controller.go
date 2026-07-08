@@ -2325,11 +2325,7 @@ func (lbc *LoadBalancerController) handleSecretUpdate(secret *api_v1.Secret, res
 
 	resourceExes := lbc.createExtendedResources(resources)
 
-	// The -ssl-dynamic-reload optimization only applies to ssl_certificate/ssl_certificate_key,
-	// which read the cert file at request time via a variable path. Every other secret type
-	// (nginx.org/ca, nginx.org/jwk, nginx.org/htpasswd, nginx.org/oidc, nginx.org/apikey) is
-	// parsed by NGINX at config-load time and requires a reload to pick up rotated content.
-	reloadIfUnchanged := secret.Type != api_v1.SecretTypeTLS || !lbc.configurator.DynamicSSLReloadEnabled()
+	reloadIfUnchanged := shouldForceReloadOnSecretUpdate(secret.Type, lbc.configurator.DynamicSSLReloadEnabled())
 	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, reloadIfUnchanged)
 	if addOrUpdateErr != nil {
 		nl.Errorf(lbc.Logger, "Error when updating Secret %v: %v", secretNsName, addOrUpdateErr)
@@ -2337,6 +2333,16 @@ func (lbc *LoadBalancerController) handleSecretUpdate(secret *api_v1.Secret, res
 	}
 
 	lbc.updateResourcesStatusAndEvents(resources, warnings, addOrUpdateErr)
+}
+
+// shouldForceReloadOnSecretUpdate reports whether NGINX must be reloaded on a secret
+// update even if the rendered config bytes are unchanged. The -ssl-dynamic-reload
+// optimization only applies to TLS server secrets (kubernetes.io/tls), whose
+// ssl_certificate / ssl_certificate_key directives read the file at request time via
+// a variable path. Any non-TLS secret type is parsed at config-load time and would
+// otherwise remain stale until an unrelated event triggers a reload.
+func shouldForceReloadOnSecretUpdate(secretType api_v1.SecretType, dynamicSSLReloadEnabled bool) bool {
+	return secretType != api_v1.SecretTypeTLS || !dynamicSSLReloadEnabled
 }
 
 func (lbc *LoadBalancerController) validationTLSSpecialSecret(secret *api_v1.Secret, secretName string, secretList *[]string) error {
