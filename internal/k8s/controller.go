@@ -2325,7 +2325,12 @@ func (lbc *LoadBalancerController) handleSecretUpdate(secret *api_v1.Secret, res
 
 	resourceExes := lbc.createExtendedResources(resources)
 
-	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, !lbc.configurator.DynamicSSLReloadEnabled())
+	// The -ssl-dynamic-reload optimization only applies to ssl_certificate/ssl_certificate_key,
+	// which read the cert file at request time via a variable path. Every other secret type
+	// (nginx.org/ca, nginx.org/jwk, nginx.org/htpasswd, nginx.org/oidc, nginx.org/apikey) is
+	// parsed by NGINX at config-load time and requires a reload to pick up rotated content.
+	reloadIfUnchanged := secret.Type != api_v1.SecretTypeTLS || !lbc.configurator.DynamicSSLReloadEnabled()
+	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, reloadIfUnchanged)
 	if addOrUpdateErr != nil {
 		nl.Errorf(lbc.Logger, "Error when updating Secret %v: %v", secretNsName, addOrUpdateErr)
 		lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "%v was updated, but not applied: %v", secretNsName, addOrUpdateErr)
