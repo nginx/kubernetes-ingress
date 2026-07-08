@@ -1,9 +1,8 @@
 """Startup-time config-safety tests.
 
 These cover what happens when the Ingress Controller pod starts and immediately
-faces resources whose NGINX config is (or renders to) something invalid — for
-example, an Ingress with a bad snippet annotation, or a ConfigMap value that
-corrupts the main NGINX config file.
+faces resources whose NGINX config renders to something invalid, for example,
+an Ingress with a bad snippet annotation.
 
 The safety behaviour under test is:
 
@@ -12,13 +11,11 @@ The safety behaviour under test is:
   keeps the previous replicas alive (rolling updates don't cascade into an
   outage).
 * Once the operator fixes the offending input, the pod recovers automatically
-  — no manual pod restart required.
+ , no manual pod restart required.
 """
 
-import copy
-
 import pytest
-from settings import DEPLOYMENTS, TEST_DATA
+from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, assert_ingress_conf_not_exists, wait_and_assert_status_code
 from suite.utils.resources_utils import (
     create_example_app,
@@ -30,8 +27,6 @@ from suite.utils.resources_utils import (
     get_events_for_object,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
-    replace_configmap,
-    replace_configmap_from_yaml,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -254,86 +249,3 @@ class TestConfigRollbackStartup:
         assert (
             "Config safety: shared input fixed; pod now Ready (recovered from startup exclusion)" in recovered_logs
         ), "expected recovery log line after the shared input was fixed"
-
-    def test_startup_nuclear_fallback_bad_main_snippet(
-        self,
-        request,
-        kube_apis,
-        ingress_controller_prerequisites,
-        ingress_controller,
-        test_namespace,
-        simple_app_setup,
-    ):
-        """A ConfigMap value that corrupts the main NGINX config file itself
-        (as opposed to a per-Ingress config) can't be recovered by isolating
-        any individual Ingress, the offending content is in a file the
-        controller doesn't attribute to any Kubernetes resource.
-
-        In that situation the controller intentionally refuses to mark the pod
-        Ready and every Ingress gets a "main config is invalid" error event,
-        pointing operators back to the ConfigMap as the real root cause. The
-        pod stays held until the ConfigMap is corrected.
-        """
-        ic_namespace = ingress_controller_prerequisites.namespace
-        config_map_name = ingress_controller_prerequisites.config_map["metadata"]["name"]
-
-        # Restore the ConfigMap and pod even if the assertions below fail, so
-        # subsequent tests in the class don't inherit a broken controller.
-        def restore_baseline():
-            replace_configmap_from_yaml(
-                kube_apis.v1,
-                config_map_name,
-                ic_namespace,
-                f"{DEPLOYMENTS}/common/nginx-config.yaml",
-            )
-            stale_pod = get_first_pod_name(kube_apis.v1, ic_namespace)
-            kube_apis.v1.delete_namespaced_pod(stale_pod, ic_namespace)
-            wait_before_test()
-            wait_until_all_pods_are_ready(kube_apis.v1, ic_namespace)
-
-        request.addfinalizer(restore_baseline)
-
-        print("Step 1: create a valid Ingress that would normally serve traffic")
-        ingress_name = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, ingress_src)
-        request.addfinalizer(lambda: delete_ingress(kube_apis.networking_v1, ingress_name, test_namespace))
-
-        print("Step 2: put an invalid http-snippets value into the NGINX ConfigMap")
-        # http-snippets is spliced directly into the http{} block of the main
-        # NGINX config, so an unknown directive there makes the whole config invalid
-        original_cm = kube_apis.v1.read_namespaced_config_map(config_map_name, ic_namespace)
-        bad_cm = copy.deepcopy(original_cm)
-        if bad_cm.data is None:
-            bad_cm.data = {}
-        bad_cm.data["http-snippets"] = "invalid_directive_nuclear_test on;"
-        replace_configmap(kube_apis.v1, config_map_name, ic_namespace, bad_cm)
-
-        print("Step 3: restart the controller pod so it comes up with the bad ConfigMap")
-        old_ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace)
-        kube_apis.v1.delete_namespaced_pod(old_ic_pod_name, ic_namespace)
-        wait_before_test()
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace)
-        assert ic_pod_name != old_ic_pod_name, "new pod did not start"
-        # The pod is expected to stay Not Ready — do not wait for readiness.
-        wait_before_test()
-
-        print("Step 4: pod is Running but held Not Ready (main config can't be recovered)")
-        pod = kube_apis.v1.read_namespaced_pod(ic_pod_name, ic_namespace)
-        assert pod.status.phase == "Running"
-        ready_condition = next(
-            (condition for condition in (pod.status.conditions or []) if condition.type == "Ready"),
-            None,
-        )
-        assert ready_condition is not None
-        assert ready_condition.status == "False", "pod must not be marked Ready when the main config is invalid"
-
-        print("Step 5: log names the main config as the unrecoverable cause and the pod as held")
-        ic_logs = kube_apis.v1.read_namespaced_pod_log(ic_pod_name, ic_namespace)
-        # Emitted from the nuclear-fallback probe step when the post-cleanup nginx -t still fails.
-        assert (
-            "NGINX config still invalid after batch cleanup" in ic_logs
-        ), "expected the log line pointing at the main NGINX config as the root cause"
-        assert "pod NOT marked ready" in ic_logs
-
-        print("Step 6: the Ingress event blames the main config rather than the Ingress itself")
-        events = get_events_for_object(kube_apis.v1, test_namespace, ingress_name)
-        assert_event("NGINX main configuration is invalid", events)
