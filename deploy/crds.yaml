@@ -903,6 +903,7 @@ spec:
                       must be of the type nginx.org/oidc, and the secret under the
                       key client-secret, otherwise the secret will be rejected as
                       invalid.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
                     type: string
                   configURL:
                     description: ConfigURL is the URL of the OpenID Provider Configuration
@@ -934,6 +935,7 @@ spec:
                     description: Defines the URI path for initiating session logout.
                       Upon session termination, the user is redirected to the Provider's
                       logout endpoint or the post logout page.
+                    pattern: ^/[^\s{};\\]*$
                     type: string
                   pkce:
                     description: Explicitly enables or disables PKCE. By default,
@@ -945,20 +947,25 @@ spec:
                   postLogoutRedirectURI:
                     description: Defines the path or absolute URI to redirect the
                       user to after logout.
+                    pattern: ^/[^\s{};\\]*$
                     type: string
                   redirectURI:
                     description: Allows overriding the default redirect URI. The module
                       defaults to /oidc_callback.
+                    pattern: ^/[^\s{};\\]*$
                     type: string
                   scope:
-                    description: List of OpenID Connect scopes. The scope openid always
-                      needs to be present and others can be added concatenating them
-                      with a + sign, for example openid+profile+email, openid+email+userDefinedScope.
-                      The module defaults to openid.
+                    description: 'List of OpenID Connect scopes, space-separated.
+                      The scope openid is always required. Example: "openid profile
+                      email". The module defaults to "openid".'
                     type: string
+                    x-kubernetes-validations:
+                    - message: scope must contain 'openid'
+                      rule: '!has(self) || self == '''' || self.contains(''openid'')'
                   sessionTimeout:
                     description: Sets a timeout after which the session is deleted,
                       unless it was refreshed. The module defaults to 8h.
+                    pattern: ^[0-9]+(s|m|h|d)?$
                     type: string
                   trustedCertSecret:
                     description: The name of the Kubernetes secret that stores the

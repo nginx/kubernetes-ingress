@@ -130,7 +130,7 @@ The `.spec` object supports the following fields:
 | `oidcNative.pkce` | `string` | Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata. Allowed values: `"on"`, `"off"`. |
 | `oidcNative.postLogoutRedirectURI` | `string` | Defines the path or absolute URI to redirect the user to after logout. |
 | `oidcNative.redirectURI` | `string` | Allows overriding the default redirect URI. The module defaults to /oidc_callback. |
-| `oidcNative.scope` | `string` | List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The module defaults to openid. |
+| `oidcNative.scope` | `string` | List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid". |
 | `oidcNative.sessionTimeout` | `string` | Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h. |
 | `oidcNative.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt. |
 | `oidcNative.userInfoEnable` | `boolean` | Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables. |

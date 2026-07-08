@@ -456,6 +456,11 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 }
 
 func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	// Required fields and format checks (clientSecret, scope, redirectURI, logoutURI,
+	// postLogoutRedirectURI, sessionTimeout) are enforced at the CRD level via
+	// kubebuilder Pattern/XValidation markers. Only checks that require runtime
+	// state or can't be expressed in CEL remain here.
+
 	if oidcNative.Issuer == "" {
 		return field.ErrorList{field.Required(fieldPath.Child("issuer"), "")}
 	}
@@ -465,24 +470,10 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 
 	allErrs := field.ErrorList{}
 
+	// Issuer hostname/port validation goes beyond the CRD pattern (which only checks https:// + host).
 	allErrs = append(allErrs, validateIssuerURL(oidcNative.Issuer, fieldPath.Child("issuer"))...)
+	// ClientID char validation (rejects $, unescaped \, etc.) — not expressible in a simple CRD pattern.
 	allErrs = append(allErrs, validateClientID(oidcNative.ClientID, fieldPath.Child("clientID"))...)
-
-	if oidcNative.ClientSecret != "" {
-		allErrs = append(allErrs, validateSecretName(oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
-	}
-	if oidcNative.Scope != "" {
-		allErrs = append(allErrs, validateOIDCNativeScope(oidcNative.Scope, fieldPath.Child("scope"))...)
-	}
-	if oidcNative.RedirectURI != "" {
-		allErrs = append(allErrs, validatePath(oidcNative.RedirectURI, fieldPath.Child("redirectURI"))...)
-	}
-	if oidcNative.LogoutURI != "" {
-		allErrs = append(allErrs, validatePath(oidcNative.LogoutURI, fieldPath.Child("logoutURI"))...)
-	}
-	if oidcNative.PostLogoutRedirectURI != "" {
-		allErrs = append(allErrs, validatePath(oidcNative.PostLogoutRedirectURI, fieldPath.Child("postLogoutRedirectURI"))...)
-	}
 
 	return allErrs
 }
@@ -983,29 +974,6 @@ func validateOIDCScope(scope string, fieldPath *field.Path) field.ErrorList {
 	}
 
 	for _, token := range strings.Split(scope, "+") {
-		for _, v := range token {
-			if !unicode.Is(validOIDCScopeRanges, v) {
-				msg := fmt.Sprintf("not allowed character %v in scope %s", v, scope)
-				return field.ErrorList{field.Invalid(fieldPath, scope, msg)}
-			}
-		}
-	}
-	return nil
-}
-
-// validateOIDCNativeScope validates scope for the native OIDC module.
-// Accepts both space-separated ("openid profile email") and plus-separated ("openid+profile+email") formats.
-// The "openid" scope must always be present.
-func validateOIDCNativeScope(scope string, fieldPath *field.Path) field.ErrorList {
-	if !strings.Contains(scope, "openid") {
-		return field.ErrorList{field.Required(fieldPath, "openid is required")}
-	}
-
-	// Split on both space and + to support either format
-	tokens := strings.FieldsFunc(scope, func(r rune) bool {
-		return r == '+' || r == ' '
-	})
-	for _, token := range tokens {
 		for _, v := range token {
 			if !unicode.Is(validOIDCScopeRanges, v) {
 				msg := fmt.Sprintf("not allowed character %v in scope %s", v, scope)

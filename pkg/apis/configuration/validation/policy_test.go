@@ -2128,51 +2128,8 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 			fieldPath: "oidcNative.clientID",
 			msg:       "invalid chars in clientID",
 		},
-		{
-			oidcNative: &v1.OIDCNative{
-				Issuer:       "https://accounts.google.com",
-				ClientID:     "my-client",
-				ClientSecret: "-invalid-secret-name-",
-			},
-			fieldPath: "oidcNative.clientSecret",
-			msg:       "invalid secret name",
-		},
-		{
-			oidcNative: &v1.OIDCNative{
-				Issuer:   "https://accounts.google.com",
-				ClientID: "my-client",
-				Scope:    "bogus",
-			},
-			fieldPath: "oidcNative.scope",
-			msg:       "missing openid in scope",
-		},
-		{
-			oidcNative: &v1.OIDCNative{
-				Issuer:      "https://accounts.google.com",
-				ClientID:    "my-client",
-				RedirectURI: "http://external.example.com/callback",
-			},
-			fieldPath: "oidcNative.redirectURI",
-			msg:       "redirectURI must be a path not a URL",
-		},
-		{
-			oidcNative: &v1.OIDCNative{
-				Issuer:    "https://accounts.google.com",
-				ClientID:  "my-client",
-				LogoutURI: "http://external.example.com/logout",
-			},
-			fieldPath: "oidcNative.logoutURI",
-			msg:       "logoutURI must be a path not a URL",
-		},
-		{
-			oidcNative: &v1.OIDCNative{
-				Issuer:                "https://accounts.google.com",
-				ClientID:              "my-client",
-				PostLogoutRedirectURI: "http://external.example.com/done",
-			},
-			fieldPath: "oidcNative.postLogoutRedirectURI",
-			msg:       "postLogoutRedirectURI must be a path not a URL",
-		},
+		// clientSecret format, scope, redirectURI, logoutURI, postLogoutRedirectURI,
+		// and sessionTimeout are validated at the CRD level via kubebuilder markers.
 	}
 
 	for _, test := range tests {

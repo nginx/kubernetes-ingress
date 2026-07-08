@@ -1111,15 +1111,18 @@ type OIDCNative struct {
 	ClientID string `json:"clientID"`
 	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	ClientSecret string `json:"clientSecret,omitempty"` //nolint:gosec // G117: references a K8s secret name, not a credential
 	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	// +kubebuilder:validation:Optional
 	ConfigURL string `json:"configURL,omitempty"`
 	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid".
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="!has(self) || self == '' || self.contains('openid')",message="scope must contain 'openid'"
 	Scope string `json:"scope,omitempty"`
 	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
 	RedirectURI string `json:"redirectURI,omitempty"`
 	// Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION.
 	// +kubebuilder:validation:Optional
@@ -1133,9 +1136,11 @@ type OIDCNative struct {
 	PKCE string `json:"pkce,omitempty"`
 	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
 	LogoutURI string `json:"logoutURI,omitempty"`
 	// Defines the path or absolute URI to redirect the user to after logout.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
 	PostLogoutRedirectURI string `json:"postLogoutRedirectURI,omitempty"`
 	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
 	// +kubebuilder:validation:Optional
@@ -1143,6 +1148,7 @@ type OIDCNative struct {
 	LogoutTokenHint bool `json:"logoutTokenHint,omitempty"`
 	// Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h.
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+(s|m|h|d)?$`
 	SessionTimeout string `json:"sessionTimeout,omitempty"`
 	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables.
 	// +kubebuilder:validation:Optional
