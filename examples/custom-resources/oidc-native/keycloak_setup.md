@@ -47,7 +47,7 @@ Steps:
     - If you are not using PKCE, use the following command to create an OIDC client that does not use PKCE:
 
         ```shell
-        SECRET=`curl -sS -k -X POST -d '{ "clientId": "nginx-plus", "redirectUris": ["https://webapp.example.com:443/_codexch"], "attributes": {"post.logout.redirect.uris": "https://webapp.example.com:443/*"}}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
+        SECRET=`curl -sS -k -X POST -d '{ "clientId": "nginx-plus", "redirectUris": ["https://webapp.example.com/oidc_callback"], "attributes": {"post.logout.redirect.uris": "https://webapp.example.com/*"}}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
         ```
 
         If everything went well, you should have the secret stored in $SECRET. To double-check, run:
@@ -67,11 +67,11 @@ Steps:
             "directAccessGrantsEnabled": false,
             "publicClient": true,
             "redirectUris": [
-                "https://webapp.example.com:443/_codexch"
+                "https://webapp.example.com/oidc_callback"
             ],
             "attributes": {
                 "pkce.code.challenge.method":"S256",
-                "post.logout.redirect.uris": "https://webapp.example.com:443/*"
+                "post.logout.redirect.uris": "https://webapp.example.com/*"
             },
             "protocol": "openid-connect"
         }' \

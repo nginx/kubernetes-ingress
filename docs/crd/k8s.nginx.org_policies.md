@@ -132,6 +132,7 @@ The `.spec` object supports the following fields:
 | `oidcNative.redirectURI` | `string` | Allows overriding the default redirect URI. The module defaults to /oidc_callback. |
 | `oidcNative.scope` | `string` | List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The module defaults to openid. |
 | `oidcNative.sessionTimeout` | `string` | Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h. |
+| `oidcNative.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt. |
 | `oidcNative.userInfoEnable` | `boolean` | Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables. |
 | `rateLimit` | `object` | The rate limit policy controls the rate of processing requests per a defined key. |
 | `rateLimit.burst` | `integer` | Excessive requests are delayed until their number exceeds the burst size, in which case the request is terminated with an error. |

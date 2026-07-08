@@ -3042,6 +3042,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting OIDCNative secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
+	err = lbc.addOIDCNativeTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting OIDCNative trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
 	err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
@@ -3188,6 +3192,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			nl.Warnf(lbc.Logger, "Error getting OIDCNative secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
 
+		err = lbc.addOIDCNativeTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting OIDCNative trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
+
 		err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
@@ -3240,6 +3249,11 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			err = lbc.addOIDCNativeSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting OIDCNative secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
+
+			err = lbc.addOIDCNativeTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting OIDCNative trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
 
 			err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
@@ -3650,6 +3664,24 @@ func (lbc *LoadBalancerController) addOIDCNativeSecretRefs(secretRefs map[string
 		}
 
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDCNative.ClientSecret)
+		secretRef := lbc.secretStore.GetSecret(secretKey)
+
+		secretRefs[secretKey] = secretRef
+
+		if secretRef.Error != nil {
+			return secretRef.Error
+		}
+	}
+	return nil
+}
+
+func (lbc *LoadBalancerController) addOIDCNativeTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.OIDCNative == nil || pol.Spec.OIDCNative.TrustedCertSecret == "" {
+			continue
+		}
+
+		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDCNative.TrustedCertSecret)
 		secretRef := lbc.secretStore.GetSecret(secretKey)
 
 		secretRefs[secretKey] = secretRef

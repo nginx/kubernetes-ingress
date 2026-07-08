@@ -789,6 +789,13 @@ spec:
                     description: Sets a timeout after which the session is deleted,
                       unless it was refreshed. The module defaults to 8h.
                     type: string
+                  trustedCertSecret:
+                    description: The name of the Kubernetes secret that stores the
+                      trusted CA certificate for verifying the OpenID Provider's TLS
+                      certificate. Must be of type nginx.org/ca with the certificate
+                      stored under key ca.crt.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
                   userInfoEnable:
                     default: false
                     description: Enables downloading of the UserInfo data and makes

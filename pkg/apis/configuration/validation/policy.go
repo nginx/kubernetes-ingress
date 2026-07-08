@@ -472,7 +472,7 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 		allErrs = append(allErrs, validateSecretName(oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
 	}
 	if oidcNative.Scope != "" {
-		allErrs = append(allErrs, validateOIDCScope(oidcNative.Scope, fieldPath.Child("scope"))...)
+		allErrs = append(allErrs, validateOIDCNativeScope(oidcNative.Scope, fieldPath.Child("scope"))...)
 	}
 	if oidcNative.RedirectURI != "" {
 		allErrs = append(allErrs, validatePath(oidcNative.RedirectURI, fieldPath.Child("redirectURI"))...)
@@ -983,6 +983,29 @@ func validateOIDCScope(scope string, fieldPath *field.Path) field.ErrorList {
 	}
 
 	for _, token := range strings.Split(scope, "+") {
+		for _, v := range token {
+			if !unicode.Is(validOIDCScopeRanges, v) {
+				msg := fmt.Sprintf("not allowed character %v in scope %s", v, scope)
+				return field.ErrorList{field.Invalid(fieldPath, scope, msg)}
+			}
+		}
+	}
+	return nil
+}
+
+// validateOIDCNativeScope validates scope for the native OIDC module.
+// Accepts both space-separated ("openid profile email") and plus-separated ("openid+profile+email") formats.
+// The "openid" scope must always be present.
+func validateOIDCNativeScope(scope string, fieldPath *field.Path) field.ErrorList {
+	if !strings.Contains(scope, "openid") {
+		return field.ErrorList{field.Required(fieldPath, "openid is required")}
+	}
+
+	// Split on both space and + to support either format
+	tokens := strings.FieldsFunc(scope, func(r rune) bool {
+		return r == '+' || r == ' '
+	})
+	for _, token := range tokens {
 		for _, v := range token {
 			if !unicode.Is(validOIDCScopeRanges, v) {
 				msg := fmt.Sprintf("not allowed character %v in scope %s", v, scope)

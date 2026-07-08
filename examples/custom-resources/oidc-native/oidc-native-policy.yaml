@@ -7,4 +7,5 @@ spec:
     issuer: https://keycloak.example.com/realms/master
     clientID: nginx-plus
     clientSecret: oidcnative-secret
-    scope: openid+profile+email
+    scope: openid profile email
+    trustedCertSecret: keycloak-ca-secret

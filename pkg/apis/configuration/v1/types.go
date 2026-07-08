@@ -1115,7 +1115,7 @@ type OIDCNative struct {
 	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	// +kubebuilder:validation:Optional
 	ConfigURL string `json:"configURL,omitempty"`
-	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The module defaults to openid.
+	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid".
 	// +kubebuilder:validation:Optional
 	Scope string `json:"scope,omitempty"`
 	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
@@ -1148,6 +1148,10 @@ type OIDCNative struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	UserInfoEnable bool `json:"userInfoEnable,omitempty"`
+	// The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.

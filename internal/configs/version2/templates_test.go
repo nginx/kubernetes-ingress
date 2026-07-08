@@ -3591,3 +3591,57 @@ func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
 }
+
+func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := VirtualServerConfig{
+		OIDCProviders: []OIDCProvider{
+			{
+				Name:           "oidc_default_my_provider_default_cafe",
+				Issuer:         "https://accounts.google.com",
+				ClientID:       "my-client-id",
+				ClientSecret:   "my-resolved-secret",
+				Scope:          "openid+profile",
+				RedirectURI:    "/callback",
+				LogoutURI:      "/logout",
+				PostLogoutURI:  "/logged_out",
+				SessionTimeout: "4h",
+				UserInfoEnable: true,
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name:             "test-upstream",
+				Servers:          []UpstreamServer{{Address: "10.0.0.20:8001"}},
+				MaxFails:         1,
+				FailTimeout:      "10s",
+				UpstreamZoneSize: "256k",
+			},
+		},
+		Server: Server{
+			ServerName:       "cafe.example.com",
+			StatusZone:       "cafe.example.com",
+			OIDCProviderName: "oidc_default_my_provider_default_cafe",
+			VSNamespace:      "default",
+			VSName:           "cafe",
+			Locations: []Location{
+				{
+					Path:             "/",
+					ProxyPass:        "http://test-upstream",
+					OIDCProviderName: "oidc_default_my_provider_default_cafe",
+				},
+				{
+					Path:      "/public",
+					ProxyPass: "http://test-upstream",
+				},
+			},
+		},
+	}
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Errorf("Failed to execute template: %v", err)
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
+}

@@ -35,6 +35,8 @@ type OIDCNativeApplyConfiguration struct {
 	SessionTimeout *string `json:"sessionTimeout,omitempty"`
 	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables.
 	UserInfoEnable *bool `json:"userInfoEnable,omitempty"`
+	// The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt.
+	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 }
 
 // OIDCNativeApplyConfiguration constructs a declarative configuration of the OIDCNative type for use with
@@ -152,5 +154,13 @@ func (b *OIDCNativeApplyConfiguration) WithSessionTimeout(value string) *OIDCNat
 // If called multiple times, the UserInfoEnable field is set to the value of the last call.
 func (b *OIDCNativeApplyConfiguration) WithUserInfoEnable(value bool) *OIDCNativeApplyConfiguration {
 	b.UserInfoEnable = &value
+	return b
+}
+
+// WithTrustedCertSecret sets the TrustedCertSecret field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the TrustedCertSecret field is set to the value of the last call.
+func (b *OIDCNativeApplyConfiguration) WithTrustedCertSecret(value string) *OIDCNativeApplyConfiguration {
+	b.TrustedCertSecret = &value
 	return b
 }

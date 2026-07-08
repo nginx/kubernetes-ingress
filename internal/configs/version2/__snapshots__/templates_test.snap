@@ -4091,6 +4091,100 @@ server {
 
 ---
 
+[TestVirtualServerForNginxPlusWithOIDCNative - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    server 10.0.0.20:8001 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+oidc_provider oidc_default_my_provider_default_cafe {
+    issuer https://accounts.google.com;
+    client_id my-client-id;
+    client_secret my-resolved-secret;
+    scope openid+profile;
+    redirect_uri /callback;
+    logout_uri /logout;
+    post_logout_uri /logged_out;
+    session_timeout 4h;
+    userinfo on;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone cafe.example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+    auth_oidc oidc_default_my_provider_default_cafe;
+
+    server_tokens "";
+
+    
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        auth_oidc oidc_default_my_provider_default_cafe;
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location /public {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxPlusWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {

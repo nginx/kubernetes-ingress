@@ -812,7 +812,41 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		clientSecret = string(secretRef.Secret.Data[ClientSecretKey])
 	}
 
+	// Resolve trusted CA cert if specified.
+	trustedCertPath := ""
+	if oidcNative.TrustedCertSecret != "" {
+		trustedCertKey := fmt.Sprintf("%s/%s", polNamespace, oidcNative.TrustedCertSecret)
+		trustedCertRef, ok := secretRefs[trustedCertKey]
+		if !ok {
+			res.addWarningf("OIDCNative policy %s references a missing trusted cert secret %s", polKey, trustedCertKey)
+			res.isError = true
+			return res
+		}
+		var secretType api_v1.SecretType
+		if trustedCertRef.Secret != nil {
+			secretType = trustedCertRef.Secret.Type
+		}
+		if secretType != "" && secretType != secrets.SecretTypeCA {
+			res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertKey, secretType, secrets.SecretTypeCA)
+			res.isError = true
+			return res
+		}
+		if trustedCertRef.Error != nil {
+			res.addWarningf("OIDCNative policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertKey, trustedCertRef.Error)
+			res.isError = true
+			return res
+		}
+		caFields := strings.Fields(trustedCertRef.Path)
+		if len(caFields) > 0 {
+			trustedCertPath = caFields[0]
+		}
+	}
+
 	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, extractPolicyName(polKey), ownerDetails.parentNamespace, ownerDetails.parentName))
+
+	// Convert + to space in scope for backward compatibility with NJS OIDC format.
+	// The native module's scope directive expects space-separated values.
+	scope := strings.ReplaceAll(oidcNative.Scope, "+", " ")
 
 	p.OIDCProvider = &version2.OIDCProvider{
 		Name:            providerName,
@@ -821,7 +855,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		ClientID:        oidcNative.ClientID,
 		ClientSecret:    clientSecret,
 		ConfigURL:       oidcNative.ConfigURL,
-		Scope:           oidcNative.Scope,
+		Scope:           scope,
 		RedirectURI:     oidcNative.RedirectURI,
 		CookieName:      oidcNative.CookieName,
 		ExtraAuthArgs:   oidcNative.ExtraAuthArgs,
@@ -831,6 +865,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		LogoutTokenHint: oidcNative.LogoutTokenHint,
 		SessionTimeout:  oidcNative.SessionTimeout,
 		UserInfoEnable:  oidcNative.UserInfoEnable,
+		SSLTrustedCert:  trustedCertPath,
 	}
 
 	return res

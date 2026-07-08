@@ -7,62 +7,57 @@ Unlike the NJS-based OIDC implementation, the native module handles the entire A
 ## Prerequisites
 
 - NGINX Plus with the native OIDC module (R33+)
-- NIC built with `-enable-oidc` flag
+- NIC started with `-enable-oidc` flag
 - A TLS secret named `tls-secret` for your domain
-- DNS entries for `webapp.example.com` and `keycloak.example.com`
 
-## Setup
+## Quick Start
 
-### 1. Deploy the NIC ConfigMap with resolver
+### 1. Run the setup script
 
-The native OIDC module requires a DNS resolver to fetch provider metadata:
+This deploys Keycloak, sets up in-cluster DNS resolution, and configures the NIC resolver:
 
 ```console
-kubectl apply -f nginx-config.yaml
+./setup.sh
 ```
 
-### 2. Deploy Keycloak
+### 2. Add hosts entries
 
-```console
-kubectl apply -f keycloak.yaml
-kubectl apply -f virtual-server-idp.yaml
+Add entries to `/etc/hosts` on your machine pointing both hostnames to the NIC external IP:
+
+```text
+<NIC_EXTERNAL_IP>  keycloak.example.com webapp.example.com
 ```
 
 ### 3. Configure Keycloak
 
-Once Keycloak is running, access `https://keycloak.example.com` and:
+Open `https://keycloak.example.com` and log in with `admin`/`admin`, then:
 
-1. Log in with `admin`/`admin`
-2. Create a client:
+1. Create a client:
    - **Client ID**: `nginx-plus`
    - **Client authentication**: On
    - **Valid redirect URIs**: `https://webapp.example.com/oidc_callback`
    - **Valid post logout redirect URIs**: `https://webapp.example.com/*`
-3. Copy the client secret from the **Credentials** tab
+2. Copy the client secret from the **Credentials** tab
 
-### 4. Create the client secret
-
-Base64-encode the client secret and update `client-secret.yaml`:
+### 4. Deploy the policy and webapp
 
 ```console
-echo -n 'your-client-secret' | base64
+CLIENT_SECRET='<paste-secret-here>' ./deploy-policy.sh
 ```
 
-```console
-kubectl apply -f client-secret.yaml
-```
-
-### 5. Deploy the OIDCNative policy and webapp
-
-```console
-kubectl apply -f oidcnative-policy.yaml
-kubectl apply -f webapp.yaml
-kubectl apply -f virtual-server.yaml
-```
-
-### 6. Test
+### 5. Test
 
 Navigate to `https://webapp.example.com`. You should be redirected to Keycloak to log in. After authentication, you'll be redirected back to the webapp.
+
+### 6. Teardown
+
+```console
+./teardown.sh
+```
+
+## How it works
+
+The setup script deploys a lightweight CoreDNS instance that maps `keycloak.example.com` to the Keycloak service ClusterIP. This allows the native OIDC module to resolve the issuer hostname when fetching OpenID Provider metadata and exchanging tokens. The NIC ConfigMap is updated to use this DNS server as its resolver.
 
 ## Key differences from NJS-based OIDC
 

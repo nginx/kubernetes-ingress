@@ -882,6 +882,80 @@ func TestGeneratePolicies(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:         "https://accounts.google.com",
+							ClientID:       "my-client-id",
+							ClientSecret:   "oidc-secret",
+							Scope:          "openid+profile",
+							RedirectURI:    "/callback",
+							LogoutURI:      "/logout",
+							SessionTimeout: "4h",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				OIDCProvider: &version2.OIDCProvider{
+					Name:           "oidc_default_oidc_native_policy_default_test",
+					PolicyKey:      "default/oidc-native-policy",
+					Issuer:         "https://accounts.google.com",
+					ClientID:       "my-client-id",
+					ClientSecret:   "super_secret_123",
+					Scope:          "openid profile",
+					RedirectURI:    "/callback",
+					LogoutURI:      "/logout",
+					SessionTimeout: "4h",
+				},
+			},
+			msg: "oidcNative reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-minimal",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-minimal": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-minimal",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:   "https://keycloak.example.com/realms/master",
+							ClientID: "nginx-plus",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				OIDCProvider: &version2.OIDCProvider{
+					Name:      "oidc_default_oidc_native_minimal_default_test",
+					PolicyKey: "default/oidc-native-minimal",
+					Issuer:    "https://keycloak.example.com/realms/master",
+					ClientID:  "nginx-plus",
+				},
+			},
+			msg: "oidcNative minimal reference without secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "api-key-policy",
 					Namespace: "default",
 				},
@@ -4203,6 +4277,188 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			msg: "oidc pkce no secret no",
 		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "oidc-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[string]*secrets.SecretReference{
+					"default/oidc-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+						},
+						Error: errors.New("secret is invalid"),
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references an invalid secret default/oidc-secret: secret is invalid`,
+				},
+			},
+			msg: "oidcNative referencing invalid secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "oidc-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[string]*secrets.SecretReference{
+					"default/oidc-secret": {
+						Secret: &api_v1.Secret{
+							Type: api_v1.SecretTypeTLS,
+						},
+					},
+				},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references a secret default/oidc-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/oidc'`,
+				},
+			},
+			msg: "oidcNative secret wrong type",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "missing-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[string]*secrets.SecretReference{},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references a missing secret default/missing-secret`,
+				},
+			},
+			msg: "oidcNative missing secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-1",
+					Namespace: "default",
+				},
+				{
+					Name:      "oidc-native-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-1": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:   "https://accounts.google.com",
+							ClientID: "client-1",
+						},
+					},
+				},
+				"default/oidc-native-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:   "https://other.example.com",
+							ClientID: "client-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{},
+			context:    "route",
+			expected: policiesCfg{
+				Context: ctx,
+				OIDCProvider: &version2.OIDCProvider{
+					Name:      "oidc_default_oidc_native_1_default_test",
+					PolicyKey: "default/oidc-native-1",
+					Issuer:    "https://accounts.google.com",
+					ClientID:  "client-1",
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Multiple oidcNative policies in the same context is not valid. OIDCNative policy default/oidc-native-2 will be ignored`,
+				},
+			},
+			msg: "oidcNative duplicate in same context",
+		},
 	}
 
 	for _, test := range tests {
@@ -4316,13 +4572,13 @@ func TestGeneratePolicies_UnsupportedOnIngress(t *testing.T) {
 	policyRef := []conf_v1.PolicyReference{{Name: "test-policy", Namespace: "default"}}
 
 	unsupportedPolicies := map[string]*conf_v1.Policy{
-		"RateLimit": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{}}},
-		"JWTAuth":   {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
-		"BasicAuth": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
-		"OIDC":      {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
-		"OIDCNative":    {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDCNative: &conf_v1.OIDCNative{}}},
-		"APIKey":    {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
-		"Cache":     {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
+		"RateLimit":  {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{}}},
+		"JWTAuth":    {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
+		"BasicAuth":  {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
+		"OIDC":       {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
+		"OIDCNative": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDCNative: &conf_v1.OIDCNative{}}},
+		"APIKey":     {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
+		"Cache":      {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
 	}
 
 	for policyType, pol := range unsupportedPolicies {
