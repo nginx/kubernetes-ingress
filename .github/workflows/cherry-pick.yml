@@ -97,10 +97,11 @@ jobs:
               echo "::add-mask::$line"
             fi
           done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
           {
-            echo "private_key<<GHEOF"
+            echo "private_key<<$delimiter"
             echo "$private_key"
-            echo "GHEOF"
+            echo "$delimiter"
           } >> "$GITHUB_OUTPUT"
 
       - name: Generate GitHub App token
