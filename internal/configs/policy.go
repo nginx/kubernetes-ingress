@@ -844,6 +844,13 @@ func (p *policiesCfg) addOIDCNativeConfig(
 
 	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, extractPolicyName(polKey), ownerDetails.parentNamespace, ownerDetails.parentName))
 
+	// Default redirect URI is derived from the provider name for uniqueness.
+	// User can override via the redirectURI field.
+	redirectURI := oidcNative.RedirectURI
+	if redirectURI == "" {
+		redirectURI = fmt.Sprintf("/oidc_callback_%s", providerName)
+	}
+
 	// Convert + to space in scope for backward compatibility with NJS OIDC format.
 	// The native module's scope directive expects space-separated values.
 	scope := strings.ReplaceAll(oidcNative.Scope, "+", " ")
@@ -856,7 +863,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		ClientSecret:    clientSecret,
 		ConfigURL:       oidcNative.ConfigURL,
 		Scope:           scope,
-		RedirectURI:     oidcNative.RedirectURI,
+		RedirectURI:     redirectURI,
 		CookieName:      oidcNative.CookieName,
 		ExtraAuthArgs:   oidcNative.ExtraAuthArgs,
 		PKCE:            oidcNative.PKCE,

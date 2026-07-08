@@ -945,10 +945,11 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				OIDCProvider: &version2.OIDCProvider{
-					Name:      "oidc_default_oidc_native_minimal_default_test",
-					PolicyKey: "default/oidc-native-minimal",
-					Issuer:    "https://keycloak.example.com/realms/master",
-					ClientID:  "nginx-plus",
+					Name:        "oidc_default_oidc_native_minimal_default_test",
+					PolicyKey:   "default/oidc-native-minimal",
+					Issuer:      "https://keycloak.example.com/realms/master",
+					ClientID:    "nginx-plus",
+					RedirectURI: "/oidc_callback_oidc_default_oidc_native_minimal_default_test",
 				},
 			},
 			msg: "oidcNative minimal reference without secret",
@@ -4446,10 +4447,11 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				OIDCProvider: &version2.OIDCProvider{
-					Name:      "oidc_default_oidc_native_1_default_test",
-					PolicyKey: "default/oidc-native-1",
-					Issuer:    "https://accounts.google.com",
-					ClientID:  "client-1",
+					Name:        "oidc_default_oidc_native_1_default_test",
+					PolicyKey:   "default/oidc-native-1",
+					Issuer:      "https://accounts.google.com",
+					ClientID:    "client-1",
+					RedirectURI: "/oidc_callback_oidc_default_oidc_native_1_default_test",
 				},
 			},
 			expectedWarnings: Warnings{

@@ -4126,6 +4126,9 @@ server {
     server_tokens "";
 
     
+    location = /callback {
+        auth_oidc oidc_default_my_provider_default_cafe;
+    }
 
     
     location / {

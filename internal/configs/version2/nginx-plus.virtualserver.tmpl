@@ -558,6 +558,14 @@ server {
     }
     {{ end }}
 
+    {{- range $p := $.OIDCProviders }}
+    {{- if $p.RedirectURI }}
+    location = {{ $p.RedirectURI }} {
+        auth_oidc {{ $p.Name }};
+    }
+    {{- end }}
+    {{- end }}
+
     {{ range $l := $s.Locations }}
     location {{ $l.Path }} {
         set $service "{{ $l.ServiceName }}";
