@@ -23,12 +23,13 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
 
@@ -46,7 +47,7 @@ jobs:
         shell: bash --noprofile --norc -o pipefail {0}
 
   analyze:
-    if: ${{ needs.checks.outputs.docs_only != 'true' }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (needs.checks.outputs.docs_only != 'true')
     needs: [checks]
     name: Analyze
     permissions:
@@ -54,6 +55,6 @@ jobs:
       contents: read # for actions/checkout to fetch code
       packages: read
       security-events: write # for github/codeql-action/autobuild to send a status report
-    uses: nginxinc/compliance-rules/.github/workflows/codeql.yml@a27656f8f9a8748085b434ebe007f5b572709aad # v0.2
+    uses: nginx/compliance-rules/.github/workflows/codeql.yml@543d32464b56e6a695939f41ba8009cbb10e413a # v0.3.3
     with:
       requested_languages: go,python

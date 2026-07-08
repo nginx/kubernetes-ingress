@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: api-key-policy
+  namespace: cafe
+spec:
+  apiKey:
+    suppliedIn:
+      header:
+      - "X-header-name"
+      query:
+      - "queryName"
+    clientSecret: api-key-client-secret

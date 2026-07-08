@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: TransportServer
+metadata:
+  name: transport-server-invalid-snippet-tcp
+spec:
+  listener:
+    name: tcp-server
+    protocol: TCP
+  serverSnippets: "proxy_upload_rate invalid;"
+  upstreams:
+    - name: tcp-app
+      service: tcp-service
+      port: 3333
+  action:
+    pass: tcp-app

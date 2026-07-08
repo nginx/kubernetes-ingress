@@ -79,12 +79,11 @@ func BenchUpdateEndpoints(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	ingress := createCafeIngressEx()
-	ingresses := []*IngressEx{&ingress}
+	ingresses := []*IngressEx{new(createCafeIngressEx())}
 
 	b.ResetTimer()
 	for range b.N {
-		err := cnf.UpdateEndpoints(ingresses)
+		_, err := cnf.UpdateEndpoints(ingresses)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -101,7 +100,7 @@ func BenchmarkUpdateEndpointsMergeableIngress(b *testing.B) {
 
 	b.ResetTimer()
 	for range b.N {
-		err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
+		_, err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -146,4 +146,12 @@ type NICResourceCounts struct {
 	VariablesRateLimitPolicies int64
 	// CachePolicies is the number of Cache policies managed by NGINX Ingress Controller
 	CachePolicies int64
+	// CORSPolicies is the number of CORS policies managed by NGINX Ingress Controller
+	CORSPolicies int64
+	// ExternalAuthPolicies is the number of ExternalAuth policies managed by NGINX Ingress Controller
+	ExternalAuthPolicies int64
+	// WAFBundleSourceTypes is the deduplicated list of WAF policy bundle source types in use (e.g. "HTTPS", "NIM", "N1C").
+	WAFBundleSourceTypes []string
+	// WAFLogBundleSourceTypes is the deduplicated list of WAF log profile bundle source types in use (e.g. "HTTPS", "NIM", "N1C").
+	WAFLogBundleSourceTypes []string
 }

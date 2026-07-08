@@ -68,7 +68,7 @@ func TestValidateTransportServer_BackupService(t *testing.T) {
 
 	ts := makeTransportServer()
 	ts.Spec.Upstreams[0].Backup = "backup-service"
-	ts.Spec.Upstreams[0].BackupPort = createPointerFromUInt16(5505)
+	ts.Spec.Upstreams[0].BackupPort = new(uint16(5505))
 
 	tsv := createTransportServerValidator()
 
@@ -83,7 +83,7 @@ func TestValidateTransportServer_FailsOnMissingBackupName(t *testing.T) {
 
 	ts := makeTransportServer()
 	// backup name not created, it's nil
-	ts.Spec.Upstreams[0].BackupPort = createPointerFromUInt16(5505)
+	ts.Spec.Upstreams[0].BackupPort = new(uint16(5505))
 
 	tsv := createTransportServerValidator()
 
@@ -119,7 +119,7 @@ func TestValidateTransportServer_FailsOnNotSupportedLBMethodForBackup(t *testing
 
 			ts := makeTransportServer()
 			ts.Spec.Upstreams[0].Backup = "backup-service"
-			ts.Spec.Upstreams[0].BackupPort = createPointerFromUInt16(5505)
+			ts.Spec.Upstreams[0].BackupPort = new(uint16(5505))
 			ts.Spec.Upstreams[0].LoadBalancingMethod = lbMethod
 
 			tsv := createTransportServerValidator()
@@ -924,11 +924,11 @@ func TestValidateUDPUpstreamParameter(t *testing.T) {
 			protocol:  "UDP",
 		},
 		{
-			parameter: createPointerFromInt(0),
+			parameter: new(0),
 			protocol:  "UDP",
 		},
 		{
-			parameter: createPointerFromInt(1),
+			parameter: new(1),
 			protocol:  "UDP",
 		},
 	}
@@ -948,11 +948,11 @@ func TestValidateUDPUpstreamParameter_FailsOnInvalidInput(t *testing.T) {
 		protocol  string
 	}{
 		{
-			parameter: createPointerFromInt(0),
+			parameter: new(0),
 			protocol:  "TCP",
 		},
 		{
-			parameter: createPointerFromInt(-1),
+			parameter: new(-1),
 			protocol:  "UDP",
 		},
 	}

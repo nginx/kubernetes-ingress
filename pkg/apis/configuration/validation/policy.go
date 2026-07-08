@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
@@ -17,90 +18,187 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+// PolicyValidationConfig holds configuration flags needed for policy validation.
+type PolicyValidationConfig struct {
+	IsPlus           bool
+	EnableOIDC       bool
+	EnableAppProtect bool
+	EnableSnippets   bool
+}
+
 // ValidatePolicy validates a Policy.
-func ValidatePolicy(policy *v1.Policy, isPlus, enableOIDC, enableAppProtect bool) error {
-	allErrs := validatePolicySpec(&policy.Spec, field.NewPath("spec"), isPlus, enableOIDC, enableAppProtect)
+func ValidatePolicy(policy *v1.Policy, cfg PolicyValidationConfig) error {
+	allErrs := validatePolicySpec(&policy.Spec, field.NewPath("spec"), cfg)
 	return allErrs.ToAggregate()
 }
 
-func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, isPlus, enableOIDC, enableAppProtect bool) field.ErrorList {
-	allErrs := field.ErrorList{}
+// policyFieldValidator describes how to validate a single policy field.
+type policyFieldValidator struct {
+	// name is the JSON field name used in field paths and error messages.
+	name string
+	// isSet reports whether the policy field is present in the spec.
+	isSet func(*v1.PolicySpec) bool
+	// validate runs field-specific validation and returns any errors.
+	validate func(*v1.PolicySpec, *field.Path, PolicyValidationConfig) field.ErrorList
+	// gateCheck optionally enforces feature-gate prerequisites (e.g. Plus-only).
+	// It returns errors and a bool indicating whether validation should stop early.
+	gateCheck func(*field.Path, PolicyValidationConfig) (errs field.ErrorList, earlyReturn bool)
+}
 
+// policyFields returns the ordered list of policy field validators.
+// Each entry maps a PolicySpec field to its validation logic and any
+// feature-gate prerequisites. The order matches the original validation
+// sequence for consistency.
+func policyFields() []policyFieldValidator {
+	return []policyFieldValidator{
+		{
+			name:  "accessControl",
+			isSet: func(s *v1.PolicySpec) bool { return s.AccessControl != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateAccessControl(s.AccessControl, p.Child("accessControl"))
+			},
+		},
+		{
+			name:  "rateLimit",
+			isSet: func(s *v1.PolicySpec) bool { return s.RateLimit != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateRateLimit(s.RateLimit, p.Child("rateLimit"), cfg.IsPlus)
+			},
+		},
+		{
+			name:  "jwt",
+			isSet: func(s *v1.PolicySpec) bool { return s.JWTAuth != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				if !cfg.IsPlus {
+					return field.ErrorList{field.Forbidden(p.Child("jwt"), "jwt secrets are only supported in NGINX Plus")}, true
+				}
+				return nil, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateJWT(s.JWTAuth, p.Child("jwt"))
+			},
+		},
+		{
+			name:  "basicAuth",
+			isSet: func(s *v1.PolicySpec) bool { return s.BasicAuth != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateBasic(s.BasicAuth, p.Child("basicAuth"))
+			},
+		},
+		{
+			name:  "ingressMTLS",
+			isSet: func(s *v1.PolicySpec) bool { return s.IngressMTLS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateIngressMTLS(s.IngressMTLS, p.Child("ingressMTLS"))
+			},
+		},
+		{
+			name:  "egressMTLS",
+			isSet: func(s *v1.PolicySpec) bool { return s.EgressMTLS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateEgressMTLS(s.EgressMTLS, p.Child("egressMTLS"))
+			},
+		},
+		{
+			name:  "externalAuth",
+			isSet: func(s *v1.PolicySpec) bool { return s.ExternalAuth != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateExternalAuth(s.ExternalAuth, p.Child("externalAuth"), cfg.EnableSnippets)
+			},
+		},
+		{
+			name:  "oidc",
+			isSet: func(s *v1.PolicySpec) bool { return s.OIDC != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				var errs field.ErrorList
+				if !cfg.EnableOIDC {
+					errs = append(errs, field.Forbidden(p.Child("oidc"),
+						"OIDC must be enabled via cli argument -enable-oidc to use OIDC policy"))
+				}
+				if !cfg.IsPlus {
+					errs = append(errs, field.Forbidden(p.Child("oidc"), "OIDC is only supported in NGINX Plus"))
+					return errs, true
+				}
+				return errs, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateOIDC(s.OIDC, p.Child("oidc"))
+			},
+		},
+		{
+			name:  "apiKey",
+			isSet: func(s *v1.PolicySpec) bool { return s.APIKey != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateAPIKey(s.APIKey, p.Child("apiKey"))
+			},
+		},
+		{
+			name:  "waf",
+			isSet: func(s *v1.PolicySpec) bool { return s.WAF != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				var errs field.ErrorList
+				if !cfg.IsPlus {
+					errs = append(errs, field.Forbidden(p.Child("waf"), "WAF is only supported in NGINX Plus"))
+				}
+				if !cfg.EnableAppProtect {
+					errs = append(errs, field.Forbidden(p.Child("waf"),
+						"App Protect must be enabled via cli argument -enable-app-protect to use WAF policy"))
+				}
+				return errs, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateWAF(s.WAF, p.Child("waf"))
+			},
+		},
+		{
+			name:  "cache",
+			isSet: func(s *v1.PolicySpec) bool { return s.Cache != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+				return validateCache(s.Cache, p.Child("cache"), cfg.IsPlus)
+			},
+		},
+		{
+			name:  "cors",
+			isSet: func(s *v1.PolicySpec) bool { return s.CORS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateCORS(s.CORS, p.Child("cors"))
+			},
+		},
+		{
+			name:  "hsts",
+			isSet: func(s *v1.PolicySpec) bool { return s.HSTS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateHSTS(s.HSTS, p.Child("hsts"))
+			},
+		},
+	}
+}
+
+func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyValidationConfig) field.ErrorList {
+	var allErrs field.ErrorList
 	fieldCount := 0
 
-	if spec.AccessControl != nil {
-		allErrs = append(allErrs, validateAccessControl(spec.AccessControl, fieldPath.Child("accessControl"))...)
-		fieldCount++
-	}
-
-	if spec.RateLimit != nil {
-		allErrs = append(allErrs, validateRateLimit(spec.RateLimit, fieldPath.Child("rateLimit"), isPlus)...)
-		fieldCount++
-	}
-
-	if spec.JWTAuth != nil {
-		if !isPlus {
-			return append(allErrs, field.Forbidden(fieldPath.Child("jwt"), "jwt secrets are only supported in NGINX Plus"))
+	for _, pf := range policyFields() {
+		if !pf.isSet(spec) {
+			continue
 		}
 
-		allErrs = append(allErrs, validateJWT(spec.JWTAuth, fieldPath.Child("jwt"))...)
-		fieldCount++
-	}
-
-	if spec.BasicAuth != nil {
-		allErrs = append(allErrs, validateBasic(spec.BasicAuth, fieldPath.Child("basicAuth"))...)
-		fieldCount++
-	}
-
-	if spec.IngressMTLS != nil {
-		allErrs = append(allErrs, validateIngressMTLS(spec.IngressMTLS, fieldPath.Child("ingressMTLS"))...)
-		fieldCount++
-	}
-
-	if spec.EgressMTLS != nil {
-		allErrs = append(allErrs, validateEgressMTLS(spec.EgressMTLS, fieldPath.Child("egressMTLS"))...)
-		fieldCount++
-	}
-
-	if spec.OIDC != nil {
-		if !enableOIDC {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("oidc"),
-				"OIDC must be enabled via cli argument -enable-oidc to use OIDC policy"))
-		}
-		if !isPlus {
-			return append(allErrs, field.Forbidden(fieldPath.Child("oidc"), "OIDC is only supported in NGINX Plus"))
+		// Check feature-gate prerequisites before running validation.
+		if pf.gateCheck != nil {
+			gateErrs, earlyReturn := pf.gateCheck(fieldPath, cfg)
+			allErrs = append(allErrs, gateErrs...)
+			if earlyReturn {
+				return allErrs
+			}
 		}
 
-		allErrs = append(allErrs, validateOIDC(spec.OIDC, fieldPath.Child("oidc"))...)
-		fieldCount++
-	}
-
-	if spec.APIKey != nil {
-		allErrs = append(allErrs, validateAPIKey(spec.APIKey, fieldPath.Child("apiKey"))...)
-		fieldCount++
-	}
-
-	if spec.WAF != nil {
-		if !isPlus {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"), "WAF is only supported in NGINX Plus"))
-		}
-		if !enableAppProtect {
-			allErrs = append(allErrs, field.Forbidden(fieldPath.Child("waf"),
-				"App Protect must be enabled via cli argument -enable-app-protect to use WAF policy"))
-		}
-
-		allErrs = append(allErrs, validateWAF(spec.WAF, fieldPath.Child("waf"))...)
-		fieldCount++
-	}
-
-	if spec.Cache != nil {
-		allErrs = append(allErrs, validateCache(spec.Cache, fieldPath.Child("cache"), isPlus)...)
+		allErrs = append(allErrs, pf.validate(spec, fieldPath, cfg)...)
 		fieldCount++
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`"
-		if isPlus {
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
+		if cfg.IsPlus {
 			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
 		}
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
@@ -390,15 +488,29 @@ func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
 
 func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	bundleMode := waf.ApBundle != ""
 
-	// WAF Policy references either apPolicy or apBundle.
-	if waf.ApPolicy != "" && waf.ApBundle != "" {
-		msg := "apPolicy and apBundle fields in the WAF policy are mutually exclusive"
-		allErrs = append(allErrs,
-			field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg),
-			field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg),
-		)
+	// Three-way mutual exclusivity.
+	setCount := 0
+	if waf.ApPolicy != "" {
+		setCount++
+	}
+	if waf.ApBundle != "" {
+		setCount++
+	}
+	if waf.ApBundleSource != nil {
+		setCount++
+	}
+	if setCount > 1 {
+		msg := "apPolicy, apBundle, and apBundleSource are mutually exclusive"
+		if waf.ApPolicy != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg))
+		}
+		if waf.ApBundle != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg))
+		}
+		if waf.ApBundleSource != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundleSource"), waf.ApBundleSource.URL, msg))
+		}
 	}
 
 	if waf.ApPolicy != "" {
@@ -407,11 +519,17 @@ func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 		}
 	}
 
-	if bundleMode {
+	if waf.ApBundle != "" {
 		for _, msg := range validation.IsQualifiedName(waf.ApBundle) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg))
 		}
 	}
+
+	if waf.ApBundleSource != nil {
+		allErrs = append(allErrs, validateBundleSource(waf.ApBundleSource, fieldPath.Child("apBundleSource"))...)
+	}
+
+	bundleMode := waf.ApBundle != "" || waf.ApBundleSource != nil
 
 	if waf.SecurityLog != nil {
 		allErrs = append(allErrs, validateLogConf(waf.SecurityLog, fieldPath.Child("securityLog"), bundleMode)...)
@@ -430,6 +548,116 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 		allErrs = append(allErrs, validateLogConf(logs[i], fieldPath.Index(i), bundleMode)...)
 	}
 
+	return allErrs
+}
+
+const minBundlePollInterval = 1 * time.Minute
+
+// validateBundleSource validates a BundleSource. CEL rules on the CRD handle structural
+// constraints; this is a secondary layer for rules CEL cannot express (duration minimums).
+func validateBundleSource(bs *v1.BundleSource, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	srcType := bs.Type
+	if srcType == "" {
+		srcType = v1.BundleSourceTypeHTTPS
+	}
+
+	if bs.URL == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("url"), "url is required"))
+		return allErrs
+	}
+	allErrs = append(allErrs, validateBundleSourceURL(bs.URL, fieldPath.Child("url"))...)
+
+	typeErrs, earlyReturn := validateBundleSourceType(bs, srcType, fieldPath)
+	allErrs = append(allErrs, typeErrs...)
+	if earlyReturn {
+		return allErrs
+	}
+
+	if bs.Secret != "" {
+		allErrs = append(allErrs, validateSecretName(bs.Secret, fieldPath.Child("secret"))...)
+	}
+	if bs.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(bs.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+	}
+
+	if bs.EnablePolling && bs.PollInterval != nil && bs.PollInterval.Duration < minBundlePollInterval {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("pollInterval"), bs.PollInterval,
+			fmt.Sprintf("pollInterval must be at least %v when enablePolling is true", minBundlePollInterval)))
+	}
+	if bs.Timeout != nil && bs.Timeout.Duration <= 0 {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("timeout"), bs.Timeout, "timeout must be positive"))
+	}
+
+	return allErrs
+}
+
+// validateBundleSourceType validates type-specific field requirements for a BundleSource.
+func validateBundleSourceType(bs *v1.BundleSource, srcType v1.BundleSourceType, fieldPath *field.Path) (field.ErrorList, bool) {
+	allErrs := field.ErrorList{}
+
+	switch srcType {
+	case v1.BundleSourceTypeHTTPS:
+		if bs.PolicyName != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyName"), bs.PolicyName, "policyName is only valid for NIM and N1C"))
+		}
+		if bs.PolicyNamespace != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyNamespace"), bs.PolicyNamespace, "policyNamespace is only valid for N1C"))
+		}
+	case v1.BundleSourceTypeNIM:
+		if bs.PolicyName == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("policyName"), "policyName is required for NIM"))
+		} else if containsDangerousChars(bs.PolicyName) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyName"), bs.PolicyName, "policyName contains dangerous characters"))
+		}
+		if bs.PolicyNamespace != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyNamespace"), bs.PolicyNamespace, "policyNamespace is only valid for N1C"))
+		}
+		if bs.VerifyChecksum {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("verifyChecksum"), bs.VerifyChecksum, "verifyChecksum is only supported for HTTPS type"))
+		}
+	case v1.BundleSourceTypeN1C:
+		if bs.PolicyName == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("policyName"), "policyName is required for N1C"))
+		} else if containsDangerousChars(bs.PolicyName) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyName"), bs.PolicyName, "policyName contains dangerous characters"))
+		}
+		if bs.PolicyNamespace == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("policyNamespace"), "policyNamespace is required for N1C"))
+		} else if containsDangerousChars(bs.PolicyNamespace) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyNamespace"), bs.PolicyNamespace, "policyNamespace contains dangerous characters"))
+		}
+		if bs.VerifyChecksum {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("verifyChecksum"), bs.VerifyChecksum, "verifyChecksum is only supported for HTTPS type"))
+		}
+	default:
+		allErrs = append(allErrs, field.NotSupported(fieldPath.Child("type"), srcType,
+			[]string{string(v1.BundleSourceTypeHTTPS), string(v1.BundleSourceTypeNIM), string(v1.BundleSourceTypeN1C)}))
+		return allErrs, true
+	}
+
+	return allErrs, false
+}
+
+// validateBundleSourceURL checks that a URL is well-formed HTTPS with no dangerous characters.
+func validateBundleSourceURL(rawURL string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if containsDangerousChars(rawURL) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url contains dangerous characters"))
+		return allErrs
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, fmt.Sprintf("invalid URL: %v", err)))
+		return allErrs
+	}
+	if parsed.Scheme != "https" {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url must use https://"))
+	}
+	if parsed.Host == "" {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url must contain a host"))
+	}
 	return allErrs
 }
 
@@ -618,17 +846,33 @@ func validateCacheUseStale(cache *v1.Cache, fieldPath *field.Path) field.ErrorLi
 func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if logConf.ApLogConf != "" && logConf.ApLogBundle != "" {
-		msg := "apLogConf and apLogBundle fields in the securityLog are mutually exclusive"
-		allErrs = append(allErrs,
-			field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg),
-			field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg),
-		)
+	// Three-way mutual exclusivity.
+	setCount := 0
+	if logConf.ApLogConf != "" {
+		setCount++
+	}
+	if logConf.ApLogBundle != "" {
+		setCount++
+	}
+	if logConf.ApLogBundleSource != nil {
+		setCount++
+	}
+	if setCount > 1 {
+		msg := "apLogConf, apLogBundle, and apLogBundleSource are mutually exclusive"
+		if logConf.ApLogConf != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg))
+		}
+		if logConf.ApLogBundle != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg))
+		}
+		if logConf.ApLogBundleSource != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundleSource"), logConf.ApLogBundleSource.URL, msg))
+		}
 	}
 
 	if logConf.ApLogConf != "" {
 		if bundleMode {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, "apLogConf is not supported with apBundle"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, "apLogConf is not supported with apBundle or apBundleSource"))
 		}
 		for _, msg := range validation.IsQualifiedName(logConf.ApLogConf) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg))
@@ -637,11 +881,19 @@ func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode 
 
 	if logConf.ApLogBundle != "" {
 		if !bundleMode {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, "apLogBundle is not supported with apPolicy"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, "apLogBundle is not supported with apPolicy"))
 		}
 		for _, msg := range validation.IsQualifiedName(logConf.ApLogBundle) {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundle"), logConf.ApLogBundle, msg))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg))
 		}
+	}
+
+	if logConf.ApLogBundleSource != nil {
+		if !bundleMode {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundleSource"), logConf.ApLogBundleSource.URL,
+				"apLogBundleSource requires the parent WAF to use apBundle or apBundleSource"))
+		}
+		allErrs = append(allErrs, validateBundleSource(logConf.ApLogBundleSource, fieldPath.Child("apLogBundleSource"))...)
 	}
 
 	err := ValidateAppProtectLogDestination(logConf.LogDest)
@@ -657,8 +909,8 @@ func validateClientID(client string, fieldPath *field.Path) field.ErrorList {
 		return field.ErrorList{field.Invalid(
 			fieldPath,
 			client,
-			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'
-		`)}
+			`invalid string. String must contain valid ASCII characters, must have all '"' escaped and must not contain any '$' or end with an unescaped '\'`,
+		)}
 	}
 	return nil
 }
@@ -924,4 +1176,445 @@ func validatePositiveInt(n int, fieldPath *field.Path) field.ErrorList {
 		return field.ErrorList{field.Invalid(fieldPath, n, "must be positive")}
 	}
 	return nil
+}
+
+func validateCORS(cors *v1.CORS, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate origins
+	allErrs = append(allErrs, validateCORSOrigins(cors.AllowOrigin, fieldPath.Child("allowOrigin"))...)
+
+	// Validate allow headers
+	allErrs = append(allErrs, validateCORSAllowHeaders(cors.AllowHeaders, fieldPath.Child("allowHeaders"))...)
+
+	// Validate methods
+	allErrs = append(allErrs, validateCORSMethods(cors.AllowMethods, fieldPath.Child("allowMethods"))...)
+
+	// Validate expose headers
+	allErrs = append(allErrs, validateCORSExposeHeaders(cors.ExposeHeaders, fieldPath.Child("exposeHeaders"))...)
+
+	return allErrs
+}
+
+// validateCORSOrigins validates the allowOrigin field
+func validateCORSOrigins(origins []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	originSet := make(map[string]int) // Track origins and their first occurrence index
+
+	for i, origin := range origins {
+		// Check for duplicates
+		if firstIndex, exists := originSet[origin]; exists {
+			allErrs = append(allErrs, field.Duplicate(fieldPath.Index(i),
+				fmt.Sprintf("origin '%s' already specified at index %d, duplicates cause nginx configuration conflicts", origin, firstIndex)))
+		} else {
+			originSet[origin] = i
+		}
+
+		// Validate origin format - must be wildcard, exact URL, or wildcard subdomain pattern
+		if err := validateOriginFormat(origin); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), origin, err.Error()))
+		}
+
+		// Check for dangerous characters that could cause nginx injection
+		if containsDangerousChars(origin) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), origin, "origin contains dangerous characters that could cause nginx configuration injection"))
+		}
+	}
+
+	return allErrs
+}
+
+// validateOriginFormat validates a single origin format
+func validateOriginFormat(origin string) error {
+	// Global wildcard
+	if origin == "*" {
+		return nil
+	}
+
+	parsedOrigin, err := url.Parse(origin)
+	if err != nil {
+		return fmt.Errorf("invalid origin URL format")
+	}
+
+	if err := validateParsedOriginBase(parsedOrigin); err != nil {
+		return err
+	}
+
+	host := parsedOrigin.Host
+	if strings.HasPrefix(host, "*.") {
+		return validateWildcardOriginHost(origin, host)
+	}
+
+	return validateExactOriginHost(host)
+}
+
+func validateParsedOriginBase(parsedOrigin *url.URL) error {
+	// Must have protocol
+	if parsedOrigin.Scheme != "http" && parsedOrigin.Scheme != "https" {
+		return fmt.Errorf("origin must start with http:// or https:// (or be '*')")
+	}
+
+	// Origin must contain only scheme://host[:port]
+	if parsedOrigin.Host == "" {
+		return fmt.Errorf("origin host cannot be empty")
+	}
+	if parsedOrigin.User != nil {
+		return fmt.Errorf("origin must not include @")
+	}
+	if parsedOrigin.Path != "" && parsedOrigin.Path != "/" {
+		return fmt.Errorf("origin must not include a path")
+	}
+	if parsedOrigin.RawQuery != "" {
+		return fmt.Errorf("origin must not include query parameters")
+	}
+	if parsedOrigin.Fragment != "" {
+		return fmt.Errorf("origin must not include a fragment")
+	}
+
+	return nil
+}
+
+func validateWildcardOriginHost(origin, host string) error {
+	// Validate wildcard subdomain format
+	domain := host[2:] // Remove "*."
+	if domain == "" {
+		return fmt.Errorf("wildcard subdomain cannot be empty (invalid format: %s)", origin)
+	}
+
+	// Ensure domain doesn't contain additional wildcards
+	if strings.Contains(domain, "*") {
+		return fmt.Errorf("only single-level wildcard subdomains are supported (invalid: %s)", origin)
+	}
+
+	// Split domain and port if port exists
+	domainPart, port, hasPort := strings.Cut(domain, ":")
+	if hasPort {
+		if port == "" {
+			return fmt.Errorf("port cannot be empty when colon is present (invalid: %s)", origin)
+		}
+		// Validate port is numeric and in valid range
+		if _, err := strconv.Atoi(port); err != nil {
+			return fmt.Errorf("port must be numeric (invalid: %s)", origin)
+		}
+	}
+
+	// Validate domain part using Kubernetes DNS validation
+	if errs := validation.IsDNS1123Subdomain(domainPart); len(errs) > 0 {
+		return fmt.Errorf("wildcard subdomain is not a valid DNS name: %s (invalid: %s)", strings.Join(errs, ", "), origin)
+	}
+
+	return nil
+}
+
+func validateExactOriginHost(host string) error {
+	// For exact origins, basic validation that host is not empty
+	if host == "" {
+		return fmt.Errorf("origin host cannot be empty")
+	}
+
+	// Check for any wildcards in non-wildcard origins
+	if strings.Contains(host, "*") {
+		return fmt.Errorf("wildcards are only supported in subdomain format (*.domain.com), not in other positions")
+	}
+
+	return nil
+}
+
+// validateCORSAllowHeaders validates the allowHeaders field
+func validateCORSAllowHeaders(headers []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard value for
+		// Access-Control-Allow-Headers. Browser handling may differ when
+		// credentials are used, but that is not enforced by this validator.
+		if header == "*" {
+			continue
+		}
+
+		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
+
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
+		if strings.Contains(header, "*") {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
+		}
+
+		// Check for forbidden request headers that cannot be set by JavaScript
+		if isForbiddenRequestHeader(header) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "forbidden request header cannot be set by JavaScript and should not be listed in allowHeaders"))
+		}
+	}
+
+	return allErrs
+}
+
+// validateCORSMethods validates the allowMethods field
+func validateCORSMethods(methods []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	validMethods := map[string]bool{"GET": true, "HEAD": true, "POST": true, "PUT": true, "DELETE": true, "OPTIONS": true, "PATCH": true}
+	hasGet := false
+	hasHead := false
+
+	for i, method := range methods {
+		// Check for dangerous characters
+		if containsDangerousChars(method) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), method, "method contains dangerous characters that could cause nginx configuration injection"))
+		}
+
+		// Check for valid HTTP methods using map lookup (O(1) vs O(n))
+		if !validMethods[method] {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), method, "allowed methods must be valid HTTP methods"))
+		}
+
+		// Track GET/HEAD for redundancy check
+		switch method {
+		case "GET":
+			hasGet = true
+		case "HEAD":
+			hasHead = true
+		}
+	}
+
+	// Check for redundant HEAD method when GET is present
+	if hasGet && hasHead && len(methods) > 1 {
+		allErrs = append(allErrs, field.Invalid(fieldPath, methods, "HEAD method should not be explicitly listed when GET is present as browsers automatically support HEAD for GET endpoints"))
+	}
+
+	return allErrs
+}
+
+// validateCORSExposeHeaders validates the exposeHeaders field
+func validateCORSExposeHeaders(headers []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard for
+		// Access-Control-Expose-Headers. Browsers apply additional CORS
+		// semantics for credentialed requests; that behavior is not enforced
+		// by this validator.
+		if header == "*" {
+			continue
+		}
+
+		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
+
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
+		if strings.Contains(header, "*") {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
+		}
+
+		// Check for forbidden response headers that cannot be exposed
+		if isForbiddenResponseHeader(header) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "forbidden response header cannot be exposed via CORS and should not be listed in exposeHeaders"))
+		}
+	}
+
+	return allErrs
+}
+
+// validateHeaderName validates a header name for RFC compliance and security
+func validateHeaderName(header string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if !isValidHeaderName(header) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, header, "RFC 7230 violation: invalid header name, must contain only letters, digits, hyphens"))
+	}
+
+	// Check for dangerous characters that could cause nginx injection
+	if containsDangerousChars(header) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, header, "header name contains dangerous characters that could cause nginx configuration injection"))
+	}
+
+	return allErrs
+}
+
+// isForbiddenRequestHeader checks if a header is forbidden for request headers according to MDN spec
+// https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header
+func isForbiddenRequestHeader(header string) bool {
+	lower := strings.ToLower(header)
+
+	// Map of forbidden request headers that browsers control (as per MDN spec) for O(1) lookup
+	forbiddenHeaders := map[string]bool{
+		"accept-charset": true, "accept-encoding": true, "access-control-request-headers": true, "access-control-request-method": true,
+		"connection": true, "content-length": true, "cookie": true, "date": true, "dnt": true, "expect": true, "host": true, "keep-alive": true,
+		"origin": true, "referer": true, "set-cookie": true, "te": true, "trailer": true, "transfer-encoding": true, "upgrade": true, "via": true,
+	}
+
+	if forbiddenHeaders[lower] {
+		return true
+	}
+
+	// Headers starting with proxy- or sec- are also forbidden per MDN spec
+	return strings.HasPrefix(lower, "proxy-") || strings.HasPrefix(lower, "sec-")
+}
+
+// isForbiddenResponseHeader checks if a header is forbidden for response headers according to CORS spec
+func isForbiddenResponseHeader(header string) bool {
+	lower := strings.ToLower(header)
+
+	// Set-Cookie headers cannot be exposed via CORS (per MDN specification)
+	return lower == "set-cookie" || lower == "set-cookie2"
+}
+
+// containsDangerousChars checks if a string contains characters that could cause nginx injection
+func containsDangerousChars(value string) bool {
+	// Map of dangerous characters for O(1) lookup per character
+	dangerousChars := map[rune]bool{
+		';':  true, // End nginx directive - NEVER ALLOWED
+		'{':  true, // Start nginx block - NEVER ALLOWED
+		'}':  true, // End nginx block - NEVER ALLOWED
+		'\n': true, // Line break - NEVER ALLOWED
+		'\r': true, // Carriage return - NEVER ALLOWED
+		'$':  true, // Variable expansion in nginx - NEVER ALLOWED
+		'`':  true, // Command substitution - NEVER ALLOWED
+	}
+
+	for _, char := range value {
+		if dangerousChars[char] {
+			return true
+		}
+	}
+	return false
+}
+
+func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, enableSnippets bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	// Validate AuthSnippets requires enableSnippets
+	if externalAuth.AuthSnippets != "" && !enableSnippets {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("authSnippets"),
+			"snippets must be enabled via cli argument -enable-snippets to use authSnippets"))
+	}
+
+	// Validate AuthURI
+	allErrs = append(allErrs, validateAuthURI(externalAuth.AuthURI, fieldPath.Child("authURI"))...)
+
+	// Validate AuthServiceName
+	parts := strings.Split(externalAuth.AuthServiceName, "/")
+	if len(parts) > 2 || len(parts) < 1 {
+		return field.ErrorList{field.Invalid(fieldPath, externalAuth.AuthServiceName, "service reference must be in the format service-name or namespace/service-name")}
+	}
+	ns := ""
+	if len(parts) == 2 {
+		ns = parts[0]
+	}
+	name := parts[len(parts)-1]
+	if ns != "" {
+		allErrs = append(allErrs, validateDNS1123Label(ns, fieldPath.Child("authServiceName").Child("namespace"))...)
+	}
+	allErrs = append(allErrs, validateServiceName(name, fieldPath.Child("authServiceName").Child("name"))...)
+
+	// Validate AuthServicePorts
+	allErrs = append(allErrs, validateServicePorts(externalAuth.AuthServicePorts, fieldPath.Child("authServicePorts"))...)
+
+	// Validate AuthSigninURI
+	if externalAuth.AuthSigninURI != "" {
+		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninURI, fieldPath.Child("authSigninURI"))...)
+	}
+
+	// Validate AuthSigninRedirectBasePath
+	if externalAuth.AuthSigninRedirectBasePath != "" {
+		allErrs = append(allErrs, validateAuthURI(externalAuth.AuthSigninRedirectBasePath, fieldPath.Child("authSigninRedirectBasePath"))...)
+	}
+
+	// Validate SSL fields
+	allErrs = append(allErrs, validateExternalAuthSSLFields(externalAuth, fieldPath)...)
+
+	return allErrs
+}
+
+// validateExternalAuthSSLFields validates the SSL-related fields of an ExternalAuth policy.
+func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if externalAuth.SSLVerify && !externalAuth.SSLEnabled {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerify"), externalAuth.SSLVerify, "sslEnabled must be true when sslVerify is true"))
+	}
+
+	if externalAuth.TrustedCertSecret != "" {
+		if !externalAuth.SSLEnabled {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslEnabled must be true when trustedCertSecret is set"))
+		}
+		if !externalAuth.SSLVerify {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("trustedCertSecret"), externalAuth.TrustedCertSecret, "sslVerify must be true when trustedCertSecret is set"))
+		}
+		parts := strings.Split(externalAuth.TrustedCertSecret, "/")
+		if len(parts) > 2 || len(parts) < 1 {
+			return field.ErrorList{field.Invalid(fieldPath, externalAuth.TrustedCertSecret, "secret reference must be in the format secret-name or namespace/secret-name")}
+		}
+		ns := ""
+		if len(parts) == 2 {
+			ns = parts[0]
+		}
+		name := parts[len(parts)-1]
+		if ns != "" {
+			allErrs = append(allErrs, validateDNS1123Label(ns, fieldPath.Child("trustedCertSecret").Child("namespace"))...)
+		}
+		allErrs = append(allErrs, validateSecretName(name, fieldPath.Child("trustedCertSecret"))...)
+	}
+
+	if externalAuth.SNIName != "" && containsDangerousChars(externalAuth.SNIName) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniName"), externalAuth.SNIName, "contains invalid characters"))
+	}
+
+	if externalAuth.SSLVerifyDepth != nil {
+		if *externalAuth.SSLVerifyDepth < 0 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerifyDepth"), *externalAuth.SSLVerifyDepth, "must be a non-negative integer"))
+		}
+	}
+
+	return allErrs
+}
+
+func validateHSTS(hsts *v1.HSTS, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	const minAgeValueForPreload = 31536000
+
+	if hsts.MaxAge == nil {
+		return append(allErrs, field.Required(fieldPath.Child("maxAge"), "maxAge is required for HSTS policy"))
+	}
+
+	allErrs = append(allErrs, validatePositiveIntOrZero(*hsts.MaxAge, fieldPath.Child("maxAge"))...)
+
+	if hsts.Preload {
+		if !hsts.IncludeSubDomains {
+			allErrs = append(allErrs, field.Invalid(
+				fieldPath.Child("preload"), hsts.Preload,
+				"preload requires includeSubDomains to be enabled",
+			))
+		}
+
+		if *hsts.MaxAge < minAgeValueForPreload {
+			allErrs = append(allErrs, field.Invalid(
+				fieldPath.Child("preload"), hsts.Preload,
+				"preload requires maxAge to be at least 31536000 (one year)",
+			))
+		}
+	}
+
+	return allErrs
+}
+
+// validateServicePorts validates the authServicePorts field to ensure it contains valid port numbers
+func validateServicePorts(ports []int, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	for i, port := range ports {
+		allErrs = append(allErrs, validatePortNumber(strconv.Itoa(port), fieldPath.Index(i))...)
+	}
+	return allErrs
+}
+
+// validateAuthURI validates that the authURI is a valid path and not empty
+func validateAuthURI(authURI string, child *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if authURI == "" {
+		return append(allErrs, field.Required(child, "authURI is required"))
+	}
+
+	allErrs = append(allErrs, validatePath(authURI, child)...)
+
+	return allErrs
 }

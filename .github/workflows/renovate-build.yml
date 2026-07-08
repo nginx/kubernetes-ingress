@@ -21,21 +21,24 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       generate: ${{ steps.filter.outputs.generate }}
+      helm: ${{ steps.filter.outputs.helm }}
     permissions:
       pull-requests: read
-    if: ${{ github.actor == 'renovate[bot]' }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (github.actor == 'renovate[bot]')
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Check for changes
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
           filters: |
             generate:
             - go.mod
             - go.sum
+            helm:
+            - '.github/workflows/*.yml'
 
   build:
     name: Build for renovate PRs
@@ -44,10 +47,12 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    if: ${{ needs.check.outputs.generate == 'true' }}
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' &&
+      (needs.check.outputs.generate == 'true' || needs.check.outputs.helm == 'true')
     steps:
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
@@ -62,7 +67,7 @@ jobs:
           echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
 
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.head_ref }}
           token: ${{ steps.secrets.outputs.NGINX_PAT }}
@@ -77,7 +82,7 @@ jobs:
           echo "GOPROXY=${GOPROXY_VALUE}" >> $GITHUB_ENV
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
 
@@ -86,6 +91,25 @@ jobs:
         run: |
           make update-crds
           make update-codegen
+        if: needs.check.outputs.generate == 'true'
+
+      - name: Check for Helm version changes
+        id: helm-diff
+        run: |
+          if git diff "origin/${{ github.base_ref }}..HEAD" -- '.github/workflows/*.yml' | grep -q 'depName=helm/helm'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        if: needs.check.outputs.helm == 'true'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
+        if: steps.helm-diff.outputs.changed == 'true'
+
+      - name: Update snapshots
+        run: make test-update-snaps
+        if: steps.helm-diff.outputs.changed == 'true'
 
       - name: Commit changes
         id: commit

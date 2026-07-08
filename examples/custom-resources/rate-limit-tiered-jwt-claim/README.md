@@ -24,7 +24,13 @@ limit for the group.
 
 ## Step 1 - Deploy a Web Application
 
-Create the application deployments and services:
+1. Create the secret with the TLS certificate and key:
+
+```console
+kubectl create -f cafe-secret.yaml
+```
+
+1. Create the application deployments and services:
 
 ```console
 kubectl apply -f coffee.yaml

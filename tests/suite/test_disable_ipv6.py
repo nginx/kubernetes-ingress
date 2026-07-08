@@ -12,10 +12,10 @@ from suite.utils.resources_utils import (
     get_ingress_nginx_template_conf,
     get_nginx_template_conf,
     get_ts_nginx_template_conf,
+    get_vs_nginx_template_conf,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf
 from suite.utils.yaml_utils import get_name_from_yaml
 
 

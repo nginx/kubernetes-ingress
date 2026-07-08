@@ -15,13 +15,13 @@ func TestMain(m *testing.M) {
 	v := m.Run()
 
 	// After all tests have run `go-snaps` will sort snapshots
-	snaps.Clean(m, snaps.CleanOpts{Sort: true})
+	_, err := snaps.Clean(m, snaps.CleanOpts{Sort: true})
+	if err != nil {
+		// Log but don't fail - this is cleanup
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to clean snapshots: %v\n", err)
+	}
 
 	os.Exit(v)
-}
-
-func createPointerFromInt(n int) *int {
-	return &n
 }
 
 func newTmplExecutorNGINXPlus(t *testing.T) *TemplateExecutor {
@@ -746,8 +746,8 @@ func tsConfig() TransportServerConfig {
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -983,6 +983,142 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSAtServerLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("Strict-Transport-Security")) {
+		t.Error("want Strict-Transport-Security directive, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=2592000")) {
+		t.Error("want max-age=2592000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSBehindProxy(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSBehindProxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("http_x_forwarded_proto")) {
+		t.Error("want X-Forwarded-Proto condition, got none")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSPreload(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSPreload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("preload")) {
+		t.Error("want preload in header value, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=31536000")) {
+		t.Error("want max-age=31536000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSAtLocationLevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(got)
+	locationIdx := strings.Index(content, "location /")
+	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
+	if hstsIdx == -1 {
+		t.Error("want Strict-Transport-Security inside location block, got none")
+	}
+	snaps.MatchSnapshot(t, content)
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtServerLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("Strict-Transport-Security")) {
+		t.Error("want Strict-Transport-Security directive, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=2592000")) {
+		t.Error("want max-age=2592000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSBehindProxy(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSBehindProxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("http_x_forwarded_proto")) {
+		t.Error("want X-Forwarded-Proto condition, got none")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSPreload(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSPreload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("preload")) {
+		t.Error("want preload in header value, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=31536000")) {
+		t.Error("want max-age=31536000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtLocationLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSAtLocationLevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(got)
+	locationIdx := strings.Index(content, "location /")
+	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
+	if hstsIdx == -1 {
+		t.Error("want Strict-Transport-Security inside location block, got none")
+	}
+	snaps.MatchSnapshot(t, content)
 }
 
 func TestExecuteVirtualServerTemplateWithNGINXDebugLevelDebug(t *testing.T) {
@@ -1391,7 +1527,7 @@ func vsConfig() VirtualServerConfig {
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -1754,7 +1890,7 @@ var (
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -2104,7 +2240,7 @@ var (
 					Port:        50,
 					ProxyPass:   "http://tea-v2",
 					GRPCPass:    "grpc://tea-v3",
-					GRPCStatus:  createPointerFromInt(12),
+					GRPCStatus:  new(12),
 					GRPCService: "tea-servicev2",
 					IsGRPC:      true,
 				},
@@ -3058,7 +3194,77 @@ var (
 			},
 		},
 	}
-
+	virtualServerCfgWithHSTS = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{
+				MaxAge:            2592000,
+				IncludeSubDomains: true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSBehindProxy = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			HSTS: &HSTS{
+				MaxAge:      2592000,
+				BehindProxy: true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSPreload = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{
+				MaxAge:            31536000,
+				IncludeSubDomains: true,
+				Preload:           true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSAtLocationLevel = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "upstream",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.1:8080"},
+				},
+			},
+		},
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{MaxAge: 2592000},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://upstream",
+					AddHeaders: []AddHeader{
+						{Header: Header{Name: "X-Custom", Value: "value"}, Always: true},
+					},
+					HSTS: &HSTS{MaxAge: 2592000},
+				},
+			},
+		},
+	}
 	virtualServerCfgWithCachePolicyNGINXPlus = VirtualServerConfig{
 		CacheZones: []CacheZone{
 			{
@@ -3193,7 +3399,7 @@ var (
 				UseTempPath:      false,
 				MaxSize:          "2g",
 				Inactive:         "7d",
-				ManagerFiles:     createPointerFromInt(500),
+				ManagerFiles:     new(500),
 				ManagerSleep:     "200ms",
 				ManagerThreshold: "1s",
 			},
@@ -3220,7 +3426,7 @@ var (
 				Inactive:              "7d",
 				UseTempPath:           false,
 				MaxSize:               "2g",
-				ManagerFiles:          createPointerFromInt(500),
+				ManagerFiles:          new(500),
 				ManagerSleep:          "200ms",
 				ManagerThreshold:      "1s",
 				CacheKey:              "$scheme$host$request_uri$args",
@@ -3230,7 +3436,7 @@ var (
 				CacheUseStale:         []string{"error", "timeout", "updating"},
 				CacheRevalidate:       true,
 				CacheBackgroundUpdate: true,
-				CacheMinUses:          createPointerFromInt(3),
+				CacheMinUses:          new(3),
 				CachePurgeAllow:       nil,
 				CacheLock:             true,
 				CacheLockTimeout:      "60s",
@@ -3267,8 +3473,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3310,8 +3516,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3351,8 +3557,8 @@ var (
 				Certificate:    "cafe-secret.pem",
 				CertificateKey: "cafe-secret.pem",
 			},
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "cafe-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3383,8 +3589,8 @@ var (
 			Port:                     1234,
 			UDP:                      true,
 			StatusZone:               "udp-app",
-			ProxyRequests:            createPointerFromInt(1),
-			ProxyResponses:           createPointerFromInt(2),
+			ProxyRequests:            new(1),
+			ProxyResponses:           new(2),
 			ProxyPass:                "udp-upstream",
 			ProxyTimeout:             "10s",
 			ProxyConnectTimeout:      "10s",
@@ -3565,4 +3771,29 @@ func TestJWTNoSSLVerification(t *testing.T) {
 	if bytes.Contains(got, []byte("proxy_ssl_trusted_certificate")) {
 		t.Error("want no SSL trusted certificate directive in generated template")
 	}
+}
+
+var virtualServerCfgAllPathTypes = VirtualServerConfig{
+	Server: Server{
+		ServerName: "path-types.example.com",
+		StatusZone: "path-types.example.com",
+		Locations: []Location{
+			{Path: "/images/"},
+			{Path: "=/images/logo.jpg"},
+			{Path: "^~ /images/static/"},
+			{Path: `~ "\.jpg$"`},
+			{Path: `~* "\.png$"`},
+		},
+	},
+}
+
+func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	data, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgAllPathTypes)
+	if err != nil {
+		t.Errorf("Failed to execute template: %v", err)
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
 }

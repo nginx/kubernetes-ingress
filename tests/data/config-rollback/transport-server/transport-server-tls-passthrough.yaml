@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: TransportServer
+metadata:
+  name: transport-server-tls-passthrough
+spec:
+  listener:
+    name: tls-passthrough
+    protocol: TLS_PASSTHROUGH
+  host: ts-tls-passthrough.example.com
+  upstreams:
+    - name: secure-app
+      service: secure-app
+      port: 8443
+  action:
+    pass: secure-app

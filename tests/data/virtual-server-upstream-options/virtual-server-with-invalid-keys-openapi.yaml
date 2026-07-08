@@ -26,6 +26,13 @@ spec:
     buffer-size: 10
     buffering: 20
     tls: "yes"
+    sessionCookie:
+      name: True
+      path: 100
+      expires: False
+      domain: 0
+      httpOnly: "yes"
+      secure: "no"
   - name: backend1
     service: backend1-svc
     port: 80
@@ -47,6 +54,13 @@ spec:
     buffer-size: 10
     buffering: "yes"
     tls: "no"
+    sessionCookie:
+      name: True
+      path: 100
+      expires: False
+      domain: 0
+      httpOnly: "yes"
+      secure: "no"
   routes:
   - path: "/backend1"
     action:

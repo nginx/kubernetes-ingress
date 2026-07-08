@@ -24,6 +24,11 @@ spec:
       number: 0
       size: "k"
     buffer-size: "±!@£$%^&*()_+#"
+    sessionCookie:
+      name: ±!@£$%^&*()_+MyTestCookie
+      path: path
+      expires: one
+      domain: "$request_uri"
   - name: backend3
     service: backend3-svc
     port: 80
@@ -43,6 +48,11 @@ spec:
       number: -4
       size: ""
     buffer-size: "k"
+    sessionCookie:
+      name: ±!@£$%^&*()_+MyTestCookie
+      path: path
+      expires: one
+      domain: "$request_uri"
   subroutes:
   - path: "/backends/backend1"
     action:

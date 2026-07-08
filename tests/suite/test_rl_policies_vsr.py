@@ -21,6 +21,7 @@ from suite.utils.resources_utils import (
     delete_secret,
     get_first_pod_name,
     get_pod_list,
+    get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
     scale_deployment,
     wait_before_test,
@@ -33,7 +34,6 @@ from suite.utils.vs_vsr_resources_utils import (
     apply_and_assert_warning_vsr,
     delete_and_create_v_s_route_from_yaml,
     delete_and_create_vs_from_yaml,
-    get_vs_nginx_template_conf,
 )
 
 std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
@@ -617,7 +617,7 @@ class TestRateLimitingPoliciesVsr:
         )
 
         policy = read_policy(kube_apis.custom_objects, v_s_route_setup.route_m.namespace, pol_name)
-        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{v_s_route_setup.route_m.namespace.replace("-", "_", -1)}_{v_s_route_setup.vs_name.replace("-", "_", -1)}_sync:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
+        expected_conf_line = f"limit_req_zone {policy["spec"]["rateLimit"]["key"]} zone=pol_rl_{policy["metadata"]["namespace"].replace("-", "_", -1)}_{pol_name.replace("-", "_", -1)}_{v_s_route_setup.route_m.namespace.replace("-", "_", -1)}_{v_s_route_setup.vs_name.replace("-", "_", -1)}_vs_sync:{policy["spec"]["rateLimit"]["zoneSize"]} rate={policy["spec"]["rateLimit"]["rate"]} sync;"
         assert expected_conf_line in vsr_config
 
         # revert changes

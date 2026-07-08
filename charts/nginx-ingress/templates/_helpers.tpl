@@ -185,6 +185,10 @@ Expand image name.
 {{ include "nginx-ingress.image-digest-or-tag" (dict "image" .Values.controller.appprotect.configManager.image "default" .Chart.AppVersion ) }}
 {{- end -}}
 
+{{- define "nap-ip-intelligence.image" -}}
+{{ include "nginx-ingress.image-digest-or-tag" (dict "image" .Values.controller.appprotect.ipIntelligence.image "default" .Chart.AppVersion ) }}
+{{- end -}}
+
 {{/*
 Accepts an image struct like .Values.controller.image along with a default value to use
 if the digest or tag is not set. Can be called like:
@@ -268,6 +272,7 @@ Build the args for the service binary.
 - -nginx-plus={{ .Values.controller.nginxplus }}
 - -nginx-reload-timeout={{ .Values.controller.nginxReloadTimeout }}
 - -enable-app-protect={{ .Values.controller.appprotect.enable }}
+- -enable-app-protect-ip-intelligence={{ and .Values.controller.appprotect.enable .Values.controller.appprotect.ipIntelligence.enable }}
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.logLevel }}
 - -app-protect-log-level={{ .Values.controller.appprotect.logLevel }}
 {{ end }}
@@ -305,6 +310,7 @@ Build the args for the service binary.
 - -nginx-debug={{ .Values.controller.nginxDebug }}
 - -log-level={{ .Values.controller.logLevel }}
 - -log-format={{ .Values.controller.logFormat }}
+- -enable-config-safety={{ .Values.controller.enableConfigSafety }}
 - -nginx-status={{ .Values.controller.nginxStatus.enable }}
 {{- if .Values.controller.nginxStatus.enable }}
 - -nginx-status-port={{ .Values.controller.nginxStatus.port }}
@@ -351,6 +357,7 @@ Build the args for the service binary.
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
 - -default-http-listener-port={{ .Values.controller.defaultHTTPListenerPort}}
 - -default-https-listener-port={{ .Values.controller.defaultHTTPSListenerPort}}
+- -allow-empty-ingress-host={{ .Values.controller.allowEmptyIngressHost }}
 {{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
 {{- else if .Values.controller.globalConfiguration.customName }}
@@ -405,6 +412,10 @@ List of volumes for controller.
 {{- end }}
 {{- if .Values.controller.appprotect.v5 }}
 {{ toYaml .Values.controller.appprotect.volumes }}
+{{- if and .Values.controller.appprotect.ipIntelligence .Values.controller.appprotect.ipIntelligence.enable }}
+- name: app-protect-ipi-db
+  emptyDir: {}
+{{- end }}
 {{- end }}
 {{- if .Values.controller.volumes }}
 {{ toYaml .Values.controller.volumes }}
@@ -413,14 +424,15 @@ List of volumes for controller.
 - name: agent-conf
   configMap:
     name: {{ include "nginx-ingress.agentConfigName" . }}
+- name: agent-etc
+  emptyDir: {}
 {{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 - name: dataplane-key
   secret:
     secretName: {{ .Values.nginxAgent.dataplaneKeySecretName }}
-{{- else }}
+{{- end }}
 - name: agent-dynamic
   emptyDir: {}
-{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   projected:
@@ -479,16 +491,18 @@ volumeMounts:
 {{ toYaml .Values.controller.volumeMounts }}
 {{- end }}
 {{- if .Values.nginxAgent.enable }}
+- name: agent-etc
+  mountPath: /etc/nginx-agent
+  # needed for agent otel collector config
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
 {{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 - name: dataplane-key
   mountPath: /etc/nginx-agent/secrets
-{{- else }}
+{{- end }}
 - name: agent-dynamic
   mountPath: /var/lib/nginx-agent
-{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   mountPath: /etc/ssl/nms
@@ -518,6 +532,10 @@ volumeMounts:
   volumeMounts:
     - name: app-protect-bd-config
       mountPath: /opt/app_protect/bd_config
+{{- if and .Values.controller.appprotect.ipIntelligence .Values.controller.appprotect.ipIntelligence.enable }}
+    - name: app-protect-ipi-db
+      mountPath: /var/IpRep
+{{- end }}
 - name: waf-config-mgr
   image: {{ include "nap-config-manager.image" . }}
   imagePullPolicy: "{{ .Values.controller.appprotect.configManager.image.pullPolicy }}"
@@ -536,8 +554,20 @@ volumeMounts:
       mountPath: /opt/app_protect/config
     - name: app-protect-bundles
       mountPath: /etc/app_protect/bundles
-{{- end}}
-{{- end -}}
+{{- if and .Values.controller.appprotect.ipIntelligence .Values.controller.appprotect.ipIntelligence.enable }}
+- name: waf-ip-intelligence
+  image: {{ include "nap-ip-intelligence.image" . }}
+  imagePullPolicy: "{{ .Values.controller.appprotect.ipIntelligence.image.pullPolicy }}"
+{{- if .Values.controller.appprotect.ipIntelligence.securityContext }}
+  securityContext:
+{{ toYaml .Values.controller.appprotect.ipIntelligence.securityContext | nindent 6 }}
+{{- end }}
+  volumeMounts:
+    - name: app-protect-ipi-db
+      mountPath: /var/IpRep
+{{- end }}
+{{- end }}
+{{- end }}
 
 {{- define "nginx-ingress.agentConfiguration" -}}
 {{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
@@ -550,12 +580,18 @@ log:
 allowed_directories:
   - /etc/nginx
   - /usr/lib/nginx/modules
+{{- if .Values.controller.appprotect.enable }}
+  - /etc/app_protect
+{{- end }}
 
 features:
   - certificates
   - connection
   - metrics
   - file-watcher
+{{- if .Values.controller.appprotect.enable }}
+  - logs-nap
+{{- end }}
 
 ## command server settings
 command:

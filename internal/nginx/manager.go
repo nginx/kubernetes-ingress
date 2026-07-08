@@ -51,6 +51,9 @@ const (
 	appProtectDosAgentStartCmd      = "/usr/bin/admd -d --standalone"
 	appProtectDosAgentStartDebugCmd = "/usr/bin/admd -d --standalone --log debug"
 
+	ipRepdBinaryPath = "/opt/app_protect/bin/iprepd"
+	ipRepdConfigPath = "/etc/app_protect/tools/iprepd.cfg"
+
 	defaultCAPath = "/etc/ssl/certs/ca-certificates.crt"
 )
 
@@ -71,10 +74,10 @@ type ServerConfig struct {
 // The Manager interface updates NGINX configuration, starts, reloads and quits NGINX,
 // updates NGINX Plus upstream servers.
 type Manager interface {
-	CreateMainConfig(content []byte) bool
-	CreateConfig(name string, content []byte) bool
+	CreateMainConfig(content []byte) (bool, error)
+	CreateConfig(name string, content []byte) (bool, error)
 	DeleteConfig(name string)
-	CreateStreamConfig(name string, content []byte) bool
+	CreateStreamConfig(name string, content []byte) (bool, error)
 	DeleteStreamConfig(name string)
 	CreateTLSPassthroughHostsConfig(content []byte) bool
 	CreateOIDCConfig(name string, content []byte) bool
@@ -101,6 +104,8 @@ type Manager interface {
 	AgentStart(agentDone chan error, logLevel string)
 	AgentQuit()
 	AgentVersion() string
+	IPRepdStart(ipRepdDone chan error)
+	IPRepdQuit()
 	GetSecretsDir() string
 	GetOSCABundlePath() (string, error)
 	UpsertSplitClientsKeyVal(zoneName string, key string, value string)
@@ -115,6 +120,7 @@ type LocalManager struct {
 	secretsPath                  string
 	stateFilesPath               string
 	mainConfFilename             string
+	defaultServerConfFilename    string
 	configVersionFilename        string
 	debug                        bool
 	dhparamFilename              string
@@ -132,6 +138,7 @@ type LocalManager struct {
 	appProtectPluginPid          int
 	appProtectDosAgentPid        int
 	agentPid                     int
+	ipRepdPid                    int
 	logger                       *slog.Logger
 	nginxPlus                    bool
 }
@@ -151,6 +158,7 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 		stateFilesPath:              path.Join(confPath, "state_files"),
 		dhparamFilename:             path.Join(confPath, "secrets", "dhparam.pem"),
 		mainConfFilename:            path.Join(confPath, "nginx.conf"),
+		defaultServerConfFilename:   path.Join(confPath, "conf.d", "_default-server.conf"),
 		configVersionFilename:       path.Join(confPath, "config-version.conf"),
 		tlsPassthroughHostsFilename: path.Join(confPath, "tls-passthrough-hosts.conf"),
 		oidcConfPath:                path.Join(confPath, "oidc-conf.d"),
@@ -169,7 +177,7 @@ func NewLocalManager(ctx context.Context, confPath string, debug bool, mc collec
 }
 
 // CreateMainConfig creates the main NGINX configuration file. If the file already exists, it will be overridden.
-func (lm *LocalManager) CreateMainConfig(content []byte) bool {
+func (lm *LocalManager) CreateMainConfig(content []byte) (bool, error) {
 	nl.Debugf(lm.logger, "Writing main config to %v", lm.mainConfFilename)
 	nl.Debug(lm.logger, string(content))
 
@@ -178,12 +186,12 @@ func (lm *LocalManager) CreateMainConfig(content []byte) bool {
 	if err != nil {
 		nl.Fatalf(lm.logger, "Failed to write main config: %v", err)
 	}
-	return configChanged
+	return configChanged, nil
 }
 
 // CreateConfig creates a configuration file. If the file already exists, it will be overridden.
-func (lm *LocalManager) CreateConfig(name string, content []byte) bool {
-	return createConfig(lm.logger, lm.getFilenameForConfig(name), content)
+func (lm *LocalManager) CreateConfig(name string, content []byte) (bool, error) {
+	return createConfig(lm.logger, lm.getFilenameForConfig(name), content), nil
 }
 
 // CreateOIDCConfig creates an OIDC configuration file. If the file already exists, it will be overridden.
@@ -231,8 +239,8 @@ func (lm *LocalManager) getFilenameForOIDCConfig(name string) string {
 
 // CreateStreamConfig creates a configuration file for stream module.
 // If the file already exists, it will be overridden.
-func (lm *LocalManager) CreateStreamConfig(name string, content []byte) bool {
-	return createConfig(lm.logger, lm.getFilenameForStreamConfig(name), content)
+func (lm *LocalManager) CreateStreamConfig(name string, content []byte) (bool, error) {
+	return createConfig(lm.logger, lm.getFilenameForStreamConfig(name), content), nil
 }
 
 // DeleteStreamConfig deletes the configuration file from the stream-conf.d folder.
@@ -576,6 +584,39 @@ func (lm *LocalManager) AppProtectPluginQuit() {
 	killcmd := fmt.Sprintf("kill %d", lm.appProtectPluginPid)
 	if err := shellOut(lm.logger, killcmd); err != nil {
 		nl.Fatalf(lm.logger, "Failed to quit AppProtect Plugin: %v", err)
+	}
+}
+
+// IPRepdStart starts the IP Reputation Daemon (iprepd) for App Protect IP Intelligence.
+func (lm *LocalManager) IPRepdStart(ipRepdDone chan error) {
+	if _, err := os.Stat(ipRepdBinaryPath); os.IsNotExist(err) {
+		nl.Debugf(lm.logger, "iprepd binary not found at %s, skipping IP Intelligence", ipRepdBinaryPath)
+		return
+	}
+
+	nl.Debugf(lm.logger, "Starting IP Reputation Daemon (iprepd)")
+	cmd := exec.CommandContext(context.Background(), ipRepdBinaryPath, ipRepdConfigPath) //nolint:gosec // G204: paths resolve to constants
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		nl.Fatalf(lm.logger, "Failed to start iprepd: %v", err)
+	}
+	lm.ipRepdPid = cmd.Process.Pid
+	go func() {
+		ipRepdDone <- cmd.Wait()
+	}()
+}
+
+// IPRepdQuit gracefully ends the IP Reputation Daemon.
+func (lm *LocalManager) IPRepdQuit() {
+	if lm.ipRepdPid == 0 {
+		return
+	}
+	nl.Debugf(lm.logger, "Quitting iprepd")
+	killcmd := fmt.Sprintf("kill %d", lm.ipRepdPid)
+	if err := shellOut(lm.logger, killcmd); err != nil {
+		nl.Fatalf(lm.logger, "Failed to quit iprepd: %v", err)
 	}
 }
 

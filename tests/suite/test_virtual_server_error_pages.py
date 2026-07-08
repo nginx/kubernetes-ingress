@@ -9,8 +9,13 @@ from suite.utils.custom_assertions import (
     assert_vs_conf_not_exists,
     wait_and_assert_status_code,
 )
-from suite.utils.resources_utils import get_events, get_first_pod_name, wait_before_test
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_virtual_server_from_yaml
+from suite.utils.resources_utils import (
+    get_events,
+    get_first_pod_name,
+    get_vs_nginx_template_conf,
+    wait_before_test,
+)
+from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 
 
 @pytest.mark.vs
@@ -100,7 +105,11 @@ class TestVSErrorPages:
 
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     def test_openapi_validation_flow(
@@ -115,26 +124,19 @@ class TestVSErrorPages:
             ingress_controller_prerequisites.namespace,
         )
         vs_file = f"{TEST_DATA}/virtual-server-error-pages/virtual-server-invalid-openapi.yaml"
-        try:
+        with pytest.raises(ApiException) as exc_info:
             patch_virtual_server_from_yaml(
                 kube_apis.custom_objects, virtual_server_setup.vs_name, vs_file, virtual_server_setup.namespace
             )
-        except ApiException as ex:
-            assert (
-                ex.status == 422
-                and "codes in body must be of type" in ex.body
-                and "redirect.code in body must be of type" in ex.body
-                and "redirect.url in body must be of type" in ex.body
-                and "return.code in body must be of type" in ex.body
-                and "return.type in body must be of type" in ex.body
-                and "return.body in body must be of type" in ex.body
-                and "name in body must be of type" in ex.body
-                and "value in body must be of type" in ex.body
-            )
-        except Exception as ex:
-            pytest.fail(f"An unexpected exception is raised: {ex}")
-        else:
-            pytest.fail("Expected an exception but there was none")
+        assert exc_info.value.status == 422
+        assert "codes in body must be of type" in exc_info.value.body
+        assert "redirect.code in body must be of type" in exc_info.value.body
+        assert "redirect.url in body must be of type" in exc_info.value.body
+        assert "return.code in body must be of type" in exc_info.value.body
+        assert "return.type in body must be of type" in exc_info.value.body
+        assert "return.body in body must be of type" in exc_info.value.body
+        assert "name in body must be of type" in exc_info.value.body
+        assert "value in body must be of type" in exc_info.value.body
 
         wait_before_test(1)
         config_new = get_vs_nginx_template_conf(

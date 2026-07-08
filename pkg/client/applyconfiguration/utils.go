@@ -60,6 +60,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.APIKeyApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("BasicAuth"):
 		return &applyconfigurationconfigurationv1.BasicAuthApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("BundleSource"):
+		return &applyconfigurationconfigurationv1.BundleSourceApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Cache"):
 		return &applyconfigurationconfigurationv1.CacheApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("CacheConditions"):
@@ -72,6 +74,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.CertManagerApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Condition"):
 		return &applyconfigurationconfigurationv1.ConditionApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("CORS"):
+		return &applyconfigurationconfigurationv1.CORSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("EgressMTLS"):
 		return &applyconfigurationconfigurationv1.EgressMTLSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("ErrorPage"):
@@ -80,6 +84,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.ErrorPageRedirectApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("ErrorPageReturn"):
 		return &applyconfigurationconfigurationv1.ErrorPageReturnApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("ExternalAuth"):
+		return &applyconfigurationconfigurationv1.ExternalAuthApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("ExternalDNS"):
 		return &applyconfigurationconfigurationv1.ExternalDNSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("ExternalEndpoint"):
@@ -92,6 +98,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.HeaderApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("HealthCheck"):
 		return &applyconfigurationconfigurationv1.HealthCheckApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("HSTS"):
+		return &applyconfigurationconfigurationv1.HSTSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("IngressMTLS"):
 		return &applyconfigurationconfigurationv1.IngressMTLSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("JWTAuth"):

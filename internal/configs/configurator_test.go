@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
+	"regexp"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -37,6 +40,12 @@ func createTestStaticConfigParams() *StaticConfigParams {
 
 func createTestConfigurator(t *testing.T) *Configurator {
 	t.Helper()
+	manager := nginx.NewFakeManager("/etc/nginx")
+	return createTestConfiguratorWithManager(t, manager)
+}
+
+func createTestConfiguratorWithManager(t *testing.T, manager nginx.Manager) *Configurator {
+	t.Helper()
 	templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl")
 	if err != nil {
 		t.Fatal(err)
@@ -47,7 +56,6 @@ func createTestConfigurator(t *testing.T) *Configurator {
 		t.Fatal(err)
 	}
 
-	manager := nginx.NewFakeManager("/etc/nginx")
 	cnf := NewConfigurator(ConfiguratorParams{
 		NginxManager:            manager,
 		StaticCfgParams:         createTestStaticConfigParams(),
@@ -67,6 +75,17 @@ func createTestConfigurator(t *testing.T) *Configurator {
 	return cnf
 }
 
+type errorOnDefaultServerCreateManager struct {
+	*nginx.FakeManager
+}
+
+func (m *errorOnDefaultServerCreateManager) CreateConfig(name string, content []byte) (bool, error) {
+	if name == DefaultServerConfigName {
+		return false, fmt.Errorf("default server create failed")
+	}
+	return m.FakeManager.CreateConfig(name, content)
+}
+
 func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
 	t.Helper()
 	templateExecutor, err := version1.NewTemplateExecutor("version1/nginx-plus.tmpl", "version1/nginx-plus.ingress.tmpl")
@@ -74,8 +93,7 @@ func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
 		t.Fatal(err)
 	}
 
-	invalidIngressTemplate := "{{.Upstreams.This.Field.Does.Not.Exist}}"
-	if err := templateExecutor.UpdateIngressTemplate(&invalidIngressTemplate); err != nil {
+	if err := templateExecutor.UpdateIngressTemplate(new("{{.Upstreams.This.Field.Does.Not.Exist}}")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -97,13 +115,37 @@ func createTestConfiguratorInvalidIngressTemplate(t *testing.T) *Configurator {
 	return cnf
 }
 
+func createHostlessCafeIngressEx() IngressEx {
+	ingEx := createCafeIngressEx()
+	ingEx.Ingress.Spec.TLS = nil
+	ingEx.Ingress.Spec.Rules[0].Host = ""
+	ingEx.ValidHosts = map[string]bool{"": true}
+	ingEx.SecretRefs = map[string]*secrets.SecretReference{}
+	return ingEx
+}
+
+func createHostlessMergeableCafeIngress() *MergeableIngresses {
+	mergeableIngress := createMergeableCafeIngress()
+	mergeableIngress.Master.Ingress.Spec.TLS = nil
+	mergeableIngress.Master.Ingress.Spec.Rules[0].Host = ""
+	mergeableIngress.Master.ValidHosts = map[string]bool{"": true}
+	mergeableIngress.Master.SecretRefs = map[string]*secrets.SecretReference{}
+
+	for _, minion := range mergeableIngress.Minions {
+		minion.Ingress.Spec.Rules[0].Host = ""
+		minion.ValidHosts = map[string]bool{"": true}
+	}
+
+	return mergeableIngress
+}
+
 func TestConfiguratorUpdatesConfigWithNilCustomMainTemplate(t *testing.T) {
 	t.Parallel()
 
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{MainTemplate: nil}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +163,7 @@ func TestConfiguratorUpdatesConfigWithCustomMainTemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{MainTemplate: &customTestMainTemplate}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +185,7 @@ func TestConfiguratorUpdatesConfigWithNilCustomIngressTemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{IngressTemplate: nil}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +203,7 @@ func TestConfiguratorUpdatesConfigWithCustomIngressTemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{IngressTemplate: &customTestIngressTemplate}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +225,7 @@ func TestConfigratorUpdatesConfigWithCustomVStemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{VirtualServerTemplate: &customTestVStemplate}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,7 +247,7 @@ func TestConfiguratorUpdatesConfigWithNilCustomVSemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{VirtualServerTemplate: nil}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +267,7 @@ func TestConfigratorUpdatesConfigWithCustomTStemplate(t *testing.T) {
 	cnf.CfgParams = &ConfigParams{
 		TransportServerTemplate: &customTestTStemplate,
 	}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +289,7 @@ func TestConfiguratorUpdatesConfigWithNilCustomTStemplate(t *testing.T) {
 	cnf := createTestConfigurator(t)
 	cnf.CfgParams = &ConfigParams{TransportServerTemplate: nil}
 	cnf.MgmtCfgParams = &MGMTConfigParams{}
-	warnings, err := cnf.UpdateConfig(ExtendedResources{})
+	warnings, _, err := cnf.UpdateConfig(ExtendedResources{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,6 +346,37 @@ func TestAddOrUpdateIngress(t *testing.T) {
 	}
 }
 
+func TestAddOrUpdateIngressFailsWithInvalidIngressTemplate(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+
+	warnings, err := cnf.AddOrUpdateIngress(new(createCafeIngressEx()))
+	if err == nil {
+		t.Errorf("AddOrUpdateIngress returned \n%v,  but expected \n%v", nil, "template execution error")
+	}
+	if len(warnings) != 0 {
+		t.Errorf("AddOrUpdateIngress returned warnings: %v", warnings)
+	}
+}
+
+func TestAddOrUpdateIngressForEmptyHostFailsWithInvalidIngressTemplate(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+	hostlessIngress := createHostlessCafeIngressEx()
+
+	warnings, err := cnf.AddOrUpdateIngress(&hostlessIngress)
+	if err == nil {
+		t.Errorf("expected AddOrUpdateIngress to fail for invalid ingress template")
+	}
+	if len(warnings) != 0 {
+		t.Errorf("AddOrUpdateIngress returned warnings: %v", warnings)
+	}
+
+	if cnf.HasIngress(hostlessIngress.Ingress) {
+		t.Errorf("empty-host ingress should not be stored when template execution fails")
+	}
+}
+
 func TestAddOrUpdateMergeableIngress(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
@@ -324,21 +397,6 @@ func TestAddOrUpdateMergeableIngress(t *testing.T) {
 	}
 }
 
-func TestAddOrUpdateIngressFailsWithInvalidIngressTemplate(t *testing.T) {
-	t.Parallel()
-	cnf := createTestConfiguratorInvalidIngressTemplate(t)
-
-	ingress := createCafeIngressEx()
-
-	warnings, err := cnf.AddOrUpdateIngress(&ingress)
-	if err == nil {
-		t.Errorf("AddOrUpdateIngress returned \n%v,  but expected \n%v", nil, "template execution error")
-	}
-	if len(warnings) != 0 {
-		t.Errorf("AddOrUpdateIngress returned warnings: %v", warnings)
-	}
-}
-
 func TestAddOrUpdateMergeableIngressFailsWithInvalidIngressTemplate(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfiguratorInvalidIngressTemplate(t)
@@ -354,19 +412,37 @@ func TestAddOrUpdateMergeableIngressFailsWithInvalidIngressTemplate(t *testing.T
 	}
 }
 
+func TestAddOrUpdateMergeableIngressForEmptyHostFailsWithInvalidIngressTemplate(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+
+	mergeableIngress := createHostlessMergeableCafeIngress()
+
+	warnings, err := cnf.AddOrUpdateMergeableIngress(mergeableIngress)
+	if err == nil {
+		t.Errorf("expected AddOrUpdateMergeableIngress to fail for invalid ingress template")
+	}
+	if len(warnings) != 0 {
+		t.Errorf("AddOrUpdateMergeableIngress returned warnings: %v", warnings)
+	}
+
+	if cnf.HasIngress(mergeableIngress.Master.Ingress) {
+		t.Errorf("empty-host mergeable ingress should not be stored when template execution fails")
+	}
+}
+
 func TestUpdateEndpoints(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
 
-	ingress := createCafeIngressEx()
-	ingresses := []*IngressEx{&ingress}
+	ingresses := []*IngressEx{new(createCafeIngressEx())}
 
-	err := cnf.UpdateEndpoints(ingresses)
+	_, err := cnf.UpdateEndpoints(ingresses)
 	if err != nil {
 		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", err, nil)
 	}
 
-	err = cnf.UpdateEndpoints(ingresses)
+	_, err = cnf.UpdateEndpoints(ingresses)
 	if err != nil {
 		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", err, nil)
 	}
@@ -379,14 +455,145 @@ func TestUpdateEndpointsMergeableIngress(t *testing.T) {
 	mergeableIngress := createMergeableCafeIngress()
 	mergeableIngresses := []*MergeableIngresses{mergeableIngress}
 
-	err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
+	_, err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 	if err != nil {
 		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", err, nil)
 	}
 
-	err = cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
+	_, err = cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 	if err != nil {
 		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", err, nil)
+	}
+}
+
+// Recording mock — embeds FakeManager, overrides UpdateServersInPlus to capture calls
+type recordingFakeManager struct {
+	*nginx.FakeManager
+	updatedUpstreams map[string][]string
+}
+
+func (m *recordingFakeManager) UpdateServersInPlus(upstream string, servers []string, _ nginx.ServerConfig) error {
+	m.updatedUpstreams[upstream] = servers
+	return nil
+}
+
+func TestUpdatePlusExternalAuthEndpoints(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		policies      map[string]*conf_v1.Policy
+		endpoints     map[string][]string
+		parentIngress *networking.Ingress
+		wantUpstreams map[string][]string
+		wantErr       bool
+	}{
+		{
+			name: "policy with nil ExternalAuth is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/no-extauth": {Spec: conf_v1.PolicySpec{}},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "policy with empty AuthServiceName is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/empty-svc": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{AuthServiceName: ""},
+					},
+				},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "valid policy with matching endpoints",
+			policies: map[string]*conf_v1.Policy{
+				"default/my-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "my-auth", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{8080},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{
+				"default/auth-svc:8080": {"10.0.0.5:8080"},
+			},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			},
+			wantUpstreams: map[string][]string{
+				"ing_default_cafe_exauth_default_my-auth": {"10.0.0.5:8080"},
+			},
+		},
+		{
+			name: "valid policy with no matching endpoints is skipped",
+			policies: map[string]*conf_v1.Policy{
+				"default/my-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "my-auth", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{8080},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			},
+			wantUpstreams: map[string][]string{},
+		},
+		{
+			name: "cross-namespace policy uses parent ingress identity",
+			policies: map[string]*conf_v1.Policy{
+				"auth-ns/shared-auth": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "shared-auth", Namespace: "auth-ns"},
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthServiceName:  "auth-svc",
+							AuthServicePorts: []int{9090},
+						},
+					},
+				},
+			},
+			endpoints: map[string][]string{
+				"auth-ns/auth-svc:9090": {"10.0.0.10:9090"},
+			},
+			parentIngress: &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "app-ingress", Namespace: "app-ns"},
+			},
+			wantUpstreams: map[string][]string{
+				"ing_app-ns_app-ingress_exauth_auth-ns_shared-auth": {"10.0.0.10:9090"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			mgr := &recordingFakeManager{
+				FakeManager:      nginx.NewFakeManager("/etc/nginx"),
+				updatedUpstreams: make(map[string][]string),
+			}
+			cnf := createTestConfiguratorWithManager(t, mgr)
+			cnf.isReloadsEnabled = true
+
+			err := cnf.updatePlusExternalAuthEndpoints(
+				tt.policies, tt.endpoints, tt.parentIngress, nginx.ServerConfig{},
+			)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, wantErr %v", err, tt.wantErr)
+			}
+
+			if diff := cmp.Diff(tt.wantUpstreams, mgr.updatedUpstreams); diff != "" {
+				t.Errorf("upstream mismatch (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -394,10 +601,9 @@ func TestUpdateEndpointsFailsWithInvalidTemplate(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfiguratorInvalidIngressTemplate(t)
 
-	ingress := createCafeIngressEx()
-	ingresses := []*IngressEx{&ingress}
+	ingresses := []*IngressEx{new(createCafeIngressEx())}
 
-	err := cnf.UpdateEndpoints(ingresses)
+	_, err := cnf.UpdateEndpoints(ingresses)
 	if err == nil {
 		t.Errorf("UpdateEndpoints returned\n%v, but expected \n%v", nil, "template execution error")
 	}
@@ -410,9 +616,156 @@ func TestUpdateEndpointsMergeableIngressFailsWithInvalidTemplate(t *testing.T) {
 	mergeableIngress := createMergeableCafeIngress()
 	mergeableIngresses := []*MergeableIngresses{mergeableIngress}
 
-	err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
+	_, err := cnf.UpdateEndpointsMergeableIngress(mergeableIngresses)
 	if err == nil {
 		t.Errorf("UpdateEndpointsMergeableIngress returned \n%v, but expected \n%v", nil, "template execution error")
+	}
+}
+
+func TestSyncDefaultServerConfigReturnsErrorOnTemplateFailure(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfiguratorInvalidIngressTemplate(t)
+
+	err := cnf.syncDefaultServerConfig()
+	if err == nil {
+		t.Errorf("expected syncDefaultServerConfig to fail when template execution fails")
+	}
+}
+
+func TestSyncDefaultServerConfigSuppressedByEmptyHostIngress(t *testing.T) {
+	t.Parallel()
+	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+
+	err := cnf.syncDefaultServerConfig()
+	if err == nil {
+		t.Fatal("expected syncDefaultServerConfig to fail without an active empty-host ingress")
+	}
+
+	hostlessIngress := createHostlessCafeIngressEx()
+	cnf.ingresses[objectMetaToFileName(&hostlessIngress.Ingress.ObjectMeta)] = &hostlessIngress
+
+	err = cnf.syncDefaultServerConfig()
+	if err != nil {
+		t.Fatalf("expected syncDefaultServerConfig to be skipped with an active empty-host ingress: %v", err)
+	}
+}
+
+func TestAddOrUpdateIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
+	t.Parallel()
+	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	ingress := createCafeIngressEx()
+
+	warnings, err := cnf.AddOrUpdateIngress(&ingress)
+	if len(warnings) != 0 {
+		t.Fatalf("AddOrUpdateIngress returned warnings: %v", warnings)
+	}
+	if err == nil {
+		t.Fatal("expected AddOrUpdateIngress to fail when default server sync fails")
+	}
+	if err.Error() != "error adding or updating ingress default/cafe-ingress: error syncing default server config for ingress default-cafe-ingress: error writing default server config: default server create failed" {
+		t.Fatalf("unexpected AddOrUpdateIngress error: %v", err)
+	}
+}
+
+func TestAddOrUpdateMergeableIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
+	t.Parallel()
+	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	mergeableIngress := createMergeableCafeIngress()
+
+	warnings, err := cnf.AddOrUpdateMergeableIngress(mergeableIngress)
+	if len(warnings) != 0 {
+		t.Fatalf("AddOrUpdateMergeableIngress returned warnings: %v", warnings)
+	}
+	if err == nil {
+		t.Fatal("expected AddOrUpdateMergeableIngress to fail when default server sync fails")
+	}
+	if err.Error() != "error when adding or updating ingress default/cafe-ingress-master: error syncing default server config for mergeable ingress default-cafe-ingress-master: error writing default server config: default server create failed" {
+		t.Fatalf("unexpected AddOrUpdateMergeableIngress error: %v", err)
+	}
+}
+
+func TestDeleteIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
+	t.Parallel()
+	cnf := createTestConfigurator(t)
+	ingress := createCafeIngressEx()
+
+	_, err := cnf.AddOrUpdateIngress(&ingress)
+	if err != nil {
+		t.Fatalf("AddOrUpdateIngress returned error: %v", err)
+	}
+
+	cnf.nginxManager = &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+
+	err = cnf.DeleteIngress(generateNamespaceNameKey(&ingress.Ingress.ObjectMeta), true)
+	if err == nil {
+		t.Fatal("expected DeleteIngress to fail when default server sync fails")
+	}
+	if err.Error() != "error syncing default server config after deleting ingress default/cafe-ingress: error writing default server config: default server create failed" {
+		t.Fatalf("unexpected DeleteIngress error: %v", err)
+	}
+}
+
+func TestGenerateDefaultServerConfig(t *testing.T) {
+	t.Parallel()
+
+	staticCfg := &StaticConfigParams{
+		DefaultHTTPListenerPort:  8081,
+		DefaultHTTPSListenerPort: 8444,
+		HealthStatus:             true,
+		HealthStatusURI:          "/custom-health",
+		TLSPassthrough:           true,
+		SSLRejectHandshake:       true,
+		DisableIPV6:              true,
+		DynamicSSLReload:         true,
+		StaticSSLPath:            "/tmp/ssl",
+	}
+	cfg := &ConfigParams{
+		DefaultServerAccessLogOff: true,
+		DefaultServerReturn:       "302 https://example.com",
+		ServerTokens:              "build",
+		HTTP2:                     true,
+		ProxyProtocol:             true,
+		RealIPHeader:              "X-Forwarded-For",
+		SetRealIPFrom:             []string{"10.0.0.0/8"},
+		RealIPRecursive:           true,
+	}
+
+	got := GenerateDefaultServerConfig(staticCfg, cfg)
+	want := version1.IngressNginxConfig{
+		Servers: []version1.Server{{
+			Name:                emptyHostToken,
+			StatusZone:          emptyHostToken,
+			IsDefaultServer:     true,
+			Ports:               []int{8081},
+			SSLPorts:            []int{8444},
+			SSL:                 true,
+			SSLCertificate:      DefaultServerSecretPath,
+			SSLCertificateKey:   DefaultServerSecretPath,
+			SSLRejectHandshake:  true,
+			AccessLogOff:        true,
+			DefaultServerReturn: "302 https://example.com",
+			HealthStatus:        true,
+			HealthStatusURI:     "/custom-health",
+			ServerTokens:        "build",
+			TLSPassthrough:      true,
+			HTTP2:               true,
+			GRPCOnly:            false,
+			ProxyProtocol:       true,
+			RealIPHeader:        "X-Forwarded-For",
+			SetRealIPFrom:       []string{"10.0.0.0/8"},
+			RealIPRecursive:     true,
+			DisableIPV6:         true,
+		}},
+		Ingress:                 version1.Ingress{},
+		DynamicSSLReloadEnabled: true,
+		StaticSSLPath:           "/tmp/ssl",
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("GenerateDefaultServerConfig() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -1355,6 +1708,22 @@ func TestUpdateApResources(t *testing.T) {
 			},
 		},
 	}
+	policyApPol := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"namespace": "pol-ns",
+				"name":      "pol-name",
+			},
+		},
+	}
+	policyLogConf := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"namespace": "pol-ns",
+				"name":      "pol-log",
+			},
+		},
+	}
 	appProtectLogDst := "test-dst"
 
 	tests := []struct {
@@ -1399,6 +1768,21 @@ func TestUpdateApResources(t *testing.T) {
 				AppProtectLogconfs: []string{"/etc/nginx/waf/nac-logconfs/test-ns_test-name test-dst"},
 			},
 			msg: "app protect log conf",
+		},
+		{
+			ingEx: &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: meta_v1.ObjectMeta{},
+				},
+				ApPolRefs: map[string]*unstructured.Unstructured{
+					"pol-ns/pol-name": policyApPol,
+				},
+				LogConfRefs: map[string]*unstructured.Unstructured{
+					"pol-ns/pol-log": policyLogConf,
+				},
+			},
+			expected: &AppProtectResources{},
+			msg:      "policy-based app protect resources",
 		},
 		{
 			ingEx: &IngressEx{
@@ -1472,7 +1856,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 
 	tests := []struct {
 		vsEx     *VirtualServerEx
-		expected *appProtectResourcesForVS
+		expected *appProtectPolicyResources
 		msg      string
 	}{
 		{
@@ -1481,7 +1865,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 					ObjectMeta: meta_v1.ObjectMeta{},
 				},
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{},
 			},
@@ -1494,7 +1878,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				},
 				ApPolRefs: apPolRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-policies/test-ns-1_test-name-1",
 					"test-ns-2/test-name-2": "/etc/nginx/waf/nac-policies/test-ns-2_test-name-2",
@@ -1510,7 +1894,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				},
 				LogConfRefs: logConfRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{},
 				LogConfs: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-logconfs/test-ns-1_test-name-1",
@@ -1527,7 +1911,7 @@ func TestUpdateApResourcesForVs(t *testing.T) {
 				ApPolRefs:   apPolRefs,
 				LogConfRefs: logConfRefs,
 			},
-			expected: &appProtectResourcesForVS{
+			expected: &appProtectPolicyResources{
 				Policies: map[string]string{
 					"test-ns-1/test-name-1": "/etc/nginx/waf/nac-policies/test-ns-1_test-name-1",
 					"test-ns-2/test-name-2": "/etc/nginx/waf/nac-policies/test-ns-2_test-name-2",
@@ -1823,9 +2207,7 @@ func TestAddOrUpdateTransportServer(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
 
-	ts := createTransportServerExWithHostNoTLSPassthrough()
-
-	warnings, err := cnf.AddOrUpdateTransportServer(&ts)
+	warnings, err := cnf.AddOrUpdateTransportServer(new(createTransportServerExWithHostNoTLSPassthrough()))
 	if err != nil {
 		t.Errorf("AddOrUpdateTransportServer returned:  \n%v, but expected: \n%v", err, nil)
 	}
@@ -2189,58 +2571,20 @@ http {
     include oidc/oidc_common.conf;
     {{- end}}
 
-    server {
-        # required to support the Websocket protocol in VirtualServer/VirtualServerRoutes
-        set $default_connection_header "";
-        set $resource_type "";
-        set $resource_name "";
-        set $resource_namespace "";
-        set $service "";
-
-        listen {{ .DefaultHTTPListenerPort }} default_server{{if .ProxyProtocol}} proxy_protocol{{end}};
-        {{- if not .DisableIPV6}}listen [::]:{{ .DefaultHTTPListenerPort }} default_server{{if .ProxyProtocol}} proxy_protocol{{end}};{{end}}
-
-        {{- if .TLSPassthrough}}
-        listen unix:/var/lib/nginx/passthrough-https.sock ssl default_server proxy_protocol;
-        set_real_ip_from unix:;
-        real_ip_header proxy_protocol;
-        {{- else}}
-        listen {{ .DefaultHTTPSListenerPort }} ssl default_server{{if .ProxyProtocol}} proxy_protocol{{end}};
-        {{if not .DisableIPV6}}listen [::]:{{ .DefaultHTTPSListenerPort }} ssl default_server{{if .ProxyProtocol}} proxy_protocol{{end}};{{end}}
-        {{- end}}
-
-        {{- if .HTTP2}}
-        http2 on;
-        {{- end}}
-
-        {{- if .SSLRejectHandshake}}
-        ssl_reject_handshake on;
-        {{- else}}
-        ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/default" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/default" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        {{- end}}
-
-        {{- range $setRealIPFrom := .SetRealIPFrom}}
-        set_real_ip_from {{$setRealIPFrom}};{{end}}
-        {{- if .RealIPHeader}}real_ip_header {{.RealIPHeader}};{{end}}
-        {{- if .RealIPRecursive}}real_ip_recursive on;{{end}}
-
-        server_name _;
-        server_tokens "{{.ServerTokens}}";
-        {{- if .DefaultServerAccessLogOff}}
-        access_log off;
-        {{end -}}
-
-        {{- if .HealthStatus}}
-        location {{.HealthStatusURI}} {
-            default_type text/plain;
-            return 200 "healthy\n";
-        }
-        {{end}}
-
-        location / {
-            return {{.DefaultServerReturn}};
-        }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
     }
 
     {{- if .NginxStatus}}
@@ -2575,8 +2919,9 @@ server {
 		proxy_read_timeout {{$location.ProxyReadTimeout}};
 		proxy_send_timeout {{$location.ProxySendTimeout}};
 		client_max_body_size {{$location.ClientMaxBodySize}};
-		{{- $proxySetHeaders := generateProxySetHeaders $location $.Ingress.Annotations -}}
-		{{$proxySetHeaders}}
+		{{- range $header := $location.ProxySetHeaders}}
+		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
+		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -3458,3 +3803,175 @@ server {
     {{- end }}
 }`
 )
+
+// oidcIncludePattern matches the `include oidc-conf.d/<basename>.conf;` directive emitted by
+// the Plus VirtualServer template when Server.OIDC is set.
+var oidcIncludePattern = regexp.MustCompile(`include oidc-conf\.d/([^;\s]+)\.conf;`)
+
+// configSafetyEnabledFakeManager simulates the ConfigRollbackManager behavior that is active
+// only when the controller runs with -enable-config-safety=true: every CreateConfig call runs
+// `nginx -t` synchronously and fails if any `include oidc-conf.d/*.conf;` directive points at
+// a file that has not yet been written.
+// With config safety disabled, LocalManager.CreateConfig just writes the file and the validation
+// is deferred to Reload().
+type configSafetyEnabledFakeManager struct {
+	*nginx.FakeManager
+	mu          sync.Mutex
+	writtenOIDC map[string]bool
+	oidcCalls   int
+	vsCalls     int
+}
+
+func (m *configSafetyEnabledFakeManager) CreateOIDCConfig(name string, content []byte) bool {
+	m.mu.Lock()
+	if m.writtenOIDC == nil {
+		m.writtenOIDC = map[string]bool{}
+	}
+	m.writtenOIDC[name] = true
+	m.oidcCalls++
+	m.mu.Unlock()
+	return m.FakeManager.CreateOIDCConfig(name, content)
+}
+
+func (m *configSafetyEnabledFakeManager) CreateConfig(name string, content []byte) (bool, error) {
+	for _, match := range oidcIncludePattern.FindAllSubmatch(content, -1) {
+		included := string(match[1])
+		m.mu.Lock()
+		present := m.writtenOIDC[included]
+		m.mu.Unlock()
+		if !present {
+			return false, fmt.Errorf(
+				`nginx: [emerg] open() "/etc/nginx/oidc-conf.d/%s.conf" failed (2: No such file or directory) in /etc/nginx/conf.d/%s.conf`,
+				included, name,
+			)
+		}
+	}
+	m.mu.Lock()
+	m.vsCalls++
+	m.mu.Unlock()
+	return m.FakeManager.CreateConfig(name, content)
+}
+
+func createOIDCVirtualServerEx() *VirtualServerEx {
+	return &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Policies: []conf_v1.PolicyReference{
+					{Name: "oidc-policy"},
+				},
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea-svc", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/oidc-policy": {
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "oidc-policy",
+					Namespace: "default",
+				},
+				Spec: conf_v1.PolicySpec{
+					OIDC: &conf_v1.OIDC{
+						AuthEndpoint:  "https://auth.example.com",
+						TokenEndpoint: "https://token.example.com",
+						JWKSURI:       "https://jwks.example.com",
+						ClientID:      "example-client-id",
+						ClientSecret:  "example-client-secret",
+						Scope:         "openid",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {"10.0.0.10:80"},
+		},
+		SecretRefs: map[string]*secrets.SecretReference{
+			"default/example-client-secret": {
+				Secret: &api_v1.Secret{
+					Type: secrets.SecretTypeOIDC,
+					Data: map[string][]byte{
+						"client-secret": []byte("c2VjcmV0"),
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestAddOrUpdateVirtualServer_WithOIDCAndConfigSafetyEnabled_AppliesSuccessfully is the
+// test to make sure oidc config is written before the virtual server config when -enable-config-safety is enabled.
+func TestAddOrUpdateVirtualServer_WithOIDCAndConfigSafetyEnabled_AppliesSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	manager := &configSafetyEnabledFakeManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	cnf.isPlus = true
+
+	vsEx := createOIDCVirtualServerEx()
+
+	if _, err := cnf.AddOrUpdateVirtualServer(vsEx); err != nil {
+		t.Fatalf("AddOrUpdateVirtualServer failed under -enable-config-safety (OIDC config likely written after VS config): %v", err)
+	}
+
+	if manager.oidcCalls != 1 {
+		t.Errorf("expected exactly one CreateOIDCConfig call, got %d", manager.oidcCalls)
+	}
+	if manager.vsCalls != 1 {
+		t.Errorf("expected exactly one CreateConfig call for the VS, got %d", manager.vsCalls)
+	}
+
+	wantOIDC := getFileNameForOIDCVirtualServer(vsEx.VirtualServer)
+	if !manager.writtenOIDC[wantOIDC] {
+		t.Errorf("expected OIDC config %q to be written, written set: %v", wantOIDC, manager.writtenOIDC)
+	}
+}
+
+// TestAddOrUpdateVirtualServer_WithoutOIDCAndConfigSafetyEnabled_DoesNotWriteOIDCConfig
+// is the test to make sure oidc config is not written when the virtual server does not have OIDC and -enable-config-safety is enabled.
+func TestAddOrUpdateVirtualServer_WithoutOIDCAndConfigSafetyEnabled_DoesNotWriteOIDCConfig(t *testing.T) {
+	t.Parallel()
+
+	manager := &configSafetyEnabledFakeManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+	cnf := createTestConfiguratorWithManager(t, manager)
+	cnf.isPlus = true
+
+	vsEx := &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea-svc", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {"10.0.0.10:80"},
+		},
+	}
+
+	if _, err := cnf.AddOrUpdateVirtualServer(vsEx); err != nil {
+		t.Fatalf("AddOrUpdateVirtualServer returned unexpected error: %v", err)
+	}
+
+	if manager.oidcCalls != 0 {
+		t.Errorf("expected no CreateOIDCConfig calls for a VS without OIDC, got %d", manager.oidcCalls)
+	}
+	if manager.vsCalls != 1 {
+		t.Errorf("expected exactly one CreateConfig call for the VS, got %d", manager.vsCalls)
+	}
+}

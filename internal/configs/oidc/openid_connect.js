@@ -39,14 +39,13 @@ async function auth(r, afterSyncCheck) {
     } catch (e) {
         // If validation failed, reset and reinitiate auth
         r.variables.refresh_token = "-";
-        r.headersOut["Location"] = r.variables.request_uri;
-        oidcError(r, 302, getRefId(r, "auth.validate"), e);
+        oidcError(r, 302, getRefId(r, "auth.validate"), e, r.variables.request_uri);
         return;
     }
 
     // Determine session ID and store session data
     const sessionId = getSessionId(r, false);
-    storeSessionData(r, sessionId, claims, tokenset, true);
+    storeSessionData(r, sessionId, claims, tokenset, false);
 
     r.log("OIDC success, refreshing session " + sessionId);
 
@@ -302,14 +301,13 @@ async function refreshTokens(r) {
         return tokenset;
     } catch (_e) {
         r.variables.refresh_token = "-";
-        r.headersOut["Location"] = r.variables.request_uri;
-        oidcError(r, 302, getRefId(r, "refresh.parse"), new Error("OIDC refresh response not JSON"));
+        oidcError(r, 302, getRefId(r, "refresh.parse"), new Error("OIDC refresh response not JSON"), r.variables.request_uri);
         return null;
     }
 }
 
 // Logout handler
-function logout(r) {
+async function logout(r) {
     r.log("OIDC RP-Initiated Logout for " + (r.variables.cookie_auth_token || "unknown"));
 
     function getLogoutRedirectUrl(base, redirect) {
@@ -342,7 +340,8 @@ function logout(r) {
         // If no ID token but refresh token present, attempt to re-auth to get ID token
         if ((!r.variables.session_jwt || r.variables.session_jwt === '-')
             && r.variables.refresh_token && r.variables.refresh_token !== '-') {
-            auth(r, 0);
+            await auth(r, 0);
+            return;
         } else if (!r.variables.session_jwt || r.variables.session_jwt === '-') {
             performLogout(logoutRedirectUrl);
             return;
@@ -449,6 +448,11 @@ function initiateNewAuth(r) {
     r.return(302, r.variables.oidc_authz_endpoint + getAuthZArgs(r));
 }
 
+function randomB64url(size) {
+    return Buffer.from(crypto.getRandomValues(new Uint8Array(size)))
+        .toString('base64url');
+}
+
 // Generate the authorization request arguments
 function getAuthZArgs(r) {
     var c = require('crypto');
@@ -472,10 +476,8 @@ function getAuthZArgs(r) {
     ];
 
     if (r.variables.oidc_pkce_enable == 1) {
-        var pkce_code_verifier = c.createHmac('sha256', r.variables.oidc_hmac_key)
-            .update(String(Math.random())).digest('hex');
-        r.variables.pkce_id = c.createHash('sha256')
-            .update(String(Math.random())).digest('base64url');
+        var pkce_code_verifier = randomB64url(32);
+        r.variables.pkce_id = randomB64url(32);
         var pkce_code_challenge = c.createHash('sha256')
             .update(pkce_code_verifier).digest('base64url');
         r.variables.pkce_code_verifier = pkce_code_verifier;
@@ -546,8 +548,7 @@ function handleRefreshError(r, reply) {
     }
 
     r.variables.refresh_token = "-";
-    r.headersOut["Location"] = r.variables.request_uri;
-    oidcError(r, 302, ref, new Error(errorLog));
+    oidcError(r, 302, ref, new Error(errorLog), r.variables.request_uri);
 }
 
 /* If the ID token has not been synced yet, poll the variable every 100ms until
@@ -567,7 +568,7 @@ function retryOriginalRequest(r) {
     r.internalRedirect(r.variables.uri + r.variables.is_args + (r.variables.args || ''));
 }
 
-function oidcError(r, http_code, refId, e) {
+function oidcError(r, http_code, refId, e, location) {
     const hasDebug = !!r.variables.oidc_debug;
     const msg = (e && e.message) ? String(e.message) : (e ? String(e) : "Unexpected Error");
     const stack = (hasDebug && e && e.stack) ? String(e.stack) : "";
@@ -605,7 +606,11 @@ function oidcError(r, http_code, refId, e) {
             : `ReferenceID: ${refId} ${msg}`;
     }
 
-    r.return(http_code);
+    if (location !== undefined) {
+        r.return(http_code, location);
+    } else {
+        r.return(http_code);
+    }
 }
 
 function getRefId(r, context) {

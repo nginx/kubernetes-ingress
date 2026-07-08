@@ -140,7 +140,7 @@ spec:
   tls:
   - hosts:
     - cafe.example.com
-    secretName: cafe-secret
+    secretName: tls-secret
   rules:
   - host: cafe.example.com
 ```
@@ -239,7 +239,7 @@ spec:
   tls:
   - hosts:
     - cafe.example.com
-    secretName: cafe-secret
+    secretName: tls-secret
   rules:
   - host: cafe.example.com
 ```
@@ -336,7 +336,7 @@ spec:
   tls:
   - hosts:
     - cafe.example.com
-    secretName: cafe-secret
+    secretName: tls-secret
   rules:
   - host: cafe.example.com
 ```

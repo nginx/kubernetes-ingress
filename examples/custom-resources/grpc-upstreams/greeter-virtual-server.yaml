@@ -5,7 +5,7 @@ metadata:
 spec:
   host: greeter.example.com
   tls:
-    secret: greeter-secret
+    secret: tls-secret
   upstreams:
   - name: grpc
     service: grpc-svc

@@ -1,12 +1,14 @@
 # Session Persistence
 
+*As of NGINX 1.29.6 this feature is also available in NGINX OSS.*
+
 It is often required that the requests from a client are always passed to the same backend container. You can enable
 such behavior with [Session Persistence](https://www.nginx.com/products/session-persistence/), available in the NGINX
-Plus Ingress Controller.
+Ingress Controller.
 
-NGINX Plus supports *the sticky cookie* method. With this method, NGINX Plus adds a session cookie to the first response
+NGINX supports *the sticky cookie* method. With this method, NGINX adds a session cookie to the first response
 from the backend container, identifying the container that sent the response. When a client issues the next request, it
-will send the cookie value and NGINX Plus will route the request to the same container.
+will send the cookie value and NGINX will route the request to the same container.
 
 ## Syntax
 
@@ -60,7 +62,37 @@ spec:
 For both services, the sticky cookie has the same *srv_id* name. However, we specify the different values of expiration
 time and path.
 
+### Deploy the example
+
+```shell
+kubectl apply -f examples/custom-resources/session-persistence/cafe-vs-with-session-cookie.yml
+```
+
+Check the nginx configuration to verify that the session cookie is configured correctly:
+
+```shell
+~ $> kubectl exec -it <nginx-ingress-controller-pod> -- cat /etc/nginx/conf.d/vs_default_cafe.conf
+
+upstream vs_default_cafe_coffee {
+    random two least_conn;
+    server 10.244.0.38:8080 max_fails=1 fail_timeout=10s max_conns=0;
+    server 10.244.0.40:8080 max_fails=1 fail_timeout=10s max_conns=0;
+    sticky cookie srv_id expires=1h path=/coffee;
+}
+
+upstream vs_default_cafe_tea {
+    random two least_conn;
+    server 10.244.0.39:8080 max_fails=1 fail_timeout=10s max_conns=0;
+    server 10.244.0.41:8080 max_fails=1 fail_timeout=10s max_conns=0;
+    server 10.244.0.42:8080 max_fails=1 fail_timeout=10s max_conns=0;
+    sticky cookie srv_id expires=2h path=/tea;
+}
+
+server {
+  ...
+```
+
 ## Notes
 
-Session persistence **works** even in the case where you have more than one replicas of the NGINX Plus Ingress
+Session persistence **works** even in the case where you have more than one replicas of the NGINX Ingress
 Controller running.

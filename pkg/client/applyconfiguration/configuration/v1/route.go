@@ -2,17 +2,23 @@
 
 package v1
 
+import (
+	metav1 "k8s.io/client-go/applyconfigurations/meta/v1"
+)
+
 // RouteApplyConfiguration represents a declarative configuration of the Route type for use
 // with apply.
 //
 // Route defines a route.
 type RouteApplyConfiguration struct {
-	// The path of the route. NGINX will match it against the URI of a request. Possible values are: a prefix ( / , /path ), an exact match ( =/exact/match ), a case insensitive regular expression ( ~*^/Bar.*\.jpg ) or a case sensitive regular expression ( ~^/foo.*\.jpg ). In the case of a prefix (must start with / ) or an exact match (must start with = ), the path must not include any whitespace characters, { , } or ;. In the case of the regex matches, all double quotes " must be escaped and the match can’t end in an unescaped backslash \. The path must be unique among the paths of all routes of the VirtualServer. Check the location directive for more information.
+	// The path of the route. NGINX will match it against the URI of a request. Possible values are: a prefix ( / , /path ), a longest prefix match ( ^~/images/ ), an exact match ( =/exact/match ), a case-insensitive regular expression ( ~*^/Bar.*\.jpg ) or a case-sensitive regular expression ( ~^/foo.*\.jpg ). In the case of a prefix match (must start with / ), a longest prefix match (must start with ^~ ) or an exact match (must start with = ), the path must not include any whitespace characters, { , } or ;. In the case of the regex matches, all double quotes " must be escaped and the match can’t end in an unescaped backslash \. The path must be unique among the paths of all routes of the VirtualServer. Check the location directive for more information.
 	Path *string `json:"path,omitempty"`
 	// A list of policies. The policies override the policies of the same type defined in the spec of the VirtualServer.
 	Policies []PolicyReferenceApplyConfiguration `json:"policies,omitempty"`
 	// The name of a VirtualServerRoute resource that defines this route. If the VirtualServerRoute belongs to a different namespace than the VirtualServer, you need to include the namespace. For example, tea-namespace/tea.
 	Route *string `json:"route,omitempty"`
+	// The RouteSelector allows selecting VirtualServerRoute resources using label selectors.
+	RouteSelector *metav1.LabelSelectorApplyConfiguration `json:"routeSelector,omitempty"`
 	// The default action to perform for a request.
 	Action *ActionApplyConfiguration `json:"action,omitempty"`
 	// The default splits configuration for traffic splitting. Must include at least 2 splits.
@@ -23,6 +29,8 @@ type RouteApplyConfiguration struct {
 	ErrorPages []ErrorPageApplyConfiguration `json:"errorPages,omitempty"`
 	// Sets a custom snippet in the location context. Overrides the location-snippets ConfigMap key.
 	LocationSnippets *string `json:"location-snippets,omitempty"`
+	// Controls header inheritance behavior at the location level. Allowed values are: on, off, merge. When set to "merge", headers from this context are merged with headers in child contexts. When set to "on", standard NGINX inheritance applies. When set to "off", no headers are inherited from parent contexts.
+	AddHeaderInherit *string `json:"add-header-inherit,omitempty"`
 	// A reference to a DosProtectedResource, setting this enables DOS protection of the VirtualServer route.
 	Dos *string `json:"dos,omitempty"`
 }
@@ -59,6 +67,14 @@ func (b *RouteApplyConfiguration) WithPolicies(values ...*PolicyReferenceApplyCo
 // If called multiple times, the Route field is set to the value of the last call.
 func (b *RouteApplyConfiguration) WithRoute(value string) *RouteApplyConfiguration {
 	b.Route = &value
+	return b
+}
+
+// WithRouteSelector sets the RouteSelector field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the RouteSelector field is set to the value of the last call.
+func (b *RouteApplyConfiguration) WithRouteSelector(value *metav1.LabelSelectorApplyConfiguration) *RouteApplyConfiguration {
+	b.RouteSelector = value
 	return b
 }
 
@@ -114,6 +130,14 @@ func (b *RouteApplyConfiguration) WithErrorPages(values ...*ErrorPageApplyConfig
 // If called multiple times, the LocationSnippets field is set to the value of the last call.
 func (b *RouteApplyConfiguration) WithLocationSnippets(value string) *RouteApplyConfiguration {
 	b.LocationSnippets = &value
+	return b
+}
+
+// WithAddHeaderInherit sets the AddHeaderInherit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AddHeaderInherit field is set to the value of the last call.
+func (b *RouteApplyConfiguration) WithAddHeaderInherit(value string) *RouteApplyConfiguration {
+	b.AddHeaderInherit = &value
 	return b
 }
 

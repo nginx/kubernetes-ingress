@@ -34,6 +34,8 @@ waf_route_vs_src = f"{TEST_DATA}/ap-waf/virtual-server-waf-route.yaml"
 waf_subroute_vsr_src = f"{TEST_DATA}/ap-waf/virtual-server-route-waf-subroute.yaml"
 waf_pol_default_src = f"{TEST_DATA}/ap-waf/policies/waf-default.yaml"
 waf_pol_dataguard_src = f"{TEST_DATA}/ap-waf/policies/waf-dataguard.yaml"
+vsr_selector_std_vs_src = f"{TEST_DATA}/virtual-server-route-selector/standard/virtual-server.yaml"
+vsr_selector_waf_vs_src = f"{TEST_DATA}/virtual-server-route-selector/virtual-server-waf.yaml"
 ap_policy_uds = "dataguard-alarm-uds"
 uds_crd_resource = f"{TEST_DATA}/ap-waf/ap-ic-uds.yaml"
 valid_resp_addr = "Server address:"
@@ -454,6 +456,103 @@ class TestAppProtectWAFPolicyVSR:
         print(response.text)
         delete_policy(kube_apis.custom_objects, "waf-policy", v_s_route_setup.route_m.namespace)
         self.restore_default_vsr(kube_apis, v_s_route_setup)
+        if ap_enable == True:
+            assert_invalid_responses(response)
+        elif ap_enable == False:
+            assert_valid_responses(response)
+        else:
+            pytest.fail(f"Invalid arguments")
+
+
+@pytest.mark.skip_for_nginx_oss
+@pytest.mark.appprotect
+@pytest.mark.appprotect_waf_policies
+@pytest.mark.appprotect_waf_policies_vsr
+@pytest.mark.parametrize(
+    "crd_ingress_controller_with_ap, v_s_route_selector_setup",
+    [
+        (
+            {
+                "type": "complete",
+                "extra_args": [
+                    f"-enable-custom-resources",
+                    f"-enable-leader-election=false",
+                    f"-enable-app-protect",
+                ],
+            },
+            {"example": "virtual-server-route-selector"},
+        )
+    ],
+    indirect=True,
+)
+@pytest.mark.vsr_selector
+class TestAppProtectWAFPolicyVSRSelector:
+    def restore_default_vsr(self, kube_apis, v_s_route_selector_setup) -> None:
+        """
+        Function to revert vsr selector deployments to standard state
+        """
+        patch_src_m = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.route_m.name,
+            patch_src_m,
+            v_s_route_selector_setup.route_m.namespace,
+        )
+        wait_before_test()
+
+    @pytest.mark.appprotect_waf_policies_block
+    @pytest.mark.parametrize(
+        "ap_enable",
+        [
+            True,
+            # False
+        ],
+    )
+    def test_ap_waf_policy_block(
+        self,
+        kube_apis,
+        crd_ingress_controller_with_ap,
+        v_s_route_selector_setup,
+        appprotect_setup,
+        test_namespace,
+        ap_enable,
+    ):
+        """
+        Test if WAF policy is working with VSR deployments
+        """
+        req_url = f"http://{v_s_route_selector_setup.public_endpoint.public_ip}:{v_s_route_selector_setup.public_endpoint.port}"
+
+        print(f"Create waf policy")
+        create_ap_waf_policy_from_yaml(
+            kube_apis.custom_objects,
+            waf_pol_dataguard_src,
+            v_s_route_selector_setup.route_m.namespace,
+            test_namespace,
+            ap_enable,
+            ap_enable,
+            ap_pol_name,
+            log_name,
+            "syslog:server=127.0.0.1:514",
+        )
+        wait_before_test()
+        print(f"Patch vsr with policy: {waf_subroute_vsr_src}")
+        patch_v_s_route_from_yaml(
+            kube_apis.custom_objects,
+            v_s_route_selector_setup.route_m.name,
+            waf_subroute_vsr_src,
+            v_s_route_selector_setup.route_m.namespace,
+        )
+        wait_before_test()
+        ap_crd_info = read_ap_custom_resource(kube_apis.custom_objects, test_namespace, "appolicies", ap_policy_uds)
+        assert_ap_crd_info(ap_crd_info, ap_policy_uds)
+        wait_before_test(120)
+        response = requests.get(
+            f'{req_url}{v_s_route_selector_setup.route_m.paths[0]}+"</script>"',
+            headers={"host": v_s_route_selector_setup.vs_host},
+        )
+        print(response.text)
+        delete_policy(kube_apis.custom_objects, "waf-policy", v_s_route_selector_setup.route_m.namespace)
+        self.restore_default_vsr(kube_apis, v_s_route_selector_setup)
         if ap_enable == True:
             assert_invalid_responses(response)
         elif ap_enable == False:

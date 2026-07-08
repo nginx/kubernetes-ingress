@@ -2,7 +2,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: dnsendpoints.externaldns.nginx.org
 spec:
   group: externaldns.nginx.org
@@ -99,7 +99,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: globalconfigurations.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -174,7 +174,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: policies.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -496,6 +496,77 @@ spec:
                 x-kubernetes-validations:
                 - message: time is required when allowedCodes is specified
                   rule: '!has(self.allowedCodes) || (has(self.allowedCodes) && has(self.time))'
+              cors:
+                description: The CORS policy configures Cross-Origin Resource Sharing
+                  headers
+                properties:
+                  allowCredentials:
+                    default: false
+                    description: |-
+                      AllowCredentials indicates whether the response to the request can be exposed when the credentials flag is true.
+                      When used as part of a response to a preflight request, this indicates whether the actual request can be made using credentials.
+                    type: boolean
+                  allowHeaders:
+                    description: |-
+                      AllowHeaders defines the headers that are allowed in cross-origin requests.
+                      Common safe headers: ["Accept", "Accept-Language", "Content-Language", "Content-Type"]
+                      Custom headers: ["Authorization", "X-Requested-With", "X-Custom-Header"]
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-validations:
+                    - message: header name cannot be empty
+                      rule: self.all(header, header != '')
+                  allowMethods:
+                    description: AllowMethods defines the HTTP methods that are allowed
+                      for cross-origin requests.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-validations:
+                    - message: method name cannot be empty
+                      rule: self.all(method, method != '')
+                  allowOrigin:
+                    description: |-
+                      AllowOrigin defines the origins that are allowed to make cross-origin requests.
+                      Can be exact domains, single wildcards, or "*" for all origins.
+                      Examples: ["https://example.com", "https://*.mydomain.com", "*"]
+                      Security: When allowCredentials is true, wildcard "*" is not allowed per CORS specification.
+                      The server must specify explicit origins for credentialed requests.
+                    items:
+                      type: string
+                    minItems: 1
+                    type: array
+                    x-kubernetes-validations:
+                    - message: origin cannot be empty
+                      rule: self.all(origin, origin != '')
+                  exposeHeaders:
+                    description: |-
+                      ExposeHeaders defines the headers that browsers are allowed to access.
+                      Use this field to expose additional custom headers to the browser.
+                      Example: ["X-Total-Count", "X-Page-Size", "X-RateLimit-Remaining"]
+                      Note: Set-Cookie headers cannot be exposed via CORS per official MDN specification.
+                    items:
+                      type: string
+                    type: array
+                    x-kubernetes-validations:
+                    - message: header name cannot be empty
+                      rule: self.all(header, header != '')
+                  maxAge:
+                    default: 86400
+                    description: |-
+                      MaxAge defines how long (in seconds) the results of a preflight request can be cached.
+                      Default: 86400 (24 hours). Maximum recommended value is 86400 (24 hours).
+                    minimum: 0
+                    type: integer
+                required:
+                - allowOrigin
+                type: object
+                x-kubernetes-validations:
+                - message: cannot use wildcard '*' for allowOrigin when allowCredentials
+                    is true for security reasons
+                  rule: '!(self.allowOrigin.exists(origin, origin == ''*'') && has(self.allowCredentials)
+                    && self.allowCredentials == true)'
               egressMTLS:
                 description: The EgressMTLS policy configures upstreams authentication
                   and certificate verification.
@@ -544,6 +615,133 @@ spec:
                       certificate.
                     type: boolean
                 type: object
+              externalAuth:
+                description: The ExternalAuth policy configures NGINX to authenticate
+                  client requests using an external authentication server, which can
+                  be used for example with the oauth2-proxy or any custom authentication
+                  server.
+                properties:
+                  authServiceName:
+                    description: AuthServiceName is the name of the Kubernetes service
+                      to which the request will be sent for authentication.  It can
+                      be in the same namespace as the Policy resource or in a different
+                      namespace. If the service is in a different namespace, it should
+                      be specified in the format <namespace>/<service>. For example,
+                      auth-service or auth-namespace/auth-service.
+                    pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                  authServicePorts:
+                    description: AuthServicePorts are the ports of the Kubernetes
+                      service to which requests will be sent for authentication. If
+                      not specified, the ports will be looked up from the service
+                      definition. This field is only required if the user wants to
+                      choose a specific port from the service definition, otherwise
+                      the first port will be used by default.
+                    items:
+                      type: integer
+                    type: array
+                  authSigninRedirectBasePath:
+                    description: AuthSigninRedirectBasePath is the base path for the
+                      NGINX location block that handles sign-in redirect requests
+                      from the external authentication server. For example, oauth2-proxy
+                      expects /oauth2. If not specified, defaults to /oauth2.
+                    pattern: ^/[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=-]*$
+                    type: string
+                  authSigninURI:
+                    description: AuthSigninURI is the URI which requests will be redirected
+                      to if the external authentication server determines that the
+                      client needs to be authenticated. This is typically used when
+                      the external authentication server is an oauth2-proxy or any
+                      custom authentication server that requires redirection for authentication.
+                      The URI is a relative URI, for example /signin.
+                    pattern: ^/.*$
+                    type: string
+                  authSnippets:
+                    description: AuthSnippets can be used to add custom configuration
+                      snippets to the location block of the external authentication
+                      configuration. This can be used for example to add additional
+                      headers to the request sent to the external authentication server,
+                      or to configure additional parameters for the auth_request module.
+                      The content of this field will be added as-is to the location
+                      block, so it must be a valid NGINX configuration snippet.
+                    type: string
+                  authURI:
+                    default: /
+                    description: AuthURI is the URI of the external authentication
+                      server to which the request will be sent for authentication.
+                      The URI is a relative URI, for example /auth.
+                    pattern: ^/.*$
+                    type: string
+                  sniName:
+                    description: SNIName sets the server name used for SNI and certificate
+                      verification when connecting to the external authentication
+                      server over TLS. If not specified, defaults to <service-name>.<namespace>.svc
+                      derived from authServiceName.
+                    pattern: ^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)*$
+                    type: string
+                  sslEnabled:
+                    default: false
+                    description: SSLEnabled enables HTTPS when proxying requests to
+                      the external authentication server. Default is false.
+                    type: boolean
+                  sslVerify:
+                    default: false
+                    description: SSLVerify enables verification of the external authentication
+                      server's SSL certificate. Default is false.
+                    type: boolean
+                  sslVerifyDepth:
+                    default: 1
+                    description: SSLVerifyDepth sets the verification depth in the
+                      external authentication server certificates chain. Default is
+                      1.
+                    minimum: 0
+                    type: integer
+                  trustedCertSecret:
+                    description: TrustedCertSecret is the name of the Kubernetes secret
+                      that stores the CA certificate for external authentication server
+                      certificate verification. It can be in the same namespace as
+                      the Policy resource or in a different namespace specified as
+                      <namespace>/<secret>. The secret must be of the type nginx.org/ca,
+                      and the certificate must be stored under the key ca.crt.
+                    pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                required:
+                - authServiceName
+                - authURI
+                type: object
+              hsts:
+                description: The HSTS policy configures HTTP Strict Transport Security
+                  headers
+                properties:
+                  behindProxy:
+                    default: false
+                    description: BehindProxy configures NGINX to set the HSTS header
+                      based on the X-Forwarded-Proto request header rather than the
+                      $https variable.
+                    type: boolean
+                  includeSubDomains:
+                    default: false
+                    description: IncludeSubDomains extends the HSTS policy to all
+                      subdomains of the host.
+                    type: boolean
+                  maxAge:
+                    description: MaxAge defines how long (in seconds) the browser
+                      should cache and enforce the HSTS policy.
+                    minimum: 0
+                    type: integer
+                  preload:
+                    default: false
+                    description: Preload indicates that the domain should be included
+                      in browsers' HSTS preload lists.
+                    type: boolean
+                required:
+                - maxAge
+                type: object
+                x-kubernetes-validations:
+                - message: preload requires includeSubDomains to be enabled
+                  rule: '!self.preload || self.includeSubDomains'
+                - message: preload requires maxAge to be at least 31536000 (one year)
+                  rule: '!self.preload || (has(self.maxAge) && self.maxAge >= 31536000)'
               ingressClassName:
                 description: Specifies which instance of NGINX Ingress Controller
                   must handle the Policy resource.
@@ -834,22 +1032,186 @@ spec:
                 properties:
                   apBundle:
                     description: The App Protect WAF policy bundle. Mutually exclusive
-                      with apPolicy.
+                      with apPolicy and apBundleSource.
                     type: string
+                  apBundleSource:
+                    description: |-
+                      ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
+                      Mutually exclusive with ApPolicy and ApBundle.
+                    properties:
+                      enablePolling:
+                        description: |-
+                          EnablePolling enables background polling to automatically detect and fetch
+                          updated bundles at the configured PollInterval. When false, the bundle is
+                          fetched once on policy creation or update; subsequent updates require
+                          modifying the Policy resource to trigger a new fetch.
+                        type: boolean
+                      insecureSkipVerify:
+                        description: |-
+                          InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                          Not recommended for production use.
+                        type: boolean
+                      policyName:
+                        description: PolicyName is the policy name on the management
+                          plane. Required for NIM and N1C; forbidden for HTTPS.
+                        maxLength: 63
+                        type: string
+                      policyNamespace:
+                        description: PolicyNamespace is the namespace/tenant on the
+                          management plane. Required for N1C only.
+                        maxLength: 63
+                        type: string
+                      pollInterval:
+                        description: |-
+                          PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                          Minimum 1m. Default 5m. Ignored when enablePolling is false.
+                        type: string
+                      retryAttempts:
+                        description: RetryAttempts is the number of retry attempts
+                          on transient failure. Range 1–10.
+                        maximum: 10
+                        minimum: 1
+                        type: integer
+                      secret:
+                        description: |-
+                          Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
+                          For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
+                          For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                          For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                      timeout:
+                        description: Timeout is the per-request HTTP timeout. Default
+                          60s.
+                        type: string
+                      trustedCertSecret:
+                        description: |-
+                          TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                          for verifying the remote endpoint TLS certificate. The secret must be in the same
+                          namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                        pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                        type: string
+                      type:
+                        default: HTTPS
+                        description: Type is the bundle source backend. Defaults to
+                          HTTPS.
+                        enum:
+                        - HTTPS
+                        - NIM
+                        - N1C
+                        type: string
+                      url:
+                        description: URL is the full bundle URL for HTTPS type, or
+                          the API base URL for NIM/N1C. Must use https://.
+                        maxLength: 2083
+                        minLength: 1
+                        pattern: ^https://
+                        type: string
+                      verifyChecksum:
+                        description: VerifyChecksum enables SHA-256 verification of
+                          the downloaded bundle. HTTPS type only.
+                        type: boolean
+                    required:
+                    - enablePolling
+                    - url
+                    type: object
                   apPolicy:
                     description: The App Protect WAF policy of the WAF. Accepts an
-                      optional namespace. Mutually exclusive with apBundle.
+                      optional namespace. Mutually exclusive with apBundle and apBundleSource.
                     type: string
                   enable:
                     description: Enables NGINX App Protect WAF.
                     type: boolean
                   securityLog:
-                    description: SecurityLog defines the security log of a WAF policy.
+                    description: |-
+                      SecurityLog defines the security log of a WAF policy.
+                      Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer.
                     properties:
                       apLogBundle:
                         description: The App Protect WAF log bundle resource. Only
                           works with apBundle.
                         type: string
+                      apLogBundleSource:
+                        description: |-
+                          ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
+                          Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
+                        properties:
+                          enablePolling:
+                            description: |-
+                              EnablePolling enables background polling to automatically detect and fetch
+                              updated bundles at the configured PollInterval. When false, the bundle is
+                              fetched once on policy creation or update; subsequent updates require
+                              modifying the Policy resource to trigger a new fetch.
+                            type: boolean
+                          insecureSkipVerify:
+                            description: |-
+                              InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                              Not recommended for production use.
+                            type: boolean
+                          policyName:
+                            description: PolicyName is the policy name on the management
+                              plane. Required for NIM and N1C; forbidden for HTTPS.
+                            maxLength: 63
+                            type: string
+                          policyNamespace:
+                            description: PolicyNamespace is the namespace/tenant on
+                              the management plane. Required for N1C only.
+                            maxLength: 63
+                            type: string
+                          pollInterval:
+                            description: |-
+                              PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                              Minimum 1m. Default 5m. Ignored when enablePolling is false.
+                            type: string
+                          retryAttempts:
+                            description: RetryAttempts is the number of retry attempts
+                              on transient failure. Range 1–10.
+                            maximum: 10
+                            minimum: 1
+                            type: integer
+                          secret:
+                            description: |-
+                              Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
+                              For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
+                              For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                              For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                          timeout:
+                            description: Timeout is the per-request HTTP timeout.
+                              Default 60s.
+                            type: string
+                          trustedCertSecret:
+                            description: |-
+                              TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                              for verifying the remote endpoint TLS certificate. The secret must be in the same
+                              namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                            pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                            type: string
+                          type:
+                            default: HTTPS
+                            description: Type is the bundle source backend. Defaults
+                              to HTTPS.
+                            enum:
+                            - HTTPS
+                            - NIM
+                            - N1C
+                            type: string
+                          url:
+                            description: URL is the full bundle URL for HTTPS type,
+                              or the API base URL for NIM/N1C. Must use https://.
+                            maxLength: 2083
+                            minLength: 1
+                            pattern: ^https://
+                            type: string
+                          verifyChecksum:
+                            description: VerifyChecksum enables SHA-256 verification
+                              of the downloaded bundle. HTTPS type only.
+                            type: boolean
+                        required:
+                        - enablePolling
+                        - url
+                        type: object
                       apLogConf:
                         description: The App Protect WAF log conf resource. Accepts
                           an optional namespace. Only works with apPolicy.
@@ -865,12 +1227,95 @@ spec:
                     type: object
                   securityLogs:
                     items:
-                      description: SecurityLog defines the security log of a WAF policy.
+                      description: |-
+                        SecurityLog defines the security log of a WAF policy.
+                        Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer.
                       properties:
                         apLogBundle:
                           description: The App Protect WAF log bundle resource. Only
                             works with apBundle.
                           type: string
+                        apLogBundleSource:
+                          description: |-
+                            ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
+                            Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
+                          properties:
+                            enablePolling:
+                              description: |-
+                                EnablePolling enables background polling to automatically detect and fetch
+                                updated bundles at the configured PollInterval. When false, the bundle is
+                                fetched once on policy creation or update; subsequent updates require
+                                modifying the Policy resource to trigger a new fetch.
+                              type: boolean
+                            insecureSkipVerify:
+                              description: |-
+                                InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+                                Not recommended for production use.
+                              type: boolean
+                            policyName:
+                              description: PolicyName is the policy name on the management
+                                plane. Required for NIM and N1C; forbidden for HTTPS.
+                              maxLength: 63
+                              type: string
+                            policyNamespace:
+                              description: PolicyNamespace is the namespace/tenant
+                                on the management plane. Required for N1C only.
+                              maxLength: 63
+                              type: string
+                            pollInterval:
+                              description: |-
+                                PollInterval is how often to re-fetch the bundle when enablePolling is true.
+                                Minimum 1m. Default 5m. Ignored when enablePolling is false.
+                              type: string
+                            retryAttempts:
+                              description: RetryAttempts is the number of retry attempts
+                                on transient failure. Range 1–10.
+                              maximum: 10
+                              minimum: 1
+                              type: integer
+                            secret:
+                              description: |-
+                                Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
+                                For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
+                                For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+                                For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+                              pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                              type: string
+                            timeout:
+                              description: Timeout is the per-request HTTP timeout.
+                                Default 60s.
+                              type: string
+                            trustedCertSecret:
+                              description: |-
+                                TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+                                for verifying the remote endpoint TLS certificate. The secret must be in the same
+                                namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+                              pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                              type: string
+                            type:
+                              default: HTTPS
+                              description: Type is the bundle source backend. Defaults
+                                to HTTPS.
+                              enum:
+                              - HTTPS
+                              - NIM
+                              - N1C
+                              type: string
+                            url:
+                              description: URL is the full bundle URL for HTTPS type,
+                                or the API base URL for NIM/N1C. Must use https://.
+                              maxLength: 2083
+                              minLength: 1
+                              pattern: ^https://
+                              type: string
+                            verifyChecksum:
+                              description: VerifyChecksum enables SHA-256 verification
+                                of the downloaded bundle. HTTPS type only.
+                              type: boolean
+                          required:
+                          - enablePolling
+                          - url
+                          type: object
                         apLogConf:
                           description: The App Protect WAF log conf resource. Accepts
                             an optional namespace. Only works with apPolicy.
@@ -914,7 +1359,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: transportservers.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -1193,7 +1638,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: virtualserverroutes.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -1408,6 +1853,17 @@ spec:
                               type: string
                           type: object
                       type: object
+                    add-header-inherit:
+                      description: 'Controls header inheritance behavior at the location
+                        level. Allowed values are: on, off, merge. When set to "merge",
+                        headers from this context are merged with headers in child
+                        contexts. When set to "on", standard NGINX inheritance applies.
+                        When set to "off", no headers are inherited from parent contexts.'
+                      enum:
+                      - "on"
+                      - "off"
+                      - merge
+                      type: string
                     dos:
                       description: A reference to a DosProtectedResource, setting
                         this enables DOS protection of the VirtualServer route.
@@ -1830,16 +2286,17 @@ spec:
                     path:
                       description: 'The path of the route. NGINX will match it against
                         the URI of a request. Possible values are: a prefix ( / ,
-                        /path ), an exact match ( =/exact/match ), a case insensitive
-                        regular expression ( ~*^/Bar.*\.jpg ) or a case sensitive
-                        regular expression ( ~^/foo.*\.jpg ). In the case of a prefix
-                        (must start with / ) or an exact match (must start with =
-                        ), the path must not include any whitespace characters, {
-                        , } or ;. In the case of the regex matches, all double quotes
-                        " must be escaped and the match can’t end in an unescaped
-                        backslash \. The path must be unique among the paths of all
-                        routes of the VirtualServer. Check the location directive
-                        for more information.'
+                        /path ), a longest prefix match ( ^~/images/ ), an exact match
+                        ( =/exact/match ), a case-insensitive regular expression (
+                        ~*^/Bar.*\.jpg ) or a case-sensitive regular expression (
+                        ~^/foo.*\.jpg ). In the case of a prefix match (must start
+                        with / ), a longest prefix match (must start with ^~ ) or
+                        an exact match (must start with = ), the path must not include
+                        any whitespace characters, { , } or ;. In the case of the
+                        regex matches, all double quotes " must be escaped and the
+                        match can’t end in an unescaped backslash \. The path must
+                        be unique among the paths of all routes of the VirtualServer.
+                        Check the location directive for more information.'
                       type: string
                     policies:
                       description: A list of policies. The policies override the policies
@@ -1865,6 +2322,53 @@ spec:
                         different namespace than the VirtualServer, you need to include
                         the namespace. For example, tea-namespace/tea.
                       type: string
+                    routeSelector:
+                      description: The RouteSelector allows selecting VirtualServerRoute
+                        resources using label selectors.
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: |-
+                              A label selector requirement is a selector that contains values, a key, and an operator that
+                              relates the key and values.
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: |-
+                                  operator represents a key's relationship to a set of values.
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.
+                                type: string
+                              values:
+                                description: |-
+                                  values is an array of string values. If the operator is In or NotIn,
+                                  the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                  the values array must be empty. This array is replaced during a strategic
+                                  merge patch.
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                            map is equivalent to an element of matchExpressions, whose key field is "key", the
+                            operator is "In", and the values array contains only "value". The requirements are ANDed.
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
                     splits:
                       description: The default splits configuration for traffic splitting.
                         Must include at least 2 splits.
@@ -2305,7 +2809,7 @@ spec:
                         which allows requests from the same client to be passed to
                         the same upstream server. The information about the designated
                         upstream server is passed in a session cookie generated by
-                        NGINX Plus.
+                        NGINX.
                       properties:
                         domain:
                           description: The domain for which the cookie is set.
@@ -2430,7 +2934,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.20.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: virtualservers.k8s.nginx.org
 spec:
   group: k8s.nginx.org
@@ -2490,6 +2994,17 @@ spec:
           spec:
             description: VirtualServerSpec is the spec of the VirtualServer resource.
             properties:
+              add-header-inherit:
+                description: 'Controls header inheritance behavior at the server level.
+                  Allowed values are: on, off, merge. When set to "merge", headers
+                  from this context are merged with headers in child contexts. When
+                  set to "on", standard NGINX inheritance applies. When set to "off",
+                  no headers are inherited from parent contexts.'
+                enum:
+                - "on"
+                - "off"
+                - merge
+                type: string
               dos:
                 description: A reference to a DosProtectedResource, setting this enables
                   DOS protection of the VirtualServer route.
@@ -2732,6 +3247,17 @@ spec:
                               type: string
                           type: object
                       type: object
+                    add-header-inherit:
+                      description: 'Controls header inheritance behavior at the location
+                        level. Allowed values are: on, off, merge. When set to "merge",
+                        headers from this context are merged with headers in child
+                        contexts. When set to "on", standard NGINX inheritance applies.
+                        When set to "off", no headers are inherited from parent contexts.'
+                      enum:
+                      - "on"
+                      - "off"
+                      - merge
+                      type: string
                     dos:
                       description: A reference to a DosProtectedResource, setting
                         this enables DOS protection of the VirtualServer route.
@@ -3154,16 +3680,17 @@ spec:
                     path:
                       description: 'The path of the route. NGINX will match it against
                         the URI of a request. Possible values are: a prefix ( / ,
-                        /path ), an exact match ( =/exact/match ), a case insensitive
-                        regular expression ( ~*^/Bar.*\.jpg ) or a case sensitive
-                        regular expression ( ~^/foo.*\.jpg ). In the case of a prefix
-                        (must start with / ) or an exact match (must start with =
-                        ), the path must not include any whitespace characters, {
-                        , } or ;. In the case of the regex matches, all double quotes
-                        " must be escaped and the match can’t end in an unescaped
-                        backslash \. The path must be unique among the paths of all
-                        routes of the VirtualServer. Check the location directive
-                        for more information.'
+                        /path ), a longest prefix match ( ^~/images/ ), an exact match
+                        ( =/exact/match ), a case-insensitive regular expression (
+                        ~*^/Bar.*\.jpg ) or a case-sensitive regular expression (
+                        ~^/foo.*\.jpg ). In the case of a prefix match (must start
+                        with / ), a longest prefix match (must start with ^~ ) or
+                        an exact match (must start with = ), the path must not include
+                        any whitespace characters, { , } or ;. In the case of the
+                        regex matches, all double quotes " must be escaped and the
+                        match can’t end in an unescaped backslash \. The path must
+                        be unique among the paths of all routes of the VirtualServer.
+                        Check the location directive for more information.'
                       type: string
                     policies:
                       description: A list of policies. The policies override the policies
@@ -3189,6 +3716,53 @@ spec:
                         different namespace than the VirtualServer, you need to include
                         the namespace. For example, tea-namespace/tea.
                       type: string
+                    routeSelector:
+                      description: The RouteSelector allows selecting VirtualServerRoute
+                        resources using label selectors.
+                      properties:
+                        matchExpressions:
+                          description: matchExpressions is a list of label selector
+                            requirements. The requirements are ANDed.
+                          items:
+                            description: |-
+                              A label selector requirement is a selector that contains values, a key, and an operator that
+                              relates the key and values.
+                            properties:
+                              key:
+                                description: key is the label key that the selector
+                                  applies to.
+                                type: string
+                              operator:
+                                description: |-
+                                  operator represents a key's relationship to a set of values.
+                                  Valid operators are In, NotIn, Exists and DoesNotExist.
+                                type: string
+                              values:
+                                description: |-
+                                  values is an array of string values. If the operator is In or NotIn,
+                                  the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                  the values array must be empty. This array is replaced during a strategic
+                                  merge patch.
+                                items:
+                                  type: string
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                            - key
+                            - operator
+                            type: object
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        matchLabels:
+                          additionalProperties:
+                            type: string
+                          description: |-
+                            matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                            map is equivalent to an element of matchExpressions, whose key field is "key", the
+                            operator is "In", and the values array contains only "value". The requirements are ANDed.
+                          type: object
+                      type: object
+                      x-kubernetes-map-type: atomic
                     splits:
                       description: The default splits configuration for traffic splitting.
                         Must include at least 2 splits.
@@ -3731,7 +4305,7 @@ spec:
                         which allows requests from the same client to be passed to
                         the same upstream server. The information about the designated
                         upstream server is passed in a session cookie generated by
-                        NGINX Plus.
+                        NGINX.
                       properties:
                         domain:
                           description: The domain for which the cookie is set.

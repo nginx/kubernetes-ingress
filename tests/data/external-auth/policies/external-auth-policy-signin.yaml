@@ -1,0 +1,9 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-policy-signin
+spec:
+  externalAuth:
+    authURI: "/auth"
+    authServiceName: "external-auth-svc"
+    authSigninURI: "/signin"

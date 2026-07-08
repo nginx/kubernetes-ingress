@@ -17,13 +17,14 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     get_events,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.ssl_utils import get_certificate
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_virtual_server_from_yaml
+from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 
 
 @pytest.fixture(scope="function")
@@ -325,7 +326,11 @@ class TestVirtualServerGrpcHealthCheck:
         vs_events = get_events(kube_apis.v1, virtual_server_setup.namespace)
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
-            kube_apis, ic_pod_name, ingress_controller_prerequisites.namespace, virtual_server_setup
+            kube_apis,
+            ic_pod_name,
+            ingress_controller_prerequisites.namespace,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
         )
 
     @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)

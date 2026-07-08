@@ -1,5 +1,14 @@
 # Session Persistence
 
+*As of NGINX 1.29.6 this feature is also available in NGINX OSS.*
+
+*To use with NGINX OSS, use the .org annotation:*
+
+```yaml
+  nginx.org/sticky-cookie-services: "service1[;service2;...]"
+```
+
+---
 It is often required that the requests from a client are always passed to the same backend container. You can enable
 such behavior with [Session Persistence](https://www.nginx.com/products/session-persistence/), available in the NGINX
 Plus Ingress Controller.
@@ -65,12 +74,12 @@ time and  a path.
 
 ## Notes
 
-Session persistence **works** even in the case where you have more than one replicas of the NGINX Plus Ingress
+Session persistence **works** even in the case where you have more than one replicas of the NGINX Ingress
 Controller running.
 
 ## Advanced Session Persistence
 
-The NGINX Plus Ingress Controller supports only one of the three session persistence methods available in NGINX Plus.
+The NGINX Ingress Controller supports only one of the three session persistence methods available in NGINX.
 Visit [this page](https://docs.nginx.com/nginx/admin-guide/load-balancer/http-load-balancer/#enabling-session-persistence) to learn about all of the methods. If your
 session persistence requirements are more complex than the ones in the example above, you will have to use a different
 approach to deploying and configuring NGINX Plus without the Ingress Controller. You can read the [Load Balancing

@@ -2,8 +2,10 @@ package k8s
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -16,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -207,23 +210,25 @@ func NewMinionConfiguration(ing *networking.Ingress) *MinionConfiguration {
 
 // VirtualServerConfiguration holds a VirtualServer along with its VirtualServerRoutes.
 type VirtualServerConfiguration struct {
-	VirtualServer       *conf_v1.VirtualServer
-	VirtualServerRoutes []*conf_v1.VirtualServerRoute
-	Warnings            []string
-	HTTPPort            int
-	HTTPSPort           int
-	HTTPIPv4            string
-	HTTPIPv6            string
-	HTTPSIPv4           string
-	HTTPSIPv6           string
+	VirtualServer               *conf_v1.VirtualServer
+	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
+	VirtualServerRouteSelectors map[string][]string
+	Warnings                    []string
+	HTTPPort                    int
+	HTTPSPort                   int
+	HTTPIPv4                    string
+	HTTPIPv6                    string
+	HTTPSIPv4                   string
+	HTTPSIPv6                   string
 }
 
 // NewVirtualServerConfiguration creates a VirtualServerConfiguration.
-func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, warnings []string) *VirtualServerConfiguration {
+func NewVirtualServerConfiguration(vs *conf_v1.VirtualServer, vsrs []*conf_v1.VirtualServerRoute, vsrSelectors map[string][]string, warnings []string) *VirtualServerConfiguration {
 	return &VirtualServerConfiguration{
-		VirtualServer:       vs,
-		VirtualServerRoutes: vsrs,
-		Warnings:            warnings,
+		VirtualServer:               vs,
+		VirtualServerRoutes:         vsrs,
+		VirtualServerRouteSelectors: vsrSelectors,
+		Warnings:                    warnings,
 	}
 }
 
@@ -267,6 +272,34 @@ func (vsc *VirtualServerConfiguration) IsEqual(resource Resource) bool {
 	for i := range vsc.VirtualServerRoutes {
 		if !compareObjectMetas(&vsc.VirtualServerRoutes[i].ObjectMeta, &vsConfig.VirtualServerRoutes[i].ObjectMeta) {
 			return false
+		}
+	}
+
+	// Check VirtualServerRouteSelectors maps for equality
+	if len(vsc.VirtualServerRouteSelectors) != len(vsConfig.VirtualServerRouteSelectors) {
+		return false
+	}
+
+	for selector, routes := range vsc.VirtualServerRouteSelectors {
+		otherRoutes, exists := vsConfig.VirtualServerRouteSelectors[selector]
+		if !exists {
+			return false
+		}
+
+		if len(routes) != len(otherRoutes) {
+			return false
+		}
+
+		// Create maps for O(1) lookup to compare route slices
+		routeSet := make(map[string]bool)
+		for _, route := range routes {
+			routeSet[route] = true
+		}
+
+		for _, otherRoute := range otherRoutes {
+			if !routeSet[otherRoute] {
+				return false
+			}
 		}
 	}
 
@@ -354,6 +387,11 @@ type Configuration struct {
 	virtualServerRoutes map[string]*conf_v1.VirtualServerRoute
 	transportServers    map[string]*conf_v1.TransportServer
 
+	// minionsByHost indexes minion Ingresses by their host for O(1) lookup.
+	// Outer key: host string, inner key: ingress resource key (namespace/name).
+	// Maintained by AddOrUpdateIngress/DeleteIngress; consumed by buildMinionConfigs.
+	minionsByHost map[string]map[string]bool
+
 	globalConfiguration *conf_v1.GlobalConfiguration
 
 	hostProblems     map[string]ConfigurationProblem
@@ -381,6 +419,13 @@ type Configuration struct {
 	isCertManagerEnabled         bool
 	isIPV6Disabled               bool
 	isDirectiveAutoadjustEnabled bool
+	allowEmptyIngressHost        bool
+
+	// startupComplete indicates whether the initial informer cache sync and
+	// queue drain have finished. When false, rebuildHosts() is skipped in
+	// AddOrUpdate*/Delete* methods to avoid O(N) full rebuilds during startup.
+	// CompleteStartup() flips this to true and performs a single rebuild.
+	startupComplete bool
 
 	lock sync.RWMutex
 }
@@ -400,7 +445,9 @@ func NewConfiguration(
 	isCertManagerEnabled bool,
 	isIPV6Disabled bool,
 	isDirectiveAutoadjustEnabled bool,
+	allowEmptyIngressHost bool,
 ) *Configuration {
+	policyServiceRefs := make(map[string]string)
 	return &Configuration{
 		hosts:                        make(map[string]Resource),
 		listenerHosts:                make(map[listenerHostKey]*TransportServerConfiguration),
@@ -408,14 +455,15 @@ func NewConfiguration(
 		virtualServers:               make(map[string]*conf_v1.VirtualServer),
 		virtualServerRoutes:          make(map[string]*conf_v1.VirtualServerRoute),
 		transportServers:             make(map[string]*conf_v1.TransportServer),
+		minionsByHost:                make(map[string]map[string]bool),
 		hostProblems:                 make(map[string]ConfigurationProblem),
 		hasCorrectIngressClass:       hasCorrectIngressClass,
 		virtualServerValidator:       virtualServerValidator,
 		globalConfigurationValidator: globalConfigurationValidator,
 		transportServerValidator:     transportServerValidator,
 		secretReferenceChecker:       newSecretReferenceChecker(isPlus),
-		serviceReferenceChecker:      newServiceReferenceChecker(false),
-		endpointReferenceChecker:     newServiceReferenceChecker(true),
+		serviceReferenceChecker:      newServiceReferenceChecker(false, policyServiceRefs),
+		endpointReferenceChecker:     newServiceReferenceChecker(true, policyServiceRefs),
 		policyReferenceChecker:       newPolicyReferenceChecker(),
 		appPolicyReferenceChecker:    newAppProtectResourceReferenceChecker(configs.AppProtectPolicyAnnotation),
 		appLogConfReferenceChecker:   newAppProtectResourceReferenceChecker(configs.AppProtectLogConfAnnotation),
@@ -429,6 +477,7 @@ func NewConfiguration(
 		isCertManagerEnabled:         isCertManagerEnabled,
 		isIPV6Disabled:               isIPV6Disabled,
 		isDirectiveAutoadjustEnabled: isDirectiveAutoadjustEnabled,
+		allowEmptyIngressHost:        allowEmptyIngressHost,
 	}
 }
 
@@ -442,13 +491,29 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 
 	if !c.hasCorrectIngressClass(ing) {
 		delete(c.ingresses, key)
+		c.updateMinionIndex(key, nil)
 	} else {
-		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled).ToAggregate()
+		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled, c.allowEmptyIngressHost).ToAggregate()
 		if validationError != nil {
 			delete(c.ingresses, key)
+			c.updateMinionIndex(key, nil)
 		} else {
 			c.ingresses[key] = ing
+			c.updateMinionIndex(key, ing)
 		}
+	}
+
+	if !c.startupComplete {
+		var problems []ConfigurationProblem
+		if validationError != nil {
+			problems = append(problems, ConfigurationProblem{
+				Object:  ing,
+				IsError: true,
+				Reason:  nl.EventReasonRejected,
+				Message: validationError.Error(),
+			})
+		}
+		return nil, problems
 	}
 
 	changes, problems := c.rebuildHosts()
@@ -494,6 +559,11 @@ func (c *Configuration) DeleteIngress(key string) ([]ResourceChange, []Configura
 	}
 
 	delete(c.ingresses, key)
+	c.removeMinionFromIndex(key)
+
+	if !c.startupComplete {
+		return nil, nil
+	}
 
 	return c.rebuildHosts()
 }
@@ -513,13 +583,22 @@ func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]R
 		if validationError != nil {
 			delete(c.virtualServers, key)
 		} else {
-			if err := c.balanceUpstreamProxies(vs.Spec.Upstreams); err != nil {
-				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
-				delete(c.virtualServers, key)
-			} else {
-				c.virtualServers[key] = vs
-			}
+			c.balanceUpstreamProxies(vs.Spec.Upstreams)
+			c.virtualServers[key] = vs
 		}
+	}
+
+	if !c.startupComplete {
+		var problems []ConfigurationProblem
+		if validationError != nil {
+			problems = append(problems, ConfigurationProblem{
+				Object:  vs,
+				IsError: true,
+				Reason:  nl.EventReasonRejected,
+				Message: fmt.Sprintf("VirtualServer %s was rejected with error: %s", getResourceKey(&vs.ObjectMeta), validationError.Error()),
+			})
+		}
+		return nil, problems
 	}
 
 	changes, problems := c.rebuildHosts()
@@ -566,6 +645,10 @@ func (c *Configuration) DeleteVirtualServer(key string) ([]ResourceChange, []Con
 
 	delete(c.virtualServers, key)
 
+	if !c.startupComplete {
+		return nil, nil
+	}
+
 	return c.rebuildHosts()
 }
 
@@ -585,14 +668,22 @@ func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServer
 			delete(c.virtualServerRoutes, key)
 		} else {
 			// Balance proxy buffer sizes for all upstreams before storing
-			if err := c.balanceUpstreamProxies(vsr.Spec.Upstreams); err != nil {
-				// Create a proper validation error for proxy buffer balancing failures
-				validationError = fmt.Errorf("balancing proxy buffer sizes: %w", err)
-				delete(c.virtualServers, key)
-			} else {
-				c.virtualServerRoutes[key] = vsr
-			}
+			c.balanceUpstreamProxies(vsr.Spec.Upstreams)
+			c.virtualServerRoutes[key] = vsr
 		}
+	}
+
+	if !c.startupComplete {
+		var problems []ConfigurationProblem
+		if validationError != nil {
+			problems = append(problems, ConfigurationProblem{
+				Object:  vsr,
+				IsError: true,
+				Reason:  nl.EventReasonRejected,
+				Message: fmt.Sprintf("VirtualServerRoute %s was rejected with error: %s", getResourceKey(&vsr.ObjectMeta), validationError.Error()),
+			})
+		}
+		return nil, problems
 	}
 
 	changes, problems := c.rebuildHosts()
@@ -622,6 +713,10 @@ func (c *Configuration) DeleteVirtualServerRoute(key string) ([]ResourceChange, 
 
 	delete(c.virtualServerRoutes, key)
 
+	if !c.startupComplete {
+		return nil, nil
+	}
+
 	return c.rebuildHosts()
 }
 
@@ -643,9 +738,11 @@ func (c *Configuration) AddOrUpdateGlobalConfiguration(gc *conf_v1.GlobalConfigu
 	changes = append(changes, listenerChanges...)
 	problems = append(problems, listenerProblems...)
 
-	hostChanges, hostProblems := c.rebuildHosts()
-	changes = append(changes, hostChanges...)
-	problems = append(problems, hostProblems...)
+	if c.startupComplete {
+		hostChanges, hostProblems := c.rebuildHosts()
+		changes = append(changes, hostChanges...)
+		problems = append(problems, hostProblems...)
+	}
 
 	return changes, problems, validationErr
 }
@@ -664,9 +761,11 @@ func (c *Configuration) DeleteGlobalConfiguration() ([]ResourceChange, []Configu
 	changes = append(changes, listenerChanges...)
 	problems = append(problems, listenerProblems...)
 
-	hostChanges, hostProblems := c.rebuildHosts()
-	changes = append(changes, hostChanges...)
-	problems = append(problems, hostProblems...)
+	if c.startupComplete {
+		hostChanges, hostProblems := c.rebuildHosts()
+		changes = append(changes, hostChanges...)
+		problems = append(problems, hostProblems...)
+	}
 
 	return changes, problems
 }
@@ -700,7 +799,7 @@ func (c *Configuration) AddOrUpdateTransportServer(ts *conf_v1.TransportServer) 
 
 	changes, problems := c.rebuildListenerHosts()
 
-	if c.isTLSPassthroughEnabled {
+	if c.isTLSPassthroughEnabled && c.startupComplete {
 		hostChanges, hostProblems := c.rebuildHosts()
 
 		changes = append(changes, hostChanges...)
@@ -751,7 +850,7 @@ func (c *Configuration) DeleteTransportServer(key string) ([]ResourceChange, []C
 
 	changes, problems := c.rebuildListenerHosts()
 
-	if c.isTLSPassthroughEnabled {
+	if c.isTLSPassthroughEnabled && c.startupComplete {
 		hostChanges, hostProblems := c.rebuildHosts()
 
 		changes = append(changes, hostChanges...)
@@ -759,6 +858,49 @@ func (c *Configuration) DeleteTransportServer(key string) ([]ResourceChange, []C
 	}
 
 	return changes, problems
+}
+
+// updateMinionIndex adds or removes an ingress from the minionsByHost index.
+// Must be called with the lock held.
+func (c *Configuration) updateMinionIndex(key string, ing *networking.Ingress) {
+	// Remove old entry for this key from any host it was previously under.
+	c.removeMinionFromIndex(key)
+
+	// If the ingress is a valid minion, add it to the index under its host.
+	if ing != nil && isMinion(ing) && len(ing.Spec.Rules) > 0 {
+		host := ing.Spec.Rules[0].Host
+		if c.minionsByHost[host] == nil {
+			c.minionsByHost[host] = make(map[string]bool)
+		}
+		c.minionsByHost[host][key] = true
+	}
+}
+
+// removeMinionFromIndex removes a key from the minionsByHost index.
+// Must be called with the lock held.
+func (c *Configuration) removeMinionFromIndex(key string) {
+	for host, keys := range c.minionsByHost {
+		if keys[key] {
+			delete(keys, key)
+			if len(keys) == 0 {
+				delete(c.minionsByHost, host)
+			}
+			return
+		}
+	}
+}
+
+// CompleteStartup marks startup as complete and performs a single rebuildHosts()
+// to compute the definitive host→resource mapping and all ConfigurationProblems
+// (host conflicts, orphaned minions, orphaned VSRs). This must be called exactly
+// once after the initial informer cache sync and queue drain, before
+// updateAllConfigs() generates and writes NGINX config files.
+func (c *Configuration) CompleteStartup() ([]ResourceChange, []ConfigurationProblem) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.startupComplete = true
+	return c.rebuildHosts()
 }
 
 func (c *Configuration) rebuildListenerHosts() ([]ResourceChange, []ConfigurationProblem) {
@@ -925,6 +1067,34 @@ func (c *Configuration) FindResourcesForService(svcNamespace string, svcName str
 	return c.findResourcesForResourceReference(svcNamespace, svcName, c.serviceReferenceChecker)
 }
 
+// IsServiceReferencedByVirtualServer checks if the specified service is referenced by the VirtualServer.
+func (c *Configuration) IsServiceReferencedByVirtualServer(svcNamespace, svcName string, vs *conf_v1.VirtualServer) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByVirtualServer(svcNamespace, svcName, vs)
+}
+
+// IsServiceReferencedByVirtualServerRoute checks if the specified service is referenced by the VirtualServerRoute.
+func (c *Configuration) IsServiceReferencedByVirtualServerRoute(svcNamespace, svcName string, vsr *conf_v1.VirtualServerRoute) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByVirtualServerRoute(svcNamespace, svcName, vsr)
+}
+
+// IsServiceReferencedByIngress checks if the specified service is referenced by the Ingress.
+func (c *Configuration) IsServiceReferencedByIngress(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByIngress(svcNamespace, svcName, ing)
+}
+
+// IsServiceReferencedByMinion checks if the specified service is referenced by the minion Ingress.
+func (c *Configuration) IsServiceReferencedByMinion(svcNamespace, svcName string, ing *networking.Ingress) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.serviceReferenceChecker.IsReferencedByMinion(svcNamespace, svcName, ing)
+}
+
 // FindResourcesForEndpoints finds resources that reference the specified endpoints.
 func (c *Configuration) FindResourcesForEndpoints(endpointsNamespace string, endpointsName string) []Resource {
 	// Resources reference not endpoints but the corresponding service, which has the same namespace and name
@@ -939,6 +1109,22 @@ func (c *Configuration) FindResourcesForSecret(secretNamespace string, secretNam
 // FindResourcesForPolicy finds resources that reference the specified policy.
 func (c *Configuration) FindResourcesForPolicy(policyNamespace string, policyName string) []Resource {
 	return c.findResourcesForResourceReference(policyNamespace, policyName, c.policyReferenceChecker)
+}
+
+// UpdatePolicyServiceRef tracks an external auth service reference for a policy.
+// This allows service/endpoint changes to be correlated back to VirtualServers
+// that reference the auth service via the policy.
+func (c *Configuration) UpdatePolicyServiceRef(policyNamespace, policyName, authServiceName string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	c.serviceReferenceChecker.policyServices[policyNamespace+"/"+policyName] = authServiceName
+}
+
+// DeletePolicyServiceRef removes the external auth service reference tracking for a policy.
+func (c *Configuration) DeletePolicyServiceRef(policyNamespace, policyName string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	delete(c.serviceReferenceChecker.policyServices, policyNamespace+"/"+policyName)
 }
 
 // FindResourcesForAppProtectPolicyAnnotation finds resources that reference the specified AppProtect policy via annotation.
@@ -1231,17 +1417,21 @@ func (c *Configuration) isListenerInCorrectBlock(listenerName string, expectedSs
 }
 
 func (c *Configuration) addProblemsForOrphanMinions(problems map[string]ConfigurationProblem) {
-	for _, key := range getSortedIngressKeys(c.ingresses) {
-		ing := c.ingresses[key]
+	// Iterate only over indexed minions instead of all ingresses.
+	for host, minionKeys := range c.minionsByHost {
+		r, exists := c.hosts[host]
+		ingressConf, ok := r.(*IngressConfiguration)
+		hasMaster := exists && ok && ingressConf.IsMaster
 
-		if !isMinion(ing) {
+		if hasMaster {
 			continue
 		}
 
-		r, exists := c.hosts[ing.Spec.Rules[0].Host]
-		ingressConf, ok := r.(*IngressConfiguration)
-
-		if !exists || !ok || !ingressConf.IsMaster {
+		for key := range minionKeys {
+			ing, ingExists := c.ingresses[key]
+			if !ingExists {
+				continue
+			}
 			p := ConfigurationProblem{
 				Object:  ing,
 				IsError: false,
@@ -1488,13 +1678,13 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 	for _, key := range getSortedVirtualServerKeys(c.virtualServers) {
 		vs := c.virtualServers[key]
 
-		vsrs, warnings := c.buildVirtualServerRoutes(vs)
+		vsrs, vsrSelectors, warnings := c.buildVirtualServerRoutes(vs)
 		for _, vsr := range challengesVSR {
 			if vs.Spec.Host == vsr.Spec.Host {
 				vsrs = append(vsrs, vsr)
 			}
 		}
-		resource := NewVirtualServerConfiguration(vs, vsrs, warnings)
+		resource := NewVirtualServerConfiguration(vs, vsrs, vsrSelectors, warnings)
 
 		c.buildListenersForVSConfiguration(resource)
 
@@ -1606,14 +1796,17 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 	childWarnings := make(map[string][]string)
 	paths := make(map[string]*MinionConfiguration)
 
-	for _, minionKey := range getSortedIngressKeys(c.ingresses) {
-		ingress := c.ingresses[minionKey]
+	// Use the minionsByHost index for O(1) host lookup instead of scanning all ingresses.
+	minionKeys := c.minionsByHost[masterHost]
+	sortedKeys := make([]string, 0, len(minionKeys))
+	for k := range minionKeys {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
 
-		if !isMinion(ingress) {
-			continue
-		}
-
-		if masterHost != ingress.Spec.Rules[0].Host {
+	for _, minionKey := range sortedKeys {
+		ingress, exists := c.ingresses[minionKey]
+		if !exists {
 			continue
 		}
 
@@ -1648,39 +1841,333 @@ func (c *Configuration) buildMinionConfigs(masterHost string) ([]*MinionConfigur
 	return minionConfigs, childWarnings
 }
 
-func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, []string) {
+func (c *Configuration) validateVSRs(r *conf_v1.Route, vsHost, vsNamespace string) ([]*conf_v1.VirtualServerRoute, []string) {
 	var vsrs []*conf_v1.VirtualServerRoute
 	var warnings []string
 
-	for _, r := range vs.Spec.Routes {
-		if r.Route == "" {
-			continue
-		}
+	vsrKey := r.Route
 
-		vsrKey := r.Route
-
-		// if route is defined without a namespace, use the namespace of VirtualServer.
-		if !nsutils.HasNamespace(vsrKey) {
-			vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, r.Route)
-		}
-
-		vsr, exists := c.virtualServerRoutes[vsrKey]
-		if !exists {
-			warning := fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey)
-			warnings = append(warnings, warning)
-			continue
-		}
-
-		err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vs.Spec.Host, r.Path)
-		if err != nil {
-			warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
-			warnings = append(warnings, warning)
-			continue
-		}
-
-		vsrs = append(vsrs, vsr)
+	// if route is defined without a namespace, use the namespace of VirtualServer.
+	if !nsutils.HasNamespace(vsrKey) {
+		vsrKey = fmt.Sprintf("%s/%s", vsNamespace, r.Route)
 	}
 
+	vsr, exists := c.virtualServerRoutes[vsrKey]
+
+	// if route is defined
+	if !exists {
+		warning := fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey)
+		warnings = append(warnings, warning)
+		return vsrs, warnings
+	}
+
+	err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
+	if err != nil {
+		warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
+		warnings = append(warnings, warning)
+		return vsrs, warnings
+	}
+
+	vsrs = append(vsrs, vsr)
+	return vsrs, warnings
+}
+
+func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+	var vsrs []*conf_v1.VirtualServerRoute
+	var warnings []string
+	vsrSelectors := make(map[string][]string)
+
+	selector := &metav1.LabelSelector{
+		MatchLabels: r.RouteSelector.MatchLabels,
+	}
+	sel, err := metav1.LabelSelectorAsSelector(selector)
+	if err != nil {
+		warning := fmt.Sprintf("VirtualServerRoute LabelSelector %s is invalid: %v", selector, err)
+		warnings = append(warnings, warning)
+		return vsrs, vsrSelectors, warnings
+	}
+
+	selectorStr := sel.String()
+	// Initialize the selector entry regardless of whether routes match
+	if vsrSelectors[selectorStr] == nil {
+		vsrSelectors[selectorStr] = make([]string, 0)
+	}
+
+	for vsrKey, vsr := range c.virtualServerRoutes {
+		if sel.Matches(labels.Set(vsr.Labels)) {
+			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
+			if err != nil {
+				warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
+				warnings = append(warnings, warning)
+				continue
+			}
+			vsrs = append(vsrs, vsr)
+
+			// Add to selectors map
+			vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
+		}
+	}
+
+	sort.Strings(vsrSelectors[selectorStr])
+	return vsrs, vsrSelectors, warnings
+}
+
+func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.VirtualServerRoute, []string) {
+	var warnings []string
+
+	paths := make(map[string]string)
+	var vsrsToRemove []string
+
+	for _, vsr := range vsrs {
+		for _, subroute := range vsr.Spec.Subroutes {
+			normPath := validation.NormalizePath(subroute.Path)
+			if path, exists := paths[normPath]; exists {
+				subRoutes := fmt.Sprintf("%s and %s", fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name), path)
+				if fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name) == path {
+					// both subroutes are from the same VSR
+					subRoutes = path
+				}
+				pathWarning := fmt.Sprintf("path %s has conflicting subroutes on %s", subroute.Path, subRoutes)
+				warnings = append(warnings, pathWarning)
+
+				vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
+			} else {
+				paths[normPath] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+			}
+		}
+	}
+
+	if len(vsrsToRemove) != 0 {
+		for _, vsrToRemove := range vsrsToRemove {
+			for i, vsr := range vsrs {
+				if getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta) == vsrToRemove {
+					vsrs = removeFromVSRSlice(vsrs, i)
+					break
+				}
+			}
+		}
+	}
+	return vsrs, warnings
+}
+
+func (c *Configuration) buildVirtualServerRoutes(vs *conf_v1.VirtualServer) ([]*conf_v1.VirtualServerRoute, map[string][]string, []string) {
+	// Step 1: Single pass over VS routes — classify each route, collect regex
+	// entries for deferred validation, eagerly validate non-regex/selector routes,
+	// and deduplicate VSR references.
+	collected := c.classifyAndCollectVSRs(vs)
+
+	// Step 2: Validate regex VSRs with their full set of collected paths.
+	regexVsrs, regexWarnings := c.validateAndBuildRegexVSRs(collected.regexEntries, vs.Spec.Host)
+	vsrs := append(collected.vsrs, regexVsrs...)
+	collected.warnings = append(collected.warnings, regexWarnings...)
+
+	// Step 3: Remove any duplicate VSR identity that survived steps 1-2.
+	// This can occur when a selector-matched VSR and a named regex route
+	// reference the same VSR.
+	vsrs, dupWarnings := deduplicateVSRSlice(vsrs, vs.Namespace, vs.Name)
+	collected.warnings = append(collected.warnings, dupWarnings...)
+
+	// Step 4: Remove VSRs whose subroutes have conflicting paths.
+	vsrs, pathWarnings := validateDuplicateVSRPaths(vsrs)
+	collected.warnings = append(collected.warnings, pathWarnings...)
+
+	// Step 5: Sync vsrSelectors with the final VSR list.  Any VSR removed by
+	// steps 3-4 must also be removed from vsrSelectors to keep the two structures
+	// consistent.  Empty selector entries are preserved — they signal that the IC
+	// should keep watching for label changes.
+	syncVSRSelectors(collected.vsrSelectors, vsrs)
+
+	return vsrs, collected.vsrSelectors, collected.warnings
+}
+
+// vsrCollection holds the results of classifyAndCollectVSRs.
+type vsrCollection struct {
+	vsrs         []*conf_v1.VirtualServerRoute
+	regexEntries map[string]*regexVSREntry
+	vsrSelectors map[string][]string
+	warnings     []string
+}
+
+// regexVSREntry holds a VSR and all the regex VS paths that reference it.
+type regexVSREntry struct {
+	vsr          *conf_v1.VirtualServerRoute
+	paths        []string // regex paths from VS routes
+	firstSeenIdx int      // index in vs.Spec.Routes of the first route referencing this VSR
+}
+
+// classifyAndCollectVSRs makes a single pass over the VS routes to:
+//   - collect regex named-route entries for deferred multi-path validation
+//   - eagerly validate non-regex named routes and all selector routes
+//   - deduplicate VSR references (same VSR from multiple routes/selectors)
+func (c *Configuration) classifyAndCollectVSRs(vs *conf_v1.VirtualServer) vsrCollection {
+	col := vsrCollection{
+		regexEntries: make(map[string]*regexVSREntry),
+		vsrSelectors: make(map[string][]string),
+	}
+
+	regexSeenPaths := make(map[string]map[string]struct{}) // per-VSR dedup of paths
+	seenVSRs := make(map[string]bool)                      // VSR ns/name dedup
+
+	for i, r := range vs.Spec.Routes {
+		isRegex := strings.HasPrefix(r.Path, "~")
+
+		switch {
+		case r.Route != "" && isRegex:
+			col.collectRegexNamedRoute(c, vs, r.Route, r.Path, i, regexSeenPaths)
+		case r.Route != "" && !isRegex:
+			col.collectNonRegexNamedRoute(c, vs, &r, seenVSRs)
+		case r.RouteSelector != nil:
+			col.collectSelectorRoute(c, vs, &r, seenVSRs)
+		}
+	}
+	return col
+}
+
+// collectRegexNamedRoute adds a regex named-route entry for deferred validation.
+// Any resulting duplicate is resolved by deduplicateVSRSlice later.
+func (col *vsrCollection) collectRegexNamedRoute(
+	c *Configuration, vs *conf_v1.VirtualServer,
+	routeName, path string, routeIdx int,
+	regexSeenPaths map[string]map[string]struct{},
+) {
+	normPath := validation.NormalizePath(path)
+	vsrKey := routeName
+	if !nsutils.HasNamespace(vsrKey) {
+		vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, routeName)
+	}
+	vsr, exists := c.virtualServerRoutes[vsrKey]
+	if !exists {
+		col.warnings = append(col.warnings, fmt.Sprintf("VirtualServerRoute %s doesn't exist or invalid", vsrKey))
+		return
+	}
+	if entry, found := col.regexEntries[vsrKey]; found {
+		if _, seen := regexSeenPaths[vsrKey][normPath]; !seen {
+			regexSeenPaths[vsrKey][normPath] = struct{}{}
+			entry.paths = append(entry.paths, path)
+		}
+	} else {
+		col.regexEntries[vsrKey] = &regexVSREntry{vsr: vsr, paths: []string{path}, firstSeenIdx: routeIdx}
+		regexSeenPaths[vsrKey] = map[string]struct{}{normPath: {}}
+	}
+}
+
+// collectNonRegexNamedRoute validates a non-regex named route eagerly and adds
+// the resulting VSR to the collection, deduplicating by namespace/name.
+func (col *vsrCollection) collectNonRegexNamedRoute(
+	c *Configuration, vs *conf_v1.VirtualServer,
+	r *conf_v1.Route, seenVSRs map[string]bool,
+) {
+	validVsrs, vsrWarnings := c.validateVSRs(r, vs.Spec.Host, vs.Namespace)
+	col.warnings = append(col.warnings, vsrWarnings...)
+	for _, vsr := range validVsrs {
+		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		if seenVSRs[nsName] {
+			col.warnings = append(col.warnings, fmt.Sprintf(
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName,
+			))
+			continue
+		}
+		seenVSRs[nsName] = true
+		col.vsrs = append(col.vsrs, vsr)
+	}
+}
+
+// collectSelectorRoute validates a selector route eagerly and adds the
+// resulting VSRs to the collection, deduplicating by namespace/name.
+func (col *vsrCollection) collectSelectorRoute(
+	c *Configuration, vs *conf_v1.VirtualServer,
+	r *conf_v1.Route, seenVSRs map[string]bool,
+) {
+	validVsrs, selectors, vsrWarnings := c.validateVSRSelectors(r, vs.Spec.Host)
+	col.warnings = append(col.warnings, vsrWarnings...)
+	maps.Copy(col.vsrSelectors, selectors)
+	for _, vsr := range validVsrs {
+		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		if seenVSRs[nsName] {
+			col.warnings = append(col.warnings, fmt.Sprintf(
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vs.Namespace, vs.Name, nsName,
+			))
+			continue
+		}
+		seenVSRs[nsName] = true
+		col.vsrs = append(col.vsrs, vsr)
+	}
+}
+
+// deduplicateVSRSlice removes subsequent occurrences of the same VSR (by
+// namespace/name) from the slice, keeping the first occurrence and emitting a
+// warning for each duplicate dropped.  This handles the rare case where a
+// selector-matched VSR and a regex-named-route VSR turn out to be the same object.
+func deduplicateVSRSlice(vsrs []*conf_v1.VirtualServerRoute, vsNamespace, vsName string) ([]*conf_v1.VirtualServerRoute, []string) {
+	var result []*conf_v1.VirtualServerRoute
+	var warnings []string
+	seen := make(map[string]bool, len(vsrs))
+	for _, vsr := range vsrs {
+		nsName := fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+		if seen[nsName] {
+			warnings = append(warnings, fmt.Sprintf(
+				"VS %s/%s has duplicate VirtualServerRoutes %s", vsNamespace, vsName, nsName,
+			))
+			continue
+		}
+		seen[nsName] = true
+		result = append(result, vsr)
+	}
+	return result, warnings
+}
+
+// syncVSRSelectors prunes vsrSelectors to only reference VSRs still present in
+// the final list.  Empty selector entries are preserved for change-tracking.
+func syncVSRSelectors(vsrSelectors map[string][]string, vsrs []*conf_v1.VirtualServerRoute) {
+	finalKeys := make(map[string]bool, len(vsrs))
+	for _, vsr := range vsrs {
+		finalKeys[fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)] = true
+	}
+	for sel, keys := range vsrSelectors {
+		if len(keys) == 0 {
+			continue
+		}
+		var kept []string
+		for _, k := range keys {
+			if finalKeys[k] {
+				kept = append(kept, k)
+			}
+		}
+		if kept == nil {
+			vsrSelectors[sel] = []string{}
+		} else {
+			vsrSelectors[sel] = kept
+		}
+	}
+}
+
+func removeFromVSRSlice(s []*conf_v1.VirtualServerRoute, i int) []*conf_v1.VirtualServerRoute {
+	return append(s[:i], s[i+1:]...)
+}
+
+func (c *Configuration) validateAndBuildRegexVSRs(entries map[string]*regexVSREntry, vsHost string) ([]*conf_v1.VirtualServerRoute, []string) {
+	type entryWithKey struct {
+		key   string
+		entry *regexVSREntry
+	}
+	sorted := make([]entryWithKey, 0, len(entries))
+	for k, e := range entries {
+		sorted = append(sorted, entryWithKey{k, e})
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].entry.firstSeenIdx < sorted[j].entry.firstSeenIdx
+	})
+
+	var vsrs []*conf_v1.VirtualServerRoute
+	var warnings []string
+	for _, ek := range sorted {
+		err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(ek.entry.vsr, vsHost, ek.entry.paths)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("VirtualServerRoute %s is invalid: %v", ek.key, err))
+			continue
+		}
+		vsrs = append(vsrs, ek.entry.vsr)
+	}
 	return vsrs, warnings
 }
 
@@ -1886,12 +2373,8 @@ func detectChangesInListenerHosts(
 // VirtualServer and VirtualServerRoute. We need this here because upstreams are
 // values in the slice, but the balancing function takes pointers as it modifies
 // the upstreams.
-func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) error {
+func (c *Configuration) balanceUpstreamProxies(upstreams []conf_v1.Upstream) {
 	for i := range upstreams {
-		err := internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
-		if err != nil {
-			return fmt.Errorf("upstream %d: %w", i, err)
-		}
+		internalValidation.BalanceProxiesForUpstreams(&upstreams[i], c.isDirectiveAutoadjustEnabled)
 	}
-	return nil
 }

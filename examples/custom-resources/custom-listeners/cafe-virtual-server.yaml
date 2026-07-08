@@ -8,7 +8,7 @@ spec:
     https: https-8443
   host: cafe.example.com
   tls:
-    secret: cafe-secret
+    secret: tls-secret
   upstreams:
   - name: tea
     service: tea-svc

@@ -25,6 +25,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -34,24 +35,18 @@ jobs:
       latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
       stable_tag: ${{ steps.vars.outputs.stable_tag }}
       branch: ${{ steps.vars.outputs.branch }}
+      lts_tags: ${{ steps.vars.outputs.lts_tags }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch && inputs.branch || github.event.repository.default_branch }}
+          fetch-depth: 0
 
       - name: Output Variables
         id: vars
         run: |
-          kindest_latest=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags" \
-            | jq -r '.results[].name' \
-            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-            | sort -rV \
-            | grep -v v1.32.1 \
-            | head -n 1 \
-            | sed 's/^.\{1\}//' \
-            | tr -d '\n')
-          echo "k8s_latest=$kindest_latest" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh k8s_latest_version >> $GITHUB_OUTPUT
           kindest_versions=$(curl -s "https://hub.docker.com/v2/repositories/kindest/node/tags/?page_size=50" \
             | jq -r '.results[].name' \
             | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
@@ -72,6 +67,7 @@ jobs:
             branch=${{ inputs.branch }}
           fi
           echo "branch=${branch}" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh lts_tags >> $GITHUB_OUTPUT
 
       - name: Output variables
         run: |
@@ -79,9 +75,11 @@ jobs:
           echo latest_kindest_node_versions: ${{ steps.vars.outputs.latest_kindest_node_versions }}
           echo stable_tag: ${{ steps.vars.outputs.stable_tag }}
           echo branch: ${{ steps.vars.outputs.branch }}
+          echo lts_tags: ${{ steps.vars.outputs.lts_tags }}
 
   unit-tests:
     name: Unit Tests
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -89,12 +87,12 @@ jobs:
     needs: [checks]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -109,12 +107,12 @@ jobs:
           echo "CODECOV_TOKEN=$CODECOV_TOKEN" >> $GITHUB_OUTPUT
 
       - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.18.6'
+          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
 
@@ -122,13 +120,14 @@ jobs:
         run: make cover
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
 
   helm-tests:
     name: Helm Tests ${{ matrix.base-os }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: [checks]
     strategy:
@@ -148,17 +147,17 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
       - name: Setup Helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.18.6'
+          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -189,7 +188,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -203,7 +202,9 @@ jobs:
         id: k8s
         run: |
           kind create cluster --name ${{ github.run_id }} --image=kindest/node:v${{ needs.checks.outputs.k8s_latest }} --wait 75s
-          kind load docker-image "${{ matrix.image }}:${{ matrix.tag }}" --name ${{ github.run_id }}
+          docker save "${{ matrix.image }}:${{ matrix.tag }}" | \
+            docker exec -i ${{ github.run_id }}-control-plane \
+              ctr --namespace=k8s.io images import -
 
       - name: Create Plus Secret
         run: kubectl create secret generic license-token --from-literal=license.jwt="${{ steps.secrets.outputs.PLUS_JWT }}" --type="nginx.com/license"
@@ -249,6 +250,7 @@ jobs:
 
   setup-regression-matrix:
     name: Setup Matrix for Smoke Tests
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: [checks]
     permissions:
@@ -258,16 +260,24 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
       - id: set-matrix
         run: |
-          echo "matrix=$(cat .github/data/matrix-regression.json | jq -c --argjson latest '${{ needs.checks.outputs.latest_kindest_node_versions }}' '.k8s += $latest'))" >> $GITHUB_OUTPUT
+          base=$(cat .github/data/matrix-regression.json | jq -c --argjson latest '${{ needs.checks.outputs.latest_kindest_node_versions }}' '.k8s += $latest')
+          lts_tags='${{ needs.checks.outputs.lts_tags }}'
+          if [ -n "$lts_tags" ] && [ "$lts_tags" != "[]" ]; then
+            lts_marker="'not upgrade and not agentv2'"
+            lts_entries=$(echo "$lts_tags" | jq -c --arg marker "$lts_marker" '[.[] | {label:"lts-regression",image:"debian-plus",type:"plus",marker:$marker,platforms:"linux/arm64, linux/amd64",lts:true,lts_tag:.}]')
+            base=$(echo "$base" | jq -c --argjson lts "$lts_entries" '.images += $lts')
+          fi
+          echo "matrix=${base}" >> $GITHUB_OUTPUT
 
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: [checks, setup-regression-matrix]
     strategy:
@@ -278,18 +288,23 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
       - name: Set image variables
         id: image_details
         run: |
-          echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
-          echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+          if ${{ matrix.images.lts == true }}; then
+            echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/lts/nginx-ic/nginx-plus-ingress" >> $GITHUB_OUTPUT
+            echo "tag=${{ matrix.images.lts_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
+            echo "tag=${{ needs.checks.outputs.stable_tag }}${{ contains(matrix.images.image, 'ubi') && '-ubi' || '' }}${{ contains(matrix.images.image, 'alpine') && '-alpine' || '' }}${{ contains(matrix.images.target, 'aws') && '-mktpl' || '' }}${{ contains(matrix.images.image, 'fips') && '-fips' || ''}}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Azure login
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -320,7 +335,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -339,8 +354,12 @@ jobs:
 
       - name: Generate WAF v5 tgz from JSON
         run: |
-          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.11.0 -p /data/wafv5.json -o /data/wafv5.tgz
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.13.2 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(matrix.images.image, 'nap-v5')}}
+
+      - name: Generate secrets for tests
+        run: |
+          make secrets
 
       - name: Run Regression Tests
         id: regression-tests
@@ -357,7 +376,7 @@ jobs:
           plus-jwt: ${{ steps.secrets.outputs.PLUS_JWT }}
 
       - name: Upload Test Results
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.regression-tests.outputs.test-results-name }}
           path: ${{ steps.regression-tests.outputs.test-results-path }}
@@ -369,6 +388,7 @@ jobs:
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/retag-images.yml
     with:
       source_tag: ${{ needs.checks.outputs.stable_tag }}
@@ -380,6 +400,7 @@ jobs:
     # pushes nightly images to docker hub
     name: Release Docker OSS
     needs: [checks, regression-tests]
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/oss-release.yml
     with:
       gcr_release_registry: false
@@ -401,6 +422,7 @@ jobs:
     # pushes plus nightly images to nginx registry
     name: Release Docker Plus
     needs: [checks, regression-tests]
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/plus-release.yml
     with:
       nginx_registry: true

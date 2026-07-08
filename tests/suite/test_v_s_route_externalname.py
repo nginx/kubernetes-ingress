@@ -17,6 +17,7 @@ from suite.utils.resources_utils import (
     ensure_response_from_backend,
     get_events,
     get_first_pod_name,
+    get_vs_nginx_template_conf,
     read_service,
     replace_configmap,
     replace_configmap_from_yaml,
@@ -26,7 +27,6 @@ from suite.utils.resources_utils import (
 from suite.utils.vs_vsr_resources_utils import (
     create_v_s_route_from_yaml,
     create_virtual_server_from_yaml,
-    get_vs_nginx_template_conf,
 )
 from suite.utils.yaml_utils import get_first_host_from_yaml, get_paths_from_vsr_yaml, get_route_namespace_from_vs_yaml
 

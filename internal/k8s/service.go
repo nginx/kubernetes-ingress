@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
-
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -129,12 +127,15 @@ func (a portSort) Less(i, j int) bool {
 }
 
 // addServiceHandler adds the handler for services to the controller
-func (nsi *namespacedInformer) addServiceHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addServiceHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.sharedInformerFactory.Core().V1().Services().Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add Service event handler: %w", err)
+	}
 	nsi.svcLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) error {
@@ -159,8 +160,8 @@ func (lbc *LoadBalancerController) syncZoneSyncHeadlessService(svcName string) e
 						Kind:               "ConfigMap",
 						Name:               lbc.configMap.Name,
 						UID:                lbc.configMap.UID,
-						Controller:         commonhelpers.BoolToPointerBool(true),
-						BlockOwnerDeletion: commonhelpers.BoolToPointerBool(true),
+						Controller:         new(true),
+						BlockOwnerDeletion: new(true),
 					},
 				},
 			},
@@ -271,5 +272,6 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	resourceExes := lbc.createExtendedResources(resources)
 
 	warnings, updateErr := lbc.configurator.AddOrUpdateResources(resourceExes, true)
-	lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
+	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
+	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, warnings, updateErr)
 }

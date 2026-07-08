@@ -95,6 +95,9 @@ type Server struct {
 	JWTAuth                   *JWTAuth
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
+	ExternalAuth              *ExternalAuth
+	HSTS                      *HSTS
+	ErrorPages                []ErrorPage
 	BasicAuth                 *BasicAuth
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
@@ -110,6 +113,7 @@ type Server struct {
 	DisableIPV6               bool
 	Gunzip                    bool
 	NGINXDebugLevel           string
+	AddHeaderInherit          string
 }
 
 // SSL defines SSL configuration for a server.
@@ -128,7 +132,7 @@ type IngressMTLS struct {
 	VerifyDepth  int
 }
 
-// EgressMTLS defines TLS configuration for a location.
+// EgressMTLS defines upstream TLS configuration applied at server or location scope.
 type EgressMTLS struct {
 	Certificate    string
 	CertificateKey string
@@ -160,6 +164,7 @@ type OIDC struct {
 	TLSVerify             bool
 	VerifyDepth           int
 	CAFile                string
+	PolicyName            string
 }
 
 // APIKey holds API key configuration.
@@ -194,54 +199,63 @@ type Dos struct {
 
 // Location defines a location.
 type Location struct {
-	Path                     string
-	Internal                 bool
-	Snippets                 []string
-	ProxyConnectTimeout      string
-	ProxyReadTimeout         string
-	ProxySendTimeout         string
-	ClientMaxBodySize        string
-	ClientBodyBufferSize     string
-	ProxyMaxTempFileSize     string
-	ProxyBuffering           bool
-	ProxyBuffers             string
-	ProxyBufferSize          string
-	ProxyBusyBuffersSize     string
-	ProxyPass                string
-	ProxyNextUpstream        string
-	ProxyNextUpstreamTimeout string
-	ProxyNextUpstreamTries   int
-	ProxyInterceptErrors     bool
-	ProxyPassRequestHeaders  bool
-	ProxySetHeaders          []Header
-	ProxyHideHeaders         []string
-	ProxyPassHeaders         []string
-	ProxyIgnoreHeaders       string
-	ProxyPassRewrite         string
-	AddHeaders               []AddHeader
-	Rewrites                 []string
-	HasKeepalive             bool
-	ErrorPages               []ErrorPage
-	ProxySSLName             string
-	InternalProxyPass        string
-	Allow                    []string
-	Deny                     []string
-	LimitReqOptions          LimitReqOptions
-	LimitReqs                []LimitReq
-	JWTAuth                  *JWTAuth
-	BasicAuth                *BasicAuth
-	EgressMTLS               *EgressMTLS
-	OIDC                     bool
-	APIKey                   *APIKey
-	WAF                      *WAF
-	Dos                      *Dos
-	PoliciesErrorReturn      *Return
-	Cache                    *Cache
-	ServiceName              string
-	IsVSR                    bool
-	VSRName                  string
-	VSRNamespace             string
-	GRPCPass                 string
+	Path                       string
+	Internal                   bool
+	Snippets                   []string
+	ProxyConnectTimeout        string
+	ProxyReadTimeout           string
+	ProxySendTimeout           string
+	ClientMaxBodySize          string
+	ClientBodyBufferSize       string
+	ProxyMaxTempFileSize       string
+	ProxyBuffering             bool
+	ProxyBuffers               string
+	ProxyBufferSize            string
+	ProxyBusyBuffersSize       string
+	ProxyPass                  string
+	ProxyNextUpstream          string
+	ProxyNextUpstreamTimeout   string
+	ProxyNextUpstreamTries     int
+	ProxyInterceptErrors       bool
+	ProxyPassRequestHeaders    bool
+	ProxyPassRequestBody       string
+	ProxySetHeaders            []Header
+	ProxyHideHeaders           []string
+	ProxyPassHeaders           []string
+	ProxyIgnoreHeaders         string
+	ProxyPassRewrite           string
+	AddHeaders                 []AddHeader
+	Rewrites                   []string
+	HasKeepalive               bool
+	ErrorPages                 []ErrorPage
+	ProxySSLName               string
+	InternalProxyPass          string
+	Allow                      []string
+	Deny                       []string
+	LimitReqOptions            LimitReqOptions
+	LimitReqs                  []LimitReq
+	JWTAuth                    *JWTAuth
+	AuthRequestOff             bool
+	ExternalAuth               *ExternalAuth
+	BasicAuth                  *BasicAuth
+	EgressMTLS                 *EgressMTLS
+	HSTS                       *HSTS
+	OIDC                       bool
+	APIKey                     *APIKey
+	WAF                        *WAF
+	Dos                        *Dos
+	PoliciesErrorReturn        *Return
+	Cache                      *Cache
+	ServiceName                string
+	IsVSR                      bool
+	VSRName                    string
+	VSRNamespace               string
+	GRPCPass                   string
+	CORSEnabled                bool
+	AddHeaderInherit           string
+	ProxySSLVerify             bool
+	ProxySSLVerifyDepth        int
+	ProxySSLTrustedCertificate string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -397,7 +411,8 @@ type LimitReqZone struct {
 }
 
 func (rlz LimitReqZone) String() string {
-	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
+	return fmt.Sprintf(
+		"{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
 		rlz.Key,
 		rlz.ZoneName,
 		rlz.ZoneSize,
@@ -421,7 +436,7 @@ type LimitReq struct {
 }
 
 func (rl LimitReq) String() string {
-	return fmt.Sprintf("{ZoneName %q, Burst %q, NoDelay %v, Delay %q}", rl.ZoneName, rl.Burst, rl.NoDelay, rl.Delay)
+	return fmt.Sprintf("{ZoneName %q, Burst %d, NoDelay %v, Delay %d}", rl.ZoneName, rl.Burst, rl.NoDelay, rl.Delay)
 }
 
 // LimitReqOptions defines rate limit options.
@@ -432,7 +447,7 @@ type LimitReqOptions struct {
 }
 
 func (rl LimitReqOptions) String() string {
-	return fmt.Sprintf("{DryRun %v, LogLevel %q, RejectCode %q}", rl.DryRun, rl.LogLevel, rl.RejectCode)
+	return fmt.Sprintf("{DryRun %v, LogLevel %q, RejectCode %d}", rl.DryRun, rl.LogLevel, rl.RejectCode)
 }
 
 // JWTAuth holds JWT authentication configuration.
@@ -456,6 +471,37 @@ type JwksURI struct {
 	SSLVerify      bool
 	TrustedCert    string
 	SSLVerifyDepth int
+}
+
+// ExternalAuth holds external authentication configuration.
+type ExternalAuth struct {
+	URI                    *AuthURI
+	SigninURL              string
+	Snippets               string
+	ServicePorts           []int
+	SigninRedirectBasePath string // Base path for OAuth2/signin redirect location, defaults to /oauth2
+	SSLEnabled             bool
+	SSLVerify              bool
+	SSLVerifyDepth         int
+	SSLTrustedCert         string // Path to the CA certificate file for upstream verification
+	SNIName                string // Server name for SNI and certificate verification
+}
+
+// HSTS defines HTTP Strict Transport Security configuration.
+type HSTS struct {
+	MaxAge            int
+	IncludeSubDomains bool
+	BehindProxy       bool
+	Preload           bool
+}
+
+// AuthURI defines the components of an AuthURI
+type AuthURI struct {
+	Service      string
+	Upstream     string
+	Port         string
+	Path         string
+	InternalPath string
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options

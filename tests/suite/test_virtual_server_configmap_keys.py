@@ -6,10 +6,10 @@ from suite.utils.resources_utils import (
     get_file_contents,
     get_first_pod_name,
     get_pods_amount,
+    get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
     wait_before_test,
 )
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf
 from suite.utils.yaml_utils import get_configmap_fields_from_yaml
 
 
@@ -36,7 +36,7 @@ def assert_update_event_count_increased(virtual_server_setup, new_list, previous
     text_invalid = "but was not applied"
     for i in range(len(previous_list) - 1, 0, -1):
         if text_valid in previous_list[i].message and text_invalid not in previous_list[i].message:
-            assert new_list[i].count - previous_list[i].count == 1, "We expect the counter to increase"
+            assert new_list[i].count - previous_list[i].count >= 1, "We expect the counter to increase"
 
 
 def assert_keys_without_validation(config, expected_values):

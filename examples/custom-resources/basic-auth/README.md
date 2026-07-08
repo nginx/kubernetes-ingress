@@ -49,6 +49,12 @@ kubectl apply -f basic-auth-policy.yaml
 
 ## Step 4 - Configure Load Balancing
 
+Deploy the secret used by the VirtualServer:
+
+```console
+kubectl apply -f cafe-secret.yaml
+```
+
 Create a VirtualServer resource for the web application:
 
 ```console

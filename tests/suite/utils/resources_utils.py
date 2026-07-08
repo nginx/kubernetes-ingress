@@ -306,31 +306,23 @@ class PodNotReadyException(Exception):
         super().__init__(self.message)
 
 
-def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace) -> None:
+def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None:
     """
     Wait for all the pods to be 'Ready'.
 
     :param v1: CoreV1Api
     :param namespace: namespace of a pod
+    :param timeout: maximum seconds to wait before raising (default 600)
     :return:
     """
     print("Start waiting for all pods in a namespace to be Ready")
     counter = 0
-    while not are_all_pods_in_ready_state(v1, namespace) and counter < 200:
-        # remove counter based condition from line #264 and #269 if --batch-start="True"
-        print("There are pods that are not Ready. Wait for 1 sec...")
+    while not are_all_pods_in_ready_state(v1, namespace):
+        print("There are pods that are not Ready. Wait ...")
         wait_before_test()
         counter = counter + 1
-    if counter >= 300:
-        print("\n===================== IC Logs Start =====================")
-        try:
-            pod_name = get_pod_name_that_contains(kube_apis.v1, "nginx-ingress", "nginx-ingress")
-            logs = kube_apis.v1.read_namespaced_pod_log(pod_name, "nginx-ingress")
-            print(logs)
-        except:
-            print("Failed to load logs for nginx-ingress pod")
-        print("\n===================== IC Logs End =====================")
-        raise PodNotReadyException()
+        if counter * 3 >= timeout:
+            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}' to be Ready")
     print("All pods are Ready")
 
 
@@ -943,7 +935,7 @@ def delete_testing_namespaces(v1: CoreV1Api) -> []:
         delete_namespace(v1, namespace.metadata.name)
 
 
-def get_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace, print_log=True) -> str:
+def get_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace, print_log=False) -> str:
     """
     Execute 'cat file_path' command in a pod.
 
@@ -1028,18 +1020,24 @@ def clear_file_contents(v1: CoreV1Api, file_path, pod_name, pod_namespace):
     )
 
 
-def get_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ic_pod_name=None, print_log=True) -> str:
+def get_nginx_template_conf(v1: CoreV1Api, ic_namespace, ic_pod_name=None, print_log=False) -> str:
     """
     Get contents of /etc/nginx/nginx.conf in the pod
     :param v1: CoreV1Api
-    :param ingress_namespace: str
+    :param ic_namespace: str
     :param ic_pod_name: str
+    :param print_log:
     :return: str
     """
     if ic_pod_name is None:
-        ic_pod_name = get_first_pod_name(v1, ingress_namespace)
+        ic_pod_name = get_first_pod_name(v1, ic_namespace)
     file_path = "/etc/nginx/nginx.conf"
-    return get_file_contents(v1, file_path, ic_pod_name, ingress_namespace, print_log)
+    return get_file_contents(v1, file_path, ic_pod_name, ic_namespace, print_log)
+
+
+def get_default_server_conf(v1: CoreV1Api, pod_name, pod_namespace, print_log=False) -> str:
+    """Get the contents of _default-server.conf from the IC pod."""
+    return get_file_contents(v1, "/etc/nginx/conf.d/_default-server.conf", pod_name, pod_namespace, print_log)
 
 
 def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_name, pod_name, pod_namespace) -> str:
@@ -1057,22 +1055,25 @@ def get_ingress_nginx_template_conf(v1: CoreV1Api, ingress_namespace, ingress_na
     return get_file_contents(v1, file_path, pod_name, pod_namespace)
 
 
-def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace) -> str:
+def get_vs_nginx_template_conf(v1: CoreV1Api, vs_namespace, vs_name, pod_name, pod_namespace, print_log=False) -> str:
     """
-    Get contents of /etc/nginx/conf.d/vs_{namespace}_{ingress_name}.conf in the pod.
+    Get contents of /etc/nginx/conf.d/vs_{namespace}_{vs_name}.conf in the pod.
 
     :param v1: CoreV1Api
-    :param ingress_namespace:
-    :param ingress_name:
+    :param vs_namespace:
+    :param vs_name:
     :param pod_name:
     :param pod_namespace:
+    :param print_log:
     :return: str
     """
     file_path = f"/etc/nginx/conf.d/vs_{vs_namespace}_{vs_name}.conf"
-    return get_file_contents(v1, file_path, pod_name, pod_namespace)
+    return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
-def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name, pod_name, pod_namespace) -> str:
+def get_ts_nginx_template_conf(
+    v1: CoreV1Api, resource_namespace, resource_name, pod_name, pod_namespace, print_log=False
+) -> str:
     """
     Get contents of /etc/nginx/stream-conf.d/ts_{namespace}-{resource_name}.conf in the pod.
 
@@ -1081,10 +1082,11 @@ def get_ts_nginx_template_conf(v1: CoreV1Api, resource_namespace, resource_name,
     :param resource_name:
     :param pod_name:
     :param pod_namespace:
+    :param print_log:
     :return: str
     """
     file_path = f"/etc/nginx/stream-conf.d/ts_{resource_namespace}_{resource_name}.conf"
-    return get_file_contents(v1, file_path, pod_name, pod_namespace)
+    return get_file_contents(v1, file_path, pod_name, pod_namespace, print_log)
 
 
 def extract_block(nginx_config, block_name):
@@ -1112,6 +1114,9 @@ def create_example_app(kube_apis, app_type, namespace) -> None:
     :return:
     """
     if app_type in ["secure", "secure-ca"]:
+        secret_name = "app-tls-secret"
+        if is_secret_present(kube_apis.v1, secret_name, namespace):
+            delete_secret(kube_apis.v1, secret_name, namespace)
         create_secret_from_yaml(kube_apis.v1, namespace, f"{TEST_DATA}/common/app/{app_type}/app-tls-secret.yaml")
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace)
 
@@ -1126,6 +1131,8 @@ def delete_common_app(kube_apis, app_type, namespace) -> None:
     :return:
     """
     delete_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace)
+    if app_type in ["secure", "secure-ca"] and is_secret_present(kube_apis.v1, "app-tls-secret", namespace):
+        delete_secret(kube_apis.v1, "app-tls-secret", namespace)
 
 
 def delete_service(v1: CoreV1Api, name, namespace) -> None:
@@ -1799,6 +1806,30 @@ def get_events_for_object(v1: CoreV1Api, namespace, object_name) -> []:
     return [event for event in events.items if event.involved_object.name == object_name]
 
 
+def print_events(events, detail=False) -> None:
+    """
+    Print each event on a newline with Kind, Controller, Namespace, Name, and Reason/Note.
+
+    :param events: list of V1Event objects
+    :param detail: boolean flag to print detailed information
+    """
+    print("========= Events ==========")
+    for event in events:
+        kind = event.involved_object.kind or ""
+        namespace = event.involved_object.namespace or ""
+        name = event.involved_object.name or ""
+        if detail:
+            controller = ""
+            if event.source and event.source.component:
+                controller = event.source.component
+        reason = event.reason or ""
+        note = event.message or ""
+        if detail:
+            print(f"EVENT: Kind={kind}  Controller={controller}  Name={namespace}/{name}  Reason={reason}  Note={note}")
+        else:
+            print(f"EVENT: Kind={kind}  Name={namespace}/{name}  Reason={reason}  Note={note}")
+
+
 def get_events(v1: CoreV1Api, namespace) -> []:
     """
     Get the list of events in a namespace.
@@ -2023,6 +2054,27 @@ def get_reload_count(req_url) -> int:
     assert found == 2
 
     return count
+
+
+def wait_for_reload(metrics_url, count_before, timeout=60) -> None:
+    """
+    Wait until the NGINX reload count has incremented beyond count_before.
+
+    :param metrics_url: the full Prometheus metrics URL, e.g. http://<ip>:9113/metrics
+    :param count_before: the reload count captured before the change that should trigger a reload
+    :param timeout: maximum number of seconds to wait (default 60)
+    """
+    for i in range(timeout):
+        try:
+            if get_reload_count(metrics_url) - count_before > 0:
+                print(f"Reload detected after {i + 1} attempt(s)")
+                return
+        except (requests.exceptions.ConnectionError, AssertionError) as e:
+            print(f"Attempt {i + 1}/{timeout}: metrics not ready yet ({e})")
+        time.sleep(1)
+    assert (
+        get_reload_count(metrics_url) - count_before > 0
+    ), f"Timed out after {timeout}s waiting for NGINX reload (count_before={count_before})"
 
 
 def get_test_file_name(path) -> str:

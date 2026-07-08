@@ -16,7 +16,11 @@ from settings import (
     NS_COUNT,
     NUM_REPLICAS,
 )
-from suite.utils.resources_utils import are_all_pods_in_ready_state, get_first_pod_name, wait_before_test
+from suite.utils.resources_utils import (
+    are_all_pods_in_ready_state,
+    get_first_pod_name,
+    wait_before_test,
+)
 
 
 def pytest_addoption(parser) -> None:
@@ -141,7 +145,12 @@ def pytest_addoption(parser) -> None:
 
 
 # import fixtures into pytest global namespace
-pytest_plugins = ["suite.fixtures.fixtures", "suite.fixtures.ic_fixtures", "suite.fixtures.custom_resource_fixtures"]
+pytest_plugins = [
+    "suite.fixtures.fixtures",
+    "suite.fixtures.ic_fixtures",
+    "suite.fixtures.custom_resource_fixtures",
+    "suite.utils.external_auth_utils",
+]
 
 
 def pytest_configure(config):
@@ -186,6 +195,10 @@ def pytest_collection_modifyitems(config, items) -> None:
         for item in items:
             if "appprotect_waf_v5" in item.keywords:
                 item.add_marker(appprotect_v5)
+        appprotect_bundle = pytest.mark.skip(reason="Skip WAF bundle source test in non-AP WAF v5 image")
+        for item in items:
+            if "appprotect_waf_bundle_source" in item.keywords:
+                item.add_marker(appprotect_bundle)
     if "-dos" not in config.getoption("--image"):
         dos = pytest.mark.skip(reason="Skip DOS test in non-DOS image")
         for item in items:
@@ -228,7 +241,9 @@ def pytest_runtest_makereport(item) -> None:
         while (not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace)) and count < 10:
             count += 1
             wait_before_test()
-        print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace))
+        pod = item.funcargs["kube_apis"].v1.read_namespaced_pod(pod_name, pod_namespace)
+        container_name = pod.spec.containers[0].name
+        print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace, container=container_name))
         print("\n===================== IC Logs End =====================")
 
     if rep.when == "call" and item.config.getoption("--skip-fixture-teardown") == "yes":

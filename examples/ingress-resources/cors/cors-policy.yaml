@@ -1,0 +1,28 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cors-policy
+spec:
+  cors:
+    allowOrigin:
+      - "https://test.example.com"
+      - "https://app.example.com"
+      - "https://admin.example.com"
+    allowMethods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+    allowHeaders:
+      - "Content-Type"
+      - "Authorization"
+      - "X-Requested-With"
+      - "X-API-Key"
+    allowCredentials: true
+    exposeHeaders:
+      - "X-Total-Count"
+      - "X-Page-Size"
+      - "X-RateLimit-Remaining"
+      - "X-RateLimit-Reset"
+    maxAge: 3600

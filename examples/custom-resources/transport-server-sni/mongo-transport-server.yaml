@@ -5,7 +5,7 @@ metadata:
 spec:
   host: mongo.example.com
   tls:
-    secret: mongo-secret
+    secret: tls-secret
   listener:
     name: tcp-listener
     protocol: TCP

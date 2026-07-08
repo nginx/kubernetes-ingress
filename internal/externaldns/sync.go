@@ -162,8 +162,7 @@ func buildDNSEndpoint(ctx context.Context, extdnsLister extdnslisters.DNSEndpoin
 	}
 	var controllerGVK schema.GroupVersionKind = vsGVK
 	ownerRef := *metav1.NewControllerRef(vs, controllerGVK)
-	blockOwnerDeletion := false
-	ownerRef.BlockOwnerDeletion = &blockOwnerDeletion
+	ownerRef.BlockOwnerDeletion = new(false)
 
 	recordTTL := buildTTL(vs.Spec.ExternalDNS)
 	labels := buildLabels(vs.Spec.ExternalDNS)

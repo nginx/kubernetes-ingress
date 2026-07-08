@@ -8,8 +8,13 @@ from suite.utils.custom_assertions import (
     assert_event_starts_with_text_and_contains_errors,
     wait_and_assert_status_code,
 )
-from suite.utils.resources_utils import get_events, get_first_pod_name, wait_before_test
-from suite.utils.vs_vsr_resources_utils import get_vs_nginx_template_conf, patch_virtual_server_from_yaml
+from suite.utils.resources_utils import (
+    get_events,
+    get_first_pod_name,
+    get_vs_nginx_template_conf,
+    wait_before_test,
+)
+from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 
 
 @pytest.mark.vs
@@ -108,20 +113,13 @@ class TestVSRedirects:
             ingress_controller_prerequisites.namespace,
         )
         vs_src = f"{TEST_DATA}/virtual-server-redirects/virtual-server-invalid-openapi.yaml"
-        try:
+        with pytest.raises(ApiException) as exc_info:
             patch_virtual_server_from_yaml(
                 kube_apis.custom_objects, virtual_server_setup.vs_name, vs_src, virtual_server_setup.namespace
             )
-        except ApiException as ex:
-            assert (
-                ex.status == 422
-                and "action.redirect.url in body must be of type" in ex.body
-                and "action.redirect.code in body must be of type" in ex.body
-            )
-        except Exception as ex:
-            pytest.fail(f"An unexpected exception is raised: {ex}")
-        else:
-            pytest.fail("Expected an exception but there was none")
+        assert exc_info.value.status == 422
+        assert "action.redirect.url in body must be of type" in exc_info.value.body
+        assert "action.redirect.code in body must be of type" in exc_info.value.body
 
         wait_before_test(1)
         config_new = get_vs_nginx_template_conf(

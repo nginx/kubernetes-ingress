@@ -26,6 +26,13 @@ spec:
     buffer-size: 10
     buffering: 20
     tls: "yes"
+    sessionCookie:
+      name: True
+      path: 100
+      expires: False
+      domain: 0
+      httpOnly: "yes"
+      secure: "no"
   subroutes:
   - path: "/backend2"
     action:

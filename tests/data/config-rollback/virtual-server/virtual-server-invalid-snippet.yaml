@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: config-rollback-invalid-vs
+spec:
+  host: config-rollback-invalid-vs.example.com
+  server-snippets: "sub_filter_once invalid;"
+  upstreams:
+  - name: backend1
+    service: backend1-svc
+    port: 80
+  routes:
+  - path: "/backend1"
+    action:
+      pass: backend1
