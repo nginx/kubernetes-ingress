@@ -303,7 +303,13 @@ class TestEmptyHostIngressReload:
 class TestEmptyHostIngressStartupProtection:
     @pytest.fixture(scope="class")
     def invalid_empty_host_ingress_before_startup(
-        self, request, kube_apis, cli_arguments, ingress_controller_prerequisites, test_namespace
+        self,
+        request,
+        kube_apis,
+        cli_arguments,
+        ingress_controller_prerequisites,
+        test_namespace,
+        expect_rollback,
     ):
         print("Step 1: create the backend and an empty-host ingress that will fail during initial apply")
         create_example_app(kube_apis, "simple", test_namespace)
@@ -315,13 +321,14 @@ class TestEmptyHostIngressStartupProtection:
             test_namespace,
             reload_failure_buffer_size_ingress_src,
         )
-        # A valid named-host ingress ensures partial exclusion (not total) at startup,
-        # so the pod becomes Ready and the test can proceed with normal assertions.
-        valid_ingress_name = create_ingress_from_yaml(
-            kube_apis.networking_v1,
-            test_namespace,
-            named_host_ingress_src,
-        )
+
+        valid_ingress_name = None
+        if expect_rollback:
+            valid_ingress_name = create_ingress_from_yaml(
+                kube_apis.networking_v1,
+                test_namespace,
+                named_host_ingress_src,
+            )
         wait_before_test()
 
         print("Step 2: start NIC and let it try to apply the invalid startup config")
@@ -338,7 +345,8 @@ class TestEmptyHostIngressStartupProtection:
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
                 delete_ingress(kube_apis.networking_v1, ingress_name, test_namespace)
-                delete_ingress(kube_apis.networking_v1, valid_ingress_name, test_namespace)
+                if valid_ingress_name is not None:
+                    delete_ingress(kube_apis.networking_v1, valid_ingress_name, test_namespace)
                 delete_common_app(kube_apis, "simple", test_namespace)
                 delete_ingress_controller(
                     kube_apis.apps_v1_api,
@@ -362,15 +370,17 @@ class TestEmptyHostIngressStartupProtection:
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
+
+        print("Step 3: wait for NIC to be responsive")
+        wait_and_assert_status_code(404, f"{request_url}/", verify=False)
+        wait_and_assert_status_code(200, f"{health_url}/nginx-health")
+
         messages = " ".join(
             event.message
             for event in get_events_for_object(kube_apis.v1, test_namespace, invalid_empty_host_ingress_before_startup)
         )
         conf = get_default_server_conf(kube_apis.v1, ic_pod, ingress_controller_prerequisites.namespace)
 
-        print("Step 3: assert startup keeps the synthetic default server available")
-        wait_and_assert_status_code(404, f"{request_url}/", verify=False)
-        wait_and_assert_status_code(200, f"{health_url}/nginx-health")
         assert "but was not applied" in messages
         assert "proxy_busy_buffers_size" in messages
 
