@@ -2025,6 +2025,7 @@
         "latencyMetricsBuckets": {
           "type": "string",
           "default": "",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?)*$",
           "title": "The latencyMetricsBuckets",
           "examples": [
             "5,10,25,50,100,250,500,1000"
