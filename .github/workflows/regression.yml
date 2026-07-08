@@ -25,6 +25,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -78,6 +79,7 @@ jobs:
 
   unit-tests:
     name: Unit Tests
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -107,7 +109,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.21.2'
+          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup Golang Environment
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -125,6 +127,7 @@ jobs:
 
   helm-tests:
     name: Helm Tests ${{ matrix.base-os }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: [checks]
     strategy:
@@ -151,7 +154,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.21.2'
+          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -247,6 +250,7 @@ jobs:
 
   setup-regression-matrix:
     name: Setup Matrix for Smoke Tests
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: [checks]
     permissions:
@@ -273,6 +277,7 @@ jobs:
 
   regression-tests:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} regression tests
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: [checks, setup-regression-matrix]
     strategy:
@@ -383,6 +388,7 @@ jobs:
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/retag-images.yml
     with:
       source_tag: ${{ needs.checks.outputs.stable_tag }}
@@ -394,6 +400,7 @@ jobs:
     # pushes nightly images to docker hub
     name: Release Docker OSS
     needs: [checks, regression-tests]
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/oss-release.yml
     with:
       gcr_release_registry: false
@@ -415,6 +422,7 @@ jobs:
     # pushes plus nightly images to nginx registry
     name: Release Docker Plus
     needs: [checks, regression-tests]
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/plus-release.yml
     with:
       nginx_registry: true

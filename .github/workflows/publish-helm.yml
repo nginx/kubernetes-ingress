@@ -68,6 +68,7 @@ permissions:
 jobs:
   publish-helm:
     name: Package and Publish Helm Chart
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: write # for pushing to Helm Charts repository
@@ -110,7 +111,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.21.2'
+          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Package
         id: package

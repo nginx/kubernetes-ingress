@@ -23,6 +23,7 @@ permissions:
 jobs:
   checks:
     name: Checks and variables
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     outputs:
       docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
@@ -46,7 +47,7 @@ jobs:
         shell: bash --noprofile --norc -o pipefail {0}
 
   analyze:
-    if: ${{ needs.checks.outputs.docs_only != 'true' }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (needs.checks.outputs.docs_only != 'true')
     needs: [checks]
     name: Analyze
     permissions:
