@@ -1118,7 +1118,7 @@ type OIDCNative struct {
 	ConfigURL string `json:"configURL,omitempty"`
 	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid".
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:XValidation:rule="!has(self) || self == '' || self.contains('openid')",message="scope must contain 'openid'"
+	// +kubebuilder:validation:XValidation:rule="self == '' || self.contains('openid')",message="scope must contain 'openid'"
 	Scope string `json:"scope,omitempty"`
 	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
 	// +kubebuilder:validation:Optional

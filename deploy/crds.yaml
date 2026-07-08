@@ -961,7 +961,7 @@ spec:
                     type: string
                     x-kubernetes-validations:
                     - message: scope must contain 'openid'
-                      rule: '!has(self) || self == '''' || self.contains(''openid'')'
+                      rule: self == '' || self.contains('openid')
                   sessionTimeout:
                     description: Sets a timeout after which the session is deleted,
                       unless it was refreshed. The module defaults to 8h.
