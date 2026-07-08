@@ -21,6 +21,7 @@ jobs:
 
   format:
     name: Format
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -38,6 +39,7 @@ jobs:
 
   lint:
     name: Lint
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -65,6 +67,7 @@ jobs:
 
   actionlint:
     name: Actionlint
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -76,6 +79,7 @@ jobs:
 
   chart-lint:
     name: Chart Lint
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -84,13 +88,14 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.21.2'
+          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Lint chart
         run: helm lint charts/nginx-ingress
 
   markdown-lint:
     name: Markdown Lint
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository

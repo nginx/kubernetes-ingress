@@ -21,9 +21,10 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       generate: ${{ steps.filter.outputs.generate }}
+      helm: ${{ steps.filter.outputs.helm }}
     permissions:
       pull-requests: read
-    if: ${{ github.actor == 'renovate[bot]' }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (github.actor == 'renovate[bot]')
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -36,6 +37,8 @@ jobs:
             generate:
             - go.mod
             - go.sum
+            helm:
+            - '.github/workflows/*.yml'
 
   build:
     name: Build for renovate PRs
@@ -44,7 +47,9 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    if: ${{ needs.check.outputs.generate == 'true' }}
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' &&
+      (needs.check.outputs.generate == 'true' || needs.check.outputs.helm == 'true')
     steps:
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -86,6 +91,25 @@ jobs:
         run: |
           make update-crds
           make update-codegen
+        if: needs.check.outputs.generate == 'true'
+
+      - name: Check for Helm version changes
+        id: helm-diff
+        run: |
+          if git diff "origin/${{ github.base_ref }}..HEAD" -- '.github/workflows/*.yml' | grep -q 'depName=helm/helm'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        if: needs.check.outputs.helm == 'true'
+
+      - name: Setup Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
+        if: steps.helm-diff.outputs.changed == 'true'
+
+      - name: Update snapshots
+        run: make test-update-snaps
+        if: steps.helm-diff.outputs.changed == 'true'
 
       - name: Commit changes
         id: commit
