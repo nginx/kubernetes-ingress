@@ -331,14 +331,11 @@ jobs:
   govulncheck:
     name: Vulnerability Check
     if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.run_unit_tests == 'true' )
+      github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    needs: checks
-    env:
-      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
+    needs: [checks]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
