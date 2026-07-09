@@ -1122,6 +1122,8 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		return upstreams[i].Name < upstreams[j].Name
 	})
 
+	addHSTSToLocationsWithAddHeaders(policiesCfg.HSTS, locations)
+
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
 		SplitClients:     splitClients,
@@ -1175,6 +1177,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			WAF:                       policiesCfg.WAF,
 			Dos:                       dosCfg,
 			Cache:                     policiesCfg.Cache,
+			HSTS:                      policiesCfg.HSTS,
 			PoliciesErrorReturn:       policiesCfg.ErrorReturn,
 			VSNamespace:               vsEx.VirtualServer.Namespace,
 			VSName:                    vsEx.VirtualServer.Name,
@@ -1501,6 +1504,19 @@ func addDosConfigToLocations(dosCfg *version2.Dos, locations []version2.Location
 func addAddHeaderInheritToLocations(addHeaderInherit string, locations []version2.Location) {
 	for i := range locations {
 		locations[i].AddHeaderInherit = addHeaderInherit
+	}
+}
+
+func addHSTSToLocationsWithAddHeaders(hsts *version2.HSTS, locations []version2.Location) {
+	if hsts == nil {
+		return
+	}
+	for i := range locations {
+		if len(locations[i].AddHeaders) > 0 &&
+			locations[i].AddHeaderInherit != addHeaderInheritOn &&
+			locations[i].AddHeaderInherit != addHeaderInheritMerge {
+			locations[i].HSTS = hsts
+		}
 	}
 }
 
