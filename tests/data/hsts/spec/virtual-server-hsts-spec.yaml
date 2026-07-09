@@ -1,0 +1,21 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: virtual-server
+spec:
+  host: virtual-server.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: hsts-policy
+  upstreams:
+    - name: backend1
+      service: backend1-svc
+      port: 80
+  routes:
+    - path: /backend1
+      action:
+        pass: backend1
+    - path: /backend2
+      action:
+        pass: backend1

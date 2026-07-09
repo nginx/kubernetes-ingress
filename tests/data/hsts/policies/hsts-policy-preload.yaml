@@ -1,0 +1,9 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: hsts-policy-preload
+spec:
+  hsts:
+    maxAge: 31536000
+    includeSubDomains: true
+    preload: true

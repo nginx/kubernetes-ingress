@@ -108,6 +108,7 @@ examples/ingress-resources/external-auth/tls-secret.yaml
 examples/ingress-resources/external-auth-mergeable/tls-secret.yaml
 examples/custom-resources/external-auth/tls-secret.yaml
 examples/custom-resources/external-auth-oauth2/tls-secret.yaml
+examples/custom-resources/hsts/tls-secret.yaml
 examples/custom-resources/vsr-route-selector-policies/cafe-secret.yaml
 tests/data/dos/tls-secret.yaml
 tests/data/hsts/mergeable-tls/tls-secret.yaml
