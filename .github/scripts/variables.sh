@@ -3,6 +3,12 @@
 # renovate: datasource=docker depName=kindest/node
 K8S_LATEST_VERSION=1.36.1
 
+# NOTE: the *_md5 helpers below deliberately exclude documentation files
+# (*.md) so that a docs-only change never alters a build hash and therefore
+# never moves the build/stable image tag. This must stay consistent with
+# get_docs_only: any path it treats as documentation must not feed these
+# hashes, otherwise a "docs-only" PR could compute a stable_tag for an image
+# that is never built (see get_tag_stable / STABLE_EXISTS).
 get_docker_md5() {
   docker_md5=$(find build .github/data/version.txt internal/configs/njs internal/configs/oidc -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }')
   echo "${docker_md5:0:8}"
@@ -13,16 +19,16 @@ get_go_code_md5() {
 }
 
 get_tests_md5() {
-  find tests perf-tests .github/data/version.txt -type f -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
+  find tests perf-tests .github/data/version.txt -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
 }
 
 get_chart_md5() {
-  find charts .github/data/version.txt config/crd/bases -type f -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
+  find charts .github/data/version.txt config/crd/bases -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
 }
 
 get_actions_md5() {
   exclude_list="$(dirname $0)/exclude_ci_files.txt"
-  find_command="find .github -type f -not -path '${exclude_list}'"
+  find_command="find .github -type f ! -name '*.md' -not -path '${exclude_list}'"
   while IFS= read -r file
   do
     find_command+=" -not -path '$file'"
@@ -169,9 +175,14 @@ get_run_e2e() {
   fi
 }
 
-# Gate for the tag-stable job: on the main repo when no stable image exists yet.
+# Gate for the tag-stable job. Only tag an image as stable when we actually ran
+# the build + e2e cycle (get_run_e2e) AND no stable image exists yet. Requiring
+# run_e2e prevents tagging a non-existent image on docs-only / no-build runs,
+# and keeps this flag consistent with the jobs tag-stable depends on.
 get_tag_stable() {
-  if [ "${FORKED:-}" != "true" ] && [ "${DOCS_ONLY:-}" != "true" ] &&[ "${STABLE_EXISTS:-}" != "true" ]; then
+  local run_e2e
+  run_e2e=$(get_run_e2e)
+  if [ "$run_e2e" = "true" ] && [ "${STABLE_EXISTS:-}" != "true" ]; then
     echo "true"
   else
     echo "false"

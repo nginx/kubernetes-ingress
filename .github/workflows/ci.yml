@@ -255,11 +255,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
-        if: >-
-          inputs.force ||
-          needs.checks.outputs.run_tests == 'true' &&
-          needs.checks.outputs.binary_cache_hit != 'true'
+          version: 'v3.21.2' # renovate: datasource=github-releases depName=helm/helm
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -336,7 +332,9 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-    needs: [checks]
+    needs: checks
+    env:
+      GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -505,7 +503,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
+          version: 'v3.21.2' # renovate: datasource=github-releases depName=helm/helm
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -855,17 +853,66 @@ jobs:
     steps:
       - name: Check results of all required jobs
         env:
-          NEEDS_CONTEXT: ${{ toJSON(needs) }}
+          # A dependency that FAILED or was CANCELLED always fails the gate.
           FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+          # Expected-to-run flags, computed centrally in the checks job. When a
+          # flag is 'true', the jobs it gates must have actually run and
+          # succeeded (not been skipped). This catches a job whose `if:` has
+          # drifted from the flag it is supposed to track (a silent false-green).
+          RUN_UNIT_TESTS: ${{ needs.checks.outputs.run_unit_tests }}
+          RUN_BUILD: ${{ needs.checks.outputs.run_build }}
+          RUN_E2E: ${{ needs.checks.outputs.run_e2e }}
+          TAG_STABLE: ${{ needs.checks.outputs.tag_stable }}
+          # Individual job results (hyphenated job names map to underscores).
+          VERIFY_CODEGEN: ${{ needs.verify-codegen.result }}
+          UNIT_TESTS: ${{ needs.unit-tests.result }}
+          STATICCHECK: ${{ needs.staticcheck.result }}
+          GOVULNCHECK: ${{ needs.govulncheck.result }}
+          BUILD_ARTIFACTS: ${{ needs.build-artifacts.result }}
+          SETUP_MATRIX: ${{ needs.setup-matrix.result }}
+          PACKAGE_TESTS: ${{ needs.package-tests.result }}
+          HELM_TESTS: ${{ needs.helm-tests.result }}
+          SMOKE_OSS: ${{ needs.smoke-tests-oss.result }}
+          SMOKE_PLUS: ${{ needs.smoke-tests-plus.result }}
+          SMOKE_NAP: ${{ needs.smoke-tests-nap.result }}
+          TAG_STABLE_RESULT: ${{ needs.tag-stable.result }}
         run: |
-          echo "Dependent job results:"
-          echo "$NEEDS_CONTEXT" | jq -r 'to_entries[] | "  \(.key): \(.value.result)"'
+          status=0
+
+          # Any failed or cancelled dependency fails the gate outright.
           if [ "${FAILED}" = "true" ]; then
             echo "::error::One or more required jobs failed or were cancelled."
-            echo "$NEEDS_CONTEXT" | jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | "::error::  \(.key): \(.value.result)"'
-            exit 1
+            status=1
           fi
-          echo "All required jobs succeeded or were safely skipped."
+
+          # require_success <flag> <label> <result>...
+          # When <flag> is 'true', every listed job result must be 'success'.
+          require_success() {
+            local flag="$1" label="$2"
+            shift 2
+            [ "${flag}" = "true" ] || return 0
+            local result
+            for result in "$@"; do
+              if [ "${result}" != "success" ]; then
+                echo "::error::${label} was expected to run but a job did not succeed (result: ${result})."
+                status=1
+              fi
+            done
+          }
+
+          require_success "${RUN_UNIT_TESTS}" "Unit / codegen / static / vuln checks" \
+            "${VERIFY_CODEGEN}" "${UNIT_TESTS}" "${STATICCHECK}" "${GOVULNCHECK}"
+          require_success "${RUN_BUILD}" "Build artifacts" \
+            "${BUILD_ARTIFACTS}"
+          require_success "${RUN_E2E}" "E2E (matrix / package / helm / smoke)" \
+            "${SETUP_MATRIX}" "${PACKAGE_TESTS}" "${HELM_TESTS}" "${SMOKE_OSS}" "${SMOKE_PLUS}" "${SMOKE_NAP}"
+          require_success "${TAG_STABLE}" "Tag stable image" \
+            "${TAG_STABLE_RESULT}"
+
+          if [ "${status}" -eq 0 ]; then
+            echo "All required jobs succeeded or were safely skipped."
+          fi
+          exit "${status}"
 
   trigger-image-promotion:
     name: Promote images on Force Run
