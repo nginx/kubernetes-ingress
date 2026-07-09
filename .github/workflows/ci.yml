@@ -331,7 +331,8 @@ jobs:
   govulncheck:
     name: Vulnerability Check
     if: >-
-      github.repository == 'nginx/kubernetes-ingress'
+      github.repository == 'nginx/kubernetes-ingress' && (
+      needs.checks.outputs.run_unit_tests == 'true' )
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -854,12 +855,14 @@ jobs:
     steps:
       - name: Check results of all required jobs
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          NEEDS_CONTEXT: ${{ toJSON(needs) }}
           FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: |
-          echo "Dependent job results: ${RESULTS}"
+          echo "Dependent job results:"
+          echo "$NEEDS_CONTEXT" | jq -r 'to_entries[] | "  \(.key): \(.value.result)"'
           if [ "${FAILED}" = "true" ]; then
             echo "::error::One or more required jobs failed or were cancelled."
+            echo "$NEEDS_CONTEXT" | jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | "::error::  \(.key): \(.value.result)"'
             exit 1
           fi
           echo "All required jobs succeeded or were safely skipped."
