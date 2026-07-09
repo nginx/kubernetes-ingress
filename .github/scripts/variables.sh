@@ -171,7 +171,7 @@ get_run_e2e() {
 
 # Gate for the tag-stable job: on the main repo when no stable image exists yet.
 get_tag_stable() {
-  if [ "${FORKED:-}" != "true" ] && [ "${STABLE_EXISTS:-}" != "true" ]; then
+  if [ "${FORKED:-}" != "true" ] && [ "${DOCS_ONLY:-}" != "true" ] &&[ "${STABLE_EXISTS:-}" != "true" ]; then
     echo "true"
   else
     echo "false"
