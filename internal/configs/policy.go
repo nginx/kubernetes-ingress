@@ -851,6 +851,14 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		redirectURI = fmt.Sprintf("/oidc_callback_%s", providerName)
 	}
 
+	// Default cookie name is derived from the provider name to prevent session
+	// sharing between providers on the same domain.
+	// User can override via the cookieName field.
+	cookieName := oidcNative.CookieName
+	if cookieName == "" {
+		cookieName = fmt.Sprintf("NGX_OIDC_%s", providerName)
+	}
+
 	// Convert + to space in scope for backward compatibility with NJS OIDC format.
 	// The native module's scope directive expects space-separated values.
 	scope := strings.ReplaceAll(oidcNative.Scope, "+", " ")
@@ -864,7 +872,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		ConfigURL:       oidcNative.ConfigURL,
 		Scope:           scope,
 		RedirectURI:     redirectURI,
-		CookieName:      oidcNative.CookieName,
+		CookieName:      cookieName,
 		ExtraAuthArgs:   oidcNative.ExtraAuthArgs,
 		PKCE:            oidcNative.PKCE,
 		LogoutURI:       oidcNative.LogoutURI,

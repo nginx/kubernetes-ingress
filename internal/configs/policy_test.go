@@ -915,6 +915,7 @@ func TestGeneratePolicies(t *testing.T) {
 					ClientSecret:   "super_secret_123",
 					Scope:          "openid profile",
 					RedirectURI:    "/callback",
+					CookieName:     "NGX_OIDC_oidc_default_oidc_native_policy_default_test",
 					LogoutURI:      "/logout",
 					SessionTimeout: "4h",
 				},
@@ -950,6 +951,7 @@ func TestGeneratePolicies(t *testing.T) {
 					Issuer:      "https://keycloak.example.com/realms/master",
 					ClientID:    "nginx-plus",
 					RedirectURI: "/oidc_callback_oidc_default_oidc_native_minimal_default_test",
+					CookieName:  "NGX_OIDC_oidc_default_oidc_native_minimal_default_test",
 				},
 			},
 			msg: "oidcNative minimal reference without secret",
@@ -4452,6 +4454,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					Issuer:      "https://accounts.google.com",
 					ClientID:    "client-1",
 					RedirectURI: "/oidc_callback_oidc_default_oidc_native_1_default_test",
+					CookieName:  "NGX_OIDC_oidc_default_oidc_native_1_default_test",
 				},
 			},
 			expectedWarnings: Warnings{
