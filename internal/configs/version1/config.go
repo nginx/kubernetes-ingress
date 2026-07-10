@@ -21,7 +21,6 @@ type IngressNginxConfig struct {
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
 	Ingress                 Ingress
-	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
@@ -374,8 +373,6 @@ type MainConfig struct {
 	AppProtectDosLogFormat             []string
 	AppProtectDosLogFormatEscaping     string
 	AppProtectDosArbFqdn               string
-	InternalRouteServer                bool
-	InternalRouteServerName            string
 	LatencyMetrics                     bool
 	ZoneSyncConfig                     ZoneSyncConfig
 	OIDC                               OIDCConfig

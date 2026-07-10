@@ -165,13 +165,10 @@ type StaticConfigParams struct {
 	TLSPassthrough                 bool
 	TLSPassthroughPort             int
 	EnableSnippets                 bool
-	NginxServiceMesh               bool
-	EnableInternalRoutes           bool
 	MainAppProtectLoadModule       bool
 	MainAppProtectV5LoadModule     bool
 	MainAppProtectDosLoadModule    bool
 	MainAppProtectV5EnforcerAddr   string
-	InternalRouteServerName        string
 	EnableLatencyMetrics           bool
 	EnableOIDC                     bool
 	SSLRejectHandshake             bool

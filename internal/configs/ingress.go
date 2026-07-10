@@ -246,7 +246,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	hasAppProtect := ncp.staticParams.MainAppProtectLoadModule
 	hasAppProtectDos := ncp.staticParams.MainAppProtectDosLoadModule
 
-	cfgParams := parseAnnotations(ncp.ingEx, ncp.BaseCfgParams, ncp.isPlus, hasAppProtect, hasAppProtectDos, ncp.staticParams.EnableInternalRoutes, ncp.staticParams.IsDirectiveAutoadjustEnabled)
+	cfgParams := parseAnnotations(ncp.ingEx, ncp.BaseCfgParams, ncp.isPlus, hasAppProtect, hasAppProtectDos, ncp.staticParams.IsDirectiveAutoadjustEnabled)
 
 	wsServices := getWebsocketServices(ncp.ingEx)
 	spServices := getSessionPersistenceServices(ncp.BaseCfgParams.Context, ncp.ingEx)
@@ -410,7 +410,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			TLSPassthrough:         ncp.staticParams.TLSPassthrough,
 			AppProtectEnable:       cfgParams.AppProtectEnable,
 			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
-			SpiffeCerts:            cfgParams.SpiffeServerCerts,
 			DisableIPV6:            ncp.staticParams.DisableIPV6,
 			ProxyRedirectFrom:      cfgParams.ProxyRedirectFrom,
 			ProxyRedirectTo:        cfgParams.ProxyRedirectTo,
@@ -549,7 +548,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				upstreams[upsName] = upstream
 			}
 
-			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, ncp.staticParams)
+			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name])
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
 				ssl, isGRPCService, proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
@@ -673,7 +672,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		if !rootLocation && ncp.ingEx.Ingress.Spec.DefaultBackend != nil && ncp.ingEx.Ingress.Spec.DefaultBackend.Service != nil {
 			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
-			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], cfgParams, ncp.staticParams)
+			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name])
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
 				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, new(networking.PathTypePrefix), ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
@@ -766,7 +765,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			Namespace:   ncp.ingEx.Ingress.Namespace,
 			Annotations: ncp.ingEx.Ingress.Annotations,
 		},
-		SpiffeClientCerts:       ncp.staticParams.NginxServiceMesh && !cfgParams.SpiffeServerCerts,
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
@@ -1413,7 +1411,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		Upstreams:               upstreams,
 		Keepalive:               keepalive,
 		Ingress:                 masterNginxCfg.Ingress,
-		SpiffeClientCerts:       ncp.staticParams.NginxServiceMesh && !ncp.BaseCfgParams.SpiffeServerCerts,
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
@@ -1456,8 +1453,8 @@ func limitReqZoneExists(zones []version1.LimitReqZone, zoneName string) bool {
 	return false
 }
 
-func isSSLEnabled(isSSLService bool, cfgParams ConfigParams, staticCfgParams *StaticConfigParams) bool {
-	return isSSLService || staticCfgParams.NginxServiceMesh && !cfgParams.SpiffeServerCerts
+func isSSLEnabled(isSSLService bool) bool {
+	return isSSLService
 }
 
 // GetBackendPortAsString returns the port of a ServiceBackend of an Ingress resource as a string.

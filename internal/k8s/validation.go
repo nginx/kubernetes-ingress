@@ -66,7 +66,6 @@ const (
 	appProtectSecurityLogAnnotation       = "appprotect.f5.com/app-protect-security-log"
 	appProtectSecurityLogDestAnnotation   = "appprotect.f5.com/app-protect-security-log-destination"
 	appProtectDosProtectedAnnotation      = "appprotectdos.f5.com/app-protect-dos-resource"
-	internalRouteAnnotation               = "nsm.nginx.com/internal-route"
 	websocketServicesAnnotation           = "nginx.org/websocket-services"
 	sslServicesAnnotation                 = "nginx.org/ssl-services"
 	grpcServicesAnnotation                = "nginx.org/grpc-services"
@@ -363,11 +362,6 @@ var (
 			validateAppProtectDosOnlyAnnotation,
 			validatePlusOnlyAnnotation,
 			validateQualifiedName,
-		},
-		internalRouteAnnotation: {
-			validateInternalRoutesOnlyAnnotation,
-			validateRequiredAnnotation,
-			validateBoolAnnotation,
 		},
 		websocketServicesAnnotation: {
 			validateRequiredAnnotation,
@@ -797,20 +791,18 @@ func validateIngress(
 	isPlus bool,
 	appProtectEnabled bool,
 	appProtectDosEnabled bool,
-	internalRoutesEnabled bool,
 	snippetsEnabled bool,
 	directiveAutoAdjust bool,
 	allowEmptyHost bool,
 ) field.ErrorList {
 	allErrs := validateIngressAnnotations(
 		IngressOpts{
-			isPlus:                isPlus,
-			appProtectEnabled:     appProtectEnabled,
-			appProtectDosEnabled:  appProtectDosEnabled,
-			internalRoutesEnabled: internalRoutesEnabled,
-			snippetsEnabled:       snippetsEnabled,
-			directiveAutoAdjust:   directiveAutoAdjust,
-			hostless:              allowEmptyHost && hasEmptyHostRule(&ing.Spec),
+			isPlus:               isPlus,
+			appProtectEnabled:    appProtectEnabled,
+			appProtectDosEnabled: appProtectDosEnabled,
+			snippetsEnabled:      snippetsEnabled,
+			directiveAutoAdjust:  directiveAutoAdjust,
+			hostless:             allowEmptyHost && hasEmptyHostRule(&ing.Spec),
 		},
 		ing.Annotations,
 		getSpecServices(ing.Spec),
@@ -1032,13 +1024,6 @@ func validateAppProtectOnlyAnnotation(context *annotationValidationContext) fiel
 func validateAppProtectDosOnlyAnnotation(context *annotationValidationContext) field.ErrorList {
 	if !context.appProtectDosEnabled {
 		return field.ErrorList{field.Forbidden(context.fieldPath, "annotation requires AppProtectDos")}
-	}
-	return nil
-}
-
-func validateInternalRoutesOnlyAnnotation(context *annotationValidationContext) field.ErrorList {
-	if !context.internalRoutesEnabled {
-		return field.ErrorList{field.Forbidden(context.fieldPath, "annotation requires Internal Routes enabled")}
 	}
 	return nil
 }

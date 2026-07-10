@@ -38,8 +38,6 @@ import (
 
 	k8spolicies "github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
-	"github.com/nginxinc/nginx-service-mesh/pkg/spiffe"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -207,8 +205,6 @@ type LoadBalancerController struct {
 	metricsCollector              collectors.ControllerCollector
 	globalConfigurationValidator  *validation.GlobalConfigurationValidator
 	transportServerValidator      *validation.TransportServerValidator
-	spiffeCertFetcher             *spiffe.X509CertFetcher
-	internalRoutesEnabled         bool
 	syncLock                      sync.Mutex
 	isNginxReady                  bool
 	isPrometheusEnabled           bool
@@ -347,7 +343,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		metricsCollector:             input.MetricsCollector,
 		globalConfigurationValidator: input.GlobalConfigurationValidator,
 		transportServerValidator:     input.TransportServerValidator,
-		internalRoutesEnabled:        input.InternalRoutesEnabled,
 		isPrometheusEnabled:          input.IsPrometheusEnabled,
 		isLatencyMetricsEnabled:      input.IsLatencyMetricsEnabled,
 		isIPV6Disabled:               input.IsIPV6Disabled,
@@ -383,13 +378,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
-	var err error
-	if input.SpireAgentAddress != "" {
-		lbc.spiffeCertFetcher, err = spiffe.NewX509CertFetcher(input.SpireAgentAddress, nil)
-		if err != nil {
-			nl.Fatalf(lbc.Logger, "failed to initialize spiffe certfetcher: %v", err)
-		}
-	}
 
 	isDynamicNs := input.WatchNamespaceLabel != ""
 
@@ -758,35 +746,6 @@ func (lbc *LoadBalancerController) Run() {
 		go lbc.namespaceWatcherController.Run(lbc.ctx.Done())
 	}
 
-	if lbc.spiffeCertFetcher != nil {
-		_, _, err := lbc.spiffeCertFetcher.Start(lbc.ctx)
-		lbc.addInternalRouteServer()
-		if err != nil {
-			nl.Fatal(lbc.Logger, err)
-		}
-
-		// wait for initial bundle
-		timeoutch := make(chan bool, 1)
-		go func() { time.Sleep(time.Second * 30); timeoutch <- true }()
-		select {
-		case cert := <-lbc.spiffeCertFetcher.CertCh:
-			lbc.syncSVIDRotation(cert)
-		case <-timeoutch:
-			nl.Fatal(lbc.Logger, "Failed to download initial spiffe trust bundle")
-		}
-
-		go func() {
-			for {
-				select {
-				case err := <-lbc.spiffeCertFetcher.WatchErrCh:
-					nl.Errorf(lbc.Logger, "error watching for SVID rotations: %v", err)
-					return
-				case cert := <-lbc.spiffeCertFetcher.CertCh:
-					lbc.syncSVIDRotation(cert)
-				}
-			}
-		}()
-	}
 	if lbc.certManagerController != nil {
 		go lbc.certManagerController.Run(lbc.ctx.Done())
 	}
@@ -1224,10 +1183,6 @@ func (lbc *LoadBalancerController) sync(task task) {
 		nl.Debugf(lbc.Logger, "Batch processing %v items", lbc.syncQueue.Len())
 	}
 	nl.Debugf(lbc.Logger, "Syncing %v", task.Key)
-	if lbc.spiffeCertFetcher != nil {
-		lbc.syncLock.Lock()
-		defer lbc.syncLock.Unlock()
-	}
 	if lbc.batchSyncEnabled && task.Kind != endpointslice {
 		nl.Debug(lbc.Logger, "Task is not endpointslice - enabling batch reload")
 		lbc.enableBatchReload = true
@@ -4218,27 +4173,9 @@ func formatWarningMessages(w []string) string {
 	return strings.Join(w, "; ")
 }
 
-func (lbc *LoadBalancerController) syncSVIDRotation(svidResponse *workloadapi.X509Context) {
-	lbc.syncLock.Lock()
-	defer lbc.syncLock.Unlock()
-	nl.Debug(lbc.Logger, "Rotating SPIFFE Certificates")
-	err := lbc.configurator.AddOrUpdateSpiffeCerts(svidResponse)
-	if err != nil {
-		nl.Errorf(lbc.Logger, "failed to rotate SPIFFE certificates: %v", err)
-	}
-}
-
 // IsNginxReady returns ready status of NGINX
 func (lbc *LoadBalancerController) IsNginxReady() bool {
 	return lbc.isNginxReady
-}
-
-func (lbc *LoadBalancerController) addInternalRouteServer() {
-	if lbc.internalRoutesEnabled {
-		if err := lbc.configurator.AddInternalRouteConfig(); err != nil {
-			nl.Warnf(lbc.Logger, "failed to configure internal route server: %v", err)
-		}
-	}
 }
 
 func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
