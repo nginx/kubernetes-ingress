@@ -3777,6 +3777,10 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 			res = append(res, pol)
 		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
+		} else if pol.Spec.OIDCNative != nil && pol.Spec.OIDCNative.ClientSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
+		} else if pol.Spec.OIDCNative != nil && pol.Spec.OIDCNative.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
 		} else if pol.Spec.ExternalAuth != nil && pol.Spec.ExternalAuth.TrustedCertSecret != "" {
 			extAuthNs, extAuthName := configs.ParseResourceReference(pol.Spec.ExternalAuth.TrustedCertSecret, pol.Namespace)
 			if extAuthName == secretName && extAuthNs == secretNamespace {
