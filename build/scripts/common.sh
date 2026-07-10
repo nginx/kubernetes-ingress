@@ -19,11 +19,14 @@ setcap 'cap_net_bind_service=+eip' /usr/sbin/nginx 'cap_net_bind_service=+eip' /
 setcap -v 'cap_net_bind_service=+eip' /usr/sbin/nginx 'cap_net_bind_service=+eip' /usr/sbin/nginx-debug
 
 cp -a /code/internal/configs/version1/nginx$PLUS.ingress.tmpl \
-    /code/internal/configs/version1/nginx$PLUS.tmpl \
-	/code/internal/configs/version2/nginx$PLUS.virtualserver.tmpl \
-    /code/internal/configs/version2/nginx$PLUS.transportserver.tmpl \
-    /
+      /code/internal/configs/version1/nginx$PLUS.tmpl \
+	    /code/internal/configs/version2/nginx$PLUS.virtualserver.tmpl \
+      /code/internal/configs/version2/nginx$PLUS.transportserver.tmpl \
+      /
 
 chown -R 101:0 /etc/nginx /var/cache/nginx /var/lib/nginx /var/log/nginx /*.tmpl
 chmod -R g=u /etc/nginx /var/cache/nginx /var/lib/nginx /var/log/nginx /*.tmpl
 rm -f /etc/nginx/conf.d/*
+
+ln -sf /dev/stdout /var/log/nginx/access.log
+ln -sf /dev/stderr /var/log/nginx/error.log
