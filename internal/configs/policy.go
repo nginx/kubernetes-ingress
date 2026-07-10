@@ -881,6 +881,11 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	// The native module's scope directive expects space-separated values.
 	scope := strings.ReplaceAll(oidcNative.Scope, "+", " ")
 
+	// Always configure a named session store per provider.
+	// When zone-sync is enabled, the keyval zone gets the sync flag.
+	sessionStore := fmt.Sprintf("oidc_sessions_%s", providerName)
+	sync := policyOpts.zoneSync
+
 	p.OIDCProvider = &version2.OIDCProvider{
 		Name:            providerName,
 		PolicyKey:       polKey,
@@ -896,7 +901,9 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		LogoutURI:       oidcNative.LogoutURI,
 		PostLogoutURI:   oidcNative.PostLogoutRedirectURI,
 		LogoutTokenHint: oidcNative.LogoutTokenHint,
+		SessionStore:    sessionStore,
 		SessionTimeout:  oidcNative.SessionTimeout,
+		Sync:            sync,
 		UserInfoEnable:  oidcNative.UserInfoEnable,
 		SSLTrustedCert:  trustedCertPath,
 	}

@@ -35,7 +35,7 @@ upstream {{ $u.Name }} {
 {{ end }}
 
 {{- range $kvz := .KeyValZones }}
-keyval_zone zone={{ $kvz.Name }}:{{ $kvz.Size}} state={{ $kvz.State }};
+keyval_zone zone={{ $kvz.Name }}:{{ $kvz.Size}}{{ if $kvz.State }} state={{ $kvz.State }}{{ end }}{{ if $kvz.Sync }} sync{{ end }};
 {{- end }}
 
 {{- range $kv := .KeyVals }}

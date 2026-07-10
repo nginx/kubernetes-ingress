@@ -1130,6 +1130,18 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		return upstreams[i].Name < upstreams[j].Name
 	})
 
+	// Generate keyval zones for OIDC Native session stores.
+	dedupedOIDCProviders := removeDuplicateOIDCProviders(oidcProviders)
+	for _, p := range dedupedOIDCProviders {
+		if p.SessionStore != "" {
+			keyValZones = append(keyValZones, version2.KeyValZone{
+				Name: p.SessionStore,
+				Size: "10m",
+				Sync: p.Sync,
+			})
+		}
+	}
+
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
 		SplitClients:     splitClients,
@@ -1137,7 +1149,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
 		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
-		OIDCProviders:    removeDuplicateOIDCProviders(oidcProviders),
+		OIDCProviders:    dedupedOIDCProviders,
 		CacheZones:       cacheZones,
 		HTTPSnippets:     httpSnippets,
 		Server: version2.Server{
