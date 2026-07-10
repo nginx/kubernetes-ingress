@@ -1704,6 +1704,185 @@ func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConf
 	return expected
 }
 
+func TestGenerateNginxCfgCustomHTTPErrors_WithDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404, 500"
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	cafeIngressEx.Endpoints["error-pages-svc80"] = []string{"10.0.0.3:80"}
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	if len(result.Servers) != 1 {
+		t.Fatalf("expected 1 server, got %d", len(result.Servers))
+	}
+	srv := result.Servers[0]
+	wantBackend := getNameForUpstream(cafeIngressEx.Ingress, emptyHostName, cafeIngressEx.Ingress.Spec.DefaultBackend)
+	wantCodes := []int{404, 500}
+	if !reflect.DeepEqual(srv.CustomHTTPErrorCodes, wantCodes) {
+		t.Errorf("Server.CustomHTTPErrorCodes = %v, want %v", srv.CustomHTTPErrorCodes, wantCodes)
+	}
+	if !srv.CustomHTTPErrorsEnabled {
+		t.Errorf("Server.CustomHTTPErrorsEnabled = false, want true")
+	}
+	if srv.CustomHTTPErrorBackend != wantBackend {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want %q", srv.CustomHTTPErrorBackend, wantBackend)
+	}
+	// User-path locations must NOT carry codes for a standard Ingress —
+	// server-level directives are inherited via NGINX's error_page inheritance.
+	for _, loc := range srv.Locations {
+		if len(loc.CustomHTTPErrorCodes) != 0 {
+			t.Errorf("Location %q must not carry CustomHTTPErrorCodes on a standard Ingress (server-level covers all), got %v",
+				loc.Path, loc.CustomHTTPErrorCodes)
+		}
+	}
+}
+
+func TestGenerateNginxCfgCustomHTTPErrors_WithoutDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404, 5xx"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if len(warnings) == 0 {
+		t.Errorf("expected a warning about missing spec.defaultBackend, got none")
+	}
+	srv := result.Servers[0]
+	// Server-level proxy_intercept_errors still rendered so NGINX serves its
+	// built-in error pages instead of the upstream body.
+	if len(srv.CustomHTTPErrorCodes) == 0 {
+		t.Errorf("Server.CustomHTTPErrorCodes should be populated even without defaultBackend, got empty")
+	}
+	if srv.CustomHTTPErrorsEnabled {
+		t.Errorf("Server.CustomHTTPErrorsEnabled = true, want false when no defaultBackend")
+	}
+	if srv.CustomHTTPErrorBackend != "" {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want empty", srv.CustomHTTPErrorBackend)
+	}
+}
+
+func TestGenerateNginxCfgCustomHTTPErrors_MarksSyntheticDefaultBackendLocation(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404"
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	cafeIngressEx.Endpoints["error-pages-svc80"] = []string{"10.0.0.3:80"}
+
+	// Remove the /coffee and /tea paths so a synthesized "/" default-backend
+	// location is the only content location on the server.
+	cafeIngressEx.Ingress.Spec.Rules[0].HTTP.Paths = nil
+
+	result, _ := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	srv := result.Servers[0]
+	if len(srv.Locations) != 1 || srv.Locations[0].Path != "/" {
+		t.Fatalf("expected a single synthesized '/' location, got %+v", srv.Locations)
+	}
+	// SkipCustomHTTPErrors must be set on the synthesized location so the
+	// template emits proxy_intercept_errors off; and breaks the intercept
+	// loop that would otherwise call the default backend twice per error.
+	if !srv.Locations[0].SkipCustomHTTPErrors {
+		t.Errorf("synthesized default-backend location must have SkipCustomHTTPErrors = true")
+	}
+}
+
+// TestGenerateNginxCfgCustomHTTPErrors_StandardIgnoresGRPC verifies that a
+// standard Ingress with a mix of gRPC and HTTP paths still renders
+// server-level custom-http-errors. gRPC locations opt out naturally via their
+// own error_page directives that override the server-level one; no per-path
+// warning is emitted because there is no per-path decision to make.
+func TestGenerateNginxCfgCustomHTTPErrors_StandardIgnoresGRPC(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404, 500"
+	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	cafeIngressEx.Endpoints["error-pages-svc80"] = []string{"10.0.0.3:80"}
+
+	result, _ := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	srv := result.Servers[0]
+	if !srv.CustomHTTPErrorsEnabled {
+		t.Errorf("Server.CustomHTTPErrorsEnabled = false, want true")
+	}
+	if !reflect.DeepEqual(srv.CustomHTTPErrorCodes, []int{404, 500}) {
+		t.Errorf("Server.CustomHTTPErrorCodes = %v, want [404 500]", srv.CustomHTTPErrorCodes)
+	}
+	// No location-level codes for a standard Ingress even on the gRPC path;
+	// interception is handled at server level and gRPC's own error_page block
+	// (rendered by the template) overrides the server-level directive.
+	for _, loc := range srv.Locations {
+		if len(loc.CustomHTTPErrorCodes) != 0 {
+			t.Errorf("Location %q must not carry CustomHTTPErrorCodes on a standard Ingress, got %v",
+				loc.Path, loc.CustomHTTPErrorCodes)
+		}
+	}
+}
+
 func createCafeIngressEx() IngressEx {
 	cafeIngress := networking.Ingress{
 		ObjectMeta: meta_v1.ObjectMeta{

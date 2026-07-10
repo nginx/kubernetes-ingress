@@ -92,6 +92,7 @@ type ConfigParams struct {
 	ProxyNextUpstreamTries                 *uint64
 	ProxyRedirectFrom                      string
 	ProxyRedirectTo                        string
+	CustomHTTPErrors                       []int
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
 	ResolverAddresses                      []string

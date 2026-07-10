@@ -154,6 +154,20 @@ type Server struct {
 	ProxyRedirectFrom string
 	ProxyRedirectTo   string
 
+	// CustomHTTPErrorCodes holds the upstream status codes to intercept at server
+	// context (set from the nginx.org/custom-http-errors annotation on the Ingress
+	// or on the master of a mergeable Ingress). All non-overriding locations on
+	// the server inherit these directives via standard NGINX inheritance.
+	CustomHTTPErrorCodes []int
+	// CustomHTTPErrorsEnabled reports whether the server should render the shared
+	// @custom_default_backend named location. True when custom-http-errors are
+	// configured (at server or any location level) AND the Ingress has a
+	// spec.defaultBackend to route intercepted responses to.
+	CustomHTTPErrorsEnabled bool
+	// CustomHTTPErrorBackend is the upstream name that @custom_default_backend
+	// proxies to. Populated from the Ingress's spec.defaultBackend upstream.
+	CustomHTTPErrorBackend string
+
 	AppRoot string
 }
 
@@ -227,11 +241,23 @@ type Location struct {
 
 	MinionIngress *Ingress
 
-	ProxyNextUpstream          string
-	ProxyNextUpstreamTimeout   string
-	ProxyNextUpstreamTries     *uint64
-	ProxyRedirectFrom          string
-	ProxyRedirectTo            string
+	ProxyNextUpstream        string
+	ProxyNextUpstreamTimeout string
+	ProxyNextUpstreamTries   *uint64
+	ProxyRedirectFrom        string
+	ProxyRedirectTo          string
+	// CustomHTTPErrorCodes lists the upstream status codes to intercept at this
+	// location. When non-empty, the location renders proxy_intercept_errors on;
+	// and, when the parent Server has CustomHTTPErrorsEnabled = true, an
+	// error_page directive routing those codes to @custom_default_backend.
+	// Overrides any server-level CustomHTTPErrorCodes for this location per
+	// NGINX's error_page inheritance rule (nested block replaces parent).
+	CustomHTTPErrorCodes []int
+	// SkipCustomHTTPErrors is set on the synthesized default-backend location to
+	// break the intercept loop when server-level custom-http-errors would
+	// otherwise cause the default backend to intercept its own responses. When
+	// true the template emits proxy_intercept_errors off; inside the location.
+	SkipCustomHTTPErrors       bool
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
