@@ -35,6 +35,8 @@ type PolicySpecApplyConfiguration struct {
 	CORS *CORSApplyConfiguration `json:"cors,omitempty"`
 	// The ExternalAuth policy configures NGINX to authenticate client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server.
 	ExternalAuth *ExternalAuthApplyConfiguration `json:"externalAuth,omitempty"`
+	// The HSTS policy configures HTTP Strict Transport Security headers
+	HSTS *HSTSApplyConfiguration `json:"hsts,omitempty"`
 }
 
 // PolicySpecApplyConfiguration constructs a declarative configuration of the PolicySpec type for use with
@@ -144,5 +146,13 @@ func (b *PolicySpecApplyConfiguration) WithCORS(value *CORSApplyConfiguration) *
 // If called multiple times, the ExternalAuth field is set to the value of the last call.
 func (b *PolicySpecApplyConfiguration) WithExternalAuth(value *ExternalAuthApplyConfiguration) *PolicySpecApplyConfiguration {
 	b.ExternalAuth = value
+	return b
+}
+
+// WithHSTS sets the HSTS field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HSTS field is set to the value of the last call.
+func (b *PolicySpecApplyConfiguration) WithHSTS(value *HSTSApplyConfiguration) *PolicySpecApplyConfiguration {
+	b.HSTS = value
 	return b
 }
