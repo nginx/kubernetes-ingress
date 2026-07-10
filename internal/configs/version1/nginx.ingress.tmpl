@@ -223,7 +223,7 @@ server {
 
 	{{- if $server.CustomHTTPErrorCodes}}
 	proxy_intercept_errors on;
-	{{- if $server.CustomHTTPErrorsEnabled}}
+	{{- if $server.CustomHTTPErrorBackend}}
 	error_page{{range $c := $server.CustomHTTPErrorCodes}} {{$c}}{{end}} @custom_default_backend;
 	{{- end}}
 	{{- end}}
@@ -437,7 +437,7 @@ server {
 		proxy_intercept_errors off;
 		{{- else if $location.CustomHTTPErrorCodes}}
 		proxy_intercept_errors on;
-		{{- if $server.CustomHTTPErrorsEnabled}}
+		{{- if $server.CustomHTTPErrorBackend}}
 		error_page{{range $c := $location.CustomHTTPErrorCodes}} {{$c}}{{end}} @custom_default_backend;
 		{{- end}}
 		{{- end}}
@@ -477,7 +477,7 @@ server {
 		{{end}}
 	}
 	{{end -}}
-	{{- if $server.CustomHTTPErrorsEnabled}}
+	{{- if $server.CustomHTTPErrorBackend}}
 	location @custom_default_backend {
 		internal;
 		proxy_intercept_errors off;

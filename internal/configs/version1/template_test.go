@@ -538,12 +538,11 @@ func TestExecuteTemplate_ForIngressWithCustomHTTPErrors(t *testing.T) {
 
 			cfg := IngressNginxConfig{
 				Servers: []Server{{
-					Name:                    "cafe.example.com",
-					ServerTokens:            "off",
-					StatusZone:              "cafe.example.com",
-					CustomHTTPErrorCodes:    []int{404, 500, 502},
-					CustomHTTPErrorsEnabled: true,
-					CustomHTTPErrorBackend:  "default-cafe-ingress--error-pages-svc-80",
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404, 500, 502},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
 					Locations: []Location{{
 						Path:      "/coffee",
 						Upstream:  testUpstream,
@@ -610,7 +609,8 @@ func TestExecuteTemplate_ForIngressWithCustomHTTPErrors_NoHandler(t *testing.T) 
 					ServerTokens:         "off",
 					StatusZone:           "cafe.example.com",
 					CustomHTTPErrorCodes: []int{404, 500},
-					// CustomHTTPErrorsEnabled intentionally false — no default backend.
+					// CustomHTTPErrorBackend intentionally empty — no default backend, so
+					// the handler location and server-level error_page must not render.
 					Locations: []Location{{
 						Path:      "/coffee",
 						Upstream:  testUpstream,
@@ -666,12 +666,11 @@ func TestExecuteTemplate_ForMergeableIngressWithCustomHTTPErrors_MinionOverride(
 
 			cfg := IngressNginxConfig{
 				Servers: []Server{{
-					Name:                    "cafe.example.com",
-					ServerTokens:            "off",
-					StatusZone:              "cafe.example.com",
-					CustomHTTPErrorCodes:    []int{404},
-					CustomHTTPErrorsEnabled: true,
-					CustomHTTPErrorBackend:  "default-cafe-ingress--error-pages-svc-80",
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
 					Locations: []Location{
 						{
 							Path:      "/coffee",
@@ -741,12 +740,11 @@ func TestExecuteTemplate_ForIngressWithCustomHTTPErrors_SkipDefaultBackendLocati
 
 			cfg := IngressNginxConfig{
 				Servers: []Server{{
-					Name:                    "cafe.example.com",
-					ServerTokens:            "off",
-					StatusZone:              "cafe.example.com",
-					CustomHTTPErrorCodes:    []int{404},
-					CustomHTTPErrorsEnabled: true,
-					CustomHTTPErrorBackend:  "default-cafe-ingress--error-pages-svc-80",
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
 					Locations: []Location{{
 						Path:                 "/",
 						Upstream:             testUpstream,

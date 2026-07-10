@@ -1741,9 +1741,6 @@ func TestGenerateNginxCfgCustomHTTPErrors_WithDefaultBackend(t *testing.T) {
 	if !reflect.DeepEqual(srv.CustomHTTPErrorCodes, wantCodes) {
 		t.Errorf("Server.CustomHTTPErrorCodes = %v, want %v", srv.CustomHTTPErrorCodes, wantCodes)
 	}
-	if !srv.CustomHTTPErrorsEnabled {
-		t.Errorf("Server.CustomHTTPErrorsEnabled = false, want true")
-	}
 	if srv.CustomHTTPErrorBackend != wantBackend {
 		t.Errorf("Server.CustomHTTPErrorBackend = %q, want %q", srv.CustomHTTPErrorBackend, wantBackend)
 	}
@@ -1783,9 +1780,6 @@ func TestGenerateNginxCfgCustomHTTPErrors_WithoutDefaultBackend(t *testing.T) {
 	// built-in error pages instead of the upstream body.
 	if len(srv.CustomHTTPErrorCodes) == 0 {
 		t.Errorf("Server.CustomHTTPErrorCodes should be populated even without defaultBackend, got empty")
-	}
-	if srv.CustomHTTPErrorsEnabled {
-		t.Errorf("Server.CustomHTTPErrorsEnabled = true, want false when no defaultBackend")
 	}
 	if srv.CustomHTTPErrorBackend != "" {
 		t.Errorf("Server.CustomHTTPErrorBackend = %q, want empty", srv.CustomHTTPErrorBackend)
@@ -1866,8 +1860,8 @@ func TestGenerateNginxCfgCustomHTTPErrors_StandardIgnoresGRPC(t *testing.T) {
 	})
 
 	srv := result.Servers[0]
-	if !srv.CustomHTTPErrorsEnabled {
-		t.Errorf("Server.CustomHTTPErrorsEnabled = false, want true")
+	if srv.CustomHTTPErrorBackend == "" {
+		t.Errorf("Server.CustomHTTPErrorBackend = empty, want the error-pages upstream (handler must be enabled)")
 	}
 	if !reflect.DeepEqual(srv.CustomHTTPErrorCodes, []int{404, 500}) {
 		t.Errorf("Server.CustomHTTPErrorCodes = %v, want [404 500]", srv.CustomHTTPErrorCodes)
@@ -1880,6 +1874,182 @@ func TestGenerateNginxCfgCustomHTTPErrors_StandardIgnoresGRPC(t *testing.T) {
 			t.Errorf("Location %q must not carry CustomHTTPErrorCodes on a standard Ingress, got %v",
 				loc.Path, loc.CustomHTTPErrorCodes)
 		}
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MasterAnnotation
+// covers the mergeable-ingress path where the master carries the annotation
+// and has spec.defaultBackend. The server-level directives render on the
+// master server; no minion location gets per-location codes (they inherit via
+// NGINX's error_page inheritance).
+func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MasterAnnotation(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404, 500"
+	mergeableIngresses.Master.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	if len(result.Servers) != 1 {
+		t.Fatalf("expected 1 server, got %d", len(result.Servers))
+	}
+	srv := result.Servers[0]
+
+	wantBackend := getNameForUpstream(mergeableIngresses.Master.Ingress, emptyHostName, mergeableIngresses.Master.Ingress.Spec.DefaultBackend)
+	if !reflect.DeepEqual(srv.CustomHTTPErrorCodes, []int{404, 500}) {
+		t.Errorf("Server.CustomHTTPErrorCodes = %v, want [404 500]", srv.CustomHTTPErrorCodes)
+	}
+	if srv.CustomHTTPErrorBackend != wantBackend {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want %q", srv.CustomHTTPErrorBackend, wantBackend)
+	}
+	for _, loc := range srv.Locations {
+		if len(loc.CustomHTTPErrorCodes) != 0 {
+			t.Errorf("Location %q must not carry CustomHTTPErrorCodes when only the master has the annotation, got %v",
+				loc.Path, loc.CustomHTTPErrorCodes)
+		}
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionOverride
+// covers the case where a minion carries the annotation. Only that minion's
+// location gets per-location codes; the shared handler is still enabled from
+// the master's spec.defaultBackend via the enable-loop in
+// generateNginxCfgForMergeableIngresses.
+func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionOverride(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+
+	var coffee *IngressEx
+	for _, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			coffee = m
+			break
+		}
+	}
+	if coffee == nil {
+		t.Fatal("coffee minion not found in test fixture")
+	}
+	coffee.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "502, 503"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	srv := result.Servers[0]
+
+	wantBackend := getNameForUpstream(mergeableIngresses.Master.Ingress, emptyHostName, mergeableIngresses.Master.Ingress.Spec.DefaultBackend)
+	if len(srv.CustomHTTPErrorCodes) != 0 {
+		t.Errorf("Server.CustomHTTPErrorCodes = %v, want empty (master has no annotation)", srv.CustomHTTPErrorCodes)
+	}
+	if srv.CustomHTTPErrorBackend != wantBackend {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want %q (handler must be enabled by minion annotation)",
+			srv.CustomHTTPErrorBackend, wantBackend)
+	}
+
+	sawCoffee, sawTea := false, false
+	for _, loc := range srv.Locations {
+		switch loc.Path {
+		case "/coffee":
+			sawCoffee = true
+			if !reflect.DeepEqual(loc.CustomHTTPErrorCodes, []int{502, 503}) {
+				t.Errorf("coffee Location.CustomHTTPErrorCodes = %v, want [502 503]", loc.CustomHTTPErrorCodes)
+			}
+		case "/tea":
+			sawTea = true
+			if len(loc.CustomHTTPErrorCodes) != 0 {
+				t.Errorf("tea Location.CustomHTTPErrorCodes = %v, want empty (only coffee minion has the annotation)", loc.CustomHTTPErrorCodes)
+			}
+		}
+	}
+	if !sawCoffee || !sawTea {
+		t.Fatalf("expected /coffee and /tea locations, saw coffee=%v tea=%v", sawCoffee, sawTea)
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionWithoutMasterDefaultBackend
+// covers the warning path: a minion sets the annotation but the master has no
+// spec.defaultBackend. A Kubernetes warning event must be added, and the
+// shared handler location must not render (CustomHTTPErrorBackend stays empty).
+func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionWithoutMasterDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	// Master intentionally has no spec.defaultBackend.
+
+	var coffee *IngressEx
+	for _, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			coffee = m
+			break
+		}
+	}
+	if coffee == nil {
+		t.Fatal("coffee minion not found in test fixture")
+	}
+	coffee.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	var foundWarning bool
+	for _, msgs := range warnings {
+		for _, m := range msgs {
+			if strings.Contains(m, CustomHTTPErrorsAnnotation) && strings.Contains(m, "spec.defaultBackend") {
+				foundWarning = true
+			}
+		}
+	}
+	if !foundWarning {
+		t.Errorf("expected a warning about missing master spec.defaultBackend, got warnings=%v", warnings)
+	}
+
+	srv := result.Servers[0]
+	if srv.CustomHTTPErrorBackend != "" {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want empty (no master spec.defaultBackend)", srv.CustomHTTPErrorBackend)
+	}
+	// The minion's location still carries codes; the template renders
+	// proxy_intercept_errors on; without a matching error_page (functional no-op
+	// at request time, but faithfully reflects what the annotation asked for).
+	var coffeeCodes []int
+	for _, loc := range srv.Locations {
+		if loc.Path == "/coffee" {
+			coffeeCodes = loc.CustomHTTPErrorCodes
+			break
+		}
+	}
+	if !reflect.DeepEqual(coffeeCodes, []int{404}) {
+		t.Errorf("coffee Location.CustomHTTPErrorCodes = %v, want [404]", coffeeCodes)
 	}
 }
 

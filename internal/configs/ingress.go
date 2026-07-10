@@ -721,7 +721,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		if !ncp.isMinion && len(cfgParams.CustomHTTPErrors) > 0 {
 			server.CustomHTTPErrorCodes = cfgParams.CustomHTTPErrors
 			if ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
-				server.CustomHTTPErrorsEnabled = true
 				server.CustomHTTPErrorBackend = getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
 				synthesizedPath := pathOrDefault("/")
 				for i := range locations {
@@ -1403,7 +1402,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	if originalMaster.Spec.DefaultBackend != nil {
 		for _, loc := range locations {
 			if len(loc.CustomHTTPErrorCodes) > 0 {
-				masterServer.CustomHTTPErrorsEnabled = true
 				masterServer.CustomHTTPErrorBackend = getNameForUpstream(originalMaster, emptyHostName, originalMaster.Spec.DefaultBackend)
 				break
 			}

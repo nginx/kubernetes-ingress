@@ -159,13 +159,11 @@ type Server struct {
 	// or on the master of a mergeable Ingress). All non-overriding locations on
 	// the server inherit these directives via standard NGINX inheritance.
 	CustomHTTPErrorCodes []int
-	// CustomHTTPErrorsEnabled reports whether the server should render the shared
-	// @custom_default_backend named location. True when custom-http-errors are
-	// configured (at server or any location level) AND the Ingress has a
-	// spec.defaultBackend to route intercepted responses to.
-	CustomHTTPErrorsEnabled bool
 	// CustomHTTPErrorBackend is the upstream name that @custom_default_backend
 	// proxies to. Populated from the Ingress's spec.defaultBackend upstream.
+	// Non-empty iff the server should render the shared @custom_default_backend
+	// named location — that is, custom-http-errors are configured AND the Ingress
+	// has a spec.defaultBackend. Doubles as the enable flag; no separate boolean.
 	CustomHTTPErrorBackend string
 
 	AppRoot string
@@ -248,7 +246,7 @@ type Location struct {
 	ProxyRedirectTo          string
 	// CustomHTTPErrorCodes lists the upstream status codes to intercept at this
 	// location. When non-empty, the location renders proxy_intercept_errors on;
-	// and, when the parent Server has CustomHTTPErrorsEnabled = true, an
+	// and, when the parent Server has a non-empty CustomHTTPErrorBackend, an
 	// error_page directive routing those codes to @custom_default_backend.
 	// Overrides any server-level CustomHTTPErrorCodes for this location per
 	// NGINX's error_page inheritance rule (nested block replaces parent).
