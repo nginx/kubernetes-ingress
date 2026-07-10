@@ -717,7 +717,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			policyOpts.oidcConfig = routePoliciesCfg.OIDC
 			// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
 			policiesCfg.OIDC = routePoliciesCfg.OIDC
-		} else if specHasOIDC {
+		} else if specHasOIDC && routePoliciesCfg.OIDCProvider == nil {
 			// Inherit the spec-level OIDC to routes that don't define their own.
 			// Using the specHasOIDC boolean (set before the loop) avoids reading the potentially
 			// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
@@ -952,7 +952,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyOpts.oidcConfig = routePoliciesCfg.OIDC
 				// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
 				policiesCfg.OIDC = routePoliciesCfg.OIDC
-			} else if specHasOIDC {
+			} else if specHasOIDC && routePoliciesCfg.OIDCProvider == nil {
 				// Inherit the spec-level OIDC to subroutes that don't define their own.
 				// Using the specHasOIDC boolean (set before the route loop) avoids reading the potentially
 				// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
@@ -1496,11 +1496,10 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.ExternalAuth = cfg.ExternalAuth
 	location.BasicAuth = cfg.BasicAuth
 	location.EgressMTLS = cfg.EgressMTLS
-	if cfg.OIDC != nil {
-		location.OIDC = true
-	}
 	if cfg.OIDCProvider != nil {
 		location.OIDCProviderName = cfg.OIDCProvider.Name
+	} else if cfg.OIDC != nil {
+		location.OIDC = true
 	}
 	location.WAF = cfg.WAF
 	location.APIKey = cfg.APIKey.Key

@@ -638,6 +638,15 @@ func (p *policiesCfg) addOIDCConfig(
 		return res
 	}
 
+	if p.OIDCProvider != nil {
+		res.addWarningf(
+			"OIDC (NJS) policy %s conflicts with OIDCNative policy in the same context. Only one OIDC implementation can be used per context",
+			polKey,
+		)
+		res.isError = true
+		return res
+	}
+
 	var policy *version2.OIDC
 	if policyOpts.oidcPolicyName != "" {
 		if policyOpts.oidcPolicyName != polKey {
@@ -780,6 +789,15 @@ func (p *policiesCfg) addOIDCNativeConfig(
 			"Multiple oidcNative policies in the same context is not valid. OIDCNative policy %s will be ignored",
 			polKey,
 		)
+		return res
+	}
+
+	if p.OIDC != nil {
+		res.addWarningf(
+			"OIDCNative policy %s conflicts with OIDC (NJS) policy in the same context. Only one OIDC implementation can be used per context",
+			polKey,
+		)
+		res.isError = true
 		return res
 	}
 
