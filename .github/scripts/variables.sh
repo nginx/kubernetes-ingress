@@ -103,6 +103,7 @@ get_lts_tags() {
 #   DOCS_ONLY        - "true" when the change only touches documentation.
 #   FORKED           - "true" when running from a fork / mirror.
 #   BINARY_CACHE_HIT - "true" when the Go binary cache was hit.
+#   BUILD_EXISTS     - "true" when a build image already exists in the registry.
 #   STABLE_EXISTS    - "true" when a stable image already exists in the registry.
 #   REF_NAME         - github.ref_name (used to gate image promotion).
 # ---------------------------------------------------------------------------
@@ -113,9 +114,7 @@ get_docker_build() {
     echo "true"
   elif [ "${FORKED:-}" = "true" ] && [ "${DOCS_ONLY:-}" != "true" ]; then
     echo "true"
-  elif [ "${FORKED:-}" != "true" ] && [ "${DOCS_ONLY:-}" != "true" ] && [ "${BINARY_CACHE_HIT:-}" != "true" ]; then
-    echo "true"
-  elif [ "${FORKED:-}" != "true" ] && [ "${DOCS_ONLY:-}" != "true" ] && [ "${STABLE_EXISTS:-}" != "true" ]; then
+  elif [ "${FORKED:-}" != "true" ] && [ "${DOCS_ONLY:-}" != "true" ] && [ "${BUILD_EXISTS:-}" != "true" ]; then
     echo "true"
   else
     echo "false"

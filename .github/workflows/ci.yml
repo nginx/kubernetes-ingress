@@ -147,6 +147,16 @@ jobs:
           password: ${{ steps.auth.outputs.access_token }}
         if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
 
+      - name: Check if build image exists
+        id: build_exists
+        run: |
+          exists=false
+          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.build_tag }}; then
+            exists=true
+          fi
+          echo "exists=${exists}" >> $GITHUB_OUTPUT
+        if: ${{ steps.vars.outputs.forked_workflow == 'false' }}
+
       - name: Check if stable image exists
         id: stable_exists
         run: |
@@ -168,6 +178,7 @@ jobs:
           FORKED: ${{ steps.vars.outputs.forked_workflow }}
           BINARY_CACHE_HIT: ${{ steps.binary-cache.outputs.cache-hit }}
           STABLE_EXISTS: ${{ steps.stable_exists.outputs.exists }}
+          BUILD_EXISTS: ${{ steps.build_exists.outputs.exists }}
           REF_NAME: ${{ github.ref_name }}
 
       - name: Output variables

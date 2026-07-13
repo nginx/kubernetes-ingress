@@ -130,12 +130,11 @@ assert_flag get_run_tests true  "stable exists but no cache hit"    BINARY_CACHE
 
 # --- get_docker_build ---------------------------------------------------------
 # assert_flag   function | expected | description
-assert_flag get_docker_build true  "force always builds"                FORCE=true DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_docker_build true  "force always builds"                FORCE=true DOCS_ONLY=true BUILD_EXISTS=true
 assert_flag get_docker_build true  "forked non-docs change"             FORKED=true DOCS_ONLY=false
 assert_flag get_docker_build false "forked docs-only change"            FORKED=true DOCS_ONLY=true
-assert_flag get_docker_build true  "main repo, no cache hit"            FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=true
-assert_flag get_docker_build true  "main repo, cache hit, no stable"    FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=false
-assert_flag get_docker_build false "main repo, cache hit and stable"    FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_docker_build true  "main repo, no build"                FORKED=false DOCS_ONLY=false BUILD_EXISTS=false
+assert_flag get_docker_build false "main repo, build exists"            FORKED=false DOCS_ONLY=false BUILD_EXISTS=true
 assert_flag get_docker_build false "main repo docs-only"                FORKED=false DOCS_ONLY=true
 
 # --- get_run_unit_tests -------------------------------------------------------
@@ -148,16 +147,16 @@ assert_flag get_run_unit_tests false "cache hit and stable exists"     BINARY_CA
 
 # --- get_run_build ------------------------------------------------------------
 # assert_flag   function | expected | description
-assert_flag get_run_build true  "force triggers build"                 FORCE=true DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_run_build true  "force triggers build"                 FORCE=true DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true
 assert_flag get_run_build true  "run_tests triggers build"             BINARY_CACHE_HIT=false
-assert_flag get_run_build true  "docker_build triggers build"          RUN_TESTS_INPUT=false FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=false
-assert_flag get_run_build false "nothing to do"                        DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_run_build true  "docker_build triggers build"          RUN_TESTS_INPUT=false FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=false BUILD_EXISTS=false
+assert_flag get_run_build false "nothing to do"                        DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true
 
 # --- get_run_e2e --------------------------------------------------------------
 # assert_flag   function | expected | description
-assert_flag get_run_e2e true  "main repo with work"                    FORKED=false BINARY_CACHE_HIT=false
+assert_flag get_run_e2e true  "main repo with work"                    FORKED=false BINARY_CACHE_HIT=false BUILD_EXISTS=false
 assert_flag get_run_e2e false "forked never runs e2e"                  FORKED=true DOCS_ONLY=false
-assert_flag get_run_e2e false "main repo, nothing to do"               FORKED=false DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_run_e2e false "main repo, nothing to do"               FORKED=false DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true
 
 # --- get_tag_stable -----------------------------------------------------------
 # assert_flag   function | expected | description
@@ -206,7 +205,7 @@ run_build=false
 run_e2e=false
 tag_stable=false
 promote=false" \
-  FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true REF_NAME=feature-branch
+  FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true REF_NAME=feature-branch
 
 assert_ci_flags "forked PR (no authenticated e2e / tag)" \
 "run_tests=true
@@ -226,7 +225,7 @@ run_build=true
 run_e2e=true
 tag_stable=false
 promote=true" \
-  FORCE=true RUN_TESTS_INPUT=true FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true REF_NAME=main
+  FORCE=true RUN_TESTS_INPUT=true FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true REF_NAME=main
 
 assert_ci_flags "dispatch run_tests=false (still builds)" \
 "run_tests=false
