@@ -205,7 +205,6 @@ type LoadBalancerController struct {
 	metricsCollector              collectors.ControllerCollector
 	globalConfigurationValidator  *validation.GlobalConfigurationValidator
 	transportServerValidator      *validation.TransportServerValidator
-	syncLock                      sync.Mutex
 	isNginxReady                  bool
 	isPrometheusEnabled           bool
 	isLatencyMetricsEnabled       bool
