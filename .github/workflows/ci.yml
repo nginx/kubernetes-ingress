@@ -580,9 +580,11 @@ jobs:
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.checks.outputs.go_code_md5 }}
+        if: ${{ steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        if: ${{ steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
@@ -600,6 +602,7 @@ jobs:
           secret-files: |
             ${{ matrix.type == 'plus' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
             ${{ matrix.type == 'plus' && 'nginx-repo.key=nginx-repo.key' || '' }}
+        if: ${{ steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Deploy Kubernetes
         id: k8s
