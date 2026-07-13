@@ -194,8 +194,9 @@ func (lbc *LoadBalancerController) updateTransportServersStatusFromEvents() erro
 			var timestamp time.Time
 			var latestEvent api_v1.Event
 			for _, event := range events.Items {
-				if event.CreationTimestamp.After(timestamp) {
+				if event.ReportingController == EventReporterName && event.CreationTimestamp.After(timestamp) {
 					latestEvent = event
+					timestamp = event.CreationTimestamp.Time
 				}
 			}
 
