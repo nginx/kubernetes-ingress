@@ -329,6 +329,8 @@ common-secrets/ingress-mtls-secret-crl.yaml
 common-secrets/ingress-mtls-webapp-crl.pem
 tests/data/ingress-mtls/secret/ingress-mtls-secret-crl.yaml
 tests/data/ingress-mtls/client-auth/crl/webapp.crl
+common-secrets/ingress-mtls-secret-rotated.yaml
+tests/data/ingress-mtls/secret/ingress-mtls-secret-rotated.yaml
 common-secrets/ingress-mtls-secret-client.yaml
 tests/data/ingress-mtls/secret/tls-secret.yaml
 common-secrets/ingress-mtls-valid-client-cert.pem

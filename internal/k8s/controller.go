@@ -2325,7 +2325,7 @@ func (lbc *LoadBalancerController) handleSecretUpdate(secret *api_v1.Secret, res
 
 	resourceExes := lbc.createExtendedResources(resources)
 
-	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, !lbc.configurator.DynamicSSLReloadEnabled())
+	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, !(secret.Type == api_v1.SecretTypeTLS && lbc.configurator.DynamicSSLReloadEnabled()))
 	if addOrUpdateErr != nil {
 		nl.Errorf(lbc.Logger, "Error when updating Secret %v: %v", secretNsName, addOrUpdateErr)
 		lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "%v was updated, but not applied: %v", secretNsName, addOrUpdateErr)

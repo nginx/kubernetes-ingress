@@ -4,7 +4,13 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
+from suite.utils.resources_utils import (
+    create_secret_from_yaml,
+    delete_secret,
+    get_reload_count,
+    replace_secret,
+    wait_before_test,
+)
 from suite.utils.ssl_utils import create_sni_session
 from suite.utils.vs_vsr_resources_utils import (
     delete_and_create_vs_from_yaml,
@@ -35,6 +41,7 @@ invalid_crt = f"{TEST_DATA}/ingress-mtls/client-auth/invalid/client-cert.pem"
 invalid_key = f"{TEST_DATA}/ingress-mtls/client-auth/invalid/client-cert.pem"
 
 mtls_secret_crl = f"{TEST_DATA}/ingress-mtls/secret/ingress-mtls-secret-crl.yaml"
+mtls_secret_rotated = f"{TEST_DATA}/ingress-mtls/secret/ingress-mtls-secret-rotated.yaml"
 mtls_pol_crl = f"{TEST_DATA}/ingress-mtls/policies/ingress-mtls-crl.yaml"
 
 crt_not_revoked = f"{TEST_DATA}/ingress-mtls/client-auth/not-revoked/client-cert.pem"
@@ -72,6 +79,7 @@ def teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret
                 "type": "complete",
                 "extra_args": [
                     f"-enable-leader-election=false",
+                    f"-enable-prometheus-metrics",
                 ],
             },
             {
@@ -415,6 +423,61 @@ class TestIngressMtlsPolicyVS:
             virtual_server_setup.namespace,
         )
         assert resp.status_code == expected_code and expected_text in resp.text and exception in ssl_exception
+
+    def test_ingress_mtls_ca_secret_rotation_triggers_reload(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+    ):
+        session = create_sni_session()
+        mtls_secret, tls_secret, pol_name = setup_policy(
+            kube_apis,
+            test_namespace,
+            mtls_sec_valid_src,
+            tls_sec_valid_src,
+            mtls_pol_valid_src,
+        )
+
+        print(f"Patch vs with policy: {mtls_pol_valid_src}")
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            mtls_vs_spec_src,
+            virtual_server_setup.namespace,
+        )
+        wait_before_test()
+
+        count_before = get_reload_count(virtual_server_setup.metrics_url)
+
+        replace_secret(kube_apis.v1, mtls_secret, test_namespace, mtls_secret_rotated)
+        wait_before_test(1)
+
+        resp = session.get(
+            virtual_server_setup.backend_1_url_ssl,
+            cert=(crt, key),
+            headers={"host": virtual_server_setup.vs_host},
+            allow_redirects=False,
+            verify=False,
+        )
+
+        count_after = get_reload_count(virtual_server_setup.metrics_url)
+
+        teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            std_vs_src,
+            virtual_server_setup.namespace,
+        )
+
+        reloads = count_after - count_before
+        expected_reloads = 1
+        assert reloads == expected_reloads, f"expected {expected_reloads} reloads, got {reloads}"
+        assert (
+            resp.status_code == 400
+        ), f"expected 400 after CA rotation invalidates old client cert, got {resp.status_code}"
 
 
 @pytest.mark.policies
