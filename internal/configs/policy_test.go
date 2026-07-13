@@ -882,6 +882,39 @@ func TestGeneratePolicies(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "hsts-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/hsts-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            new(2592000),
+							IncludeSubDomains: true,
+							BehindProxy:       true,
+						},
+					},
+				},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				Context: ctx,
+				HSTS: &version2.HSTS{
+					MaxAge:            2592000,
+					IncludeSubDomains: true,
+					BehindProxy:       true,
+				},
+			},
+			msg: "hsts reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "api-key-policy",
 					Namespace: "default",
 				},
@@ -2322,6 +2355,173 @@ func TestGenerateExternalAuthPolicy(t *testing.T) {
 				t.Errorf("%s: Context mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.Context, result.Context)
 			}
 		})
+	}
+}
+
+func TestAddHSTSConfig(t *testing.T) {
+	t.Parallel()
+
+	polKey := "default/hsts-policy"
+
+	tests := []struct {
+		name          string
+		hsts          *conf_v1.HSTS
+		context       string
+		tls           bool
+		expectedHSTS  *version2.HSTS
+		expectError   bool
+		expectWarning bool
+	}{
+		{
+			name: "hsts policy with maxAge only",
+			hsts: &conf_v1.HSTS{
+				MaxAge: new(2592000),
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge: 2592000,
+			},
+		},
+		{
+			name: "hsts policy with max age and includeSubDomains",
+			hsts: &conf_v1.HSTS{
+				MaxAge:            new(2592000),
+				IncludeSubDomains: true,
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge:            2592000,
+				IncludeSubDomains: true,
+			},
+		},
+		{
+			name: "hsts policy with max age and behindProxy",
+			hsts: &conf_v1.HSTS{
+				MaxAge:      new(2592000),
+				BehindProxy: true,
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge:      2592000,
+				BehindProxy: true,
+			},
+		},
+		{
+			name: "hsts policy with all fields set",
+			hsts: &conf_v1.HSTS{
+				MaxAge:            new(31536000),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+				Preload:           true,
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge:            31536000,
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+				Preload:           true,
+			},
+		},
+		{
+			name: "hsts policy with maxAge of zero",
+			hsts: &conf_v1.HSTS{
+				MaxAge: new(0),
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge: 0,
+			},
+		},
+		{
+			name:          "hsts policy with nil maxAge",
+			hsts:          &conf_v1.HSTS{},
+			tls:           true,
+			expectedHSTS:  nil,
+			expectError:   true,
+			expectWarning: true,
+		},
+		{
+			name:          "hsts policy without TLS enabled",
+			hsts:          &conf_v1.HSTS{MaxAge: new(2592000)},
+			context:       specContext,
+			tls:           false,
+			expectedHSTS:  nil,
+			expectError:   true,
+			expectWarning: true,
+		},
+		{
+			name: "hsts policy with behindProxy set to true without TLS enabled",
+			hsts: &conf_v1.HSTS{
+				MaxAge:      new(2592000),
+				BehindProxy: true,
+			},
+			context: specContext,
+			tls:     false,
+			expectedHSTS: &version2.HSTS{
+				MaxAge:      2592000,
+				BehindProxy: true,
+			},
+		},
+		{
+			name: "hsts policy in the route context",
+			hsts: &conf_v1.HSTS{
+				MaxAge: new(2592000),
+			},
+			context:       routeContext,
+			tls:           true,
+			expectedHSTS:  nil,
+			expectError:   true,
+			expectWarning: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			config := &policiesCfg{}
+			res := config.addHSTSConfig(test.hsts, polKey, test.context, test.tls)
+			if test.expectError && !res.isError {
+				t.Errorf("addHSTSConfig() expected error but got none")
+			}
+			if !test.expectError && res.isError {
+				t.Errorf("addHSTSConfig() unexpected error")
+			}
+			if test.expectWarning && len(res.warnings) == 0 {
+				t.Errorf("addHSTSConfig() expected warning but got none")
+			}
+			if diff := cmp.Diff(test.expectedHSTS, config.HSTS); diff != "" {
+				t.Errorf("addHSTSConfig() HSTS mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestAddHSTSConfig_MultiplePolicy(t *testing.T) {
+	t.Parallel()
+
+	config := &policiesCfg{}
+	polKey1 := "default/hsts-policy-one"
+	polKey2 := "default/hsts-policy-two"
+
+	first := &conf_v1.HSTS{MaxAge: new(2592000)}
+	second := &conf_v1.HSTS{MaxAge: new(7200)}
+
+	config.addHSTSConfig(first, polKey1, specContext, true)
+	res := config.addHSTSConfig(second, polKey2, specContext, true)
+
+	if res.isError {
+		t.Error("addHSTSConfig() expected no error for ignored duplicate but got isError=true")
+	}
+	if len(res.warnings) == 0 {
+		t.Error("addHSTSConfig() expected warning for duplicate policy, got none")
+	}
+	if config.HSTS.MaxAge != 2592000 {
+		t.Errorf("addHSTSConfig() first policy should be preserved, got MaxAge=%d", config.HSTS.MaxAge)
 	}
 }
 
@@ -3842,6 +4042,134 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "multi oidc",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "hsts-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/hsts-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            nil,
+							IncludeSubDomains: true,
+							BehindProxy:       true,
+							Preload:           false,
+						},
+					},
+				},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`HSTS policy default/hsts-policy is missing required field maxAge`,
+				},
+			},
+			msg: "hsts policy missing max age",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "hsts-policy",
+					Namespace: "default",
+				},
+				{
+					Name:      "hsts-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/hsts-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            new(1234567),
+							IncludeSubDomains: true,
+							BehindProxy:       true,
+						},
+					},
+				},
+				"default/hsts-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            new(7654321),
+							IncludeSubDomains: false,
+							BehindProxy:       false,
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{tls: true},
+			context:    "spec",
+			expected: policiesCfg{
+				Context: ctx,
+				HSTS: &version2.HSTS{
+					MaxAge:            1234567,
+					IncludeSubDomains: true,
+					BehindProxy:       true,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Multiple HSTS policies in the same context are not valid. HSTS policy default/hsts-policy-2 will be ignored`,
+				},
+			},
+			msg: "multiple hsts policies",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "hsts-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/hsts-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            new(1234567),
+							IncludeSubDomains: true,
+							BehindProxy:       true,
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{tls: true},
+			context:    "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`HSTS policy default/hsts-policy is not allowed in the route context`,
+				},
+			},
+			msg: "hsts policy in route context",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
