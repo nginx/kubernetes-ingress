@@ -1776,8 +1776,8 @@ func TestGenerateNginxCfgCustomHTTPErrors_WithoutDefaultBackend(t *testing.T) {
 		t.Errorf("expected a warning about missing spec.defaultBackend, got none")
 	}
 	srv := result.Servers[0]
-	// Server-level proxy_intercept_errors still rendered so NGINX serves its
-	// built-in error pages instead of the upstream body.
+	// Codes are still populated so the template can render proxy_intercept_errors on;
+	// but without a matching error_page the annotation is functionally a no-op
 	if len(srv.CustomHTTPErrorCodes) == 0 {
 		t.Errorf("Server.CustomHTTPErrorCodes should be populated even without defaultBackend, got empty")
 	}

@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: custom-http-errors-master
+  annotations:
+    nginx.org/mergeable-ingress-type: "master"
+    nginx.org/custom-http-errors: "404, 502, 5xx"
+spec:
+  defaultBackend:
+    service:
+      name: error-pages-svc
+      port:
+        number: 80
+  rules:
+  - host: custom-http-errors.example.com
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: custom-http-errors-backend1-minion
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+spec:
+  rules:
+  - host: custom-http-errors.example.com
+    http:
+      paths:
+      - path: /backend1
+        pathType: Prefix
+        backend:
+          service:
+            name: backend1-svc
+            port:
+              number: 80

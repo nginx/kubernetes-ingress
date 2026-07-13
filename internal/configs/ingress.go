@@ -731,7 +731,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				}
 			} else {
 				allWarnings.AddWarningf(ncp.ingEx.Ingress,
-					"%s annotation is set but spec.defaultBackend is not.",
+					"%s annotation is set but spec.defaultBackend is not; the annotation is a no-op without a default backend to route intercepted responses to.",
 					CustomHTTPErrorsAnnotation)
 			}
 		}
@@ -739,7 +739,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		if ncp.isMinion && len(cfgParams.CustomHTTPErrors) > 0 &&
 			ncp.mergeableIngs != nil && ncp.mergeableIngs.Master.Ingress.Spec.DefaultBackend == nil {
 			allWarnings.AddWarningf(ncp.ingEx.Ingress,
-				"%s annotation is set on a minion but the master Ingress has no spec.defaultBackend.",
+				"%s annotation is set on a minion but the master Ingress has no spec.defaultBackend; the annotation is a no-op without a default backend on the master to route intercepted responses to.",
 				CustomHTTPErrorsAnnotation)
 		}
 
