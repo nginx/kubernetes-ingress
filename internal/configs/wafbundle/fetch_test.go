@@ -832,7 +832,7 @@ func TestN1CFetchEOFBecomesNonTransient(t *testing.T) {
 
 	req := n1cTestRequest()
 	req.URL = srv.URL
-	req.NAPRelease = "5.13.2"
+	req.NAPRelease = "5.13.3"
 	req.RetryAttempts = 2
 	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
 	if err == nil {
@@ -841,7 +841,7 @@ func TestN1CFetchEOFBecomesNonTransient(t *testing.T) {
 	if !isNonTransient(err) {
 		t.Errorf("EOF after retries should be non-transient, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "5.13.2") {
+	if !strings.Contains(err.Error(), "5.13.3") {
 		t.Errorf("error should mention NAP release, got: %v", err)
 	}
 	if callCount.Load() != 2 {
