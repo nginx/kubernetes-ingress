@@ -6,6 +6,7 @@ metadata:
     nginx.org/mergeable-ingress-type: "master"
     nginx.org/custom-http-errors: "404, 502, 5xx"
 spec:
+  ingressClassName: nginx
   defaultBackend:
     service:
       name: error-pages-svc
@@ -21,6 +22,7 @@ metadata:
   annotations:
     nginx.org/mergeable-ingress-type: "minion"
 spec:
+  ingressClassName: nginx
   rules:
   - host: custom-http-errors.example.com
     http:

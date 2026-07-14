@@ -5,6 +5,7 @@ metadata:
   annotations:
     nginx.org/custom-http-errors: "404, 502, 5xx"
 spec:
+  ingressClassName: nginx
   defaultBackend:
     service:
       name: error-pages-svc
