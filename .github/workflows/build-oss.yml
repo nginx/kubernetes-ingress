@@ -202,6 +202,7 @@ jobs:
           build-args: |
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+            OSS_REPO=${{ inputs.oss-repo }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Debug values
@@ -241,6 +242,7 @@ jobs:
             BUILD_OS=${{ inputs.image }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+            OSS_REPO=${{ inputs.oss-repo }}
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Make directory for security scan results

@@ -272,6 +272,7 @@ jobs:
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}
             ${{ (contains(inputs.target, 'aws') && inputs.nap-modules != '') && format('NAP_MODULES_AWS={0}', steps.nap_modules.outputs.modules) || '' }}
+            PLUS_REPO=${{ inputs.plus-repo }}
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key
