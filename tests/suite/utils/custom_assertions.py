@@ -216,12 +216,19 @@ def wait_and_assert_status_code(code, req_url, host=None, **kwargs) -> None:
     """
     counter = 0
     headers = {} if host is None else {"host": host}
-    resp = requests.get(req_url, headers=headers, **kwargs)
-    while not resp.status_code == code and counter <= 30:
+    resp = None
+    while counter <= 30:
+        try:
+            resp = requests.get(req_url, headers=headers, **kwargs)
+            if resp.status_code == code:
+                break
+        except requests.exceptions.ConnectionError as e:
+            # NGINX reloads recycle workers and can drop in-flight connections;
+            # tolerate the transient and retry rather than failing the test.
+            print(f"Attempt {counter + 1}: connection dropped during reload ({e})")
         time.sleep(1)
         counter = counter + 1
-        resp = requests.get(req_url, headers=headers, **kwargs)
-    assert resp.status_code == code, f"After 30 seconds the status_code is still not {code}"
+    assert resp is not None and resp.status_code == code, f"After 30 seconds the status_code is still not {code}"
 
 
 def assert_grpc_entries_exist(config) -> None:

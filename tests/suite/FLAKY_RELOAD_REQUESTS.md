@@ -39,26 +39,40 @@ Do not wrap the whole test in `@pytest.mark.flaky` -- that reruns the entire
 expensive test and can mask real regressions. Instead, make the specific request
 resilient.
 
-Use the shared helper in `suite/utils/resources_utils.py`:
+Use one of the shared helpers in `suite/utils/resources_utils.py`, all of which
+catch `requests.exceptions.ConnectionError` while retrying:
 
-```python
-from suite.utils.resources_utils import retry_get_until_body_contains
+- `retry_get_until_body_contains(req_url, host, expected_body)` -- poll until a
+  substring appears in the body.
+- `retry_get_until_status_code(req_url, host, expected_status, session=..., **kwargs)`
+  -- poll until a status code matches; supports an SNI/client-cert `session` and
+  extra `requests.get` kwargs (`cert`, `verify`, `allow_redirects`, ...).
+- `retry_get(req_url, host, **kwargs)` -- guard a single request whose assertion
+  cannot be expressed as "body contains X" or "status == Y" (e.g. asserting a
+  substring is absent, or an arbitrary status); retries only on `ConnectionError`.
 
-resp = retry_get_until_body_contains(req_url, ingress_host, expected_body)
-assert expected_body in resp.text
-assert resp.status_code == 200
-```
+The shared helpers `wait_and_assert_status_code` (`suite/utils/custom_assertions.py`)
+and `send_malicious_request_with_retry` (`suite/utils/ap_resources_utils.py`) also
+tolerate `ConnectionError`, so their many callers are covered automatically.
+
+    ```python
+    from suite.utils.resources_utils import retry_get_until_body_contains
+
+    resp = retry_get_until_body_contains(req_url, ingress_host, expected_body)
+    assert expected_body in resp.text
+    assert resp.status_code == 200
+    ```
 
 Replace hand-rolled loops like:
 
-```python
-resp = requests.get(url, headers={"host": host}, verify=False)
-retry = 0
-while expected not in resp.text and retry <= 60:
-    resp = requests.get(url, headers={"host": host}, verify=False)  # can raise ConnectionError
-    retry += 1
-    wait_before_test(1)
-```
+    ```python
+    resp = requests.get(url, headers={"host": host}, verify=False)
+    retry = 0
+    while expected not in resp.text and retry <= 60:
+        resp = requests.get(url, headers={"host": host}, verify=False)  # can raise ConnectionError
+        retry += 1
+        wait_before_test(1)
+    ```
 
 with a single `retry_get_until_body_contains(...)` call.
 
@@ -66,10 +80,18 @@ If a test needs a method/headers/body the helper doesn't cover, replicate its
 core guarantee: catch `requests.exceptions.ConnectionError` inside the retry loop
 and continue, rather than letting it propagate.
 
+Note: `requests.exceptions.SSLError` is a *subclass* of `ConnectionError`. When a
+test relies on catching `SSLError` (e.g. mTLS client-cert tests), keep the
+`except SSLError` handler **before** any `except ConnectionError` handler so the
+SSL case is not swallowed.
+
 ## Reference implementation
 
 See `test_app_protect_watch_namespace_label.py` and the
 `retry_get_until_body_contains` helper in `suite/utils/resources_utils.py`.
+For status-based and single-request variants, see `retry_get_until_status_code`
+and `retry_get` in the same file, and the mTLS tests (`test_ingress_mtls*.py`)
+for the SSLError-ordering pattern.
 
 ## Checklist for the AI applying this
 
