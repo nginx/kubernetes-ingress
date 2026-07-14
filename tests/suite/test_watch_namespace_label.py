@@ -1,7 +1,4 @@
-from unittest import mock
-
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
     create_example_app,
@@ -11,7 +8,7 @@ from suite.utils.resources_utils import (
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
     patch_namespace_with_label,
-    wait_before_test,
+    retry_get_until_status_code,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import create_virtual_server_from_yaml
@@ -136,13 +133,10 @@ class TestWatchNamespaceLabelIngress:
     def test_response_codes(self, kube_apis, ingress_controller, backend_setup, expected_responses):
         for ing in ["watched-ns-ingress", "watched-ns2-ingress", "foreign-ns-ingress"]:
             ensure_response_from_backend(backend_setup.req_url, backend_setup.resource_hosts[ing])
-            resp = mock.Mock()
-            resp.status_code = "None"
-            retry = 0
-            while resp.status_code != expected_responses[ing] and retry < 3:
-                resp = requests.get(backend_setup.req_url, headers={"host": backend_setup.resource_hosts[ing]})
-                retry = retry + 1
-                wait_before_test()
+            # Tolerate connections dropped by an NGINX reload from the namespace label change.
+            resp = retry_get_until_status_code(
+                backend_setup.req_url, backend_setup.resource_hosts[ing], expected_responses[ing], retries=3
+            )
             assert (
                 resp.status_code == expected_responses[ing]
             ), f"Expected: {expected_responses[ing]} response code for {backend_setup.resource_hosts[ing]}"
@@ -150,14 +144,9 @@ class TestWatchNamespaceLabelIngress:
         # Add label to foreign-ns-ingress and show traffic being served
         patch_namespace_with_label(kube_apis.v1, "foreign-ns", "watch", f"{TEST_DATA}/common/ns-patch.yaml")
         ensure_response_from_backend(backend_setup.req_url, backend_setup.resource_hosts[ing])
-        resp = mock.Mock()
-        resp.status_code = "None"
-        retry = 0
         ing = "foreign-ns-ingress"
-        while resp.status_code != 200 and retry < 3:
-            resp = requests.get(backend_setup.req_url, headers={"host": backend_setup.resource_hosts[ing]})
-            retry = retry + 1
-            wait_before_test()
+        # Tolerate connections dropped by the NGINX reload from the namespace label change.
+        resp = retry_get_until_status_code(backend_setup.req_url, backend_setup.resource_hosts[ing], 200, retries=3)
         assert (
             resp.status_code == 200
         ), f"Expected: 200 response code for {backend_setup.resource_hosts[ing]} after adding the correct label"
@@ -165,13 +154,10 @@ class TestWatchNamespaceLabelIngress:
         # Remove label from foreign-ns-ingress and show traffic being ignored again
         patch_namespace_with_label(kube_apis.v1, "foreign-ns", "nowatch", f"{TEST_DATA}/common/ns-patch.yaml")
         ensure_response_from_backend(backend_setup.req_url, backend_setup.resource_hosts[ing])
-        resp = mock.Mock()
-        resp.status_code = "None"
-        retry = 0
-        while resp.status_code != expected_responses[ing] and retry < 3:
-            resp = requests.get(backend_setup.req_url, headers={"host": backend_setup.resource_hosts[ing]})
-            retry = retry + 1
-            wait_before_test()
+        # Tolerate connections dropped by the NGINX reload from the namespace label change.
+        resp = retry_get_until_status_code(
+            backend_setup.req_url, backend_setup.resource_hosts[ing], expected_responses[ing], retries=3
+        )
         assert (
             resp.status_code == expected_responses[ing]
         ), f"Expected: {expected_responses[ing]} response code for {backend_setup.resource_hosts[ing]} after removing the watched label"
@@ -193,13 +179,10 @@ class TestWatchNamespaceLabelVS:
     def test_response_codes(self, kube_apis, crd_ingress_controller, backend_setup_vs, expected_responses):
         for vs in ["watched-ns-vs", "watched-ns2-vs", "foreign-ns-vs"]:
             ensure_response_from_backend(backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs])
-            resp = mock.Mock()
-            resp.status_code = "None"
-            retry = 0
-            while resp.status_code != expected_responses[vs] and retry < 3:
-                resp = requests.get(backend_setup_vs.req_url, headers={"host": backend_setup_vs.resource_hosts[vs]})
-                retry = retry + 1
-                wait_before_test()
+            # Tolerate connections dropped by an NGINX reload from the namespace label change.
+            resp = retry_get_until_status_code(
+                backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs], expected_responses[vs], retries=3
+            )
             assert (
                 resp.status_code == expected_responses[vs]
             ), f"Expected: {expected_responses[vs]} response code for {backend_setup_vs.resource_hosts[vs]}"
@@ -207,14 +190,11 @@ class TestWatchNamespaceLabelVS:
         # Add label to foreign-ns-vs and show traffic being served
         patch_namespace_with_label(kube_apis.v1, "foreign-ns", "watch", f"{TEST_DATA}/common/ns-patch.yaml")
         ensure_response_from_backend(backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs])
-        resp = mock.Mock()
-        resp.status_code = "None"
-        retry = 0
         vs = "foreign-ns-vs"
-        while resp.status_code != 200 and retry < 3:
-            resp = requests.get(backend_setup_vs.req_url, headers={"host": backend_setup_vs.resource_hosts[vs]})
-            retry = retry + 1
-            wait_before_test()
+        # Tolerate connections dropped by the NGINX reload from the namespace label change.
+        resp = retry_get_until_status_code(
+            backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs], 200, retries=3
+        )
         assert (
             resp.status_code == 200
         ), f"Expected: 200 response code for {backend_setup_vs.resource_hosts[vs]} after adding the correct label"
@@ -222,13 +202,10 @@ class TestWatchNamespaceLabelVS:
         # Remove label from foreign-ns-vs and show traffic being ignored again
         patch_namespace_with_label(kube_apis.v1, "foreign-ns", "nowatch", f"{TEST_DATA}/common/ns-patch.yaml")
         ensure_response_from_backend(backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs])
-        resp = mock.Mock()
-        resp.status_code = "None"
-        retry = 0
-        while resp.status_code != expected_responses[vs] and retry < 3:
-            resp = requests.get(backend_setup_vs.req_url, headers={"host": backend_setup_vs.resource_hosts[vs]})
-            retry = retry + 1
-            wait_before_test()
+        # Tolerate connections dropped by the NGINX reload from the namespace label change.
+        resp = retry_get_until_status_code(
+            backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs], expected_responses[vs], retries=3
+        )
         assert (
             resp.status_code == expected_responses[vs]
         ), f"Expected: {expected_responses[vs]} response code for {backend_setup_vs.resource_hosts[vs]} after removing the watched label"
