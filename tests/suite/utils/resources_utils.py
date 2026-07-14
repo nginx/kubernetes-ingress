@@ -1922,6 +1922,32 @@ def ensure_response_from_backend(req_url, host, additional_headers=None, check40
         pytest.fail(f"Keep getting 502|504 from {req_url} after 60 seconds. Exiting...")
 
 
+def retry_get_until_body_contains(req_url, host, expected_body, retries=60, verify=False):
+    """
+    Repeatedly GET req_url until expected_body appears in the response body.
+
+    Tolerates ConnectionError/RemoteDisconnected caused by NGINX reloads
+    (worker recycling during App Protect reconfiguration closes connections).
+
+    :param req_url: url to request
+    :param host: value for the Host header
+    :param expected_body: substring expected to appear in the response body
+    :param retries: number of retries at 1 second interval
+    :param verify: passed through to requests.get for TLS verification
+    :return: the final requests.Response (may not contain expected_body if exhausted)
+    """
+    resp = None
+    for i in range(retries + 1):
+        try:
+            resp = requests.get(req_url, headers={"host": host}, verify=verify)
+            if expected_body in resp.text:
+                return resp
+        except requests.exceptions.ConnectionError as e:
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+        wait_before_test(1)
+    return resp
+
+
 def get_service_endpoint(kube_apis, service_name, namespace) -> str:
     """
     Wait for endpoint resource to spin up.
