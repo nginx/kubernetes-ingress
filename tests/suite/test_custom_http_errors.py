@@ -8,6 +8,7 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    ensure_response_from_backend,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -57,6 +58,8 @@ def custom_http_errors_setup(
         ingress_controller_endpoint.port,
         ingress_controller_endpoint.port_ssl,
     )
+    req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
+    ensure_response_from_backend(req_url, ingress_host, check404=True)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
