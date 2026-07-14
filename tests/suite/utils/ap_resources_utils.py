@@ -3,6 +3,7 @@
 import logging
 import time
 
+import pytest
 import requests
 import yaml
 from kubernetes.client import CustomObjectsApi
@@ -273,6 +274,7 @@ def send_malicious_request_with_retry(url, host, retries=20, wait_seconds=3):
     (worker recycling during App Protect reconfiguration closes connections).
     """
     response = None
+    last_error = None
     count = 0
     while count < retries and (response is None or "Request Rejected" not in response.text):
         try:
@@ -280,9 +282,15 @@ def send_malicious_request_with_retry(url, host, retries=20, wait_seconds=3):
             if "Request Rejected" in response.text:
                 break
         except requests.exceptions.ConnectionError as e:
+            last_error = e
             print(f"Attempt {count + 1}: connection dropped during reload ({e})")
         wait_before_test(wait_seconds)
         count += 1
+    if response is None:
+        pytest.fail(
+            f"Never got a response from {url} after {retries} attempts; "
+            f"connection kept dropping during reloads. Last error: {last_error}"
+        )
     return response
 
 
