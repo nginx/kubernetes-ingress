@@ -17,6 +17,7 @@
 .github/scripts/release-version-update.sh
 .github/scripts/requirements.txt
 .github/skills/*
+.github/prompts/*
 .github/workflows/build-base-images.yml
 .github/workflows/build-ot-dependency.yml
 .github/workflows/build-test-image.yml
