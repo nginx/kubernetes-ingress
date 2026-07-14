@@ -4,6 +4,8 @@ In this example we deploy the NGINX Ingress Controller, a simple web application
 an Access Control policy that restricts access based on client IP address. We first apply an **allow** policy, then
 update it to a **deny** policy.
 
+- **I'm a change**
+
 ## Prerequisites
 
 1. Run `make secrets` command to generate the necessary secrets for the example.
