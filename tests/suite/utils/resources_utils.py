@@ -1880,6 +1880,7 @@ def ensure_response_from_backend(req_url, host, additional_headers=None, check40
 
     if sni and check404:
         session = create_sni_session()
+        resp = None
         for _ in range(60):
             try:
                 resp = session.get(
@@ -1893,33 +1894,52 @@ def ensure_response_from_backend(req_url, host, additional_headers=None, check40
                         f"After {_} retries at 1 second interval, got {resp.status_code} response. Continue with tests..."
                     )
                     return
-                time.sleep(1)
             except requests.exceptions.SSLError as e:
+                # SSLError subclasses ConnectionError, so this must come first.
                 exception = str(e)
                 print(f"SSL certificate exception: {exception}")
                 resp = mock.Mock()
                 resp.status_code = "None"
-        pytest.fail(f"Keep getting {resp.status_code} from {req_url} after 60 seconds. Exiting...")
+            except requests.exceptions.ConnectionError as e:
+                # NGINX reloads recycle workers and can drop in-flight connections; retry.
+                print(f"Connection dropped during reload: {e}")
+                resp = mock.Mock()
+                resp.status_code = "None"
+            time.sleep(1)
+        _status = resp.status_code if resp is not None else "no response (connection kept dropping)"
+        pytest.fail(f"Keep getting {_status} from {req_url} after 60 seconds. Exiting...")
 
     if check404:
+        resp = None
         for _ in range(60):
-            resp = requests.get(req_url, headers=headers, verify=False)
-            if resp.status_code != 502 and resp.status_code != 504 and resp.status_code != 404:
-                print(
-                    f"After {_} retries at 1 second interval, got {resp.status_code} response. Continue with tests..."
-                )
-                return
+            try:
+                resp = requests.get(req_url, headers=headers, verify=False)
+                if resp.status_code != 502 and resp.status_code != 504 and resp.status_code != 404:
+                    print(
+                        f"After {_} retries at 1 second interval, got {resp.status_code} response. Continue with tests..."
+                    )
+                    return
+            except requests.exceptions.ConnectionError as e:
+                # NGINX reloads recycle workers and can drop in-flight connections; retry.
+                print(f"Connection dropped during reload: {e}")
             time.sleep(1)
-        pytest.fail(f"Keep getting {resp.status_code} from {req_url} after 60 seconds. Exiting...")
+        _status = resp.status_code if resp is not None else "no response (connection kept dropping)"
+        pytest.fail(f"Keep getting {_status} from {req_url} after 60 seconds. Exiting...")
 
     else:
+        resp = None
         for _ in range(30):
-            resp = requests.get(req_url, headers=headers, verify=False)
-            if resp.status_code != 502 and resp.status_code != 504:
-                print(f"After {_} retries at 1 second interval, got non 502|504 response. Continue with tests...")
-                return
+            try:
+                resp = requests.get(req_url, headers=headers, verify=False)
+                if resp.status_code != 502 and resp.status_code != 504:
+                    print(f"After {_} retries at 1 second interval, got non 502|504 response. Continue with tests...")
+                    return
+            except requests.exceptions.ConnectionError as e:
+                # NGINX reloads recycle workers and can drop in-flight connections; retry.
+                print(f"Connection dropped during reload: {e}")
             wait_before_test()
-        pytest.fail(f"Keep getting 502|504 from {req_url} after 60 seconds. Exiting...")
+        _status = resp.status_code if resp is not None else "no response (connection kept dropping)"
+        pytest.fail(f"Keep getting {_status} (expected non 502|504) from {req_url} after 60 seconds. Exiting...")
 
 
 def retry_get_until_body_contains(req_url, host, expected_body, retries=60, verify=False):
