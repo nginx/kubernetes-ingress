@@ -3,9 +3,9 @@
 # Unit tests for the CI decision logic in variables.sh.
 #
 # These test the pure decision functions (get_run_tests, get_docker_build,
-# get_run_unit_tests, get_run_build, get_run_e2e, get_tag_stable, get_promote)
-# by sourcing the script; the source guard in the script prevents main() from
-# running, so git / the wider environment is not required for those.
+# get_run_unit_tests, get_run_e2e, get_tag_stable, get_promote) by sourcing
+# the script; the source guard in the script prevents main() from running,
+# so git / the wider environment is not required for those.
 #
 # They also assert the docs-only hash invariant (get_chart_md5 / get_tests_md5 /
 # get_actions_md5 must ignore *.md files, so a docs-only change never moves the
@@ -119,6 +119,61 @@ assert_md_ignored() {
   fi
 }
 
+# assert_docker_build_equivalence
+# Regression guard: the historic `get_run_build` flag was defined as
+# (FORCE || run_tests || docker_build). It was removed from variables.sh
+# because it is algebraically identical to `docker_build` across every input
+# combination -- see the reasoning in variables.sh above `get_docker_build`.
+# This test enumerates the full 3^5 = 243 input space (each of FORCE,
+# RUN_TESTS_INPUT, DOCS_ONLY, BINARY_CACHE_HIT, STABLE_EXISTS ∈ {true, false, ""})
+# and asserts the equivalence still holds, so if anyone reintroduces the flag
+# or changes `get_docker_build` / `get_run_tests` in a way that breaks it,
+# this test will fail loudly.
+assert_docker_build_equivalence() {
+  local total=0 mismatches=0 first_fail=""
+  local _force _run_tests_input _docs_only _cache _stable
+  for _force in true false ""; do
+    for _run_tests_input in true false ""; do
+      for _docs_only in true false ""; do
+        for _cache in true false ""; do
+          for _stable in true false ""; do
+            local db rb
+            db=$(env -i FORCE="$_force" RUN_TESTS_INPUT="$_run_tests_input" \
+              DOCS_ONLY="$_docs_only" BINARY_CACHE_HIT="$_cache" STABLE_EXISTS="$_stable" \
+              bash -c "source '$SCRIPT_DIR/variables.sh'; get_docker_build")
+            rb=$(env -i FORCE="$_force" RUN_TESTS_INPUT="$_run_tests_input" \
+              DOCS_ONLY="$_docs_only" BINARY_CACHE_HIT="$_cache" STABLE_EXISTS="$_stable" \
+              bash -c "source '$SCRIPT_DIR/variables.sh'; \
+                rt=\$(get_run_tests); db=\$(get_docker_build); \
+                if [ \"\${FORCE:-}\" = 'true' ] || [ \"\$rt\" = 'true' ] || [ \"\$db\" = 'true' ]; then \
+                  echo true; else echo false; fi")
+            total=$((total + 1))
+            if [ "$db" != "$rb" ]; then
+              mismatches=$((mismatches + 1))
+              if [ -z "$first_fail" ]; then
+                first_fail="FORCE=$_force RUN_TESTS_INPUT=$_run_tests_input DOCS_ONLY=$_docs_only BINARY_CACHE_HIT=$_cache STABLE_EXISTS=$_stable -> docker_build=$db run_build=$rb"
+              fi
+            fi
+          done
+        done
+      done
+    done
+  done
+  if [ "$mismatches" -eq 0 ]; then
+    pass=$((pass + 1))
+    if [ "$VERBOSE" -eq 1 ]; then
+      printf '%b✓ PASS%b %-18s %-40s => %-5s %b[checked %d combos]%b\n' \
+        "$C_PASS" "$C_OFF" "docker_build ≡ (F||rt||db)" "run_build equivalence" \
+        "true" "$C_DIM" "$total" "$C_OFF"
+    fi
+  else
+    fail=$((fail + 1))
+    printf '%b✗ FAIL%b %-18s %-40s %b[%d/%d mismatches, first: %s]%b\n' \
+      "$C_FAIL" "$C_OFF" "docker_build ≡ (F||rt||db)" "run_build equivalence" \
+      "$C_DIM" "$mismatches" "$total" "$first_fail" "$C_OFF"
+  fi
+}
+
 # --- get_run_tests ------------------------------------------------------------
 # assert_flag   function | expected | description
 assert_flag get_run_tests true  "default PR (empty inputs)"
@@ -130,33 +185,30 @@ assert_flag get_run_tests true  "stable exists but no cache hit"    BINARY_CACHE
 
 # --- get_docker_build ---------------------------------------------------------
 # assert_flag   function | expected | description
-assert_flag get_docker_build true  "force always builds"                FORCE=true DOCS_ONLY=true BUILD_EXISTS=true
+assert_flag get_docker_build true  "force always builds"                FORCE=true DOCS_ONLY=true STABLE_EXISTS=true BINARY_CACHE_HIT=true
 assert_flag get_docker_build true  "forked non-docs change"             FORKED=true DOCS_ONLY=false
 assert_flag get_docker_build false "forked docs-only change"            FORKED=true DOCS_ONLY=true
-assert_flag get_docker_build true  "main repo, no build"                FORKED=false DOCS_ONLY=false BUILD_EXISTS=false
-assert_flag get_docker_build false "main repo, build exists"            FORKED=false DOCS_ONLY=false BUILD_EXISTS=true
+assert_flag get_docker_build true  "main repo, cache cold"              FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=true
+assert_flag get_docker_build true  "main repo, stable missing"          FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=false
+assert_flag get_docker_build false "main repo, cache warm + stable"     FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=true
 assert_flag get_docker_build false "main repo docs-only"                FORKED=false DOCS_ONLY=true
 
 # --- get_run_unit_tests -------------------------------------------------------
 # assert_flag   function | expected | description
 assert_flag get_run_unit_tests true  "force runs unit tests"           FORCE=true BINARY_CACHE_HIT=true
+assert_flag get_run_unit_tests true  "forked non-docs always runs"     FORKED=true DOCS_ONLY=false BINARY_CACHE_HIT=true
 assert_flag get_run_unit_tests true  "tests requested, no cache hit"   BINARY_CACHE_HIT=false
 assert_flag get_run_unit_tests false "tests requested but cache hit"   BINARY_CACHE_HIT=true STABLE_EXISTS=false
 assert_flag get_run_unit_tests false "docs-only skips unit tests"      DOCS_ONLY=true
 assert_flag get_run_unit_tests false "cache hit and stable exists"     BINARY_CACHE_HIT=true STABLE_EXISTS=true
 
-# --- get_run_build ------------------------------------------------------------
-# assert_flag   function | expected | description
-assert_flag get_run_build true  "force triggers build"                 FORCE=true DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true
-assert_flag get_run_build true  "run_tests triggers build"             BINARY_CACHE_HIT=false
-assert_flag get_run_build true  "docker_build triggers build"          RUN_TESTS_INPUT=false FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=false BUILD_EXISTS=false
-assert_flag get_run_build false "nothing to do"                        DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true
 
 # --- get_run_e2e --------------------------------------------------------------
 # assert_flag   function | expected | description
-assert_flag get_run_e2e true  "main repo with work"                    FORKED=false BINARY_CACHE_HIT=false BUILD_EXISTS=false
-assert_flag get_run_e2e false "forked never runs e2e"                  FORKED=true DOCS_ONLY=false
-assert_flag get_run_e2e false "main repo, nothing to do"               FORKED=false DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true
+assert_flag get_run_e2e true  "main repo with work"                    FORKED=false BINARY_CACHE_HIT=false
+assert_flag get_run_e2e true  "forked non-docs still enables e2e"      FORKED=true DOCS_ONLY=false
+assert_flag get_run_e2e false "forked docs-only skips e2e"             FORKED=true DOCS_ONLY=true
+assert_flag get_run_e2e false "main repo, nothing to do"               FORKED=false DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true
 
 # --- get_tag_stable -----------------------------------------------------------
 # assert_flag   function | expected | description
@@ -181,7 +233,6 @@ assert_ci_flags "default PR (main repo, no cache)" \
 "run_tests=true
 docker_build=true
 run_unit_tests=true
-run_build=true
 run_e2e=true
 tag_stable=true
 promote=false" \
@@ -191,7 +242,6 @@ assert_ci_flags "docs-only PR (main repo, no stable)" \
 "run_tests=false
 docker_build=false
 run_unit_tests=false
-run_build=false
 run_e2e=false
 tag_stable=false
 promote=false" \
@@ -201,18 +251,16 @@ assert_ci_flags "up-to-date PR (cache + stable hit)" \
 "run_tests=false
 docker_build=false
 run_unit_tests=false
-run_build=false
 run_e2e=false
 tag_stable=false
 promote=false" \
-  FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true REF_NAME=feature-branch
+  FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true REF_NAME=feature-branch
 
-assert_ci_flags "forked PR (no authenticated e2e / tag)" \
+assert_ci_flags "forked PR (build unauthenticated, no tag)" \
 "run_tests=true
 docker_build=true
 run_unit_tests=true
-run_build=true
-run_e2e=false
+run_e2e=true
 tag_stable=false
 promote=false" \
   FORKED=true DOCS_ONLY=false REF_NAME=feature-branch
@@ -221,17 +269,15 @@ assert_ci_flags "force dispatch on main (cache + stable hit)" \
 "run_tests=false
 docker_build=true
 run_unit_tests=true
-run_build=true
 run_e2e=true
 tag_stable=false
 promote=true" \
-  FORCE=true RUN_TESTS_INPUT=true FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true BUILD_EXISTS=true REF_NAME=main
+  FORCE=true RUN_TESTS_INPUT=true FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true REF_NAME=main
 
 assert_ci_flags "dispatch run_tests=false (still builds)" \
 "run_tests=false
 docker_build=true
 run_unit_tests=false
-run_build=true
 run_e2e=true
 tag_stable=true
 promote=false" \
@@ -244,6 +290,12 @@ promote=false" \
 assert_md_ignored get_chart_md5   charts  "chart hash ignores *.md docs"
 assert_md_ignored get_tests_md5   tests   "tests hash ignores *.md docs"
 assert_md_ignored get_actions_md5 .github "actions hash ignores *.md docs"
+
+# --- run_build removal invariant ---------------------------------------------
+# Guards against reintroducing the removed `get_run_build` flag by proving
+# `docker_build` is algebraically equivalent to (FORCE || run_tests || docker_build)
+# across every input combination.
+assert_docker_build_equivalence
 
 if [ "$fail" -eq 0 ]; then
   printf '%b✓ all %d tests passed%b\n' "$C_PASS" "$pass" "$C_OFF"

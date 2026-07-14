@@ -178,7 +178,6 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-artifacts.yml
     with:
-      force: true
       authenticated: true
       ic-version: ${{ needs.checks.outputs.ic_version }}
       go-path: ${{ needs.checks.outputs.go_path }}

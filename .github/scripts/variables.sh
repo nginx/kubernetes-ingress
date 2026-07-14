@@ -103,22 +103,31 @@ get_lts_tags() {
 #   DOCS_ONLY        - "true" when the change only touches documentation.
 #   FORKED           - "true" when running from a fork / mirror.
 #   BINARY_CACHE_HIT - "true" when the Go binary cache was hit.
-#   BUILD_EXISTS     - "true" when a build image already exists in the registry.
 #   STABLE_EXISTS    - "true" when a stable image already exists in the registry.
 #   REF_NAME         - github.ref_name (used to gate image promotion).
 # ---------------------------------------------------------------------------
 
-# Whether a docker image build is required.
+# Whether a docker image build is required. This is also the gate for the
+# build-artifacts job: whenever tests need to run (get_run_tests) we also need
+# a fresh image, and conversely tests only skip when the binary cache is warm
+# AND the stable image exists -- which is exactly when docker_build is false.
+# So `docker_build` doubles as the build-artifacts gate; a separate flag would
+# be provably identical (see variables_test.sh equivalence check).
+#
+# On non-docs runs we build when either the Go binary cache is cold (need a
+# fresh binary) or the stable image is missing (need to produce it). Forks
+# always build (they cannot consult the authenticated registry so cache/stable
+# are effectively empty for them).
 get_docker_build() {
+  local run="false"
   if [ "${FORCE:-}" = "true" ]; then
-    echo "true"
-  elif [ "${FORKED:-}" = "true" ] && [ "${DOCS_ONLY:-}" != "true" ]; then
-    echo "true"
-  elif [ "${FORKED:-}" != "true" ] && [ "${DOCS_ONLY:-}" != "true" ] && [ "${BUILD_EXISTS:-}" != "true" ]; then
-    echo "true"
-  else
-    echo "false"
+    run="true"
+  elif [ "${DOCS_ONLY:-}" = "true" ]; then
+    run="false"
+  elif [ "${BINARY_CACHE_HIT:-}" != "true" ] || [ "${STABLE_EXISTS:-}" != "true" ]; then
+    run="true"
   fi
+  echo "$run"
 }
 
 # Whether unit/e2e tests should run at all.
@@ -135,11 +144,16 @@ get_run_tests() {
 }
 
 # Gate for the Go-only jobs (verify-codegen, unit-tests, staticcheck,
-# govulncheck): force, or tests requested without a binary cache hit.
+# govulncheck). Force always runs them. Fork PRs cannot consult our binary
+# cache, so they always run unit tests on non-docs changes. Otherwise the
+# tests only run when tests are wanted AND the binary cache was cold (a warm
+# cache means the code hasn't changed, so unit tests would be redundant).
 get_run_unit_tests() {
   local run_tests
   run_tests=$(get_run_tests)
   if [ "${FORCE:-}" = "true" ]; then
+    echo "true"
+  elif [ "${FORKED:-}" = "true" ] && [ "${DOCS_ONLY:-}" != "true" ]; then
     echo "true"
   elif [ "$run_tests" = "true" ] && [ "${BINARY_CACHE_HIT:-}" != "true" ]; then
     echo "true"
@@ -148,26 +162,18 @@ get_run_unit_tests() {
   fi
 }
 
-# Data-driven part of the build-artifacts gate. The workflow keeps the runtime
-# `needs.*.result` / `!cancelled()` checks in YAML and ANDs them with this.
-get_run_build() {
-  local run_tests docker_build
-  run_tests=$(get_run_tests)
-  docker_build=$(get_docker_build)
-  if [ "${FORCE:-}" = "true" ] || [ "$run_tests" = "true" ] || [ "$docker_build" = "true" ]; then
-    echo "true"
-  else
-    echo "false"
-  fi
-}
 
-# Gate for the authenticated e2e jobs (tag-target, package-tests, helm-tests,
-# setup-matrix, smoke-tests-*): only on the main repo, when there is work to do.
+# Gate for the e2e workflow (build-artifacts, tag-target, package-tests,
+# helm-tests, setup-matrix, smoke-tests-*). True whenever there is work to
+# do (tests requested or a docker build is needed). Fork awareness is
+# handled at the individual job level: e2e jobs that require GCR auth carry
+# an additional `forked_workflow == false` guard, while build-artifacts runs
+# unauthenticated for forks.
 get_run_e2e() {
   local run_tests docker_build
   run_tests=$(get_run_tests)
   docker_build=$(get_docker_build)
-  if [ "${FORKED:-}" != "true" ] && { [ "$run_tests" = "true" ] || [ "$docker_build" = "true" ]; }; then
+  if [ "$run_tests" = "true" ] || [ "$docker_build" = "true" ]; then
     echo "true"
   else
     echo "false"
@@ -175,13 +181,12 @@ get_run_e2e() {
 }
 
 # Gate for the tag-stable job. Only tag an image as stable when we actually ran
-# the build + e2e cycle (get_run_e2e) AND no stable image exists yet. Requiring
-# run_e2e prevents tagging a non-existent image on docs-only / no-build runs,
-# and keeps this flag consistent with the jobs tag-stable depends on.
+# the build + e2e cycle (get_run_e2e), we are not on a fork (forks cannot push
+# to the authenticated registry), AND no stable image exists yet.
 get_tag_stable() {
   local run_e2e
   run_e2e=$(get_run_e2e)
-  if [ "$run_e2e" = "true" ] && [ "${STABLE_EXISTS:-}" != "true" ]; then
+  if [ "$run_e2e" = "true" ] && [ "${FORKED:-}" != "true" ] && [ "${STABLE_EXISTS:-}" != "true" ]; then
     echo "true"
   else
     echo "false"
@@ -202,7 +207,6 @@ get_ci_flags() {
   echo "run_tests=$(get_run_tests)"
   echo "docker_build=$(get_docker_build)"
   echo "run_unit_tests=$(get_run_unit_tests)"
-  echo "run_build=$(get_run_build)"
   echo "run_e2e=$(get_run_e2e)"
   echo "tag_stable=$(get_tag_stable)"
   echo "promote=$(get_promote)"
