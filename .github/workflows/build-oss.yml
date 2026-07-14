@@ -43,6 +43,11 @@ on:
         required: false
         type: boolean
         default: true
+      oss-repo:
+        description: The package repo to install nginx-oss from
+        required: false
+        type: string
+        default: packages.nginx.org
 
 defaults:
   run:

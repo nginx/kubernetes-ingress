@@ -49,6 +49,11 @@ on:
         required: false
         type: boolean
         default: true
+      plus-repo:
+        description: The package repo to install nginx-plus from
+        required: false
+        type: string
+        default: pkgs.nginx.com
 
 defaults:
   run:
@@ -221,6 +226,7 @@ jobs:
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}
+            PLUS_REPO=${{ inputs.plus-repo }}
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key

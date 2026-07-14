@@ -220,6 +220,7 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
+      oss-repo: ${{ vars.OSS_REPO }}
     permissions:
       contents: read
       actions: read
@@ -250,6 +251,7 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
+      plus-repo: ${{ vars.PLUS_REPO }}
     permissions:
       contents: read
       id-token: write
@@ -279,6 +281,7 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
+      plus-repo: ${{ vars.PLUS_REPO }}
     permissions:
       contents: read
       id-token: write # gcr login
