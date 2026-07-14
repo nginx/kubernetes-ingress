@@ -1974,6 +1974,66 @@ def retry_get_until_body_contains(req_url, host, expected_body, retries=60, veri
     return resp
 
 
+def retry_get_until_status_code(req_url, host, expected_status, retries=60, wait_seconds=1, session=None, **kwargs):
+    """
+    Repeatedly GET req_url until the response status code equals expected_status.
+
+    Tolerates ConnectionError/RemoteDisconnected caused by NGINX reloads
+    (worker recycling during reconfiguration closes in-flight connections).
+
+    :param req_url: url to request
+    :param host: value for the Host header (ignored if a "headers" kwarg is provided)
+    :param expected_status: status code to wait for
+    :param retries: number of retries
+    :param wait_seconds: delay between attempts (passed to wait_before_test)
+    :param session: optional requests.Session (e.g. an SNI/client-cert session); defaults to the requests module
+    :param kwargs: extra arguments passed to get (e.g. cert, verify, headers, allow_redirects)
+    :return: the final requests.Response (may not have expected_status if exhausted)
+    """
+    getter = session if session is not None else requests
+    if "headers" not in kwargs:
+        kwargs["headers"] = {} if host is None else {"host": host}
+    resp = None
+    for i in range(retries + 1):
+        try:
+            resp = getter.get(req_url, **kwargs)
+            if resp.status_code == expected_status:
+                return resp
+        except requests.exceptions.ConnectionError as e:
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+        wait_before_test(wait_seconds)
+    return resp
+
+
+def retry_get(req_url, host, retries=3, wait_seconds=1, session=None, **kwargs):
+    """
+    GET req_url once, retrying only when a ConnectionError is raised.
+
+    Use this to guard a single request that immediately follows a config change
+    (and therefore a possible NGINX reload) when the assertion cannot be
+    expressed as "body contains X" or "status == Y" (e.g. asserting a substring
+    is absent, or an arbitrary status). Returns the first successful response.
+
+    :param req_url: url to request
+    :param host: value for the Host header (ignored if a "headers" kwarg is provided)
+    :param retries: number of extra attempts if the connection is dropped
+    :param wait_seconds: delay between attempts (passed to wait_before_test)
+    :param session: optional requests.Session; defaults to the requests module
+    :param kwargs: extra arguments passed to get
+    :return: the requests.Response, or None if every attempt dropped the connection
+    """
+    getter = session if session is not None else requests
+    if "headers" not in kwargs:
+        kwargs["headers"] = {} if host is None else {"host": host}
+    for i in range(retries + 1):
+        try:
+            return getter.get(req_url, **kwargs)
+        except requests.exceptions.ConnectionError as e:
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+            wait_before_test(wait_seconds)
+    return None
+
+
 def get_service_endpoint(kube_apis, service_name, namespace) -> str:
     """
     Wait for endpoint resource to spin up.

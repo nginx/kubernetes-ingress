@@ -267,12 +267,21 @@ def delete_ap_policy(custom_objects: CustomObjectsApi, name, namespace) -> None:
 
 
 def send_malicious_request_with_retry(url, host, retries=20, wait_seconds=3):
-    """Send a request with an embedded XSS payload, retrying until WAF blocks it."""
-    response = requests.get(url + "</script>", headers={"host": host})
+    """Send a request with an embedded XSS payload, retrying until WAF blocks it.
+
+    Tolerates ConnectionError/RemoteDisconnected caused by NGINX reloads
+    (worker recycling during App Protect reconfiguration closes connections).
+    """
+    response = None
     count = 0
-    while count < retries and "Request Rejected" not in response.text:
+    while count < retries and (response is None or "Request Rejected" not in response.text):
+        try:
+            response = requests.get(url + "</script>", headers={"host": host})
+            if "Request Rejected" in response.text:
+                break
+        except requests.exceptions.ConnectionError as e:
+            print(f"Attempt {count + 1}: connection dropped during reload ({e})")
         wait_before_test(wait_seconds)
-        response = requests.get(url + "</script>", headers={"host": host})
         count += 1
     return response
 
