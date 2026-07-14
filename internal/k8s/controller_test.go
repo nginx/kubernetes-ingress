@@ -4070,6 +4070,36 @@ func TestShouldForceReloadOnSecretUpdate(t *testing.T) {
 			dynamicSSLReloadEnabled: true,
 			expected:                true,
 		},
+		{
+			name:                    "CA secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeCA,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "JWK secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeJWK,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "Htpasswd secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeHtpasswd,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "OIDC secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeOIDC,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "APIKey secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeAPIKey,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
 	}
 
 	for _, tc := range testCases {
