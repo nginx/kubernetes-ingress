@@ -1946,7 +1946,8 @@ def retry_get_until_body_contains(req_url, host, expected_body, retries=60, veri
         except requests.exceptions.ConnectionError as e:
             last_error = e
             print(f"Attempt {i + 1}: connection dropped during reload ({e})")
-        wait_before_test(1)
+        if i < retries:
+            wait_before_test(1)
     if resp is None:
         pytest.fail(
             f"Never got a response from {req_url} after {retries + 1} attempts; "
@@ -1984,7 +1985,8 @@ def retry_get_until_status_code(req_url, host, expected_status, retries=60, wait
         except requests.exceptions.ConnectionError as e:
             last_error = e
             print(f"Attempt {i + 1}: connection dropped during reload ({e})")
-        wait_before_test(wait_seconds)
+        if i < retries:
+            wait_before_test(wait_seconds)
     if resp is None:
         pytest.fail(
             f"Never got a response from {req_url} after {retries + 1} attempts; "
@@ -2020,7 +2022,8 @@ def retry_get(req_url, host, retries=3, wait_seconds=1, session=None, **kwargs):
         except requests.exceptions.ConnectionError as e:
             last_error = e
             print(f"Attempt {i + 1}: connection dropped during reload ({e})")
-            wait_before_test(wait_seconds)
+            if i < retries:
+                wait_before_test(wait_seconds)
     pytest.fail(
         f"Never got a response from {req_url} after {retries + 1} attempts; "
         f"connection kept dropping during reloads. Last error: {last_error}"
