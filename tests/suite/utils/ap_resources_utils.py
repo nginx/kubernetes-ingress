@@ -275,20 +275,19 @@ def send_malicious_request_with_retry(url, host, retries=20, wait_seconds=3):
     """
     response = None
     last_error = None
-    count = 0
-    while count < retries and (response is None or "Request Rejected" not in response.text):
+    for i in range(retries + 1):
         try:
             response = requests.get(url + "</script>", headers={"host": host})
             if "Request Rejected" in response.text:
-                break
+                return response
         except requests.exceptions.ConnectionError as e:
             last_error = e
-            print(f"Attempt {count + 1}: connection dropped during reload ({e})")
-        wait_before_test(wait_seconds)
-        count += 1
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+        if i < retries:
+            wait_before_test(wait_seconds)
     if response is None:
         pytest.fail(
-            f"Never got a response from {url} after {retries} attempts; "
+            f"Never got a response from {url} after {retries + 1} attempts; "
             f"connection kept dropping during reloads. Last error: {last_error}"
         )
     return response
