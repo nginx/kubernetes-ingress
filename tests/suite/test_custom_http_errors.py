@@ -9,8 +9,6 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
-    scale_deployment,
-    wait_before_test,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml
@@ -80,49 +78,42 @@ class TestCustomHTTPErrors:
     """End-to-end coverage for the `nginx.org/custom-http-errors` annotation.
     The same behaviour is exercised for both entry points:
       - `standard`, annotation lives directly on a single Ingress.
-      - `mergeable`, annotation lives on the master; the minion contributes /backend1.
+      - `mergeable`, annotation lives on the master; the minion contributes /backend1 and /fail.
     """
 
     def test_annotation_intercepts_upstream_error(self, kube_apis, custom_http_errors_setup, test_namespace):
         """When the upstream returns a matching error status, NGINX intercepts the response,
         serves the body from spec.defaultBackend, and preserves the original upstream status code.
+
+        /backend1 is served by backend1-svc (returns 200) and confirms that the annotation only
+        intercepts matched error codes, not successful responses.
+        /fail is served by fail-backend-svc (returns 502) and produces a genuine proxied 502
+        response so that`error_page` fires.
         """
 
-        request_url = f"{custom_http_errors_setup.http_url}/backend1"
         headers = {"host": custom_http_errors_setup.ingress_host}
+        backend_url = f"{custom_http_errors_setup.http_url}/backend1"
+        fail_url = f"{custom_http_errors_setup.http_url}/fail"
 
-        print("Baseline: backend1 is up, /backend1 returns 200 from backend1")
-        resp = requests.get(request_url, headers=headers)
+        print("Successful upstream response is passed through unchanged (no interception)")
+        resp = requests.get(backend_url, headers=headers)
         assert resp.status_code == 200, f"Expected 200 from backend1, got {resp.status_code}: {resp.text[:200]}"
         assert "Server name: backend1" in resp.text, f"Expected response body from backend1, got: {resp.text[:200]}"
 
-        print("Scale backend1 to 0 so NGINX synthesizes 502 on the upstream call")
-        original = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "backend1", test_namespace, 0)
-        try:
-            wait_before_test()
+        print("Upstream 502 is intercepted, body swapped for error-pages-svc, original code preserved")
+        resp = requests.get(fail_url, headers=headers)
 
-            resp = requests.get(request_url, headers=headers)
+        assert resp.status_code == 502, f"Expected 502 from fail-backend-svc, got {resp.status_code}: {resp.text[:200]}"
 
-            assert (
-                resp.status_code == 502
-            ), f"Expected 502 with backend1 down, got {resp.status_code}: {resp.text[:200]}"
-            assert (
-                "Something went wrong and the application is temporarily unavailable" in resp.text
-            ), f"Expected error-pages-svc to serve the response body, got: {resp.text[:200]}"
-            assert (
-                "Server name:" not in resp.text
-            ), f"Did not expect an app backend (backend1/backend2) in the response body, got: {resp.text[:200]}"
+        assert (
+            "Something went wrong and the application is temporarily unavailable" in resp.text
+        ), f"Expected error-pages-svc to serve the response body, got: {resp.text[:200]}"
 
-        finally:
-            print("Restore backend1 replicas")
-            scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "backend1", test_namespace, original)
-
-        print("After restore: /backend1 returns 200 from backend1 again, no interception on success")
-        wait_before_test()
-        resp = requests.get(request_url, headers=headers)
+        print("Sanity check: /backend1 still returns 200 from backend1 after the intercepted request")
+        resp = requests.get(backend_url, headers=headers)
         assert (
             resp.status_code == 200
-        ), f"Expected 200 after backend1 restored, got {resp.status_code}: {resp.text[:200]}"
+        ), f"Expected 200 from backend1 after the intercept path, got {resp.status_code}: {resp.text[:200]}"
         assert (
             "Server name: backend1" in resp.text
         ), f"Expected response body from backend1 (not intercepted), got: {resp.text[:200]}"

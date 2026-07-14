@@ -52,22 +52,36 @@ kubectl apply -f cafe-ingress.yaml
 
 ### 4. Trigger an upstream error
 
-The `coffee` demo app returns `200 OK` for any path, so a request like
-`/coffee/does-not-exist` will **not** trigger interception on its own. To
-produce a real upstream error, scale the coffee deployment to zero, NGINX
-will then generate `502 Bad Gateway` on the upstream call:
+The `coffee` and `tea` demo apps return `200 OK` for any path, so requesting
+them will never trigger interception. To demonstrate the annotation, the
+example ships a dedicated `fail-backend` Service (deployed by `error-pages.yaml`)
+that always returns `502 Bad Gateway`, and the Ingress routes `/fail` to it:
 
 ```console
-kubectl scale deployment coffee --replicas=0
-```
-
-```console
-curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP \ 
-    http://cafe.example.com:$IC_HTTP_PORT/coffee/does-not-exist 
+curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP \
+    http://cafe.example.com:$IC_HTTP_PORT/fail
 ```
 
 Expected response:
 
+```text
+Something went wrong and the application is temporarily unavailable. Please try again later.
+```
+
+### 5. Confirm successful responses are not intercepted
+
+Requests that hit the coffee / tea backends and return `200 OK` are passed
+through unchanged, the annotation only intervenes on matching error codes:
+
 ```console
-Something went wrong and the application is temporarily unavailable. Please try again later.%   
+curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP \
+    http://cafe.example.com:$IC_HTTP_PORT/coffee
+```
+
+```text
+Server address: 10.92.0.16:8080
+Server name: coffee-7b9578cff9-m8v5h
+Date: 14/Jul/2026:16:01:47 +0000
+URI: /coffee
+Request ID: d2521141a10854fa0225ab64602a8b9a
 ```

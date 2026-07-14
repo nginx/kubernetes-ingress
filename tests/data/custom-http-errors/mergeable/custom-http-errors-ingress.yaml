@@ -34,3 +34,10 @@ spec:
             name: backend1-svc
             port:
               number: 80
+      - path: /fail
+        pathType: Prefix
+        backend:
+          service:
+            name: fail-backend-svc
+            port:
+              number: 80
