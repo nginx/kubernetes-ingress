@@ -121,6 +121,8 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 
 	var updatedResources []Resource
 
+	defer lbc.setConfiguratorLogger(lbc.Logger)()
+
 	for _, c := range changes {
 		switch impl := c.Resource.(type) {
 		case *VirtualServerConfiguration:

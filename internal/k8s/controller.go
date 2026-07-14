@@ -913,19 +913,24 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 
 		// handle ingresses
 		resources := lbc.configuration.FindIngressesWithRatelimitScaling(controllerEndpointSlice.Namespace)
+		l := lbc.loggerForResource(controllerEndpointSlice.Namespace)
 		resourceExes := lbc.createExtendedResources(lbc.Logger, resources)
 		for _, ingress := range resourceExes.IngressExes {
 			found = true
+			restore := lbc.setConfiguratorLogger(l)
 			_, err := lbc.configurator.AddOrUpdateIngress(ingress)
+			restore()
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Error updating ratelimit for Ingress %s/%s: %s", ingress.Ingress.Namespace, ingress.Ingress.Name, err)
+				nl.Errorf(l, "Error updating ratelimit for Ingress %s/%s: %s", ingress.Ingress.Namespace, ingress.Ingress.Name, err)
 			}
 		}
 		for _, ingress := range resourceExes.MergeableIngresses {
 			found = true
+			restore := lbc.setConfiguratorLogger(l)
 			_, err := lbc.configurator.AddOrUpdateMergeableIngress(ingress)
+			restore()
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Error updating ratelimit for Ingress %s/%s: %s", ingress.Master.Ingress.Namespace, ingress.Master.Ingress.Name, err)
+				nl.Errorf(l, "Error updating ratelimit for Ingress %s/%s: %s", ingress.Master.Ingress.Namespace, ingress.Master.Ingress.Name, err)
 			}
 		}
 
@@ -935,9 +940,12 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			resourceExes = lbc.createExtendedResources(lbc.Logger, resources)
 			for _, vserver := range resourceExes.VirtualServerExes {
 				found = true
+				vsL := lbc.loggerForResource(vserver.VirtualServer.Namespace)
+				restore := lbc.setConfiguratorLogger(vsL)
 				_, err := lbc.configurator.AddOrUpdateVirtualServer(vserver)
+				restore()
 				if err != nil {
-					nl.Errorf(lbc.Logger, "Error updating ratelimit for VirtualServer %s/%s: %s", vserver.VirtualServer.Namespace, vserver.VirtualServer.Name, err)
+					nl.Errorf(vsL, "Error updating ratelimit for VirtualServer %s/%s: %s", vserver.VirtualServer.Namespace, vserver.VirtualServer.Name, err)
 				}
 			}
 		}
@@ -1081,6 +1089,8 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	var mgmtConfigHasWarnings bool
 	var mgmtErr error
 	var reloadNginx bool
+
+	defer lbc.setConfiguratorLogger(lbc.Logger)()
 
 	if lbc.configMap != nil {
 		cfgParams, isNGINXConfigValid = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled, lbc.configuration.isDirectiveAutoadjustEnabled, lbc.recorder)
@@ -1346,9 +1356,11 @@ func (lbc *LoadBalancerController) sync(task task) {
 		if lbc.updateAllConfigsOnBatch {
 			lbc.updateAllConfigs()
 		} else {
+			restore := lbc.setConfiguratorLogger(lbc.Logger)
 			if err := lbc.configurator.ReloadForBatchUpdates(lbc.enableBatchReload); err != nil {
 				nl.Errorf(lbc.Logger, "error reloading for batch updates: %v", err)
 			}
+			restore()
 		}
 
 		lbc.enableBatchReload = false
@@ -4241,6 +4253,7 @@ func formatWarningMessages(w []string) string {
 func (lbc *LoadBalancerController) syncSVIDRotation(svidResponse *workloadapi.X509Context) {
 	lbc.syncLock.Lock()
 	defer lbc.syncLock.Unlock()
+	defer lbc.setConfiguratorLogger(lbc.Logger)()
 	nl.Debug(lbc.Logger, "Rotating SPIFFE Certificates")
 	err := lbc.configurator.AddOrUpdateSpiffeCerts(svidResponse)
 	if err != nil {
@@ -4255,6 +4268,7 @@ func (lbc *LoadBalancerController) IsNginxReady() bool {
 
 func (lbc *LoadBalancerController) addInternalRouteServer() {
 	if lbc.internalRoutesEnabled {
+		defer lbc.setConfiguratorLogger(lbc.Logger)()
 		if err := lbc.configurator.AddInternalRouteConfig(); err != nil {
 			nl.Warnf(lbc.Logger, "failed to configure internal route server: %v", err)
 		}
@@ -4265,6 +4279,9 @@ func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *co
 	var weightUpdates []configs.WeightUpdate
 	var splitClientsIndex int
 	variableNamer := configs.NewVSVariableNamer(vsNew)
+
+	l := lbc.loggerForResource(vsNew.Namespace)
+	defer lbc.setConfiguratorLogger(l)()
 
 	for i, routeNew := range vsNew.Spec.Routes {
 		routeOld := vsOld.Spec.Routes[i]
@@ -4321,10 +4338,13 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 		return
 	}
 
+	l := lbc.loggerForResource(vsrNew.Namespace)
+	defer lbc.setConfiguratorLogger(l)()
+
 	if vsrOld.Status.State == conf_v1.StateInvalid {
 		changes, problems := lbc.configuration.AddOrUpdateVirtualServerRoute(vsrNew)
-		lbc.processProblems(lbc.Logger, problems)
-		lbc.processChanges(lbc.Logger, changes)
+		lbc.processProblems(l, problems)
+		lbc.processChanges(l, changes)
 		return
 	}
 
@@ -4426,6 +4446,7 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 	defer lbc.configuration.lock.Unlock()
 	key := getResourceKey(&vsNew.ObjectMeta)
 	l := lbc.loggerForResource(vsNew.Namespace)
+	defer lbc.setConfiguratorLogger(l)()
 	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServer(vsNew)
 	if validationError != nil {
 		delete(lbc.configuration.virtualServers, key)
@@ -4503,6 +4524,7 @@ func (lbc *LoadBalancerController) haltIfVSRConfigInvalid(vsrNew *conf_v1.Virtua
 	defer lbc.configuration.lock.Unlock()
 	key := getResourceKey(&vsrNew.ObjectMeta)
 	l := lbc.loggerForResource(vsrNew.Namespace)
+	defer lbc.setConfiguratorLogger(l)()
 	var vsEx *configs.VirtualServerEx
 
 	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServerRoute(vsrNew)
