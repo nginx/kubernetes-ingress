@@ -181,6 +181,7 @@ type LoadBalancerController struct {
 	syncQueue                     *taskQueue
 	ctx                           context.Context
 	Logger                        *slog.Logger
+	enableNamespaceLogAttribute   bool
 	cancel                        context.CancelFunc
 	configurator                  *configs.Configurator
 	watchNginxConfigMaps          bool
@@ -262,6 +263,7 @@ type NewLoadBalancerControllerInput struct {
 	Recorder                     record.EventRecorder
 	ResyncPeriod                 time.Duration
 	LoggerContext                context.Context
+	EnableNamespaceLogAttribute  bool
 	Namespace                    []string
 	SecretNamespace              []string
 	NginxConfigurator            *configs.Configurator
@@ -329,6 +331,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		restConfig:                   input.RestConfig,
 		recorder:                     input.Recorder,
 		Logger:                       nl.LoggerFromContext(input.LoggerContext),
+		enableNamespaceLogAttribute:  input.EnableNamespaceLogAttribute,
 		configurator:                 input.NginxConfigurator,
 		specialSecrets:               specialSecrets,
 		appProtectEnabled:            input.AppProtectEnabled,
@@ -1050,23 +1053,19 @@ func (lbc *LoadBalancerController) createExtendedResources(l *slog.Logger, resou
 		switch impl := r.(type) {
 		case *VirtualServerConfiguration:
 			vs := impl.VirtualServer
-			lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
 			vsEx := lbc.createVirtualServerEx(l, vs, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 			result.VirtualServerExes = append(result.VirtualServerExes, vsEx)
 		case *IngressConfiguration:
 
 			if impl.IsMaster {
 				mergeableIng := lbc.createMergeableIngresses(l, impl)
-				lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
 				result.MergeableIngresses = append(result.MergeableIngresses, mergeableIng)
 			} else {
 				ingEx := lbc.createIngressEx(l, impl.Ingress, impl.ValidHosts, nil)
-				lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
 				result.IngressExes = append(result.IngressExes, ingEx)
 			}
 		case *TransportServerConfiguration:
 			tsEx := lbc.createTransportServerEx(l, impl.TransportServer, impl.ListenerPort, impl.IPv4, impl.IPv6)
-			lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
 			result.TransportServerExes = append(result.TransportServerExes, tsEx)
 		}
 	}
@@ -1446,6 +1445,19 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(l *slog.L
 	nsi.stop()
 }
 
+func (lbc *LoadBalancerController) loggerForResource(ns string) *slog.Logger {
+	if lbc.enableNamespaceLogAttribute {
+		return lbc.Logger.With("resource_namespace", ns)
+	}
+	return lbc.Logger
+}
+
+func (lbc *LoadBalancerController) setConfiguratorLogger(l *slog.Logger) func() {
+	origCtx := lbc.configurator.CfgParams.Context
+	lbc.configurator.CfgParams.Context = nl.ContextWithLogger(origCtx, l)
+	return func() { lbc.configurator.CfgParams.Context = origCtx }
+}
+
 func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 	key := task.Key
 	var obj interface{}
@@ -1453,7 +1465,8 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With("resource_namespace", ns)
+	l := lbc.loggerForResource(ns)
+	defer lbc.setConfiguratorLogger(l)()
 	obj, vsExists, err = lbc.getNamespacedInformer(ns).virtualServerLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -1532,101 +1545,105 @@ func (lbc *LoadBalancerController) processChanges(l *slog.Logger, changes []Reso
 
 	for _, c := range changes {
 		if c.Op == AddOrUpdate {
-			switch impl := c.Resource.(type) {
-			case *VirtualServerConfiguration:
-				vsEx := lbc.createVirtualServerEx(l, impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
-				lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
-
-				warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateVirtualServer(vsEx)
-				lbc.updateVirtualServerStatusAndEvents(l, impl, warnings, addOrUpdateErr)
-			case *IngressConfiguration:
-				if impl.IsMaster {
-					mergeableIng := lbc.createMergeableIngresses(l, impl)
-					lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
-
-					warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIng)
-					ingForEvent := mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions)
-					lbc.updateMergeableIngressStatusAndEvents(l, ingForEvent, warnings, addOrUpdateErr)
-				} else {
-					// for regular Ingress, validMinionPaths is nil
-					ingEx := lbc.createIngressEx(l, impl.Ingress, impl.ValidHosts, nil)
-					lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
-
-					warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateIngress(ingEx)
-					ingForEvent := mergeIngressPolicyWarnings(impl, ingEx, nil)
-					lbc.updateRegularIngressStatusAndEvents(l, ingForEvent, warnings, addOrUpdateErr)
-				}
-			case *TransportServerConfiguration:
-				tsEx := lbc.createTransportServerEx(l, impl.TransportServer, impl.ListenerPort, impl.IPv4, impl.IPv6)
-				lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
-				warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateTransportServer(tsEx)
-				lbc.updateTransportServerStatusAndEvents(l, impl, warnings, addOrUpdateErr)
-			}
+			lbc.processAddOrUpdate(l, c)
 		} else if c.Op == Delete {
-			switch impl := c.Resource.(type) {
-			case *VirtualServerConfiguration:
-				key := getResourceKey(&impl.VirtualServer.ObjectMeta)
-				ns, _, _ := cache.SplitMetaNamespaceKey(key)
+			lbc.processDelete(l, c)
+		}
+	}
+}
 
-				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
-				if deleteErr != nil {
-					nl.Errorf(l, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
-				}
+func (lbc *LoadBalancerController) processAddOrUpdate(l *slog.Logger, c ResourceChange) {
+	switch impl := c.Resource.(type) {
+	case *VirtualServerConfiguration:
+		vsEx := lbc.createVirtualServerEx(l, impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 
-				var vsExists bool
-				var err error
+		warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateVirtualServer(vsEx)
+		lbc.updateVirtualServerStatusAndEvents(l, impl, warnings, addOrUpdateErr)
+	case *IngressConfiguration:
+		if impl.IsMaster {
+			mergeableIng := lbc.createMergeableIngresses(l, impl)
 
-				_, vsExists, err = lbc.getNamespacedInformer(ns).virtualServerLister.GetByKey(key)
-				if err != nil {
-					nl.Errorf(l, "Error when getting VirtualServer for %v: %v", key, err)
-				}
+			warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateMergeableIngress(mergeableIng)
+			ingForEvent := mergeIngressPolicyWarnings(impl, mergeableIng.Master, mergeableIng.Minions)
+			lbc.updateMergeableIngressStatusAndEvents(l, ingForEvent, warnings, addOrUpdateErr)
+		} else {
+			// for regular Ingress, validMinionPaths is nil
+			ingEx := lbc.createIngressEx(l, impl.Ingress, impl.ValidHosts, nil)
 
-				if vsExists {
-					lbc.UpdateVirtualServerStatusAndEventsOnDelete(impl, c.Error, deleteErr)
-				}
-			case *IngressConfiguration:
-				key := getResourceKey(&impl.Ingress.ObjectMeta)
-				ns, _, _ := cache.SplitMetaNamespaceKey(key)
+			warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateIngress(ingEx)
+			ingForEvent := mergeIngressPolicyWarnings(impl, ingEx, nil)
+			lbc.updateRegularIngressStatusAndEvents(l, ingForEvent, warnings, addOrUpdateErr)
+		}
+	case *TransportServerConfiguration:
+		tsEx := lbc.createTransportServerEx(l, impl.TransportServer, impl.ListenerPort, impl.IPv4, impl.IPv6)
+		warnings, addOrUpdateErr := lbc.configurator.AddOrUpdateTransportServer(tsEx)
+		lbc.updateTransportServerStatusAndEvents(l, impl, warnings, addOrUpdateErr)
+	}
+}
 
-				nl.Debugf(l, "Deleting Ingress: %v\n", key)
+func (lbc *LoadBalancerController) processDelete(l *slog.Logger, c ResourceChange) {
+	switch impl := c.Resource.(type) {
+	case *VirtualServerConfiguration:
+		key := getResourceKey(&impl.VirtualServer.ObjectMeta)
+		ns, _, _ := cache.SplitMetaNamespaceKey(key)
 
-				deleteErr := lbc.configurator.DeleteIngress(key, false)
-				if deleteErr != nil {
-					nl.Errorf(l, "Error when deleting configuration for Ingress %v: %v", key, deleteErr)
-				}
+		deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
+		if deleteErr != nil {
+			nl.Errorf(l, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
+		}
 
-				var ingExists bool
-				var err error
+		var vsExists bool
+		var err error
 
-				_, ingExists, err = lbc.getNamespacedInformer(ns).ingressLister.GetByKeySafe(key)
-				if err != nil {
-					nl.Errorf(l, "Error when getting Ingress for %v: %v", key, err)
-				}
+		_, vsExists, err = lbc.getNamespacedInformer(ns).virtualServerLister.GetByKey(key)
+		if err != nil {
+			nl.Errorf(l, "Error when getting VirtualServer for %v: %v", key, err)
+		}
 
-				if ingExists {
-					lbc.UpdateIngressStatusAndEventsOnDelete(impl, c.Error, deleteErr)
-				}
-			case *TransportServerConfiguration:
-				key := getResourceKey(&impl.TransportServer.ObjectMeta)
-				ns, _, _ := cache.SplitMetaNamespaceKey(key)
+		if vsExists {
+			lbc.UpdateVirtualServerStatusAndEventsOnDelete(impl, c.Error, deleteErr)
+		}
+	case *IngressConfiguration:
+		key := getResourceKey(&impl.Ingress.ObjectMeta)
+		ns, _, _ := cache.SplitMetaNamespaceKey(key)
 
-				deleteErr := lbc.configurator.DeleteTransportServer(key)
+		nl.Debugf(l, "Deleting Ingress: %v\n", key)
 
-				if deleteErr != nil {
-					nl.Errorf(l, "Error when deleting configuration for TransportServer %v: %v", key, deleteErr)
-				}
+		deleteErr := lbc.configurator.DeleteIngress(key, false)
+		if deleteErr != nil {
+			nl.Errorf(l, "Error when deleting configuration for Ingress %v: %v", key, deleteErr)
+		}
 
-				var tsExists bool
-				var err error
+		var ingExists bool
+		var err error
 
-				_, tsExists, err = lbc.getNamespacedInformer(ns).transportServerLister.GetByKey(key)
-				if err != nil {
-					nl.Errorf(l, "Error when getting TransportServer for %v: %v", key, err)
-				}
-				if tsExists {
-					lbc.updateTransportServerStatusAndEventsOnDelete(impl, c.Error, deleteErr)
-				}
-			}
+		_, ingExists, err = lbc.getNamespacedInformer(ns).ingressLister.GetByKeySafe(key)
+		if err != nil {
+			nl.Errorf(l, "Error when getting Ingress for %v: %v", key, err)
+		}
+
+		if ingExists {
+			lbc.UpdateIngressStatusAndEventsOnDelete(impl, c.Error, deleteErr)
+		}
+	case *TransportServerConfiguration:
+		key := getResourceKey(&impl.TransportServer.ObjectMeta)
+		ns, _, _ := cache.SplitMetaNamespaceKey(key)
+
+		deleteErr := lbc.configurator.DeleteTransportServer(key)
+
+		if deleteErr != nil {
+			nl.Errorf(l, "Error when deleting configuration for TransportServer %v: %v", key, deleteErr)
+		}
+
+		var tsExists bool
+		var err error
+
+		_, tsExists, err = lbc.getNamespacedInformer(ns).transportServerLister.GetByKey(key)
+		if err != nil {
+			nl.Errorf(l, "Error when getting TransportServer for %v: %v", key, err)
+		}
+		if tsExists {
+			lbc.updateTransportServerStatusAndEventsOnDelete(impl, c.Error, deleteErr)
 		}
 	}
 }
@@ -1949,7 +1966,8 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With("resource_namespace", ns)
+	l := lbc.loggerForResource(ns)
+	defer lbc.setConfiguratorLogger(l)()
 	obj, exists, err = lbc.getNamespacedInformer(ns).virtualServerRouteLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -1981,7 +1999,8 @@ func (lbc *LoadBalancerController) syncIngress(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With("resource_namespace", ns)
+	l := lbc.loggerForResource(ns)
+	defer lbc.setConfiguratorLogger(l)()
 	ing, ingExists, err = lbc.getNamespacedInformer(ns).ingressLister.GetByKeySafe(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -2238,7 +2257,8 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 		nl.Warnf(lbc.Logger, "Secret key %v is invalid: %v", key, err)
 		return
 	}
-	l := lbc.Logger.With("resource_namespace", namespace)
+	l := lbc.loggerForResource(namespace)
+	defer lbc.setConfiguratorLogger(l)()
 	obj, secretWatched, err = lbc.getNamespacedInformer(namespace).secretLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -2721,6 +2741,7 @@ func (lbc *LoadBalancerController) createMergeableIngresses(l *slog.Logger, ingC
 	}
 }
 
+//nolint:gocyclo
 func (lbc *LoadBalancerController) createIngressEx(l *slog.Logger, ing *networking.Ingress, validHosts map[string]bool, validMinionPaths map[string]bool) *configs.IngressEx {
 	var endps []string
 	ingEx := &configs.IngressEx{
@@ -4404,7 +4425,7 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 	lbc.configuration.lock.Lock()
 	defer lbc.configuration.lock.Unlock()
 	key := getResourceKey(&vsNew.ObjectMeta)
-	l := lbc.Logger.With("resource_namespace", vsNew.Namespace)
+	l := lbc.loggerForResource(vsNew.Namespace)
 	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServer(vsNew)
 	if validationError != nil {
 		delete(lbc.configuration.virtualServers, key)
@@ -4481,7 +4502,7 @@ func (lbc *LoadBalancerController) haltIfVSRConfigInvalid(vsrNew *conf_v1.Virtua
 	lbc.configuration.lock.Lock()
 	defer lbc.configuration.lock.Unlock()
 	key := getResourceKey(&vsrNew.ObjectMeta)
-	l := lbc.Logger.With("resource_namespace", vsrNew.Namespace)
+	l := lbc.loggerForResource(vsrNew.Namespace)
 	var vsEx *configs.VirtualServerEx
 
 	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServerRoute(vsrNew)

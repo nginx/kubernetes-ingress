@@ -211,7 +211,8 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With("resource_namespace", ns)
+	l := lbc.loggerForResource(ns)
+	defer lbc.setConfiguratorLogger(l)()
 	obj, exists, err = lbc.getNamespacedInformer(ns).svcLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -272,7 +273,6 @@ func (lbc *LoadBalancerController) syncService(task task) {
 
 	resourceExes := lbc.createExtendedResources(l, resources)
 
-	lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
 	warnings, updateErr := lbc.configurator.AddOrUpdateResources(resourceExes, true)
 	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
 	lbc.updateResourcesStatusAndEvents(l, resourcesWithWarnings, warnings, updateErr)

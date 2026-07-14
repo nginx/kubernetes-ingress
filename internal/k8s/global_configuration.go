@@ -125,7 +125,7 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 		switch impl := c.Resource.(type) {
 		case *VirtualServerConfiguration:
 			if c.Op == AddOrUpdate {
-				l := lbc.Logger.With("resource_namespace", impl.VirtualServer.Namespace)
+				l := lbc.loggerForResource(impl.VirtualServer.Namespace)
 				vsEx := lbc.createVirtualServerEx(l, impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 
 				updatedVSExes = append(updatedVSExes, vsEx)
@@ -137,7 +137,7 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 			}
 		case *TransportServerConfiguration:
 			if c.Op == AddOrUpdate {
-				l := lbc.Logger.With("resource_namespace", impl.TransportServer.Namespace)
+				l := lbc.loggerForResource(impl.TransportServer.Namespace)
 				tsEx := lbc.createTransportServerEx(l, impl.TransportServer, impl.ListenerPort, impl.IPv4, impl.IPv6)
 
 				updatedTSExes = append(updatedTSExes, tsEx)

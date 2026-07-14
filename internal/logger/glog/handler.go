@@ -68,7 +68,7 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 // Handle log event
 // Format F20240920 16:53:18.817844   70741 main.go:285] key=value message
 //
-//	<Level>YYYYMMDD HH:MM:SS.NNNNNN   <pid> <file>:<line> [<key>=<value> ...] <msg>
+//	<Level>YYYYMMDD HH:MM:SS.NNNNNN   <pid> <file>:<line>] <key>=<value> <msg>
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	buf := make([]byte, 0, 1024)
 	// LogLevel

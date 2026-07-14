@@ -297,6 +297,7 @@ func main() {
 		Recorder:                     eventRecorder,
 		ResyncPeriod:                 30 * time.Second,
 		LoggerContext:                ctx,
+		EnableNamespaceLogAttribute:  *enableNamespaceLogAttribute,
 		Namespace:                    watchNamespaces,
 		SecretNamespace:              watchSecretNamespaces,
 		NginxConfigurator:            cnf,

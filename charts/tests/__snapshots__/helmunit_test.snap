@@ -386,6 +386,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -865,6 +866,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -1336,6 +1338,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -1880,6 +1883,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -2423,6 +2427,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -2914,6 +2919,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -3519,6 +3525,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -4107,6 +4114,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -4561,6 +4569,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -5001,6 +5010,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -5470,6 +5480,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -5938,6 +5949,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -6384,6 +6396,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -6863,6 +6876,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -7310,6 +7324,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -7779,6 +7794,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -8245,6 +8261,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -8720,6 +8737,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -9168,6 +9186,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -9616,6 +9635,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -10063,6 +10083,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -10579,6 +10600,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -11041,6 +11063,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -11512,6 +11535,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -11993,6 +12017,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -12455,6 +12480,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -12917,6 +12943,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -13389,6 +13416,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -13918,6 +13946,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -14448,6 +14477,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -14904,6 +14934,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -15355,6 +15386,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -15820,6 +15852,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -16286,6 +16319,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
@@ -16768,6 +16802,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-namespace-log-attribute=false
           - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080

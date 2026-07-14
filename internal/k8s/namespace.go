@@ -63,7 +63,7 @@ func (lbc *LoadBalancerController) addNamespaceHandler(handlers cache.ResourceEv
 
 func (lbc *LoadBalancerController) syncNamespace(task task) {
 	key := task.Key
-	l := lbc.Logger.With("resource_namespace", key)
+	l := lbc.loggerForResource(key)
 	// process namespace and add to / remove from watched namespace list
 	_, exists, err := lbc.namespaceLabeledLister.GetByKey(key)
 	if err != nil {

@@ -73,7 +73,8 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With("resource_namespace", ns)
+	l := lbc.loggerForResource(ns)
+	defer lbc.setConfiguratorLogger(l)()
 	obj, polExists, err = lbc.getNamespacedInformer(ns).policyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -210,8 +211,6 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	var mergeableIngressWarnings configs.Warnings
 	mergeableIngressErrors := make(map[string]error)
-
-	lbc.configurator.CfgParams.Context = nl.ContextWithLogger(context.Background(), l)
 
 	if len(resourceExes.VirtualServerExes) > 0 {
 		warnings, updateErr := lbc.configurator.AddOrUpdateVirtualServers(resourceExes.VirtualServerExes)

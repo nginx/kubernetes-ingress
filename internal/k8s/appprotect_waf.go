@@ -370,7 +370,7 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 			case *appprotect.PolicyEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
-				l := lbc.Logger.With("resource_namespace", namespace)
+				l := lbc.loggerForResource(namespace)
 				resources := lbc.configuration.FindResourcesForAppProtectPolicyAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectPolicy(lbc.getAllPolicies(), namespace+"/"+name) {
@@ -385,7 +385,7 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 			case *appprotect.LogConfEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
-				l := lbc.Logger.With("resource_namespace", namespace)
+				l := lbc.loggerForResource(namespace)
 				resources := lbc.configuration.FindResourcesForAppProtectLogConfAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectLogConf(lbc.getAllPolicies(), namespace+"/"+name) {
@@ -403,7 +403,7 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 			case *appprotect.PolicyEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
-				l := lbc.Logger.With("resource_namespace", namespace)
+				l := lbc.loggerForResource(namespace)
 				resources := lbc.configuration.FindResourcesForAppProtectPolicyAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectPolicy(lbc.getAllPolicies(), namespace+"/"+name) {
@@ -419,7 +419,7 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 			case *appprotect.LogConfEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
-				l := lbc.Logger.With("resource_namespace", namespace)
+				l := lbc.loggerForResource(namespace)
 				resources := lbc.configuration.FindResourcesForAppProtectLogConfAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectLogConf(lbc.getAllPolicies(), namespace+"/"+name) {

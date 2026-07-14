@@ -2435,6 +2435,73 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 	}
 }
 
+func TestLoggerForResource(t *testing.T) {
+	t.Parallel()
+
+	logger := nl.LoggerFromContext(context.Background())
+
+	tests := []struct {
+		name     string
+		enabled  bool
+		wantSame bool
+	}{
+		{
+			name:     "disabled returns base logger",
+			enabled:  false,
+			wantSame: true,
+		},
+		{
+			name:     "enabled returns new logger",
+			enabled:  true,
+			wantSame: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lbc := &LoadBalancerController{
+				Logger:                      logger,
+				enableNamespaceLogAttribute: tc.enabled,
+			}
+
+			got := lbc.loggerForResource("test-ns")
+			if tc.wantSame && got != lbc.Logger {
+				t.Error("expected same logger instance when disabled")
+			}
+			if !tc.wantSame && got == lbc.Logger {
+				t.Error("expected different logger instance when enabled")
+			}
+		})
+	}
+}
+
+func TestSetConfiguratorLogger(t *testing.T) {
+	t.Parallel()
+
+	origCtx := nl.ContextWithLogger(context.Background(), nl.LoggerFromContext(context.Background()))
+	cfgParams := configs.NewDefaultConfigParams(origCtx, false)
+
+	lbc := &LoadBalancerController{
+		Logger:       nl.LoggerFromContext(context.Background()),
+		configurator: &configs.Configurator{CfgParams: cfgParams},
+	}
+
+	scopedLogger := lbc.Logger.With("resource_namespace", "test-ns")
+
+	restore := lbc.setConfiguratorLogger(scopedLogger)
+
+	if lbc.configurator.CfgParams.Context == origCtx {
+		t.Error("expected context to change after setConfiguratorLogger")
+	}
+
+	restore()
+
+	if lbc.configurator.CfgParams.Context != origCtx {
+		t.Error("expected original context to be restored")
+	}
+}
+
 func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 	t.Parallel()
 
@@ -2589,6 +2656,40 @@ func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *t
 	if manager.CreateCalls < 2 {
 		t.Fatalf("expected add step to be attempted after delete step, got %d call(s)", manager.CreateCalls)
 	}
+}
+
+func TestProcessChangesDispatchesAddOrUpdate(t *testing.T) {
+	t.Parallel()
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	lbc := createIngressProcessChangesController(t, manager)
+
+	ing := createTestIngress("dispatch-test", "example.com")
+	ingConfig := NewRegularIngressConfiguration(ing)
+
+	changes := []ResourceChange{
+		{
+			Op:       AddOrUpdate,
+			Resource: ingConfig,
+		},
+	}
+
+	// Verify processChanges dispatches without error
+	lbc.processChanges(lbc.Logger, changes)
+}
+
+func TestProcessChangesDispatchesDelete(t *testing.T) {
+	t.Parallel()
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	lbc := createIngressProcessChangesController(t, manager)
+
+	ing := createTestIngress("dispatch-delete-test", "example.com")
+	ingConfig := NewRegularIngressConfiguration(ing)
+
+	lbc.processChanges(lbc.Logger, []ResourceChange{
+		{Op: Delete, Resource: ingConfig},
+	})
 }
 
 func TestGetPodOwnerTypeAndName(t *testing.T) {
