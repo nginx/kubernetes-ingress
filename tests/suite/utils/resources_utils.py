@@ -1963,14 +1963,21 @@ def retry_get_until_body_contains(req_url, host, expected_body, retries=60, veri
     :return: the final requests.Response (may not contain expected_body if exhausted)
     """
     resp = None
+    last_error = None
     for i in range(retries + 1):
         try:
             resp = requests.get(req_url, headers={"host": host}, verify=verify)
             if expected_body in resp.text:
                 return resp
         except requests.exceptions.ConnectionError as e:
+            last_error = e
             print(f"Attempt {i + 1}: connection dropped during reload ({e})")
         wait_before_test(1)
+    if resp is None:
+        pytest.fail(
+            f"Never got a response from {req_url} after {retries + 1} attempts; "
+            f"connection kept dropping during reloads. Last error: {last_error}"
+        )
     return resp
 
 
@@ -1994,14 +2001,21 @@ def retry_get_until_status_code(req_url, host, expected_status, retries=60, wait
     if "headers" not in kwargs:
         kwargs["headers"] = {} if host is None else {"host": host}
     resp = None
+    last_error = None
     for i in range(retries + 1):
         try:
             resp = getter.get(req_url, **kwargs)
             if resp.status_code == expected_status:
                 return resp
         except requests.exceptions.ConnectionError as e:
+            last_error = e
             print(f"Attempt {i + 1}: connection dropped during reload ({e})")
         wait_before_test(wait_seconds)
+    if resp is None:
+        pytest.fail(
+            f"Never got a response from {req_url} after {retries + 1} attempts; "
+            f"connection kept dropping during reloads. Last error: {last_error}"
+        )
     return resp
 
 
@@ -2020,18 +2034,23 @@ def retry_get(req_url, host, retries=3, wait_seconds=1, session=None, **kwargs):
     :param wait_seconds: delay between attempts (passed to wait_before_test)
     :param session: optional requests.Session; defaults to the requests module
     :param kwargs: extra arguments passed to get
-    :return: the requests.Response, or None if every attempt dropped the connection
+    :return: the first successful requests.Response
     """
     getter = session if session is not None else requests
     if "headers" not in kwargs:
         kwargs["headers"] = {} if host is None else {"host": host}
+    last_error = None
     for i in range(retries + 1):
         try:
             return getter.get(req_url, **kwargs)
         except requests.exceptions.ConnectionError as e:
+            last_error = e
             print(f"Attempt {i + 1}: connection dropped during reload ({e})")
             wait_before_test(wait_seconds)
-    return None
+    pytest.fail(
+        f"Never got a response from {req_url} after {retries + 1} attempts; "
+        f"connection kept dropping during reloads. Last error: {last_error}"
+    )
 
 
 def get_service_endpoint(kube_apis, service_name, namespace) -> str:
