@@ -148,6 +148,11 @@ func generateSSLConfig(ts *conf_v1.TransportServer, tls *conf_v1.TransportServer
 	if tls == nil {
 		return &version2.StreamSSL{Enabled: false}, nil
 	}
+	if tls.Secret == "" {
+		warnings := newWarnings()
+		warnings.AddWarning(ts, "TLS secret is empty. SSL termination will not be enabled for this server.")
+		return &version2.StreamSSL{Enabled: false}, warnings
+	}
 
 	warnings := newWarnings()
 	sslEnabled := true
