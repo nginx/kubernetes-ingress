@@ -290,6 +290,13 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "HSTSPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{hstsPolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -443,6 +450,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				cachePolicy,
 				corsPolicy,
 				externalAuthPolicy,
+				hstsPolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -472,6 +480,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 		CachePolicies:        1,
 		CORSPolicies:         1,
 		ExternalAuthPolicies: 1,
+		HSTSPolicies:         1,
 	}
 
 	td := telemetry.Data{
@@ -2971,6 +2980,23 @@ var (
 		},
 		Spec: conf_v1.PolicySpec{
 			ExternalAuth: &conf_v1.ExternalAuth{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	hstsPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "hsts-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			HSTS: &conf_v1.HSTS{
+				MaxAge: new(31536000),
+			},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}
