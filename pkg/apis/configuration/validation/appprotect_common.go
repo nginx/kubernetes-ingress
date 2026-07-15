@@ -42,7 +42,7 @@ var (
 	// logDstEx matches a valid log destination: a syslog target (IP, localhost, or FQDN with port), "stderr", or an absolute file path.
 	// Allowed: syslog:server=<ip|localhost|fqdn>:<port>, stderr, /path/to/file.
 	// Blocked: relative paths, stdout, empty strings, partial/substring matches, whitespace in paths.
-	logDstEx     = regexp.MustCompile(`^(?:(?:syslog:server=(?:(?:\d{1,3}\.){3}\d{1,3}|localhost|[a-zA-Z0-9._-]+):\d{1,5})|stderr|(?:\/\S+)+)$`)
+	logDstEx = regexp.MustCompile(`^(?:(?:syslog:server=(?:(?:\d{1,3}\.){3}\d{1,3}|localhost|[a-zA-Z0-9._-]+):\d{1,5})|stderr|(?:\/\S+)+)$`)
 
 	// logDstFileEx matches an absolute file path: one or more /segment sequences.
 	// Allowed: /var/log/ap.log, /tmp/log.
