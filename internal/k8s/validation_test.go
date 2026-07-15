@@ -4433,6 +4433,44 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			expectedErrors:        nil,
 			msg:                   "valid nginx.org/use-cluster-ip annotation",
 		},
+		{
+			annotations: map[string]string{
+				"nginx.org/use-traffic-distribution": "not_a_boolean",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/use-traffic-distribution: Invalid value: "not_a_boolean": must be a boolean`,
+			},
+			msg: "invalid nginx.org/use-traffic-distribution annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/use-traffic-distribution": "true",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/use-traffic-distribution annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/use-traffic-distribution": "false",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/use-traffic-distribution annotation",
+		},
 
 		// nginx.org/rewrite-target annotation tests
 		{

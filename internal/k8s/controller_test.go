@@ -698,7 +698,7 @@ func TestGetEndpointsFromEndpointSlices_DuplicateEndpointsInOneEndpointSlice(t *
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc)
+			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -789,7 +789,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSlice(t
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc)
+			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -911,7 +911,7 @@ func TestGetEndpointsFromEndpointSlices_DuplicateEndpointsAcrossTwoEndpointSlice
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc)
+			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -997,7 +997,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsInOnEndpointSliceOn
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc)
+			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1095,7 +1095,7 @@ func TestGetEndpointsFromEndpointSlices_TwoDifferentEndpointsAcrossTwoEndpointSl
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc)
+			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1170,7 +1170,7 @@ func TestGetEndpointsFromEndpointSlices_ErrorsOnInvalidTargetPort(t *testing.T) 
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			_, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc)
+			_, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc, false)
 			if err == nil {
 				t.Logf("%s but was %+v\n", test.desc, test.svc.Spec.Ports[0].TargetPort.IntVal)
 				t.Fatal("want error, got nil")
@@ -1222,7 +1222,7 @@ func TestGetEndpointsFromEndpointSlices_ErrorsOnNoEndpointSlicesFound(t *testing
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			_, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc)
+			_, err := lbc.getEndpointsForPortFromEndpointSlices(test.svcEndpointSlices, backendServicePort, &test.svc, false)
 			if err == nil {
 				t.Logf("%s but got %+v\n", test.desc, test.svcEndpointSlices)
 				t.Fatal("want error, got nil")
@@ -2217,6 +2217,139 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 			sort.Strings(test.expected)
 			if !reflect.DeepEqual(gotAddrs, test.expected) {
 				t.Errorf("filterEndpointsByTopologyHints() = %v, want %v", gotAddrs, test.expected)
+			}
+		})
+	}
+}
+
+func TestTopologyHints(t *testing.T) {
+	t.Parallel()
+
+	lbc := LoadBalancerController{
+		metadata: controllerMetadata{nodeName: "node-1", zone: "us-east-1a"},
+	}
+
+	tests := []struct {
+		desc                   string
+		useTrafficDistribution bool
+		expectedNode           string
+		expectedZone           string
+	}{
+		{
+			desc:                   "traffic distribution requested returns the controller node and zone",
+			useTrafficDistribution: true,
+			expectedNode:           "node-1",
+			expectedZone:           "us-east-1a",
+		},
+		{
+			desc:                   "traffic distribution not requested returns empty node and zone",
+			useTrafficDistribution: false,
+			expectedNode:           "",
+			expectedZone:           "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			gotNode, gotZone := lbc.topologyHints(test.useTrafficDistribution)
+			if gotNode != test.expectedNode || gotZone != test.expectedZone {
+				t.Errorf("topologyHints(%v) = (%q, %q), want (%q, %q)",
+					test.useTrafficDistribution, gotNode, gotZone, test.expectedNode, test.expectedZone)
+			}
+		})
+	}
+}
+
+// TestGetEndpointsForPortFromEndpointSlicesTrafficDistribution verifies that the
+// useTrafficDistribution flag gates EndpointSlice hint filtering at the fetch
+// layer: when true, endpoints are filtered by the controller's zone hints; when
+// false, all ready endpoints are returned regardless of hints.
+func TestGetEndpointsForPortFromEndpointSlicesTrafficDistribution(t *testing.T) {
+	t.Parallel()
+
+	lbc := LoadBalancerController{
+		isNginxPlus: true,
+		Logger:      nl.LoggerFromContext(context.Background()),
+		metadata:    controllerMetadata{nodeName: "node-1", zone: "us-east-1a"},
+	}
+
+	backendServicePort := networking.ServiceBackendPort{
+		Number: 80,
+		Name:   "foo",
+	}
+
+	endpointReady := true
+
+	svc := api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "coffee-svc",
+			Namespace: "default",
+		},
+		Spec: api_v1.ServiceSpec{
+			Ports: []api_v1.ServicePort{
+				{
+					Name:       "foo",
+					Port:       80,
+					TargetPort: intstr.FromInt(8080),
+				},
+			},
+		},
+	}
+
+	svcEndpointSlices := []discovery_v1.EndpointSlice{
+		{
+			Ports: []discovery_v1.EndpointPort{
+				{
+					Port: new(int32(8080)),
+				},
+			},
+			Endpoints: []discovery_v1.Endpoint{
+				{
+					Addresses:  []string{"10.0.0.1"},
+					Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady},
+					Hints:      &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}}},
+				},
+				{
+					Addresses:  []string{"10.0.0.2"},
+					Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady},
+					Hints:      &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}}},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		desc                   string
+		useTrafficDistribution bool
+		expectedEndpoints      []podEndpoint
+	}{
+		{
+			desc:                   "flag on filters endpoints by matching zone hint",
+			useTrafficDistribution: true,
+			expectedEndpoints: []podEndpoint{
+				{Address: "10.0.0.1:8080"},
+			},
+		},
+		{
+			desc:                   "flag off returns all ready endpoints ignoring hints",
+			useTrafficDistribution: false,
+			expectedEndpoints: []podEndpoint{
+				{Address: "10.0.0.1:8080"},
+				{Address: "10.0.0.2:8080"},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			gotEndpoints, err := lbc.getEndpointsForPortFromEndpointSlices(svcEndpointSlices, backendServicePort, &svc, test.useTrafficDistribution)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !unorderedEqual(gotEndpoints, test.expectedEndpoints) {
+				t.Errorf("getEndpointsForPortFromEndpointSlices(useTrafficDistribution=%v) got %v, want %v",
+					test.useTrafficDistribution, gotEndpoints, test.expectedEndpoints)
 			}
 		})
 	}

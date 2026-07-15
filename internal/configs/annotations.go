@@ -47,6 +47,9 @@ const SSLPreferServerCiphersAnnotation = "nginx.org/ssl-prefer-server-ciphers"
 // UseClusterIPAnnotation is the annotation where the use-cluster-ip boolean is specified.
 const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 
+// UseTrafficDistributionAnnotation is the annotation where the use-traffic-distribution boolean is specified.
+const UseTrafficDistributionAnnotation = "nginx.org/use-traffic-distribution"
+
 // SSLRedirectAnnotation is the annotation where the SSL redirect boolean is specified.
 const SSLRedirectAnnotation = "nginx.org/ssl-redirect"
 
@@ -112,6 +115,7 @@ var masterDenylist = map[string]bool{
 	"nginx.com/health-checks-mandatory":       true,
 	"nginx.com/health-checks-mandatory-queue": true,
 	UseClusterIPAnnotation:                    true,
+	UseTrafficDistributionAnnotation:          true,
 }
 
 var minionDenylist = map[string]bool{

@@ -2851,6 +2851,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	ingEx.Policies = createPolicyMap(policies)
 	ingEx.PodsByIP = make(map[string]configs.PodInfo)
 	hasUseClusterIP := ingEx.Ingress.Annotations[configs.UseClusterIPAnnotation] == "true"
+	hasUseTrafficDistribution := ingEx.Ingress.Annotations[configs.UseTrafficDistributionAnnotation] == "true"
 
 	if ing.Spec.DefaultBackend != nil {
 		podEndps := []podEndpoint{}
@@ -2859,7 +2860,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting service %v: %v", ing.Spec.DefaultBackend.Service.Name, err)
 		} else {
-			podEndps, external, err = lbc.getEndpointsForIngressBackend(ing.Spec.DefaultBackend, svc)
+			podEndps, external, err = lbc.getEndpointsForIngressBackend(ing.Spec.DefaultBackend, svc, hasUseTrafficDistribution)
 			if err == nil && external && lbc.isNginxPlus {
 				ingEx.ExternalNameSvcs[svc.Name] = true
 			}
@@ -2927,7 +2928,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			if err != nil {
 				nl.Debugf(lbc.Logger, "Error getting service %v: %v", &path.Backend.Service.Name, err)
 			} else {
-				podEndps, external, err = lbc.getEndpointsForIngressBackend(&path.Backend, svc)
+				podEndps, external, err = lbc.getEndpointsForIngressBackend(&path.Backend, svc, hasUseTrafficDistribution)
 				if err == nil && external && lbc.isNginxPlus {
 					ingEx.ExternalNameSvcs[svc.Name] = true
 				}
@@ -3082,7 +3083,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			return
 		}
 		backupEndpointsKey := configs.GenerateEndpointsKey(virtualServer.Namespace, u.Backup, u.Subselector, *u.BackupPort)
-		backupEndps, external, err := lbc.getEndpointsForUpstream(virtualServer.Namespace, u.Backup, *u.BackupPort)
+		backupEndps, external, err := lbc.getEndpointsForUpstream(virtualServer.Namespace, u.Backup, *u.BackupPort, u.UseTrafficDistribution)
 		if err != nil {
 			nl.Warnf(lbc.Logger, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
 		}
@@ -3111,10 +3112,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			var err error
 
 			if len(u.Subselector) > 0 {
-				podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector)
+				podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector, u.UseTrafficDistribution)
 			} else {
 				var external bool
-				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
+				podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port, u.UseTrafficDistribution)
 
 				if err == nil && external && lbc.isNginxPlus {
 					externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
@@ -3278,10 +3279,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 				var podEndps []podEndpoint
 				var err error
 				if len(u.Subselector) > 0 {
-					podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector)
+					podEndps, err = lbc.getEndpointsForSubselector(serviceNamespace, serviceName, u.Port, u.Subselector, u.UseTrafficDistribution)
 				} else {
 					var external bool
-					podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port)
+					podEndps, external, err = lbc.getEndpointsForUpstream(serviceNamespace, serviceName, u.Port, u.UseTrafficDistribution)
 
 					if err == nil && external && lbc.isNginxPlus {
 						externalNameSvcs[configs.GenerateExternalNameSvcKey(serviceNamespace, serviceName)] = true
@@ -3344,7 +3345,9 @@ func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*con
 			if port <= 0 || port > math.MaxUint16 {
 				continue
 			}
-			endps, _, err := lbc.getEndpointsForUpstream(ns, name, uint16(port))
+			// ExternalAuth service endpoints do not expose a use-traffic-distribution
+			// surface, so topology-aware distribution is never applied here.
+			endps, _, err := lbc.getEndpointsForUpstream(ns, name, uint16(port), false)
 			if err != nil {
 				nl.Warnf(lbc.Logger, "Error getting Endpoints for ExternalAuth service %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
 				// Service exists but has no ready endpoints; mark empty so
@@ -3755,7 +3758,9 @@ func wafBundleUsesSecret(pol *conf_v1.Policy, secretNamespace, secretName string
 
 func (lbc *LoadBalancerController) getTransportServerBackupEndpointsAndKey(transportServer *conf_v1.TransportServer, u conf_v1.TransportServerUpstream, externalNameSvcs map[string]bool) ([]string, string) {
 	backupEndpointsKey := configs.GenerateEndpointsKey(transportServer.Namespace, u.Backup, nil, *u.BackupPort)
-	backupEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Backup, *u.BackupPort)
+	// TransportServer upstreams do not expose a use-traffic-distribution surface,
+	// so topology-aware distribution is never applied here.
+	backupEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Backup, *u.BackupPort, false)
 	if err != nil {
 		nl.Warnf(lbc.Logger, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
 	}
@@ -3766,7 +3771,18 @@ func (lbc *LoadBalancerController) getTransportServerBackupEndpointsAndKey(trans
 	return bendps, backupEndpointsKey
 }
 
-func (lbc *LoadBalancerController) getEndpointsForUpstream(namespace string, upstreamService string, upstreamPort uint16) (endps []podEndpoint, isExternal bool, err error) {
+// topologyHints returns the controller's node and zone only when topology-aware
+// traffic distribution is requested for the upstream. When it is not requested,
+// it returns empty strings, which disables EndpointSlice hint filtering and
+// restores the behavior of using all ready endpoints.
+func (lbc *LoadBalancerController) topologyHints(useTrafficDistribution bool) (nodeName, zone string) {
+	if !useTrafficDistribution {
+		return "", ""
+	}
+	return lbc.metadata.nodeName, lbc.metadata.zone
+}
+
+func (lbc *LoadBalancerController) getEndpointsForUpstream(namespace string, upstreamService string, upstreamPort uint16, useTrafficDistribution bool) (endps []podEndpoint, isExternal bool, err error) {
 	svc, err := lbc.getServiceForUpstream(namespace, upstreamService, upstreamPort)
 	if err != nil {
 		return nil, false, fmt.Errorf("error getting service %v: %w", upstreamService, err)
@@ -3781,7 +3797,7 @@ func (lbc *LoadBalancerController) getEndpointsForUpstream(namespace string, ups
 		},
 	}
 
-	endps, isExternal, err = lbc.getEndpointsForIngressBackend(backend, svc)
+	endps, isExternal, err = lbc.getEndpointsForIngressBackend(backend, svc, useTrafficDistribution)
 	if err != nil {
 		return nil, false, fmt.Errorf("error retrieving endpoints for the service %v: %w", upstreamService, err)
 	}
@@ -3789,7 +3805,7 @@ func (lbc *LoadBalancerController) getEndpointsForUpstream(namespace string, ups
 	return endps, isExternal, err
 }
 
-func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, serviceName string, servicePort uint16, subselector map[string]string) (endps []podEndpoint, err error) {
+func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, serviceName string, servicePort uint16, subselector map[string]string, useTrafficDistribution bool) (endps []podEndpoint, err error) {
 	svc, err := lbc.getServiceForUpstream(namespace, serviceName, servicePort)
 	if err != nil {
 		return nil, fmt.Errorf("error getting service %v: %w", serviceName, err)
@@ -3811,7 +3827,7 @@ func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, 
 		return nil, fmt.Errorf("no port %v in service %s", servicePort, svc.Name)
 	}
 
-	endps, err = lbc.getEndpointsForServiceWithSubselector(targetPort, subselector, svc)
+	endps, err = lbc.getEndpointsForServiceWithSubselector(targetPort, subselector, svc, useTrafficDistribution)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving endpoints for the service %v: %w", serviceName, err)
 	}
@@ -3819,7 +3835,7 @@ func (lbc *LoadBalancerController) getEndpointsForSubselector(namespace string, 
 	return endps, err
 }
 
-func (lbc *LoadBalancerController) getEndpointsForServiceWithSubselector(targetPort int32, subselector map[string]string, svc *api_v1.Service) (endps []podEndpoint, err error) {
+func (lbc *LoadBalancerController) getEndpointsForServiceWithSubselector(targetPort int32, subselector map[string]string, svc *api_v1.Service, useTrafficDistribution bool) (endps []podEndpoint, err error) {
 	var pods []*api_v1.Pod
 	nsi := lbc.getNamespacedInformer(svc.Namespace)
 	pods, err = nsi.podLister.ListByNamespace(svc.Namespace, labels.Merge(svc.Spec.Selector, subselector).AsSelector())
@@ -3834,7 +3850,8 @@ func (lbc *LoadBalancerController) getEndpointsForServiceWithSubselector(targetP
 		return nil, err
 	}
 
-	endps = getEndpointsFromEndpointSlicesForSubselectedPods(targetPort, pods, svcEndpointSlices, lbc.metadata.nodeName, lbc.metadata.zone)
+	nodeName, zone := lbc.topologyHints(useTrafficDistribution)
+	endps = getEndpointsFromEndpointSlicesForSubselectedPods(targetPort, pods, svcEndpointSlices, nodeName, zone)
 	return endps, nil
 }
 
@@ -4021,7 +4038,7 @@ func (lbc *LoadBalancerController) getExternalEndpointsForIngressBackend(backend
 	return endpoints
 }
 
-func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *networking.IngressBackend, svc *api_v1.Service) (result []podEndpoint, isExternal bool, err error) {
+func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *networking.IngressBackend, svc *api_v1.Service, useTrafficDistribution bool) (result []podEndpoint, isExternal bool, err error) {
 	var endpointSlices []discovery_v1.EndpointSlice
 	endpointSlices, err = lbc.getNamespacedInformer(svc.Namespace).endpointSliceLister.GetServiceEndpointSlices(svc)
 	if err != nil {
@@ -4036,7 +4053,7 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *networ
 		return nil, false, err
 	}
 
-	result, err = lbc.getEndpointsForPortFromEndpointSlices(endpointSlices, backend.Service.Port, svc)
+	result, err = lbc.getEndpointsForPortFromEndpointSlices(endpointSlices, backend.Service.Port, svc, useTrafficDistribution)
 	if err != nil {
 		nl.Debugf(lbc.Logger, "Error getting endpointslices for service %s port %v: %v", svc.Name, configs.GetBackendPortAsString(backend.Service.Port), err)
 		return nil, false, err
@@ -4044,7 +4061,7 @@ func (lbc *LoadBalancerController) getEndpointsForIngressBackend(backend *networ
 	return result, false, nil
 }
 
-func (lbc *LoadBalancerController) getEndpointsForPortFromEndpointSlices(endpointSlices []discovery_v1.EndpointSlice, backendPort networking.ServiceBackendPort, svc *api_v1.Service) ([]podEndpoint, error) {
+func (lbc *LoadBalancerController) getEndpointsForPortFromEndpointSlices(endpointSlices []discovery_v1.EndpointSlice, backendPort networking.ServiceBackendPort, svc *api_v1.Service, useTrafficDistribution bool) ([]podEndpoint, error) {
 	var targetPort int32
 	var err error
 
@@ -4083,7 +4100,8 @@ func (lbc *LoadBalancerController) getEndpointsForPortFromEndpointSlices(endpoin
 		return slices.Collect(maps.Keys(endpointSet))
 	}
 
-	endpoints := makePodEndpoints(targetPort, filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, endpointSlices), lbc.metadata.nodeName, lbc.metadata.zone))
+	nodeName, zone := lbc.topologyHints(useTrafficDistribution)
+	endpoints := makePodEndpoints(targetPort, filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, endpointSlices), nodeName, zone))
 	if len(endpoints) == 0 {
 		return nil, fmt.Errorf("no endpointslices for target port %v in service %s", targetPort, svc.Name)
 	}

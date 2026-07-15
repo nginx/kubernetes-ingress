@@ -76,6 +76,7 @@ const (
 	stickyCookieServicesAnnotationPlus    = configs.StickyCookieServicesAnnotationPlus
 	pathRegexAnnotation                   = "nginx.org/path-regex"
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
+	useTrafficDistributionAnnotation      = "nginx.org/use-traffic-distribution"
 	httpRedirectCodeAnnotation            = "nginx.org/http-redirect-code"
 	appRootAnnotation                     = "nginx.org/app-root"
 	proxyRedirectFromAnnotation           = configs.ProxyRedirectFromAnnotation
@@ -401,6 +402,9 @@ var (
 			validatePathRegex,
 		},
 		useClusterIPAnnotation: {
+			validateBoolAnnotation,
+		},
+		useTrafficDistributionAnnotation: {
 			validateBoolAnnotation,
 		},
 		httpRedirectCodeAnnotation: {
