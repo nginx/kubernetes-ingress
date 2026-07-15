@@ -3,4 +3,4 @@ controller:
   nginxplus: true
   image:
     repository: nginx-plus-ingress
-    tag: "2026-lts-r2"
+    tag: "2026-lts-r3"
