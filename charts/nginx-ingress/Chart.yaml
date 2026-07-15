@@ -1,14 +1,14 @@
 apiVersion: v2
 name: nginx-ingress
 version: 2026.0.1
-appVersion: 2026-lts-r2
+appVersion: 2026-lts-r3
 kubeVersion: ">= 1.25.0-0"
 type: application
 description: NGINX Ingress Controller
-icon: https://raw.githubusercontent.com/nginx/kubernetes-ingress/2026-lts-r2/charts/nginx-ingress/chart-icon.png
+icon: https://raw.githubusercontent.com/nginx/kubernetes-ingress/2026-lts-r3/charts/nginx-ingress/chart-icon.png
 home: https://github.com/nginx/kubernetes-ingress
 sources:
-  - https://github.com/nginx/kubernetes-ingress/tree/2026-lts-r2/charts/nginx-ingress
+  - https://github.com/nginx/kubernetes-ingress/tree/2026-lts-r3/charts/nginx-ingress
 keywords:
   - ingress
   - nginx
