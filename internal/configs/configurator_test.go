@@ -651,6 +651,41 @@ func TestSyncDefaultServerConfigSuppressedByEmptyHostIngress(t *testing.T) {
 	}
 }
 
+func TestSyncDefaultServerConfigUpdatesDefaultServerZoneLabels(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+
+	// The synthetic default server always emits zone "_", so it must register labels for that zone.
+	err := cnf.syncDefaultServerConfig()
+	if err != nil {
+		t.Fatalf("syncDefaultServerConfig() returned error: %v", err)
+	}
+
+	if diff := cmp.Diff(defaultServerZoneLabelValues(), cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels); diff != "" {
+		t.Fatalf("syncDefaultServerConfig() server zone labels mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestDefaultServerZoneLabelValuesUseNonEmptyExporterLabelOrder(t *testing.T) {
+	t.Parallel()
+
+	// The exporter expects server-zone labels in resource_type, resource_name, resource_namespace order.
+	labels := defaultServerZoneLabelValues()[emptyHostToken]
+	want := []string{"default_server", DefaultServerConfigName, "-"}
+	if diff := cmp.Diff(want, labels); diff != "" {
+		t.Fatalf("defaultServerZoneLabelValues() mismatch (-want +got):\n%s", diff)
+	}
+	for index, value := range labels {
+		if value == "" {
+			t.Fatalf("defaultServerZoneLabelValues() returned empty label at index %d", index)
+		}
+	}
+}
+
 func TestAddOrUpdateIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
 	t.Parallel()
 	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
@@ -1289,6 +1324,59 @@ func TestUpdateIngressMetricsLabels(t *testing.T) {
 	}
 	if !reflect.DeepEqual(testLatencyCollector, expectedLatencyCollector) {
 		t.Errorf("updateIngressMetricsLabels() updated latency collector labels to \n%+v but expected \n%+v", testLatencyCollector, expectedLatencyCollector)
+	}
+}
+
+func TestUpdateIngressMetricsLabelsUsesEmptyHostTokenForServerZone(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+	testLatencyCollector := newMockLatencyCollector()
+	cnf.latencyCollector = testLatencyCollector
+
+	ingEx := createHostlessCafeIngressEx()
+
+	// Empty-host ingresses render to zone "_", so storing labels under the empty string would miss the scrape path.
+	cnf.updateIngressMetricsLabels(&ingEx, nil)
+
+	got := cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels
+	want := map[string][]string{
+		emptyHostToken: {"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("updateIngressMetricsLabels() server zone labels mismatch (-want +got):\n%s", diff)
+	}
+	if _, exists := got[emptyHostName]; exists {
+		t.Fatalf("updateIngressMetricsLabels() stored labels for empty host key")
+	}
+}
+
+func TestDeleteIngressRestoresDefaultServerZoneLabelsForEmptyHostIngress(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+	testLatencyCollector := newMockLatencyCollector()
+	cnf.latencyCollector = testLatencyCollector
+
+	ingEx := createHostlessCafeIngressEx()
+	if _, err := cnf.AddOrUpdateIngress(&ingEx); err != nil {
+		t.Fatalf("AddOrUpdateIngress() returned error: %v", err)
+	}
+
+	// Deleting the empty-host ingress should restore the fallback default server labels instead of clearing zone "_".
+	err := cnf.DeleteIngress(generateNamespaceNameKey(&ingEx.Ingress.ObjectMeta), true)
+	if err != nil {
+		t.Fatalf("DeleteIngress() returned error: %v", err)
+	}
+
+	if diff := cmp.Diff(defaultServerZoneLabelValues(), cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels); diff != "" {
+		t.Fatalf("DeleteIngress() server zone labels mismatch (-want +got):\n%s", diff)
 	}
 }
 

@@ -225,6 +225,34 @@ func findRemovedKeys(currentKeys []string, newKeys map[string]bool) []string {
 	return removedKeys
 }
 
+// normalizeServerZoneName maps empty-host ingress zones to the underscore token emitted in NGINX config.
+func normalizeServerZoneName(zone string) string {
+	if zone == emptyHostName {
+		return emptyHostToken
+	}
+
+	return zone
+}
+
+// defaultServerZoneLabelValues returns the variable labels for the fallback default server zone.
+func defaultServerZoneLabelValues() map[string][]string {
+	return map[string][]string{
+		emptyHostToken: {"default_server", DefaultServerConfigName, "-"},
+	}
+}
+
+// filterZoneNames drops a specific zone from a tracked zone list.
+func filterZoneNames(zoneNames []string, zoneName string) []string {
+	filtered := zoneNames[:0]
+	for _, name := range zoneNames {
+		if name != zoneName {
+			filtered = append(filtered, name)
+		}
+	}
+
+	return filtered
+}
+
 func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams []version1.Upstream) {
 	upstreamServerLabels := make(map[string][]string)
 	newUpstreams := make(map[string]bool)
@@ -272,9 +300,10 @@ func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams 
 		newZones := make(map[string]bool)
 		var newZonesNames []string
 		for _, rule := range ingEx.Ingress.Spec.Rules {
-			serverZoneLabels[rule.Host] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
-			newZones[rule.Host] = true
-			newZonesNames = append(newZonesNames, rule.Host)
+			zoneName := normalizeServerZoneName(rule.Host)
+			serverZoneLabels[zoneName] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
+			newZones[zoneName] = true
+			newZonesNames = append(newZonesNames, zoneName)
 		}
 
 		removedZones := findRemovedKeys(cnf.metricLabelsIndex.ingressServerZones[key], newZones)
@@ -291,7 +320,11 @@ func (cnf *Configurator) deleteIngressMetricsLabels(key string) {
 
 	if cnf.isPlus {
 		cnf.labelUpdater.DeleteUpstreamServerLabels(cnf.metricLabelsIndex.ingressUpstreams[key])
-		cnf.labelUpdater.DeleteServerZoneLabels(cnf.metricLabelsIndex.ingressServerZones[key])
+		zoneNames := cnf.metricLabelsIndex.ingressServerZones[key]
+		if !cnf.hasActiveEmptyHostIngress() {
+			zoneNames = filterZoneNames(zoneNames, emptyHostToken)
+		}
+		cnf.labelUpdater.DeleteServerZoneLabels(zoneNames)
 		cnf.labelUpdater.DeleteUpstreamServerPeerLabels(cnf.metricLabelsIndex.ingressUpstreamPeers[key])
 	}
 
@@ -478,6 +511,9 @@ func (cnf *Configurator) syncDefaultServerConfig() error {
 	}
 	if _, err := cnf.nginxManager.CreateConfig(DefaultServerConfigName, content); err != nil {
 		return fmt.Errorf("error writing default server config: %w", err)
+	}
+	if cnf.isPlus && cnf.isPrometheusEnabled {
+		cnf.labelUpdater.UpdateServerZoneLabels(defaultServerZoneLabelValues())
 	}
 	return nil
 }
