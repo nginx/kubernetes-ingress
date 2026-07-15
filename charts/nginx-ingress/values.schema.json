@@ -395,10 +395,10 @@
             },
             "tag": {
               "type": "string",
-              "default": "2026-lts-r3",
+              "default": "2026-lts-r4",
               "title": "The tag of the Ingress Controller image",
               "examples": [
-                "2026-lts-r3"
+                "2026-lts-r4"
               ]
             },
             "digest": {
@@ -434,7 +434,7 @@
           "examples": [
             {
               "repository": "nginx/nginx-ingress",
-              "tag": "2026-lts-r3",
+              "tag": "2026-lts-r4",
               "pullPolicy": "IfNotPresent"
             }
           ]
@@ -1714,7 +1714,7 @@
           "customPorts": [],
           "image": {
             "repository": "nginx/nginx-ingress",
-            "tag": "2026-lts-r3",
+            "tag": "2026-lts-r4",
             "digest": "",
             "pullPolicy": "IfNotPresent"
           },
@@ -2302,7 +2302,7 @@
         "customPorts": [],
         "image": {
           "repository": "nginx/nginx-ingress",
-          "tag": "2026-lts-r3",
+          "tag": "2026-lts-r4",
           "digest": "",
           "pullPolicy": "IfNotPresent"
         },
