@@ -1932,14 +1932,20 @@ def ensure_response_from_backend(req_url, host, additional_headers=None, check40
             try:
                 resp = requests.get(req_url, headers=headers, verify=False)
                 if resp.status_code != 502 and resp.status_code != 504:
-                    print(f"After {_} retries at 1 second interval, got non 502|504 response. Continue with tests...")
+                    print(
+                        f"After {_} retries at {RECONFIGURATION_DELAY} second interval, "
+                        f"got non 502|504 response. Continue with tests..."
+                    )
                     return
             except requests.exceptions.ConnectionError as e:
                 # NGINX reloads recycle workers and can drop in-flight connections; retry.
                 print(f"Connection dropped during reload: {e}")
             wait_before_test()
         _status = resp.status_code if resp is not None else "no response (connection kept dropping)"
-        pytest.fail(f"Keep getting {_status} (expected non 502|504) from {req_url} after 60 seconds. Exiting...")
+        pytest.fail(
+            f"Keep getting {_status} (expected non 502|504) from {req_url} "
+            f"after {30 * RECONFIGURATION_DELAY} seconds. Exiting..."
+        )
 
 
 def retry_get_until_body_contains(req_url, host, expected_body, retries=60, verify=False):
