@@ -524,6 +524,16 @@ func validateJWTLoginURLAnnotation(context *annotationValidationContext) field.E
 		return append(allErrs, field.Invalid(context.fieldPath, name, msg))
 	}
 
+	if ap_validation.ContainsDangerousChars(name) {
+		msg = "must not contain characters that could cause NGINX config injection (;, {, }, $, newline, carriage return, or backtick)"
+		return append(allErrs, field.Invalid(context.fieldPath, name, msg))
+	}
+
+	if strings.ContainsAny(name, " \"\\#\t") {
+		msg = "must not contain spaces, quotes, backslashes, hash or tab characters"
+		return append(allErrs, field.Invalid(context.fieldPath, name, msg))
+	}
+
 	return allErrs
 }
 
@@ -703,7 +713,7 @@ func validateChallengeIngress(spec *networking.IngressSpec, fieldPath *field.Pat
 
 	allErrs := field.ErrorList{}
 	if p.Backend.Service == nil {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("rules.HTTP.Paths[0].Backend.Service"), "challenge Ingress must have a Backend Service defined"))
+		return append(allErrs, field.Required(fieldPath.Child("rules.HTTP.Paths[0].Backend.Service"), "challenge Ingress must have a Backend Service defined"))
 	}
 
 	if p.Backend.Service.Port.Name != "" {
@@ -1104,9 +1114,9 @@ func validateIngressSpec(spec *networking.IngressSpec, fieldPath *field.Path) fi
 			continue
 		}
 
-		for _, path := range r.HTTP.Paths {
+		for j, path := range r.HTTP.Paths {
 			path := path // address gosec G601
-			idxPath := idxRule.Child("http").Child("path").Index(i)
+			idxPath := idxRule.Child("http").Child("paths").Index(j)
 
 			allErrs = append(allErrs, validatePath(path.Path, path.PathType, idxPath.Child("path"))...)
 			allErrs = append(allErrs, validateBackend(&path.Backend, idxPath.Child("backend"))...)
@@ -1119,6 +1129,9 @@ func validateIngressSpec(spec *networking.IngressSpec, fieldPath *field.Path) fi
 func validateBackend(backend *networking.IngressBackend, fieldPath *field.Path) field.ErrorList {
 	if backend.Resource != nil {
 		return field.ErrorList{field.Forbidden(fieldPath.Child("resource"), "resource backends are not supported")}
+	}
+	if backend.Service == nil {
+		return field.ErrorList{field.Required(fieldPath.Child("service"), "service backend must be specified")}
 	}
 	return nil
 }

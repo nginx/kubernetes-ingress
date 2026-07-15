@@ -1015,6 +1015,9 @@ func (vsv *VirtualServerValidator) validateAction(action *v1.Action, fieldPath *
 
 	if action.Return != nil {
 		allErrs = append(allErrs, vsv.validateActionReturn(action.Return, fieldPath.Child("return"), returnBodySpecialVariables, returnBodyVariables)...)
+		for i, header := range action.Return.Headers {
+			allErrs = append(allErrs, validateHeader(header, fieldPath.Child("return").Child("headers").Index(i))...)
+		}
 	}
 
 	if action.Proxy != nil {

@@ -1876,6 +1876,14 @@ func TestGenerateTsSSLConfig(t *testing.T) {
 			},
 			msg: "wrong secret type",
 		},
+		{
+			inputTLS: &conf_v1.TransportServerTLS{
+				Secret: "",
+			},
+			inputSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSSL:     &version2.StreamSSL{Enabled: false},
+			msg:             "secret is empty",
+		},
 	}
 
 	namespace := "default"

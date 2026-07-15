@@ -1381,6 +1381,60 @@ func TestValidateActionFails(t *testing.T) {
 			},
 			msg: "proxy action with missing upstream field",
 		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "", Value: "value"}},
+				},
+			},
+			msg: "return action with empty header name",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "X-Header;inject", Value: "value"}},
+				},
+			},
+			msg: "return action with semicolon in header name",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "X-Header", Value: "$http_authorization"}},
+				},
+			},
+			msg: "return action with $ in header value",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "X-Header", Value: "value\"inject"}},
+				},
+			},
+			msg: "return action with unescaped quote in header value",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "X-Header{inject}", Value: "value"}},
+				},
+			},
+			msg: "return action with brace in header name",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: ";}location /pwned {", Value: "x"}},
+				},
+			},
+			msg: "return action with full injection payload in header name",
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
@@ -3699,6 +3753,13 @@ func TestValidateActionReturn(t *testing.T) {
 			Type: "application/json",
 			Body: "Hello World",
 		},
+		{
+			Body: "Hello World",
+			Headers: []v1.Header{
+				{Name: "X-Custom-Header", Value: "my-value"},
+				{Name: "Content-Type", Value: "text/html"},
+			},
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
@@ -4387,6 +4448,19 @@ func TestValidateErrorPageReturn(t *testing.T) {
 				Type:    "application/json",
 				Body:    `{\"message\": \"Could not process request, try again\", \"upstream_status\": \"${upstream_status}\"}`,
 				Headers: nil,
+			},
+		},
+		{
+			ActionReturn: v1.ActionReturn{
+				Code: 502,
+				Type: "",
+				Body: "Bad Gateway",
+				Headers: []v1.Header{
+					{
+						Name:  "X-Upstream-Status",
+						Value: "${upstream_status}",
+					},
+				},
 			},
 		},
 	}
