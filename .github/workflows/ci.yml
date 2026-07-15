@@ -170,11 +170,9 @@ jobs:
 
       - name: Output variables
         run: |
-          echo docs_only: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.docs.outputs.docs_only == 'true' }}
           echo k8s_latest: ${{ steps.vars.outputs.k8s_latest }}
           echo go_path: ${{ steps.vars.outputs.go_path }}
           echo go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
-          echo binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
           echo chart_version: ${{ steps.vars.outputs.chart_version }}
           echo ic_version: ${{ steps.vars.outputs.ic_version }}
           echo docker_md5: ${{ steps.vars.outputs.docker_md5 }}
@@ -186,6 +184,8 @@ jobs:
           echo 'image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}'
           echo 'image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}'
           echo 'image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}'
+          echo docs_only: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.docs.outputs.docs_only == 'true' }}
+          echo binary_cache_hit: ${{ steps.binary-cache.outputs.cache-hit }}
           echo 'docker_build: ${{ steps.flags.outputs.docker_build }}'
           echo 'run_unit_tests: ${{ steps.flags.outputs.run_unit_tests }}'
           echo 'run_e2e: ${{ steps.flags.outputs.run_e2e }}'
@@ -368,6 +368,10 @@ jobs:
       image-matrix-nap: ${{ needs.checks.outputs.image_matrix_nap }}
       ic-version: ${{ needs.checks.outputs.ic_version }}
       authenticated: ${{ needs.checks.outputs.forked_workflow == 'false' }}
+      # Only force a full rebuild when the workflow was dispatched with
+      # force=true. On pull_request / merge_group the input is unset (falsy),
+      # so the registry-probe fast path in build-oss/build-plus is used.
+      force: ${{ inputs.force || false }}
       runner: ubuntu-24.04
       write-to-cache: ${{ github.ref_name == github.event.repository.default_branch && true || false }}
     permissions:

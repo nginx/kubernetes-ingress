@@ -89,6 +89,7 @@ jobs:
     uses: ./.github/workflows/build-artifacts.yml
     with:
       authenticated: true
+      force: true  # LTS release always does a full rebuild for provenance
       ic-version: ${{ inputs.lts_version }}
       go-path: ${{ needs.variables.outputs.go_path }}
       go-proxy: ${{ needs.variables.outputs.go_proxy }}

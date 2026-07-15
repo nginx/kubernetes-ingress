@@ -18,6 +18,14 @@ on:
       authenticated:
         required: true
         type: boolean
+      force:
+        description: >-
+          Force a full rebuild of every docker image in the matrix, bypassing
+          the registry-probe fast path in build-oss/build-plus. Callers that
+          need guaranteed-fresh artifacts (release, image-promotion) set this
+          to true; regular CI leaves it false so unchanged images are reused.
+        type: boolean
+        default: false
       ic-version:
         required: true
         type: string
@@ -204,7 +212,7 @@ jobs:
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
       authenticated: ${{ inputs.authenticated }}
-      full-build: true
+      full-build: ${{ inputs.force }}
       tag: ${{ inputs.tag }}
       branch: ${{ inputs.branch }}
       ic-version: ${{ inputs.ic-version }}
@@ -236,7 +244,7 @@ jobs:
       branch: ${{ inputs.branch }}
       tag: ${{ inputs.tag }}
       authenticated: ${{ inputs.authenticated }}
-      full-build: true
+      full-build: ${{ inputs.force }}
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
@@ -265,7 +273,7 @@ jobs:
       tag: ${{ inputs.tag }}
       nap-modules: ${{ matrix.nap_modules }}
       authenticated: ${{ inputs.authenticated }}
-      full-build: true
+      full-build: ${{ inputs.force }}
       ic-version: ${{ inputs.ic-version }}
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}

@@ -181,14 +181,14 @@ assert_flag get_run_tests false "workflow_dispatch run_tests=false" RUN_TESTS_IN
 assert_flag get_run_tests false "docs-only change"                  DOCS_ONLY=true
 assert_flag get_run_tests false "cache hit and stable exists"       BINARY_CACHE_HIT=true STABLE_EXISTS=true
 assert_flag get_run_tests true  "cache hit but no stable image"     BINARY_CACHE_HIT=true STABLE_EXISTS=false
-assert_flag get_run_tests true  "stable exists but no cache hit"    BINARY_CACHE_HIT=false STABLE_EXISTS=true
+assert_flag get_run_tests false "stable exists (cache miss OK)"     BINARY_CACHE_HIT=false STABLE_EXISTS=true
 
 # --- get_docker_build ---------------------------------------------------------
 # assert_flag   function | expected | description
 assert_flag get_docker_build true  "force always builds"                FORCE=true DOCS_ONLY=true STABLE_EXISTS=true BINARY_CACHE_HIT=true
 assert_flag get_docker_build true  "forked non-docs change"             FORKED=true DOCS_ONLY=false
 assert_flag get_docker_build false "forked docs-only change"            FORKED=true DOCS_ONLY=true
-assert_flag get_docker_build true  "main repo, cache cold"              FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=true
+assert_flag get_docker_build false "main repo, stable exists (cache miss OK)" FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=true
 assert_flag get_docker_build true  "main repo, stable missing"          FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=false
 assert_flag get_docker_build false "main repo, cache warm + stable"     FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=true
 assert_flag get_docker_build false "main repo docs-only"                FORKED=false DOCS_ONLY=true
@@ -201,6 +201,8 @@ assert_flag get_run_unit_tests true  "tests requested, no cache hit"   BINARY_CA
 assert_flag get_run_unit_tests false "tests requested but cache hit"   BINARY_CACHE_HIT=true STABLE_EXISTS=false
 assert_flag get_run_unit_tests false "docs-only skips unit tests"      DOCS_ONLY=true
 assert_flag get_run_unit_tests false "cache hit and stable exists"     BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_run_unit_tests false "run_tests_input=false hard skip" RUN_TESTS_INPUT=false BINARY_CACHE_HIT=false
+assert_flag get_run_unit_tests false "opt-out beats force"             FORCE=true RUN_TESTS_INPUT=false BINARY_CACHE_HIT=false
 
 
 # --- get_run_e2e --------------------------------------------------------------
@@ -209,6 +211,8 @@ assert_flag get_run_e2e true  "main repo with work"                    FORKED=fa
 assert_flag get_run_e2e true  "forked non-docs still enables e2e"      FORKED=true DOCS_ONLY=false
 assert_flag get_run_e2e false "forked docs-only skips e2e"             FORKED=true DOCS_ONLY=true
 assert_flag get_run_e2e false "main repo, nothing to do"               FORKED=false DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_run_e2e false "run_tests_input=false skips e2e"        RUN_TESTS_INPUT=false BINARY_CACHE_HIT=false STABLE_EXISTS=false
+assert_flag get_run_e2e false "opt-out beats docker_build cache-miss"  RUN_TESTS_INPUT=false BINARY_CACHE_HIT=false STABLE_EXISTS=true
 
 # --- get_tag_stable -----------------------------------------------------------
 # assert_flag   function | expected | description
@@ -217,6 +221,9 @@ assert_flag get_tag_stable false "main repo, stable already exists"    FORKED=fa
 assert_flag get_tag_stable false "forked never tags stable"            FORKED=true STABLE_EXISTS=false
 assert_flag get_tag_stable false "docs-only never tags stable"         FORKED=false DOCS_ONLY=true STABLE_EXISTS=false
 assert_flag get_tag_stable false "up-to-date (cache+stable) no tag"    FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_tag_stable true  "force re-tags existing stable"       FORCE=true FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true
+assert_flag get_tag_stable false "force on fork still skips"           FORCE=true FORKED=true STABLE_EXISTS=true
+assert_flag get_tag_stable false "force with tests opt-out skips"      FORCE=true RUN_TESTS_INPUT=false FORKED=false STABLE_EXISTS=true
 
 # --- get_promote --------------------------------------------------------------
 # assert_flag   function | expected | description
@@ -265,21 +272,21 @@ tag_stable=false
 promote=false" \
   FORKED=true DOCS_ONLY=false REF_NAME=feature-branch
 
-assert_ci_flags "force dispatch on main (cache + stable hit)" \
+assert_ci_flags "force dispatch on main (cache + stable hit, force re-tags)" \
 "run_tests=false
 docker_build=true
 run_unit_tests=true
 run_e2e=true
-tag_stable=false
+tag_stable=true
 promote=true" \
   FORCE=true RUN_TESTS_INPUT=true FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true REF_NAME=main
 
-assert_ci_flags "dispatch run_tests=false (still builds)" \
+assert_ci_flags "dispatch run_tests=false (still builds, no e2e, no tag)" \
 "run_tests=false
 docker_build=true
 run_unit_tests=false
-run_e2e=true
-tag_stable=true
+run_e2e=false
+tag_stable=false
 promote=false" \
   FORCE=false RUN_TESTS_INPUT=false FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=false REF_NAME=feature-branch
 
