@@ -1,5 +1,5 @@
 import pytest
-from settings import TEST_DATA
+from settings import RECONFIGURATION_DELAY, TEST_DATA
 from suite.utils.resources_utils import (
     create_example_app,
     create_items_from_yaml,
@@ -135,7 +135,11 @@ class TestWatchNamespaceLabelIngress:
             ensure_response_from_backend(backend_setup.req_url, backend_setup.resource_hosts[ing])
             # Tolerate connections dropped by an NGINX reload from the namespace label change.
             resp = retry_get_until_status_code(
-                backend_setup.req_url, backend_setup.resource_hosts[ing], expected_responses[ing], retries=3
+                backend_setup.req_url,
+                backend_setup.resource_hosts[ing],
+                expected_responses[ing],
+                retries=3,
+                wait_seconds=RECONFIGURATION_DELAY,
             )
             assert (
                 resp.status_code == expected_responses[ing]
@@ -146,7 +150,13 @@ class TestWatchNamespaceLabelIngress:
         ensure_response_from_backend(backend_setup.req_url, backend_setup.resource_hosts[ing])
         ing = "foreign-ns-ingress"
         # Tolerate connections dropped by the NGINX reload from the namespace label change.
-        resp = retry_get_until_status_code(backend_setup.req_url, backend_setup.resource_hosts[ing], 200, retries=3)
+        resp = retry_get_until_status_code(
+            backend_setup.req_url,
+            backend_setup.resource_hosts[ing],
+            200,
+            retries=3,
+            wait_seconds=RECONFIGURATION_DELAY,
+        )
         assert (
             resp.status_code == 200
         ), f"Expected: 200 response code for {backend_setup.resource_hosts[ing]} after adding the correct label"
@@ -156,7 +166,11 @@ class TestWatchNamespaceLabelIngress:
         ensure_response_from_backend(backend_setup.req_url, backend_setup.resource_hosts[ing])
         # Tolerate connections dropped by the NGINX reload from the namespace label change.
         resp = retry_get_until_status_code(
-            backend_setup.req_url, backend_setup.resource_hosts[ing], expected_responses[ing], retries=3
+            backend_setup.req_url,
+            backend_setup.resource_hosts[ing],
+            expected_responses[ing],
+            retries=3,
+            wait_seconds=RECONFIGURATION_DELAY,
         )
         assert (
             resp.status_code == expected_responses[ing]
@@ -181,7 +195,11 @@ class TestWatchNamespaceLabelVS:
             ensure_response_from_backend(backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs])
             # Tolerate connections dropped by an NGINX reload from the namespace label change.
             resp = retry_get_until_status_code(
-                backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs], expected_responses[vs], retries=3
+                backend_setup_vs.req_url,
+                backend_setup_vs.resource_hosts[vs],
+                expected_responses[vs],
+                retries=3,
+                wait_seconds=RECONFIGURATION_DELAY,
             )
             assert (
                 resp.status_code == expected_responses[vs]
@@ -193,7 +211,11 @@ class TestWatchNamespaceLabelVS:
         vs = "foreign-ns-vs"
         # Tolerate connections dropped by the NGINX reload from the namespace label change.
         resp = retry_get_until_status_code(
-            backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs], 200, retries=3
+            backend_setup_vs.req_url,
+            backend_setup_vs.resource_hosts[vs],
+            200,
+            retries=3,
+            wait_seconds=RECONFIGURATION_DELAY,
         )
         assert (
             resp.status_code == 200
@@ -204,7 +226,11 @@ class TestWatchNamespaceLabelVS:
         ensure_response_from_backend(backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs])
         # Tolerate connections dropped by the NGINX reload from the namespace label change.
         resp = retry_get_until_status_code(
-            backend_setup_vs.req_url, backend_setup_vs.resource_hosts[vs], expected_responses[vs], retries=3
+            backend_setup_vs.req_url,
+            backend_setup_vs.resource_hosts[vs],
+            expected_responses[vs],
+            retries=3,
+            wait_seconds=RECONFIGURATION_DELAY,
         )
         assert (
             resp.status_code == expected_responses[vs]
