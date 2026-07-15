@@ -413,7 +413,6 @@ type Configuration struct {
 	isPlus                       bool
 	appProtectEnabled            bool
 	appProtectDosEnabled         bool
-	internalRoutesEnabled        bool
 	isTLSPassthroughEnabled      bool
 	snippetsEnabled              bool
 	isCertManagerEnabled         bool
@@ -436,7 +435,6 @@ func NewConfiguration(
 	isPlus bool,
 	appProtectEnabled bool,
 	appProtectDosEnabled bool,
-	internalRoutesEnabled bool,
 	virtualServerValidator *validation.VirtualServerValidator,
 	globalConfigurationValidator *validation.GlobalConfigurationValidator,
 	transportServerValidator *validation.TransportServerValidator,
@@ -471,7 +469,6 @@ func NewConfiguration(
 		isPlus:                       isPlus,
 		appProtectEnabled:            appProtectEnabled,
 		appProtectDosEnabled:         appProtectDosEnabled,
-		internalRoutesEnabled:        internalRoutesEnabled,
 		isTLSPassthroughEnabled:      isTLSPassthroughEnabled,
 		snippetsEnabled:              snippetsEnabled,
 		isCertManagerEnabled:         isCertManagerEnabled,

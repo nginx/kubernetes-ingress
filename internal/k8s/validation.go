@@ -105,18 +105,17 @@ var (
 )
 
 type annotationValidationContext struct {
-	annotations           map[string]string
-	specServices          map[string]bool
-	name                  string
-	value                 string
-	hostless              bool
-	isPlus                bool
-	appProtectEnabled     bool
-	appProtectDosEnabled  bool
-	internalRoutesEnabled bool
-	fieldPath             *field.Path
-	snippetsEnabled       bool
-	directiveAutoAdjust   bool
+	annotations          map[string]string
+	specServices         map[string]bool
+	name                 string
+	value                string
+	hostless             bool
+	isPlus               bool
+	appProtectEnabled    bool
+	appProtectDosEnabled bool
+	fieldPath            *field.Path
+	snippetsEnabled      bool
+	directiveAutoAdjust  bool
 }
 
 type (
@@ -879,13 +878,12 @@ func validateChallengeIngress(spec *networking.IngressSpec, fieldPath *field.Pat
 
 // IngressOpts contains options that affect how Ingress annotations are validated. This is used to avoid passing a long list of parameters to the validation functions.
 type IngressOpts struct {
-	isPlus                bool
-	appProtectEnabled     bool
-	appProtectDosEnabled  bool
-	internalRoutesEnabled bool
-	snippetsEnabled       bool
-	directiveAutoAdjust   bool
-	hostless              bool
+	isPlus               bool
+	appProtectEnabled    bool
+	appProtectDosEnabled bool
+	snippetsEnabled      bool
+	directiveAutoAdjust  bool
+	hostless             bool
 }
 
 func validateIngressAnnotations(
@@ -899,18 +897,17 @@ func validateIngressAnnotations(
 	for _, name := range annotationNames {
 		if value, exists := annotations[name]; exists {
 			context := &annotationValidationContext{
-				annotations:           annotations,
-				specServices:          specServices,
-				name:                  name,
-				value:                 value,
-				hostless:              ingOpts.hostless,
-				isPlus:                ingOpts.isPlus,
-				appProtectEnabled:     ingOpts.appProtectEnabled,
-				appProtectDosEnabled:  ingOpts.appProtectDosEnabled,
-				internalRoutesEnabled: ingOpts.internalRoutesEnabled,
-				fieldPath:             fieldPath.Child(name),
-				snippetsEnabled:       ingOpts.snippetsEnabled,
-				directiveAutoAdjust:   ingOpts.directiveAutoAdjust,
+				annotations:          annotations,
+				specServices:         specServices,
+				name:                 name,
+				value:                value,
+				hostless:             ingOpts.hostless,
+				isPlus:               ingOpts.isPlus,
+				appProtectEnabled:    ingOpts.appProtectEnabled,
+				appProtectDosEnabled: ingOpts.appProtectDosEnabled,
+				fieldPath:            fieldPath.Child(name),
+				snippetsEnabled:      ingOpts.snippetsEnabled,
+				directiveAutoAdjust:  ingOpts.directiveAutoAdjust,
 			}
 			allErrs = append(allErrs, validateIngressAnnotation(context)...)
 		}

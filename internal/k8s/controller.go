@@ -284,8 +284,6 @@ type NewLoadBalancerControllerInput struct {
 	GlobalConfigurationValidator *validation.GlobalConfigurationValidator
 	TransportServerValidator     *validation.TransportServerValidator
 	VirtualServerValidator       *validation.VirtualServerValidator
-	SpireAgentAddress            string
-	InternalRoutesEnabled        bool
 	IsPrometheusEnabled          bool
 	IsLatencyMetricsEnabled      bool
 	IsTLSPassthroughEnabled      bool
@@ -470,7 +468,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		input.IsNginxPlus,
 		input.AppProtectEnabled,
 		input.AppProtectDosEnabled,
-		input.InternalRoutesEnabled,
 		input.VirtualServerValidator,
 		input.GlobalConfigurationValidator,
 		input.TransportServerValidator,

@@ -146,8 +146,6 @@ type Server struct {
 	AppProtectDosAccessLogDst    string
 	WAF                          *version2.WAF
 
-	SpiffeCerts bool
-
 	DisableIPV6 bool
 
 	ProxyRedirectFrom string

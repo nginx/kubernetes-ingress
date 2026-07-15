@@ -137,8 +137,6 @@ type ConfigParams struct {
 	Ports    []int
 	SSLPorts []int
 
-	SpiffeServerCerts bool
-
 	LimitReqRate       string
 	LimitReqKey        string
 	LimitReqZoneSize   string

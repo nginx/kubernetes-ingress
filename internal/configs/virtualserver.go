@@ -2852,8 +2852,7 @@ func generateProxySSLName(svcName, ns string) string {
 	return fmt.Sprintf("%s.%s.svc", svcName, ns)
 }
 
-// isTLSEnabled checks whether TLS is enabled for the given upstream, taking into account the configuration
-// of the NGINX Service Mesh and the presence of SPIFFE certificates.
+// isTLSEnabled checks whether TLS is enabled for the given upstream.
 func isTLSEnabled(upstream conf_v1.Upstream) bool {
 	// TLS is enabled if explicitly configured for the upstream.
 	return upstream.TLS.Enable
