@@ -60,6 +60,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.APIKeyApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("BasicAuth"):
 		return &applyconfigurationconfigurationv1.BasicAuthApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("BundleSource"):
+		return &applyconfigurationconfigurationv1.BundleSourceApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Cache"):
 		return &applyconfigurationconfigurationv1.CacheApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("CacheConditions"):
@@ -96,6 +98,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.HeaderApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("HealthCheck"):
 		return &applyconfigurationconfigurationv1.HealthCheckApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("HSTS"):
+		return &applyconfigurationconfigurationv1.HSTSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("IngressMTLS"):
 		return &applyconfigurationconfigurationv1.IngressMTLSApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("JWTAuth"):

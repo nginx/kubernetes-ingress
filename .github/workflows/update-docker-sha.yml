@@ -28,6 +28,7 @@ jobs:
   vars:
     permissions:
       contents: read
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     outputs:
       source_branch: ${{ steps.vars.outputs.source_branch }}
@@ -46,6 +47,7 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     needs: [vars]
     steps:
