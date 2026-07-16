@@ -98,7 +98,7 @@
   "nic_nap": {
     "shortcode_row": {
       "nap_waf_prefix": "37.0",
-      "compiler_version": "5.635.3",
+      "compiler_version": "5.635.4",
       "waf_release_version": "5.13.4"
     },
     "rows": [
