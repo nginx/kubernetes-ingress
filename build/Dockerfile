@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.25
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
-ARG NGINX_OSS_VERSION=1.31.2
+ARG NGINX_OSS_VERSION=1.31.3
 ARG NGINX_PLUS_VERSION=R37.0
 ARG NAP_WAF_VERSION=37.0+5.635
 ARG NAP_WAF_COMMON_VERSION=11.665
