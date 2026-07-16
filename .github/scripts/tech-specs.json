@@ -1,7 +1,7 @@
 {
   "nic_k8s": {
     "shortcode_row": {
-      "k8s_versions": "1.28 - 1.35",
+      "k8s_versions": "1.29 - 1.36",
       "nginx_version": "1.31.3 / R37.0.3.1"
     },
     "rows": [
@@ -98,8 +98,8 @@
   "nic_nap": {
     "shortcode_row": {
       "nap_waf_prefix": "37.0",
-      "compiler_version": "5.635.1",
-      "waf_release_version": "5.13.3"
+      "compiler_version": "5.635.4",
+      "waf_release_version": "5.13.4"
     },
     "rows": [
       {
