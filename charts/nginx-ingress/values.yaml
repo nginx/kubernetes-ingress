@@ -714,6 +714,15 @@ controller:
   ## variable_hash_bucket_size, and variable_hash_max_size in the ConfigMap based on the number of two-way splits.
   enableWeightChangesDynamicReload: false
 
+  ## Configure an optional NetworkPolicy for the Ingress Controller pods.
+  networkPolicy:
+    ## Create a NetworkPolicy that targets the controller pods.
+    enabled: false
+    ## Configure ingress rules. When non-empty, the Ingress policy type is added automatically.
+    ingress: []
+    ## Configure egress rules. When non-empty, the Egress policy type is added automatically.
+    egress: []
+
 rbac:
   ## Configures RBAC.
   create: true
