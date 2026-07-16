@@ -1,0 +1,10 @@
+serviceNameOverride: duplicate-service
+controller:
+  service:
+    additionalServices:
+      duplicate-service:
+        type: LoadBalancer
+        ports:
+          - name: redis
+            port: 6379
+            targetPort: 6379

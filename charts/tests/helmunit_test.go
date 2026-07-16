@@ -27,9 +27,10 @@ func TestHelmNICTemplate(t *testing.T) {
 	t.Parallel()
 
 	tests := map[string]struct {
-		valuesFile  string
-		releaseName string
-		namespace   string
+		valuesFile    string
+		releaseName   string
+		namespace     string
+		templateFiles []string
 	}{
 		"default values file": {
 			valuesFile:  "",
@@ -196,6 +197,12 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "loadbalancerclass",
 			namespace:   "default",
 		},
+		"additionalServices": {
+			valuesFile:    "testdata/additional-services.yaml",
+			releaseName:   "additional-services",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-additional-services.yaml"},
+		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",
@@ -224,7 +231,7 @@ func TestHelmNICTemplate(t *testing.T) {
 				options.ValuesFiles = []string{tc.valuesFile}
 			}
 
-			output := helm.RenderTemplate(t, options, helmChartPath, tc.releaseName, make([]string, 0))
+			output := helm.RenderTemplate(t, options, helmChartPath, tc.releaseName, tc.templateFiles)
 
 			snaps.MatchSnapshot(t, output)
 			t.Log(output)
@@ -265,6 +272,30 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "global-config-empty-name",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")"},
+		},
+		"additionalServiceWithoutPorts": {
+			valuesFile:        "testdata/additional-service-without-ports.yaml",
+			releaseName:       "additional-service-without-ports",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"missing property 'ports'"},
+		},
+		"additionalServiceExternalName": {
+			valuesFile:        "testdata/additional-service-external-name.yaml",
+			releaseName:       "additional-service-external-name",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"value must be one of 'ClusterIP', 'NodePort', 'LoadBalancer'"},
+		},
+		"additionalServiceEmptyPorts": {
+			valuesFile:        "testdata/additional-service-empty-ports.yaml",
+			releaseName:       "additional-service-empty-ports",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"minItems: got 0, want 1"},
+		},
+		"additionalServiceNameCollision": {
+			valuesFile:        "testdata/additional-service-name-collision.yaml",
+			releaseName:       "additional-service-name-collision",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"additional Service name \"duplicate-service\" must not match the primary controller Service name"},
 		},
 	}
 

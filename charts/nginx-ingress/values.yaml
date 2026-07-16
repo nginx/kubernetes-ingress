@@ -580,6 +580,25 @@ controller:
     ## A list of custom ports to expose through the Ingress Controller service. Follows the conventional Kubernetes yaml syntax for service ports.
     customPorts: []
 
+    ## Additional Services that expose the Ingress Controller pods independently from the primary Service.
+    ## This is useful when different listeners require separate LoadBalancer IPs, annotations, or source ranges.
+    ## Each name is used as the exact Service name and must be unique in the release namespace.
+    ## The controller can report status from only one Service; additional Services do not change controller.reportIngressStatus.externalService.
+    additionalServices: {}
+    # nginx-ingress-redis:
+    #   type: LoadBalancer
+    #   annotations: {}
+    #   extraLabels: {}
+    #   loadBalancerIP: ""
+    #   loadBalancerClass: ""
+    #   externalTrafficPolicy: Local
+    #   loadBalancerSourceRanges: []
+    #   ports:
+    #   - name: redis
+    #     port: 6379
+    #     targetPort: 6379
+    #     protocol: TCP
+
     ## Session affinity configuration for the Ingress Controller service, ensures requests from the same client IP go to the same pod
     sessionAffinity:
       ## Enable session affinity. Valid values: None, ClientIP

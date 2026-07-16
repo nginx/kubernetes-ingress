@@ -1,0 +1,9 @@
+controller:
+  service:
+    additionalServices:
+      invalid-external-name:
+        type: ExternalName
+        ports:
+          - name: redis
+            port: 6379
+            targetPort: 6379

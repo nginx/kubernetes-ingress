@@ -1,0 +1,5 @@
+controller:
+  service:
+    additionalServices:
+      invalid-service:
+        type: LoadBalancer
