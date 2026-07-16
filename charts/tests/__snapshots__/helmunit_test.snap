@@ -4658,7 +4658,7 @@ spec:
           - -weight-changes-dynamic-reload=false
       
       - name: waf-enforcer
-        image: my.private.reg/nap/waf-enforcer:5.13.3
+        image: my.private.reg/nap/waf-enforcer:5.13.4
         imagePullPolicy: "IfNotPresent"
         resources:
       
@@ -4677,7 +4677,7 @@ spec:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
       - name: waf-config-mgr
-        image: my.private.reg/nap/waf-config-mgr:5.13.3
+        image: my.private.reg/nap/waf-config-mgr:5.13.4
         imagePullPolicy: "IfNotPresent"
         securityContext:
       
