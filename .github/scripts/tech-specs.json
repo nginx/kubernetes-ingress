@@ -99,7 +99,7 @@
     "shortcode_row": {
       "nap_waf_prefix": "37.0",
       "compiler_version": "5.635.3",
-      "waf_release_version": "5.13.3"
+      "waf_release_version": "5.13.4"
     },
     "rows": [
       {
