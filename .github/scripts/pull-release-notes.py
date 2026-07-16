@@ -11,10 +11,12 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 # parse args
 parser = argparse.ArgumentParser()
 parser.add_argument("nic_version", help="NGINX Ingress Controller version")
+parser.add_argument("previous_version", help="Previous NGINX Ingress Controller version")
 parser.add_argument("helm_chart_version", help="NGINX Ingress Controller Helm chart version")
 parser.add_argument("k8s_versions", help="Kubernetes versions")
 parser.add_argument("release_date", help="Release date")
 args = parser.parse_args()
+OLD_VERSION = args.previous_version
 NIC_VERSION = args.nic_version
 HELM_CHART_VERSION = args.helm_chart_version
 K8S_VERSIONS = args.k8s_versions
@@ -226,6 +228,11 @@ if dependencies_title:
         categories[dependencies_title].append(format_pr_groups(go_dependencies, "Bump Go dependencies"))
     categories[dependencies_title].reverse()
 
+# Check if version is a patch release or a minor/major release
+old_version_parts = OLD_VERSION.split(".")
+new_version_parts = NIC_VERSION.split(".")
+is_upgrade = old_version_parts[0] != new_version_parts[0] or old_version_parts[1] != new_version_parts[1]
+
 # Populates the data needed for rendering the template
 # The data will be passed to the Jinja2 template for rendering
 data = {
@@ -234,6 +241,7 @@ data = {
     "sections": categories,
     "HELM_CHART_VERSION": HELM_CHART_VERSION,
     "K8S_VERSIONS": K8S_VERSIONS,
+    "upgrade_label": "Upgrade" if is_upgrade else "Update",
 }
 
 # Render with Jinja2

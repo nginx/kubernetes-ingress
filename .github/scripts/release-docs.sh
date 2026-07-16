@@ -14,7 +14,7 @@ RELEASE_BRANCH_PREFIX=${RELEASE_BRANCH_PREFIX:-"nic-release-"}
 export GH_TOKEN=${GITHUB_TOKEN:-""}
 
  usage() {
-    echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version>] [<nap_waf_release_version>]"
+    echo "Usage: $0 <ic_version> <previous_version> <helm_chart_version> <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version>] [<nap_waf_release_version>]"
     exit 1
  }
 
@@ -23,15 +23,20 @@ export GH_TOKEN=${GITHUB_TOKEN:-""}
 
 DOCS_FOLDER=${TMPDIR}/documentation
 ic_version=$1
-helm_chart_version=$2
-operator_version=$3
-k8s_versions=$4
-nginx_version=$5
-release_date=$6
-NAP_WAF_VERSION=${7:-}
-NAP_WAF_RELEASE_VERSION=${8:-}
+previous_version=$2
+helm_chart_version=$3
+operator_version=$4
+k8s_versions=$5
+nginx_version=$6
+release_date=$7
+NAP_WAF_VERSION=${8:-}
+NAP_WAF_RELEASE_VERSION=${9:-}
 
 if [ -z "${ic_version}" ]; then
+    usage
+fi
+
+if [ -z "${previous_version}" ]; then
     usage
 fi
 
@@ -83,6 +88,7 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: GH_TOKEN: ****$(echo -n $GH_TOKEN | tail -c 4)"
     echo "DEBUG: DOCS_FOLDER: ${DOCS_FOLDER}"
     echo "DEBUG: ic_version: ${ic_version}"
+    echo "DEBUG: previous_version: ${previous_version}"
     echo "DEBUG: helm_chart_version: ${helm_chart_version}"
     echo "DEBUG: operator_version: ${operator_version}"
     echo "DEBUG: k8s_versions: ${k8s_versions}"
@@ -93,7 +99,7 @@ if [ "${DEBUG}" != "false" ]; then
 fi
 
 echo "INFO: Generating release notes from github draft release"
-release_notes_content=$("${ROOTDIR}"/.github/scripts/pull-release-notes.py "${ic_version}" "${helm_chart_version}" "${k8s_versions}" "${release_date}")
+release_notes_content=$("${ROOTDIR}"/.github/scripts/pull-release-notes.py "${ic_version}" "${previous_version}" "${helm_chart_version}" "${k8s_versions}" "${release_date}")
 if [ $? -ne 0 ]; then
     echo "ERROR: failed to fetch release notes from GitHub draft release for version ${ic_version}"
     exit 2
