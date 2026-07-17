@@ -191,7 +191,9 @@ jobs:
       - name: Parse versions
         id: parse
         run: |
+          IFS=',' read -r current_nic_version _ _ <<< "${{ inputs.current_versions }}"
           IFS=',' read -r new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          current_nic_version=$(echo "${current_nic_version}" | xargs)
           new_version=$(echo "${{ inputs.nic_version }}" | xargs)
           new_helm_version=$(echo "${new_helm_version}" | xargs)
           new_operator_version=$(echo "${new_operator_version}" | xargs)
@@ -247,6 +249,7 @@ jobs:
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
             "${{ steps.parse.outputs.new_version }}" \
+            "${{ steps.parse.outputs.current_nic_version }}" \
             "${{ steps.parse.outputs.new_helm_version }}" \
             "${{ steps.parse.outputs.new_operator_version }}" \
             "${{ inputs.k8s_versions }}" \
