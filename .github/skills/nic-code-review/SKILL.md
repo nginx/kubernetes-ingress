@@ -31,7 +31,7 @@ Before writing a Blocking or Non-blocking comment, you must confirm the claim ag
 | If the comment claims... | You must first... |
 | --- | --- |
 | "X is not tracked / covered / handled by tool Y" | Read Y's config (`renovate.json`, `.golangci.yml`, `Makefile`, workflow file). Default managers cover more than you think. |
-| "This library / action does Z on failure / edge case" | Read the library docs or source, or find an existing call site in the repo that proves the behavior. |
+| "This library / action does Z on failure / edge case" | Read the library docs or source, or find an existing call site in the repo that proves the behaviour. |
 | "This shell / expression / YAML will evaluate as W" | Trace it end-to-end. GitHub Actions expression semantics, bash quoting, and YAML type coercion all have non-obvious rules. |
 | "This is a security issue because untrusted input reaches sink S" | Identify the actual trust boundary. Inputs from repo-controlled workflows, composite action callers inside the same repo, and matrix values are not "untrusted" in the OWASP sense. |
 | "The generated file / snapshot is wrong" | Re-run the generator (`make update-codegen`, `make update-crds`, `make test-update-snaps`) and diff. Comment on the source, not the artifact. |
