@@ -54,7 +54,7 @@ inputs:
     description: Generate provenance attestation
     required: false
   max-attempts:
-    description: Maximum number of push attempts
+    description: Maximum number of push attempts (1-3)
     default: "3"
   retry-wait-seconds:
     description: Seconds to wait between retries
@@ -139,6 +139,7 @@ runs:
       if: steps.attempt1.outcome == 'failure' && steps.attempt2.outcome == 'failure' && inputs.max-attempts >= 3
       uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
       id: attempt3
+      continue-on-error: true
       with:
         file: ${{ inputs.file }}
         context: ${{ inputs.context }}
@@ -162,5 +163,7 @@ runs:
       if: steps.attempt1.outcome == 'failure' && (inputs.max-attempts < 2 || steps.attempt2.outcome == 'failure') && (inputs.max-attempts < 3 || steps.attempt3.outcome == 'failure')
       shell: bash
       run: |
-        echo "::error::All ${{ inputs.max-attempts }} build/push attempts failed"
+        attempts=${{ inputs.max-attempts }}
+        if [ "$attempts" -gt 3 ]; then attempts=3; fi
+        echo "::error::All ${attempts} build/push attempts failed"
         exit 1
