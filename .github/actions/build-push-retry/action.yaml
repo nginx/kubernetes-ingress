@@ -100,9 +100,11 @@ runs:
     - name: Wait before retry 1
       if: steps.attempt1.outcome == 'failure' && inputs.max-attempts >= 2
       shell: bash
+      env:
+        RETRY_WAIT: ${{ inputs.retry-wait-seconds }}
       run: |
-        echo "::warning::Build/push attempt 1 failed. Retrying in ${{ inputs.retry-wait-seconds }}s..."
-        sleep ${{ inputs.retry-wait-seconds }}
+        echo "::warning::Build/push attempt 1 failed. Retrying in ${RETRY_WAIT}s..."
+        sleep "${RETRY_WAIT}"
 
     - name: Build and Push (attempt 2)
       if: steps.attempt1.outcome == 'failure' && inputs.max-attempts >= 2
@@ -120,7 +122,6 @@ runs:
         build-args: ${{ inputs.build-args }}
         secret-files: ${{ inputs.secret-files }}
         cache-from: ${{ inputs.cache-from }}
-        cache-to: ${{ inputs.cache-to }}
         push: ${{ inputs.push }}
         load: ${{ inputs.load }}
         pull: ${{ inputs.pull }}
@@ -131,9 +132,11 @@ runs:
     - name: Wait before retry 2
       if: steps.attempt1.outcome == 'failure' && steps.attempt2.outcome == 'failure' && inputs.max-attempts >= 3
       shell: bash
+      env:
+        RETRY_WAIT: ${{ inputs.retry-wait-seconds }}
       run: |
-        echo "::warning::Build/push attempt 2 failed. Retrying in ${{ inputs.retry-wait-seconds }}s..."
-        sleep ${{ inputs.retry-wait-seconds }}
+        echo "::warning::Build/push attempt 2 failed. Retrying in ${RETRY_WAIT}s..."
+        sleep "${RETRY_WAIT}"
 
     - name: Build and Push (attempt 3)
       if: steps.attempt1.outcome == 'failure' && steps.attempt2.outcome == 'failure' && inputs.max-attempts >= 3
@@ -151,7 +154,6 @@ runs:
         build-args: ${{ inputs.build-args }}
         secret-files: ${{ inputs.secret-files }}
         cache-from: ${{ inputs.cache-from }}
-        cache-to: ${{ inputs.cache-to }}
         push: ${{ inputs.push }}
         load: ${{ inputs.load }}
         pull: ${{ inputs.pull }}
@@ -162,8 +164,14 @@ runs:
     - name: Fail if all attempts failed
       if: steps.attempt1.outcome == 'failure' && (inputs.max-attempts < 2 || steps.attempt2.outcome == 'failure') && (inputs.max-attempts < 3 || steps.attempt3.outcome == 'failure')
       shell: bash
+      env:
+        MAX_ATTEMPTS: ${{ inputs.max-attempts }}
       run: |
-        attempts=${{ inputs.max-attempts }}
-        if [ "$attempts" -gt 3 ]; then attempts=3; fi
+        if ! [[ "${MAX_ATTEMPTS}" =~ ^[0-9]+$ ]]; then
+          echo "::error::max-attempts must be a positive integer, got: ${MAX_ATTEMPTS}"
+          exit 1
+        fi
+        attempts="${MAX_ATTEMPTS}"
+        if [ "${attempts}" -gt 3 ]; then attempts=3; fi
         echo "::error::All ${attempts} build/push attempts failed"
         exit 1
