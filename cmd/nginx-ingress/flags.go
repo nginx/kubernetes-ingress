@@ -81,6 +81,29 @@ var (
 
 	appProtectIPIntelligence = flag.Bool("enable-app-protect-ip-intelligence", false, "Enable App Protect IP Intelligence. Requires -nginx-plus and -enable-app-protect.")
 
+	plmStorageURL = flag.String("plm-storage-url", "",
+		`SeaweedFS S3 endpoint URL for the F5 WAF Policy Controller (PLM). When non-empty,
+enables the PLM integration: NIC watches the appprotect.f5.com/v1 CRDs installed by the PLM
+Helm chart instead of the legacy v1beta1 CRDs. Empty (default) disables PLM.
+Must be http:// or https://. Requires -nginx-plus and -enable-app-protect.`)
+
+	plmStorageCredentialsSecret = flag.String("plm-storage-credentials-secret", "",
+		`Kubernetes Secret holding the S3 admin key for the PLM SeaweedFS filer under the
+seaweedfs_admin_secret key. Format: [namespace/]name. When only "name" is given, the Secret
+is resolved in NIC's own namespace. Requires -plm-storage-url.`)
+
+	plmStorageCASecret = flag.String("plm-storage-ca-secret", "",
+		`Kubernetes Secret containing a ca.crt for verifying the PLM SeaweedFS server
+certificate. Format: [namespace/]name. Optional. Requires -plm-storage-url.`)
+
+	plmStorageClientSSLSecret = flag.String("plm-storage-client-ssl-secret", "",
+		`Kubernetes Secret containing tls.crt and tls.key for mTLS to the PLM SeaweedFS
+filer. Format: [namespace/]name. Optional. Requires -plm-storage-url.`)
+
+	plmStorageInsecureSkipVerify = flag.Bool("plm-storage-insecure-skip-verify", false,
+		`Disable TLS verification of the PLM SeaweedFS server certificate. For dev/test only.
+NIC prints a startup warning when set. Requires -plm-storage-url.`)
+
 	agent              = flag.Bool("agent", false, "Enable NGINX Agent")
 	agentInstanceGroup = flag.String("agent-instance-group", "nginx-ingress-controller", "Grouping used to associate NGINX Ingress Controller instances")
 
@@ -425,6 +448,30 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatal(l, "NGINX App Protect Dos memory support is for NGINX Plus and App Protect Dos is enable")
 	}
 
+	if *plmStorageURL != "" {
+		if !*nginxPlus {
+			nl.Fatal(l, "plm-storage-url requires -nginx-plus")
+		}
+		if !*appProtect {
+			nl.Fatal(l, "plm-storage-url requires -enable-app-protect")
+		}
+		if !strings.HasPrefix(*plmStorageURL, "http://") && !strings.HasPrefix(*plmStorageURL, "https://") {
+			nl.Fatalf(l, "plm-storage-url must start with http:// or https://; got %q", *plmStorageURL)
+		}
+		for name, val := range map[string]string{
+			"plm-storage-credentials-secret": *plmStorageCredentialsSecret,
+			"plm-storage-ca-secret":          *plmStorageCASecret,
+			"plm-storage-client-ssl-secret":  *plmStorageClientSSLSecret,
+		} {
+			if err := validatePLMSecretRef(name, val); err != nil {
+				nl.Fatal(l, err.Error())
+			}
+		}
+		if *plmStorageInsecureSkipVerify {
+			nl.Warn(l, "plm-storage-insecure-skip-verify is enabled; TLS verification of the PLM SeaweedFS filer will be skipped. This is for dev/test only.")
+		}
+	}
+
 	if *enableInternalRoutes && *spireAgentAddress == "" {
 		nl.Fatal(l, "enable-internal-routes flag requires spire-agent-address")
 	}
@@ -497,6 +544,28 @@ func validateLogFormat(logFormat string) error {
 		return nil
 	}
 	return fmt.Errorf("invalid log format: %v", logFormat)
+}
+
+// validatePLMSecretRef checks that a --plm-storage-*-secret value is either empty
+// or in the format [namespace/]name, where namespace and name are non-empty strings.
+func validatePLMSecretRef(flagName, value string) error {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, "/")
+	switch len(parts) {
+	case 1:
+		if parts[0] == "" {
+			return fmt.Errorf("%s: name must not be empty", flagName)
+		}
+	case 2:
+		if parts[0] == "" || parts[1] == "" {
+			return fmt.Errorf("%s: namespace and name must not be empty in %q", flagName, value)
+		}
+	default:
+		return fmt.Errorf("%s: expected [namespace/]name, got %q", flagName, value)
+	}
+	return nil
 }
 
 // parseNginxStatusAllowCIDRs converts a comma separated CIDR/IP address string into an array of CIDR/IP addresses.

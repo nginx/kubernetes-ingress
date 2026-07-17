@@ -181,3 +181,32 @@ func TestValidateLogFormat(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePLMSecretRef(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "empty is accepted", value: "", wantErr: false},
+		{name: "bare name", value: "seaweed-auth", wantErr: false},
+		{name: "namespace/name", value: "plm/seaweed-auth", wantErr: false},
+		{name: "trailing slash rejected", value: "plm/", wantErr: true},
+		{name: "leading slash rejected", value: "/seaweed-auth", wantErr: true},
+		{name: "double slash rejected", value: "plm/foo/bar", wantErr: true},
+		{name: "just slash rejected", value: "/", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validatePLMSecretRef("plm-storage-credentials-secret", tc.value)
+			if tc.wantErr && err == nil {
+				t.Errorf("validatePLMSecretRef(%q) expected error, got nil", tc.value)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("validatePLMSecretRef(%q) unexpected error: %v", tc.value, err)
+			}
+		})
+	}
+}
