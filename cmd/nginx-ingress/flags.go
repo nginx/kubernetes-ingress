@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -448,28 +450,20 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatal(l, "NGINX App Protect Dos memory support is for NGINX Plus and App Protect Dos is enable")
 	}
 
-	if *plmStorageURL != "" {
-		if !*nginxPlus {
-			nl.Fatal(l, "plm-storage-url requires -nginx-plus")
-		}
-		if !*appProtect {
-			nl.Fatal(l, "plm-storage-url requires -enable-app-protect")
-		}
-		if !strings.HasPrefix(*plmStorageURL, "http://") && !strings.HasPrefix(*plmStorageURL, "https://") {
-			nl.Fatalf(l, "plm-storage-url must start with http:// or https://; got %q", *plmStorageURL)
-		}
-		for name, val := range map[string]string{
-			"plm-storage-credentials-secret": *plmStorageCredentialsSecret,
-			"plm-storage-ca-secret":          *plmStorageCASecret,
-			"plm-storage-client-ssl-secret":  *plmStorageClientSSLSecret,
-		} {
-			if err := validatePLMSecretRef(name, val); err != nil {
-				nl.Fatal(l, err.Error())
-			}
-		}
-		if *plmStorageInsecureSkipVerify {
-			nl.Warn(l, "plm-storage-insecure-skip-verify is enabled; TLS verification of the PLM SeaweedFS filer will be skipped. This is for dev/test only.")
-		}
+	warn, err := validatePLMFlags(
+		*plmStorageURL,
+		*plmStorageCredentialsSecret,
+		*plmStorageCASecret,
+		*plmStorageClientSSLSecret,
+		*plmStorageInsecureSkipVerify,
+		*nginxPlus,
+		*appProtect,
+	)
+	if err != nil {
+		nl.Fatal(l, err.Error())
+	}
+	if warn != "" {
+		nl.Warn(l, warn)
 	}
 
 	if *enableInternalRoutes && *spireAgentAddress == "" {
@@ -546,26 +540,102 @@ func validateLogFormat(logFormat string) error {
 	return fmt.Errorf("invalid log format: %v", logFormat)
 }
 
-// validatePLMSecretRef checks that a --plm-storage-*-secret value is either empty
-// or in the format [namespace/]name, where namespace and name are non-empty strings.
+// validatePLMSecretRef checks that a --plm-storage-*-secret value is either
+// empty or in the form "[namespace/]name" where each component is a valid
+// DNS-1123 subdomain.
 func validatePLMSecretRef(flagName, value string) error {
 	if value == "" {
 		return nil
 	}
+	var namespace, name string
 	parts := strings.Split(value, "/")
 	switch len(parts) {
 	case 1:
-		if parts[0] == "" {
-			return fmt.Errorf("%s: name must not be empty", flagName)
-		}
+		name = parts[0]
 	case 2:
-		if parts[0] == "" || parts[1] == "" {
-			return fmt.Errorf("%s: namespace and name must not be empty in %q", flagName, value)
+		namespace, name = parts[0], parts[1]
+		if namespace == "" {
+			return fmt.Errorf("%s: namespace must not be empty when '/' separator is present, got %q", flagName, value)
 		}
 	default:
 		return fmt.Errorf("%s: expected [namespace/]name, got %q", flagName, value)
 	}
+	if name == "" {
+		return fmt.Errorf("%s: name must not be empty in %q", flagName, value)
+	}
+	if namespace != "" {
+		if errs := validation.IsDNS1123Subdomain(namespace); len(errs) > 0 {
+			return fmt.Errorf("%s: invalid namespace %q: %s", flagName, namespace, strings.Join(errs, "; "))
+		}
+	}
+	if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
+		return fmt.Errorf("%s: invalid name %q: %s", flagName, name, strings.Join(errs, "; "))
+	}
 	return nil
+}
+
+// validatePLMStorageURL parses the --plm-storage-url value and
+// returns an error if it is not a valid URL with a scheme and host.
+func validatePLMStorageURL(rawURL string) error {
+	if rawURL == "" {
+		return errors.New("plm-storage-url: must not be empty")
+	}
+	if strings.ContainsAny(rawURL, " \t\r\n") {
+		return fmt.Errorf("plm-storage-url: must not contain whitespace or control characters, got %q", rawURL)
+	}
+	if !strings.Contains(rawURL, "://") {
+		return fmt.Errorf("plm-storage-url: scheme is required (http:// or https://), got %q", rawURL)
+	}
+	if err := internalValidation.ValidateURI(rawURL); err != nil {
+		return fmt.Errorf("plm-storage-url: %w", err)
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("plm-storage-url: %w", err)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("plm-storage-url: host must not be empty in %q", rawURL)
+	}
+	return nil
+}
+
+// The URL flag is the master switch. If it is empty, any auxiliary PLM flag
+// being set is treated as a fatal misconfiguration
+func validatePLMFlags(rawURL, credentialsSecret, caSecret, clientSSLSecret string, insecureSkipVerify, nginxPlus, appProtect bool) (warn string, err error) {
+	auxSecrets := []struct{ name, val string }{
+		{"plm-storage-credentials-secret", credentialsSecret},
+		{"plm-storage-ca-secret", caSecret},
+		{"plm-storage-client-ssl-secret", clientSSLSecret},
+	}
+	if rawURL == "" {
+		for _, sec := range auxSecrets {
+			if sec.val != "" {
+				return "", fmt.Errorf("%s is set but plm-storage-url is not; PLM auxiliary flags require plm-storage-url", sec.name)
+			}
+		}
+		if insecureSkipVerify {
+			return "", errors.New("plm-storage-insecure-skip-verify is set but plm-storage-url is not; PLM auxiliary flags require plm-storage-url")
+		}
+		return "", nil
+	}
+	if !nginxPlus {
+		return "", errors.New("plm-storage-url requires -nginx-plus")
+	}
+	if !appProtect {
+		return "", errors.New("plm-storage-url requires -enable-app-protect")
+	}
+	if err := validatePLMStorageURL(rawURL); err != nil {
+		return "", err
+	}
+	for _, sec := range auxSecrets {
+		if err := validatePLMSecretRef(sec.name, sec.val); err != nil {
+			return "", err
+		}
+	}
+	if insecureSkipVerify {
+		return "plm-storage-insecure-skip-verify is enabled; TLS verification of the PLM SeaweedFS filer will be skipped. This is for dev/test only.", nil
+	}
+	return "", nil
 }
 
 // parseNginxStatusAllowCIDRs converts a comma separated CIDR/IP address string into an array of CIDR/IP addresses.
