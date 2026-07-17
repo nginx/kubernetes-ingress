@@ -63,8 +63,8 @@ Note that the VirtualServer references the policy `waf-policy` created in Step 3
 
 ## Step 5 - Test the Application
 
-To access the application, **curl`** the coffee and the tea services. Use the --resolve option to set the Host header
-of a request with `webapp.example.com`
+To access the application, **curl** the coffee and the tea services. Use the --resolve option to set the Host header
+of a request with `webapp.example.com`.
 
 1. Send a request to the application:
 
