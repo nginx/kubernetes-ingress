@@ -1,0 +1,16 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  ipFamily: dual
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+# No extraPortMappings: multiple parallel clusters must not compete for
+# the same host ports (80/443/32345). Pytest runs inside a docker
+# container on the shared "kind" network and reaches each API server
+# via <cluster>-control-plane directly, so host publishing is not needed.

@@ -12,6 +12,7 @@ Two modes:
 """
 
 import argparse
+import os
 import re
 import statistics
 from collections import defaultdict
@@ -24,7 +25,12 @@ from github import Auth, Github
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-t", "--token", required=True, help="GitHub access token")
+    parser.add_argument(
+        "-t",
+        "--token",
+        default=None,
+        help="GitHub access token. Falls back to $GITHUB_TOKEN or $GH_TOKEN.",
+    )
     parser.add_argument("-o", "--owner", default="nginx", help="GitHub repository owner")
     parser.add_argument("-r", "--repo", default="kubernetes-ingress", help="GitHub repository name")
     parser.add_argument("-w", "--workflow", default="CI", help="GitHub Actions workflow name")
@@ -82,6 +88,18 @@ def parse_args():
         choices=["test", "file"],
         default="test",
         help="Aggregate durations per full test id or per test file",
+    )
+    parser.add_argument(
+        "--run-id",
+        type=int,
+        default=None,
+        help="Analyse only this specific workflow run id (durations mode). " "Bypasses branch/since-days/runs filters.",
+    )
+    parser.add_argument(
+        "--include-failed-jobs",
+        action="store_true",
+        help="Include jobs that did not conclude successfully (durations mode). "
+        "Useful when a shard timed out but other tests still produced durations.",
     )
     return parser.parse_args()
 
@@ -147,10 +165,12 @@ def run_jobs_mode(runs, threshold):
 #   "  120.45s call     tests/suite/test_x.py::TestC::test_m[param]"
 #   "2026-07-17T10:15:23.4567890Z 120.45s call tests/suite/test_x.py::test_thing"
 DURATION_LINE = re.compile(r"(?P<seconds>\d+\.\d+)s\s+(?P<phase>call|setup|teardown)\s+(?P<test>\S+)")
-DURATION_HEADER = re.compile(r"slowest\s+\d+\s+durations", re.IGNORECASE)
+# Matches both --durations=N ("slowest N durations") and --durations=0
+# ("slowest durations").
+DURATION_HEADER = re.compile(r"slowest(?:\s+\d+)?\s+durations", re.IGNORECASE)
 
 
-def collect_smoke_jobs(runs, name_filter, max_runs):
+def collect_smoke_jobs(runs, name_filter, max_runs, include_failed=False):
     """Yield (run_id, job) for jobs whose name contains name_filter."""
     seen_runs = 0
     for run in runs:
@@ -158,10 +178,23 @@ def collect_smoke_jobs(runs, name_filter, max_runs):
         if seen_runs > max_runs:
             return
         for job in run.jobs():
-            if job.status != "completed" or job.conclusion != "success":
+            if job.status != "completed":
+                continue
+            if not include_failed and job.conclusion != "success":
                 continue
             if name_filter in job.name:
                 yield run.id, job
+
+
+def collect_smoke_jobs_from_run(run, name_filter, include_failed=False):
+    """Yield (run_id, job) for jobs from a single run matching name_filter."""
+    for job in run.jobs():
+        if job.status != "completed":
+            continue
+        if not include_failed and job.conclusion != "success":
+            continue
+        if name_filter in job.name:
+            yield run.id, job
 
 
 def fetch_job_log(session, owner, repo, job_id):
@@ -198,7 +231,7 @@ def group_key(test_id, group_by):
     return test_id
 
 
-def run_durations_mode(runs, args):
+def run_durations_mode(runs, args, single_run=None):
     session = requests.Session()
     session.headers.update(
         {
@@ -207,15 +240,21 @@ def run_durations_mode(runs, args):
         }
     )
 
-    jobs = list(collect_smoke_jobs(runs, args.job_filter, args.runs))
+    if single_run is not None:
+        jobs = list(collect_smoke_jobs_from_run(single_run, args.job_filter, args.include_failed_jobs))
+        source = f"run {single_run.id}"
+    else:
+        jobs = list(collect_smoke_jobs(runs, args.job_filter, args.runs, args.include_failed_jobs))
+        source = f"the last {args.runs} runs"
     if not jobs:
-        print(f"No jobs matched filter '{args.job_filter}' in the last {args.runs} runs.")
+        print(f"No jobs matched filter '{args.job_filter}' in {source}.")
         return
 
-    print(f"Analysing {len(jobs)} job(s) matching '{args.job_filter}'...")
+    print(f"Analysing {len(jobs)} job(s) matching '{args.job_filter}' from {source}...")
 
     per_test = defaultdict(list)
     failures = 0
+    empty_jobs = 0
 
     def worker(job):
         try:
@@ -232,11 +271,20 @@ def run_durations_mode(runs, args):
                 failures += 1
                 print(f"  ! failed to fetch log for job {job_id}: {result}")
                 continue
+            if not result:
+                empty_jobs += 1
+                continue
             for test_id, seconds in result:
                 per_test[group_key(test_id, args.group_by)].append(seconds)
 
     if failures:
         print(f"({failures} job logs could not be fetched)")
+    if empty_jobs:
+        print(
+            f"({empty_jobs}/{len(jobs)} jobs produced no --durations output; "
+            "check that pytest ran with --durations and that the log format "
+            "matches DURATION_HEADER/DURATION_LINE)"
+        )
 
     aggregated = [(key, statistics.mean(samples), max(samples), len(samples)) for key, samples in per_test.items()]
     aggregated.sort(key=lambda row: row[1], reverse=True)
@@ -250,12 +298,32 @@ def run_durations_mode(runs, args):
 
 def main():
     args = parse_args()
+    args.token = args.token or os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not args.token:
+        print(
+            "No GitHub token provided. Pass --token or set $GITHUB_TOKEN or $GH_TOKEN.",
+            flush=True,
+        )
+        raise SystemExit(2)
     g = get_github_handle(args.token)
     if g is None:
         print("Failed to authenticate to GitHub")
         raise SystemExit(1)
     try:
         repo = get_github_repo(args.owner, args.repo, g)
+
+        if args.run_id is not None:
+            if args.mode != "durations":
+                print("--run-id is only supported in durations mode.")
+                raise SystemExit(1)
+            single_run = repo.get_workflow_run(args.run_id)
+            print(
+                f"Analysing single run {single_run.id} "
+                f"({single_run.display_title!r}, head_branch={single_run.head_branch})."
+            )
+            run_durations_mode(None, args, single_run=single_run)
+            return
+
         branch = args.branch or None
         runs = get_workflow_runs(repo, args.workflow, branch=branch)
         if not runs:
