@@ -61,9 +61,22 @@ jobs:
       - name: Decode GitHub App private key
         id: app_key
         run: |
-          private_key=$(echo "$APP_PRIVATE_KEY_B64" | base64 -d | awk 'BEGIN {ORS="\\n"} {print}' | sed 's/\\n$//')
-          echo "::add-mask::$private_key"
-          echo "private_key=$private_key" >> "$GITHUB_OUTPUT"
+          set +x
+          # Mask the raw base64 value
+          echo "::add-mask::$APP_PRIVATE_KEY_B64"
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+          # Mask every line of the decoded PEM key individually
+          while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+              echo "::add-mask::$line"
+            fi
+          done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
+          {
+            echo "private_key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Generate GitHub App token
         id: app_token
