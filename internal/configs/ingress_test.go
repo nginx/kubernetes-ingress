@@ -3969,70 +3969,6 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 	return expected
 }
 
-func TestGenerateNginxCfgForSpiffe(t *testing.T) {
-	t.Parallel()
-	isPlus := false
-	configParams := NewDefaultConfigParams(context.Background(), isPlus)
-
-	expected := createExpectedConfigForCafeIngressEx(isPlus)
-	expected.SpiffeClientCerts = true
-	for i := range expected.Servers[0].Locations {
-		expected.Servers[0].Locations[i].SSL = true
-		expected.Servers[0].Locations[i].ProxyPass = strings.Replace(expected.Servers[0].Locations[i].ProxyPass, "http://", "https://", 1)
-	}
-
-	result, warnings := generateNginxCfg(NginxCfgParams{
-		staticParams:         &StaticConfigParams{NginxServiceMesh: true},
-		ingEx:                new(createCafeIngressEx()),
-		apResources:          nil,
-		dosResource:          nil,
-		isMinion:             false,
-		isPlus:               false,
-		BaseCfgParams:        configParams,
-		isResolverConfigured: false,
-		isWildcardEnabled:    false,
-	})
-
-	if diff := cmp.Diff(expected, result); diff != "" {
-		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if len(warnings) != 0 {
-		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
-	}
-}
-
-func TestGenerateNginxCfgForInternalRoute(t *testing.T) {
-	t.Parallel()
-	internalRouteAnnotation := "nsm.nginx.com/internal-route"
-	cafeIngressEx := createCafeIngressEx()
-	cafeIngressEx.Ingress.Annotations[internalRouteAnnotation] = "true"
-	isPlus := false
-	configParams := NewDefaultConfigParams(context.Background(), isPlus)
-
-	expected := createExpectedConfigForCafeIngressEx(isPlus)
-	expected.Servers[0].SpiffeCerts = true
-	expected.Ingress.Annotations[internalRouteAnnotation] = "true"
-
-	result, warnings := generateNginxCfg(NginxCfgParams{
-		staticParams:         &StaticConfigParams{NginxServiceMesh: true, EnableInternalRoutes: true},
-		ingEx:                &cafeIngressEx,
-		apResources:          nil,
-		dosResource:          nil,
-		isMinion:             false,
-		isPlus:               false,
-		BaseCfgParams:        configParams,
-		isResolverConfigured: false,
-		isWildcardEnabled:    false,
-	})
-
-	if diff := cmp.Diff(expected, result); diff != "" {
-		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if len(warnings) != 0 {
-		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
-	}
-}
-
 func TestGenerateNginxCfgForSSLCiphers(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
@@ -4109,62 +4045,20 @@ func TestIsSSLEnabled(t *testing.T) {
 	t.Parallel()
 	type testCase struct {
 		IsSSLService,
-		SpiffeServerCerts,
-		NginxServiceMesh,
 		Expected bool
 	}
 	testCases := []testCase{
 		{
-			IsSSLService:      false,
-			SpiffeServerCerts: false,
-			NginxServiceMesh:  false,
-			Expected:          false,
+			IsSSLService: false,
+			Expected:     false,
 		},
 		{
-			IsSSLService:      false,
-			SpiffeServerCerts: true,
-			NginxServiceMesh:  true,
-			Expected:          false,
-		},
-		{
-			IsSSLService:      false,
-			SpiffeServerCerts: false,
-			NginxServiceMesh:  true,
-			Expected:          true,
-		},
-		{
-			IsSSLService:      false,
-			SpiffeServerCerts: true,
-			NginxServiceMesh:  false,
-			Expected:          false,
-		},
-		{
-			IsSSLService:      true,
-			SpiffeServerCerts: true,
-			NginxServiceMesh:  true,
-			Expected:          true,
-		},
-		{
-			IsSSLService:      true,
-			SpiffeServerCerts: false,
-			NginxServiceMesh:  true,
-			Expected:          true,
-		},
-		{
-			IsSSLService:      true,
-			SpiffeServerCerts: true,
-			NginxServiceMesh:  false,
-			Expected:          true,
-		},
-		{
-			IsSSLService:      true,
-			SpiffeServerCerts: false,
-			NginxServiceMesh:  false,
-			Expected:          true,
+			IsSSLService: true,
+			Expected:     true,
 		},
 	}
 	for i, tc := range testCases {
-		actual := isSSLEnabled(tc.IsSSLService, ConfigParams{SpiffeServerCerts: tc.SpiffeServerCerts}, &StaticConfigParams{NginxServiceMesh: tc.NginxServiceMesh})
+		actual := isSSLEnabled(tc.IsSSLService)
 		if actual != tc.Expected {
 			t.Errorf("isSSLEnabled returned %v but expected %v for the case %v", actual, tc.Expected, i)
 		}

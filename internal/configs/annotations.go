@@ -83,9 +83,6 @@ const AppProtectLogConfDstAnnotation = "appprotect.f5.com/app-protect-security-l
 // AppProtectDosProtectedAnnotation is the namespace/name reference of a DosProtectedResource
 const AppProtectDosProtectedAnnotation = "appprotectdos.f5.com/app-protect-dos-resource"
 
-// nginxMeshInternalRoute specifies if the ingress resource is an internal route.
-const nginxMeshInternalRouteAnnotation = "nsm.nginx.com/internal-route"
-
 // StickyCookieServicesAnnotation is the annotation where the sticky cookie configuration is specified.
 const StickyCookieServicesAnnotation = "nginx.org/sticky-cookie-services"
 
@@ -188,7 +185,7 @@ var allowedAnnotationKeys = []string{
 }
 
 // nolint: gocyclo
-func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool, enableDirectiveAutoadjust bool) ConfigParams {
+func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableDirectiveAutoadjust bool) ConfigParams {
 	l := nl.LoggerFromContext(baseCfgParams.Context)
 	cfgParams := *baseCfgParams
 
@@ -600,15 +597,6 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if hasAppProtectDos {
 		if appProtectDosResource, exists := ingEx.Ingress.Annotations["appprotectdos.f5.com/app-protect-dos-resource"]; exists {
 			cfgParams.AppProtectDosResource = appProtectDosResource
-		}
-	}
-	if enableInternalRoutes {
-		if spiffeServerCerts, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, nginxMeshInternalRouteAnnotation, ingEx.Ingress); exists {
-			if err != nil {
-				nl.Error(l, err)
-			} else {
-				cfgParams.SpiffeServerCerts = spiffeServerCerts
-			}
 		}
 	}
 
