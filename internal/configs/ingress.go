@@ -246,7 +246,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	hasAppProtect := ncp.staticParams.MainAppProtectLoadModule
 	hasAppProtectDos := ncp.staticParams.MainAppProtectDosLoadModule
 
-	cfgParams := parseAnnotations(ncp.ingEx, ncp.BaseCfgParams, ncp.isPlus, hasAppProtect, hasAppProtectDos, ncp.staticParams.EnableInternalRoutes, ncp.staticParams.IsDirectiveAutoadjustEnabled)
+	cfgParams := parseAnnotations(ncp.ingEx, ncp.BaseCfgParams, ncp.isPlus, hasAppProtect, hasAppProtectDos, ncp.staticParams.IsDirectiveAutoadjustEnabled)
 
 	wsServices := getWebsocketServices(ncp.ingEx)
 	spServices := getSessionPersistenceServices(ncp.BaseCfgParams.Context, ncp.ingEx)
@@ -410,7 +410,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			TLSPassthrough:         ncp.staticParams.TLSPassthrough,
 			AppProtectEnable:       cfgParams.AppProtectEnable,
 			AppProtectLogEnable:    cfgParams.AppProtectLogEnable,
-			SpiffeCerts:            cfgParams.SpiffeServerCerts,
 			DisableIPV6:            ncp.staticParams.DisableIPV6,
 			ProxyRedirectFrom:      cfgParams.ProxyRedirectFrom,
 			ProxyRedirectTo:        cfgParams.ProxyRedirectTo,
@@ -549,13 +548,27 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				upstreams[upsName] = upstream
 			}
 
-			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, ncp.staticParams)
+			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name])
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
 				ssl, isGRPCService, proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget)
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Minion egress mTLS is rendered per location to match VirtualServer route policy behavior.
 				loc.EgressMTLS = policyCfg.EgressMTLS
+			}
+
+			// Custom-http-errors location-level rendering exists only for minions so
+			// they can override the server-level directive inherited from the master.
+			// Standard and master Ingresses render at server context (see below), which
+			// avoids duplicating proxy_intercept_errors + error_page per location.
+			if ncp.isMinion && len(cfgParams.CustomHTTPErrors) > 0 {
+				if isGRPCService {
+					allWarnings.AddWarningf(ncp.ingEx.Ingress,
+						"%s is ignored for gRPC service %q; gRPC locations use their own error_page mapping",
+						CustomHTTPErrorsAnnotation, path.Backend.Service.Name)
+				} else {
+					loc.CustomHTTPErrorCodes = cfgParams.CustomHTTPErrors
+				}
 			}
 
 			if ncp.isMinion {
@@ -659,7 +672,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		if !rootLocation && ncp.ingEx.Ingress.Spec.DefaultBackend != nil && ncp.ingEx.Ingress.Spec.DefaultBackend.Service != nil {
 			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
-			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], cfgParams, ncp.staticParams)
+			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name])
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
 				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, new(networking.PathTypePrefix), ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget)
@@ -700,6 +713,35 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			server.DefaultServerReturn = cfgParams.DefaultServerReturn
 		}
 
+		// Custom-http-errors on a standard or master Ingress renders at server
+		// context so all locations inherit proxy_intercept_errors + error_page
+		// via standard NGINX inheritance. Minions render per-location instead
+
+		if !ncp.isMinion && len(cfgParams.CustomHTTPErrors) > 0 {
+			server.CustomHTTPErrorCodes = cfgParams.CustomHTTPErrors
+			if ncp.ingEx.Ingress.Spec.DefaultBackend != nil {
+				server.CustomHTTPErrorBackend = getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
+				synthesizedPath := pathOrDefault("/")
+				for i := range locations {
+					if locations[i].Path == synthesizedPath && locations[i].ServiceName == ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name {
+						locations[i].SkipCustomHTTPErrors = true
+						break
+					}
+				}
+			} else {
+				allWarnings.AddWarningf(ncp.ingEx.Ingress,
+					"%s annotation is set but spec.defaultBackend is not; the annotation is a no-op without a default backend to route intercepted responses to.",
+					CustomHTTPErrorsAnnotation)
+			}
+		}
+
+		if ncp.isMinion && len(cfgParams.CustomHTTPErrors) > 0 &&
+			ncp.mergeableIngs != nil && ncp.mergeableIngs.Master.Ingress.Spec.DefaultBackend == nil {
+			allWarnings.AddWarningf(ncp.ingEx.Ingress,
+				"%s annotation is set on a minion but the master Ingress has no spec.defaultBackend; the annotation is a no-op without a default backend on the master to route intercepted responses to.",
+				CustomHTTPErrorsAnnotation)
+		}
+
 		server.Locations = locations
 		server.HealthChecks = healthChecks
 		server.GRPCOnly = grpcOnly
@@ -723,7 +765,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			Namespace:   ncp.ingEx.Ingress.Namespace,
 			Annotations: ncp.ingEx.Ingress.Annotations,
 		},
-		SpiffeClientCerts:       ncp.staticParams.NginxServiceMesh && !cfgParams.SpiffeServerCerts,
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
@@ -1351,12 +1392,25 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	masterServer.HasGRPCLocations = hasGRPCLocations
 	masterServer.GRPCOnly = hasGRPCLocations && grpcOnly
 
+	// Enable the shared @custom_default_backend location on the master server if
+	// any minion location carries custom-http-errors codes. The handler upstream
+	// is the master's spec.defaultBackend (already created in generateNginxCfg
+	// for the master); if the master has no defaultBackend, per-minion warnings
+	// were already emitted in generateNginxCfg and nothing is rendered here.
+	if originalMaster.Spec.DefaultBackend != nil {
+		for _, loc := range locations {
+			if len(loc.CustomHTTPErrorCodes) > 0 {
+				masterServer.CustomHTTPErrorBackend = getNameForUpstream(originalMaster, emptyHostName, originalMaster.Spec.DefaultBackend)
+				break
+			}
+		}
+	}
+
 	return version1.IngressNginxConfig{
 		Servers:                 []version1.Server{masterServer},
 		Upstreams:               upstreams,
 		Keepalive:               keepalive,
 		Ingress:                 masterNginxCfg.Ingress,
-		SpiffeClientCerts:       ncp.staticParams.NginxServiceMesh && !ncp.BaseCfgParams.SpiffeServerCerts,
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
@@ -1399,8 +1453,8 @@ func limitReqZoneExists(zones []version1.LimitReqZone, zoneName string) bool {
 	return false
 }
 
-func isSSLEnabled(isSSLService bool, cfgParams ConfigParams, staticCfgParams *StaticConfigParams) bool {
-	return isSSLService || staticCfgParams.NginxServiceMesh && !cfgParams.SpiffeServerCerts
+func isSSLEnabled(isSSLService bool) bool {
+	return isSSLService
 }
 
 // GetBackendPortAsString returns the port of a ServiceBackend of an Ingress resource as a string.

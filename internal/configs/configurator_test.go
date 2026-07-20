@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"regexp"
 	"sync"
@@ -898,34 +897,6 @@ func TestGenerateTLSPassthroughHostsConfig(t *testing.T) {
 	resultCfg := generateTLSPassthroughHostsConfig(tlsPassthroughPairs)
 	if !reflect.DeepEqual(resultCfg, expectedCfg) {
 		t.Errorf("generateTLSPassthroughHostsConfig() returned %v but expected %v", resultCfg, expectedCfg)
-	}
-}
-
-func TestAddInternalRouteConfig(t *testing.T) {
-	t.Parallel()
-	cnf := createTestConfigurator(t)
-
-	// set service account in env
-	err := os.Setenv("POD_SERVICEACCOUNT", "nginx-ingress")
-	if err != nil {
-		t.Fatalf("Failed to set pod name in environment: %v", err)
-	}
-	// set namespace in env
-	err = os.Setenv("POD_NAMESPACE", "default")
-	if err != nil {
-		t.Fatalf("Failed to set pod name in environment: %v", err)
-	}
-
-	err = cnf.AddInternalRouteConfig()
-	if err != nil {
-		t.Errorf("AddInternalRouteConfig returned:  \n%v, but expected: \n%v", err, nil)
-	}
-
-	if !cnf.staticCfgParams.EnableInternalRoutes {
-		t.Error("AddInternalRouteConfig failed to set EnableInternalRoutes field of staticCfgParams to true")
-	}
-	if cnf.staticCfgParams.InternalRouteServerName != "nginx-ingress.default.svc" {
-		t.Error("AddInternalRouteConfig failed to set InternalRouteServerName field of staticCfgParams")
 	}
 }
 
@@ -2731,18 +2702,6 @@ http {
 
         return 418;
     }
-    {{- if .InternalRouteServer}}
-    server {
-        listen 443 ssl;
-        {{if not .DisableIPV6}}listen [::]:443 ssl;{{end}}
-        server_name {{.InternalRouteServerName}};
-        ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_client_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        ssl_verify_client on;
-        ssl_verify_depth 25;
-    }
-    {{- end}}
 }
 
 stream {
@@ -2830,17 +2789,10 @@ limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReq
 
 {{range $server := .Servers}}
 server {
-	{{- if $server.SpiffeCerts}}
-	listen 443 ssl;
-	{{- if not $server.DisableIPV6}}listen [::]:443 ssl;{{end}}
-	ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-	ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-	{{- else}}
 	{{- if not $server.GRPCOnly}}
 	{{- range $port := $server.Ports}}
 	listen {{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
-	{{- end}}
 	{{- end}}
 
 	{{- if $server.SSL}}
@@ -2972,15 +2924,6 @@ server {
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
 		{{- end}}
-		{{- if $.SpiffeClientCerts}}
-		grpc_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		grpc_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		grpc_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-		grpc_ssl_server_name on;
-		grpc_ssl_verify on;
-		grpc_ssl_verify_depth 25;
-		grpc_ssl_name {{$location.ProxySSLName}};
-		{{- end}}
 		{{- if $location.SSL}}
 		grpc_pass grpcs://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- else}}
@@ -3026,15 +2969,6 @@ server {
 		{{- end}}
 		{{- if $location.ProxyMaxTempFileSize}}
 		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};
-		{{- end}}
-		{{- if $.SpiffeClientCerts}}
-		proxy_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		proxy_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		proxy_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-		proxy_ssl_server_name on;
-		proxy_ssl_verify on;
-		proxy_ssl_verify_depth 25;
-		proxy_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
 		{{- if $location.SSL}}
 		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
@@ -3211,20 +3145,10 @@ server {
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
-        {{- else if $.SpiffeCerts }}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
        {{- else }}
     ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
     ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- end }}
-    {{- else }}
-      {{- if $.SpiffeCerts }}
-    listen 443 ssl;
-    {{if not $s.DisableIPV6}}listen [::]:443 ssl;{{end}}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-      {{- end }}
     {{- end }}
 
     {{- with $s.IngressMTLS }}
@@ -3723,15 +3647,6 @@ server {
             {{- end }}
             {{- range $h := $l.AddHeaders }}
         add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
-            {{- end }}
-            {{- if $.SpiffeClientCerts }}
-        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        {{ $proxyOrGRPC }}_ssl_server_name on;
-        {{ $proxyOrGRPC }}_ssl_verify on;
-        {{ $proxyOrGRPC }}_ssl_verify_depth 25;
-        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
             {{- end }}
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};
