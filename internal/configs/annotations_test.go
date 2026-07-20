@@ -307,6 +307,63 @@ func TestParseAnnotationsProxyRedirectOff(t *testing.T) {
 	}
 }
 
+func TestParseAnnotationsCustomHTTPErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        []int
+	}{
+		{
+			name:        "not set leaves field nil",
+			annotations: map[string]string{},
+			want:        nil,
+		},
+		{
+			name: "single code populates slice",
+			annotations: map[string]string{
+				CustomHTTPErrorsAnnotation: "404",
+			},
+			want: []int{404},
+		},
+		{
+			name: "codes are sorted and deduplicated",
+			annotations: map[string]string{
+				CustomHTTPErrorsAnnotation: "500, 404, 404",
+			},
+			want: []int{404, 500},
+		},
+		{
+			name: "invalid value falls back to nil",
+			annotations: map[string]string{
+				CustomHTTPErrorsAnnotation: "abc",
+			},
+			want: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tc.annotations,
+					},
+				},
+			}
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			if !reflect.DeepEqual(result.CustomHTTPErrors, tc.want) {
+				t.Errorf("CustomHTTPErrors = %v, want %v", result.CustomHTTPErrors, tc.want)
+			}
+		})
+	}
+}
+
 func TestParseRateLimitAnnotations(t *testing.T) {
 	ctx := &networking.Ingress{
 		ObjectMeta: metav1.ObjectMeta{

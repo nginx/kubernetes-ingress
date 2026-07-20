@@ -286,6 +286,13 @@ server {
 	{{- end}}
 	{{- end}}
 
+	{{- if $server.CustomHTTPErrorCodes}}
+	proxy_intercept_errors on;
+	{{- if $server.CustomHTTPErrorBackend}}
+	error_page{{range $c := $server.CustomHTTPErrorCodes}} {{$c}}{{end}} @custom_default_backend;
+	{{- end}}
+	{{- end}}
+
 	{{- range $healthCheck := $server.HealthChecks}}
 	location @hc-{{$healthCheck.UpstreamName}} {
 		{{- range $name, $header := $healthCheck.Headers}}
@@ -534,6 +541,14 @@ server {
 		proxy_redirect {{$location.ProxyRedirectFrom}} {{$location.ProxyRedirectTo}};
 		{{- end}}
 		{{- end}}
+		{{- if $location.SkipCustomHTTPErrors}}
+		proxy_intercept_errors off;
+		{{- else if $location.CustomHTTPErrorCodes}}
+		proxy_intercept_errors on;
+		{{- if $server.CustomHTTPErrorBackend}}
+		error_page{{range $c := $location.CustomHTTPErrorCodes}} {{$c}}{{end}} @custom_default_backend;
+		{{- end}}
+		{{- end}}
 		{{- end}}
 		{{- if $location.ProxySSLVerify }}
 		proxy_ssl_verify on;
@@ -570,6 +585,13 @@ server {
 		{{end}}
 	}
 	{{end -}}
+	{{- if $server.CustomHTTPErrorBackend}}
+	location @custom_default_backend {
+		internal;
+		proxy_intercept_errors off;
+		proxy_pass http://{{$server.CustomHTTPErrorBackend}};
+	}
+	{{- end}}
 
 	{{- if $server.AccessLogOff}}
 	access_log off;

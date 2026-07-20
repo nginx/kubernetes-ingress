@@ -5020,6 +5020,74 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			},
 			msg: "invalid nginx.org/proxy-redirect-to annotation with semicolon",
 		},
+
+		// nginx.org/custom-http-errors annotation tests
+		{
+			annotations: map[string]string{
+				configs.CustomHTTPErrorsAnnotation: "404,500,502",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/custom-http-errors annotation with comma-separated codes",
+		},
+		{
+			annotations: map[string]string{
+				configs.CustomHTTPErrorsAnnotation: "4xx, 5xx",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/custom-http-errors annotation with range shorthands",
+		},
+		{
+			annotations: map[string]string{
+				configs.CustomHTTPErrorsAnnotation: "",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/custom-http-errors: Required value`,
+			},
+			msg: "empty nginx.org/custom-http-errors annotation rejected",
+		},
+		{
+			annotations: map[string]string{
+				configs.CustomHTTPErrorsAnnotation: "299",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/custom-http-errors: Invalid value: "299": invalid status code 299: must be in the range [300, 599]`,
+			},
+			msg: "nginx.org/custom-http-errors code below 300 rejected",
+		},
+		{
+			annotations: map[string]string{
+				configs.CustomHTTPErrorsAnnotation: "6xx",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/custom-http-errors: Invalid value: "6xx": invalid status code "6xx": must be an integer, '4xx', or '5xx'`,
+			},
+			msg: "nginx.org/custom-http-errors unsupported range shorthand rejected",
+		},
 	}
 
 	for _, test := range tests {

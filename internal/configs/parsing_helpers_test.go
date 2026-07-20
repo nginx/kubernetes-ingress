@@ -885,3 +885,92 @@ func TestParseFloat64(t *testing.T) {
 		}
 	}
 }
+
+func TestParseCustomHTTPErrors_ValidInput(t *testing.T) {
+	t.Parallel()
+
+	// Build the fully expanded 4xx / 5xx / 4xx+5xx code lists once for reuse.
+	all4xx := make([]int, 0, 100)
+	for c := 400; c <= 499; c++ {
+		all4xx = append(all4xx, c)
+	}
+	all5xx := make([]int, 0, 100)
+	for c := 500; c <= 599; c++ {
+		all5xx = append(all5xx, c)
+	}
+	all4xxAnd5xx := append(append([]int(nil), all4xx...), all5xx...)
+
+	tests := []struct {
+		name  string
+		input string
+		want  []int
+	}{
+		{name: "single code", input: "404", want: []int{404}},
+		{name: "sorted list", input: "404,500,502", want: []int{404, 500, 502}},
+		{name: "out of order gets sorted", input: "502,404,500", want: []int{404, 500, 502}},
+		{name: "whitespace tolerated", input: "  404 , 500 ", want: []int{404, 500}},
+		{name: "4xx range", input: "4xx", want: all4xx},
+		{name: "5xx range", input: "5xx", want: all5xx},
+		{name: "4xx+5xx", input: "4xx,5xx", want: all4xxAnd5xx},
+		{name: "range shorthand uppercase", input: "4XX", want: all4xx},
+		{name: "code covered by range dedups", input: "404,4xx", want: all4xx},
+		{name: "duplicate codes dedup", input: "404,404,500", want: []int{404, 500}},
+		{name: "empty entries skipped", input: "404,,500", want: []int{404, 500}},
+		{name: "trailing comma skipped", input: "404,500,", want: []int{404, 500}},
+		{name: "range boundary low", input: "300", want: []int{300}},
+		{name: "range boundary high", input: "599", want: []int{599}},
+		{name: "3xx redirect code accepted", input: "301", want: []int{301}},
+		{name: "3xx mixed with 4xx", input: "301,404", want: []int{301, 404}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ParseCustomHTTPErrors(tc.input)
+			if err != nil {
+				t.Fatalf("ParseCustomHTTPErrors(%q) returned unexpected error: %v", tc.input, err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("ParseCustomHTTPErrors(%q) = %v, want %v", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestParseCustomHTTPErrors_InvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{name: "empty string", input: ""},
+		{name: "whitespace only", input: "   "},
+		{name: "only commas", input: ",,,"},
+		{name: "code below range", input: "299"},
+		{name: "code above range", input: "600"},
+		{name: "zero", input: "0"},
+		{name: "negative", input: "-1"},
+		{name: "non-numeric token", input: "abc"},
+		{name: "unsupported range 6xx", input: "6xx"},
+		{name: "unsupported range 3xx", input: "3xx"},
+		{name: "unsupported range 2xx", input: "2xx"},
+		{name: "leading plus rejected", input: "+404"},
+		{name: "hex prefix rejected", input: "0x194"},
+		{name: "decimal rejected", input: "404.0"},
+		{name: "arabic-indic digits rejected", input: "4٠4"},
+		{name: "trailing chars rejected", input: "404x"},
+		{name: "range with number rejected", input: "4xx1"},
+		{name: "mixed valid and invalid fails whole input", input: "404,700"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ParseCustomHTTPErrors(tc.input)
+			if err == nil {
+				t.Fatalf("ParseCustomHTTPErrors(%q) succeeded with %v, want error", tc.input, got)
+			}
+		})
+	}
+}

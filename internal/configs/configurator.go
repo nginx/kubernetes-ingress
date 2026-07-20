@@ -1289,6 +1289,13 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 		allWarnings.Add(warnings)
 
 		if cnf.isPlus {
+
+			err = cnf.updatePlusEndpoints(mergeableIng.Master, mergeableIng.Master.Ingress)
+			if err != nil {
+				nl.Warnf(l, "Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
+				reloadPlus = true
+			}
+
 			for _, ing := range mergeableIngresses[i].Minions {
 				err = cnf.updatePlusEndpoints(ing, mergeableIng.Master.Ingress)
 				if err != nil {

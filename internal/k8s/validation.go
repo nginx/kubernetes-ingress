@@ -80,6 +80,7 @@ const (
 	appRootAnnotation                     = "nginx.org/app-root"
 	proxyRedirectFromAnnotation           = configs.ProxyRedirectFromAnnotation
 	proxyRedirectToAnnotation             = configs.ProxyRedirectToAnnotation
+	customHTTPErrorsAnnotation            = configs.CustomHTTPErrorsAnnotation
 )
 
 const (
@@ -418,6 +419,10 @@ var (
 			validateRequiredAnnotation,
 			validateProxyRedirectToAnnotation,
 		},
+		customHTTPErrorsAnnotation: {
+			validateRequiredAnnotation,
+			validateCustomHTTPErrorsAnnotation,
+		},
 		configs.PoliciesAnnotation: {
 			validateRequiredAnnotation,
 			validateCommaSeparatedList,
@@ -557,6 +562,15 @@ func validateProxyRedirectToAnnotation(context *annotationValidationContext) fie
 	if !proxyRedirectValueRegex.MatchString(context.value) {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value,
 			"must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'")}
+	}
+	return nil
+}
+
+// validateCustomHTTPErrorsAnnotation delegates to the parser in the configs package
+// so validation and runtime parsing share a single source of truth for accepted syntax.
+func validateCustomHTTPErrorsAnnotation(context *annotationValidationContext) field.ErrorList {
+	if _, err := configs.ParseCustomHTTPErrors(context.value); err != nil {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
 	}
 	return nil
 }

@@ -101,6 +101,12 @@ const ProxyRedirectFromAnnotation = "nginx.org/proxy-redirect-from"
 // ProxyRedirectToAnnotation is the annotation for the proxy_redirect "to" parameter.
 const ProxyRedirectToAnnotation = "nginx.org/proxy-redirect-to"
 
+// CustomHTTPErrorsAnnotation is the annotation for enabling custom error handling for a
+// comma-separated list of upstream status codes (and 4xx/5xx range shorthands). When set,
+// NGINX intercepts matching upstream responses (proxy_intercept_errors on) and routes
+// them via error_page to the Ingress's spec.defaultBackend when one is configured.
+const CustomHTTPErrorsAnnotation = "nginx.org/custom-http-errors"
+
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
@@ -478,6 +484,17 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	}
 	if proxyRedirectTo, exists := ingEx.Ingress.Annotations[ProxyRedirectToAnnotation]; exists {
 		cfgParams.ProxyRedirectTo = proxyRedirectTo
+	}
+
+	if val, exists := ingEx.Ingress.Annotations[CustomHTTPErrorsAnnotation]; exists {
+		codes, err := ParseCustomHTTPErrors(val)
+		if err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value %s: got %q: %v",
+				ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(),
+				CustomHTTPErrorsAnnotation, val, err)
+		} else {
+			cfgParams.CustomHTTPErrors = codes
+		}
 	}
 
 	if isPlus {
