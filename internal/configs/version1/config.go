@@ -17,7 +17,6 @@ type UpstreamLabels struct {
 type IngressNginxConfig struct {
 	Upstreams               []Upstream
 	Servers                 []Server
-	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
 	Ingress                 Ingress
@@ -44,6 +43,7 @@ type Upstream struct {
 	QueueTimeout     int64
 	UpstreamZoneSize string
 	UpstreamLabels   UpstreamLabels
+	Keepalive        string
 }
 
 // UpstreamServer describes a server in an NGINX upstream.

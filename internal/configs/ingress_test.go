@@ -5955,3 +5955,123 @@ func TestGenerateNginxCfgForMergeableIngressesWithExternalAuthAndProxySetHeaders
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
 	}
 }
+
+// TestGenerateNginxCfgKeepalivePerUpstream verifies that nginx.org/keepalive is
+// applied per-upstream (not as a global config-level value), and that in a
+// mergeable master/minion setup:
+//  1. A keepalive annotation on the master is inherited by minions that don't
+//     set their own.
+//  2. A minion's own keepalive annotation overrides the inherited master value.
+//  3. A minion explicitly setting keepalive "0" disables it even when the master
+//     enables it.
+func TestGenerateNginxCfgKeepalivePerUpstream(t *testing.T) {
+	t.Parallel()
+
+	const (
+		coffeeUpstreamName = "default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80"
+		teaUpstreamName    = "default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80"
+	)
+
+	tests := []struct {
+		name            string
+		masterKeepalive string
+		coffeeKeepalive string // empty = not set
+		teaKeepalive    string // empty = not set
+		wantCoffeeKA    string // expected Keepalive on coffee upstream
+		wantTeaKA       string // expected Keepalive on tea upstream
+	}{
+		{
+			name:            "master keepalive only – inherited by both minions",
+			masterKeepalive: "30",
+			wantCoffeeKA:    "30",
+			wantTeaKA:       "30",
+		},
+		{
+			name:            "minion overrides master keepalive",
+			masterKeepalive: "30",
+			coffeeKeepalive: "64",
+			wantCoffeeKA:    "64",
+			wantTeaKA:       "30",
+		},
+		{
+			name:            "minion explicitly disables keepalive (0) while master enables it",
+			masterKeepalive: "30",
+			coffeeKeepalive: "0",
+			wantCoffeeKA:    "",
+			wantTeaKA:       "30",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Ingress.Annotations["nginx.org/keepalive"] = tc.masterKeepalive
+			setMinionKeepalive(mergeableIngresses.Minions, "coffee", tc.coffeeKeepalive)
+			setMinionKeepalive(mergeableIngresses.Minions, "tea", tc.teaKeepalive)
+
+			configParams := NewDefaultConfigParams(context.Background(), false)
+			result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs:        mergeableIngresses,
+				apResources:          nil,
+				dosResource:          nil,
+				BaseCfgParams:        configParams,
+				isPlus:               false,
+				isResolverConfigured: false,
+				staticParams:         &StaticConfigParams{},
+				isWildcardEnabled:    false,
+			})
+
+			if len(warnings) != 0 {
+				t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+			}
+
+			upstreams := upstreamsByName(result.Upstreams)
+			assertUpstreamKeepalive(t, "coffee", upstreams[coffeeUpstreamName].Keepalive, tc.wantCoffeeKA)
+			assertUpstreamKeepalive(t, "tea", upstreams[teaUpstreamName].Keepalive, tc.wantTeaKA)
+
+			// The location's embedded upstream must match so the template renders
+			// keepalive and proxy_set_header Connection "" correctly.
+			wantLocationKA := map[string]string{
+				coffeeUpstreamName: tc.wantCoffeeKA,
+				teaUpstreamName:    tc.wantTeaKA,
+			}
+			for _, loc := range result.Servers[0].Locations {
+				if want, ok := wantLocationKA[loc.Upstream.Name]; ok {
+					assertUpstreamKeepalive(t, loc.Upstream.Name+" location", loc.Upstream.Keepalive, want)
+				}
+			}
+		})
+	}
+}
+
+// setMinionKeepalive sets nginx.org/keepalive on every minion whose name
+// contains substr, but only when value is non-empty.
+func setMinionKeepalive(minions []*IngressEx, substr, value string) {
+	if value == "" {
+		return
+	}
+	for i, m := range minions {
+		if strings.Contains(m.Ingress.Name, substr) {
+			minions[i].Ingress.Annotations["nginx.org/keepalive"] = value
+		}
+	}
+}
+
+// upstreamsByName indexes a slice of upstreams by name for O(1) lookup.
+func upstreamsByName(upstreams []version1.Upstream) map[string]version1.Upstream {
+	m := make(map[string]version1.Upstream, len(upstreams))
+	for _, u := range upstreams {
+		m[u.Name] = u
+	}
+	return m
+}
+
+// assertUpstreamKeepalive fails t if got != want.
+func assertUpstreamKeepalive(t *testing.T, label, got, want string) {
+	t.Helper()
+	if got != want {
+		t.Errorf("%s Keepalive = %q, want %q", label, got, want)
+	}
+}

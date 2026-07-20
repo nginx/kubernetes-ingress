@@ -2732,7 +2732,7 @@ upstream {{$upstream.Name}} {
 	{{- end}}
 	{{- range $server := $upstream.UpstreamServers}}
 	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};{{end}}
-	{{- if $.Keepalive}}keepalive {{$.Keepalive}};{{end}}
+	{{- if $upstream.Keepalive}}keepalive {{$upstream.Keepalive}};{{end}}
 }
 {{end -}}
 
@@ -2904,7 +2904,7 @@ server {
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
-		{{- if $.Keepalive}}
+		{{- if $location.Upstream.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
 		{{- if $location.LocationSnippets}}
