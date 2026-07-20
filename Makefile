@@ -113,9 +113,24 @@ test: ## Run GoLang tests
 test-update-snaps:
 	UPDATE_SNAPS=always go test -tags=aws,helmunit -shuffle=on ./...
 
+.PHONY: ci-preview
+ci-preview: ## Preview which ci.yml jobs would run. Default: --current (auto-detect from git). Override with SCENARIO=<preset> or ACT=1
+	@ARGS="--current"; \
+	if [ -n "$${SCENARIO:-}" ]; then ARGS="--scenario $${SCENARIO}"; fi; \
+	if [ "$${ACT:-0}" = "1" ]; then ARGS="$$ARGS --with-act"; fi; \
+	.github/scripts/ci-preview.sh $$ARGS
+
+.PHONY: ci-preview-all
+ci-preview-all: ## Run every ci-preview scenario preset for at-a-glance diffing
+	@for s in normal docs-only up-to-date cache-only stable-only forked forked-docs \
+	          force-main force-release force-feature run-tests-false merge-queue; do \
+	  .github/scripts/ci-preview.sh --scenario "$$s"; \
+	done
+
 .PHONY: test-ci-scripts
 test-ci-scripts: ## Run unit tests for the CI shell scripts (variables.sh)
 	bash .github/scripts/variables_test.sh
+	bash .github/scripts/ci-preview_test.sh
 
 cover: ## Generate coverage report
 	go test -tags=aws,helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
