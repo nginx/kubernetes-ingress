@@ -914,17 +914,21 @@ jobs:
             "${VERIFY_CODEGEN}" "${UNIT_TESTS}" "${STATICCHECK}" "${GOVULNCHECK}"
           require_success "${DOCKER_BUILD}" "Build artifacts" \
             "${BUILD_ARTIFACTS}"
-          # The authenticated e2e jobs are gated by both run_e2e and
-          # forked_workflow=false because they push to / pull from the private
-          # GCR. On fork PRs run_e2e is still true (so build-artifacts runs
-          # unauthenticated) but the auth-required jobs deliberately skip, so
-          # skip the e2e require_success check on forks to keep the gate green.
-          if [ "${FORKED}" != "true" ]; then
-            require_success "${RUN_E2E}" "E2E (matrix / package / helm / smoke)" \
-              "${SETUP_MATRIX}" "${PACKAGE_TESTS}" "${HELM_TESTS}" "${SMOKE_OSS}" "${SMOKE_PLUS}" "${SMOKE_NAP}"
+
+          if [ "${BUILD_ARTIFACTS}" = "success" ]; then
+            # The authenticated e2e jobs are gated by both run_e2e and
+            # forked_workflow=false because they push to / pull from the
+            # private GCR. On fork PRs run_e2e is still true (so
+            # build-artifacts runs unauthenticated) but the auth-required
+            # jobs deliberately skip, so skip the e2e require_success check
+            # on forks to keep the gate green.
+            if [ "${FORKED}" != "true" ]; then
+              require_success "${RUN_E2E}" "E2E (matrix / package / helm / smoke)" \
+                "${SETUP_MATRIX}" "${PACKAGE_TESTS}" "${HELM_TESTS}" "${SMOKE_OSS}" "${SMOKE_PLUS}" "${SMOKE_NAP}"
+            fi
+            require_success "${TAG_STABLE}" "Tag stable image" \
+              "${TAG_STABLE_RESULT}"
           fi
-          require_success "${TAG_STABLE}" "Tag stable image" \
-            "${TAG_STABLE_RESULT}"
 
           if [ "${status}" -eq 0 ]; then
             echo "All required jobs succeeded or were safely skipped."
