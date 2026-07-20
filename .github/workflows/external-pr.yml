@@ -20,9 +20,9 @@ jobs:
         is_fork: ${{ steps.pr-info.outputs.is_fork }}
         fork_owner: ${{ steps.pr-info.outputs.fork_owner }}
         fork_repo: ${{ steps.pr-info.outputs.fork_repo }}
-        branch: ${{ steps.pr-info.outputs.branch }}
         sha: ${{ steps.pr-info.outputs.sha }}
         base_branch: ${{ steps.pr-info.outputs.base_branch }}
+        pr_number: ${{ steps.pr-info.outputs.pr_number }}
         title: ${{ steps.pr-info.outputs.title }}
         body: ${{ steps.pr-info.outputs.body }}
     steps:
@@ -40,9 +40,9 @@ jobs:
             core.setOutput('is_fork', pr.data.head.repo.fork.toString());
             core.setOutput('fork_owner', pr.data.head.repo.owner.login);
             core.setOutput('fork_repo', pr.data.head.repo.name);
-            core.setOutput('branch', pr.data.head.ref);
             core.setOutput('sha', pr.data.head.sha);
             core.setOutput('base_branch', pr.data.base.ref);
+            core.setOutput('pr_number', context.issue.number.toString());
             core.setOutput('title', pr.data.title);
             const body = pr.data.body ?? '';
             core.setOutput('body', body);
@@ -131,8 +131,7 @@ jobs:
       - name: Create and push branch
         id: branch
         env:
-          PR_BRANCH: ${{ needs.pr-details.outputs.branch }}
-          SHA: ${{ needs.pr-details.outputs.sha }}
+          PR_NUMBER: ${{ needs.pr-details.outputs.pr_number }}
           APP_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           git config --global credential.helper store
@@ -141,12 +140,10 @@ jobs:
           git remote add upstream https://github.com/${{ github.repository }}.git
           git fetch upstream
 
-          BRANCH_NAME="$PR_BRANCH"
-          SHORT_SHA="${SHA:0:8}"
-          INTERNAL_BRANCH="chore/${BRANCH_NAME}-${SHORT_SHA}-do-not-merge"
+          INTERNAL_BRANCH="chore/pr-${PR_NUMBER}-do-not-merge"
 
           git checkout -b "${INTERNAL_BRANCH}"
-          git push upstream "${INTERNAL_BRANCH}"
+          git push --force upstream "${INTERNAL_BRANCH}"
           echo "Branch updated: ${INTERNAL_BRANCH}"
 
           rm ~/.git-credentials
@@ -171,11 +168,7 @@ jobs:
             });
 
             if (existingPRs.length > 0) {
-              core.setFailed(
-                `PR already exists: #${existingPRs[0].number}\n` +
-                `URL: ${existingPRs[0].html_url}\n` +
-                `Close existing PR before creating a new one.`
-              );
+              console.log(`Existing PR updated: ${existingPRs[0].html_url}`);
               return;
             }
 
