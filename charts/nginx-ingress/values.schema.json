@@ -7,8 +7,7 @@
     "controller",
     "rbac",
     "prometheus",
-    "serviceInsight",
-    "nginxServiceMesh"
+    "serviceInsight"
   ],
   "properties": {
     "controller": {
@@ -2539,38 +2538,6 @@
         }
       ]
     },
-    "nginxServiceMesh": {
-      "type": "object",
-      "default": {},
-      "title": "The nginxServiceMesh Schema",
-      "required": [
-        "enable"
-      ],
-      "properties": {
-        "enable": {
-          "type": "boolean",
-          "default": false,
-          "title": "The enable",
-          "examples": [
-            false
-          ]
-        },
-        "enableEgress": {
-          "type": "boolean",
-          "default": false,
-          "title": "The enableEgress",
-          "examples": [
-            false
-          ]
-        }
-      },
-      "examples": [
-        {
-          "enable": false,
-          "enableEgress": false
-        }
-      ]
-    },
     "nginxAgent": {
       "type": "object",
       "default": {
@@ -3048,10 +3015,6 @@
         "port": 9114,
         "secret": "",
         "scheme": "http"
-      },
-      "nginxServiceMesh": {
-        "enable": false,
-        "enableEgress": false
       },
       "nginxAgent": {
         "enable": false,

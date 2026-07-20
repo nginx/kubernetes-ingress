@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -13,7 +12,6 @@ import (
 	"github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 
 	"github.com/nginx/nginx-prometheus-exporter/collector"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 
@@ -76,15 +74,6 @@ const CACrlKey = "ca.crl"
 
 // ClientSecretKey is the key of the data field of a Secret where the OIDC client secret must be stored.
 const ClientSecretKey = "client-secret"
-
-// SPIFFE filenames and modes
-const (
-	spiffeCertFileName   = "spiffe_cert.pem"
-	spiffeKeyFileName    = "spiffe_key.pem"
-	spiffeBundleFileName = "spiffe_rootca.pem"
-	spiffeCertsFileMode  = os.FileMode(0o644)
-	spiffeKeyFileMode    = os.FileMode(0o600)
-)
 
 // ExtendedResources holds all extended configuration resources, for which Configurator configures NGINX.
 type ExtendedResources struct {
@@ -242,10 +231,6 @@ func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams 
 			podInfo := ingEx.PodsByIP[server.Address]
 			labelKey := fmt.Sprintf("%v/%v", u.Name, server.Address)
 			upstreamServerPeerLabels[labelKey] = []string{podInfo.Name}
-			if cnf.staticCfgParams.NginxServiceMesh {
-				ownerLabelVal := fmt.Sprintf("%s/%s", podInfo.OwnerType, podInfo.OwnerName)
-				upstreamServerPeerLabels[labelKey] = append(upstreamServerPeerLabels[labelKey], ownerLabelVal)
-			}
 			newPeers[labelKey] = true
 			newPeersIPs = append(newPeersIPs, labelKey)
 		}
@@ -653,10 +638,6 @@ func (cnf *Configurator) updateVirtualServerMetricsLabels(virtualServerEx *Virtu
 			podInfo := virtualServerEx.PodsByIP[server.Address]
 			labelKey := fmt.Sprintf("%v/%v", u.Name, server.Address)
 			upstreamServerPeerLabels[labelKey] = []string{podInfo.Name}
-			if cnf.staticCfgParams.NginxServiceMesh {
-				ownerLabelVal := fmt.Sprintf("%s/%s", podInfo.OwnerType, podInfo.OwnerName)
-				upstreamServerPeerLabels[labelKey] = append(upstreamServerPeerLabels[labelKey], ownerLabelVal)
-			}
 			newPeers[labelKey] = true
 			newPeersIPs = append(newPeersIPs, labelKey)
 		}
@@ -1456,7 +1437,7 @@ func (cnf *Configurator) updatePlusEndpointsForTransportServer(transportServerEx
 
 func (cnf *Configurator) updatePlusEndpoints(ingEx *IngressEx, parentIngress *networking.Ingress) error {
 	l := nl.LoggerFromContext(cnf.CfgParams.Context)
-	ingCfg := parseAnnotations(ingEx, cnf.CfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.EnableInternalRoutes, cnf.staticCfgParams.IsDirectiveAutoadjustEnabled)
+	ingCfg := parseAnnotations(ingEx, cnf.CfgParams, cnf.isPlus, cnf.staticCfgParams.MainAppProtectLoadModule, cnf.staticCfgParams.MainAppProtectDosLoadModule, cnf.staticCfgParams.IsDirectiveAutoadjustEnabled)
 
 	cfg := nginx.ServerConfig{
 		MaxFails:    ingCfg.MaxFails,
@@ -1955,36 +1936,6 @@ func (cnf *Configurator) GetTransportServerCounts() (tsCount int) {
 	return len(cnf.transportServers)
 }
 
-// AddOrUpdateSpiffeCerts writes Spiffe certs and keys to disk and reloads NGINX
-func (cnf *Configurator) AddOrUpdateSpiffeCerts(svidResponse *workloadapi.X509Context) error {
-	svid := svidResponse.DefaultSVID()
-	trustDomain := svid.ID.TrustDomain()
-	caBundle, err := svidResponse.Bundles.GetX509BundleForTrustDomain(trustDomain)
-	if err != nil {
-		return fmt.Errorf("error parsing CA bundle from SPIFFE SVID response: %w", err)
-	}
-
-	pemBundle, err := caBundle.Marshal()
-	if err != nil {
-		return fmt.Errorf("unable to marshal X.509 SVID Bundle: %w", err)
-	}
-
-	pemCerts, pemKey, err := svid.Marshal()
-	if err != nil {
-		return fmt.Errorf("unable to marshal X.509 SVID: %w", err)
-	}
-
-	cnf.nginxManager.CreateSecret(spiffeKeyFileName, pemKey, spiffeKeyFileMode)
-	cnf.nginxManager.CreateSecret(spiffeCertFileName, pemCerts, spiffeCertsFileMode)
-	cnf.nginxManager.CreateSecret(spiffeBundleFileName, pemBundle, spiffeCertsFileMode)
-
-	err = cnf.Reload(nginx.ReloadForOtherUpdate)
-	if err != nil {
-		return fmt.Errorf("error when reloading NGINX when updating the SPIFFE Certs: %w", err)
-	}
-	return nil
-}
-
 func (cnf *Configurator) updateApResourcesForMergeableIngresses(mergeableIngs *MergeableIngresses) *AppProtectResources {
 	apResources := cnf.updateApResources(mergeableIngs.Master)
 	for _, minion := range mergeableIngs.Minions {
@@ -2276,24 +2227,6 @@ func (cnf *Configurator) DeleteAppProtectDosLogConf(resource *unstructured.Unstr
 // DeleteAppProtectDosAllowList updates Ingresses and VirtualServers that use AP Allow List Configuration after that policy is deleted
 func (cnf *Configurator) DeleteAppProtectDosAllowList(obj *v1beta1.DosProtectedResource) {
 	cnf.nginxManager.DeleteAppProtectResourceFile(appProtectDosAllowListFileName(obj.Namespace, obj.Name))
-}
-
-// AddInternalRouteConfig adds internal route server to NGINX Configuration and reloads NGINX
-func (cnf *Configurator) AddInternalRouteConfig() error {
-	cnf.staticCfgParams.EnableInternalRoutes = true
-	cnf.staticCfgParams.InternalRouteServerName = fmt.Sprintf("%s.%s.svc", os.Getenv("POD_SERVICEACCOUNT"), os.Getenv("POD_NAMESPACE"))
-	mainCfg := GenerateNginxMainConfig(cnf.staticCfgParams, cnf.CfgParams, cnf.MgmtCfgParams)
-	mainCfgContent, err := cnf.templateExecutor.ExecuteMainConfigTemplate(mainCfg)
-	if err != nil {
-		return fmt.Errorf("error when writing main Config: %w", err)
-	}
-	if _, err := cnf.nginxManager.CreateMainConfig(mainCfgContent); err != nil {
-		return err
-	}
-	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
-		return fmt.Errorf("error when reloading nginx: %w", err)
-	}
-	return nil
 }
 
 // AddOrUpdateSecret adds or updates a secret.

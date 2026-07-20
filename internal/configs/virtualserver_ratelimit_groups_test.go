@@ -4575,7 +4575,7 @@ func TestGenerateVirtualServerConfigWithRateLimitGroupsWarning(t *testing.T) {
 
 	isPlus := true
 	isResolverConfigured := false
-	staticConfigParams := &StaticConfigParams{TLSPassthrough: true, NginxServiceMesh: true, EnableInternalRoutes: false}
+	staticConfigParams := &StaticConfigParams{TLSPassthrough: true}
 	isWildcardEnabled := false
 	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, staticConfigParams, isWildcardEnabled, &fakeBV)
 
