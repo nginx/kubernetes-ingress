@@ -356,7 +356,7 @@ func TestParseAnnotationsCustomHTTPErrors(t *testing.T) {
 				},
 			}
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 			if !reflect.DeepEqual(result.CustomHTTPErrors, tc.want) {
 				t.Errorf("CustomHTTPErrors = %v, want %v", result.CustomHTTPErrors, tc.want)
 			}
