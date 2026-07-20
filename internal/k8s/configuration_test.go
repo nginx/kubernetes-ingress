@@ -4355,6 +4355,11 @@ func createTestIngressMinion(name string, host string, path string) *networking.
 			Paths: []networking.HTTPIngressPath{
 				{
 					Path: path,
+					Backend: networking.IngressBackend{
+						Service: &networking.IngressServiceBackend{
+							Name: "test-svc",
+						},
+					},
 				},
 			},
 		},

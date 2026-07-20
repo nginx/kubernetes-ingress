@@ -4,14 +4,14 @@
       "label": "ingresses 1/2",
       "image": "debian",
       "type": "oss",
-      "marker": "'ingresses and not annotations and not basic_auth and not hsts and not watch_namespace and not wildcard_tls'",
+      "marker": "'ingresses and not annotations and not basic_auth and not hsts and not watch_namespace and not wildcard_tls and not custom_http_errors'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {
       "label": "ingresses 2/2",
       "image": "debian",
       "type": "oss",
-      "marker": "'annotations or basic_auth or hsts or watch_namespace or wildcard_tls'",
+      "marker": "'annotations or basic_auth or hsts or watch_namespace or wildcard_tls or custom_http_errors'",
       "platforms": "linux/arm64, linux/amd64"
     },
     {

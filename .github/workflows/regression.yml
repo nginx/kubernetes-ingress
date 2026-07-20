@@ -109,7 +109,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
+          version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup Golang Environment
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -154,7 +154,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.2 # renovate: datasource=github-releases depName=helm/helm
+          version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Azure login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -296,7 +296,7 @@ jobs:
         id: image_details
         run: |
           if ${{ matrix.images.lts == true }}; then
-            echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/lts/nginx-ic/nginx-plus-ingress" >> $GITHUB_OUTPUT
+            echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release/nginx-ic/lts/nginx-plus-ingress" >> $GITHUB_OUTPUT
             echo "tag=${{ matrix.images.lts_tag }}" >> $GITHUB_OUTPUT
           else
             echo "name=gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic${{ contains(matrix.images.nap_modules, 'dos') && '-dos' || '' }}${{ contains(matrix.images.nap_modules, 'waf') && '-nap' || '' }}${{ contains(matrix.images.image, 'v5') && '-v5' || '' }}/nginx${{ contains(matrix.images.image, 'plus') && '-plus' || '' }}-ingress" >> $GITHUB_OUTPUT
@@ -354,7 +354,7 @@ jobs:
 
       - name: Generate WAF v5 tgz from JSON
         run: |
-          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.13.2 -p /data/wafv5.json -o /data/wafv5.tgz
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.13.4 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(matrix.images.image, 'nap-v5')}}
 
       - name: Generate secrets for tests
