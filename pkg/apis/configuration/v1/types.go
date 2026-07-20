@@ -1142,6 +1142,10 @@ type OIDCNative struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
 	PostLogoutRedirectURI string `json:"postLogoutRedirectURI,omitempty"`
+	// Defines the URI path for triggering OIDC front-channel logout. When set, the IdP calls this URI in a hidden iframe when the user logs out globally, allowing NGINX to terminate the local session.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
+	FrontChannelLogoutURI string `json:"frontChannelLogoutURI,omitempty"`
 	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
@@ -1158,6 +1162,23 @@ type OIDCNative struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
+	// Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure).
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	SSLVerify *bool `json:"sslVerify,omitempty"`
+	// Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. Defaults to the hostname parsed from `issuer`.
+	// +kubebuilder:validation:Optional
+	SSLName string `json:"sslName,omitempty"`
+	// Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default=1
+	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+	// Buffer size used when proxying requests to the OpenID Provider. Applies to `proxy_buffer_size` and each buffer in `proxy_buffers`. Default is `32k`.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]+[kKmM]?$`
+	// +kubebuilder:default="32k"
+	ProxyBufferSize string `json:"proxyBufferSize,omitempty"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.

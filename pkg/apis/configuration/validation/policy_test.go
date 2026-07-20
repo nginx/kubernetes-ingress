@@ -2062,6 +2062,7 @@ func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
 				RedirectURI:           "/oidc_callback",
 				LogoutURI:             "/logout",
 				PostLogoutRedirectURI: "/logged_out",
+				FrontChannelLogoutURI: "/frontchannel_logout",
 				UserInfoEnable:        true,
 			},
 			msg: "full config with all optional fields",

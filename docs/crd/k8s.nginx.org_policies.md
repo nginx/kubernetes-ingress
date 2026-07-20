@@ -124,14 +124,19 @@ The `.spec` object supports the following fields:
 | `oidcNative.configURL` | `string` | ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification. |
 | `oidcNative.cookieName` | `string` | Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION. |
 | `oidcNative.extraAuthArgs` | `string` | Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login". |
+| `oidcNative.frontChannelLogoutURI` | `string` | Defines the URI path for triggering OIDC front-channel logout. When set, the IdP calls this URI in a hidden iframe when the user logs out globally, allowing NGINX to terminate the local session. |
 | `oidcNative.issuer` | `string` | Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme. |
 | `oidcNative.logoutTokenHint` | `boolean` | Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers. |
 | `oidcNative.logoutURI` | `string` | Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page. |
 | `oidcNative.pkce` | `string` | Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata. Allowed values: `"on"`, `"off"`. |
 | `oidcNative.postLogoutRedirectURI` | `string` | Defines the path or absolute URI to redirect the user to after logout. |
+| `oidcNative.proxyBufferSize` | `string` | Buffer size used when proxying requests to the OpenID Provider. Applies to `proxy_buffer_size` and each buffer in `proxy_buffers`. Default is `32k`. |
 | `oidcNative.redirectURI` | `string` | Allows overriding the default redirect URI. The module defaults to /oidc_callback. |
 | `oidcNative.scope` | `string` | List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid". |
 | `oidcNative.sessionTimeout` | `string` | Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h. |
+| `oidcNative.sslName` | `string` | Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. Defaults to the hostname parsed from `issuer`. |
+| `oidcNative.sslVerify` | `boolean` | Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure). |
+| `oidcNative.sslVerifyDepth` | `integer` | Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1. |
 | `oidcNative.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt. |
 | `oidcNative.userInfoEnable` | `boolean` | Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables. |
 | `rateLimit` | `object` | The rate limit policy controls the rate of processing requests per a defined key. |

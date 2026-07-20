@@ -1134,10 +1134,15 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	dedupedOIDCProviders := removeDuplicateOIDCProviders(oidcProviders)
 	for _, p := range dedupedOIDCProviders {
 		if p.SessionStore != "" {
+			timeout := p.SessionTimeout
+			if p.Sync && timeout == "" {
+				timeout = "1h"
+			}
 			keyValZones = append(keyValZones, version2.KeyValZone{
-				Name: p.SessionStore,
-				Size: "10m",
-				Sync: p.Sync,
+				Name:    p.SessionStore,
+				Size:    "10m",
+				Sync:    p.Sync,
+				Timeout: timeout,
 			})
 		}
 	}

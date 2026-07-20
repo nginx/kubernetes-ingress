@@ -35,7 +35,7 @@ upstream {{ $u.Name }} {
 {{ end }}
 
 {{- range $kvz := .KeyValZones }}
-keyval_zone zone={{ $kvz.Name }}:{{ $kvz.Size}}{{ if $kvz.State }} state={{ $kvz.State }}{{ end }}{{ if $kvz.Sync }} sync{{ end }};
+keyval_zone zone={{ $kvz.Name }}:{{ $kvz.Size}}{{ if $kvz.State }} state={{ $kvz.State }}{{ end }}{{ if $kvz.Timeout }} timeout={{ $kvz.Timeout }}{{ end }}{{ if $kvz.Sync }} sync{{ end }};
 {{- end }}
 
 {{- range $kv := .KeyVals }}
@@ -96,6 +96,9 @@ oidc_provider {{ $p.Name }} {
     {{- if $p.PostLogoutURI }}
     post_logout_uri {{ $p.PostLogoutURI }};
     {{- end }}
+    {{- if $p.FrontChannelLogoutURI }}
+    frontchannel_logout_uri {{ $p.FrontChannelLogoutURI }};
+    {{- end }}
     {{- if $p.CookieName }}
     cookie_name {{ $p.CookieName }};
     {{- end }}
@@ -122,6 +125,9 @@ oidc_provider {{ $p.Name }} {
     {{- end }}
     {{- if $p.UserInfoEnable }}
     userinfo on;
+    {{- end }}
+    {{- if $p.ProxyLocation }}
+    proxy_location {{ $p.ProxyLocation }};
     {{- end }}
 }
 {{- end }}
@@ -562,6 +568,33 @@ server {
     {{- if $p.RedirectURI }}
     location = {{ $p.RedirectURI }} {
         auth_oidc {{ $p.Name }};
+    }
+    {{- end }}
+    {{- with $pl := $p.PostLogoutLocation }}
+    location = {{ $pl.Path }} {
+        auth_oidc off;
+        default_type {{ $pl.DefaultType }};
+        return {{ $pl.Return.Code }} "{{ $pl.Return.Text }}";
+    }
+    {{- end }}
+    {{- if $p.ProxyLocation }}
+    location = {{ $p.ProxyLocation }} {
+        auth_oidc off;
+        proxy_pass $oidc_idp_request_uri;
+        proxy_ssl_server_name on;
+        {{- if $p.SSLName }}
+        proxy_ssl_name {{ $p.SSLName }};
+        proxy_set_header Host {{ $p.SSLName }};
+        {{- end }}
+        proxy_ssl_verify {{ if $p.SSLVerify }}on{{ else }}off{{ end }};
+        {{- if $p.ProxyTrustedCertPath }}
+        proxy_ssl_trusted_certificate {{ $p.ProxyTrustedCertPath }};
+        proxy_ssl_verify_depth {{ $p.SSLVerifyDepth }};
+        {{- end }}
+        proxy_buffers 8 {{ $p.ProxyBufferSize }};
+        proxy_buffer_size {{ $p.ProxyBufferSize }};
+        proxy_busy_buffers_size {{ $p.ProxyBufferSize }};
+        subrequest_output_buffer_size 64k;
     }
     {{- end }}
     {{- end }}

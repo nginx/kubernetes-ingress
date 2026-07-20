@@ -15,7 +15,7 @@ type OIDCNativeApplyConfiguration struct {
 	ClientSecret *string `json:"clientSecret,omitempty"`
 	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	ConfigURL *string `json:"configURL,omitempty"`
-	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The module defaults to openid.
+	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid".
 	Scope *string `json:"scope,omitempty"`
 	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
 	RedirectURI *string `json:"redirectURI,omitempty"`
@@ -29,6 +29,8 @@ type OIDCNativeApplyConfiguration struct {
 	LogoutURI *string `json:"logoutURI,omitempty"`
 	// Defines the path or absolute URI to redirect the user to after logout.
 	PostLogoutRedirectURI *string `json:"postLogoutRedirectURI,omitempty"`
+	// Defines the URI path for triggering OIDC front-channel logout. When set, the IdP calls this URI in a hidden iframe when the user logs out globally, allowing NGINX to terminate the local session.
+	FrontChannelLogoutURI *string `json:"frontChannelLogoutURI,omitempty"`
 	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
 	LogoutTokenHint *bool `json:"logoutTokenHint,omitempty"`
 	// Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h.
@@ -37,6 +39,14 @@ type OIDCNativeApplyConfiguration struct {
 	UserInfoEnable *bool `json:"userInfoEnable,omitempty"`
 	// The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
+	// Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure).
+	SSLVerify *bool `json:"sslVerify,omitempty"`
+	// Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. Defaults to the hostname parsed from `issuer`.
+	SSLName *string `json:"sslName,omitempty"`
+	// Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1.
+	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+	// Buffer size used when proxying requests to the OpenID Provider. Applies to `proxy_buffer_size` and each buffer in `proxy_buffers`. Default is `32k`.
+	ProxyBufferSize *string `json:"proxyBufferSize,omitempty"`
 }
 
 // OIDCNativeApplyConfiguration constructs a declarative configuration of the OIDCNative type for use with
@@ -133,6 +143,14 @@ func (b *OIDCNativeApplyConfiguration) WithPostLogoutRedirectURI(value string) *
 	return b
 }
 
+// WithFrontChannelLogoutURI sets the FrontChannelLogoutURI field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the FrontChannelLogoutURI field is set to the value of the last call.
+func (b *OIDCNativeApplyConfiguration) WithFrontChannelLogoutURI(value string) *OIDCNativeApplyConfiguration {
+	b.FrontChannelLogoutURI = &value
+	return b
+}
+
 // WithLogoutTokenHint sets the LogoutTokenHint field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the LogoutTokenHint field is set to the value of the last call.
@@ -162,5 +180,37 @@ func (b *OIDCNativeApplyConfiguration) WithUserInfoEnable(value bool) *OIDCNativ
 // If called multiple times, the TrustedCertSecret field is set to the value of the last call.
 func (b *OIDCNativeApplyConfiguration) WithTrustedCertSecret(value string) *OIDCNativeApplyConfiguration {
 	b.TrustedCertSecret = &value
+	return b
+}
+
+// WithSSLVerify sets the SSLVerify field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SSLVerify field is set to the value of the last call.
+func (b *OIDCNativeApplyConfiguration) WithSSLVerify(value bool) *OIDCNativeApplyConfiguration {
+	b.SSLVerify = &value
+	return b
+}
+
+// WithSSLName sets the SSLName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SSLName field is set to the value of the last call.
+func (b *OIDCNativeApplyConfiguration) WithSSLName(value string) *OIDCNativeApplyConfiguration {
+	b.SSLName = &value
+	return b
+}
+
+// WithSSLVerifyDepth sets the SSLVerifyDepth field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the SSLVerifyDepth field is set to the value of the last call.
+func (b *OIDCNativeApplyConfiguration) WithSSLVerifyDepth(value int) *OIDCNativeApplyConfiguration {
+	b.SSLVerifyDepth = &value
+	return b
+}
+
+// WithProxyBufferSize sets the ProxyBufferSize field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ProxyBufferSize field is set to the value of the last call.
+func (b *OIDCNativeApplyConfiguration) WithProxyBufferSize(value string) *OIDCNativeApplyConfiguration {
+	b.ProxyBufferSize = &value
 	return b
 }

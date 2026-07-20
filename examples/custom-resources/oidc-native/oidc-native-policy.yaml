@@ -8,4 +8,5 @@ spec:
     clientID: nginx-plus
     clientSecret: oidcnative-secret
     scope: openid profile email
-    trustedCertSecret: keycloak-ca-secret
+    sslVerify: false
+    postLogoutRedirectURI: /_logout

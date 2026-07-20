@@ -747,6 +747,13 @@ spec:
                     description: Sets additional query arguments for the authentication
                       request URL, for example "display=page&prompt=login".
                     type: string
+                  frontChannelLogoutURI:
+                    description: Defines the URI path for triggering OIDC front-channel
+                      logout. When set, the IdP calls this URI in a hidden iframe
+                      when the user logs out globally, allowing NGINX to terminate
+                      the local session.
+                    pattern: ^/[^\s{};\\]*$
+                    type: string
                   issuer:
                     description: Sets the Issuer Identifier URL of the OpenID Provider;
                       required directive. The URL must exactly match the value of
@@ -778,6 +785,13 @@ spec:
                       user to after logout.
                     pattern: ^/[^\s{};\\]*$
                     type: string
+                  proxyBufferSize:
+                    default: 32k
+                    description: Buffer size used when proxying requests to the OpenID
+                      Provider. Applies to `proxy_buffer_size` and each buffer in
+                      `proxy_buffers`. Default is `32k`.
+                    pattern: ^[0-9]+[kKmM]?$
+                    type: string
                   redirectURI:
                     description: Allows overriding the default redirect URI. The module
                       defaults to /oidc_callback.
@@ -796,6 +810,23 @@ spec:
                       unless it was refreshed. The module defaults to 8h.
                     pattern: ^[0-9]+(s|m|h|d)?$
                     type: string
+                  sslName:
+                    description: Overrides the TLS SNI name and Host header used when
+                      connecting to the OpenID Provider. Defaults to the hostname
+                      parsed from `issuer`.
+                    type: string
+                  sslVerify:
+                    default: true
+                    description: Enables verification of the OpenID Provider's TLS
+                      certificate. Default is true. Set to false to skip verification
+                      (dev/test only, insecure).
+                    type: boolean
+                  sslVerifyDepth:
+                    default: 1
+                    description: Sets the verification depth in the OpenID Provider
+                      TLS certificate chain. Default is 1.
+                    minimum: 0
+                    type: integer
                   trustedCertSecret:
                     description: The name of the Kubernetes secret that stores the
                       trusted CA certificate for verifying the OpenID Provider's TLS

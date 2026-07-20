@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -830,8 +831,11 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		clientSecret = string(secretRef.Secret.Data[ClientSecretKey])
 	}
 
-	// Resolve trusted CA cert if specified.
+	// Resolve trusted CA cert (and optional CRL) if specified.
+	// nginx.org/ca secrets can contain both ca.crt and ca.crl; the SecretStore
+	// writes both to disk and returns their paths space-separated.
 	trustedCertPath := ""
+	trustedCrlPath := ""
 	if oidcNative.TrustedCertSecret != "" {
 		trustedCertKey := fmt.Sprintf("%s/%s", polNamespace, oidcNative.TrustedCertSecret)
 		trustedCertRef, ok := secretRefs[trustedCertKey]
@@ -857,6 +861,9 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		caFields := strings.Fields(trustedCertRef.Path)
 		if len(caFields) > 0 {
 			trustedCertPath = caFields[0]
+		}
+		if len(caFields) > 1 {
+			trustedCrlPath = caFields[1]
 		}
 	}
 
@@ -886,26 +893,91 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	sessionStore := fmt.Sprintf("oidc_sessions_%s", providerName)
 	sync := policyOpts.zoneSync
 
+	// Always generate a proxy_location for the provider. NGINX proxies all IdP
+	// requests through this location, giving us control over SNI, Host header,
+	// TLS verification, and DNS resolution regardless of where the IdP lives.
+	proxyLocation := fmt.Sprintf("/_oidc_idp_%s", providerName)
+
+	// Derive the IdP hostname for SNI and Host header from the issuer URL.
+	// User can override via sslName field.
+	sslName := oidcNative.SSLName
+	if sslName == "" {
+		if u, err := url.Parse(oidcNative.Issuer); err == nil && u.Host != "" {
+			// Strip port if present — SNI is hostname only.
+			if h, _, splitErr := net.SplitHostPort(u.Host); splitErr == nil {
+				sslName = h
+			} else {
+				sslName = u.Host
+			}
+		}
+	}
+
+	sslVerify := true
+	if oidcNative.SSLVerify != nil {
+		sslVerify = *oidcNative.SSLVerify
+	}
+	sslVerifyDepth := 1
+	if oidcNative.SSLVerifyDepth != nil {
+		sslVerifyDepth = *oidcNative.SSLVerifyDepth
+	}
+	proxyBufferSize := oidcNative.ProxyBufferSize
+	if proxyBufferSize == "" {
+		proxyBufferSize = "32k"
+	}
+
+	// Pre-compute the proxy_ssl_trusted_certificate path. Only render when TLS
+	// verification is enabled AND a trusted cert is available; otherwise leave empty.
+	proxyTrustedCertPath := ""
+	if sslVerify && trustedCertPath != "" {
+		proxyTrustedCertPath = trustedCertPath
+	}
+
+	// Build the auto-generated post-logout location. When PostLogoutRedirectURI is
+	// set (CRD pattern restricts it to a path), we generate an unauthenticated
+	// location that returns a canned confirmation message. Users who want custom
+	// content on the same path should override with a route (post-GA: use a
+	// noAuth policy to complement).
+	var postLogoutLoc *version2.AuthOIDCReturnLocation
+	if oidcNative.PostLogoutRedirectURI != "" {
+		postLogoutLoc = &version2.AuthOIDCReturnLocation{
+			Path:        oidcNative.PostLogoutRedirectURI,
+			DefaultType: "text/plain",
+			Return: version2.Return{
+				Code: 200,
+				Text: "You have been logged out.\n",
+			},
+		}
+	}
+
 	p.OIDCProvider = &version2.OIDCProvider{
-		Name:            providerName,
-		PolicyKey:       polKey,
-		Issuer:          oidcNative.Issuer,
-		ClientID:        oidcNative.ClientID,
-		ClientSecret:    clientSecret,
-		ConfigURL:       oidcNative.ConfigURL,
-		Scope:           scope,
-		RedirectURI:     redirectURI,
-		CookieName:      cookieName,
-		ExtraAuthArgs:   oidcNative.ExtraAuthArgs,
-		PKCE:            oidcNative.PKCE,
-		LogoutURI:       oidcNative.LogoutURI,
-		PostLogoutURI:   oidcNative.PostLogoutRedirectURI,
-		LogoutTokenHint: oidcNative.LogoutTokenHint,
-		SessionStore:    sessionStore,
-		SessionTimeout:  oidcNative.SessionTimeout,
-		Sync:            sync,
-		UserInfoEnable:  oidcNative.UserInfoEnable,
-		SSLTrustedCert:  trustedCertPath,
+		Name:                  providerName,
+		PolicyKey:             polKey,
+		Issuer:                oidcNative.Issuer,
+		ClientID:              oidcNative.ClientID,
+		ClientSecret:          clientSecret,
+		ConfigURL:             oidcNative.ConfigURL,
+		Scope:                 scope,
+		RedirectURI:           redirectURI,
+		CookieName:            cookieName,
+		ExtraAuthArgs:         oidcNative.ExtraAuthArgs,
+		PKCE:                  oidcNative.PKCE,
+		LogoutURI:             oidcNative.LogoutURI,
+		PostLogoutURI:         oidcNative.PostLogoutRedirectURI,
+		FrontChannelLogoutURI: oidcNative.FrontChannelLogoutURI,
+		LogoutTokenHint:       oidcNative.LogoutTokenHint,
+		SessionStore:          sessionStore,
+		SessionTimeout:        oidcNative.SessionTimeout,
+		Sync:                  sync,
+		UserInfoEnable:        oidcNative.UserInfoEnable,
+		SSLTrustedCert:        trustedCertPath,
+		SSLCrl:                trustedCrlPath,
+		SSLVerify:             sslVerify,
+		SSLName:               sslName,
+		SSLVerifyDepth:        sslVerifyDepth,
+		ProxyLocation:         proxyLocation,
+		ProxyBufferSize:       proxyBufferSize,
+		ProxyTrustedCertPath:  proxyTrustedCertPath,
+		PostLogoutLocation:    postLogoutLoc,
 	}
 
 	return res
