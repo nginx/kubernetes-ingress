@@ -926,7 +926,6 @@ func TestParseCustomHTTPErrors_ValidInput(t *testing.T) {
 		{name: "range boundary high", input: "599", want: []int{599}},
 		{name: "3xx redirect code accepted", input: "301", want: []int{301}},
 		{name: "3xx mixed with 4xx", input: "301,404", want: []int{301, 404}},
-		{name: "4xx range excludes 499", input: "4xx", want: all4xx},
 		{name: "498 accepted (adjacent to rejected 499)", input: "498", want: []int{498}},
 		{name: "4xx shorthand combined with explicit 498", input: "4xx,498", want: all4xx},
 	}

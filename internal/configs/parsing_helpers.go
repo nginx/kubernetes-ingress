@@ -440,7 +440,7 @@ func VerifyPath(s string) bool {
 const customHTTPErrorMaxCodes = 300
 
 // nginxErrorPageRejectedCodes lists status codes that NGINX itself rejects in
-// the error_page directive at config-parse time..
+// the error_page directive at config-parse time.
 var nginxErrorPageRejectedCodes = map[int]bool{
 	499: true,
 }
