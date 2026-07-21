@@ -4143,8 +4143,7 @@ server {
     location = /logged_out {
         auth_oidc off;
         default_type text/plain;
-        return 200 "You have been logged out.
-";
+        return 200 "You have been logged out.\n";
     }
     location = /_oidc_idp_oidc_default_my_provider_default_cafe {
         auth_oidc off;

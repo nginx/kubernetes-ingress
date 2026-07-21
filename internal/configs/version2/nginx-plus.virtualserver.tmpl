@@ -574,7 +574,7 @@ server {
     location = {{ $pl.Path }} {
         auth_oidc off;
         default_type {{ $pl.DefaultType }};
-        return {{ $pl.Return.Code }} "{{ $pl.Return.Text }}";
+        return {{ $pl.Return.Code }} {{ printf "%q" $pl.Return.Text }};
     }
     {{- end }}
     {{- if $p.ProxyLocation }}
