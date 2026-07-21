@@ -890,8 +890,13 @@ func TestParseCustomHTTPErrors_ValidInput(t *testing.T) {
 	t.Parallel()
 
 	// Build the fully expanded 4xx / 5xx / 4xx+5xx code lists once for reuse.
-	all4xx := make([]int, 0, 100)
+	// 499 is skipped from the 4xx shorthand because NGINX rejects it in the
+	// error_page directive
+	all4xx := make([]int, 0, 99)
 	for c := 400; c <= 499; c++ {
+		if c == 499 {
+			continue
+		}
 		all4xx = append(all4xx, c)
 	}
 	all5xx := make([]int, 0, 100)
@@ -921,6 +926,9 @@ func TestParseCustomHTTPErrors_ValidInput(t *testing.T) {
 		{name: "range boundary high", input: "599", want: []int{599}},
 		{name: "3xx redirect code accepted", input: "301", want: []int{301}},
 		{name: "3xx mixed with 4xx", input: "301,404", want: []int{301, 404}},
+		{name: "4xx range excludes 499", input: "4xx", want: all4xx},
+		{name: "498 accepted (adjacent to rejected 499)", input: "498", want: []int{498}},
+		{name: "4xx shorthand combined with explicit 498", input: "4xx,498", want: all4xx},
 	}
 
 	for _, tc := range tests {
@@ -962,6 +970,8 @@ func TestParseCustomHTTPErrors_InvalidInput(t *testing.T) {
 		{name: "trailing chars rejected", input: "404x"},
 		{name: "range with number rejected", input: "4xx1"},
 		{name: "mixed valid and invalid fails whole input", input: "404,700"},
+		{name: "explicit 499 rejected (NGINX error_page constraint)", input: "499"},
+		{name: "explicit 499 with other codes rejects whole input", input: "404,499,500"},
 	}
 
 	for _, tc := range tests {

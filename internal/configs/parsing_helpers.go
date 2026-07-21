@@ -439,6 +439,12 @@ func VerifyPath(s string) bool {
 // 300, which is the effective upper bound in normal use.
 const customHTTPErrorMaxCodes = 300
 
+// nginxErrorPageRejectedCodes lists status codes that NGINX itself rejects in
+// the error_page directive at config-parse time..
+var nginxErrorPageRejectedCodes = map[int]bool{
+	499: true,
+}
+
 // ParseCustomHTTPErrors parses the nginx.org/custom-http-errors annotation
 // value into a sorted, deduplicated slice of HTTP status codes.
 //
@@ -457,11 +463,17 @@ func ParseCustomHTTPErrors(value string) ([]int, error) {
 		switch strings.ToLower(token) {
 		case "4xx":
 			for c := 400; c <= 499; c++ {
+				if nginxErrorPageRejectedCodes[c] {
+					continue
+				}
 				set[c] = struct{}{}
 			}
 			continue
 		case "5xx":
 			for c := 500; c <= 599; c++ {
+				if nginxErrorPageRejectedCodes[c] {
+					continue
+				}
 				set[c] = struct{}{}
 			}
 			continue
@@ -475,6 +487,9 @@ func ParseCustomHTTPErrors(value string) ([]int, error) {
 		}
 		if code < 300 || code > 599 {
 			return nil, fmt.Errorf("invalid status code %d: must be in the range [300, 599]", code)
+		}
+		if nginxErrorPageRejectedCodes[code] {
+			return nil, fmt.Errorf("invalid status code %d: NGINX rejects this code in the error_page directive", code)
 		}
 		set[code] = struct{}{}
 	}
