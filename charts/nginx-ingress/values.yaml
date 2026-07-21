@@ -772,14 +772,6 @@ serviceInsight:
   ## Configures the HTTP scheme used.
   scheme: http
 
-nginxServiceMesh:
-  ## Enables integration with NGINX Service Mesh.
-  enable: false
-
-  ## Enables NGINX Service Mesh workload to route egress traffic through the Ingress Controller.
-  ## Requires nginxServiceMesh.enable
-  enableEgress: false
-
 nginxAgent:
   ## Enables NGINX Agent.
   enable: false
