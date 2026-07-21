@@ -24,7 +24,7 @@ All of these need to be true:
 
 * on new issue comments
 * if the repository is `nginx/kubernetes-ingress` (so forks and mirrors do not fire)
-* that are not Pull Requests (PRs are also issue comments per the GitHub API with an extra flag)
+* that are Pull Requests (PRs are also issue comments per the GitHub API with an extra flag)
 * where the person making the comment is either a repository member or owner
 * the comment body contains `/cherry-pick to`
 * that's followed by either `release-x.y` or `release-2026-lts` [(technically a regex, but the point is that it needs to be one of the release branches)](../../.github/workflows/cherry-pick.yml#L62)
