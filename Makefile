@@ -123,7 +123,7 @@ ci-preview: ## Preview which ci.yml jobs would run. Default: --current (auto-det
 .PHONY: ci-preview-all
 ci-preview-all: ## Run every ci-preview scenario preset for at-a-glance diffing
 	@for s in normal docs-only up-to-date cache-only stable-only forked forked-docs \
-	          force-main force-release force-feature run-tests-false merge-queue; do \
+	          force-main force-main-no-tests force-release force-feature run-tests-false merge-queue; do \
 	  .github/scripts/ci-preview.sh --scenario "$$s"; \
 	done
 

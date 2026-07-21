@@ -208,7 +208,7 @@ assert_flag get_run_unit_tests false "opt-out beats force"             FORCE=tru
 # --- get_run_e2e --------------------------------------------------------------
 # assert_flag   function | expected | description
 assert_flag get_run_e2e true  "main repo with work"                    FORKED=false BINARY_CACHE_HIT=false
-assert_flag get_run_e2e true  "forked non-docs still enables e2e"      FORKED=true DOCS_ONLY=false
+assert_flag get_run_e2e false "forked non-docs skips authenticated e2e" FORKED=true DOCS_ONLY=false
 assert_flag get_run_e2e false "forked docs-only skips e2e"             FORKED=true DOCS_ONLY=true
 assert_flag get_run_e2e false "main repo, nothing to do"               FORKED=false DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true
 assert_flag get_run_e2e false "run_tests_input=false skips e2e"        RUN_TESTS_INPUT=false BINARY_CACHE_HIT=false STABLE_EXISTS=false
@@ -231,6 +231,7 @@ assert_flag get_promote true  "force on main"                          FORCE=tru
 assert_flag get_promote true  "force on release branch"                FORCE=true REF_NAME=release-4.0
 assert_flag get_promote false "force on feature branch"                FORCE=true REF_NAME=my-feature
 assert_flag get_promote false "no force on main"                       FORCE=false REF_NAME=main
+assert_flag get_promote false "tests opt-out blocks promotion"         FORCE=true RUN_TESTS_INPUT=false REF_NAME=main
 
 # --- get_ci_flags (end-to-end scenarios) --------------------------------------
 # Full `ci_flags` output for the scenarios documented in the CI pipeline. These
@@ -267,7 +268,7 @@ assert_ci_flags "forked PR (build unauthenticated, no tag)" \
 "run_tests=true
 docker_build=true
 run_unit_tests=true
-run_e2e=true
+run_e2e=false
 tag_stable=false
 promote=false" \
   FORKED=true DOCS_ONLY=false REF_NAME=feature-branch
@@ -289,6 +290,15 @@ run_e2e=false
 tag_stable=false
 promote=false" \
   FORCE=false RUN_TESTS_INPUT=false FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=false REF_NAME=feature-branch
+
+assert_ci_flags "force dispatch with tests disabled does not promote" \
+"run_tests=false
+docker_build=true
+run_unit_tests=false
+run_e2e=false
+tag_stable=false
+promote=false" \
+  FORCE=true RUN_TESTS_INPUT=false FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=true REF_NAME=main
 
 # --- docs-only hash invariant (regression guard for the stable-tag coupling) ---
 # A *.md file under a hashed tree is documentation per get_docs_only, so it must

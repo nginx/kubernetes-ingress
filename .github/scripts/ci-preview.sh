@@ -27,6 +27,7 @@
 #   forked            PR from a fork (no auth to registry)
 #   forked-docs       PR from a fork touching only docs
 #   force-main        workflow_dispatch force=true on main
+#   force-main-no-tests  workflow_dispatch force=true, run_tests=false on main
 #   force-release     workflow_dispatch force=true on release-4.0
 #   force-feature     workflow_dispatch force=true on feature branch
 #   run-tests-false   workflow_dispatch run_tests=false (build only, no tests)
@@ -126,6 +127,11 @@ apply_scenario() {
     DOCS_ONLY_ARG="false"; FORKED_ARG="false"
     CACHE_HIT_ARG="true"; STABLE_EXISTS_ARG="true"; REF_NAME_ARG="main"
     ;;
+  force-main-no-tests)
+    EVENT="workflow_dispatch"; FORCE_INPUT="true"; RUN_TESTS_INPUT_ARG="false"
+    DOCS_ONLY_ARG="false"; FORKED_ARG="false"
+    CACHE_HIT_ARG="true"; STABLE_EXISTS_ARG="true"; REF_NAME_ARG="main"
+    ;;
   force-release)
     EVENT="workflow_dispatch"; FORCE_INPUT="true"; RUN_TESTS_INPUT_ARG="true"
     DOCS_ONLY_ARG="false"; FORKED_ARG="false"
@@ -147,7 +153,7 @@ apply_scenario() {
     ;;
   *)
     echo "unknown scenario: $1" >&2
-    echo "known: normal docs-only up-to-date cache-only stable-only forked forked-docs force-main force-release force-feature run-tests-false merge-queue" >&2
+    echo "known: normal docs-only up-to-date cache-only stable-only forked forked-docs force-main force-main-no-tests force-release force-feature run-tests-false merge-queue" >&2
     exit 2
     ;;
   esac
@@ -361,12 +367,12 @@ row() {
 
 # helper: e2e-authenticated jobs share a gate.
 e2e_auth() {
-  if [ "$RUN_E2E" = "true" ] && [ "$FORKED_ARG" != "true" ]; then
-    echo "true|run_e2e=true, not forked"
-  elif [ "$RUN_E2E" != "true" ]; then
-    echo "false|run_e2e=false"
+  if [ "$RUN_E2E" = "true" ]; then
+    echo "true|run_e2e=true"
+  elif [ "$FORKED_ARG" = "true" ]; then
+    echo "false|run_e2e=false (forked, no GCR auth)"
   else
-    echo "false|run_e2e=true but forked (no GCR auth)"
+    echo "false|run_e2e=false"
   fi
 }
 e2e_gate="$(e2e_auth)"; e2e_run="${e2e_gate%%|*}"; e2e_reason="${e2e_gate#*|}"

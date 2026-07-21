@@ -177,14 +177,13 @@ get_run_unit_tests() {
 # because tag-stable depends on this gate transitively, an untested run
 # also will not tag the image as stable. Otherwise: e2e runs whenever
 # there is work to do (tests requested or a docker build is needed).
-# Fork awareness is handled at the individual job level: e2e jobs that
-# require GCR auth carry an additional `forked_workflow == false` guard,
-# while build-artifacts runs unauthenticated for forks.
+# Forks cannot access the authenticated registry, so they build artifacts but
+# skip the e2e workflow.
 get_run_e2e() {
   local run_tests docker_build
   run_tests=$(get_run_tests)
   docker_build=$(get_docker_build)
-  if [ "${RUN_TESTS_INPUT:-}" = "false" ]; then
+  if [ "${RUN_TESTS_INPUT:-}" = "false" ] || [ "${FORKED:-}" = "true" ]; then
     echo "false"
   elif [ "$run_tests" = "true" ] || [ "$docker_build" = "true" ]; then
     echo "true"
@@ -194,15 +193,14 @@ get_run_e2e() {
 }
 
 # Gate for the tag-stable job. Only tag an image as stable when we actually ran
-# the build + e2e cycle (get_run_e2e) and we are not on a fork (forks cannot
-# push to the authenticated registry). A workflow_dispatch FORCE run always
+# the build + e2e cycle (get_run_e2e). A workflow_dispatch FORCE run always
 # re-tags stable -- the user explicitly asked for a rebuild, so we overwrite
-# whatever image happens to be pointed at the stable tag. Otherwise we only
-# tag when no stable image exists yet, to avoid churn on identical builds.
+# whatever image happens to be pointed at the stable tag. Otherwise we only tag
+# when no stable image exists yet, to avoid churn on identical builds.
 get_tag_stable() {
   local run_e2e
   run_e2e=$(get_run_e2e)
-  if [ "$run_e2e" != "true" ] || [ "${FORKED:-}" = "true" ]; then
+  if [ "$run_e2e" != "true" ]; then
     echo "false"
   elif [ "${FORCE:-}" = "true" ]; then
     echo "true"
@@ -213,9 +211,10 @@ get_tag_stable() {
   fi
 }
 
-# Gate for image promotion on a forced run of a release-able branch.
+# Gate for image promotion on a forced, tested run of a release-able branch.
 get_promote() {
-  if [ "${FORCE:-}" = "true" ] && { [ "${REF_NAME:-}" = "main" ] || [[ "${REF_NAME:-}" == release-* ]]; }; then
+  if [ "${FORCE:-}" = "true" ] && [ "${RUN_TESTS_INPUT:-}" != "false" ] \
+    && { [ "${REF_NAME:-}" = "main" ] || [[ "${REF_NAME:-}" == release-* ]]; }; then
     echo "true"
   else
     echo "false"

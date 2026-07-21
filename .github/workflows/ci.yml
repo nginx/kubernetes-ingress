@@ -162,7 +162,7 @@ jobs:
         env:
           FORCE: ${{ inputs.force }}
           RUN_TESTS_INPUT: ${{ inputs.run_tests }}
-          DOCS_ONLY: ${{ steps.docs.outputs.docs_only }}
+          DOCS_ONLY: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.docs.outputs.docs_only == 'true' }}
           FORKED: ${{ steps.vars.outputs.forked_workflow }}
           BINARY_CACHE_HIT: ${{ steps.binary-cache.outputs.cache-hit }}
           STABLE_EXISTS: ${{ steps.stable_exists.outputs.exists }}
@@ -351,10 +351,11 @@ jobs:
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
       !cancelled() &&
-      needs.checks.result == 'success' &&
-      (needs.unit-tests.result == 'success' || needs.unit-tests.result == 'skipped') &&
+      !failure() &&
+      (needs.checks.outputs.run_unit_tests != 'true' ||
+      !contains(needs.*.result, 'skipped')) &&
       needs.checks.outputs.docker_build == 'true')
-    needs: [checks, unit-tests]
+    needs: [checks, verify-codegen, unit-tests, staticcheck, govulncheck]
     uses: ./.github/workflows/build-artifacts.yml
     with:
       branch: ${{ (github.head_ref && needs.checks.outputs.forked_workflow == 'false') && github.head_ref || github.ref }}
@@ -386,8 +387,9 @@ jobs:
     name: Tag untested image with PR number
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.run_e2e == 'true' &&
-      needs.checks.outputs.forked_workflow == 'false' )
+      !cancelled() &&
+      needs.build-artifacts.result == 'success' &&
+      needs.checks.outputs.run_e2e == 'true' )
     needs: [checks, build-artifacts]
     permissions:
       contents: read # To checkout repository
@@ -403,8 +405,9 @@ jobs:
     name: Package Tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.run_e2e == 'true' &&
-      needs.checks.outputs.forked_workflow == 'false' )
+      !cancelled() &&
+      needs.build-artifacts.result == 'success' &&
+      needs.checks.outputs.run_e2e == 'true' )
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
     permissions:
@@ -479,8 +482,9 @@ jobs:
     name: Helm Tests ${{ matrix.base-os }}
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.run_e2e == 'true' &&
-      needs.checks.outputs.forked_workflow == 'false' )
+      !cancelled() &&
+      needs.build-artifacts.result == 'success' &&
+      needs.checks.outputs.run_e2e == 'true' )
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
     strategy:
@@ -662,6 +666,8 @@ jobs:
     name: Setup Matrix for Smoke Tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      needs.build-artifacts.result == 'success' &&
       needs.checks.outputs.run_e2e == 'true')
     runs-on: ubuntu-24.04
     needs: [checks, build-artifacts]
@@ -741,12 +747,11 @@ jobs:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.run_e2e == 'true' &&
-      needs.checks.outputs.forked_workflow == 'false' )
+      !cancelled() &&
+      needs.setup-matrix.result == 'success' )
     needs:
       - checks
       - setup-matrix
-      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_oss) }}
@@ -772,12 +777,11 @@ jobs:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.run_e2e == 'true' &&
-      needs.checks.outputs.forked_workflow == 'false' )
+      !cancelled() &&
+      needs.setup-matrix.result == 'success' )
     needs:
       - checks
       - setup-matrix
-      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_plus) }}
@@ -803,12 +807,11 @@ jobs:
     name: ${{ matrix.images.label }} ${{ matrix.images.image }} ${{ matrix.k8s }} smoke tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.run_e2e == 'true' &&
-      needs.checks.outputs.forked_workflow == 'false' )
+      !cancelled() &&
+      needs.setup-matrix.result == 'success' )
     needs:
       - checks
       - setup-matrix
-      - build-artifacts
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix_nap) }}
@@ -834,8 +837,11 @@ jobs:
     name: Tag tested image as stable
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      !failure() &&
+      !contains(needs.*.result, 'skipped') &&
       needs.checks.outputs.tag_stable == 'true' )
-    needs: [checks, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
+    needs: [checks, package-tests, helm-tests, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap]
     permissions:
       contents: read # To checkout repository
       id-token: write # To sign into Google Container Registry
@@ -871,7 +877,6 @@ jobs:
           DOCKER_BUILD: ${{ needs.checks.outputs.docker_build }}
           RUN_E2E: ${{ needs.checks.outputs.run_e2e }}
           TAG_STABLE: ${{ needs.checks.outputs.tag_stable }}
-          FORKED: ${{ needs.checks.outputs.forked_workflow }}
           # Individual job results (hyphenated job names map to underscores).
           VERIFY_CODEGEN: ${{ needs.verify-codegen.result }}
           UNIT_TESTS: ${{ needs.unit-tests.result }}
@@ -916,16 +921,8 @@ jobs:
             "${BUILD_ARTIFACTS}"
 
           if [ "${BUILD_ARTIFACTS}" = "success" ]; then
-            # The authenticated e2e jobs are gated by both run_e2e and
-            # forked_workflow=false because they push to / pull from the
-            # private GCR. On fork PRs run_e2e is still true (so
-            # build-artifacts runs unauthenticated) but the auth-required
-            # jobs deliberately skip, so skip the e2e require_success check
-            # on forks to keep the gate green.
-            if [ "${FORKED}" != "true" ]; then
-              require_success "${RUN_E2E}" "E2E (matrix / package / helm / smoke)" \
-                "${SETUP_MATRIX}" "${PACKAGE_TESTS}" "${HELM_TESTS}" "${SMOKE_OSS}" "${SMOKE_PLUS}" "${SMOKE_NAP}"
-            fi
+            require_success "${RUN_E2E}" "E2E (matrix / package / helm / smoke)" \
+              "${SETUP_MATRIX}" "${PACKAGE_TESTS}" "${HELM_TESTS}" "${SMOKE_OSS}" "${SMOKE_PLUS}" "${SMOKE_NAP}"
             require_success "${TAG_STABLE}" "Tag stable image" \
               "${TAG_STABLE_RESULT}"
           fi
@@ -939,11 +936,12 @@ jobs:
     name: Promote images on Force Run
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      needs.final-results.result == 'success' &&
       needs.checks.outputs.promote == 'true' )
     needs:
       - checks
       - final-results
-      - build-artifacts
     permissions:
       contents: write # for pushing to Helm Charts repository
       id-token: write # To sign into Google Container Registry
