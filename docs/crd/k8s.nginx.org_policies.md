@@ -129,7 +129,7 @@ The `.spec` object supports the following fields:
 | `oidcNative.logoutTokenHint` | `boolean` | Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers. |
 | `oidcNative.logoutURI` | `string` | Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page. |
 | `oidcNative.pkce` | `string` | Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata. Allowed values: `"on"`, `"off"`. |
-| `oidcNative.postLogoutRedirectURI` | `string` | Defines the path or absolute URI to redirect the user to after logout. |
+| `oidcNative.postLogoutRedirectURI` | `string` | Defines the path where the user is redirected after logout. Must be a path on the same VirtualServer host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response. |
 | `oidcNative.proxyBufferSize` | `string` | Buffer size used when proxying requests to the OpenID Provider. Applies to `proxy_buffer_size` and each buffer in `proxy_buffers`. Default is `32k`. |
 | `oidcNative.redirectURI` | `string` | Allows overriding the default redirect URI. The module defaults to /oidc_callback. |
 | `oidcNative.scope` | `string` | List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid". |

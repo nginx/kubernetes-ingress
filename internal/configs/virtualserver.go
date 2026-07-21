@@ -32,6 +32,14 @@ const (
 	splitClientsKeyValZoneSize                      = "100k"
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 	defaultLogOutput                                = "syslog:server=localhost:514"
+	// oidcNativeSessionZoneSize is the shared memory allocated to each
+	// auto-generated OIDCNative session store keyval zone.
+	oidcNativeSessionZoneSize = "10m"
+	// oidcNativeSessionSyncDefaultTimeout is the fallback timeout applied to
+	// the session store keyval zone when zone-sync is enabled and the user
+	// hasn't set sessionTimeout on the policy. NGINX Plus requires `timeout=`
+	// whenever `sync` is on.
+	oidcNativeSessionSyncDefaultTimeout = "1h"
 )
 
 var grpcConflictingErrors = map[int]bool{
@@ -1136,11 +1144,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		if p.SessionStore != "" {
 			timeout := p.SessionTimeout
 			if p.Sync && timeout == "" {
-				timeout = "1h"
+				timeout = oidcNativeSessionSyncDefaultTimeout
 			}
 			keyValZones = append(keyValZones, version2.KeyValZone{
 				Name:    p.SessionStore,
-				Size:    "10m",
+				Size:    oidcNativeSessionZoneSize,
 				Sync:    p.Sync,
 				Timeout: timeout,
 			})

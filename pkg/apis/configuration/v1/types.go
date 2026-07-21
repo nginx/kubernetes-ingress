@@ -1138,7 +1138,7 @@ type OIDCNative struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
 	LogoutURI string `json:"logoutURI,omitempty"`
-	// Defines the path or absolute URI to redirect the user to after logout.
+	// Defines the path where the user is redirected after logout. Must be a path on the same VirtualServer host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
 	PostLogoutRedirectURI string `json:"postLogoutRedirectURI,omitempty"`

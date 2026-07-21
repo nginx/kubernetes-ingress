@@ -79,7 +79,7 @@ oidc_provider {{ $p.Name }} {
     issuer {{ $p.Issuer }};
     client_id {{ $p.ClientID }};
     {{- if $p.ClientSecret }}
-    client_secret {{ $p.ClientSecret }};
+    client_secret {{ printf "%q" $p.ClientSecret }};
     {{- end }}
     {{- if $p.ConfigURL }}
     config_url {{ $p.ConfigURL }};
@@ -103,7 +103,7 @@ oidc_provider {{ $p.Name }} {
     cookie_name {{ $p.CookieName }};
     {{- end }}
     {{- if $p.ExtraAuthArgs }}
-    extra_auth_args "{{ $p.ExtraAuthArgs }}";
+    extra_auth_args {{ printf "%q" $p.ExtraAuthArgs }};
     {{- end }}
     {{- if $p.PKCE }}
     pkce {{ $p.PKCE }};
@@ -111,9 +111,7 @@ oidc_provider {{ $p.Name }} {
     {{- if $p.LogoutTokenHint }}
     logout_token_hint on;
     {{- end }}
-    {{- if $p.SessionStore }}
     session_store {{ $p.SessionStore }};
-    {{- end }}
     {{- if $p.SessionTimeout }}
     session_timeout {{ $p.SessionTimeout }};
     {{- end }}

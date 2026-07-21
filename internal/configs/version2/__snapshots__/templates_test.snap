@@ -4102,7 +4102,7 @@ keyval_zone zone=oidc_sessions_oidc_default_my_provider_default_cafe:10m timeout
 oidc_provider oidc_default_my_provider_default_cafe {
     issuer https://accounts.google.com;
     client_id my-client-id;
-    client_secret my-resolved-secret;
+    client_secret "my-resolved-secret";
     config_url https://accounts.google.com/.well-known/openid-configuration;
     scope openid+profile;
     redirect_uri /callback;

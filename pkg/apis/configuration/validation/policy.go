@@ -475,6 +475,27 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 	// ClientID char validation (rejects $, unescaped \, etc.) — not expressible in a simple CRD pattern.
 	allErrs = append(allErrs, validateClientID(oidcNative.ClientID, fieldPath.Child("clientID"))...)
 
+	// Defense in depth for fields rendered verbatim into NGINX directives.
+	// The CRD-level Patterns catch most bad input, but block nginx-injection
+	// characters explicitly on fields whose pattern is either absent or too
+	// permissive to catch `;{}$` and friends in every position.
+	for _, f := range []struct {
+		name  string
+		value string
+	}{
+		{"issuer", oidcNative.Issuer},
+		{"configURL", oidcNative.ConfigURL},
+		{"scope", oidcNative.Scope},
+		{"cookieName", oidcNative.CookieName},
+		{"extraAuthArgs", oidcNative.ExtraAuthArgs},
+		{"sslName", oidcNative.SSLName},
+	} {
+		if f.value != "" && containsDangerousChars(f.value) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child(f.name), f.value,
+				"contains dangerous characters that could cause nginx configuration injection"))
+		}
+	}
+
 	return allErrs
 }
 

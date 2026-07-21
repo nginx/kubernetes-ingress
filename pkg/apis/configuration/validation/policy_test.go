@@ -2129,6 +2129,59 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 			fieldPath: "oidcNative.clientID",
 			msg:       "invalid chars in clientID",
 		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com/;malicious{ return 500; }",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "dangerous chars in issuer path",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://x/y;malicious;",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "dangerous chars in configURL",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "openid; injection",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "dangerous chars in scope",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "SID; return 500",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "dangerous chars in cookieName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:        "https://accounts.google.com",
+				ClientID:      "my-client",
+				ExtraAuthArgs: `x"; malicious;`,
+			},
+			fieldPath: "oidcNative.extraAuthArgs",
+			msg:       "dangerous chars in extraAuthArgs",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "evil.example.com;\ninject",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "dangerous chars in sslName",
+		},
 		// clientSecret format, scope, redirectURI, logoutURI, postLogoutRedirectURI,
 		// and sessionTimeout are validated at the CRD level via kubebuilder markers.
 	}

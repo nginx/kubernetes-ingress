@@ -27,6 +27,11 @@ import (
 // that handles sign-in redirect requests (e.g. oauth2-proxy expects /oauth2).
 const DefaultSigninRedirectBasePath = "/oauth2"
 
+// oidcNativePostLogoutMessage is the plain-text response body served by the
+// auto-generated post-logout location when an OIDCNative policy sets
+// PostLogoutRedirectURI.
+const oidcNativePostLogoutMessage = "You have been logged out.\n"
+
 // rateLimit hold the configuration for the ratelimiting Policy
 type rateLimit struct {
 	Reqs             []version2.LimitReq
@@ -867,7 +872,8 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		}
 	}
 
-	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, extractPolicyName(polKey), ownerDetails.parentNamespace, ownerDetails.parentName))
+	_, polName := ParseResourceReference(polKey, polNamespace)
+	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, polName, ownerDetails.parentNamespace, ownerDetails.parentName))
 
 	// Default redirect URI is derived from the provider name for uniqueness.
 	// User can override via the redirectURI field.
@@ -944,7 +950,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 			DefaultType: "text/plain",
 			Return: version2.Return{
 				Code: 200,
-				Text: "You have been logged out.\n",
+				Text: oidcNativePostLogoutMessage,
 			},
 		}
 	}
@@ -981,15 +987,6 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	}
 
 	return res
-}
-
-// extractPolicyName extracts the policy name from a "namespace/name" key.
-func extractPolicyName(polKey string) string {
-	parts := strings.SplitN(polKey, "/", 2)
-	if len(parts) == 2 {
-		return parts[1]
-	}
-	return polKey
 }
 
 func (p *policiesCfg) addAPIKeyConfig(

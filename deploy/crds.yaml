@@ -952,8 +952,11 @@ spec:
                     - "off"
                     type: string
                   postLogoutRedirectURI:
-                    description: Defines the path or absolute URI to redirect the
-                      user to after logout.
+                    description: Defines the path where the user is redirected after
+                      logout. Must be a path on the same VirtualServer host — absolute
+                      URLs are not supported. When set, NIC also auto-generates an
+                      unauthenticated location at this path serving a plain-text confirmation
+                      response.
                     pattern: ^/[^\s{};\\]*$
                     type: string
                   proxyBufferSize:
