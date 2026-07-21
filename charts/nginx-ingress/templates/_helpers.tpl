@@ -65,11 +65,6 @@ Pod labels
 */}}
 {{- define "nginx-ingress.podLabels" -}}
 {{- include "nginx-ingress.selectorLabels" . }}
-{{- if .Values.nginxServiceMesh.enable }}
-nsm.nginx.com/enable-ingress: "true"
-nsm.nginx.com/enable-egress: "{{ .Values.nginxServiceMesh.enableEgress }}"
-nsm.nginx.com/{{ .Values.controller.kind }}: {{ include "nginx-ingress.controller.fullname" . }}
-{{- end }}
 {{- if and .Values.nginxAgent.enable (eq (.Values.nginxAgent.customConfigMap | default "") "") }}
 agent-configuration-revision-hash: {{ include "nginx-ingress.agentConfiguration" . | sha1sum | trunc 8 | quote }}
 {{- end }}

@@ -47,7 +47,7 @@ permissions:
 jobs:
   setup-smoke:
     permissions:
-      contents: read # for docker/build-push-action to read repo content
+      contents: read # for ./.github/actions/build-push-retry
       id-token: write # for OIDC login to GCR
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
@@ -190,7 +190,7 @@ jobs:
         if: ${{ inputs.authenticated  }}
 
       - name: Build Pytest-Runner Container
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: tests/Dockerfile
           context: "."
@@ -202,7 +202,7 @@ jobs:
         if: ${{ ( !inputs.authenticated || steps.check-image.outcome == 'failure' )  }}
 
       - name: Build ${{ inputs.image }} Container
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
           context: "."
@@ -224,7 +224,7 @@ jobs:
 
       - name: Generate WAF v5 tgz from JSON
         run: |
-          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.13.3 -p /data/wafv5.json -o /data/wafv5.tgz
+          docker run --rm --user root -v /var/run/docker.sock:/var/run/docker.sock -v ${{ github.workspace }}/tests/data/ap-waf-v5:/data gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/nap/waf-compiler:5.13.4 -p /data/wafv5.json -o /data/wafv5.tgz
         if: ${{ contains(inputs.image, 'nap-v5')}}
 
       - name: Run Smoke Tests

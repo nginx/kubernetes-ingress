@@ -80,7 +80,7 @@ jobs:
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
         with:
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "nginx-bot-cherry-pick-app-client-id, nginx-bot-cherry-pick-app-private-key"
+          secret-names: "nginx-bot-nic-create-pr-app-client-id, nginx-bot-nic-create-pr-app-private-key"
           env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
 
       - name: Decode GitHub App private key

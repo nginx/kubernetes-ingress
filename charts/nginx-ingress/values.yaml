@@ -84,7 +84,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.13.3"
+        tag: "5.13.4"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -108,7 +108,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.13.3"
+        tag: "5.13.4"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -139,7 +139,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-ip-intelligence
 
         ## The tag of the App Protect WAF v5 IP Intelligence image.
-        tag: "5.13.3"
+        tag: "5.13.4"
         ## The digest of the App Protect WAF v5 IP Intelligence image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -218,7 +218,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.5.0"
+    # tag: "5.5.4"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -775,14 +775,6 @@ serviceInsight:
 
   ## Configures the HTTP scheme used.
   scheme: http
-
-nginxServiceMesh:
-  ## Enables integration with NGINX Service Mesh.
-  enable: false
-
-  ## Enables NGINX Service Mesh workload to route egress traffic through the Ingress Controller.
-  ## Requires nginxServiceMesh.enable
-  enableEgress: false
 
 nginxAgent:
   ## Enables NGINX Agent.
