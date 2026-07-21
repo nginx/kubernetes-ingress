@@ -4020,6 +4020,100 @@ func TestGenerateSecretNSName(t *testing.T) {
 	}
 }
 
+func TestShouldForceReloadOnSecretUpdate(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                    string
+		secretType              api_v1.SecretType
+		dynamicSSLReloadEnabled bool
+		expected                bool
+	}{
+		{
+			name:                    "TLS server secret with dynamic SSL reload enabled skips forced reload",
+			secretType:              api_v1.SecretTypeTLS,
+			dynamicSSLReloadEnabled: true,
+			expected:                false,
+		},
+		{
+			name:                    "TLS server secret with dynamic SSL reload disabled forces reload",
+			secretType:              api_v1.SecretTypeTLS,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "CA secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeCA,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "JWK secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeJWK,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "Htpasswd secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeHtpasswd,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "OIDC secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeOIDC,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "APIKey secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeAPIKey,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "CA secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeCA,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "JWK secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeJWK,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "Htpasswd secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeHtpasswd,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "OIDC secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeOIDC,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "APIKey secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeAPIKey,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := shouldForceReloadOnSecretUpdate(tc.secretType, tc.dynamicSSLReloadEnabled)
+			if got != tc.expected {
+				t.Fatalf("shouldForceReloadOnSecretUpdate(%q, %v) = %v, want %v",
+					tc.secretType, tc.dynamicSSLReloadEnabled, got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 	t.Parallel()
 

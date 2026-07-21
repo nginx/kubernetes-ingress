@@ -42,6 +42,7 @@ markers = [
     "basic_auth",
     "batch_start",
     "create",
+    "custom_http_errors",
     "delete",
     "dos",
     "dos_ingress",

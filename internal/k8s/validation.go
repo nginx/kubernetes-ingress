@@ -66,7 +66,6 @@ const (
 	appProtectSecurityLogAnnotation       = "appprotect.f5.com/app-protect-security-log"
 	appProtectSecurityLogDestAnnotation   = "appprotect.f5.com/app-protect-security-log-destination"
 	appProtectDosProtectedAnnotation      = "appprotectdos.f5.com/app-protect-dos-resource"
-	internalRouteAnnotation               = "nsm.nginx.com/internal-route"
 	websocketServicesAnnotation           = "nginx.org/websocket-services"
 	sslServicesAnnotation                 = "nginx.org/ssl-services"
 	grpcServicesAnnotation                = "nginx.org/grpc-services"
@@ -80,6 +79,7 @@ const (
 	appRootAnnotation                     = "nginx.org/app-root"
 	proxyRedirectFromAnnotation           = configs.ProxyRedirectFromAnnotation
 	proxyRedirectToAnnotation             = configs.ProxyRedirectToAnnotation
+	customHTTPErrorsAnnotation            = configs.CustomHTTPErrorsAnnotation
 )
 
 const (
@@ -105,18 +105,17 @@ var (
 )
 
 type annotationValidationContext struct {
-	annotations           map[string]string
-	specServices          map[string]bool
-	name                  string
-	value                 string
-	hostless              bool
-	isPlus                bool
-	appProtectEnabled     bool
-	appProtectDosEnabled  bool
-	internalRoutesEnabled bool
-	fieldPath             *field.Path
-	snippetsEnabled       bool
-	directiveAutoAdjust   bool
+	annotations          map[string]string
+	specServices         map[string]bool
+	name                 string
+	value                string
+	hostless             bool
+	isPlus               bool
+	appProtectEnabled    bool
+	appProtectDosEnabled bool
+	fieldPath            *field.Path
+	snippetsEnabled      bool
+	directiveAutoAdjust  bool
 }
 
 type (
@@ -363,11 +362,6 @@ var (
 			validatePlusOnlyAnnotation,
 			validateQualifiedName,
 		},
-		internalRouteAnnotation: {
-			validateInternalRoutesOnlyAnnotation,
-			validateRequiredAnnotation,
-			validateBoolAnnotation,
-		},
 		websocketServicesAnnotation: {
 			validateRequiredAnnotation,
 			validateServiceListAnnotation,
@@ -417,6 +411,10 @@ var (
 		proxyRedirectToAnnotation: {
 			validateRequiredAnnotation,
 			validateProxyRedirectToAnnotation,
+		},
+		customHTTPErrorsAnnotation: {
+			validateRequiredAnnotation,
+			validateCustomHTTPErrorsAnnotation,
 		},
 		configs.PoliciesAnnotation: {
 			validateRequiredAnnotation,
@@ -557,6 +555,15 @@ func validateProxyRedirectToAnnotation(context *annotationValidationContext) fie
 	if !proxyRedirectValueRegex.MatchString(context.value) {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value,
 			"must not contain ';', '{', '}', newline, carriage return, backtick, whitespace, or '#'")}
+	}
+	return nil
+}
+
+// validateCustomHTTPErrorsAnnotation delegates to the parser in the configs package
+// so validation and runtime parsing share a single source of truth for accepted syntax.
+func validateCustomHTTPErrorsAnnotation(context *annotationValidationContext) field.ErrorList {
+	if _, err := configs.ParseCustomHTTPErrors(context.value); err != nil {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
 	}
 	return nil
 }
@@ -783,20 +790,18 @@ func validateIngress(
 	isPlus bool,
 	appProtectEnabled bool,
 	appProtectDosEnabled bool,
-	internalRoutesEnabled bool,
 	snippetsEnabled bool,
 	directiveAutoAdjust bool,
 	allowEmptyHost bool,
 ) field.ErrorList {
 	allErrs := validateIngressAnnotations(
 		IngressOpts{
-			isPlus:                isPlus,
-			appProtectEnabled:     appProtectEnabled,
-			appProtectDosEnabled:  appProtectDosEnabled,
-			internalRoutesEnabled: internalRoutesEnabled,
-			snippetsEnabled:       snippetsEnabled,
-			directiveAutoAdjust:   directiveAutoAdjust,
-			hostless:              allowEmptyHost && hasEmptyHostRule(&ing.Spec),
+			isPlus:               isPlus,
+			appProtectEnabled:    appProtectEnabled,
+			appProtectDosEnabled: appProtectDosEnabled,
+			snippetsEnabled:      snippetsEnabled,
+			directiveAutoAdjust:  directiveAutoAdjust,
+			hostless:             allowEmptyHost && hasEmptyHostRule(&ing.Spec),
 		},
 		ing.Annotations,
 		getSpecServices(ing.Spec),
@@ -873,13 +878,12 @@ func validateChallengeIngress(spec *networking.IngressSpec, fieldPath *field.Pat
 
 // IngressOpts contains options that affect how Ingress annotations are validated. This is used to avoid passing a long list of parameters to the validation functions.
 type IngressOpts struct {
-	isPlus                bool
-	appProtectEnabled     bool
-	appProtectDosEnabled  bool
-	internalRoutesEnabled bool
-	snippetsEnabled       bool
-	directiveAutoAdjust   bool
-	hostless              bool
+	isPlus               bool
+	appProtectEnabled    bool
+	appProtectDosEnabled bool
+	snippetsEnabled      bool
+	directiveAutoAdjust  bool
+	hostless             bool
 }
 
 func validateIngressAnnotations(
@@ -893,18 +897,17 @@ func validateIngressAnnotations(
 	for _, name := range annotationNames {
 		if value, exists := annotations[name]; exists {
 			context := &annotationValidationContext{
-				annotations:           annotations,
-				specServices:          specServices,
-				name:                  name,
-				value:                 value,
-				hostless:              ingOpts.hostless,
-				isPlus:                ingOpts.isPlus,
-				appProtectEnabled:     ingOpts.appProtectEnabled,
-				appProtectDosEnabled:  ingOpts.appProtectDosEnabled,
-				internalRoutesEnabled: ingOpts.internalRoutesEnabled,
-				fieldPath:             fieldPath.Child(name),
-				snippetsEnabled:       ingOpts.snippetsEnabled,
-				directiveAutoAdjust:   ingOpts.directiveAutoAdjust,
+				annotations:          annotations,
+				specServices:         specServices,
+				name:                 name,
+				value:                value,
+				hostless:             ingOpts.hostless,
+				isPlus:               ingOpts.isPlus,
+				appProtectEnabled:    ingOpts.appProtectEnabled,
+				appProtectDosEnabled: ingOpts.appProtectDosEnabled,
+				fieldPath:            fieldPath.Child(name),
+				snippetsEnabled:      ingOpts.snippetsEnabled,
+				directiveAutoAdjust:  ingOpts.directiveAutoAdjust,
 			}
 			allErrs = append(allErrs, validateIngressAnnotation(context)...)
 		}
@@ -1018,13 +1021,6 @@ func validateAppProtectOnlyAnnotation(context *annotationValidationContext) fiel
 func validateAppProtectDosOnlyAnnotation(context *annotationValidationContext) field.ErrorList {
 	if !context.appProtectDosEnabled {
 		return field.ErrorList{field.Forbidden(context.fieldPath, "annotation requires AppProtectDos")}
-	}
-	return nil
-}
-
-func validateInternalRoutesOnlyAnnotation(context *annotationValidationContext) field.ErrorList {
-	if !context.internalRoutesEnabled {
-		return field.ErrorList{field.Forbidden(context.fieldPath, "annotation requires Internal Routes enabled")}
 	}
 	return nil
 }
