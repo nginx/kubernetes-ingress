@@ -16,6 +16,8 @@ Functionality is in the [cherry-pick.yml](../../.github/workflows/cherry-pick.ym
 5. (force) pushes the cherry-pick branch
 6. creates a new PR from the cherry-pick branch against the target in the comment 
 
+[^1]: it only checks [a-z], so `new-feature/other-branch-name` would NOT get `new-feature`, because `-` is not in the regex
+
 ### When it fires
 
 All of these need to be true:
