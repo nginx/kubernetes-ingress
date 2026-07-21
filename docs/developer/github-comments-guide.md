@@ -14,7 +14,7 @@ Functionality is in the [cherry-pick.yml](../../.github/workflows/cherry-pick.ym
    2. [-x](https://git-scm.com/docs/git-cherry-pick#Documentation/git-cherry-pick.txt--x): `git cherry-pick -x <merge sha>` for squash merges (merge commit has 1 parent on base)
    3. [-x](https://git-scm.com/docs/git-cherry-pick#Documentation/git-cherry-pick.txt--x): `git cherry-pick -x <merge sha>~<# of commits>..<merge sha>` for rebases (range cherry-pick)
 5. (force) pushes the cherry-pick branch
-6. creates a new PR from the cherry-pick branch against the target in the comment 
+6. creates a new PR from the cherry-pick branch against the target in the comment
 
 [^1]: it only checks [a-z], so `new-feature/other-branch-name` would NOT get `new-feature`, because `-` is not in the regex
 
