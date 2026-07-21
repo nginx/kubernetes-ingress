@@ -662,10 +662,9 @@ jobs:
     name: Setup Matrix for Smoke Tests
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
-      needs.checks.outputs.run_e2e == 'true' &&
-      needs.checks.outputs.forked_workflow == 'false' )
+      needs.checks.outputs.run_e2e == 'true')
     runs-on: ubuntu-24.04
-    needs: [build-artifacts, checks]
+    needs: [checks, build-artifacts]
     permissions:
       contents: read
       id-token: write
@@ -912,6 +911,7 @@ jobs:
 
           require_success "${RUN_UNIT_TESTS}" "Unit / codegen / static / vuln checks" \
             "${VERIFY_CODEGEN}" "${UNIT_TESTS}" "${STATICCHECK}" "${GOVULNCHECK}"
+
           require_success "${DOCKER_BUILD}" "Build artifacts" \
             "${BUILD_ARTIFACTS}"
 
