@@ -718,6 +718,7 @@ controller:
   networkPolicy:
     ## Create a NetworkPolicy that targets the controller pods.
     enabled: false
+    ## If enabled=true and both ingress and egress are empty, the resulting NetworkPolicy denies all ingress by default.
     ## Configure ingress rules. When non-empty, the Ingress policy type is added automatically.
     ingress: []
     ## Configure egress rules. When non-empty, the Egress policy type is added automatically.
