@@ -1,0 +1,29 @@
+# Test 1: OIDCNative policy applied at VS spec level. All routes are protected.
+#
+# Verify:
+#   - `run-test.sh 1 check` shows one oidc_provider block and auth_oidc at the
+#     server level.
+#   - Browse https://${WEBAPP_HOST}/ and https://${WEBAPP_HOST}/public -- both
+#     redirect to Keycloak.
+#   - `kubectl get vs webapp` -> Valid.
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+    - path: /public
+      action:
+        pass: webapp

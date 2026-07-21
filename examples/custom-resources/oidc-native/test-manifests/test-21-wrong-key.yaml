@@ -1,0 +1,46 @@
+# Test 21: Client secret with wrong key name. Secret is the right type but
+# stores the value under a key other than `client-secret`.
+#
+# Verify:
+#   - `run-test.sh 21 check | grep client_secret` -> empty value (or absent).
+#   - Complete an OIDC flow: Keycloak accepts the auth request but rejects the
+#     token exchange with 401 "unauthorized_client / Invalid client
+#     credentials" (visible in `kubectl logs` from Keycloak).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test21-wrong-key
+type: nginx.org/oidc
+data:
+  # Correct key is 'client-secret' - this uses 'secret' instead.
+  secret: c29tZS1zZWNyZXQ=
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test21-policy
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus
+    clientSecret: test21-wrong-key
+    sslVerify: false
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: test21-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

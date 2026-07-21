@@ -1,0 +1,37 @@
+# Test 19: Missing trusted CA secret.
+#
+# Verify:
+#   - `kubectl describe vs webapp | tail -10` -> Warning: missing
+#     `default/does-not-exist` CA secret.
+#   - `run-test.sh 19 check` -> nginx -t may still pass but no oidc_provider
+#     is generated (config discarded on error).
+#   - Browse https://${WEBAPP_HOST}/ -> 500.
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test19-policy
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus
+    clientSecret: oidcnative-secret
+    trustedCertSecret: does-not-exist
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: test19-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

@@ -1,0 +1,48 @@
+# Test 8a: NJS OIDC on spec, Native on route (same VS).
+#
+# Prerequisites: an `oidc-njs-secret` of type nginx.org/oidc must exist with
+# the client secret for the NJS-side client. Register the NJS callback
+# (/_codexch) as a valid redirect URI in Keycloak too.
+#
+# Verify:
+#   - `run-test.sh 8a check` shows both an oidc_provider block (native) and
+#     the NJS OIDC set directives at the server level.
+#   - Browse https://${WEBAPP_HOST}/         -> NJS OIDC flow (callback /_codexch).
+#   - Browse https://${WEBAPP_HOST}/native   -> native flow (callback /oidc_callback_*).
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidc-njs-policy
+spec:
+  oidc:
+    clientID: nginx-plus
+    clientSecret: oidc-njs-secret
+    authEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/auth
+    tokenEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/token
+    jwksURI: https://keycloak.example.com/realms/master/protocol/openid-connect/certs
+    endSessionEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/logout
+    scope: openid+profile+email
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidc-njs-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+    - path: /native
+      policies:
+        - name: oidcnative-policy
+      action:
+        pass: webapp

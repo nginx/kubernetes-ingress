@@ -1,0 +1,27 @@
+# Test 10: Policy delete lifecycle.
+#
+# Steps:
+#   1. `run-test.sh 10` applies this VS (references oidcnative-policy).
+#   2. `kubectl delete policy oidcnative-policy`
+#      Expected: VS moves to Warning state, requests return 500.
+#      Confirm with `kubectl describe vs webapp | tail -20`.
+#   3. `kubectl apply -f ../oidc-native-policy.yaml`
+#      Expected: VS recovers, OIDC flow works again.
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

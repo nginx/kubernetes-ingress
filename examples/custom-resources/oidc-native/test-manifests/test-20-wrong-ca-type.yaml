@@ -1,0 +1,44 @@
+# Test 20: Wrong CA secret type. Secret exists but is nginx.org/oidc instead of
+# nginx.org/ca.
+#
+# Verify:
+#   - `kubectl describe vs webapp | tail -10` -> Warning: "wrong type
+#     'nginx.org/oidc', must be 'nginx.org/ca'".
+#   - Browse https://${WEBAPP_HOST}/ -> 500.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test20-wrong-ca-type
+type: nginx.org/oidc
+data:
+  client-secret: c29tZS1zZWNyZXQ=
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test20-policy
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus
+    clientSecret: oidcnative-secret
+    trustedCertSecret: test20-wrong-ca-type
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: test20-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

@@ -1,0 +1,45 @@
+# Test 3: OIDCNative policy applied to a VirtualServerRoute subroute.
+#
+# Verify:
+#   - `run-test.sh 3 check` shows auth_oidc on the /vsr/protected location only.
+#   - Browse https://${WEBAPP_HOST}/vsr/protected  -> redirect to Keycloak.
+#   - Browse https://${WEBAPP_HOST}/vsr/public     -> 200.
+#   - Browse https://${WEBAPP_HOST}/                -> 200 (no policy on parent).
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+    - path: /vsr
+      route: default/webapp-vsr
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: webapp-vsr
+spec:
+  host: webapp.example.com
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  subroutes:
+    - path: /vsr/protected
+      policies:
+        - name: oidcnative-policy
+      action:
+        pass: webapp
+    - path: /vsr/public
+      action:
+        pass: webapp
