@@ -3070,10 +3070,6 @@ spec:
                   resource. Must be the same as the ingressClassName of the VirtualServer
                   that references this resource.
                 type: string
-              internalRoute:
-                description: InternalRoute allows for the configuration of internal
-                  routing.
-                type: boolean
               listener:
                 description: Sets a custom HTTP and/or HTTPS listener. Valid fields
                   are listener.http and listener.https. Each field must reference

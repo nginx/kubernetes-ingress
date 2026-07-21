@@ -7,8 +7,7 @@
     "controller",
     "rbac",
     "prometheus",
-    "serviceInsight",
-    "nginxServiceMesh"
+    "serviceInsight"
   ],
   "properties": {
     "controller": {
@@ -350,10 +349,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.13.3",
+                      "default": "5.13.4",
                       "title": "The tag of the  App Protect WAF v5 Enforcer image",
                       "examples": [
-                        "5.13.3"
+                        "5.13.4"
                       ]
                     },
                     "digest": {
@@ -389,7 +388,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                      "tag": "5.13.3",
+                      "tag": "5.13.4",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -427,10 +426,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.13.3",
+                      "default": "5.13.4",
                       "title": "The tag of the  App Protect WAF v5 Config Manager image",
                       "examples": [
-                        "5.13.3"
+                        "5.13.4"
                       ]
                     },
                     "digest": {
@@ -466,7 +465,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                      "tag": "5.13.3",
+                      "tag": "5.13.4",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -523,10 +522,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.13.3",
+                      "default": "5.13.4",
                       "title": "The tag of the App Protect WAF v5 IP Intelligence image",
                       "examples": [
-                        "5.13.3"
+                        "5.13.4"
                       ]
                     },
                     "digest": {
@@ -562,7 +561,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-                      "tag": "5.13.3",
+                      "tag": "5.13.4",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -2134,7 +2133,7 @@
               "port": 50000,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                "tag": "5.13.3",
+                "tag": "5.13.4",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {}
@@ -2142,7 +2141,7 @@
             "configManager": {
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                "tag": "5.13.3",
+                "tag": "5.13.4",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -2160,7 +2159,7 @@
               "enable": false,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-                "tag": "5.13.3",
+                "tag": "5.13.4",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -2539,38 +2538,6 @@
         }
       ]
     },
-    "nginxServiceMesh": {
-      "type": "object",
-      "default": {},
-      "title": "The nginxServiceMesh Schema",
-      "required": [
-        "enable"
-      ],
-      "properties": {
-        "enable": {
-          "type": "boolean",
-          "default": false,
-          "title": "The enable",
-          "examples": [
-            false
-          ]
-        },
-        "enableEgress": {
-          "type": "boolean",
-          "default": false,
-          "title": "The enableEgress",
-          "examples": [
-            false
-          ]
-        }
-      },
-      "examples": [
-        {
-          "enable": false,
-          "enableEgress": false
-        }
-      ]
-    },
     "nginxAgent": {
       "type": "object",
       "default": {
@@ -2793,7 +2760,7 @@
             "port": 50000,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-enforcer",
-              "tag": "5.13.3",
+              "tag": "5.13.4",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {}
@@ -2801,7 +2768,7 @@
           "configManager": {
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-              "tag": "5.13.3",
+              "tag": "5.13.4",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {
@@ -2819,7 +2786,7 @@
             "enable": false,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-              "tag": "5.13.3",
+              "tag": "5.13.4",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {
@@ -3048,10 +3015,6 @@
         "port": 9114,
         "secret": "",
         "scheme": "http"
-      },
-      "nginxServiceMesh": {
-        "enable": false,
-        "enableEgress": false
       },
       "nginxAgent": {
         "enable": false,
