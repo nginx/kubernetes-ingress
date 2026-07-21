@@ -100,9 +100,10 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.0
+    rev: v0.23.1
     hooks:
       - id: markdownlint-cli2
+        args: [--fix]
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
