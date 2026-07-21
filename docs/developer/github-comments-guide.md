@@ -10,9 +10,9 @@ Functionality is in the [cherry-pick.yml](../../.github/workflows/cherry-pick.ym
 2. figures out the merged PR's prefix (`chore/`, `fix/`, `ci/` [^1])
 3. creates a new cherry pick branch named `<prefix>/cherry-pick-<target branch>-<sha>` on top of the original PR's target branch
 4. decides on a merge strategy based on the commits in the original PR against the target branch
-   1. [-m 1](https://git-scm.com/docs/git-cherry-pick#Documentation/git-cherry-pick.txt--mparent-number) for branches with 2+ parents
-   2. [-x <merge sha>](https://git-scm.com/docs/git-cherry-pick#Documentation/git-cherry-pick.txt--x) for branches with 1 parent on base (all changes that are in the merge commit)
-   3. [-x <merge sha>~<# of commit>..<merge sha>](https://git-scm.com/docs/git-cherry-pick#Documentation/git-cherry-pick.txt--x) direct cherry picks for rebases (each individual commit one by one)
+   1. [-m 1](https://git-scm.com/docs/git-cherry-pick#Documentation/git-cherry-pick.txt--mparent-number): `git cherry-pick -x -m 1 <merge sha>` for merge commits (2+ parents)
+   2. [-x](https://git-scm.com/docs/git-cherry-pick#Documentation/git-cherry-pick.txt--x): `git cherry-pick -x <merge sha>` for squash merges (merge commit has 1 parent on base)
+   3. [-x](https://git-scm.com/docs/git-cherry-pick#Documentation/git-cherry-pick.txt--x): `git cherry-pick -x <merge sha>~<# of commits>..<merge sha>` for rebases (range cherry-pick)
 5. (force) pushes the cherry-pick branch
 6. creates a new PR from the cherry-pick branch against the target in the comment 
 
