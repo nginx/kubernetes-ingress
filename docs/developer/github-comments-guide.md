@@ -37,7 +37,7 @@ Functionality is in [external-pr.yml](../../.github/workflows/external-pr.yml) f
 
 1. Checks out the branch of the PR from the fork
 2. adds the NIC repository as an upstream
-3. creates a new branch named `chore/<original-branch-name>-do-not-merge`
+3. creates a new branch named `chore/<original-branch-name>-<short-sha>-do-not-merge`
 4. pushes that branch onto our repository in GitHub
 5. creates a PR in the NIC repository
    1. with the title `DO NOT MERGE <original PR title>`
@@ -48,9 +48,9 @@ Functionality is in [external-pr.yml](../../.github/workflows/external-pr.yml) f
 
 All of these need to be true:
 
-* on new issues created
+* on new PR comments (GitHub `issue_comment` event, `created` type)
 * that are Pull Requests
-* where the PR is opened from a forked repository
+* where the PR is opened from a forked repository (the internal mirror job only runs when `is_fork == 'true'`)
 * where the target repository is `nginx/kubernetes-ingress` (so PRs against forks and mirrors do not fire)
-* and the comment body is exactly '/approve-pipeline-run'
-* and if the person making the comment is `owner`, `writer`, or `maintainer` of the repository
+* and the comment body is exactly `/approve-pipeline-run`
+* and the commenter has `admin`, `write`, or `maintain` permission on the repository
