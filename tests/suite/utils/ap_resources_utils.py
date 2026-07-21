@@ -3,6 +3,7 @@
 import logging
 import time
 
+import pytest
 import requests
 import yaml
 from kubernetes.client import CustomObjectsApi
@@ -267,13 +268,28 @@ def delete_ap_policy(custom_objects: CustomObjectsApi, name, namespace) -> None:
 
 
 def send_malicious_request_with_retry(url, host, retries=20, wait_seconds=3):
-    """Send a request with an embedded XSS payload, retrying until WAF blocks it."""
-    response = requests.get(url + "</script>", headers={"host": host})
-    count = 0
-    while count < retries and "Request Rejected" not in response.text:
-        wait_before_test(wait_seconds)
-        response = requests.get(url + "</script>", headers={"host": host})
-        count += 1
+    """Send a request with an embedded XSS payload, retrying until WAF blocks it.
+
+    Tolerates ConnectionError/RemoteDisconnected caused by NGINX reloads
+    (worker recycling during App Protect reconfiguration closes connections).
+    """
+    response = None
+    last_error = None
+    for i in range(retries + 1):
+        try:
+            response = requests.get(url + "</script>", headers={"host": host})
+            if "Request Rejected" in response.text:
+                return response
+        except requests.exceptions.ConnectionError as e:
+            last_error = e
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+        if i < retries:
+            wait_before_test(wait_seconds)
+    if response is None:
+        pytest.fail(
+            f"Never got a response from {url} after {retries + 1} attempts; "
+            f"connection kept dropping during reloads. Last error: {last_error}"
+        )
     return response
 
 

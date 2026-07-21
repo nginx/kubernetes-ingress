@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress
+  annotations:
+    nginx.org/custom-http-errors: "404, 500, 5xx"
+spec:
+  ingressClassName: nginx
+  defaultBackend:
+    service:
+      name: error-pages-svc
+      port:
+        number: 80
+  rules:
+  - host: cafe.example.com
+    http:
+      paths:
+      - path: /coffee
+        pathType: Prefix
+        backend:
+          service:
+            name: coffee-svc
+            port:
+              number: 80
+      - path: /tea
+        pathType: Prefix
+        backend:
+          service:
+            name: tea-svc
+            port:
+              number: 80
+      - path: /fail
+        pathType: Prefix
+        backend:
+          service:
+            name: fail-backend-svc
+            port:
+              number: 80

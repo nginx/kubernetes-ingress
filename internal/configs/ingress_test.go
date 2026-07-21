@@ -1704,6 +1704,355 @@ func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConf
 	return expected
 }
 
+func TestGenerateNginxCfgCustomHTTPErrors_WithDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404, 500"
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	cafeIngressEx.Endpoints["error-pages-svc80"] = []string{"10.0.0.3:80"}
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	if len(result.Servers) != 1 {
+		t.Fatalf("expected 1 server, got %d", len(result.Servers))
+	}
+	srv := result.Servers[0]
+	wantBackend := getNameForUpstream(cafeIngressEx.Ingress, emptyHostName, cafeIngressEx.Ingress.Spec.DefaultBackend)
+	wantCodes := []int{404, 500}
+	if !reflect.DeepEqual(srv.CustomHTTPErrorCodes, wantCodes) {
+		t.Errorf("Server.CustomHTTPErrorCodes = %v, want %v", srv.CustomHTTPErrorCodes, wantCodes)
+	}
+	if srv.CustomHTTPErrorBackend != wantBackend {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want %q", srv.CustomHTTPErrorBackend, wantBackend)
+	}
+	// User-path locations must NOT carry codes for a standard Ingress —
+	// server-level directives are inherited via NGINX's error_page inheritance.
+	for _, loc := range srv.Locations {
+		if len(loc.CustomHTTPErrorCodes) != 0 {
+			t.Errorf("Location %q must not carry CustomHTTPErrorCodes on a standard Ingress (server-level covers all), got %v",
+				loc.Path, loc.CustomHTTPErrorCodes)
+		}
+	}
+}
+
+func TestGenerateNginxCfgCustomHTTPErrors_WithoutDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404, 5xx"
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	if len(warnings) == 0 {
+		t.Errorf("expected a warning about missing spec.defaultBackend, got none")
+	}
+	srv := result.Servers[0]
+	// Codes are still populated so the template can render proxy_intercept_errors on;
+	// but without a matching error_page the annotation is functionally a no-op
+	if len(srv.CustomHTTPErrorCodes) == 0 {
+		t.Errorf("Server.CustomHTTPErrorCodes should be populated even without defaultBackend, got empty")
+	}
+	if srv.CustomHTTPErrorBackend != "" {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want empty", srv.CustomHTTPErrorBackend)
+	}
+}
+
+func TestGenerateNginxCfgCustomHTTPErrors_MarksSyntheticDefaultBackendLocation(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404"
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	cafeIngressEx.Endpoints["error-pages-svc80"] = []string{"10.0.0.3:80"}
+
+	// Remove the /coffee and /tea paths so a synthesized "/" default-backend
+	// location is the only content location on the server.
+	cafeIngressEx.Ingress.Spec.Rules[0].HTTP.Paths = nil
+
+	result, _ := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	srv := result.Servers[0]
+	if len(srv.Locations) != 1 || srv.Locations[0].Path != "/" {
+		t.Fatalf("expected a single synthesized '/' location, got %+v", srv.Locations)
+	}
+	// SkipCustomHTTPErrors must be set on the synthesized location so the
+	// template emits proxy_intercept_errors off; and breaks the intercept
+	// loop that would otherwise call the default backend twice per error.
+	if !srv.Locations[0].SkipCustomHTTPErrors {
+		t.Errorf("synthesized default-backend location must have SkipCustomHTTPErrors = true")
+	}
+}
+
+// TestGenerateNginxCfgCustomHTTPErrors_StandardIgnoresGRPC verifies that a
+// standard Ingress with a mix of gRPC and HTTP paths still renders
+// server-level custom-http-errors. gRPC locations opt out naturally via their
+// own error_page directives that override the server-level one; no per-path
+// warning is emitted because there is no per-path decision to make.
+func TestGenerateNginxCfgCustomHTTPErrors_StandardIgnoresGRPC(t *testing.T) {
+	t.Parallel()
+
+	isPlus := false
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	configParams.HTTP2 = true
+
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404, 500"
+	cafeIngressEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+	cafeIngressEx.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+	cafeIngressEx.Endpoints["error-pages-svc80"] = []string{"10.0.0.3:80"}
+
+	result, _ := generateNginxCfg(NginxCfgParams{
+		staticParams:         &StaticConfigParams{},
+		ingEx:                &cafeIngressEx,
+		BaseCfgParams:        configParams,
+		isPlus:               isPlus,
+		isResolverConfigured: false,
+		isWildcardEnabled:    false,
+	})
+
+	srv := result.Servers[0]
+	if srv.CustomHTTPErrorBackend == "" {
+		t.Errorf("Server.CustomHTTPErrorBackend = empty, want the error-pages upstream (handler must be enabled)")
+	}
+	if !reflect.DeepEqual(srv.CustomHTTPErrorCodes, []int{404, 500}) {
+		t.Errorf("Server.CustomHTTPErrorCodes = %v, want [404 500]", srv.CustomHTTPErrorCodes)
+	}
+	// No location-level codes for a standard Ingress even on the gRPC path;
+	// interception is handled at server level and gRPC's own error_page block
+	// (rendered by the template) overrides the server-level directive.
+	for _, loc := range srv.Locations {
+		if len(loc.CustomHTTPErrorCodes) != 0 {
+			t.Errorf("Location %q must not carry CustomHTTPErrorCodes on a standard Ingress, got %v",
+				loc.Path, loc.CustomHTTPErrorCodes)
+		}
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MasterAnnotation
+// covers the mergeable-ingress path where the master carries the annotation
+// and has spec.defaultBackend. The server-level directives render on the
+// master server; no minion location gets per-location codes (they inherit via
+// NGINX's error_page inheritance).
+func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MasterAnnotation(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404, 500"
+	mergeableIngresses.Master.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	if len(result.Servers) != 1 {
+		t.Fatalf("expected 1 server, got %d", len(result.Servers))
+	}
+	srv := result.Servers[0]
+
+	wantBackend := getNameForUpstream(mergeableIngresses.Master.Ingress, emptyHostName, mergeableIngresses.Master.Ingress.Spec.DefaultBackend)
+	if !reflect.DeepEqual(srv.CustomHTTPErrorCodes, []int{404, 500}) {
+		t.Errorf("Server.CustomHTTPErrorCodes = %v, want [404 500]", srv.CustomHTTPErrorCodes)
+	}
+	if srv.CustomHTTPErrorBackend != wantBackend {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want %q", srv.CustomHTTPErrorBackend, wantBackend)
+	}
+	for _, loc := range srv.Locations {
+		if len(loc.CustomHTTPErrorCodes) != 0 {
+			t.Errorf("Location %q must not carry CustomHTTPErrorCodes when only the master has the annotation, got %v",
+				loc.Path, loc.CustomHTTPErrorCodes)
+		}
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionOverride
+// covers the case where a minion carries the annotation. Only that minion's
+// location gets per-location codes; the shared handler is still enabled from
+// the master's spec.defaultBackend via the enable-loop in
+// generateNginxCfgForMergeableIngresses.
+func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionOverride(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Spec.DefaultBackend = &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{
+			Name: "error-pages-svc",
+			Port: networking.ServiceBackendPort{Number: 80},
+		},
+	}
+
+	var coffee *IngressEx
+	for _, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			coffee = m
+			break
+		}
+	}
+	if coffee == nil {
+		t.Fatal("coffee minion not found in test fixture")
+	}
+	coffee.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "502, 503"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	srv := result.Servers[0]
+
+	wantBackend := getNameForUpstream(mergeableIngresses.Master.Ingress, emptyHostName, mergeableIngresses.Master.Ingress.Spec.DefaultBackend)
+	if len(srv.CustomHTTPErrorCodes) != 0 {
+		t.Errorf("Server.CustomHTTPErrorCodes = %v, want empty (master has no annotation)", srv.CustomHTTPErrorCodes)
+	}
+	if srv.CustomHTTPErrorBackend != wantBackend {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want %q (handler must be enabled by minion annotation)",
+			srv.CustomHTTPErrorBackend, wantBackend)
+	}
+
+	sawCoffee, sawTea := false, false
+	for _, loc := range srv.Locations {
+		switch loc.Path {
+		case "/coffee":
+			sawCoffee = true
+			if !reflect.DeepEqual(loc.CustomHTTPErrorCodes, []int{502, 503}) {
+				t.Errorf("coffee Location.CustomHTTPErrorCodes = %v, want [502 503]", loc.CustomHTTPErrorCodes)
+			}
+		case "/tea":
+			sawTea = true
+			if len(loc.CustomHTTPErrorCodes) != 0 {
+				t.Errorf("tea Location.CustomHTTPErrorCodes = %v, want empty (only coffee minion has the annotation)", loc.CustomHTTPErrorCodes)
+			}
+		}
+	}
+	if !sawCoffee || !sawTea {
+		t.Fatalf("expected /coffee and /tea locations, saw coffee=%v tea=%v", sawCoffee, sawTea)
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionWithoutMasterDefaultBackend
+// covers the warning path: a minion sets the annotation but the master has no
+// spec.defaultBackend. A Kubernetes warning event must be added, and the
+// shared handler location must not render (CustomHTTPErrorBackend stays empty).
+func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionWithoutMasterDefaultBackend(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	// Master intentionally has no spec.defaultBackend.
+
+	var coffee *IngressEx
+	for _, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			coffee = m
+			break
+		}
+	}
+	if coffee == nil {
+		t.Fatal("coffee minion not found in test fixture")
+	}
+	coffee.Ingress.Annotations[CustomHTTPErrorsAnnotation] = "404"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	var foundWarning bool
+	for _, msgs := range warnings {
+		for _, m := range msgs {
+			if strings.Contains(m, CustomHTTPErrorsAnnotation) && strings.Contains(m, "spec.defaultBackend") {
+				foundWarning = true
+			}
+		}
+	}
+	if !foundWarning {
+		t.Errorf("expected a warning about missing master spec.defaultBackend, got warnings=%v", warnings)
+	}
+
+	srv := result.Servers[0]
+	if srv.CustomHTTPErrorBackend != "" {
+		t.Errorf("Server.CustomHTTPErrorBackend = %q, want empty (no master spec.defaultBackend)", srv.CustomHTTPErrorBackend)
+	}
+	// The minion's location still carries codes; the template renders
+	// proxy_intercept_errors on; without a matching error_page (functional no-op
+	// at request time, but faithfully reflects what the annotation asked for).
+	var coffeeCodes []int
+	for _, loc := range srv.Locations {
+		if loc.Path == "/coffee" {
+			coffeeCodes = loc.CustomHTTPErrorCodes
+			break
+		}
+	}
+	if !reflect.DeepEqual(coffeeCodes, []int{404}) {
+		t.Errorf("coffee Location.CustomHTTPErrorCodes = %v, want [404]", coffeeCodes)
+	}
+}
+
 func createCafeIngressEx() IngressEx {
 	cafeIngress := networking.Ingress{
 		ObjectMeta: meta_v1.ObjectMeta{
@@ -3620,70 +3969,6 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 	return expected
 }
 
-func TestGenerateNginxCfgForSpiffe(t *testing.T) {
-	t.Parallel()
-	isPlus := false
-	configParams := NewDefaultConfigParams(context.Background(), isPlus)
-
-	expected := createExpectedConfigForCafeIngressEx(isPlus)
-	expected.SpiffeClientCerts = true
-	for i := range expected.Servers[0].Locations {
-		expected.Servers[0].Locations[i].SSL = true
-		expected.Servers[0].Locations[i].ProxyPass = strings.Replace(expected.Servers[0].Locations[i].ProxyPass, "http://", "https://", 1)
-	}
-
-	result, warnings := generateNginxCfg(NginxCfgParams{
-		staticParams:         &StaticConfigParams{NginxServiceMesh: true},
-		ingEx:                new(createCafeIngressEx()),
-		apResources:          nil,
-		dosResource:          nil,
-		isMinion:             false,
-		isPlus:               false,
-		BaseCfgParams:        configParams,
-		isResolverConfigured: false,
-		isWildcardEnabled:    false,
-	})
-
-	if diff := cmp.Diff(expected, result); diff != "" {
-		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if len(warnings) != 0 {
-		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
-	}
-}
-
-func TestGenerateNginxCfgForInternalRoute(t *testing.T) {
-	t.Parallel()
-	internalRouteAnnotation := "nsm.nginx.com/internal-route"
-	cafeIngressEx := createCafeIngressEx()
-	cafeIngressEx.Ingress.Annotations[internalRouteAnnotation] = "true"
-	isPlus := false
-	configParams := NewDefaultConfigParams(context.Background(), isPlus)
-
-	expected := createExpectedConfigForCafeIngressEx(isPlus)
-	expected.Servers[0].SpiffeCerts = true
-	expected.Ingress.Annotations[internalRouteAnnotation] = "true"
-
-	result, warnings := generateNginxCfg(NginxCfgParams{
-		staticParams:         &StaticConfigParams{NginxServiceMesh: true, EnableInternalRoutes: true},
-		ingEx:                &cafeIngressEx,
-		apResources:          nil,
-		dosResource:          nil,
-		isMinion:             false,
-		isPlus:               false,
-		BaseCfgParams:        configParams,
-		isResolverConfigured: false,
-		isWildcardEnabled:    false,
-	})
-
-	if diff := cmp.Diff(expected, result); diff != "" {
-		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
-	}
-	if len(warnings) != 0 {
-		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
-	}
-}
-
 func TestGenerateNginxCfgForSSLCiphers(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
@@ -3760,62 +4045,20 @@ func TestIsSSLEnabled(t *testing.T) {
 	t.Parallel()
 	type testCase struct {
 		IsSSLService,
-		SpiffeServerCerts,
-		NginxServiceMesh,
 		Expected bool
 	}
 	testCases := []testCase{
 		{
-			IsSSLService:      false,
-			SpiffeServerCerts: false,
-			NginxServiceMesh:  false,
-			Expected:          false,
+			IsSSLService: false,
+			Expected:     false,
 		},
 		{
-			IsSSLService:      false,
-			SpiffeServerCerts: true,
-			NginxServiceMesh:  true,
-			Expected:          false,
-		},
-		{
-			IsSSLService:      false,
-			SpiffeServerCerts: false,
-			NginxServiceMesh:  true,
-			Expected:          true,
-		},
-		{
-			IsSSLService:      false,
-			SpiffeServerCerts: true,
-			NginxServiceMesh:  false,
-			Expected:          false,
-		},
-		{
-			IsSSLService:      true,
-			SpiffeServerCerts: true,
-			NginxServiceMesh:  true,
-			Expected:          true,
-		},
-		{
-			IsSSLService:      true,
-			SpiffeServerCerts: false,
-			NginxServiceMesh:  true,
-			Expected:          true,
-		},
-		{
-			IsSSLService:      true,
-			SpiffeServerCerts: true,
-			NginxServiceMesh:  false,
-			Expected:          true,
-		},
-		{
-			IsSSLService:      true,
-			SpiffeServerCerts: false,
-			NginxServiceMesh:  false,
-			Expected:          true,
+			IsSSLService: true,
+			Expected:     true,
 		},
 	}
 	for i, tc := range testCases {
-		actual := isSSLEnabled(tc.IsSSLService, ConfigParams{SpiffeServerCerts: tc.SpiffeServerCerts}, &StaticConfigParams{NginxServiceMesh: tc.NginxServiceMesh})
+		actual := isSSLEnabled(tc.IsSSLService)
 		if actual != tc.Expected {
 			t.Errorf("isSSLEnabled returned %v but expected %v for the case %v", actual, tc.Expected, i)
 		}
