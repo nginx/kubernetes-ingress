@@ -2435,47 +2435,6 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 	}
 }
 
-func TestLoggerForResource(t *testing.T) {
-	t.Parallel()
-
-	logger := nl.LoggerFromContext(context.Background())
-
-	tests := []struct {
-		name     string
-		enabled  bool
-		wantSame bool
-	}{
-		{
-			name:     "disabled returns base logger",
-			enabled:  false,
-			wantSame: true,
-		},
-		{
-			name:     "enabled returns new logger",
-			enabled:  true,
-			wantSame: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			lbc := &LoadBalancerController{
-				Logger:                      logger,
-				enableNamespaceLogAttribute: tc.enabled,
-			}
-
-			got := lbc.loggerForResource("test-ns")
-			if tc.wantSame && got != lbc.Logger {
-				t.Error("expected same logger instance when disabled")
-			}
-			if !tc.wantSame && got == lbc.Logger {
-				t.Error("expected different logger instance when enabled")
-			}
-		})
-	}
-}
-
 func TestSetConfiguratorLogger(t *testing.T) {
 	t.Parallel()
 

@@ -181,7 +181,6 @@ type LoadBalancerController struct {
 	syncQueue                     *taskQueue
 	ctx                           context.Context
 	Logger                        *slog.Logger
-	enableNamespaceLogAttribute   bool
 	cancel                        context.CancelFunc
 	configurator                  *configs.Configurator
 	watchNginxConfigMaps          bool
@@ -263,7 +262,6 @@ type NewLoadBalancerControllerInput struct {
 	Recorder                     record.EventRecorder
 	ResyncPeriod                 time.Duration
 	LoggerContext                context.Context
-	EnableNamespaceLogAttribute  bool
 	Namespace                    []string
 	SecretNamespace              []string
 	NginxConfigurator            *configs.Configurator
@@ -331,7 +329,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		restConfig:                   input.RestConfig,
 		recorder:                     input.Recorder,
 		Logger:                       nl.LoggerFromContext(input.LoggerContext),
-		enableNamespaceLogAttribute:  input.EnableNamespaceLogAttribute,
 		configurator:                 input.NginxConfigurator,
 		specialSecrets:               specialSecrets,
 		appProtectEnabled:            input.AppProtectEnabled,
@@ -1458,10 +1455,7 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(l *slog.L
 }
 
 func (lbc *LoadBalancerController) loggerForResource(ns string) *slog.Logger {
-	if lbc.enableNamespaceLogAttribute {
-		return lbc.Logger.With("resource_namespace", ns)
-	}
-	return lbc.Logger
+	return lbc.Logger.With("resource_namespace", ns)
 }
 
 func (lbc *LoadBalancerController) setConfiguratorLogger(l *slog.Logger) func() {

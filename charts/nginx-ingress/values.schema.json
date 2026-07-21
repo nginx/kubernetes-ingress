@@ -752,15 +752,6 @@
             "json"
           ]
         },
-        "enableNamespaceLogAttribute": {
-          "type": "boolean",
-          "default": false,
-          "title": "Enables the namespace attribute in the Ingress Controller logs",
-          "examples": [
-            false,
-            true
-          ]
-        },
         "directiveAutoAdjust": {
           "type": "boolean",
           "default": false,

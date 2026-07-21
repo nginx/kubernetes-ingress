@@ -228,9 +228,6 @@ var (
 	logLevel = flag.String("log-level", logLevelDefault,
 		`Sets log level for Ingress Controller. Allowed values: fatal, error, warning, info, debug, trace.`)
 
-	enableNamespaceLogAttribute = flag.Bool("enable-namespace-log-attribute", false,
-		"Adds a resource_namespace attribute to controller log entries during resource sync operations")
-
 	enableDynamicWeightChangesReload = flag.Bool(dynamicWeightChangesParam, false, "Enable changing weights of split clients without reloading NGINX. Requires -nginx-plus")
 
 	enableDirectiveAutoadjust = flag.Bool("enable-directive-autoadjust", false, "Enable automatic adjustment of NGINX directives to avoid conflicting NGINX configuration. Results may vary and might not be ideal in all cases.")
