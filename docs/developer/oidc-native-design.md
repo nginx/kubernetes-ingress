@@ -218,11 +218,31 @@ Secret rotation triggers VS re-sync via `findPoliciesForSecret()` → `FindResou
 
 ### NJS/Native Coexistence
 
-| Scenario | Behavior |
-| --- | --- |
-| NJS on spec, Native on route (same VS) | Native route does NOT inherit NJS; each uses its own auth mechanism |
-| Both on same route/context | **Error** — VS goes to Warning state with 500 |
-| NJS on VS1, Native on VS2 | Works — separate config files |
+The two OIDC implementations (`spec.oidc` NJS-based and `spec.oidcNative`
+Plus-native) can both be present on the same NIC install, but they are
+**mutually exclusive within a single authentication context**. NIC enforces
+this in [addOIDCConfig / addOIDCNativeConfig](../../internal/configs/policy.go);
+the matrix below is what the team should expect and what test-manifests 8a/8b/9
+verify.
+
+| Scenario | Behavior | Rationale |
+| --- | --- | --- |
+| **NJS on VS1, Native on VS2** (separate VirtualServers) | Works. Each VS gets its own `server{}` block with its own auth mechanism. | Both implementations live in the same nginx.conf; only the per-VS wiring differs. Independent NIC-level enablement (`-enable-oidc`) covers both. |
+| **NJS on VS spec, Native on one route in the same VS** | Works, but the native route does **not** inherit the NJS server-level auth. The route runs only the native flow. | NIC deliberately breaks the server-level OIDC inheritance when a route sets a native provider — otherwise the NJS `error_page 401 = @do_oidc_flow` would fire alongside `auth_oidc`, producing an ambiguous response. See the `specHasOIDC && routePoliciesCfg.OIDCProvider == nil` guard in [virtualserver.go](../../internal/configs/virtualserver.go). |
+| **Both NJS and native on the *same* route/spec** | **Hard error**. The second one to be processed sets `res.isError = true`; the entire policy config is replaced with `ErrorReturn: 500`. VS goes to Warning state with a message about the OIDC/OIDCNative conflict. | Preserves fail-loud semantics for a configuration that cannot possibly work — `auth_oidc` and NJS `error_page 401 = @do_oidc_flow` on the same location would drive the browser through two different login flows. |
+| **Multiple native providers in the same context** | First wins, second is ignored with a warning event on the VS. Config still renders. | Matches the existing behavior for multiple NJS OIDC policies in the same context (warning-only, not `isError`). |
+| **Multiple native providers across different routes / VSRs** | Fully supported. Each provider gets a unique auto-generated name, callback path, cookie, and session store. | This is the main win over the NJS OIDC implementation. |
+
+The mutex is bidirectional: whichever policy type gets processed first wins the
+context; the second raises the appropriate warning/error. Order is only
+deterministic within a single VS spec, so authors mixing types on the same
+spec should not rely on order — they should use one type per context.
+
+Files carrying this behavior:
+
+- Cross-type mutex (native seeing existing NJS, and vice-versa) — `addOIDCConfig` / `addOIDCNativeConfig` in [`internal/configs/policy.go`](../../internal/configs/policy.go)
+- Server-to-route inheritance guard — the `specHasOIDC && routePoliciesCfg.OIDCProvider == nil` branch in [`internal/configs/virtualserver.go`](../../internal/configs/virtualserver.go)
+- Policy-spec exclusivity at the API level (both `oidc` and `oidcNative` set on one Policy CR) — `validatePolicySpec` in [`pkg/apis/configuration/validation/policy.go`](../../pkg/apis/configuration/validation/policy.go)
 
 ## Prerequisites
 
@@ -250,11 +270,84 @@ Secret rotation triggers VS re-sync via `findPoliciesForSecret()` → `FindResou
 
 **Solution**: NIC auto-generates a dedicated `location = <callbackURI> { auth_oidc <provider>; }` for each provider. Users can protect any route (spec-level or per-route) and the callback always works.
 
-### In-cluster IdP DNS/TLS/loopback issues — RESOLVED
+### In-cluster IdP setup is awkward — KNOWN LIMITATION
+
+**Problem**: Running the IdP (Keycloak, Dex, Authelia, etc.) in the same cluster
+that NIC serves is a common demo/dev topology, but the native module makes it
+substantially harder than deploying the IdP externally. The pain surfaces at
+four independent layers, and there is no single knob that fixes them together:
+
+1. **DNS resolution from inside the NIC pod.** The native module resolves the
+   issuer hostname via NGINX's `resolver` directive at request time, which
+   uses cluster DNS (kube-dns) — it does **not** consult `/etc/hosts`. So
+   Kubernetes-level tricks like pod `hostAliases` (or manually editing
+   `/etc/hosts`) do not work. This was tried and confirmed non-working on the
+   `feat/oidc-policy-v2` branch. The only options that actually resolve are:
+   - A real DNS record for the IdP hostname (public, or a nip.io / sslip.io
+     wildcard where the hostname encodes the target IP)
+   - CoreDNS custom entries in the cluster
+   - Configuring the IdP to advertise a Kubernetes-service DNS name for its
+     backchannel endpoints (`hostname-backchannel-dynamic` in Keycloak) plus
+     setting `oidcNative.configURL` to fetch metadata from the service DNS name
+
+2. **TLS cert / SAN alignment.** The module verifies the IdP TLS cert against
+   the issuer hostname. In-cluster IdPs typically ship a cert whose SAN is
+   `<svc>.<ns>.svc.cluster.local`, which does not match the `issuer` value.
+   Users must either (a) generate a cert covering both the internal and the
+   externally-facing hostname, or (b) set `sslVerify: false` on the policy
+   (dev/test only, insecure). Our shipped example uses (b) because generating
+   per-cluster SANs is out of scope for a checked-in example.
+
+3. **Browser-side trust.** Even after the backchannel is happy, the browser
+   still hits the IdP directly for the interactive login. If the shipped IdP
+   cert is self-signed, users click through cert warnings twice (once for the
+   webapp VS, once for the IdP VS). No way around this without real DNS +
+   real certs (cert-manager or manual).
+
+4. **Callback URI registration.** The native module's auto-generated callback
+   path is per-provider (`/oidc_callback_<providerName>`), where the provider
+   name embeds the policy namespace, policy name, VS namespace, and VS name.
+   Users cannot know the callback path until after they've applied the VS.
+   Two workarounds are documented: register `https://<host>/*` as a wildcard
+   redirect URI in the IdP client (chosen in the example), or set an explicit
+   `redirectURI` on the policy to force a stable path.
+
+**What NIC does to mitigate this**: NIC auto-generates a `proxy_location` per
+provider (see the IdP Proxy Location section above). The module makes all
+IdP-bound requests through that location, which gives us:
+
+- SNI override via `sslName` — decouples the backchannel SNI from the issuer
+  hostname if needed
+- Host-header override — helps when the IdP validates by Host
+- TLS trust chain override via `trustedCertSecret` / `sslVerify`
+- Use of NIC's configured `resolver` — which at least routes through cluster
+  DNS uniformly
+
+But `proxy_location` only addresses the mechanics of the *outbound* request;
+it does not solve DNS (the module still passes `proxy_pass $oidc_idp_request_uri`
+with a variable, so runtime resolution still applies), it does not solve
+browser-side reachability, and it does not solve cert-trust ergonomics.
+
+**Guidance for the docs team**: recommend nip.io / sslip.io wildcard DNS in
+the getting-started docs for in-cluster IdPs. External IdPs (Auth0, Okta, Azure
+AD, external Keycloak) do not hit any of these problems and should be the
+recommended production topology. The shipped example (`examples/custom-resources/oidc-native/`)
+uses nip.io + `sslVerify: false` and is explicitly marked as a dev/demo setup.
+
+**Future work worth considering**:
+
+- Add an optional `hostname-backchannel-url`-style abstraction so users can
+  supply a service-DNS URL for backchannel while keeping the public issuer.
+  Would eliminate DNS pain for Keycloak users specifically.
+- Extend `make secrets` (or a fresh helper) to (re)generate the shipped example
+  certs with SANs matching a user-supplied hostname, so demos can be
+  cert-warning-free without hand-crafting `openssl` invocations.
+
+### In-cluster IdP DNS/TLS/loopback issues — PARTIALLY RESOLVED
 
 **Problem**: For in-cluster IdPs like Keycloak, the module would fail with SNI mismatches, missing DNS entries, or loopback deadlocks when trying to reach the IdP directly.
 
-**Solution**: NIC auto-generates a `proxy_location` per provider. The module proxies IdP requests through this location, which uses NIC's standard resolver, sets correct SNI/Host, and applies TLS trust from `trustedCertSecret`. See the IdP Proxy Location section above.
+**Partial solution**: NIC auto-generates a `proxy_location` per provider. See the IdP Proxy Location section above and the "In-cluster IdP setup is awkward" section for the residual pain points that `proxy_location` does not solve.
 
 ### Server-level + Location-level auth_oidc interaction
 
