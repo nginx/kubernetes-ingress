@@ -31,6 +31,7 @@ type ConfigParams struct {
 	LocationSnippets                       []string
 	MainAccessLog                          string
 	MainAddHeaders                         []version2.AddHeader
+	UseForwardedHeaders                    bool
 	MainErrorLogLevel                      string
 	MainHTTPSnippets                       []string
 	MainKeepaliveRequests                  int64
