@@ -145,5 +145,8 @@ It is the UID of the `kube-system` Namespace. */
 		/** WAFLogBundleSourceTypes is the deduplicated list of WAF log profile bundle source types in use (e.g. "HTTPS", "NIM", "N1C"). */
 		union {null, array<string>} WAFLogBundleSourceTypes = null;
 		
+		/** HSTSPolicies is the number of HSTS policies managed by NGINX Ingress Controller */
+		long? HSTSPolicies = null;
+		
 	}
 }
