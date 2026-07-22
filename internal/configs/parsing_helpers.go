@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -431,4 +432,91 @@ func VerifyAppProtectThresholds(value string) bool {
 // VerifyPath ensures that rewrite paths are in the correct format
 func VerifyPath(s string) bool {
 	return pathRegexp.MatchString(s)
+}
+
+// customHTTPErrorMaxCodes bounds the number of expanded status codes emitted
+// on the generated error_page directive. 3xx + 4xx + 5xx together is exactly
+// 300, which is the effective upper bound in normal use.
+const customHTTPErrorMaxCodes = 300
+
+// nginxErrorPageRejectedCodes lists status codes that NGINX itself rejects in
+// the error_page directive at config-parse time.
+var nginxErrorPageRejectedCodes = map[int]bool{
+	499: true,
+}
+
+// ParseCustomHTTPErrors parses the nginx.org/custom-http-errors annotation
+// value into a sorted, deduplicated slice of HTTP status codes.
+//
+// Empty entries between commas are skipped. An empty (or whitespace-only)
+// input string is an error, as is a value that yields no codes after parsing.
+func ParseCustomHTTPErrors(value string) ([]int, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, errors.New("value must not be empty")
+	}
+	set := make(map[int]struct{})
+	for _, raw := range strings.Split(value, ",") {
+		token := strings.TrimSpace(raw)
+		if token == "" {
+			continue
+		}
+		switch strings.ToLower(token) {
+		case "4xx":
+			for c := 400; c <= 499; c++ {
+				if nginxErrorPageRejectedCodes[c] {
+					continue
+				}
+				set[c] = struct{}{}
+			}
+			continue
+		case "5xx":
+			for c := 500; c <= 599; c++ {
+				if nginxErrorPageRejectedCodes[c] {
+					continue
+				}
+				set[c] = struct{}{}
+			}
+			continue
+		}
+		if !isASCIIDigits(token) {
+			return nil, fmt.Errorf("invalid status code %q: must be an integer, '4xx', or '5xx'", token)
+		}
+		code, err := strconv.Atoi(token)
+		if err != nil {
+			return nil, fmt.Errorf("invalid status code %q: must be an integer, '4xx', or '5xx'", token)
+		}
+		if code < 300 || code > 599 {
+			return nil, fmt.Errorf("invalid status code %d: must be in the range [300, 599]", code)
+		}
+		if nginxErrorPageRejectedCodes[code] {
+			return nil, fmt.Errorf("invalid status code %d: NGINX rejects this code in the error_page directive", code)
+		}
+		set[code] = struct{}{}
+	}
+	if len(set) == 0 {
+		return nil, errors.New("no valid status codes found")
+	}
+	if len(set) > customHTTPErrorMaxCodes {
+		return nil, fmt.Errorf("too many status codes (%d), maximum is %d", len(set), customHTTPErrorMaxCodes)
+	}
+	codes := make([]int, 0, len(set))
+	for c := range set {
+		codes = append(codes, c)
+	}
+	sort.Ints(codes)
+	return codes, nil
+}
+
+// isASCIIDigits reports whether s is non-empty and made up entirely of ASCII
+// decimal digits.
+func isASCIIDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }

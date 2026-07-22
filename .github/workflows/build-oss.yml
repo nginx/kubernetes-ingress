@@ -183,7 +183,7 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
           context: "."
@@ -215,7 +215,7 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Docker image
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: ./.github/actions/build-push-retry
         id: build-push
         with:
           file: build/Dockerfile

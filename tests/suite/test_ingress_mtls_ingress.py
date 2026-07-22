@@ -2,7 +2,7 @@ from unittest import mock
 
 import pytest
 import requests
-from settings import TEST_DATA
+from settings import RECONFIGURATION_DELAY, TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import (
     apply_and_wait_for_valid_policy,
@@ -17,6 +17,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    retry_get_until_status_code,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -152,6 +153,12 @@ class TestIngressMTLSPoliciesIngress:
                     resp.status_code = "None"
                     resp.text = "None"
                     break
+                except requests.exceptions.ConnectionError as e:
+                    # NGINX reload recycled workers and dropped the connection; retry.
+                    # Note: SSLError subclasses ConnectionError, so this must come after it.
+                    print(f"Connection dropped during reload: {e}")
+                    wait_before_test()
+                    counter += 1
 
             assert (
                 resp.status_code == expected_code
@@ -229,18 +236,17 @@ class TestIngressMTLSPoliciesIngress:
                 counter += 1
 
             session = create_sni_session()
-            resp = mock.Mock()
-            resp.status_code = 404
-            counter = 0
-            while resp.status_code != 500 and counter < 30:
-                resp = session.get(
-                    request_url,
-                    headers={"host": ingress_host},
-                    allow_redirects=False,
-                    verify=False,
-                )
-                wait_before_test()
-                counter += 1
+            # Tolerate connections dropped by an NGINX reload after the ingress/policy apply.
+            resp = retry_get_until_status_code(
+                request_url,
+                ingress_host,
+                500,
+                retries=30,
+                wait_seconds=RECONFIGURATION_DELAY,
+                session=session,
+                allow_redirects=False,
+                verify=False,
+            )
 
             assert resp.status_code == 500, f"Expected 500 for invalid policy, got {resp.status_code}"
             assert (
@@ -299,20 +305,18 @@ class TestIngressMTLSPoliciesIngress:
             )
 
             session = create_sni_session()
-            resp = mock.Mock()
-            resp.status_code = 502
-            counter = 0
-
-            while resp.status_code != 200 and counter < 10:
-                resp = session.get(
-                    request_url,
-                    cert=(intermediate_crt, intermediate_key),
-                    headers={"host": ingress_host},
-                    allow_redirects=False,
-                    verify=False,
-                )
-                wait_before_test()
-                counter += 1
+            # Tolerate connections dropped by an NGINX reload after the ingress/policy apply.
+            resp = retry_get_until_status_code(
+                request_url,
+                ingress_host,
+                200,
+                retries=10,
+                wait_seconds=RECONFIGURATION_DELAY,
+                session=session,
+                cert=(intermediate_crt, intermediate_key),
+                allow_redirects=False,
+                verify=False,
+            )
 
             assert (
                 resp.status_code == 200
@@ -332,20 +336,18 @@ class TestIngressMTLSPoliciesIngress:
             print("Wait for NGINX reload after policy swap")
             wait_before_test()
 
-            resp = mock.Mock()
-            resp.status_code = 200
-            counter = 0
-
-            while resp.status_code != 400 and counter < 10:
-                resp = session.get(
-                    request_url,
-                    cert=(intermediate_crt, intermediate_key),
-                    headers={"host": ingress_host},
-                    allow_redirects=False,
-                    verify=False,
-                )
-                wait_before_test()
-                counter += 1
+            # Tolerate connections dropped by the NGINX reload after the policy swap.
+            resp = retry_get_until_status_code(
+                request_url,
+                ingress_host,
+                400,
+                retries=10,
+                wait_seconds=RECONFIGURATION_DELAY,
+                session=session,
+                cert=(intermediate_crt, intermediate_key),
+                allow_redirects=False,
+                verify=False,
+            )
 
             assert (
                 resp.status_code == 400
@@ -408,19 +410,17 @@ class TestIngressMTLSPoliciesIngress:
             )
 
             session = create_sni_session()
-            resp = mock.Mock()
-            resp.status_code = 404
-            counter = 0
-
-            while resp.status_code != 500 and counter < 30:
-                resp = session.get(
-                    request_url,
-                    headers={"host": ingress_host},
-                    allow_redirects=False,
-                    verify=False,
-                )
-                wait_before_test()
-                counter += 1
+            # Tolerate connections dropped by an NGINX reload after the ingress/policy apply.
+            resp = retry_get_until_status_code(
+                request_url,
+                ingress_host,
+                500,
+                retries=30,
+                wait_seconds=RECONFIGURATION_DELAY,
+                session=session,
+                allow_redirects=False,
+                verify=False,
+            )
 
             assert (
                 resp.status_code == 500

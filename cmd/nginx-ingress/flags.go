@@ -217,13 +217,6 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 
 	tlsPassthroughPort = flag.Int("tls-passthrough-port", 443, "Set custom port for TLS Passthrough. [1024 - 65535]")
 
-	spireAgentAddress = flag.String("spire-agent-address", "",
-		`Specifies the address of the running Spire agent. Requires -nginx-plus and is for use with NGINX Service Mesh only. If the flag is set,
-			but the Ingress Controller is not able to connect with the Spire Agent, the Ingress Controller will fail to start.`)
-
-	enableInternalRoutes = flag.Bool("enable-internal-routes", false,
-		`Enable support for internal routes with NGINX Service Mesh. Requires -spire-agent-address and -nginx-plus. Is for use with NGINX Service Mesh only.`)
-
 	readyStatus = flag.Bool("ready-status", true, "Enables the readiness endpoint '/nginx-ready'. The endpoint returns a success code when NGINX has loaded all the config after the startup")
 
 	readyStatusPort = flag.Int("ready-status-port", 8081, "Set the port where the readiness endpoint is exposed. [1024 - 65535]")
@@ -464,10 +457,6 @@ func mustValidateFlags(ctx context.Context) {
 	}
 	if warn != "" {
 		nl.Warn(l, warn)
-	}
-
-	if *enableInternalRoutes && *spireAgentAddress == "" {
-		nl.Fatal(l, "enable-internal-routes flag requires spire-agent-address")
 	}
 
 	if *enableCertManager && !*enableCustomResources {
