@@ -214,13 +214,32 @@ def wait_and_assert_status_code(code, req_url, host, **kwargs) -> None:
     :paramv **kwargs: optional arguments that ``request`` takes
     :return:
     """
-    counter = 0
-    resp = requests.get(req_url, headers={"host": host}, **kwargs)
-    while not resp.status_code == code and counter <= 30:
-        time.sleep(1)
-        counter = counter + 1
-        resp = requests.get(req_url, headers={"host": host}, **kwargs)
-    assert resp.status_code == code, f"After 30 seconds the status_code is still not {code}"
+    headers = {} if host is None else {"host": host}
+    resp = None
+    last_error = None
+    # One initial request plus up to 31 retries (~31s of polling), matching the
+    # original loop. Only sleep between attempts, never after the final one.
+    attempts = 32
+    for i in range(attempts):
+        try:
+            resp = requests.get(req_url, headers=headers, **kwargs)
+            if resp.status_code == code:
+                break
+        except requests.exceptions.ConnectionError as e:
+            # NGINX reloads recycle workers and can drop in-flight connections;
+            # tolerate the transient and retry rather than failing the test.
+            last_error = e
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+        if i < attempts - 1:
+            time.sleep(1)
+    # Elapsed time is one 1s sleep between each pair of attempts.
+    elapsed_seconds = attempts - 1
+    if resp is None:
+        pytest.fail(
+            f"Never got a response from {req_url} after {attempts} attempts "
+            f"(~{elapsed_seconds}s); connection kept dropping during reloads. Last error: {last_error}"
+        )
+    assert resp.status_code == code, f"After ~{elapsed_seconds}s the status_code is still not {code}"
 
 
 def assert_grpc_entries_exist(config) -> None:
