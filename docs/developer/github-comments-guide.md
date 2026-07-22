@@ -31,7 +31,7 @@ All of these need to be true:
 
 ## `/approve-pipeline-run`
 
-Functionality is in [external-pr.yml](../../.github/workflows/external-pr.yml) file.
+Functionality is in the [external-pr.yml](../../.github/workflows/external-pr.yml) file.
 
 ### What it does
 
