@@ -104,6 +104,7 @@ get_lts_tags() {
 #   FORKED           - "true" when running from a fork / mirror.
 #   BINARY_CACHE_HIT - "true" when the Go binary cache was hit.
 #   STABLE_EXISTS    - "true" when a stable image already exists in the registry.
+#   TARGET_EXISTS    - "true" when the target build image exists in the registry (defaults to true if unset).
 #   REF_NAME         - github.ref_name (used to gate image promotion).
 # ---------------------------------------------------------------------------
 
@@ -115,18 +116,19 @@ get_lts_tags() {
 # artifacts) but does not gate the build decision -- a cache-evicted PR
 # whose stable image still exists must not rebuild wastefully.
 #
-# On non-docs runs we build when the stable image is missing. Forks always
-# build (they cannot consult the authenticated registry so STABLE_EXISTS is
+# On non-docs runs we build when either the stable image or target build image is missing.
+# Forks always build (they cannot consult the authenticated registry so STABLE_EXISTS is
 # effectively empty for them). `docker_build` doubles as the build-artifacts
 # gate; a separate flag would be provably identical (see variables_test.sh
 # equivalence check).
 get_docker_build() {
   local run="false"
+  local target_exists="${TARGET_EXISTS:-true}"
   if [ "${FORCE:-}" = "true" ]; then
     run="true"
   elif [ "${DOCS_ONLY:-}" = "true" ]; then
     run="false"
-  elif [ "${STABLE_EXISTS:-}" != "true" ]; then
+  elif [ "${STABLE_EXISTS:-}" != "true" ] || [ "${target_exists}" != "true" ]; then
     run="true"
   fi
   echo "$run"
@@ -196,15 +198,16 @@ get_run_e2e() {
 # the build + e2e cycle (get_run_e2e). A workflow_dispatch FORCE run always
 # re-tags stable -- the user explicitly asked for a rebuild, so we overwrite
 # whatever image happens to be pointed at the stable tag. Otherwise we only tag
-# when no stable image exists yet, to avoid churn on identical builds.
+# when no stable image exists yet or when the target build image was missing,
+# to avoid churn on identical builds.
 get_tag_stable() {
-  local run_e2e
+  local run_e2e target_exists="${TARGET_EXISTS:-true}"
   run_e2e=$(get_run_e2e)
   if [ "$run_e2e" != "true" ]; then
     echo "false"
   elif [ "${FORCE:-}" = "true" ]; then
     echo "true"
-  elif [ "${STABLE_EXISTS:-}" != "true" ]; then
+  elif [ "${STABLE_EXISTS:-}" != "true" ] || [ "${target_exists}" != "true" ]; then
     echo "true"
   else
     echo "false"

@@ -189,6 +189,7 @@ assert_flag get_docker_build true  "force always builds"                FORCE=tr
 assert_flag get_docker_build true  "forked non-docs change"             FORKED=true DOCS_ONLY=false
 assert_flag get_docker_build false "forked docs-only change"            FORKED=true DOCS_ONLY=true
 assert_flag get_docker_build false "main repo, stable exists (cache miss OK)" FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=false STABLE_EXISTS=true
+assert_flag get_docker_build true  "main repo, stable exists but target image missing" FORKED=false DOCS_ONLY=false STABLE_EXISTS=true TARGET_EXISTS=false
 assert_flag get_docker_build true  "main repo, stable missing"          FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=false
 assert_flag get_docker_build false "main repo, cache warm + stable"     FORKED=false DOCS_ONLY=false BINARY_CACHE_HIT=true STABLE_EXISTS=true
 assert_flag get_docker_build false "main repo docs-only"                FORKED=false DOCS_ONLY=true
@@ -218,6 +219,7 @@ assert_flag get_run_e2e false "opt-out beats docker_build cache-miss"  RUN_TESTS
 # assert_flag   function | expected | description
 assert_flag get_tag_stable true  "main repo, built, no stable image"   FORKED=false STABLE_EXISTS=false
 assert_flag get_tag_stable false "main repo, stable already exists"    FORKED=false STABLE_EXISTS=true
+assert_flag get_tag_stable true  "main repo, stable exists but target rebuilt" FORKED=false STABLE_EXISTS=true TARGET_EXISTS=false
 assert_flag get_tag_stable false "forked never tags stable"            FORKED=true STABLE_EXISTS=false
 assert_flag get_tag_stable false "docs-only never tags stable"         FORKED=false DOCS_ONLY=true STABLE_EXISTS=false
 assert_flag get_tag_stable false "up-to-date (cache+stable) no tag"    FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true
@@ -263,6 +265,15 @@ run_e2e=false
 tag_stable=false
 promote=false" \
   FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true REF_NAME=feature-branch
+
+assert_ci_flags "stable exists but target image missing (rebuilds and tags)" \
+"run_tests=false
+docker_build=true
+run_unit_tests=false
+run_e2e=true
+tag_stable=true
+promote=false" \
+  FORKED=false BINARY_CACHE_HIT=true STABLE_EXISTS=true TARGET_EXISTS=false REF_NAME=feature-branch
 
 assert_ci_flags "forked PR (build unauthenticated, no tag)" \
 "run_tests=true
