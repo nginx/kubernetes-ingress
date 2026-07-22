@@ -181,3 +181,227 @@ func TestValidateLogFormat(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePLMSecretRef(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "empty is accepted", value: "", wantErr: false},
+		{name: "bare name", value: "seaweed-auth", wantErr: false},
+		{name: "namespace/name", value: "plm/seaweed-auth", wantErr: false},
+		{name: "trailing slash rejected", value: "plm/", wantErr: true},
+		{name: "leading slash rejected", value: "/seaweed-auth", wantErr: true},
+		{name: "double slash rejected", value: "plm/foo/bar", wantErr: true},
+		{name: "just slash rejected", value: "/", wantErr: true},
+		{name: "uppercase name rejected (non DNS-1123)", value: "plm/Foo", wantErr: true},
+		{name: "uppercase namespace rejected (non DNS-1123)", value: "PLM/seaweed-auth", wantErr: true},
+		{name: "whitespace in value rejected", value: "plm/foo bar", wantErr: true},
+		{name: "underscore in name rejected", value: "plm/foo_bar", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validatePLMSecretRef("plm-storage-credentials-secret", tc.value)
+			if tc.wantErr && err == nil {
+				t.Errorf("validatePLMSecretRef(%q) expected error, got nil", tc.value)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("validatePLMSecretRef(%q) unexpected error: %v", tc.value, err)
+			}
+		})
+	}
+}
+
+func TestValidatePLMStorageURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		value   string
+		wantErr bool
+	}{
+		{name: "http host", value: "http://seaweed.plm.svc.cluster.local:8333", wantErr: false},
+		{name: "https host", value: "https://seaweed.plm.svc.cluster.local:8333/", wantErr: false},
+		{name: "http with path", value: "http://seaweed:8333/bucket", wantErr: false},
+
+		{name: "empty rejected", value: "", wantErr: true},
+		{name: "scheme only rejected", value: "http://", wantErr: true},
+		{name: "wrong scheme rejected", value: "ftp://seaweed:8333", wantErr: true},
+		{name: "no scheme rejected", value: "seaweed:8333", wantErr: true},
+		{name: "s3 scheme rejected", value: "s3://bucket/key", wantErr: true},
+		{name: "userinfo rejected", value: "http://user:pass@evil/", wantErr: true},
+		{name: "trailing space rejected", value: "http://seaweed:8333 ", wantErr: true},
+		{name: "embedded CRLF rejected", value: "http://foo\r\nbar", wantErr: true},
+		{name: "embedded tab rejected", value: "http://seaweed\t:8333", wantErr: true},
+		{name: "ipv6 rejected", value: "http://[::1]:8333", wantErr: true},
+		{name: "port out of range rejected", value: "http://seaweed:70000", wantErr: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validatePLMStorageURL(tc.value)
+			if tc.wantErr && err == nil {
+				t.Errorf("validatePLMStorageURL(%q) expected error, got nil", tc.value)
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("validatePLMStorageURL(%q) unexpected error: %v", tc.value, err)
+			}
+		})
+	}
+}
+
+func TestValidatePLMFlags(t *testing.T) {
+	t.Parallel()
+	const goodURL = "http://seaweed.plm.svc.cluster.local:8333"
+
+	tests := []struct {
+		name               string
+		url                string
+		credentialsSecret  string
+		caSecret           string
+		clientSSLSecret    string
+		insecureSkipVerify bool
+		nginxPlus          bool
+		appProtect         bool
+		wantErr            bool
+		wantErrContains    string
+		wantWarn           bool
+	}{
+		{
+			name:      "URL empty and no aux flags is a no-op",
+			url:       "",
+			nginxPlus: false, // even without prereqs, empty URL means no PLM
+		},
+		{
+			name:              "URL empty but credentials-secret set fails",
+			url:               "",
+			credentialsSecret: "plm/seaweed-auth",
+			wantErr:           true,
+			wantErrContains:   "plm-storage-credentials-secret is set but plm-storage-url is not",
+		},
+		{
+			name:            "URL empty but ca-secret set fails",
+			url:             "",
+			caSecret:        "plm/plm-ca",
+			wantErr:         true,
+			wantErrContains: "plm-storage-ca-secret is set but plm-storage-url is not",
+		},
+		{
+			name:            "URL empty but client-ssl-secret set fails",
+			url:             "",
+			clientSSLSecret: "plm/plm-client",
+			wantErr:         true,
+			wantErrContains: "plm-storage-client-ssl-secret is set but plm-storage-url is not",
+		},
+		{
+			name:               "URL empty but insecure-skip-verify set fails",
+			url:                "",
+			insecureSkipVerify: true,
+			wantErr:            true,
+			wantErrContains:    "plm-storage-insecure-skip-verify is set but plm-storage-url is not",
+		},
+		{
+			name:            "URL set without nginx-plus fails",
+			url:             goodURL,
+			nginxPlus:       false,
+			appProtect:      true,
+			wantErr:         true,
+			wantErrContains: "nginx-plus",
+		},
+		{
+			name:            "URL set without app-protect fails",
+			url:             goodURL,
+			nginxPlus:       true,
+			appProtect:      false,
+			wantErr:         true,
+			wantErrContains: "enable-app-protect",
+		},
+		{
+			name:            "malformed URL fails",
+			url:             "not-a-url",
+			nginxPlus:       true,
+			appProtect:      true,
+			wantErr:         true,
+			wantErrContains: "plm-storage-url",
+		},
+		{
+			name:              "invalid credentials secret ref fails",
+			url:               goodURL,
+			credentialsSecret: "PLM/Foo",
+			nginxPlus:         true,
+			appProtect:        true,
+			wantErr:           true,
+			wantErrContains:   "plm-storage-credentials-secret",
+		},
+		{
+			name:            "invalid ca secret ref fails",
+			url:             goodURL,
+			caSecret:        "plm/",
+			nginxPlus:       true,
+			appProtect:      true,
+			wantErr:         true,
+			wantErrContains: "plm-storage-ca-secret",
+		},
+		{
+			name:            "invalid client-ssl secret ref fails",
+			url:             goodURL,
+			clientSSLSecret: "/bad",
+			nginxPlus:       true,
+			appProtect:      true,
+			wantErr:         true,
+			wantErrContains: "plm-storage-client-ssl-secret",
+		},
+		{
+			name:              "valid config with all secrets is accepted",
+			url:               goodURL,
+			credentialsSecret: "plm/seaweed-auth",
+			caSecret:          "plm/plm-ca",
+			clientSSLSecret:   "plm/plm-client",
+			nginxPlus:         true,
+			appProtect:        true,
+		},
+		{
+			name:               "insecure-skip-verify emits warning",
+			url:                goodURL,
+			credentialsSecret:  "plm/seaweed-auth",
+			insecureSkipVerify: true,
+			nginxPlus:          true,
+			appProtect:         true,
+			wantWarn:           true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			warn, err := validatePLMFlags(
+				tc.url,
+				tc.credentialsSecret,
+				tc.caSecret,
+				tc.clientSSLSecret,
+				tc.insecureSkipVerify,
+				tc.nginxPlus,
+				tc.appProtect,
+			)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("validatePLMFlags: expected error, got nil")
+				}
+				if tc.wantErrContains != "" && !strings.Contains(err.Error(), tc.wantErrContains) {
+					t.Errorf("validatePLMFlags: error %q does not contain %q", err.Error(), tc.wantErrContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("validatePLMFlags: unexpected error: %v", err)
+			}
+			if tc.wantWarn && warn == "" {
+				t.Errorf("validatePLMFlags: expected a warning, got empty string")
+			}
+			if !tc.wantWarn && warn != "" {
+				t.Errorf("validatePLMFlags: unexpected warning: %q", warn)
+			}
+		})
+	}
+}

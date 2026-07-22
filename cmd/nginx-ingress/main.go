@@ -22,6 +22,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/healthcheck"
 	"github.com/nginx/kubernetes-ingress/internal/k8s"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
 	"github.com/nginx/kubernetes-ingress/internal/metadata"
@@ -151,6 +152,8 @@ func main() {
 			appProtectV5 = true
 			appProtectBundlePath = appProtectv5BundleFolder
 		}
+
+		selectAppProtectAPIVersion(ctx, *plmStorageURL != "", eventRecorder, pod)
 	}
 
 	var agentVersion string
@@ -622,6 +625,22 @@ func getAppProtectVersionInfo(ctx context.Context) string {
 	version := strings.TrimSpace(string(v))
 	nl.Infof(l, "Using AppProtect Version %s", version)
 	return version
+}
+
+// selectAppProtectAPIVersion configures the appprotect package to watch the
+// v1 CRDs installed by the WAF Policy Controller (PLM) chart when the
+// operator sets --plm-storage-url, and the legacy v1beta1 CRDs otherwise.
+func selectAppProtectAPIVersion(ctx context.Context, plmEnabled bool, recorder record.EventRecorder, pod *api_v1.Pod) {
+	l := nl.LoggerFromContext(ctx)
+	version := appprotect.SelectAPIVersion(plmEnabled)
+	// SelectAPIVersion only returns APIVersionV1 or APIVersionV1beta1, both
+	// accepted by SetAPIVersion
+	if err := appprotect.SetAPIVersion(version); err != nil {
+		nl.Fatalf(l, "Invalid %s API version %q: %v", appprotect.APIGroup, version, err)
+	}
+	nl.Infof(l, "Using %s/%s CRDs", appprotect.APIGroup, version)
+	recorder.Eventf(pod, api_v1.EventTypeNormal, nl.EventReasonAppProtectAPIVersionSelected,
+		"Using %s/%s CRDs", appprotect.APIGroup, version)
 }
 
 func getAgentVersionInfo(nginxManager nginx.Manager) string {
