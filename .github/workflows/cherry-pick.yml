@@ -1,9 +1,8 @@
 name: "Cherry-pick dependencies to release branch"
 on:
-  pull_request:
-    branches:
-      - main
-    types: ["closed"]
+  issue_comment:
+    types:
+      - created
 
 permissions:
   contents: read
@@ -18,9 +17,37 @@ jobs:
     name: Cherry pick into release branch
     if: |
       github.repository == 'nginx/kubernetes-ingress' && (
-      contains(github.event.pull_request.labels.*.name, 'needs cherry pick') && github.event.pull_request.merged == true
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '/cherry-pick to') &&
+      (github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'OWNER')
       )
     steps:
+      - name: Check PR is merged
+        id: pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            if (!pr.data.merged) {
+              core.setFailed('PR is not merged');
+            }
+            core.setOutput('merge_commit_sha', pr.data.merge_commit_sha);
+            core.setOutput('body', pr.data.body || '');
+            core.setOutput('head_branch', pr.data.head.ref);
+            core.setOutput('base_ref', pr.data.base.ref);
+
+            const commits = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              per_page: 250,
+            });
+            core.setOutput('commit_count', commits.data.length);
+
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -29,31 +56,138 @@ jobs:
 
       - name: Set release branch variable
         id: branch
+        env:
+          comment_body: ${{ github.event.comment.body }}
         run: |
-          branch=$(git branch -a | egrep '^\s+remotes/origin/release' | awk '{print $1}' | sort -u | tail -n 1)
-          release_branch=$(basename ${branch})
-          echo "branch=${release_branch}" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
+          regex="/cherry-pick to (release-[2-9]+\.[0-9]+|release-20[0-9]{2}-lts)"
+          if [[ "${comment_body}" =~ $regex ]]; then
+            branch=${BASH_REMATCH[1]}
+            if git ls-remote --exit-code --heads origin "${branch}" > /dev/null 2>&1; then
+              echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+            fi
+          fi
 
       - name: Azure login
+        if: ${{ steps.branch.outputs.branch }}
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
+      - name: Get secrets from vault
+        if: ${{ steps.branch.outputs.branch }}
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+        with:
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-nic-create-pr-app-client-id, nginx-bot-nic-create-pr-app-private-key"
+          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+      - name: Decode GitHub App private key
+        id: app_key
+        if: ${{ steps.branch.outputs.branch }}
         run: |
-          echo "Setting secrets for job"
-          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_PAT"
-          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+          set +x
+          # Mask the raw base64 value
+          echo "::add-mask::$APP_PRIVATE_KEY_B64"
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+          # Mask every line of the decoded PEM key individually
+          while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+              echo "::add-mask::$line"
+            fi
+          done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
+          {
+            echo "private_key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App token
+        id: app_token
+        if: ${{ steps.branch.outputs.branch }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.app_key.outputs.private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Check if actor is authorized for cherry-pick
+        if: ${{ steps.branch.outputs.branch }}
+        run: |
+          IFS=',' read -ra AUTHORIZED_USERS <<< "${{ vars.CHERRY_PICK_USERS }}"
+          for user in "${AUTHORIZED_USERS[@]}"; do
+            user=$(echo "$user" | xargs)  # trim whitespace
+            if [[ "$user" == "${{ github.actor }}" ]]; then
+              echo "Actor ${{ github.actor }} is authorized"
+              exit 0
+            fi
+          done
+          echo "::error::Actor ${{ github.actor }} is not authorized for cherry-pick"
+          exit 1
 
       - name: Cherry pick into ${{ steps.branch.outputs.branch }}
-        uses: carloscastrojumo/github-cherry-pick-action@503773289f4a459069c832dc628826685b75b4b3 # v1.0.10
-        with:
-          branch: ${{ steps.branch.outputs.branch }}
-          token: ${{ steps.secrets.outputs.NGINX_PAT }}
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
-          title: "[cherry-pick] {old_title}"
+        if: ${{ steps.branch.outputs.branch }}
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          TARGET_BRANCH: ${{ steps.branch.outputs.branch }}
+          MERGE_SHA: ${{ steps.pr.outputs.merge_commit_sha }}
+          PR_TITLE: ${{ github.event.issue.title }}
+          PR_BODY: ${{ steps.pr.outputs.body }}
+          HEAD_BRANCH: ${{ steps.pr.outputs.head_branch }}
+          BASE_REF: ${{ steps.pr.outputs.base_ref }}
+          PR_COMMIT_COUNT: ${{ steps.pr.outputs.commit_count }}
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+
+          PREFIX=$(echo "${HEAD_BRANCH}" | grep -oE '^[a-z]+/' || echo '')
+          CHERRY_BRANCH="${PREFIX}cherry-pick-${TARGET_BRANCH}-${MERGE_SHA}"
+          git checkout -b "${CHERRY_BRANCH}" "origin/${TARGET_BRANCH}"
+
+          # Detect merge strategy from the commit's parent count and apply
+          # the correct cherry-pick invocation:
+          #   2+ parents  → merge commit   → cherry-pick -m 1
+          #   1 parent on base → squash    → cherry-pick directly
+          #   1 parent NOT on base → rebase → cherry-pick full range
+          PARENT_COUNT=$(git cat-file -p "${MERGE_SHA}" | grep -c '^parent ')
+
+          if [ "${PARENT_COUNT}" -ge 2 ]; then
+            echo "Detected merge commit — using -m 1"
+            git cherry-pick -x -m 1 "${MERGE_SHA}"
+          elif git merge-base --is-ancestor "${MERGE_SHA}^" "origin/${BASE_REF}" 2>/dev/null; then
+            echo "Detected squash merge (or single-commit rebase)"
+            git cherry-pick -x "${MERGE_SHA}"
+          else
+            echo "Detected rebase merge with ${PR_COMMIT_COUNT} commit(s)"
+            git cherry-pick -x "${MERGE_SHA}~${PR_COMMIT_COUNT}..${MERGE_SHA}"
+          fi
+
+          # Push the branch, force-updating if a previous run already created it
+          if git ls-remote --exit-code --heads origin "${CHERRY_BRANCH}" > /dev/null 2>&1; then
+            git fetch origin "${CHERRY_BRANCH}"
+            git push --force-with-lease origin "${CHERRY_BRANCH}"
+          else
+            git push origin "${CHERRY_BRANCH}"
+          fi
+
+          # Create a PR only if one doesn't already exist for this branch
+          EXISTING_PR=$(gh pr list \
+            --head "${CHERRY_BRANCH}" \
+            --base "${TARGET_BRANCH}" \
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')
+
+          if [ -n "${EXISTING_PR}" ]; then
+            echo "Cherry-pick PR already exists: ${EXISTING_PR}"
+          else
+            gh pr create \
+              --title "[cherry-pick to ${TARGET_BRANCH}] ${PR_TITLE}" \
+              --body "${PR_BODY}" \
+              --base "${TARGET_BRANCH}" \
+              --head "${CHERRY_BRANCH}"
+          fi
