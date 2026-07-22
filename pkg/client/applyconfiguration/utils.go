@@ -6,9 +6,11 @@ import (
 	configurationv1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	v1beta1 "github.com/nginx/kubernetes-ingress/pkg/apis/dos/v1beta1"
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
+	v1alpha1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldnsk8s/v1alpha1"
 	applyconfigurationconfigurationv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/configuration/v1"
 	dosv1beta1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/dos/v1beta1"
 	externaldnsv1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/externaldns/v1"
+	externaldnsk8sv1alpha1 "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/externaldnsk8s/v1alpha1"
 	internal "github.com/nginx/kubernetes-ingress/pkg/client/applyconfiguration/internal"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,6 +32,18 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &dosv1beta1.DosProtectedResourceSpecApplyConfiguration{}
 	case v1beta1.SchemeGroupVersion.WithKind("DosSecurityLog"):
 		return &dosv1beta1.DosSecurityLogApplyConfiguration{}
+
+		// Group=externaldns.k8s.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithKind("DNSEndpoint"):
+		return &externaldnsk8sv1alpha1.DNSEndpointApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("DNSEndpointSpec"):
+		return &externaldnsk8sv1alpha1.DNSEndpointSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("DNSEndpointStatus"):
+		return &externaldnsk8sv1alpha1.DNSEndpointStatusApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("Endpoint"):
+		return &externaldnsk8sv1alpha1.EndpointApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("ProviderSpecificProperty"):
+		return &externaldnsk8sv1alpha1.ProviderSpecificPropertyApplyConfiguration{}
 
 		// Group=externaldns.nginx.org, Version=v1
 	case v1.SchemeGroupVersion.WithKind("DNSEndpoint"):

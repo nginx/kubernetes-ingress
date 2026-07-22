@@ -330,6 +330,7 @@ func main() {
 		SnippetsEnabled:              *enableSnippets,
 		CertManagerEnabled:           *enableCertManager,
 		ExternalDNSEnabled:           *enableExternalDNS,
+		ExternalDNSGroupVersion:      *externalDNSGroupVersion,
 		IsIPV6Disabled:               *disableIPV6,
 		IsDirectiveAutoadjustEnabled: *enableDirectiveAutoadjust,
 		AllowEmptyIngressHost:        *allowEmptyIngressHost,

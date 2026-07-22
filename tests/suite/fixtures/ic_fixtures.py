@@ -6,7 +6,7 @@ import time
 
 import pytest
 from kubernetes.client.rest import ApiException
-from settings import CRDS, DEPLOYMENTS, NGX_REG, TEST_DATA
+from settings import CRDS, CRDS_UPSTREAM, DEPLOYMENTS, NGX_REG, TEST_DATA
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.resources_utils import (
     cleanup_rbac,
@@ -523,21 +523,24 @@ def crd_ingress_controller_with_ed(
     name = "nginx-ingress"
 
     print("---------------------- Register DNSEndpoint CRD ------------------------------")
-    external_dns_crd_name = get_name_from_yaml(f"{CRDS}/externaldns.nginx.org_dnsendpoints.yaml")
+    external_dns_crd_name = get_name_from_yaml(f"{CRDS_UPSTREAM}/externaldns.k8s.io_dnsendpoints.yaml")
     create_crd_from_yaml(
         kube_apis.api_extensions_v1,
         external_dns_crd_name,
-        f"{CRDS}/externaldns.nginx.org_dnsendpoints.yaml",
+        f"{CRDS_UPSTREAM}/externaldns.k8s.io_dnsendpoints.yaml",
     )
 
     try:
         print("------------------------- Create IC -----------------------------------")
+        extra_args = list(request.param.get("extra_args") or [])
+        if not any(a.startswith("-external-dns-group-version") for a in extra_args):
+            extra_args.append("-external-dns-group-version=externaldns.k8s.io/v1alpha1")
         name = create_ingress_controller(
             kube_apis.v1,
             kube_apis.apps_v1_api,
             cli_arguments,
             namespace,
-            request.param.get("extra_args", None),
+            extra_args,
         )
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,

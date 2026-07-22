@@ -8,9 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	extdnsapi "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
-	extdnsclient "github.com/nginx/kubernetes-ingress/pkg/client/listers/externaldns/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -161,7 +159,7 @@ func TestSync_NotRunningOnExternalDNSDisabled(t *testing.T) {
 			},
 		},
 	}
-	fn := SyncFnFor(nil, nil, nil)
+	fn := SyncFnFor(nil, nil)
 	err := fn(context.TODO(), vs)
 	if err != nil {
 		t.Errorf("want nil got %v", err)
@@ -180,7 +178,7 @@ func TestSync_ReturnsErrorOnNilExternalEndpoints(t *testing.T) {
 	}
 
 	rec := EventRecorder{}
-	fn := SyncFnFor(rec, nil, nil)
+	fn := SyncFnFor(rec, nil)
 	err := fn(context.TODO(), vs)
 	if err == nil {
 		t.Errorf("want error got nil")
@@ -268,7 +266,7 @@ func TestSync_ReturnsErrorOnInvalidTargetsInExternalEndpoints(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := EventRecorder{}
-			fn := SyncFnFor(rec, nil, nil)
+			fn := SyncFnFor(rec, nil)
 			err := fn(context.TODO(), tc.input)
 			if err == nil {
 				t.Error("want error, got nil")
@@ -279,31 +277,22 @@ func TestSync_ReturnsErrorOnInvalidTargetsInExternalEndpoints(t *testing.T) {
 
 type DNSEPListerExpansion struct{}
 
-// EPNamespaceLister implements DNSEndpointNamespaceLister interface.
-// It's dummy implementation of the interface to satisfy dependencies in tests.
-type DNSEPNamespaceLister struct{}
-
-func (DNSEPNamespaceLister) List(_ labels.Selector) (ret []*extdnsapi.DNSEndpoint, err error) {
-	return nil, nil
+// fakeBackend implements dnsEndpointBackend for tests. Get always returns
+// the configured error; Create/Update are not expected to be invoked.
+type fakeBackend struct {
+	getErr error
 }
 
-func (DNSEPNamespaceLister) Get(_ string) (*extdnsapi.DNSEndpoint, error) {
-	return nil, errors.New("test error")
+func (f fakeBackend) Get(_, _ string) (*extdnsapi.DNSEndpoint, error) {
+	return nil, f.getErr
 }
 
-// EPLister implements DNSEndpointLister interface. It's dummy
-// implementation of the interface to satisfy dependencies in tests.
-type DNSEPLister struct {
-	DNSEPListerExpansion
+func (f fakeBackend) Create(_ context.Context, _ *extdnsapi.DNSEndpoint) (*extdnsapi.DNSEndpoint, error) {
+	return nil, errors.New("Create not implemented in fakeBackend")
 }
 
-func (DNSEPLister) List(_ labels.Selector) (ret []*extdnsapi.DNSEndpoint, err error) {
-	return nil, nil
-}
-
-func (DNSEPLister) DNSEndpoints(_ string) extdnsclient.DNSEndpointNamespaceLister {
-	e := DNSEPNamespaceLister{}
-	return e
+func (f fakeBackend) Update(_ context.Context, _ *extdnsapi.DNSEndpoint) (*extdnsapi.DNSEndpoint, error) {
+	return nil, errors.New("Update not implemented in fakeBackend")
 }
 
 func TestSync_ReturnsErrorOnFailure(t *testing.T) {
@@ -338,9 +327,9 @@ func TestSync_ReturnsErrorOnFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := EventRecorder{}
 			ig := make(map[string]*namespacedInformer)
-			nsi := namespacedInformer{extdnslister: DNSEPLister{}}
+			nsi := namespacedInformer{backend: fakeBackend{getErr: errors.New("test error")}}
 			ig[""] = &nsi
-			fn := SyncFnFor(rec, nil, ig)
+			fn := SyncFnFor(rec, ig)
 			err := fn(context.TODO(), tc.input)
 			if err == nil {
 				t.Error("want error, got nil")

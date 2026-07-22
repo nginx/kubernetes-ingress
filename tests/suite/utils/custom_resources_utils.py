@@ -62,7 +62,7 @@ def delete_crd(api_extensions_v1: ApiextensionsV1Api, name) -> None:
 
 
 def read_custom_resource(
-    custom_objects: CustomObjectsApi, namespace, plural, name, api_group="k8s.nginx.org"
+    custom_objects: CustomObjectsApi, namespace, plural, name, api_group="k8s.nginx.org", api_version="v1"
 ) -> object:
     """
     Get CRD information (kubectl describe output)
@@ -75,7 +75,7 @@ def read_custom_resource(
     """
     print(f"Getting info for {name} in namespace {namespace}")
     try:
-        response = custom_objects.get_namespaced_custom_object(api_group, "v1", namespace, plural, name)
+        response = custom_objects.get_namespaced_custom_object(api_group, api_version, namespace, plural, name)
         return response
 
     except ApiException as ex:
@@ -119,7 +119,9 @@ def is_dnsendpoint_present(custom_objects: CustomObjectsApi, name, namespace) ->
     :return: bool
     """
     try:
-        read_custom_resource(custom_objects, namespace, "dnsendpoints", name, api_group="externaldns.nginx.org")
+        read_custom_resource(
+            custom_objects, namespace, "dnsendpoints", name, api_group="externaldns.k8s.io", api_version="v1alpha1"
+        )
     except ApiException as ex:
         if ex.status == 404:
             print(f"No dnsendpoint '{name}' found.")

@@ -1229,6 +1229,19 @@
             false
           ]
         },
+        "externalDNSGroupVersion": {
+          "type": "string",
+          "default": "externaldns.nginx.org/v1",
+          "title": "The externalDNSGroupVersion",
+          "description": "DNSEndpoint API group and version NIC writes to. Use externaldns.nginx.org/v1 with external-dns <= v0.20.x, or externaldns.k8s.io/v1alpha1 with external-dns v0.21.0+.",
+          "enum": [
+            "externaldns.nginx.org/v1",
+            "externaldns.k8s.io/v1alpha1"
+          ],
+          "examples": [
+            "externaldns.nginx.org/v1"
+          ]
+        },
         "globalConfiguration": {
           "type": "object",
           "default": {},
@@ -2279,6 +2292,7 @@
           "tlsPassthroughPort": 443,
           "enableCertManager": false,
           "enableExternalDNS": false,
+          "externalDNSGroupVersion": "externaldns.nginx.org/v1",
           "globalConfiguration": {
             "create": false,
             "spec": {}
@@ -2906,6 +2920,7 @@
         "tlsPassthroughPort": 443,
         "enableCertManager": false,
         "enableExternalDNS": false,
+        "externalDNSGroupVersion": "externaldns.nginx.org/v1",
         "globalConfiguration": {
           "create": false,
           "spec": {}

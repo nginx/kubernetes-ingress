@@ -466,6 +466,14 @@ controller:
   ## Enable external DNS for Virtual Server resources. Requires controller.enableCustomResources.
   enableExternalDNS: false
 
+  ## Selects the DNSEndpoint API group and version NIC writes to when enableExternalDNS is true.
+  ## Use "externaldns.nginx.org/v1" (default) with external-dns <= v0.20.x started with
+  ## --crd-source-apiversion=externaldns.nginx.org/v1. Use "externaldns.k8s.io/v1alpha1" with
+  ## external-dns v0.21.0+, which only recognizes the upstream group. The upstream CRD is NOT
+  ## shipped by this chart; install it separately (e.g. via the external-dns Helm chart) when
+  ## selecting the upstream value.
+  externalDNSGroupVersion: "externaldns.nginx.org/v1"
+
   globalConfiguration:
     ## Creates the GlobalConfiguration custom resource. Requires controller.enableCustomResources.
     create: false

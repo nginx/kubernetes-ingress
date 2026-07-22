@@ -9,8 +9,6 @@ import (
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	extdnsapi "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
-	clientset "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
-	extdnslisters "github.com/nginx/kubernetes-ingress/pkg/client/listers/externaldns/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	validators "k8s.io/apimachinery/pkg/util/validation"
@@ -40,7 +38,7 @@ type DNSTarget struct {
 }
 
 // SyncFnFor knows how to reconcile VirtualServer DNSEndpoint object.
-func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[string]*namespacedInformer) SyncFn {
+func SyncFnFor(rec record.EventRecorder, ig map[string]*namespacedInformer) SyncFn {
 	return func(ctx context.Context, vs *vsapi.VirtualServer) error {
 		// Do nothing if ExternalDNS is not present (nil) in VS or is not enabled.
 		if !vs.Spec.ExternalDNS.Enable {
@@ -63,7 +61,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 
 		nsi := getNamespacedInformer(vs.Namespace, ig)
 
-		newDNSEndpoint, updateDNSEndpoint, err := buildDNSEndpoint(ctx, nsi.extdnslister, vs, targets)
+		newDNSEndpoint, updateDNSEndpoint, err := buildDNSEndpoint(ctx, nsi.backend, vs, targets)
 		if err != nil {
 			nl.Errorf(l, "incorrect DNSEndpoint config for VirtualServer resource: %s", err)
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Incorrect DNSEndpoint config for VirtualServer resource: %s", err)
@@ -75,7 +73,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 		// Create new DNSEndpoint object
 		if newDNSEndpoint != nil {
 			nl.Debugf(l, "Creating DNSEndpoint for VirtualServer resource: %v", vs.Name)
-			dep, err = client.ExternaldnsV1().DNSEndpoints(newDNSEndpoint.Namespace).Create(ctx, newDNSEndpoint, metav1.CreateOptions{})
+			dep, err = nsi.backend.Create(ctx, newDNSEndpoint)
 			if err != nil {
 				if apierrors.IsAlreadyExists(err) {
 					// Another replica likely created the DNSEndpoint since we last checked - kick it back to the queue
@@ -93,7 +91,7 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 		// Update existing DNSEndpoint object
 		if updateDNSEndpoint != nil {
 			nl.Debugf(l, "Updating DNSEndpoint for VirtualServer resource: %v", vs.Name)
-			dep, err = client.ExternaldnsV1().DNSEndpoints(updateDNSEndpoint.Namespace).Update(ctx, updateDNSEndpoint, metav1.UpdateOptions{})
+			dep, err = nsi.backend.Update(ctx, updateDNSEndpoint)
 			if err != nil {
 				nl.Errorf(l, "Error updating DNSEndpoint endpoint for VirtualServer resource: %v", err)
 				rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Error updating DNSEndpoint for VirtualServer resource: %s", err)
@@ -148,14 +146,14 @@ func getValidTargets(ctx context.Context, endpoints []vsapi.ExternalEndpoint) ([
 	return targets, nil
 }
 
-func buildDNSEndpoint(ctx context.Context, extdnsLister extdnslisters.DNSEndpointLister, vs *vsapi.VirtualServer, targets []DNSTarget) (*extdnsapi.DNSEndpoint, *extdnsapi.DNSEndpoint, error) {
+func buildDNSEndpoint(ctx context.Context, backend dnsEndpointBackend, vs *vsapi.VirtualServer, targets []DNSTarget) (*extdnsapi.DNSEndpoint, *extdnsapi.DNSEndpoint, error) {
 	var updateDNSEndpoint *extdnsapi.DNSEndpoint
 	var newDNSEndpoint *extdnsapi.DNSEndpoint
 	var existingDNSEndpoint *extdnsapi.DNSEndpoint
 	var err error
 	l := nl.LoggerFromContext(ctx)
 
-	existingDNSEndpoint, err = extdnsLister.DNSEndpoints(vs.Namespace).Get(vs.ObjectMeta.Name)
+	existingDNSEndpoint, err = backend.Get(vs.Namespace, vs.ObjectMeta.Name)
 
 	if !apierrors.IsNotFound(err) && err != nil {
 		return nil, nil, err

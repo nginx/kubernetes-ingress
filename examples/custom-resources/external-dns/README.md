@@ -14,7 +14,28 @@ server. In this example, we deploy an ExternalDNS deployment with the AWS provid
    docs](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/reporting-resources-status#virtualserver-and-virtualserverroute-resources)
    for more details).
 
+### Selecting the DNSEndpoint API group
+
+NGINX Ingress Controller can write `DNSEndpoint` resources to one of two API groups:
+
+- `externaldns.nginx.org/v1` (default) — for use with external-dns **v0.20.x and earlier**. The CRD is shipped by the NIC Helm chart / manifests.
+- `externaldns.k8s.io/v1alpha1` — required by external-dns **v0.21.0 and newer**. The CRD is **not** shipped by NIC to avoid ownership conflicts with the external-dns Helm chart; install it separately from the [external-dns repo](https://github.com/kubernetes-sigs/external-dns).
+
+Toggle groups with the `-external-dns-group-version` command-line flag (or `controller.externalDNSGroupVersion` Helm value). This example uses `externaldns.k8s.io/v1alpha1` and pins external-dns to v0.21.0.
+
+Start NIC with:
+
+```shell
+-external-dns-group-version=externaldns.k8s.io/v1alpha1
+```
+
 ## Step 1: Deploy external-dns
+
+Install the upstream DNSEndpoint CRD (needed because NIC does not ship it):
+
+```console
+kubectl apply --server-side=true -f https://raw.githubusercontent.com/kubernetes-sigs/external-dns/v0.21.0/config/crd/standard/dnsendpoints.externaldns.k8s.io.yaml
+```
 
 Update `external-dns-route53.yaml` with your Domain Name and Hosted Zone ID, and apply the file.
 

@@ -161,7 +161,7 @@ rules:
 {{- end }}
 {{- if .Values.controller.enableExternalDNS }}
 - apiGroups:
-    - externaldns.nginx.org
+    - {{ trimSuffix "/v1" (trimSuffix "/v1alpha1" .Values.controller.externalDNSGroupVersion) }}
   resources:
     - dnsendpoints
   verbs:
@@ -172,7 +172,7 @@ rules:
     - create
     - delete
 - apiGroups:
-  - externaldns.nginx.org
+  - {{ trimSuffix "/v1" (trimSuffix "/v1alpha1" .Values.controller.externalDNSGroupVersion) }}
   resources:
   - dnsendpoints/status
   verbs:

@@ -152,8 +152,12 @@ rules:
     - update
     - create
     - delete
+# Grants for the DNSEndpoint CRD. Both API groups are listed so the -external-dns-group-version
+# flag can be toggled between externaldns.nginx.org/v1 (default, for external-dns <= v0.20.x)
+# and externaldns.k8s.io/v1alpha1 (required for external-dns v0.21.0+) without editing RBAC.
 - apiGroups:
     - externaldns.nginx.org
+    - externaldns.k8s.io
   resources:
     - dnsendpoints
   verbs:
@@ -165,6 +169,7 @@ rules:
     - delete
 - apiGroups:
   - externaldns.nginx.org
+  - externaldns.k8s.io
   resources:
   - dnsendpoints/status
   verbs:

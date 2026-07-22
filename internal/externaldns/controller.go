@@ -8,10 +8,8 @@ import (
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	extdns_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	listersV1 "github.com/nginx/kubernetes-ingress/pkg/client/listers/configuration/v1"
-	extdnslisters "github.com/nginx/kubernetes-ingress/pkg/client/listers/externaldns/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,12 +35,13 @@ type ExtDNSController struct {
 	client        k8s_nginx.Interface
 	informerGroup map[string]*namespacedInformer
 	resync        time.Duration
+	groupVersion  string
 }
 
 type namespacedInformer struct {
 	vsLister              listersV1.VirtualServerLister
 	sharedInformerFactory k8s_nginx_informers.SharedInformerFactory
-	extdnslister          extdnslisters.DNSEndpointLister
+	backend               dnsEndpointBackend
 	mustSync              []cache.InformerSynced
 	stopCh                chan struct{}
 	lock                  sync.RWMutex
@@ -56,6 +55,7 @@ type ExtDNSOpts struct {
 	client        k8s_nginx.Interface
 	resyncPeriod  time.Duration
 	isDynamicNs   bool
+	groupVersion  string
 }
 
 // NewController takes external dns config and return a new External DNS Controller.
@@ -73,6 +73,7 @@ func NewController(opts *ExtDNSOpts) (*ExtDNSController, error) {
 		recorder:      opts.eventRecorder,
 		client:        opts.client,
 		resync:        opts.resyncPeriod,
+		groupVersion:  opts.groupVersion,
 	}
 
 	for _, ns := range opts.namespace {
@@ -85,7 +86,7 @@ func NewController(opts *ExtDNSOpts) (*ExtDNSController, error) {
 		}
 	}
 
-	c.sync = SyncFnFor(c.recorder, c.client, c.informerGroup)
+	c.sync = SyncFnFor(c.recorder, c.informerGroup)
 	return c, nil
 }
 
@@ -93,7 +94,6 @@ func (c *ExtDNSController) newNamespacedInformer(ns string) (*namespacedInformer
 	nsi := &namespacedInformer{sharedInformerFactory: k8s_nginx_informers.NewSharedInformerFactoryWithOptions(c.client, c.resync, k8s_nginx_informers.WithNamespace(ns))}
 	nsi.stopCh = make(chan struct{})
 	nsi.vsLister = nsi.sharedInformerFactory.K8s().V1().VirtualServers().Lister()
-	nsi.extdnslister = nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Lister()
 
 	if _, err := nsi.sharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(
 		&QueuingEventHandler{
@@ -103,17 +103,22 @@ func (c *ExtDNSController) newNamespacedInformer(ns string) (*namespacedInformer
 		return nil, fmt.Errorf("failed to add VirtualServer event handler: %w", err)
 	}
 
-	if _, err := nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Informer().AddEventHandler(&BlockingEventHandler{
-		WorkFunc: externalDNSHandler(c.queue),
-	}); err != nil {
-		return nil, fmt.Errorf("failed to add DNSEndpoint event handler: %w", err)
+	backend, syncs, err := registerDNSEndpointInformer(
+		c.groupVersion,
+		nsi.sharedInformerFactory,
+		c.client,
+		&BlockingEventHandler{WorkFunc: externalDNSHandler(c.queue)},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to register DNSEndpoint informer: %w", err)
 	}
+	nsi.backend = backend
 
 	nsi.mustSync = append(
 		nsi.mustSync,
 		nsi.sharedInformerFactory.K8s().V1().VirtualServers().Informer().HasSynced,
-		nsi.sharedInformerFactory.Externaldns().V1().DNSEndpoints().Informer().HasSynced,
 	)
+	nsi.mustSync = append(nsi.mustSync, syncs...)
 	c.informerGroup[ns] = nsi
 	return nsi, nil
 }
@@ -208,7 +213,7 @@ func (c *ExtDNSController) processItem(ctx context.Context, key types.Namespaced
 
 func externalDNSHandler(queue workqueue.TypedRateLimitingInterface[types.NamespacedName]) func(obj interface{}) {
 	return func(obj interface{}) {
-		ep, ok := obj.(*extdns_v1.DNSEndpoint)
+		ep, ok := keyFromDNSEndpoint(obj)
 		if !ok {
 			runtime.HandleError(fmt.Errorf("not a DNSEndpoint object: %#v", obj))
 			return
@@ -228,13 +233,13 @@ func externalDNSHandler(queue workqueue.TypedRateLimitingInterface[types.Namespa
 			return
 		}
 
-		key := types.NamespacedName{Namespace: ep.Namespace, Name: ref.Name}
+		key := types.NamespacedName{Namespace: ep.GetNamespace(), Name: ref.Name}
 		queue.Add(key)
 	}
 }
 
 // BuildOpts builds the externalDNS controller options
-func BuildOpts(ctx context.Context, ns []string, rdr record.EventRecorder, client k8s_nginx.Interface, resync time.Duration, idn bool) *ExtDNSOpts {
+func BuildOpts(ctx context.Context, ns []string, rdr record.EventRecorder, client k8s_nginx.Interface, resync time.Duration, idn bool, groupVersion string) *ExtDNSOpts {
 	return &ExtDNSOpts{
 		context:       ctx,
 		namespace:     ns,
@@ -242,6 +247,7 @@ func BuildOpts(ctx context.Context, ns []string, rdr record.EventRecorder, clien
 		client:        client,
 		resyncPeriod:  resync,
 		isDynamicNs:   idn,
+		groupVersion:  groupVersion,
 	}
 }
 

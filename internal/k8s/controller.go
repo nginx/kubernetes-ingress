@@ -292,6 +292,7 @@ type NewLoadBalancerControllerInput struct {
 	AllowEmptyIngressHost        bool
 	CertManagerEnabled           bool
 	ExternalDNSEnabled           bool
+	ExternalDNSGroupVersion      string
 	IsIPV6Disabled               bool
 	IsDirectiveAutoadjustEnabled bool
 	WatchNamespaceLabel          string
@@ -394,7 +395,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 
 	if input.ExternalDNSEnabled {
 		var edErr error
-		lbc.externalDNSController, edErr = ed_controller.NewController(ed_controller.BuildOpts(input.LoggerContext, lbc.namespaceList, lbc.recorder, lbc.confClient, input.ResyncPeriod, isDynamicNs))
+		lbc.externalDNSController, edErr = ed_controller.NewController(ed_controller.BuildOpts(input.LoggerContext, lbc.namespaceList, lbc.recorder, lbc.confClient, input.ResyncPeriod, isDynamicNs, input.ExternalDNSGroupVersion))
 		if edErr != nil {
 			nl.Fatalf(lbc.Logger, "Failed to create external-dns controller: %v", edErr)
 		}
