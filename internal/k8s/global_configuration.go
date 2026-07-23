@@ -108,7 +108,7 @@ func (lbc *LoadBalancerController) syncGlobalConfiguration(task task) {
 		lbc.recorder.Event(gc, eventType, eventTitle, eventMessage)
 	}
 
-	lbc.processProblems(problems)
+	lbc.processProblems(lbc.Logger, problems)
 }
 
 // processChangesFromGlobalConfiguration processes changes that come from updates to the GlobalConfiguration resource.
@@ -121,11 +121,14 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 
 	var updatedResources []Resource
 
+	defer lbc.setConfiguratorLogger(lbc.Logger)()
+
 	for _, c := range changes {
 		switch impl := c.Resource.(type) {
 		case *VirtualServerConfiguration:
 			if c.Op == AddOrUpdate {
-				vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
+				l := lbc.loggerForResource(impl.VirtualServer.Namespace)
+				vsEx := lbc.createVirtualServerEx(l, impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
 
 				updatedVSExes = append(updatedVSExes, vsEx)
 				updatedResources = append(updatedResources, impl)
@@ -136,7 +139,8 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 			}
 		case *TransportServerConfiguration:
 			if c.Op == AddOrUpdate {
-				tsEx := lbc.createTransportServerEx(impl.TransportServer, impl.ListenerPort, impl.IPv4, impl.IPv6)
+				l := lbc.loggerForResource(impl.TransportServer.Namespace)
+				tsEx := lbc.createTransportServerEx(l, impl.TransportServer, impl.ListenerPort, impl.IPv4, impl.IPv6)
 
 				updatedTSExes = append(updatedTSExes, tsEx)
 				updatedResources = append(updatedResources, impl)
@@ -166,7 +170,7 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 		}
 	}
 
-	lbc.updateResourcesStatusAndEvents(updatedResources, configs.Warnings{}, updateErr)
+	lbc.updateResourcesStatusAndEvents(lbc.Logger, updatedResources, configs.Warnings{}, updateErr)
 
 	return updateErr
 }

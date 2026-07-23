@@ -211,6 +211,8 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.loggerForResource(ns)
+	defer lbc.setConfiguratorLogger(l)()
 	obj, exists, err = lbc.getNamespacedInformer(ns).svcLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -220,7 +222,7 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	// First case: the service is the external service for the Ingress Controller
 	// In that case we need to update the statuses of all resources
 	if lbc.IsExternalServiceKeyForStatus(key) {
-		nl.Infof(lbc.Logger, "Syncing service %v", key)
+		nl.Infof(l, "Syncing service %v", key)
 
 		if !exists {
 			// service got removed
@@ -233,22 +235,22 @@ func (lbc *LoadBalancerController) syncService(task task) {
 		if lbc.reportStatusEnabled() {
 			ingresses := lbc.configuration.GetResourcesWithFilter(resourceFilter{Ingresses: true})
 
-			nl.Infof(lbc.Logger, "Updating status for %v Ingresses", len(ingresses))
+			nl.Infof(l, "Updating status for %v Ingresses", len(ingresses))
 
 			err := lbc.statusUpdater.UpdateExternalEndpointsForResources(ingresses)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "error updating ingress status in syncService: %v", err)
+				nl.Errorf(l, "error updating ingress status in syncService: %v", err)
 			}
 		}
 
 		if lbc.areCustomResourcesEnabled && lbc.reportCustomResourceStatusEnabled() {
 			virtualServers := lbc.configuration.GetResourcesWithFilter(resourceFilter{VirtualServers: true})
 
-			nl.Infof(lbc.Logger, "Updating status for %v VirtualServers", len(virtualServers))
+			nl.Infof(l, "Updating status for %v VirtualServers", len(virtualServers))
 
 			err := lbc.statusUpdater.UpdateExternalEndpointsForResources(virtualServers)
 			if err != nil {
-				nl.Infof(lbc.Logger, "error updating VirtualServer/VirtualServerRoute status in syncService: %v", err)
+				nl.Infof(l, "error updating VirtualServer/VirtualServerRoute status in syncService: %v", err)
 			}
 		}
 
@@ -265,13 +267,13 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	if len(resources) == 0 {
 		return
 	}
-	nl.Infof(lbc.Logger, "Syncing service %v", key)
+	nl.Infof(l, "Syncing service %v", key)
 
-	nl.Infof(lbc.Logger, "Updating %v resources", len(resources))
+	nl.Infof(l, "Updating %v resources", len(resources))
 
-	resourceExes := lbc.createExtendedResources(resources)
+	resourceExes := lbc.createExtendedResources(l, resources)
 
 	warnings, updateErr := lbc.configurator.AddOrUpdateResources(resourceExes, true)
 	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
-	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, warnings, updateErr)
+	lbc.updateResourcesStatusAndEvents(l, resourcesWithWarnings, warnings, updateErr)
 }
