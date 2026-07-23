@@ -24,7 +24,7 @@ on:
       plus_repo:
         description: 'Plus repo to install from'
         required: true
-        default: 'pkgs.nginx.com'
+        default: 'pkgs-test.nginx.com'
         type: choice
         options:
           - pkgs.nginx.com
