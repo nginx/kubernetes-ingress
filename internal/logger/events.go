@@ -27,4 +27,5 @@ const (
 	EventReasonInvalidConfiguration         = "InvalidConfiguration"         //nolint:revive
 	EventReasonBundleFetchFailed            = "BundleFetchFailed"            //nolint:revive
 	EventReasonAppProtectAPIVersionSelected = "AppProtectAPIVersionSelected" //nolint:revive
+	EventReasonPLMStorageConfigured         = "PLMStorageConfigured"         //nolint:revive
 )

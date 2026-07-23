@@ -881,13 +881,16 @@ spec:
                           Not recommended for production use.
                         type: boolean
                       policyName:
-                        description: PolicyName is the policy name on the management
-                          plane. Required for NIM and N1C; forbidden for HTTPS.
+                        description: |-
+                          PolicyName is the policy name on the management plane (NIM/N1C), or the name of the
+                          APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS.
                         maxLength: 63
                         type: string
                       policyNamespace:
-                        description: PolicyNamespace is the namespace/tenant on the
-                          management plane. Required for N1C only.
+                        description: |-
+                          PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of
+                          the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to
+                          the Policy's own namespace); forbidden otherwise.
                         maxLength: 63
                         type: string
                       pollInterval:
@@ -928,13 +931,14 @@ spec:
                         - HTTPS
                         - NIM
                         - N1C
+                        - PLM
                         type: string
                       url:
-                        description: URL is the full bundle URL for HTTPS type, or
-                          the API base URL for NIM/N1C. Must use https://.
+                        description: |-
+                          URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
+                          Not used for PLM, where the bundle location is read from the referenced CR's .status.bundle.
                         maxLength: 2083
-                        minLength: 1
-                        pattern: ^https://
+                        pattern: ^(https://.*)?$
                         type: string
                       verifyChecksum:
                         description: VerifyChecksum enables SHA-256 verification of
@@ -942,8 +946,36 @@ spec:
                         type: boolean
                     required:
                     - enablePolling
-                    - url
                     type: object
+                    x-kubernetes-validations:
+                    - message: url is not allowed when type is PLM; the bundle location
+                        is read from the referenced CR's status
+                      rule: self.type != 'PLM' || !has(self.url) || size(self.url)
+                        == 0
+                    - message: secret is not allowed when type is PLM; S3 credentials
+                        are configured cluster-wide via -plm-storage-credentials-secret
+                      rule: self.type != 'PLM' || !has(self.secret) || size(self.secret)
+                        == 0
+                    - message: trustedCertSecret is not allowed when type is PLM;
+                        TLS is configured cluster-wide via -plm-storage-ca-secret
+                      rule: self.type != 'PLM' || !has(self.trustedCertSecret) ||
+                        size(self.trustedCertSecret) == 0
+                    - message: verifyChecksum is not allowed when type is PLM; the
+                        checksum is read from the referenced CR's status
+                      rule: self.type != 'PLM' || !has(self.verifyChecksum) || self.verifyChecksum
+                        == false
+                    - message: enablePolling is not allowed when type is PLM; PLM
+                        bundles refresh automatically when the referenced CR's status
+                        changes
+                      rule: self.type != 'PLM' || !has(self.enablePolling) || self.enablePolling
+                        == false
+                    - message: pollInterval is not allowed when type is PLM; PLM bundles
+                        refresh automatically when the referenced CR's status changes
+                      rule: self.type != 'PLM' || !has(self.pollInterval)
+                    - message: policyName is required when type is PLM and must reference
+                        an APPolicy/APLogConf resource
+                      rule: self.type != 'PLM' || (has(self.policyName) && size(self.policyName)
+                        > 0)
                   apPolicy:
                     description: The App Protect WAF policy of the WAF. Accepts an
                       optional namespace. Mutually exclusive with apBundle and apBundleSource.
@@ -978,13 +1010,16 @@ spec:
                               Not recommended for production use.
                             type: boolean
                           policyName:
-                            description: PolicyName is the policy name on the management
-                              plane. Required for NIM and N1C; forbidden for HTTPS.
+                            description: |-
+                              PolicyName is the policy name on the management plane (NIM/N1C), or the name of the
+                              APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS.
                             maxLength: 63
                             type: string
                           policyNamespace:
-                            description: PolicyNamespace is the namespace/tenant on
-                              the management plane. Required for N1C only.
+                            description: |-
+                              PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of
+                              the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to
+                              the Policy's own namespace); forbidden otherwise.
                             maxLength: 63
                             type: string
                           pollInterval:
@@ -1025,13 +1060,14 @@ spec:
                             - HTTPS
                             - NIM
                             - N1C
+                            - PLM
                             type: string
                           url:
-                            description: URL is the full bundle URL for HTTPS type,
-                              or the API base URL for NIM/N1C. Must use https://.
+                            description: |-
+                              URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
+                              Not used for PLM, where the bundle location is read from the referenced CR's .status.bundle.
                             maxLength: 2083
-                            minLength: 1
-                            pattern: ^https://
+                            pattern: ^(https://.*)?$
                             type: string
                           verifyChecksum:
                             description: VerifyChecksum enables SHA-256 verification
@@ -1039,8 +1075,37 @@ spec:
                             type: boolean
                         required:
                         - enablePolling
-                        - url
                         type: object
+                        x-kubernetes-validations:
+                        - message: url is not allowed when type is PLM; the bundle
+                            location is read from the referenced CR's status
+                          rule: self.type != 'PLM' || !has(self.url) || size(self.url)
+                            == 0
+                        - message: secret is not allowed when type is PLM; S3 credentials
+                            are configured cluster-wide via -plm-storage-credentials-secret
+                          rule: self.type != 'PLM' || !has(self.secret) || size(self.secret)
+                            == 0
+                        - message: trustedCertSecret is not allowed when type is PLM;
+                            TLS is configured cluster-wide via -plm-storage-ca-secret
+                          rule: self.type != 'PLM' || !has(self.trustedCertSecret)
+                            || size(self.trustedCertSecret) == 0
+                        - message: verifyChecksum is not allowed when type is PLM;
+                            the checksum is read from the referenced CR's status
+                          rule: self.type != 'PLM' || !has(self.verifyChecksum) ||
+                            self.verifyChecksum == false
+                        - message: enablePolling is not allowed when type is PLM;
+                            PLM bundles refresh automatically when the referenced
+                            CR's status changes
+                          rule: self.type != 'PLM' || !has(self.enablePolling) ||
+                            self.enablePolling == false
+                        - message: pollInterval is not allowed when type is PLM; PLM
+                            bundles refresh automatically when the referenced CR's
+                            status changes
+                          rule: self.type != 'PLM' || !has(self.pollInterval)
+                        - message: policyName is required when type is PLM and must
+                            reference an APPolicy/APLogConf resource
+                          rule: self.type != 'PLM' || (has(self.policyName) && size(self.policyName)
+                            > 0)
                       apLogConf:
                         description: The App Protect WAF log conf resource. Accepts
                           an optional namespace. Only works with apPolicy.
@@ -1082,13 +1147,16 @@ spec:
                                 Not recommended for production use.
                               type: boolean
                             policyName:
-                              description: PolicyName is the policy name on the management
-                                plane. Required for NIM and N1C; forbidden for HTTPS.
+                              description: |-
+                                PolicyName is the policy name on the management plane (NIM/N1C), or the name of the
+                                APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS.
                               maxLength: 63
                               type: string
                             policyNamespace:
-                              description: PolicyNamespace is the namespace/tenant
-                                on the management plane. Required for N1C only.
+                              description: |-
+                                PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of
+                                the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to
+                                the Policy's own namespace); forbidden otherwise.
                               maxLength: 63
                               type: string
                             pollInterval:
@@ -1129,13 +1197,14 @@ spec:
                               - HTTPS
                               - NIM
                               - N1C
+                              - PLM
                               type: string
                             url:
-                              description: URL is the full bundle URL for HTTPS type,
-                                or the API base URL for NIM/N1C. Must use https://.
+                              description: |-
+                                URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
+                                Not used for PLM, where the bundle location is read from the referenced CR's .status.bundle.
                               maxLength: 2083
-                              minLength: 1
-                              pattern: ^https://
+                              pattern: ^(https://.*)?$
                               type: string
                             verifyChecksum:
                               description: VerifyChecksum enables SHA-256 verification
@@ -1143,8 +1212,37 @@ spec:
                               type: boolean
                           required:
                           - enablePolling
-                          - url
                           type: object
+                          x-kubernetes-validations:
+                          - message: url is not allowed when type is PLM; the bundle
+                              location is read from the referenced CR's status
+                            rule: self.type != 'PLM' || !has(self.url) || size(self.url)
+                              == 0
+                          - message: secret is not allowed when type is PLM; S3 credentials
+                              are configured cluster-wide via -plm-storage-credentials-secret
+                            rule: self.type != 'PLM' || !has(self.secret) || size(self.secret)
+                              == 0
+                          - message: trustedCertSecret is not allowed when type is
+                              PLM; TLS is configured cluster-wide via -plm-storage-ca-secret
+                            rule: self.type != 'PLM' || !has(self.trustedCertSecret)
+                              || size(self.trustedCertSecret) == 0
+                          - message: verifyChecksum is not allowed when type is PLM;
+                              the checksum is read from the referenced CR's status
+                            rule: self.type != 'PLM' || !has(self.verifyChecksum)
+                              || self.verifyChecksum == false
+                          - message: enablePolling is not allowed when type is PLM;
+                              PLM bundles refresh automatically when the referenced
+                              CR's status changes
+                            rule: self.type != 'PLM' || !has(self.enablePolling) ||
+                              self.enablePolling == false
+                          - message: pollInterval is not allowed when type is PLM;
+                              PLM bundles refresh automatically when the referenced
+                              CR's status changes
+                            rule: self.type != 'PLM' || !has(self.pollInterval)
+                          - message: policyName is required when type is PLM and must
+                              reference an APPolicy/APLogConf resource
+                            rule: self.type != 'PLM' || (has(self.policyName) && size(self.policyName)
+                              > 0)
                         apLogConf:
                           description: The App Protect WAF log conf resource. Accepts
                             an optional namespace. Only works with apPolicy.

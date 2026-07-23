@@ -425,3 +425,179 @@ func TestGetWAFPoliciesForAppProtectLogConf(t *testing.T) {
 		}
 	}
 }
+
+func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
+	t.Parallel()
+
+	// PLM source with an explicit namespace on the ref.
+	plmExplicitNs := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				ApBundleSource: &conf_v1.BundleSource{
+					Type:            conf_v1.BundleSourceTypePLM,
+					PolicyName:      "ap-pol",
+					PolicyNamespace: "plm-policies",
+				},
+			},
+		},
+	}
+
+	// PLM source without a namespace on the ref; defaults to the Policy's own namespace.
+	plmDefaultNs := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				ApBundleSource: &conf_v1.BundleSource{
+					Type:       conf_v1.BundleSourceTypePLM,
+					PolicyName: "ap-pol",
+				},
+			},
+		},
+	}
+
+	// HTTPS source must never match a PLM key.
+	httpsSource := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypeHTTPS,
+					URL:  "https://example.com/ap-pol.tgz",
+				},
+			},
+		},
+	}
+
+	// No WAF at all.
+	noWAF := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec:       conf_v1.PolicySpec{},
+	}
+
+	policies := []*conf_v1.Policy{plmExplicitNs, plmDefaultNs, httpsSource, noWAF}
+
+	tests := []struct {
+		key  string
+		want []*conf_v1.Policy
+		msg  string
+	}{
+		{
+			key:  "plm-policies/ap-pol",
+			want: []*conf_v1.Policy{plmExplicitNs},
+			msg:  "matches PLM source with explicit ref namespace",
+		},
+		{
+			key:  "apps/ap-pol",
+			want: []*conf_v1.Policy{plmDefaultNs},
+			msg:  "matches PLM source defaulting to owner namespace",
+		},
+		{
+			key:  "plm-policies/other-pol",
+			want: nil,
+			msg:  "no PLM source references this key",
+		},
+	}
+	for _, test := range tests {
+		got := getPLMPoliciesForAppProtectPolicy(policies, test.key)
+		if diff := cmp.Diff(test.want, got); diff != "" {
+			t.Errorf("getPLMPoliciesForAppProtectPolicy() %v (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}
+
+func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
+	t.Parallel()
+
+	// PLM log source with explicit namespace.
+	plmLogExplicitNs := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				SecurityLogs: []*conf_v1.SecurityLog{
+					{
+						Enable: true,
+						ApLogBundleSource: &conf_v1.BundleSource{
+							Type:            conf_v1.BundleSourceTypePLM,
+							PolicyName:      "log-conf",
+							PolicyNamespace: "plm-policies",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// PLM log source without a namespace; defaults to the Policy's own namespace.
+	plmLogDefaultNs := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				SecurityLogs: []*conf_v1.SecurityLog{
+					{
+						Enable: true,
+						ApLogBundleSource: &conf_v1.BundleSource{
+							Type:       conf_v1.BundleSourceTypePLM,
+							PolicyName: "log-conf",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Non-PLM log source must never match a PLM key.
+	nimLog := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				SecurityLogs: []*conf_v1.SecurityLog{
+					{
+						Enable: true,
+						ApLogBundleSource: &conf_v1.BundleSource{
+							Type:       conf_v1.BundleSourceTypeNIM,
+							URL:        "https://nim.example.com",
+							PolicyName: "log-conf",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	policies := []*conf_v1.Policy{plmLogExplicitNs, plmLogDefaultNs, nimLog}
+
+	tests := []struct {
+		key  string
+		want []*conf_v1.Policy
+		msg  string
+	}{
+		{
+			key:  "plm-policies/log-conf",
+			want: []*conf_v1.Policy{plmLogExplicitNs},
+			msg:  "matches PLM log source with explicit ref namespace",
+		},
+		{
+			key:  "apps/log-conf",
+			want: []*conf_v1.Policy{plmLogDefaultNs},
+			msg:  "matches PLM log source defaulting to owner namespace",
+		},
+		{
+			key:  "plm-policies/missing",
+			want: nil,
+			msg:  "no PLM log source references this key",
+		},
+	}
+	for _, test := range tests {
+		got := getPLMPoliciesForAppProtectLogConf(policies, test.key)
+		if diff := cmp.Diff(test.want, got); diff != "" {
+			t.Errorf("getPLMPoliciesForAppProtectLogConf() %v (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}

@@ -147,15 +147,15 @@ The `.spec` object supports the following fields:
 | `waf.apBundleSource` | `object` | ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApPolicy and ApBundle. |
 | `waf.apBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.apBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
-| `waf.apBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
-| `waf.apBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
+| `waf.apBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane (NIM/N1C), or the name of the APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS. |
+| `waf.apBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to the Policy's own namespace); forbidden otherwise. |
 | `waf.apBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
 | `waf.apBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.apBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
 | `waf.apBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |
 | `waf.apBundleSource.trustedCertSecret` | `string` | TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate for verifying the remote endpoint TLS certificate. The secret must be in the same namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt. |
-| `waf.apBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`. |
-| `waf.apBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. |
+| `waf.apBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`, `"PLM"`. |
+| `waf.apBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. Not used for PLM, where the bundle location is read from the referenced CR's .status.bundle. |
 | `waf.apBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only. |
 | `waf.apPolicy` | `string` | The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource. |
 | `waf.enable` | `boolean` | Enables NGINX App Protect WAF. |
@@ -164,15 +164,15 @@ The `.spec` object supports the following fields:
 | `waf.securityLog.apLogBundleSource` | `object` | ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF. |
 | `waf.securityLog.apLogBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.securityLog.apLogBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
-| `waf.securityLog.apLogBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
-| `waf.securityLog.apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
+| `waf.securityLog.apLogBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane (NIM/N1C), or the name of the APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS. |
+| `waf.securityLog.apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to the Policy's own namespace); forbidden otherwise. |
 | `waf.securityLog.apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
 | `waf.securityLog.apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.securityLog.apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
 | `waf.securityLog.apLogBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |
 | `waf.securityLog.apLogBundleSource.trustedCertSecret` | `string` | TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate for verifying the remote endpoint TLS certificate. The secret must be in the same namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt. |
-| `waf.securityLog.apLogBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`. |
-| `waf.securityLog.apLogBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. |
+| `waf.securityLog.apLogBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`, `"PLM"`. |
+| `waf.securityLog.apLogBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. Not used for PLM, where the bundle location is read from the referenced CR's .status.bundle. |
 | `waf.securityLog.apLogBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only. |
 | `waf.securityLog.apLogConf` | `string` | The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy. |
 | `waf.securityLog.enable` | `boolean` | Enables security log. |
@@ -182,15 +182,15 @@ The `.spec` object supports the following fields:
 | `waf.securityLogs[].apLogBundleSource` | `object` | ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF. |
 | `waf.securityLogs[].apLogBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.securityLogs[].apLogBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
-| `waf.securityLogs[].apLogBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
-| `waf.securityLogs[].apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
+| `waf.securityLogs[].apLogBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane (NIM/N1C), or the name of the APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS. |
+| `waf.securityLogs[].apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to the Policy's own namespace); forbidden otherwise. |
 | `waf.securityLogs[].apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
 | `waf.securityLogs[].apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.securityLogs[].apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
 | `waf.securityLogs[].apLogBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |
 | `waf.securityLogs[].apLogBundleSource.trustedCertSecret` | `string` | TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate for verifying the remote endpoint TLS certificate. The secret must be in the same namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt. |
-| `waf.securityLogs[].apLogBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`. |
-| `waf.securityLogs[].apLogBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. |
+| `waf.securityLogs[].apLogBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`, `"PLM"`. |
+| `waf.securityLogs[].apLogBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. Not used for PLM, where the bundle location is read from the referenced CR's .status.bundle. |
 | `waf.securityLogs[].apLogBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only. |
 | `waf.securityLogs[].apLogConf` | `string` | The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy. |
 | `waf.securityLogs[].enable` | `boolean` | Enables security log. |

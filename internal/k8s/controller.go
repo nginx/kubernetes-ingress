@@ -235,6 +235,10 @@ type LoadBalancerController struct {
 	wafVersion      string
 	wafBundlePath   string
 
+	// plmEnabled is true when PLM (F5 WAF Policy Controller) S3 storage is
+	// configured (-plm-storage-url set)
+	plmEnabled bool
+
 	// Startup status deferral: pending slices accumulate status updates
 	// during the initial queue drain (!isNginxReady). They are snapshotted
 	// and flushed asynchronously by flushPendingStatusesAsync() once the
@@ -265,6 +269,7 @@ type NewLoadBalancerControllerInput struct {
 	AppProtectDosEnabled         bool
 	AppProtectVersion            string
 	WAFBundlePath                string
+	PLMStorageSpec               wafbundle.S3ConfigSpec
 	IsNginxPlus                  bool
 	IngressClass                 string
 	ExternalServiceName          string
@@ -350,10 +355,23 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		endpointSliceWarnings:        make(map[string]bool),
 		wafVersion:                   input.AppProtectVersion,
 		wafBundlePath:                input.WAFBundlePath,
+		plmEnabled:                   input.PLMStorageSpec.Endpoint != "",
 	}
 
 	if input.AppProtectEnabled && input.WAFBundlePath != "" {
-		fetcher := wafbundle.NewHTTPFetcher()
+		var fetcher wafbundle.Fetcher = wafbundle.NewHTTPFetcher()
+		// When PLM is enabled, wrap the HTTP fetcher so that SourceTypePLM requests are
+		// served from S3 (SeaweedFS) using cluster-wide credentials, while HTTPS/NIM/N1C
+		// continue to use the HTTP fetcher. The wrapper satisfies the 2-arg Fetcher
+		// interface by resolving the per-fetch S3Config from Kubernetes Secrets.
+		if lbc.plmEnabled {
+			fetcher = wafbundle.NewPLMAwareFetcher(
+				fetcher,
+				wafbundle.NewS3Fetcher(),
+				&wafbundle.KubeClientSecretSource{Client: input.KubeClient},
+				input.PLMStorageSpec,
+			)
+		}
 		lbc.bundleFetcher = fetcher
 		lbc.bundlePollerMgr = wafbundle.NewPollerManager(
 			fetcher,

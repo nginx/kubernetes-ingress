@@ -12,17 +12,21 @@ import (
 //
 // BundleSource configures fetching a pre-compiled WAF bundle from a remote source.
 //
-// Three source types are supported:
+// Four source types are supported:
 // - HTTPS (default): fetch a pre-compiled .tgz bundle from any HTTPS server.
 // - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 // - N1C: pull a named managed policy from NGINX One Console via its API.
+// - PLM: fetch a bundle compiled by the F5 WAF Policy Controller from its S3 storage,
+// referencing an APPolicy/APLogConf CR by name via policyName (+ optional policyNamespace).
 //
-// Type-specific field requirements (policyName required for NIM/N1C, policyNamespace
-// required for N1C) are enforced by the controller's Go validation layer.
+// Type-specific field requirements (url required for HTTPS/NIM/N1C; policyName required
+// for NIM/N1C/PLM; policyNamespace required for N1C) are enforced by the controller's
+// Go validation layer.
 type BundleSourceApplyConfiguration struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
 	Type *configurationv1.BundleSourceType `json:"type,omitempty"`
 	// URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
+	// Not used for PLM, where the bundle location is read from the referenced CR's .status.bundle.
 	URL *string `json:"url,omitempty"`
 	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
 	// For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
@@ -33,9 +37,12 @@ type BundleSourceApplyConfiguration struct {
 	// for verifying the remote endpoint TLS certificate. The secret must be in the same
 	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
-	// PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// PolicyName is the policy name on the management plane (NIM/N1C), or the name of the
+	// APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS.
 	PolicyName *string `json:"policyName,omitempty"`
-	// PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only.
+	// PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of
+	// the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to
+	// the Policy's own namespace); forbidden otherwise.
 	PolicyNamespace *string `json:"policyNamespace,omitempty"`
 	// EnablePolling enables background polling to automatically detect and fetch
 	// updated bundles at the configured PollInterval. When false, the bundle is

@@ -563,11 +563,15 @@ func validateBundleSource(bs *v1.BundleSource, fieldPath *field.Path) field.Erro
 		srcType = v1.BundleSourceTypeHTTPS
 	}
 
-	if bs.URL == "" {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("url"), "url is required"))
-		return allErrs
+	// PLM reads the bundle location from the referenced CR's .status.bundle, so no URL
+	// is required. All other source types require a URL.
+	if srcType != v1.BundleSourceTypePLM {
+		if bs.URL == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("url"), "url is required"))
+			return allErrs
+		}
+		allErrs = append(allErrs, validateBundleSourceURL(bs.URL, fieldPath.Child("url"))...)
 	}
-	allErrs = append(allErrs, validateBundleSourceURL(bs.URL, fieldPath.Child("url"))...)
 
 	typeErrs, earlyReturn := validateBundleSourceType(bs, srcType, fieldPath)
 	allErrs = append(allErrs, typeErrs...)
@@ -631,9 +635,24 @@ func validateBundleSourceType(bs *v1.BundleSource, srcType v1.BundleSourceType, 
 		if bs.VerifyChecksum {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("verifyChecksum"), bs.VerifyChecksum, "verifyChecksum is only supported for HTTPS type"))
 		}
+	case v1.BundleSourceTypePLM:
+		// PLM references an APPolicy/APLogConf CR by name; policyNamespace is optional
+		// (defaults to the Policy's own namespace). The PLM structural rules (forbidden
+		// url/secret/trustedCertSecret/verifyChecksum/enablePolling/pollInterval and the
+		// required policyName) are enforced by CEL on the BundleSource CRD schema; here we
+		// only keep the dangerous-character screening, which CEL cannot express.
+		if ContainsDangerousChars(bs.PolicyName) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyName"), bs.PolicyName, "policyName contains dangerous characters"))
+		}
+		if bs.PolicyNamespace != "" && ContainsDangerousChars(bs.PolicyNamespace) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyNamespace"), bs.PolicyNamespace, "policyNamespace contains dangerous characters"))
+		}
 	default:
 		allErrs = append(allErrs, field.NotSupported(fieldPath.Child("type"), srcType,
-			[]string{string(v1.BundleSourceTypeHTTPS), string(v1.BundleSourceTypeNIM), string(v1.BundleSourceTypeN1C)}))
+			[]string{
+				string(v1.BundleSourceTypeHTTPS), string(v1.BundleSourceTypeNIM),
+				string(v1.BundleSourceTypeN1C), string(v1.BundleSourceTypePLM),
+			}))
 		return allErrs, true
 	}
 
