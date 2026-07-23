@@ -603,6 +603,28 @@ func TestValidateUpstreams(t *testing.T) {
 			},
 			msg: "2 valid upstreams",
 		},
+		{
+			upstreams: []v1.Upstream{
+				{
+					Name:                   "upstream1",
+					Service:                "test-1",
+					Port:                   80,
+					UseTrafficDistribution: true,
+				},
+				{
+					Name:                   "upstream2",
+					Service:                "test-2",
+					Port:                   80,
+					Subselector:            map[string]string{"version": "test"},
+					UseTrafficDistribution: true,
+				},
+			},
+			expectedUpstreamNames: map[string]sets.Empty{
+				"upstream1": {},
+				"upstream2": {},
+			},
+			msg: "use-traffic-distribution valid alone and with subselector",
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
@@ -859,6 +881,21 @@ func TestValidateUpstreamsFails(t *testing.T) {
 				"upstream1": {},
 			},
 			msg: "Invalid upstream type - must be one of `grpc` or `http`",
+		},
+		{
+			upstreams: []v1.Upstream{
+				{
+					Name:                   "upstream1",
+					Service:                "test-1",
+					Port:                   80,
+					UseClusterIP:           true,
+					UseTrafficDistribution: true,
+				},
+			},
+			expectedUpstreamNames: map[string]sets.Empty{
+				"upstream1": {},
+			},
+			msg: "invalid use of use-traffic-distribution with use-cluster-ip",
 		},
 	}
 
