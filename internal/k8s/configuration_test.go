@@ -33,7 +33,6 @@ func createTestConfigurationDuringStartup() *Configuration {
 	isPlus := false
 	appProtectEnabled := false
 	appProtectDosEnabled := false
-	internalRoutesEnabled := false
 	isTLSPassthroughEnabled := true
 	certManagerEnabled := true
 	snippetsEnabled := true
@@ -45,7 +44,6 @@ func createTestConfigurationDuringStartup() *Configuration {
 		isPlus,
 		appProtectEnabled,
 		appProtectDosEnabled,
-		internalRoutesEnabled,
 		validation.NewVirtualServerValidator(validation.IsPlus(isTLSPassthroughEnabled), validation.IsDosEnabled(appProtectDosEnabled), validation.IsCertManagerEnabled(certManagerEnabled)),
 		validation.NewGlobalConfigurationValidator(map[int]bool{
 			80:  true,
@@ -4355,6 +4353,11 @@ func createTestIngressMinion(name string, host string, path string) *networking.
 			Paths: []networking.HTTPIngressPath{
 				{
 					Path: path,
+					Backend: networking.IngressBackend{
+						Service: &networking.IngressServiceBackend{
+							Name: "test-svc",
+						},
+					},
 				},
 			},
 		},

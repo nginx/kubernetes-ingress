@@ -21,6 +21,7 @@ from suite.utils.resources_utils import (
     wait_before_test,
 )
 from suite.utils.vs_vsr_resources_utils import (
+    create_virtual_server,
     create_virtual_server_from_yaml,
     delete_and_create_vs_from_yaml,
     delete_virtual_server,
@@ -315,10 +316,6 @@ class TestConfigRollbackVirtualServer:
         assert ts_conf_before == ts_conf_after
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
 
-    @pytest.mark.parametrize(
-        "protect_vs",
-        ["vs1", "vs2"],
-    )
     def test_configmap_partial_rollback(
         self,
         kube_apis,
@@ -327,19 +324,13 @@ class TestConfigRollbackVirtualServer:
         virtual_server_setup,
         transport_server_setup,
         restore_configmap,
-        protect_vs,
     ):
-        """ConfigMap location-snippets invalid: one VS is protected (has own snippet that overrides
-        ConfigMap), the other is not — the unprotected VS rolls back while the protected VS and
-        TS remain Valid.
-
-        Parametrized with protect_vs=vs1/vs2 to test both orderings, so we don't rely on
-        alphabetical resource processing order.
+        """ConfigMap location-snippets invalid: consecutive VirtualServer failures trigger the
+        shared-input early-exit path.
         """
         ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
 
-        # Step 1: both VSes start without own location-snippets
-        # VS1 = fixture VS (virtual-server), VS2 = created from plain YAML
+        # Step 1: create three valid VirtualServers
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
         vs2_name = create_virtual_server_from_yaml(
             kube_apis.custom_objects,
@@ -353,37 +344,17 @@ class TestConfigRollbackVirtualServer:
             f":{virtual_server_setup.public_endpoint.port}/backend1"
         )
         wait_and_assert_status_code(200, vs2_url, vs2_host)
-
-        # Step 2: protect one VS by patching it with a valid location-snippet
-        # The protected VS's own snippet overrides ConfigMap location-snippets
-        valid_snippet_patch = {
-            "spec": {
-                "routes": [
-                    {
-                        "path": "/backend1",
-                        "location-snippets": "sub_filter_once off;",
-                        "action": {"pass": "backend1"},
-                    }
-                ]
-            },
-        }
-        if protect_vs == "vs1":
-            patch_virtual_server(
-                kube_apis.custom_objects,
-                virtual_server_setup.vs_name,
-                virtual_server_setup.namespace,
-                {"metadata": {"name": virtual_server_setup.vs_name}, **valid_snippet_patch},
-            )
-        else:
-            patch_virtual_server(
-                kube_apis.custom_objects,
-                vs2_name,
-                virtual_server_setup.namespace,
-                {"metadata": {"name": vs2_name}, **valid_snippet_patch},
-            )
+        with open(vs_2_src) as f:
+            vs3 = copy.deepcopy(yaml.safe_load(f))
+        vs3["metadata"]["name"] = "config-rollback-vs3"
+        vs3["spec"]["host"] = "config-rollback-vs3.example.com"
+        vs3_name = create_virtual_server(kube_apis.custom_objects, vs3, virtual_server_setup.namespace)
         wait_before_test()
+        vs3_host = vs3["spec"]["host"]
+        vs3_url = vs2_url
+        wait_and_assert_status_code(200, vs3_url, vs3_host)
 
-        # Step 3: capture TS config before ConfigMap change
+        # Step 2: capture TS config before ConfigMap change
         ts_conf_before = get_ts_nginx_template_conf(
             kube_apis.v1,
             transport_server_setup.namespace,
@@ -392,7 +363,7 @@ class TestConfigRollbackVirtualServer:
             ingress_controller_prerequisites.namespace,
         )
 
-        # Step 4: apply ConfigMap with invalid location-snippets
+        # Step 3: apply ConfigMap with invalid location-snippets
         config_map = ingress_controller_prerequisites.config_map.copy()
         config_map["data"] = {"location-snippets": "add_header;"}
         replace_configmap(
@@ -403,42 +374,40 @@ class TestConfigRollbackVirtualServer:
         )
         wait_before_test()
 
-        # Step 5: the UNPROTECTED VS fails validation and rolls back (Invalid status),
-        # but still serves traffic from the rolled-back config
-        if protect_vs == "vs1":
-            # VS2 is unprotected → Invalid
-            assert_vs_status(
-                kube_apis,
-                virtual_server_setup.namespace,
-                vs2_name,
-                "Invalid",
-                expected_reason="AddedOrUpdatedWithError",
-                expected_messages=[
-                    "but was not applied",
-                    'invalid number of arguments in "add_header" directive',
-                ],
-            )
-            # VS1 is protected → Valid (own snippet overrides ConfigMap)
-            assert_valid_vs(kube_apis, virtual_server_setup.namespace, virtual_server_setup.vs_name)
-            wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
-        else:
-            # VS1 is unprotected → Invalid
-            assert_vs_status(
-                kube_apis,
-                virtual_server_setup.namespace,
-                virtual_server_setup.vs_name,
-                "Invalid",
-                expected_reason="AddedOrUpdatedWithError",
-                expected_messages=[
-                    "but was not applied",
-                    'invalid number of arguments in "add_header" directive',
-                ],
-            )
-            # VS2 is protected → Valid (own snippet overrides ConfigMap)
-            assert_valid_vs(kube_apis, virtual_server_setup.namespace, vs2_name)
-            wait_and_assert_status_code(200, vs2_url, vs2_host)
+        # Step 4: the later VS resources fail; the controller then takes the shared-input early-exit path
+        ic_logs = kube_apis.v1.read_namespaced_pod_log(
+            ic_pod, ingress_controller_prerequisites.namespace, since_seconds=30
+        )
+        assert "Shared-input failure detected: 2 consecutive resource configs failed validation" in ic_logs
+        assert "Skipping remaining 2 resource(s) and final reload" in ic_logs
+        assert_valid_vs(kube_apis, virtual_server_setup.namespace, virtual_server_setup.vs_name)
+        assert_vs_status(
+            kube_apis,
+            virtual_server_setup.namespace,
+            vs2_name,
+            "Invalid",
+            expected_reason="AddedOrUpdatedWithError",
+            expected_messages=[
+                "but was not applied",
+                'invalid number of arguments in "add_header" directive',
+            ],
+        )
+        assert_vs_status(
+            kube_apis,
+            virtual_server_setup.namespace,
+            vs3_name,
+            "Invalid",
+            expected_reason="AddedOrUpdatedWithError",
+            expected_messages=[
+                "but was not applied",
+                'invalid number of arguments in "add_header" directive',
+            ],
+        )
+        wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
+        wait_and_assert_status_code(200, vs2_url, vs2_host)
+        wait_and_assert_status_code(200, vs3_url, vs3_host)
 
-        # Step 6: TS config unchanged (stream blocks not affected by location-snippets)
+        # Step 5: TS config unchanged (stream blocks not affected by location-snippets)
         ts_conf_after = get_ts_nginx_template_conf(
             kube_apis.v1,
             transport_server_setup.namespace,
@@ -449,7 +418,7 @@ class TestConfigRollbackVirtualServer:
         assert ts_conf_before == ts_conf_after
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
 
-        # Step 7: ConfigMap event reflects partial failure
+        # Step 6: ConfigMap event reflects partial failure
         cm_events = get_events_for_object(
             kube_apis.v1,
             ingress_controller_prerequisites.namespace,
@@ -459,8 +428,22 @@ class TestConfigRollbackVirtualServer:
         assert latest_cm.reason == "UpdatedWithError"
         assert "some resource configs failed validation" in latest_cm.message
 
+        # Step 7: restoring the ConfigMap returns the controller to the normal state
+        config_map["data"] = {}
+        replace_configmap(
+            kube_apis.v1,
+            config_map["metadata"]["name"],
+            ingress_controller_prerequisites.namespace,
+            config_map,
+        )
+        wait_before_test()
+        wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
+        wait_and_assert_status_code(200, vs2_url, vs2_host)
+        wait_and_assert_status_code(200, vs3_url, vs3_host)
+
         # Cleanup
         delete_virtual_server(kube_apis.custom_objects, vs2_name, virtual_server_setup.namespace)
+        delete_virtual_server(kube_apis.custom_objects, vs3_name, virtual_server_setup.namespace)
         delete_and_create_vs_from_yaml(
             kube_apis.custom_objects, virtual_server_setup.vs_name, std_vs_src, virtual_server_setup.namespace
         )

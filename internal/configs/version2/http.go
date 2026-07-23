@@ -24,8 +24,6 @@ type VirtualServerConfig struct {
 	AuthJWTClaimSets        []AuthJWTClaimSet
 	CacheZones              []CacheZone
 	Server                  Server
-	SpiffeCerts             bool
-	SpiffeClientCerts       bool
 	SplitClients            []SplitClient
 	StatusMatches           []StatusMatch
 	Upstreams               []Upstream
@@ -96,6 +94,7 @@ type Server struct {
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
 	ExternalAuth              *ExternalAuth
+	HSTS                      *HSTS
 	ErrorPages                []ErrorPage
 	BasicAuth                 *BasicAuth
 	IngressMTLS               *IngressMTLS
@@ -238,6 +237,7 @@ type Location struct {
 	ExternalAuth               *ExternalAuth
 	BasicAuth                  *BasicAuth
 	EgressMTLS                 *EgressMTLS
+	HSTS                       *HSTS
 	OIDC                       bool
 	APIKey                     *APIKey
 	WAF                        *WAF
@@ -483,6 +483,14 @@ type ExternalAuth struct {
 	SSLVerifyDepth         int
 	SSLTrustedCert         string // Path to the CA certificate file for upstream verification
 	SNIName                string // Server name for SNI and certificate verification
+}
+
+// HSTS defines HTTP Strict Transport Security configuration.
+type HSTS struct {
+	MaxAge            int
+	IncludeSubDomains bool
+	BehindProxy       bool
+	Preload           bool
 }
 
 // AuthURI defines the components of an AuthURI

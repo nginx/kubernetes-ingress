@@ -216,7 +216,6 @@ func main() {
 		TLSPassthrough:                 *enableTLSPassthrough,
 		TLSPassthroughPort:             *tlsPassthroughPort,
 		EnableSnippets:                 *enableSnippets,
-		NginxServiceMesh:               *spireAgentAddress != "",
 		MainAppProtectLoadModule:       *appProtect,
 		MainAppProtectV5LoadModule:     appProtectV5,
 		MainAppProtectDosLoadModule:    *appProtectDos,
@@ -257,7 +256,7 @@ func main() {
 		licenseReporter.Config.PlusClient = plusClient
 	}
 
-	plusCollector, syslogListener, latencyCollector := createPlusAndLatencyCollectors(ctx, registry, constLabels, kubeClient, plusClient, staticCfgParams.NginxServiceMesh)
+	plusCollector, syslogListener, latencyCollector := createPlusAndLatencyCollectors(ctx, registry, constLabels, kubeClient, plusClient)
 	cnf := configs.NewConfigurator(configs.ConfiguratorParams{
 		NginxManager:                        nginxManager,
 		StaticCfgParams:                     staticCfgParams,
@@ -324,8 +323,6 @@ func main() {
 		GlobalConfigurationValidator: globalConfigurationValidator,
 		TransportServerValidator:     transportServerValidator,
 		VirtualServerValidator:       virtualServerValidator,
-		SpireAgentAddress:            *spireAgentAddress,
-		InternalRoutesEnabled:        *enableInternalRoutes,
 		IsPrometheusEnabled:          *enablePrometheusMetrics,
 		IsLatencyMetricsEnabled:      *enableLatencyMetrics,
 		IsTLSPassthroughEnabled:      *enableTLSPassthrough,
@@ -953,7 +950,6 @@ func createPlusAndLatencyCollectors(
 	constLabels map[string]string,
 	kubeClient *kubernetes.Clientset,
 	plusClient *client.NginxClient,
-	isMesh bool,
 ) (*nginxCollector.NginxPlusCollector, metrics.SyslogListener, collectors.LatencyCollector) {
 	l := nl.LoggerFromContext(ctx)
 	var prometheusSecret *api_v1.Secret
@@ -974,9 +970,6 @@ func createPlusAndLatencyCollectors(
 	if *enablePrometheusMetrics {
 		upstreamServerVariableLabels := []string{"service", "resource_type", "resource_name", "resource_namespace"}
 		upstreamServerPeerVariableLabelNames := []string{"pod_name"}
-		if isMesh {
-			upstreamServerPeerVariableLabelNames = append(upstreamServerPeerVariableLabelNames, "pod_owner")
-		}
 		if *nginxPlus {
 			streamUpstreamServerVariableLabels := []string{"service", "resource_type", "resource_name", "resource_namespace"}
 			streamUpstreamServerPeerVariableLabelNames := []string{"pod_name"}
