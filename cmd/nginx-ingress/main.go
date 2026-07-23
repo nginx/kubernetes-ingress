@@ -568,6 +568,9 @@ func createTemplateExecutors(ctx context.Context) (*version1.TemplateExecutor, *
 	if *transportServerTemplatePath != "" {
 		nginxTransportServerTemplatePath = *transportServerTemplatePath
 	}
+	if *oidcTemplatePath != "" {
+		nginxOIDCConfTemplatePath = *oidcTemplatePath
+	}
 
 	templateExecutor, err := version1.NewTemplateExecutor(nginxConfTemplatePath, nginxIngressTemplatePath)
 	if err != nil {
