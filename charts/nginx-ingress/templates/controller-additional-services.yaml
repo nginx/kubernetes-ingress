@@ -1,0 +1,69 @@
+{{- range $name, $service := .Values.controller.service.additionalServices }}
+{{- if eq $name (include "nginx-ingress.controller.service.name" $) }}
+{{- fail (printf "additional Service name %q must not match the primary controller Service name" $name) }}
+{{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "nginx-ingress.labels" $ | nindent 4 }}
+    {{- with $service.extraLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with $service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with $service.clusterIP }}
+  clusterIP: {{ . }}
+  {{- end }}
+  {{- if or (eq $service.type "LoadBalancer") (eq $service.type "NodePort") }}
+  {{- with $service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . }}
+  {{- end }}
+  {{- end }}
+  {{- if eq $service.type "LoadBalancer" }}
+  {{- if hasKey $service "allocateLoadBalancerNodePorts" }}
+  allocateLoadBalancerNodePorts: {{ $service.allocateLoadBalancerNodePorts }}
+  {{- end }}
+  {{- with $service.loadBalancerIP }}
+  loadBalancerIP: {{ . }}
+  {{- end }}
+  {{- with $service.loadBalancerClass }}
+  loadBalancerClass: {{ . }}
+  {{- end }}
+  {{- with $service.loadBalancerSourceRanges }}
+  loadBalancerSourceRanges:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  type: {{ $service.type }}
+  {{- with $service.ipFamilyPolicy }}
+  ipFamilyPolicy: {{ . }}
+  {{- end }}
+  {{- with $service.ipFamilies }}
+  ipFamilies:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    {{- toYaml $service.ports | nindent 4 }}
+  selector:
+    {{- include "nginx-ingress.selectorLabels" $ | nindent 4 }}
+  {{- if and $service.sessionAffinity $service.sessionAffinity.enable }}
+  {{- $sessionAffinityType := default "ClientIP" $service.sessionAffinity.type }}
+  sessionAffinity: {{ $sessionAffinityType }}
+  {{- if eq $sessionAffinityType "ClientIP" }}
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: {{ default 3600 $service.sessionAffinity.timeoutSeconds }}
+  {{- end }}
+  {{- end }}
+  {{- with $service.externalIPs }}
+  externalIPs:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

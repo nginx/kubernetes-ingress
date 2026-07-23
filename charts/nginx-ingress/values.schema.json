@@ -1591,6 +1591,126 @@
                 "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
               }
             },
+            "additionalServices": {
+              "type": "object",
+              "default": {},
+              "title": "Additional Services that expose the Ingress Controller pods",
+              "propertyNames": {
+                "type": "string",
+                "maxLength": 63,
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type",
+                  "ports"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "title": "The Service type",
+                    "enum": [
+                      "ClusterIP",
+                      "NodePort",
+                      "LoadBalancer"
+                    ]
+                  },
+                  "annotations": {
+                    "default": {},
+                    "title": "The Service annotations",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
+                  },
+                  "extraLabels": {
+                    "default": {},
+                    "title": "The extra Service labels",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
+                  },
+                  "clusterIP": {
+                    "default": "",
+                    "title": "The Service clusterIP",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/clusterIP"
+                  },
+                  "externalTrafficPolicy": {
+                    "default": "",
+                    "title": "The Service externalTrafficPolicy",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalTrafficPolicy"
+                  },
+                  "loadBalancerIP": {
+                    "default": "",
+                    "title": "The Service loadBalancerIP",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerIP"
+                  },
+                  "loadBalancerClass": {
+                    "default": "",
+                    "title": "The Service loadBalancerClass",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerClass"
+                  },
+                  "externalIPs": {
+                    "default": [],
+                    "title": "The Service externalIPs",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalIPs"
+                  },
+                  "loadBalancerSourceRanges": {
+                    "default": [],
+                    "title": "The Service loadBalancerSourceRanges",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerSourceRanges"
+                  },
+                  "allocateLoadBalancerNodePorts": {
+                    "default": true,
+                    "title": "Allocate NodePorts for the LoadBalancer Service",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
+                  },
+                  "ipFamilyPolicy": {
+                    "default": "",
+                    "title": "The Service ipFamilyPolicy",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilyPolicy"
+                  },
+                  "ipFamilies": {
+                    "default": [],
+                    "title": "The Service ipFamilies",
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilies"
+                  },
+                  "ports": {
+                    "type": "array",
+                    "title": "The Service ports",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
+                    }
+                  },
+                  "sessionAffinity": {
+                    "type": "object",
+                    "default": {},
+                    "title": "The sessionAffinity Schema",
+                    "additionalProperties": false,
+                    "properties": {
+                      "enable": {
+                        "type": "boolean",
+                        "default": false,
+                        "title": "Enable session affinity"
+                      },
+                      "type": {
+                        "type": "string",
+                        "default": "ClientIP",
+                        "title": "Session affinity type",
+                        "enum": [
+                          "ClientIP"
+                        ]
+                      },
+                      "timeoutSeconds": {
+                        "type": "integer",
+                        "default": 3600,
+                        "title": "Session affinity timeout in seconds",
+                        "minimum": 1,
+                        "maximum": 86400
+                      }
+                    }
+                  }
+                }
+              }
+            },
             "sessionAffinity": {
               "type": "object",
               "default": {},
