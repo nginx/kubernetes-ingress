@@ -1,20 +1,14 @@
 #!/usr/bin/env bash
 
-if [ "$1" = "" ]; then
-    echo "ERROR: paramater needed"
-    exit 2
-fi
-
-INPUT=$1
-ROOTDIR=$(git rev-parse --show-toplevel || echo ".")
-if [ "$PWD" != "$ROOTDIR" ]; then
-    # shellcheck disable=SC2164
-    cd "$ROOTDIR";
-fi
-
 # renovate: datasource=docker depName=kindest/node
 K8S_LATEST_VERSION=1.36.1
 
+# NOTE: the *_md5 helpers below deliberately exclude documentation files
+# (*.md) so that a docs-only change never alters a build hash and therefore
+# never moves the build/stable image tag. This must stay consistent with
+# get_docs_only: any path it treats as documentation must not feed these
+# hashes, otherwise a "docs-only" PR could compute a stable_tag for an image
+# that is never built (see get_tag_stable / STABLE_EXISTS).
 get_docker_md5() {
   docker_md5=$(find build .github/data/version.txt internal/configs/njs internal/configs/oidc -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }')
   echo "${docker_md5:0:8}"
@@ -25,16 +19,16 @@ get_go_code_md5() {
 }
 
 get_tests_md5() {
-  find tests perf-tests .github/data/version.txt -type f -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
+  find tests perf-tests .github/data/version.txt -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
 }
 
 get_chart_md5() {
-  find charts .github/data/version.txt config/crd/bases -type f -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
+  find charts .github/data/version.txt config/crd/bases -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }'
 }
 
 get_actions_md5() {
   exclude_list="$(dirname $0)/exclude_ci_files.txt"
-  find_command="find .github -type f -not -path '${exclude_list}'"
+  find_command="find .github -type f ! -name '*.md' -not -path '${exclude_list}'"
   while IFS= read -r file
   do
     find_command+=" -not -path '$file'"
@@ -65,9 +59,24 @@ get_k8s_latest_version() {
   echo "$K8S_LATEST_VERSION"
 }
 
-# Outputs docs_only=true if all changed files match doc paths (*.md, docs/**, examples/**)
+# Outputs docs_only=true if all changed files (vs. PR/merge base) match doc paths.
+# Doc paths include: *.md, docs/**, examples/**, site/**, .github/ISSUE_TEMPLATE/**,
+# .github/PULL_REQUEST_TEMPLATE.md, CHANGELOG*, LICENSE, CODEOWNERS.
 get_docs_only() {
-  non_doc_files=$(git diff --name-only HEAD^ | grep -Ev '(\.md$|^docs/|^examples/)')
+  local range
+  if [ -n "${GITHUB_BASE_REF:-}" ]; then
+    # PR or merge_group event: compare against the target branch.
+    git fetch --quiet --depth=50 origin "${GITHUB_BASE_REF}" 2>/dev/null || true
+    range="origin/${GITHUB_BASE_REF}...HEAD"
+  else
+    range="HEAD^...HEAD"
+  fi
+  local diff_output
+  if ! diff_output=$(git diff --name-only "${range}" 2>/dev/null); then
+    echo "docs_only=false"
+    return
+  fi
+  non_doc_files=$(echo "$diff_output" | grep -Ev '(\.md$|^docs/|^examples/|^site/|^\.github/ISSUE_TEMPLATE/|^\.github/PULL_REQUEST_TEMPLATE\.md$|^CHANGELOG|^LICENSE$|^CODEOWNERS$)' || true)
   if [ -z "$non_doc_files" ]; then
     echo "docs_only=true"
   else
@@ -79,7 +88,169 @@ get_lts_tags() {
   git tag --sort=-version:refname | grep -E -- '-lts-r[0-9]+' | awk -F'-r' '!seen[$1]++' | head -n3 | jq -R -s -c 'split("\n")[:-1]'
 }
 
-case $INPUT in
+# ---------------------------------------------------------------------------
+# CI decision logic.
+#
+# The functions below centralise the branching logic that used to live as
+# inline bash steps and composite `if:` expressions in .github/workflows/ci.yml.
+# Each reads its inputs from environment variables (so they are pure and
+# testable) and echoes a literal "true" or "false".
+#
+# Inputs (all optional; unset is treated as empty/false unless noted):
+#   FORCE            - workflow_dispatch "force" input.
+#   RUN_TESTS_INPUT  - workflow_dispatch "run_tests" input (defaults to true
+#                      when empty, e.g. on pull_request / merge_group events).
+#   DOCS_ONLY        - "true" when the change only touches documentation.
+#   FORKED           - "true" when running from a fork / mirror.
+#   BINARY_CACHE_HIT - "true" when the Go binary cache was hit.
+#   STABLE_EXISTS    - "true" when a stable image already exists in the registry.
+#   TARGET_EXISTS    - "true" when the target build image exists in the registry (defaults to true if unset).
+#   REF_NAME         - github.ref_name (used to gate image promotion).
+# ---------------------------------------------------------------------------
+
+# Whether a docker image build is required. This is also the gate for the
+# build-artifacts job. The stable image is the source of truth: if it exists
+# in the registry, the exact build_tag + tests + charts + actions have
+# already been built and validated, so there is nothing to rebuild. The
+# binary cache is a separate concern (it accelerates rebuilds via cached Go
+# artifacts) but does not gate the build decision -- a cache-evicted PR
+# whose stable image still exists must not rebuild wastefully.
+#
+# On non-docs runs we build when either the stable image or target build image is missing.
+# Forks always build (they cannot consult the authenticated registry so STABLE_EXISTS is
+# effectively empty for them). `docker_build` doubles as the build-artifacts
+# gate; a separate flag would be provably identical (see variables_test.sh
+# equivalence check).
+get_docker_build() {
+  local run="false"
+  local target_exists="${TARGET_EXISTS:-true}"
+  if [ "${FORCE:-}" = "true" ]; then
+    run="true"
+  elif [ "${DOCS_ONLY:-}" = "true" ]; then
+    run="false"
+  elif [ "${STABLE_EXISTS:-}" != "true" ] || [ "${target_exists}" != "true" ]; then
+    run="true"
+  fi
+  echo "$run"
+}
+
+# Whether unit/e2e tests should run at all. If the stable image already
+# exists in the registry, this exact commit + tests + charts + actions have
+# already been validated end-to-end, so there is nothing to re-test.
+get_run_tests() {
+  if [ "${RUN_TESTS_INPUT:-}" = "false" ]; then
+    echo "false"
+  elif [ "${DOCS_ONLY:-}" = "true" ]; then
+    echo "false"
+  elif [ "${STABLE_EXISTS:-}" = "true" ]; then
+    echo "false"
+  else
+    echo "true"
+  fi
+}
+
+# Gate for the Go-only jobs (verify-codegen, unit-tests, staticcheck,
+# govulncheck). RUN_TESTS_INPUT=false (workflow_dispatch opt-out) is a hard
+# skip: if the user explicitly said "no tests", we honour that even under
+# FORCE. Otherwise: force always runs them, fork PRs cannot consult our
+# binary cache (so they always run unit tests on non-docs changes), and the
+# tests only run when tests are wanted AND the binary cache was cold (a warm
+# cache means the code hasn't changed, so unit tests would be redundant).
+get_run_unit_tests() {
+  local run_tests
+  run_tests=$(get_run_tests)
+  if [ "${RUN_TESTS_INPUT:-}" = "false" ]; then
+    echo "false"
+  elif [ "${FORCE:-}" = "true" ]; then
+    echo "true"
+  elif [ "${FORKED:-}" = "true" ] && [ "${DOCS_ONLY:-}" != "true" ]; then
+    echo "true"
+  elif [ "$run_tests" = "true" ] && [ "${BINARY_CACHE_HIT:-}" != "true" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+
+# Gate for the e2e workflow (tag-target, package-tests, helm-tests,
+# setup-matrix, smoke-tests-*). RUN_TESTS_INPUT=false (workflow_dispatch
+# opt-out) is a hard skip: an untested run must not exercise e2e, and
+# because tag-stable depends on this gate transitively, an untested run
+# also will not tag the image as stable. Otherwise: e2e runs whenever
+# there is work to do (tests requested or a docker build is needed).
+# Forks cannot access the authenticated registry, so they build artifacts but
+# skip the e2e workflow.
+get_run_e2e() {
+  local run_tests docker_build
+  run_tests=$(get_run_tests)
+  docker_build=$(get_docker_build)
+  if [ "${RUN_TESTS_INPUT:-}" = "false" ] || [ "${FORKED:-}" = "true" ]; then
+    echo "false"
+  elif [ "$run_tests" = "true" ] || [ "$docker_build" = "true" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Gate for the tag-stable job. Only tag an image as stable when we actually ran
+# the build + e2e cycle (get_run_e2e). A workflow_dispatch FORCE run always
+# re-tags stable -- the user explicitly asked for a rebuild, so we overwrite
+# whatever image happens to be pointed at the stable tag. Otherwise we only tag
+# when no stable image exists yet or when the target build image was missing,
+# to avoid churn on identical builds.
+get_tag_stable() {
+  local run_e2e target_exists="${TARGET_EXISTS:-true}"
+  run_e2e=$(get_run_e2e)
+  if [ "$run_e2e" != "true" ]; then
+    echo "false"
+  elif [ "${FORCE:-}" = "true" ]; then
+    echo "true"
+  elif [ "${STABLE_EXISTS:-}" != "true" ] || [ "${target_exists}" != "true" ]; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Gate for image promotion on a forced, tested run of a release-able branch.
+get_promote() {
+  if [ "${FORCE:-}" = "true" ] && [ "${RUN_TESTS_INPUT:-}" != "false" ] \
+    && { [ "${REF_NAME:-}" = "main" ] || [[ "${REF_NAME:-}" == release-* ]]; }; then
+    echo "true"
+  else
+    echo "false"
+  fi
+}
+
+# Emits every CI decision flag as key=value lines for $GITHUB_OUTPUT.
+get_ci_flags() {
+  echo "run_tests=$(get_run_tests)"
+  echo "docker_build=$(get_docker_build)"
+  echo "run_unit_tests=$(get_run_unit_tests)"
+  echo "run_e2e=$(get_run_e2e)"
+  echo "tag_stable=$(get_tag_stable)"
+  echo "promote=$(get_promote)"
+}
+
+# Dispatches the requested variable/flag. Kept in a function so the script can
+# be sourced (e.g. by variables_test.sh) without executing anything.
+main() {
+  if [ "$1" = "" ]; then
+    echo "ERROR: parameter needed"
+    exit 2
+  fi
+
+  local INPUT=$1
+  local ROOTDIR
+  ROOTDIR=$(git rev-parse --show-toplevel || echo ".")
+  if [ "$PWD" != "$ROOTDIR" ]; then
+    # shellcheck disable=SC2164
+    cd "$ROOTDIR"
+  fi
+
+  case $INPUT in
   docker_md5)
     echo "docker_md5=$(get_docker_md5)"
     ;;
@@ -112,8 +283,18 @@ case $INPUT in
     echo "lts_tags=$(get_lts_tags)"
     ;;
 
+  ci_flags)
+    get_ci_flags
+    ;;
+
   *)
     echo "ERROR: option not found"
     exit 2
     ;;
-esac
+  esac
+}
+
+# Only run the driver when executed directly, not when sourced (e.g. by tests).
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  main "$@"
+fi

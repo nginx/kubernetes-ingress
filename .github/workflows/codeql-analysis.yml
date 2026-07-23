@@ -26,7 +26,7 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     outputs:
-      docs_only: ${{ github.event.pull_request && steps.docs.outputs.docs_only == 'true' }}
+      docs_only: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.docs.outputs.docs_only == 'true' }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -36,13 +36,7 @@ jobs:
       - name: Filter only docs changes
         id: docs
         run: |
-          files=$(git diff --name-only HEAD^ | egrep -v "^examples/" | egrep -v "^README.md")
-          if [ -z "$files" ]; then
-            echo "docs_only=true" >> $GITHUB_OUTPUT
-          else
-            echo "docs_only=false" >> $GITHUB_OUTPUT
-          fi
-          echo $files
+          ./.github/scripts/variables.sh docs_only >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
         shell: bash --noprofile --norc -o pipefail {0}
 
@@ -58,3 +52,24 @@ jobs:
     uses: nginx/compliance-rules/.github/workflows/codeql.yml@543d32464b56e6a695939f41ba8009cbb10e413a # v0.3.3
     with:
       requested_languages: go,python
+
+  codeql-results:
+    name: CodeQL Results
+    # Single aggregator so branch protection can require just this one check.
+    # Always runs (unless the whole workflow is cancelled); fails if any job
+    # failed or was cancelled, treating "skipped" (e.g. docs-only) as OK.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() )
+    runs-on: ubuntu-24.04
+    needs: [checks, analyze]
+    steps:
+      - name: Check results of all CodeQL jobs
+        env:
+          FAILED: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          if [ "${FAILED}" = "true" ]; then
+            echo "::error::CodeQL analysis failed or was cancelled."
+            exit 1
+          fi
+          echo "CodeQL analysis succeeded or was safely skipped."

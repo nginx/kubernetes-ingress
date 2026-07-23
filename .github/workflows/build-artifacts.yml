@@ -19,7 +19,11 @@ on:
         required: true
         type: boolean
       force:
-        description: Always build artifacts
+        description: >-
+          Force a full rebuild of every docker image in the matrix, bypassing
+          the registry-probe fast path in build-oss/build-plus. Callers that
+          need guaranteed-fresh artifacts (release, image-promotion) set this
+          to true; regular CI leaves it false so unchanged images are reused.
         type: boolean
         default: false
       ic-version:
@@ -79,7 +83,6 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: go.mod
-        if: ${{ inputs.force }}
 
       - name: Setup netrc
         run: |
@@ -89,7 +92,6 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
 
       - name: Build binaries
         uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
@@ -101,20 +103,17 @@ jobs:
           GOPATH: ${{ inputs.go-path }}
           GOPROXY: ${{ inputs.go-proxy }}
           GORELEASER_CURRENT_TAG: "v${{ inputs.ic-version }}"
-        if: ${{ inputs.force }}
 
       - name: Extract NGINX Ingress Controller binary info
         id: nic_binaries
         run: |
           echo "json=$(.github/scripts/binary-json.sh ${{ github.workspace }}/dist ${{ github.event.repository.name }} "nginx-ingress")" >> $GITHUB_OUTPUT
-        if: ${{ inputs.force }}
 
       - name: Store Artifacts in Cache
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
-        if: ${{ inputs.force }}
 
       - name: Cleanup netrc
         run: rm -f $HOME/.netrc
