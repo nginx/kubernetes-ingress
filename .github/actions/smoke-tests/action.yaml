@@ -34,6 +34,10 @@ inputs:
   plus-jwt:
     description: JWT for NGINX Plus
     required: false
+  durations:
+    description: Durations to run tests
+    default: 10
+    required: false
 
 outputs:
   test-results-name:
@@ -98,7 +102,7 @@ runs:
         --service=nodeport --node-ip=${{ steps.k8s.outputs.cluster_ip }} \
         --html=${{ steps.k8s.outputs.test_output_path }} \
         --self-contained-html \
-        --durations=10 \
+        --durations=${{ inputs.durations }} \
         --show-ic-logs=yes \
         --plus-jwt=${{ inputs.plus-jwt }} \
         -m ${{ inputs.marker != '' && inputs.marker || '""' }}
