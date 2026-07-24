@@ -165,14 +165,6 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 		return
 	}
 
-	// PLM-managed APPolicies are consumed only as pre-compiled bundles fetched from PLM's
-	// S3 storage, driven entirely by .status.bundle.
-	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectPolicy(lbc.getAllPolicies(), key)) > 0 {
-		nl.Debugf(lbc.Logger, "AppProtectPolicy %v is PLM-managed; skipping in-cluster config, re-enqueuing PLM policies", key)
-		lbc.enqueuePLMPoliciesForAppPolicy(key)
-		return
-	}
-
 	var changes []appprotect.Change
 	var problems []appprotect.Problem
 
@@ -184,6 +176,13 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 		nl.Debugf(lbc.Logger, "Adding or Updating AppProtectPolicy: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.AddOrUpdatePolicy(obj.(*unstructured.Unstructured))
+	}
+
+	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectPolicy(lbc.getAllPolicies(), key)) > 0 {
+		nl.Debugf(lbc.Logger, "AppProtectPolicy %v is PLM-managed; updated cache, re-enqueuing PLM policies without NGINX reload", key)
+		lbc.processAppProtectProblems(problems)
+		lbc.enqueuePLMPoliciesForAppPolicy(key)
+		return
 	}
 
 	lbc.processAppProtectChanges(changes)
@@ -204,14 +203,6 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 		return
 	}
 
-	// PLM-managed APLogConfs are consumed only as pre-compiled bundles fetched from PLM's
-	// S3 storage, driven entirely by .status.bundle.
-	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectLogConf(lbc.getAllPolicies(), key)) > 0 {
-		nl.Debugf(lbc.Logger, "AppProtectLogConf %v is PLM-managed; skipping in-cluster config, re-enqueuing PLM policies", key)
-		lbc.enqueuePLMPoliciesForAppLogConf(key)
-		return
-	}
-
 	var changes []appprotect.Change
 	var problems []appprotect.Problem
 
@@ -223,6 +214,13 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 		nl.Debugf(lbc.Logger, "Adding or Updating AppProtectLogConf: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.AddOrUpdateLogConf(obj.(*unstructured.Unstructured))
+	}
+
+	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectLogConf(lbc.getAllPolicies(), key)) > 0 {
+		nl.Debugf(lbc.Logger, "AppProtectLogConf %v is PLM-managed; updated cache, re-enqueuing PLM policies without NGINX reload", key)
+		lbc.processAppProtectProblems(problems)
+		lbc.enqueuePLMPoliciesForAppLogConf(key)
+		return
 	}
 
 	lbc.processAppProtectChanges(changes)
