@@ -19,9 +19,9 @@ import (
 // - PLM: fetch a bundle compiled by the F5 WAF Policy Controller from its S3 storage,
 // referencing an APPolicy/APLogConf CR by name via policyName (+ optional policyNamespace).
 //
-// Type-specific field requirements (url required for HTTPS/NIM/N1C; policyName required
-// for NIM/N1C/PLM; policyNamespace required for N1C) are enforced by the controller's
-// Go validation layer.
+// Type-specific field requirements for HTTPS/NIM/N1C (url required; policyName required
+// for NIM/N1C; policyNamespace required for N1C) are enforced by the controller's Go
+// validation layer.
 type BundleSourceApplyConfiguration struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
 	Type *configurationv1.BundleSourceType `json:"type,omitempty"`
