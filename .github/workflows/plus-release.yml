@@ -79,7 +79,7 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress' && (inputs.gcr_release_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
 
@@ -110,7 +110,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -135,7 +135,7 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress' && (inputs.nginx_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
 
@@ -166,7 +166,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -181,7 +181,7 @@ jobs:
             core.setOutput('id_token', id_token)
 
       - name: Login to NGINX Registry
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: docker-mgmt.nginx.com
           username: ${{ steps.idtoken.outputs.id_token }}
@@ -206,7 +206,7 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress' && (inputs.gcr_mktpl_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
 
@@ -271,7 +271,7 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress' && (inputs.ecr_mktpl_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
 
@@ -305,20 +305,20 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           aws-region: us-east-1
           role-to-assume: ${{ steps.secrets.outputs.AWS_ROLE_MARKETPLACE }}
 
       - name: Login to ECR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: 709825985650.dkr.ecr.us-east-1.amazonaws.com
 
@@ -341,7 +341,7 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress' && (inputs.az_mktpl_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
 
@@ -372,7 +372,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: gcr.io
           username: oauth2accesstoken

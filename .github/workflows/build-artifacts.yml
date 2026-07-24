@@ -71,7 +71,7 @@ jobs:
       json: ${{ steps.nic_binaries.outputs.json }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.branch }}
 
@@ -92,7 +92,7 @@ jobs:
         if: ${{ inputs.force || inputs.authenticated == 'true' }}
 
       - name: Build binaries
-        uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           version: v2.12.3 # renovate: datasource=github-releases depName=goreleaser/goreleaser,
           args: build --snapshot --clean
@@ -110,7 +110,7 @@ jobs:
         if: ${{ inputs.force }}
 
       - name: Store Artifacts in Cache
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}

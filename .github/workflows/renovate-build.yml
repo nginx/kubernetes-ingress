@@ -27,10 +27,10 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress' && (github.actor == 'renovate[bot]')
     steps:
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Check for changes
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         with:
           filters: |
@@ -95,7 +95,7 @@ jobs:
           repositories: ${{ github.event.repository.name }}
 
       - name: Checkout repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.head_ref }}
           token: ${{ steps.app_token.outputs.token }}
@@ -141,7 +141,7 @@ jobs:
 
       - name: Commit changes
         id: commit
-        uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9 # v7.1.0
+        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7.2.0
         with:
           commit_message: "Update files for renovate"
           commit_author: "renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>"
