@@ -68,6 +68,7 @@ ADD --link --chown=101:0 --chmod=0755 build/scripts/nap-dos.sh nap-dos.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/agent.sh agent.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/ubi-setup.sh ubi-setup.sh
 ADD --link --chown=101:0 --chmod=0755 build/scripts/ubi-clean.sh ubi-clean.sh
+ADD --link --chown=101:0 --chmod=0755 build/scripts/harden.sh harden.sh
 
 # Startup is non-deterministic between NGINX Plus reporting usage and licence reporter initialising. This
 # is a workaround to attribute the installation to nic even if licence reporter isn't ready yet.
@@ -791,12 +792,15 @@ ARG TARGETPLATFORM
 ARG NAP_MODULES=none
 
 ENV BUILD_OS=${BUILD_OS}
+ENV NAP_MODULES=${NAP_MODULES}
 
 RUN --mount=type=bind,target=/code \
 	--mount=type=bind,from=nginx-files,src=common.sh,target=/usr/local/bin/common.sh \
 	--mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/patch-os.sh \
+	--mount=type=bind,from=nginx-files,src=harden.sh,target=/usr/local/bin/harden.sh \
 	patch-os.sh \
-	&& common.sh
+	&& common.sh \
+	&& harden.sh
 
 EXPOSE 80 443
 
