@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -34,6 +35,14 @@ func createAppProtectPolicyHandlers(lbc *LoadBalancerController) cache.ResourceE
 			if different {
 				nl.Debugf(lbc.Logger, "ApPolicy %v changed, syncing", oldPol.GetName())
 				lbc.AddSyncQueue(newPol)
+				return
+			}
+			// PLM writes the compiled bundle location + checksum to .status.bundle;
+			// the spec is unchanged on recompile, so also sync on a status change so
+			// syncAppProtectPolicy re-enqueues the referencing PLM policies.
+			if lbc.plmEnabled && bundleStatusChanged(oldPol, newPol) {
+				nl.Debugf(lbc.Logger, "ApPolicy %v bundle status changed, syncing", oldPol.GetName())
+				lbc.AddSyncQueue(newPol)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -60,6 +69,14 @@ func createAppProtectLogConfHandlers(lbc *LoadBalancerController) cache.Resource
 			}
 			if different {
 				nl.Debugf(lbc.Logger, "ApLogConf %v changed, syncing", oldConf.GetName())
+				lbc.AddSyncQueue(newConf)
+				return
+			}
+			// PLM writes the compiled bundle location + checksum to .status.bundle;
+			// the spec is unchanged on recompile, so also sync on a status change so
+			// syncAppProtectLogConf re-enqueues the referencing PLM policies.
+			if lbc.plmEnabled && bundleStatusChanged(oldConf, newConf) {
+				nl.Debugf(lbc.Logger, "ApLogConf %v bundle status changed, syncing", oldConf.GetName())
 				lbc.AddSyncQueue(newConf)
 			}
 		},
@@ -161,6 +178,13 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 		changes, problems = lbc.appProtectConfiguration.AddOrUpdatePolicy(obj.(*unstructured.Unstructured))
 	}
 
+	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectPolicy(lbc.getAllPolicies(), key)) > 0 {
+		nl.Debugf(lbc.Logger, "AppProtectPolicy %v is PLM-managed; updated cache, re-enqueuing PLM policies without NGINX reload", key)
+		lbc.processAppProtectProblems(problems)
+		lbc.enqueuePLMPoliciesForAppPolicy(key)
+		return
+	}
+
 	lbc.processAppProtectChanges(changes)
 	lbc.processAppProtectProblems(problems)
 }
@@ -190,6 +214,13 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 		nl.Debugf(lbc.Logger, "Adding or Updating AppProtectLogConf: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.AddOrUpdateLogConf(obj.(*unstructured.Unstructured))
+	}
+
+	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectLogConf(lbc.getAllPolicies(), key)) > 0 {
+		nl.Debugf(lbc.Logger, "AppProtectLogConf %v is PLM-managed; updated cache, re-enqueuing PLM policies without NGINX reload", key)
+		lbc.processAppProtectProblems(problems)
+		lbc.enqueuePLMPoliciesForAppLogConf(key)
+		return
 	}
 
 	lbc.processAppProtectChanges(changes)
@@ -263,6 +294,86 @@ func isMatchingResourceRef(ownerNs, resRef, key string) bool {
 		resRef = fmt.Sprintf("%v/%v", ownerNs, resRef)
 	}
 	return resRef == key
+}
+
+// getPLMPoliciesForAppProtectPolicy returns the WAF Policies whose apBundleSource is a
+// PLM source referencing the APPolicy identified by key (namespace/name). Used to
+// re-enqueue those Policies when the APPolicy status changes (event-driven PLM refresh).
+func getPLMPoliciesForAppProtectPolicy(pols []*conf_v1.Policy, key string) []*conf_v1.Policy {
+	var policies []*conf_v1.Policy
+	for _, pol := range pols {
+		if pol.Spec.WAF == nil {
+			continue
+		}
+		bs := pol.Spec.WAF.ApBundleSource
+		if bs != nil && bs.Type == conf_v1.BundleSourceTypePLM && plmRefMatchesKey(pol.Namespace, bs, key) {
+			policies = append(policies, pol)
+		}
+	}
+	return policies
+}
+
+// getPLMPoliciesForAppProtectLogConf returns the WAF Policies whose securityLogs contain a
+// PLM apLogBundleSource referencing the APLogConf identified by key (namespace/name).
+func getPLMPoliciesForAppProtectLogConf(pols []*conf_v1.Policy, key string) []*conf_v1.Policy {
+	var policies []*conf_v1.Policy
+	for _, pol := range pols {
+		if pol.Spec.WAF == nil {
+			continue
+		}
+		for _, sl := range pol.Spec.WAF.SecurityLogs {
+			if sl != nil && sl.ApLogBundleSource != nil &&
+				sl.ApLogBundleSource.Type == conf_v1.BundleSourceTypePLM &&
+				plmRefMatchesKey(pol.Namespace, sl.ApLogBundleSource, key) {
+				policies = append(policies, pol)
+				break
+			}
+		}
+	}
+	return policies
+}
+
+// bundleStatusChanged reports whether the PLM-managed .status.bundle subtree differs
+// between the old and new APPolicy/APLogConf objects.
+func bundleStatusChanged(oldObj, newObj *unstructured.Unstructured) bool {
+	oldBundle, _, _ := unstructured.NestedMap(oldObj.Object, "status", "bundle")
+	newBundle, _, _ := unstructured.NestedMap(newObj.Object, "status", "bundle")
+	return !reflect.DeepEqual(oldBundle, newBundle)
+}
+
+// plmRefMatchesKey reports whether a PLM BundleSource references the APPolicy/APLogConf
+// identified by key. The reference is bs.PolicyName in bs.PolicyNamespace, defaulting to
+// the owning Policy's namespace when unset.
+func plmRefMatchesKey(ownerNs string, bs *conf_v1.BundleSource, key string) bool {
+	ns := bs.PolicyNamespace
+	if ns == "" {
+		ns = ownerNs
+	}
+	return ns+"/"+bs.PolicyName == key
+}
+
+// enqueuePLMPoliciesForAppPolicy re-enqueues every PLM WAF Policy that references the
+// APPolicy identified by key. No-op when PLM is disabled.
+func (lbc *LoadBalancerController) enqueuePLMPoliciesForAppPolicy(key string) {
+	if !lbc.plmEnabled {
+		return
+	}
+	for _, pol := range getPLMPoliciesForAppProtectPolicy(lbc.getAllPolicies(), key) {
+		nl.Debugf(lbc.Logger, "Re-enqueuing PLM policy %s/%s due to APPolicy %s change", pol.Namespace, pol.Name, key)
+		lbc.AddSyncQueue(pol)
+	}
+}
+
+// enqueuePLMPoliciesForAppLogConf re-enqueues every PLM WAF Policy that references the
+// APLogConf identified by key. No-op when PLM is disabled.
+func (lbc *LoadBalancerController) enqueuePLMPoliciesForAppLogConf(key string) {
+	if !lbc.plmEnabled {
+		return
+	}
+	for _, pol := range getPLMPoliciesForAppProtectLogConf(lbc.getAllPolicies(), key) {
+		nl.Debugf(lbc.Logger, "Re-enqueuing PLM policy %s/%s due to APLogConf %s change", pol.Namespace, pol.Name, key)
+		lbc.AddSyncQueue(pol)
+	}
 }
 
 // addWAFPolicyRefs ensures the app protect resources that are referenced in policies exist.

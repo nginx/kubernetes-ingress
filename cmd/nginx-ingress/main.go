@@ -20,6 +20,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
 	"github.com/nginx/kubernetes-ingress/internal/healthcheck"
 	"github.com/nginx/kubernetes-ingress/internal/k8s"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
@@ -154,6 +155,10 @@ func main() {
 		}
 
 		selectAppProtectAPIVersion(ctx, *plmStorageURL != "", eventRecorder, pod)
+
+		if *plmStorageURL != "" {
+			setupPLMStorage(ctx, kubeClient, eventRecorder, pod)
+		}
 	}
 
 	var agentVersion string
@@ -307,6 +312,7 @@ func main() {
 		AppProtectDosEnabled:         *appProtectDos,
 		AppProtectVersion:            appProtectVersion,
 		WAFBundlePath:                appProtectBundlePath,
+		PLMStorageSpec:               plmStorageSpec(),
 		IsNginxPlus:                  *nginxPlus,
 		IngressClass:                 *ingressClass,
 		ExternalServiceName:          *externalService,
@@ -625,19 +631,49 @@ func getAppProtectVersionInfo(ctx context.Context) string {
 }
 
 // selectAppProtectAPIVersion configures the appprotect package to watch the
-// v1 CRDs installed by the WAF Policy Controller (PLM) chart when the
-// operator sets --plm-storage-url, and the legacy v1beta1 CRDs otherwise.
+// v1 CRDs when --plm-storage-url is set, otherwise the legacy v1beta1 CRDs.
 func selectAppProtectAPIVersion(ctx context.Context, plmEnabled bool, recorder record.EventRecorder, pod *api_v1.Pod) {
 	l := nl.LoggerFromContext(ctx)
 	version := appprotect.SelectAPIVersion(plmEnabled)
-	// SelectAPIVersion only returns APIVersionV1 or APIVersionV1beta1, both
-	// accepted by SetAPIVersion
+	// Defensive: SelectAPIVersion only returns values SetAPIVersion accepts.
 	if err := appprotect.SetAPIVersion(version); err != nil {
 		nl.Fatalf(l, "Invalid %s API version %q: %v", appprotect.APIGroup, version, err)
 	}
 	nl.Infof(l, "Using %s/%s CRDs", appprotect.APIGroup, version)
 	recorder.Eventf(pod, api_v1.EventTypeNormal, nl.EventReasonAppProtectAPIVersionSelected,
 		"Using %s/%s CRDs", appprotect.APIGroup, version)
+}
+
+// plmStorageSpec assembles the wafbundle.S3ConfigSpec from the PLM flags and
+// the secret refs parsed once in flags.go (plmRefs). Endpoint is empty when
+// PLM is disabled, which callers treat as "PLM off".
+func plmStorageSpec() wafbundle.S3ConfigSpec {
+	return wafbundle.S3ConfigSpec{
+		Endpoint:           *plmStorageURL,
+		Credentials:        plmRefs.Credentials,
+		CA:                 plmRefs.CA,
+		ClientSSL:          plmRefs.ClientSSL,
+		InsecureSkipVerify: *plmStorageInsecureSkipVerify,
+	}
+}
+
+// setupPLMStorage validates the PLM S3 credentials at startup so that
+// misconfiguration surfaces immediately. Credentials are re-read on every
+// bundle fetch, so rotated Secrets are picked up automatically.
+func setupPLMStorage(ctx context.Context, kubeClient kubernetes.Interface, recorder record.EventRecorder, pod *api_v1.Pod) {
+	l := nl.LoggerFromContext(ctx)
+
+	spec := plmStorageSpec()
+	source := &wafbundle.KubeClientSecretSource{Client: kubeClient}
+
+	if _, err := wafbundle.LoadS3Config(source, spec); err != nil {
+		nl.Fatalf(l, "PLM: failed to load initial S3 credentials: %v", err)
+	}
+
+	nl.Infof(l, "PLM S3 client configured, endpoint=%s credentialsSecret=%s caSecret=%s clientSSLSecret=%s",
+		spec.Endpoint, spec.Credentials, spec.CA, spec.ClientSSL)
+	recorder.Eventf(pod, api_v1.EventTypeNormal, nl.EventReasonPLMStorageConfigured,
+		"PLM S3 client configured, endpoint=%s", spec.Endpoint)
 }
 
 func getAgentVersionInfo(nginxManager nginx.Manager) string {
