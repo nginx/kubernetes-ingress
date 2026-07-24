@@ -212,7 +212,6 @@ func (lbc *LoadBalancerController) syncService(task task) {
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
 	l := lbc.loggerForResource(ns)
-	defer lbc.setConfiguratorLogger(l)()
 	obj, exists, err = lbc.getNamespacedInformer(ns).svcLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -271,9 +270,9 @@ func (lbc *LoadBalancerController) syncService(task task) {
 
 	nl.Infof(l, "Updating %v resources", len(resources))
 
-	resourceExes := lbc.createExtendedResources(l, resources)
+	resourceExes := lbc.createExtendedResources(resources)
 
 	warnings, updateErr := lbc.configurator.AddOrUpdateResources(resourceExes, true)
 	resourcesWithWarnings := mergeExtendedResourceWarnings(resources, resourceExes)
-	lbc.updateResourcesStatusAndEvents(l, resourcesWithWarnings, warnings, updateErr)
+	lbc.updateResourcesStatusAndEvents(resourcesWithWarnings, warnings, updateErr)
 }

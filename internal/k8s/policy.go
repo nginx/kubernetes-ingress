@@ -196,7 +196,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		}
 	}
 
-	resourceExes := lbc.createExtendedResources(l, resources)
+	resourceExes := lbc.createExtendedResources(resources)
 
 	// Only VirtualServers and Ingresses support policies
 	if len(resourceExes.VirtualServerExes) == 0 && len(resourceExes.IngressExes) == 0 && len(resourceExes.MergeableIngresses) == 0 {
@@ -258,12 +258,12 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 		}
 	}
 
-	lbc.updateResourcesStatusAndEvents(l, virtualServerResources, virtualServerWarnings, virtualServerErr)
-	lbc.updateResourcesStatusAndEvents(l, ingressResources, ingressWarnings, ingressErr)
+	lbc.updateResourcesStatusAndEvents(virtualServerResources, virtualServerWarnings, virtualServerErr)
+	lbc.updateResourcesStatusAndEvents(ingressResources, ingressWarnings, ingressErr)
 	for _, mergeableIngressResource := range mergeableIngressResources {
 		ingressCfg := mergeableIngressResource.(*IngressConfiguration)
 		mergeableIngressErr := mergeableIngressErrors[getResourceKey(&ingressCfg.Ingress.ObjectMeta)]
-		lbc.updateResourcesStatusAndEvents(l, []Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
+		lbc.updateResourcesStatusAndEvents([]Resource{mergeableIngressResource}, mergeableIngressWarnings, mergeableIngressErr)
 	}
 
 	// Note: updating the status of a policy based on a reload is not needed.

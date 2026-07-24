@@ -480,7 +480,7 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 
 	vsLatest, exists, err = su.getNamespacedInformer(vs.Namespace).virtualServerLister.Get(vs)
 	if err != nil {
-		nl.Infof(su.logger, "error getting VirtualServer from Store: %v", err)
+		nl.Infof(su.logger.With(), "error getting VirtualServer from Store: %v", err)
 		return err
 	}
 	if !exists {

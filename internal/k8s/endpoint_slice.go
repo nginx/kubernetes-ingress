@@ -89,7 +89,7 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 		return lbc.updateNumberOfIngressControllerReplicas(*endpointSlice)
 	}
 
-	resourceExes := lbc.createExtendedResources(l, svcResource)
+	resourceExes := lbc.createExtendedResources(svcResource)
 
 	if len(resourceExes.IngressExes) > 0 {
 		for _, ingEx := range resourceExes.IngressExes {
@@ -166,7 +166,7 @@ func (lbc *LoadBalancerController) updateResourceStatusOnEndpointSliceChangeWith
 	resourcesWithWarnings := mergeExtendedResourceWarnings(svcResources, resourceExes)
 
 	for _, r := range resourcesWithWarnings {
-		lbc.updateResourcesStatusAndEvents(l, []Resource{r}, cfgWarnings, nil)
+		lbc.updateResourcesStatusAndEvents([]Resource{r}, cfgWarnings, nil)
 	}
 }
 

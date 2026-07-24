@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -2376,7 +2377,7 @@ func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
 		Logger:                    nl.LoggerFromContext(context.Background()),
 	}
 
-	ingEx := lbc.createIngressEx(lbc.Logger, ing, map[string]bool{"example.com": true}, nil)
+	ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
 	if len(ingEx.PolicyWarnings) == 0 {
 		t.Fatalf("expected policy warning when referenced policy is missing")
 	}
@@ -2417,7 +2418,7 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 				Logger:                    nl.LoggerFromContext(context.Background()),
 			}
 
-			ingEx := lbc.createIngressEx(lbc.Logger, ing, map[string]bool{"example.com": true}, nil)
+			ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
 			if len(ingEx.PolicyWarnings) == 0 {
 				t.Fatalf("expected warning when policies annotation is used without custom resources enabled")
 			}
@@ -2459,6 +2460,54 @@ func TestSetConfiguratorLogger(t *testing.T) {
 	if lbc.configurator.CfgParams.Context != origCtx {
 		t.Error("expected original context to be restored")
 	}
+}
+
+func TestSetConfiguratorLogger_DataRace(t *testing.T) {
+	t.Helper()
+
+	manager := newTestNginxManager()
+	cnf := createTestPolicySyncConfigurator(t, manager)
+
+	lbc := &LoadBalancerController{
+		configurator: cnf,
+		Logger:       nl.LoggerFromContext(context.Background()),
+	}
+
+	const iterations = 1000
+	var wg sync.WaitGroup
+
+	// Writer A: simulates the sync-queue worker setting a scoped logger.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l := lbc.loggerForResource("ns-a")
+		for i := 0; i < iterations; i++ {
+			restore := lbc.setConfiguratorLogger(l)
+			restore()
+		}
+	}()
+
+	// Writer B: simulates the informer weight-change path setting a scoped logger.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		l := lbc.loggerForResource("ns-b")
+		for i := 0; i < iterations; i++ {
+			restore := lbc.setConfiguratorLogger(l)
+			restore()
+		}
+	}()
+
+	// Reader: simulates telemetry reading CfgParams.Context without the lock.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < iterations; i++ {
+			_ = nl.LoggerFromContext(lbc.configurator.CfgParams.Context)
+		}
+	}()
+
+	wg.Wait()
 }
 
 func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
@@ -2550,7 +2599,7 @@ func TestProcessChangesHostlessDeleteFailureStillProcessesNextAdd(t *testing.T) 
 	lbc := createIngressProcessChangesController(t, manager)
 
 	oldCfg := newHostlessIngressChange("hostless-old")
-	oldEx := lbc.createIngressEx(lbc.Logger, oldCfg.Ingress, oldCfg.ValidHosts, nil)
+	oldEx := lbc.createIngressEx(oldCfg.Ingress, oldCfg.ValidHosts, nil)
 	_, err := lbc.configurator.AddOrUpdateIngress(oldEx)
 	if err != nil {
 		t.Fatalf("failed to seed old hostless ingress: %v", err)
@@ -2567,7 +2616,7 @@ func TestProcessChangesHostlessDeleteFailureStillProcessesNextAdd(t *testing.T) 
 		{Op: AddOrUpdate, Resource: newCfg},
 	}
 
-	lbc.processChanges(lbc.Logger, changes)
+	lbc.processChanges(changes)
 
 	if lbc.configurator.HasIngress(oldCfg.Ingress) {
 		t.Fatal("expected old hostless ingress to be removed")
@@ -2587,7 +2636,7 @@ func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *t
 	lbc := createIngressProcessChangesController(t, manager)
 
 	oldCfg := newHostlessIngressChange("hostless-old")
-	oldEx := lbc.createIngressEx(lbc.Logger, oldCfg.Ingress, oldCfg.ValidHosts, nil)
+	oldEx := lbc.createIngressEx(oldCfg.Ingress, oldCfg.ValidHosts, nil)
 	_, err := lbc.configurator.AddOrUpdateIngress(oldEx)
 	if err != nil {
 		t.Fatalf("failed to seed old hostless ingress: %v", err)
@@ -2604,7 +2653,7 @@ func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *t
 		{Op: AddOrUpdate, Resource: newCfg},
 	}
 
-	lbc.processChanges(lbc.Logger, changes)
+	lbc.processChanges(changes)
 
 	if lbc.configurator.HasIngress(oldCfg.Ingress) {
 		t.Fatal("expected old hostless ingress to be removed")
@@ -2634,7 +2683,7 @@ func TestProcessChangesDispatchesAddOrUpdate(t *testing.T) {
 	}
 
 	// Verify processChanges dispatches without error
-	lbc.processChanges(lbc.Logger, changes)
+	lbc.processChanges(changes)
 }
 
 func TestProcessChangesDispatchesDelete(t *testing.T) {
@@ -2646,7 +2695,7 @@ func TestProcessChangesDispatchesDelete(t *testing.T) {
 	ing := createTestIngress("dispatch-delete-test", "example.com")
 	ingConfig := NewRegularIngressConfiguration(ing)
 
-	lbc.processChanges(lbc.Logger, []ResourceChange{
+	lbc.processChanges([]ResourceChange{
 		{Op: Delete, Resource: ingConfig},
 	})
 }
@@ -4227,7 +4276,7 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		lbc := NewLoadBalancerController(tc.input)
-		vsEx := lbc.createVirtualServerEx(lbc.Logger, &tc.vs, tc.vsr, nil)
+		vsEx := lbc.createVirtualServerEx(&tc.vs, tc.vsr, nil)
 		if reflect.DeepEqual(vsEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, vsEx)
 		}
@@ -4345,7 +4394,7 @@ func TestCreateIngressExWithZoneSync(t *testing.T) {
 
 	for _, tc := range testCases {
 		lbc := NewLoadBalancerController(tc.input)
-		ingressEx := lbc.createIngressEx(lbc.Logger, tc.ingress, nil, nil)
+		ingressEx := lbc.createIngressEx(tc.ingress, nil, nil)
 		if reflect.DeepEqual(ingressEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, ingressEx)
 		}
@@ -4951,7 +5000,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 				endpoints[k] = v
 			}
 
-			lbc.generateExternalAuthEndpoints(lbc.Logger, tc.policies, endpoints)
+			lbc.generateExternalAuthEndpoints(tc.policies, endpoints)
 
 			if len(endpoints) != len(tc.expectedEndpoints) {
 				t.Fatalf("expected %d endpoint entries, got %d: %v", len(tc.expectedEndpoints), len(endpoints), endpoints)

@@ -3,7 +3,6 @@ package k8s
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"reflect"
 	"time"
 
@@ -88,8 +87,8 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 		changes, problems = lbc.configuration.AddOrUpdateTransportServer(ts)
 	}
 
-	lbc.processChanges(l, changes)
-	lbc.processProblems(l, problems)
+	lbc.processChanges(changes)
+	lbc.processProblems(problems)
 }
 
 func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(tsConfig *TransportServerConfiguration, changeError string, deleteErr error) {
@@ -131,7 +130,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(
 	}
 }
 
-func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(l *slog.Logger, tsConfig *TransportServerConfiguration, warnings configs.Warnings, operationErr error) {
+func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig *TransportServerConfiguration, warnings configs.Warnings, operationErr error) {
 	eventTitle := nl.EventReasonAddedOrUpdated
 	eventType := api_v1.EventTypeNormal
 	eventWarningMessage := ""
@@ -160,6 +159,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(l *slog.
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
 	lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
+	logger := lbc.loggerForResource(tsConfig.TransportServer.Namespace)
 
 	if lbc.reportCustomResourceStatusEnabled() {
 		// Defer TS status updates during startup to avoid serial API calls
@@ -171,7 +171,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(l *slog.
 		} else {
 			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
 			if err != nil {
-				nl.Errorf(l, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+				nl.Errorf(logger, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
 			}
 		}
 	}
@@ -216,11 +216,13 @@ func (lbc *LoadBalancerController) updateTransportServersStatusFromEvents() erro
 	return nil
 }
 
-func (lbc *LoadBalancerController) createTransportServerEx(l *slog.Logger, transportServer *conf_v1.TransportServer, listenerPort int, ipv4 string, ipv6 string) *configs.TransportServerEx {
+func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf_v1.TransportServer, listenerPort int, ipv4 string, ipv6 string) *configs.TransportServerEx {
 	endpoints := make(map[string][]string)
 	externalNameSvcs := make(map[string]bool)
 	podsByIP := make(map[string]string)
 	disableIPV6 := lbc.configuration.isIPV6Disabled
+	logger := lbc.loggerForResource(transportServer.Namespace)
+
 
 	for _, u := range transportServer.Spec.Upstreams {
 		podEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Service, uint16(u.Port)) //nolint:gosec
@@ -228,7 +230,7 @@ func (lbc *LoadBalancerController) createTransportServerEx(l *slog.Logger, trans
 			externalNameSvcs[configs.GenerateExternalNameSvcKey(transportServer.Namespace, u.Service)] = true
 		}
 		if err != nil {
-			nl.Warnf(l, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
+			nl.Warnf(logger, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
 		}
 
 		// subselector is not supported yet in TransportServer upstreams. That's why we pass "nil" here
@@ -256,7 +258,7 @@ func (lbc *LoadBalancerController) createTransportServerEx(l *slog.Logger, trans
 
 		scrtRef := lbc.secretStore.GetSecret(scrtKey)
 		if scrtRef.Error != nil {
-			nl.Warnf(l, "Error trying to get the secret %v for TransportServer %v: %v", scrtKey, transportServer.Name, scrtRef.Error)
+			nl.Warnf(logger, "Error trying to get the secret %v for TransportServer %v: %v", scrtKey, transportServer.Name, scrtRef.Error)
 		}
 
 		scrtRefs[scrtKey] = scrtRef
