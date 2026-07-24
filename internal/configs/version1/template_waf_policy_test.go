@@ -37,7 +37,8 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithServerWAFPolicy(t *testing.T)
 								{Address: "127.0.0.1:80", MaxFails: 1, FailTimeout: "10s"},
 							},
 						},
-						ProxyPass: "http://test",
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 				WAF: &version2.WAF{
@@ -107,7 +108,8 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithLocationWAFBundle(t *testing.
 								{Address: "127.0.0.1:80", MaxFails: 1, FailTimeout: "10s"},
 							},
 						},
-						ProxyPass: "http://test",
+						UseForwardedHeaders: true,
+						ProxyPass:           "http://test",
 						WAF: &version2.WAF{
 							Enable:   "on",
 							ApBundle: "/etc/nginx/waf/bundles/wafv5.tgz",

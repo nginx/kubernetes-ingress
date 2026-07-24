@@ -478,9 +478,10 @@ func TestExecuteTemplate_ForIngressWithServerLevelAddHeaders(t *testing.T) {
 						},
 						Locations: []Location{
 							{
-								Path:      "/tea",
-								Upstream:  testUpstream,
-								ProxyPass: "http://test",
+								Path:                "/tea",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -544,9 +545,10 @@ func TestExecuteTemplate_ForIngressWithCustomHTTPErrors(t *testing.T) {
 					CustomHTTPErrorCodes:   []int{404, 500, 502},
 					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
 					Locations: []Location{{
-						Path:      "/coffee",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					}},
 				}},
 				Upstreams: []Upstream{testUpstream},
@@ -612,9 +614,10 @@ func TestExecuteTemplate_ForIngressWithCustomHTTPErrors_NoHandler(t *testing.T) 
 					// CustomHTTPErrorBackend intentionally empty — no default backend, so
 					// the handler location and server-level error_page must not render.
 					Locations: []Location{{
-						Path:      "/coffee",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					}},
 				}},
 				Upstreams: []Upstream{testUpstream},
@@ -673,9 +676,10 @@ func TestExecuteTemplate_ForMergeableIngressWithCustomHTTPErrors_MinionOverride(
 					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
 					Locations: []Location{
 						{
-							Path:      "/coffee",
-							Upstream:  testUpstream,
-							ProxyPass: "http://test",
+							Path:                "/coffee",
+							Upstream:            testUpstream,
+							ProxyPass:           "http://test",
+							UseForwardedHeaders: true,
 							// Minion inherits server-level 404 via NGINX inheritance —
 							// no location-level codes needed.
 						},
@@ -684,6 +688,7 @@ func TestExecuteTemplate_ForMergeableIngressWithCustomHTTPErrors_MinionOverride(
 							Upstream:             testUpstream,
 							ProxyPass:            "http://test",
 							CustomHTTPErrorCodes: []int{502, 503},
+							UseForwardedHeaders:  true,
 							// Minion overrides: this location's error_page block replaces
 							// the server's 404 with 502 503.
 						},
@@ -750,6 +755,7 @@ func TestExecuteTemplate_ForIngressWithCustomHTTPErrors_SkipDefaultBackendLocati
 						Upstream:             testUpstream,
 						ProxyPass:            "http://test",
 						SkipCustomHTTPErrors: true,
+						UseForwardedHeaders:  true,
 					}},
 				}},
 				Upstreams: []Upstream{testUpstream},
@@ -800,9 +806,10 @@ func TestExecuteTemplate_ForIngressWithoutCustomHTTPErrors(t *testing.T) {
 					ServerTokens: "off",
 					StatusZone:   "cafe.example.com",
 					Locations: []Location{{
-						Path:      "/coffee",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					}},
 				}},
 				Upstreams: []Upstream{testUpstream},
@@ -1049,8 +1056,9 @@ func createAddHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnot
 						},
 						// Minion annotation goes to the location block only.
 						// No master headers are injected here.
-						AddHeaders: ParseAddHeaders(coffeeAH),
-						ProxyPass:  "http://test",
+						AddHeaders:          ParseAddHeaders(coffeeAH),
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 					{
 						MinionIngress: &Ingress{
@@ -1058,8 +1066,9 @@ func createAddHeaderIngressConfig(masterAnnotations, coffeeAnnotations, teaAnnot
 							Namespace:   "default",
 							Annotations: teaAnnotations,
 						},
-						AddHeaders: ParseAddHeaders(teaAH),
-						ProxyPass:  "http://test",
+						AddHeaders:          ParseAddHeaders(teaAH),
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 			},
@@ -3420,6 +3429,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout(t *testi
 						ProxyNextUpstreamTimeout: "",
 						Upstream:                 testUpstream,
 						ProxyPass:                "http://test",
+						UseForwardedHeaders:      true,
 					},
 				},
 			},
@@ -3464,6 +3474,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTries(t *testing
 						ProxyNextUpstreamTries: nil,
 						Upstream:               testUpstream,
 						ProxyPass:              "http://test",
+						UseForwardedHeaders:    true,
 					},
 				},
 			},
@@ -3899,7 +3910,8 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithRequestRateLimitZoneSync(t *t
 							Burst:      100,
 							RejectCode: 429,
 						},
-						ProxyPass: "http://test",
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 			},
@@ -4006,10 +4018,11 @@ func TestExecuteTemplate_ForIngressWithAddHeaderInherit(t *testing.T) {
 						AddHeaderInherit: "merge",
 						Locations: []Location{
 							{
-								Path:             "/tea",
-								AddHeaderInherit: "off",
-								Upstream:         testUpstream,
-								ProxyPass:        "http://test",
+								Path:                "/tea",
+								AddHeaderInherit:    "off",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -4094,6 +4107,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -4204,9 +4218,10 @@ var (
 				StatusZone:   "test.example.com",
 				Locations: []Location{
 					{
-						Path:      "/tea",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 				Allow: []string{
@@ -4233,9 +4248,10 @@ var (
 				StatusZone:   "test.example.com",
 				Locations: []Location{
 					{
-						Path:      "/tea",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 				IngressMTLS: &version2.IngressMTLS{
@@ -4300,9 +4316,10 @@ var (
 				StatusZone:   "test.example.com",
 				Locations: []Location{
 					{
-						Path:      "/tea",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 				Deny: []string{
@@ -4332,9 +4349,10 @@ var (
 				},
 				Locations: []Location{
 					{
-						Path:      "/tea",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 			},
@@ -4710,6 +4728,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -5629,6 +5648,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -5867,6 +5887,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -6242,6 +6263,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -6445,8 +6467,9 @@ func createProxySetHeaderIngressConfig(masterAnnotations, coffeeAnnotations, tea
 							Namespace:   "default",
 							Annotations: coffeeAnnotations,
 						},
-						ProxySetHeaders: MergeProxySetHeaders(masterPSH, coffeePSH),
-						ProxyPass:       "http://test",
+						ProxySetHeaders:     MergeProxySetHeaders(masterPSH, coffeePSH),
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 					{
 						MinionIngress: &Ingress{
