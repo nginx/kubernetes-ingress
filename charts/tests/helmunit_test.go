@@ -206,6 +206,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "allow-empty-ingress-host",
 			namespace:   "default",
 		},
+		"latencyMetricsBuckets": {
+			valuesFile:  "testdata/latency-metrics-buckets.yaml",
+			releaseName: "latency-metrics-buckets",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test
@@ -265,6 +270,12 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "global-config-empty-name",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")"},
+		},
+		"latencyMetricsBucketsInvalid": {
+			valuesFile:        "testdata/latency-metrics-buckets-invalid.yaml",
+			releaseName:       "latency-metrics-buckets-invalid",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"does not match pattern"},
 		},
 	}
 
