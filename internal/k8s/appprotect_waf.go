@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -34,6 +35,14 @@ func createAppProtectPolicyHandlers(lbc *LoadBalancerController) cache.ResourceE
 			if different {
 				nl.Debugf(lbc.Logger, "ApPolicy %v changed, syncing", oldPol.GetName())
 				lbc.AddSyncQueue(newPol)
+				return
+			}
+			// PLM writes the compiled bundle location + checksum to .status.bundle;
+			// the spec is unchanged on recompile, so also sync on a status change so
+			// syncAppProtectPolicy re-enqueues the referencing PLM policies.
+			if lbc.plmEnabled && bundleStatusChanged(oldPol, newPol) {
+				nl.Debugf(lbc.Logger, "ApPolicy %v bundle status changed, syncing", oldPol.GetName())
+				lbc.AddSyncQueue(newPol)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -60,6 +69,14 @@ func createAppProtectLogConfHandlers(lbc *LoadBalancerController) cache.Resource
 			}
 			if different {
 				nl.Debugf(lbc.Logger, "ApLogConf %v changed, syncing", oldConf.GetName())
+				lbc.AddSyncQueue(newConf)
+				return
+			}
+			// PLM writes the compiled bundle location + checksum to .status.bundle;
+			// the spec is unchanged on recompile, so also sync on a status change so
+			// syncAppProtectLogConf re-enqueues the referencing PLM policies.
+			if lbc.plmEnabled && bundleStatusChanged(oldConf, newConf) {
+				nl.Debugf(lbc.Logger, "ApLogConf %v bundle status changed, syncing", oldConf.GetName())
 				lbc.AddSyncQueue(newConf)
 			}
 		},
@@ -148,6 +165,14 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 		return
 	}
 
+	// PLM-managed APPolicies are consumed only as pre-compiled bundles fetched from PLM's
+	// S3 storage, driven entirely by .status.bundle.
+	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectPolicy(lbc.getAllPolicies(), key)) > 0 {
+		nl.Debugf(lbc.Logger, "AppProtectPolicy %v is PLM-managed; skipping in-cluster config, re-enqueuing PLM policies", key)
+		lbc.enqueuePLMPoliciesForAppPolicy(key)
+		return
+	}
+
 	var changes []appprotect.Change
 	var problems []appprotect.Problem
 
@@ -163,7 +188,6 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 
 	lbc.processAppProtectChanges(changes)
 	lbc.processAppProtectProblems(problems)
-	lbc.enqueuePLMPoliciesForAppPolicy(key)
 }
 
 func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
@@ -177,6 +201,14 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectLogConfLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
+		return
+	}
+
+	// PLM-managed APLogConfs are consumed only as pre-compiled bundles fetched from PLM's
+	// S3 storage, driven entirely by .status.bundle.
+	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectLogConf(lbc.getAllPolicies(), key)) > 0 {
+		nl.Debugf(lbc.Logger, "AppProtectLogConf %v is PLM-managed; skipping in-cluster config, re-enqueuing PLM policies", key)
+		lbc.enqueuePLMPoliciesForAppLogConf(key)
 		return
 	}
 
@@ -195,7 +227,6 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 
 	lbc.processAppProtectChanges(changes)
 	lbc.processAppProtectProblems(problems)
-	lbc.enqueuePLMPoliciesForAppLogConf(key)
 }
 
 func (lbc *LoadBalancerController) syncAppProtectUserSig(task task) {
@@ -302,6 +333,14 @@ func getPLMPoliciesForAppProtectLogConf(pols []*conf_v1.Policy, key string) []*c
 		}
 	}
 	return policies
+}
+
+// bundleStatusChanged reports whether the PLM-managed .status.bundle subtree differs
+// between the old and new APPolicy/APLogConf objects.
+func bundleStatusChanged(oldObj, newObj *unstructured.Unstructured) bool {
+	oldBundle, _, _ := unstructured.NestedMap(oldObj.Object, "status", "bundle")
+	newBundle, _, _ := unstructured.NestedMap(newObj.Object, "status", "bundle")
+	return !reflect.DeepEqual(oldBundle, newBundle)
 }
 
 // plmRefMatchesKey reports whether a PLM BundleSource references the APPolicy/APLogConf

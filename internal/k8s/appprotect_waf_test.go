@@ -601,3 +601,58 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 		}
 	}
 }
+
+// apResourceWithStatusBundle builds an APPolicy/APLogConf-shaped unstructured object
+// whose spec is fixed and whose .status.bundle is set to the given fields.
+func apResourceWithStatusBundle(state, location, sha256 string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{"namespace": "plm", "name": "ap-pol"},
+			"spec":     map[string]interface{}{"policy": map[string]interface{}{"name": "p"}},
+			"status": map[string]interface{}{
+				"bundle": map[string]interface{}{
+					"state":    state,
+					"location": location,
+					"sha256":   sha256,
+				},
+			},
+		},
+	}
+}
+
+func TestBundleStatusChanged(t *testing.T) {
+	t.Parallel()
+
+	ready := apResourceWithStatusBundle("ready", "s3://b/ap.tgz", "abc123")
+	// Same spec, only the bundle checksum/location changed (PLM recompile).
+	recompiled := apResourceWithStatusBundle("ready", "s3://b/ap-v2.tgz", "def456")
+	// Identical status to ready.
+	readyDup := apResourceWithStatusBundle("ready", "s3://b/ap.tgz", "abc123")
+	// No status at all (spec-only object).
+	noStatus := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{"namespace": "plm", "name": "ap-pol"},
+			"spec":     map[string]interface{}{"policy": map[string]interface{}{"name": "p"}},
+		},
+	}
+
+	tests := []struct {
+		name   string
+		oldObj *unstructured.Unstructured
+		newObj *unstructured.Unstructured
+		want   bool
+	}{
+		{name: "checksum and location changed on recompile", oldObj: ready, newObj: recompiled, want: true},
+		{name: "identical bundle status", oldObj: ready, newObj: readyDup, want: false},
+		{name: "status.bundle first appears", oldObj: noStatus, newObj: ready, want: true},
+		{name: "no status on either side", oldObj: noStatus, newObj: noStatus, want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := bundleStatusChanged(tc.oldObj, tc.newObj); got != tc.want {
+				t.Errorf("bundleStatusChanged() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
