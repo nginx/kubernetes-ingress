@@ -229,6 +229,7 @@ type Location struct {
 	BasicAuth               *BasicAuth
 	ServiceName             string
 	LimitReq                *LimitReq
+	UseForwardedHeaders     bool
 	CORSEnabled             bool
 
 	AuthRequestOff bool

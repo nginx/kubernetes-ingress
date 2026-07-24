@@ -218,7 +218,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.5.4"
+    tag: "uforward"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"
@@ -510,7 +510,7 @@ controller:
     create: true
 
     ## The type of service to create for the Ingress Controller.
-    type: LoadBalancer
+    type: NodePort
 
     ## The externalTrafficPolicy of the service. The value Local preserves the client source IP.
     externalTrafficPolicy: Local

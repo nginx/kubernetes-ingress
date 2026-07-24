@@ -424,10 +424,12 @@ server {
 		grpc_send_timeout {{$location.ProxySendTimeout}};
 		grpc_set_header Host $host;
 		grpc_set_header X-Real-IP $remote_addr;
+		{{- if $location.UseForwardedHeaders}}
 		grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		grpc_set_header X-Forwarded-Host $host;
 		grpc_set_header X-Forwarded-Port $server_port;
 		grpc_set_header X-Forwarded-Proto $scheme;
+		{{- end}}
 
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
@@ -482,10 +484,12 @@ server {
 		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
+		{{- if $location.UseForwardedHeaders}}
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		proxy_set_header X-Forwarded-Host $host;
 		proxy_set_header X-Forwarded-Port $server_port;
 		proxy_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
+		{{- end}}
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
 		{{- if $location.ProxyBuffers}}
 		proxy_buffers {{$location.ProxyBuffers}};
