@@ -485,7 +485,11 @@ func (lbc *LoadBalancerController) bundleNeedsFetch(path string, plmStatus *wafb
 }
 
 // fetchBundleAsync launches performInitialFetch in a background goroutine.
-// After fetch completes, re-enqueues the policy to trigger poller reconciliation.
+// It re-enqueues the policy ONLY when the fetch succeeds, to trigger poller
+// reconciliation. On failure the bundle file is not written, so re-enqueuing
+// would immediately re-trigger the fetch (bundleNeedsFetch stays true) and spin
+// an unthrottled loop; instead the retry comes from the throttled paths:
+// the next APPolicy/APLogConf status change (PLM) or the poller's next interval.
 // This keeps the sync queue unblocked during long-running fetches.
 func (lbc *LoadBalancerController) fetchBundleAsync(
 	pol *conf_v1.Policy,
@@ -496,13 +500,17 @@ func (lbc *LoadBalancerController) fetchBundleAsync(
 	plmStatus *wafbundle.BundleStatus,
 ) {
 	go func() {
-		lbc.performInitialFetch(pol, bs, auth, path, kind, plmStatus)
-		lbc.AddSyncQueue(pol)
+		if lbc.performInitialFetch(pol, bs, auth, path, kind, plmStatus) {
+			lbc.AddSyncQueue(pol)
+		}
 	}()
 }
 
 // performInitialFetch synchronously fetches a single bundle and writes it to destPath.
-// On failure it sets a Warning status; the poller will retry on the next interval.
+// It reports whether the policy should be re-enqueued: true when the bundle was
+// written (or was unchanged), false when the fetch/write failed. On failure it
+// records a Warning status; the retry comes from the next status-change event
+// (PLM) or the poller's next interval, NOT from an immediate re-enqueue.
 // plmStatus is non-nil only for PLM sources and carries the resolved bundle location + checksum.
 func (lbc *LoadBalancerController) performInitialFetch(
 	pol *conf_v1.Policy,
@@ -511,7 +519,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	destPath string,
 	kind wafbundle.BundleType,
 	plmStatus *wafbundle.BundleStatus,
-) {
+) bool {
 	polKey := pol.Namespace + "/" + pol.Name
 	req := lbc.buildFetchRequest(bs, auth, kind, plmStatus)
 
@@ -539,10 +547,10 @@ func (lbc *LoadBalancerController) performInitialFetch(
 				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
 			}
 		}
-		return
+		return false
 	}
 	if result.Unchanged {
-		return
+		return true
 	}
 	if err := wafbundle.WriteAtomicBundle(destPath, result.Data); err != nil {
 		msg := "WAF bundle not active: failed to write bundle to disk"
@@ -553,7 +561,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
 			}
 		}
-		return
+		return false
 	}
 
 	// Update status to Valid after successful bundle write.
@@ -562,6 +570,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 			nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
 		}
 	}
+	return true
 }
 
 // handleBundleRefreshFailure surfaces refresh-path fetch failures as policy warnings.
