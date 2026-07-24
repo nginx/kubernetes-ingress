@@ -4039,6 +4039,34 @@ func TestExecuteTemplate_ForIngressWithAddHeaderInherit(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressWithUseForwardedHeaders(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgForwardedHeaderDisabled)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	notWantDirectives := []string{
+		"proxy_set_header X-Forwarded-For",
+		"proxy_set_header X-Forwarded-Host",
+		"proxy_set_header X-Forwarded-Port",
+		"proxy_set_header X-Forwarded-Proto",
+	}
+
+	rendered := buf.String()
+	for _, notWant := range notWantDirectives {
+		if strings.Contains(rendered, notWant) {
+			t.Errorf("not want %q in generated config", notWant)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 var (
 	// Ingress Config example without added annotations
 	ingressCfg = IngressNginxConfig{
@@ -4128,6 +4156,7 @@ var (
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
 						ClientMaxBodySize:   "2m",
+						UseForwardedHeaders: true,
 						CORSEnabled:         true,
 						AddHeaders: []version2.AddHeader{
 							{
@@ -4241,6 +4270,7 @@ var (
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
 						ClientMaxBodySize:   "2m",
+						UseForwardedHeaders: true,
 						CORSEnabled:         false,
 						AddHeaders: []version2.AddHeader{
 							{
@@ -4328,8 +4358,9 @@ var (
 				StatusZone:   "test.example.com",
 				Locations: []Location{
 					{
-						Path:     "/tea",
-						Upstream: testUpstream,
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						UseForwardedHeaders: true,
 						MinionIngress: &Ingress{
 							Name:      "tea-minion",
 							Namespace: "default",
@@ -4378,6 +4409,7 @@ var (
 						ProxyReadTimeout:     "10s",
 						ProxySendTimeout:     "10s",
 						ClientMaxBodySize:    "2m",
+						UseForwardedHeaders:  true,
 						ClientBodyBufferSize: "16k",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -4425,6 +4457,44 @@ var (
 		},
 	}
 
+	ingressCfgForwardedHeaderDisabled = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						UseForwardedHeaders: false,
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+						},
+						ProxyPass: "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
 	// Ingress Config example with ssl-redirect and redirect-to-https enabled with custom http-redirect-code
 	ingressCfgWithHTTPRedirectCode = IngressNginxConfig{
 		Servers: []Server{
@@ -4446,6 +4516,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						ProxyPass:           "http://test",
 					},
@@ -4476,6 +4547,7 @@ var (
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "1m",
 						ProxyPass:           "http://test",
 					},
@@ -4506,6 +4578,7 @@ var (
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "1m",
 						ProxyPass:           "http://test",
 					},
@@ -4535,6 +4608,7 @@ var (
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "1m",
 						ProxyPass:           "http://test",
 					},
@@ -4563,6 +4637,7 @@ var (
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "1m",
 						ProxyRedirectFrom:   "off",
 						ProxyPass:           "http://test",
@@ -4593,6 +4668,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyRedirectFrom:   "http://cafe.example.com/v1/",
 						ProxyRedirectTo:     "http://cafe.example.com/coffee/",
 						ProxyPass:           "http://test",
@@ -4691,6 +4767,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -4748,6 +4825,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -4805,6 +4883,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -5073,6 +5152,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						ProxyPass:           "http://test",
 					},
@@ -5112,6 +5192,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						ProxyPass:           "http://test",
 					},
@@ -5155,6 +5236,7 @@ var (
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
@@ -5172,6 +5254,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -5367,6 +5450,7 @@ var (
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
@@ -5387,6 +5471,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -5444,6 +5529,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-coffee-minion",
@@ -5463,6 +5549,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -5520,6 +5607,7 @@ var (
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
@@ -5599,6 +5687,7 @@ var (
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
+						UseForwardedHeaders: true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-coffee-minion",
 							Namespace: "default",
@@ -5617,6 +5706,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -5676,6 +5766,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-coffee-minion",
@@ -5695,6 +5786,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -5755,6 +5847,7 @@ var (
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
+						UseForwardedHeaders: true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-coffee-minion",
 							Namespace: "default",
@@ -5834,6 +5927,7 @@ var (
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
+						UseForwardedHeaders: true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-coffee-minion",
 							Namespace: "default",
@@ -5853,6 +5947,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -5913,6 +6008,7 @@ var (
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
+						UseForwardedHeaders: true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-coffee-minion",
 							Namespace: "default",
@@ -5933,6 +6029,7 @@ var (
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
+						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -5989,6 +6086,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						MinionIngress: &Ingress{
 							Name:      "tea-minion",
@@ -6035,6 +6133,7 @@ var (
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
 						ClientMaxBodySize:   "2m",
+						UseForwardedHeaders: true,
 						ProxyPass:           "grpc://test",
 						GRPC:                true,
 					},
@@ -6045,6 +6144,7 @@ var (
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
 						ClientMaxBodySize:   "2m",
+						UseForwardedHeaders: true,
 						MinionIngress: &Ingress{
 							Name:      "tea-minion",
 							Namespace: "default",
@@ -6090,6 +6190,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						ProxyPass:           "grpc://test",
 						GRPC:                true,
@@ -6163,6 +6264,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -6228,6 +6330,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -6254,6 +6357,7 @@ var (
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
+						UseForwardedHeaders: true,
 						ClientMaxBodySize:   "2m",
 						JWTAuth: &JWTAuth{
 							Key:   "/etc/nginx/secrets/location-key.jwk",
@@ -6350,8 +6454,9 @@ func createProxySetHeaderIngressConfig(masterAnnotations, coffeeAnnotations, tea
 							Namespace:   "default",
 							Annotations: teaAnnotations,
 						},
-						ProxySetHeaders: MergeProxySetHeaders(masterPSH, teaPSH),
-						ProxyPass:       "http://test",
+						ProxySetHeaders:     MergeProxySetHeaders(masterPSH, teaPSH),
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 			},
@@ -6379,9 +6484,10 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphers(t *testing.T) {
 				SSLPreferServerCiphers: true,
 				Locations: []Location{
 					{
-						Path:      "/",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 			},
@@ -6427,9 +6533,10 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphers(t *testing.T) {
 				SSLPreferServerCiphers: true,
 				Locations: []Location{
 					{
-						Path:      "/",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 			},
@@ -6475,9 +6582,10 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphersDisabled(t *testing.T) 
 				SSLPreferServerCiphers: false,
 				Locations: []Location{
 					{
-						Path:      "/",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 			},
@@ -6529,10 +6637,11 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/(coffee|tea)",
-								RewriteTarget: "/beverages/$1",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/(coffee|tea)",
+								RewriteTarget:       "/beverages/$1",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6562,10 +6671,11 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/(latte|espresso)",
-								RewriteTarget: "/drinks/$1",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/(latte|espresso)",
+								RewriteTarget:       "/drinks/$1",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6595,10 +6705,11 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/cappuccino",
-								RewriteTarget: "/special/cappuccino",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/cappuccino",
+								RewriteTarget:       "/special/cappuccino",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6629,10 +6740,11 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/mocha",
-								RewriteTarget: "/hot-drinks/mocha",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/mocha",
+								RewriteTarget:       "/hot-drinks/mocha",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6660,9 +6772,10 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:      "/americano",
-								Upstream:  testUpstream,
-								ProxyPass: "http://test",
+								Path:                "/americano",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
 						},
@@ -6691,10 +6804,11 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/menu/(hot|cold)/(coffee|tea)",
-								RewriteTarget: "/drinks/$1/$2",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/menu/(hot|cold)/(coffee|tea)",
+								RewriteTarget:       "/drinks/$1/$2",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6771,10 +6885,11 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/(coffee|tea)",
-								RewriteTarget: "/beverages/$1",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/(coffee|tea)",
+								RewriteTarget:       "/beverages/$1",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6804,10 +6919,11 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/(latte|espresso)",
-								RewriteTarget: "/drinks/$1",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/(latte|espresso)",
+								RewriteTarget:       "/drinks/$1",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6837,10 +6953,11 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/cappuccino",
-								RewriteTarget: "/special/cappuccino",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/cappuccino",
+								RewriteTarget:       "/special/cappuccino",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6871,10 +6988,11 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/mocha",
-								RewriteTarget: "/hot-drinks/mocha",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/mocha",
+								RewriteTarget:       "/hot-drinks/mocha",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -6902,9 +7020,10 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:      "/americano",
-								Upstream:  testUpstream,
-								ProxyPass: "http://test",
+								Path:                "/americano",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 								// RewriteTarget is empty - should not generate rewrite directive
 							},
 						},
@@ -6933,10 +7052,11 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 						ServerTokens: "off",
 						Locations: []Location{
 							{
-								Path:          "/menu/(hot|cold)/(coffee|tea)",
-								RewriteTarget: "/drinks/$1/$2",
-								Upstream:      testUpstream,
-								ProxyPass:     "http://test",
+								Path:                "/menu/(hot|cold)/(coffee|tea)",
+								RewriteTarget:       "/drinks/$1/$2",
+								Upstream:            testUpstream,
+								ProxyPass:           "http://test",
+								UseForwardedHeaders: true,
 							},
 						},
 					},
@@ -7007,9 +7127,10 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled(t *testing
 				SSLPreferServerCiphers: false,
 				Locations: []Location{
 					{
-						Path:      "/",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:                "/",
+						Upstream:            testUpstream,
+						ProxyPass:           "http://test",
+						UseForwardedHeaders: true,
 					},
 				},
 			},
@@ -7303,12 +7424,13 @@ func newIngressConfigWithEgressMTLS(grpc bool) IngressNginxConfig {
 				}(),
 				Locations: []Location{
 					{
-						Path:        "/",
-						ServiceName: "secure-app",
-						Upstream:    upstream,
-						ProxyPass:   "https://ups",
-						SSL:         true,
-						GRPC:        grpc,
+						Path:                "/",
+						ServiceName:         "secure-app",
+						Upstream:            upstream,
+						ProxyPass:           "https://ups",
+						SSL:                 true,
+						UseForwardedHeaders: true,
+						GRPC:                grpc,
 						EgressMTLS: func() *version2.EgressMTLS {
 							if !grpc {
 								return nil
