@@ -675,8 +675,11 @@ func (lbc *LoadBalancerController) addAppProtectHandlers(nsi *namespacedInformer
 		if err := nsi.addAppProtectLogConfHandler(createAppProtectLogConfHandlers(lbc)); err != nil {
 			return fmt.Errorf("failed to add app protect log conf handler for namespace %s: %w", ns, err)
 		}
-		if err := nsi.addAppProtectUserSigHandler(createAppProtectUserSigHandlers(lbc)); err != nil {
-			return fmt.Errorf("failed to add app protect user sig handler for namespace %s: %w", ns, err)
+
+		if !lbc.plmEnabled {
+			if err := nsi.addAppProtectUserSigHandler(createAppProtectUserSigHandlers(lbc)); err != nil {
+				return fmt.Errorf("failed to add app protect user sig handler for namespace %s: %w", ns, err)
+			}
 		}
 	}
 	if lbc.appProtectDosEnabled {
@@ -2781,7 +2784,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 			ingEx.SecretRefs[secretName] = secretRef
 		}
-		if lbc.appProtectEnabled {
+		if lbc.appProtectEnabled && !lbc.plmEnabled {
 			if apPolicyAntn, exists := ingEx.Ingress.Annotations[configs.AppProtectPolicyAnnotation]; exists {
 				policy, err := lbc.getAppProtectPolicy(ing)
 				if err != nil {
@@ -2799,6 +2802,12 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 					ingEx.AppProtectLogs = logConf
 				}
 			}
+		} else if lbc.appProtectEnabled && lbc.plmEnabled &&
+			(ingEx.Ingress.Annotations[configs.AppProtectPolicyAnnotation] != "" ||
+				ingEx.Ingress.Annotations[configs.AppProtectLogConfAnnotation] != "") {
+			msg := fmt.Sprintf("Ingress %v/%v uses legacy App Protect annotations, which are not supported when PLM is enabled", ing.Namespace, ing.Name)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
 
 		if lbc.appProtectDosEnabled {

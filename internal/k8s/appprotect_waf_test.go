@@ -1,13 +1,18 @@
 package k8s
 
 import (
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TestAddWAFPolicyRefs(t *testing.T) {
@@ -238,6 +243,85 @@ func TestAddWAFPolicyRefs(t *testing.T) {
 		if diff := cmp.Diff(test.expectedLogConfRefs, resLogConf); diff != "" {
 			t.Errorf("LoadBalancerController.addWAFPolicyRefs() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 		}
+	}
+}
+
+func TestAddWAFPolicyRefs_PLMRejectsRawReferences(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		waf     *conf_v1.WAF
+		wantErr string
+	}{
+		{
+			name:    "apPolicy",
+			waf:     &conf_v1.WAF{ApPolicy: "raw-policy"},
+			wantErr: "apPolicy",
+		},
+		{
+			name:    "deprecated security log apLogConf",
+			waf:     &conf_v1.WAF{SecurityLog: &conf_v1.SecurityLog{ApLogConf: "raw-log"}},
+			wantErr: "securityLog.apLogConf",
+		},
+		{
+			name:    "security logs apLogConf",
+			waf:     &conf_v1.WAF{SecurityLogs: []*conf_v1.SecurityLog{{ApLogConf: "raw-log"}}},
+			wantErr: "securityLogs.apLogConf",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lbc := LoadBalancerController{plmEnabled: true}
+			policies := []*conf_v1.Policy{{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"},
+				Spec:       conf_v1.PolicySpec{WAF: tc.waf},
+			}}
+
+			err := lbc.addWAFPolicyRefs(map[string]*unstructured.Unstructured{}, map[string]*unstructured.Unstructured{}, policies)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("addWAFPolicyRefs() error = %v, want error containing %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestResolvePLMBundleStatus_ReadsInformerStore(t *testing.T) {
+	t.Parallel()
+
+	apPolicy := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{"namespace": "plm", "name": "compiled-policy"},
+		"status": map[string]interface{}{
+			"bundle": map[string]interface{}{
+				"state":    wafbundle.BundleStateReady,
+				"location": "s3://plm/bundles/compiled-policy.tgz",
+				"sha256":   "0123456789abcdef",
+			},
+		},
+	}}
+	apPolicy.SetKind(appprotect.PolicyGVK.Kind)
+
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	if err := store.Add(apPolicy); err != nil {
+		t.Fatalf("failed to add APPolicy to informer store: %v", err)
+	}
+	lbc := &LoadBalancerController{
+		Logger: nl.LoggerFromContext(context.Background()),
+		namespacedInformers: map[string]*namespacedInformer{
+			"": {appProtectPolicyLister: store},
+		},
+	}
+	pol := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"}}
+	bs := &conf_v1.BundleSource{PolicyName: "compiled-policy", PolicyNamespace: "plm"}
+
+	got := lbc.resolvePLMBundleStatus(pol, bs, wafbundle.PolicyBundle)
+	if got == nil {
+		t.Fatal("resolvePLMBundleStatus() = nil, want ready bundle status")
+	}
+	if got.Location != "s3://plm/bundles/compiled-policy.tgz" || got.SHA256 != "0123456789abcdef" {
+		t.Errorf("resolvePLMBundleStatus() = %#v, want informer status bundle", got)
 	}
 }
 

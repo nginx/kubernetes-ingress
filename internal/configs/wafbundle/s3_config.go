@@ -16,7 +16,7 @@ import (
 // is enough for consumers.
 const (
 	// s3AccessKeyIDDefault is SeaweedFS's default access key ID.
-	s3AccessKeyIDDefault = "admin"
+	s3AccessKeyIDDefault = "adminKey"
 
 	s3CredentialsSecretKey = "seaweedfs_admin_secret"
 	s3CASecretKey          = "ca.crt"

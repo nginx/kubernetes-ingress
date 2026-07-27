@@ -165,6 +165,11 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 		return
 	}
 
+	if lbc.plmEnabled {
+		lbc.enqueuePLMPoliciesForAppPolicy(key)
+		return
+	}
+
 	var changes []appprotect.Change
 	var problems []appprotect.Problem
 
@@ -176,13 +181,6 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 		nl.Debugf(lbc.Logger, "Adding or Updating AppProtectPolicy: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.AddOrUpdatePolicy(obj.(*unstructured.Unstructured))
-	}
-
-	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectPolicy(lbc.getAllPolicies(), key)) > 0 {
-		nl.Debugf(lbc.Logger, "AppProtectPolicy %v is PLM-managed; updated cache, re-enqueuing PLM policies without NGINX reload", key)
-		lbc.processAppProtectProblems(problems)
-		lbc.enqueuePLMPoliciesForAppPolicy(key)
-		return
 	}
 
 	lbc.processAppProtectChanges(changes)
@@ -203,6 +201,11 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 		return
 	}
 
+	if lbc.plmEnabled {
+		lbc.enqueuePLMPoliciesForAppLogConf(key)
+		return
+	}
+
 	var changes []appprotect.Change
 	var problems []appprotect.Problem
 
@@ -214,13 +217,6 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 		nl.Debugf(lbc.Logger, "Adding or Updating AppProtectLogConf: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.AddOrUpdateLogConf(obj.(*unstructured.Unstructured))
-	}
-
-	if lbc.plmEnabled && len(getPLMPoliciesForAppProtectLogConf(lbc.getAllPolicies(), key)) > 0 {
-		nl.Debugf(lbc.Logger, "AppProtectLogConf %v is PLM-managed; updated cache, re-enqueuing PLM policies without NGINX reload", key)
-		lbc.processAppProtectProblems(problems)
-		lbc.enqueuePLMPoliciesForAppLogConf(key)
-		return
 	}
 
 	lbc.processAppProtectChanges(changes)
@@ -385,6 +381,19 @@ func (lbc *LoadBalancerController) addWAFPolicyRefs(
 	for _, pol := range policies {
 		if pol.Spec.WAF == nil {
 			continue
+		}
+		if lbc.plmEnabled {
+			if pol.Spec.WAF.ApPolicy != "" {
+				return fmt.Errorf("WAF policy %q uses apPolicy, which is not supported when PLM is enabled", pol.Namespace+"/"+pol.Name)
+			}
+			if pol.Spec.WAF.SecurityLog != nil && pol.Spec.WAF.SecurityLog.ApLogConf != "" {
+				return fmt.Errorf("WAF policy %q uses securityLog.apLogConf, which is not supported when PLM is enabled", pol.Namespace+"/"+pol.Name)
+			}
+			for _, log := range pol.Spec.WAF.SecurityLogs {
+				if log != nil && log.ApLogConf != "" {
+					return fmt.Errorf("WAF policy %q uses securityLogs.apLogConf, which is not supported when PLM is enabled", pol.Namespace+"/"+pol.Name)
+				}
+			}
 		}
 
 		if pol.Spec.WAF.ApPolicy != "" {

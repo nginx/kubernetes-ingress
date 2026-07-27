@@ -18,6 +18,7 @@ import (
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	api_v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -416,22 +417,49 @@ func (lbc *LoadBalancerController) resolvePLMBundleStatus(pol *conf_v1.Policy, b
 		gvkKind = appprotect.LogConfGVK.Kind
 	}
 
-	obj, err := lbc.appProtectConfiguration.GetAppResource(gvkKind, refKey)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: namespace %q is not watched", ns))
+		return nil
+	}
+
+	var store cache.Store
+	if kind == wafbundle.LogProfileBundle {
+		store = nsi.appProtectLogConfLister
+	} else {
+		store = nsi.appProtectPolicyLister
+	}
+	if store == nil {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s informer is unavailable", gvkKind))
+		return nil
+	}
+
+	obj, exists, err := store.GetByKey(refKey)
 	if err != nil {
-		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s %q not found: %v", gvkKind, refKey, err))
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: cannot read %s %q: %v", gvkKind, refKey, err))
+		return nil
+	}
+	if !exists {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s %q not found", gvkKind, refKey))
+		return nil
+	}
+
+	apResource, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s %q has unexpected type %T", gvkKind, refKey, obj))
 		return nil
 	}
 
 	var status *wafbundle.BundleStatus
 	if kind == wafbundle.LogProfileBundle {
-		parsed, parseErr := wafbundle.ParseAPLogConfStatus(obj)
+		parsed, parseErr := wafbundle.ParseAPLogConfStatus(apResource)
 		if parseErr != nil {
 			lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: cannot read %s %q status: %v", gvkKind, refKey, parseErr))
 			return nil
 		}
 		status = parsed.Bundle
 	} else {
-		parsed, parseErr := wafbundle.ParseAPPolicyStatus(obj)
+		parsed, parseErr := wafbundle.ParseAPPolicyStatus(apResource)
 		if parseErr != nil {
 			lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: cannot read %s %q status: %v", gvkKind, refKey, parseErr))
 			return nil

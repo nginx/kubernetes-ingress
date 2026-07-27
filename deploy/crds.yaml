@@ -1040,11 +1040,12 @@ spec:
                       Mutually exclusive with ApPolicy and ApBundle.
                     properties:
                       enablePolling:
+                        default: false
                         description: |-
                           EnablePolling enables background polling to automatically detect and fetch
-                          updated bundles at the configured PollInterval. When false, the bundle is
-                          fetched once on policy creation or update; subsequent updates require
-                          modifying the Policy resource to trigger a new fetch.
+                          updated bundles at the configured PollInterval. Defaults to false. When
+                          false, the bundle is fetched once on policy creation or update; subsequent
+                          updates require modifying the Policy resource to trigger a new fetch.
                         type: boolean
                       insecureSkipVerify:
                         description: |-
@@ -1115,8 +1116,6 @@ spec:
                         description: VerifyChecksum enables SHA-256 verification of
                           the downloaded bundle. HTTPS type only.
                         type: boolean
-                    required:
-                    - enablePolling
                     type: object
                     x-kubernetes-validations:
                     - message: url is not allowed when type is PLM; the bundle location
@@ -1169,11 +1168,12 @@ spec:
                           Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
                         properties:
                           enablePolling:
+                            default: false
                             description: |-
                               EnablePolling enables background polling to automatically detect and fetch
-                              updated bundles at the configured PollInterval. When false, the bundle is
-                              fetched once on policy creation or update; subsequent updates require
-                              modifying the Policy resource to trigger a new fetch.
+                              updated bundles at the configured PollInterval. Defaults to false. When
+                              false, the bundle is fetched once on policy creation or update; subsequent
+                              updates require modifying the Policy resource to trigger a new fetch.
                             type: boolean
                           insecureSkipVerify:
                             description: |-
@@ -1244,8 +1244,6 @@ spec:
                             description: VerifyChecksum enables SHA-256 verification
                               of the downloaded bundle. HTTPS type only.
                             type: boolean
-                        required:
-                        - enablePolling
                         type: object
                         x-kubernetes-validations:
                         - message: url is not allowed when type is PLM; the bundle
@@ -1306,11 +1304,12 @@ spec:
                             Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
                           properties:
                             enablePolling:
+                              default: false
                               description: |-
                                 EnablePolling enables background polling to automatically detect and fetch
-                                updated bundles at the configured PollInterval. When false, the bundle is
-                                fetched once on policy creation or update; subsequent updates require
-                                modifying the Policy resource to trigger a new fetch.
+                                updated bundles at the configured PollInterval. Defaults to false. When
+                                false, the bundle is fetched once on policy creation or update; subsequent
+                                updates require modifying the Policy resource to trigger a new fetch.
                               type: boolean
                             insecureSkipVerify:
                               description: |-
@@ -1381,8 +1380,6 @@ spec:
                               description: VerifyChecksum enables SHA-256 verification
                                 of the downloaded bundle. HTTPS type only.
                               type: boolean
-                          required:
-                          - enablePolling
                           type: object
                           x-kubernetes-validations:
                           - message: url is not allowed when type is PLM; the bundle
