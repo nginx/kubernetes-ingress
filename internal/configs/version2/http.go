@@ -250,6 +250,7 @@ type Location struct {
 	VSRNamespace               string
 	GRPCPass                   string
 	CORSEnabled                bool
+	UseForwardedHeaders        bool
 	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
