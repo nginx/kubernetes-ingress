@@ -16,64 +16,52 @@
   ],
   "include": [
     {
-      "image": "ubi-8-plus-nap",
+      "image": "ubi-10-plus-nap",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"
     },
     {
-      "image": "ubi-8-plus-nap-agent",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
-      "image": "ubi-8-plus-nap-v5",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
-      "image": "ubi-8-plus-nap-v5-agent",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
-      "image": "ubi-9-plus-nap",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
-      "image": "ubi-9-plus-nap-agent",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
-      "image": "ubi-9-plus-nap",
+      "image": "ubi-10-plus-nap",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "dos"
     },
     {
-      "image": "ubi-9-plus-nap-agent",
+      "image": "ubi-10-plus-nap",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf,dos"
+    },
+    {
+      "image": "ubi-10-plus-nap-agent",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
+    },
+    {
+      "image": "ubi-10-plus-nap-agent",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "dos"
     },
     {
-      "image": "ubi-9-plus-nap",
+      "image": "ubi-10-plus-nap-agent",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf,dos"
     },
     {
-      "image": "ubi-9-plus-nap-agent",
+      "image": "ubi-10-plus-nap-v5",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf,dos"
+      "nap_modules": "waf"
+    },
+    {
+      "image": "ubi-10-plus-nap-v5-agent",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf"
     },
     {
       "image": "alpine-plus-nap-fips",
@@ -107,18 +95,6 @@
     },
     {
       "image": "debian-plus-nap-v5-agent",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
-      "image": "ubi-9-plus-nap-v5",
-      "target": "goreleaser",
-      "platforms": "linux/amd64",
-      "nap_modules": "waf"
-    },
-    {
-      "image": "ubi-9-plus-nap-v5-agent",
       "target": "goreleaser",
       "platforms": "linux/amd64",
       "nap_modules": "waf"

@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: error-pages-config
+data:
+  default.conf: |-
+    server {
+        listen 8080;
+        default_type text/html;
+        location / {
+            return 200 "Something went wrong and the application is temporarily unavailable. Please try again later.";
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: error-pages
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: error-pages
+  template:
+    metadata:
+      labels:
+        app: error-pages
+    spec:
+      containers:
+        - name: error-pages
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config-volume
+          configMap:
+            name: error-pages-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: error-pages-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: error-pages
+---
+# fail-backend: always returns a real proxied 502
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fail-backend-config
+data:
+  default.conf: |-
+    server {
+        listen 8080;
+        location / {
+            return 502;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fail-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fail-backend
+  template:
+    metadata:
+      labels:
+        app: fail-backend
+    spec:
+      containers:
+        - name: fail-backend
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config-volume
+          configMap:
+            name: fail-backend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fail-backend-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: fail-backend

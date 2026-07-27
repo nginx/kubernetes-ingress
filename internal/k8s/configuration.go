@@ -415,7 +415,6 @@ type Configuration struct {
 	isPlus                       bool
 	appProtectEnabled            bool
 	appProtectDosEnabled         bool
-	internalRoutesEnabled        bool
 	isTLSPassthroughEnabled      bool
 	snippetsEnabled              bool
 	isCertManagerEnabled         bool
@@ -438,7 +437,6 @@ func NewConfiguration(
 	isPlus bool,
 	appProtectEnabled bool,
 	appProtectDosEnabled bool,
-	internalRoutesEnabled bool,
 	virtualServerValidator *validation.VirtualServerValidator,
 	globalConfigurationValidator *validation.GlobalConfigurationValidator,
 	transportServerValidator *validation.TransportServerValidator,
@@ -473,7 +471,6 @@ func NewConfiguration(
 		isPlus:                       isPlus,
 		appProtectEnabled:            appProtectEnabled,
 		appProtectDosEnabled:         appProtectDosEnabled,
-		internalRoutesEnabled:        internalRoutesEnabled,
 		isTLSPassthroughEnabled:      isTLSPassthroughEnabled,
 		snippetsEnabled:              snippetsEnabled,
 		isCertManagerEnabled:         isCertManagerEnabled,
@@ -495,7 +492,7 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 		delete(c.ingresses, key)
 		c.updateMinionIndex(key, nil)
 	} else {
-		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled, c.allowEmptyIngressHost).ToAggregate()
+		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled, c.allowEmptyIngressHost).ToAggregate()
 		if validationError != nil {
 			delete(c.ingresses, key)
 			c.updateMinionIndex(key, nil)

@@ -68,6 +68,7 @@ permissions:
 jobs:
   publish-helm:
     name: Package and Publish Helm Chart
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: write # for pushing to Helm Charts repository
@@ -75,7 +76,7 @@ jobs:
       id-token: write # for OIDC login
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: refs/heads/${{ inputs.branch }}
           path: kic
@@ -87,37 +88,30 @@ jobs:
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$DOCKER_USERNAME"
-          echo "DOCKER_USERNAME=$DOCKER_USERNAME" >> $GITHUB_OUTPUT
-          DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$DOCKER_PASSWORD"
-          echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
-          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_PAT"
-          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+      - name: Get secrets from vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+        with:
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "docker-username, docker-password, nginx-bot-helm-app-client-id, nginx-bot-helm-app-private-key"
+          env-names: "DOCKER_USERNAME, DOCKER_PASSWORD, APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: DockerHub Login
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
-          username: ${{ steps.secrets.outputs.DOCKER_USERNAME }}
-          password: ${{ steps.secrets.outputs.DOCKER_PASSWORD }}
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
 
       - name: Setup Helm
-        uses: azure/setup-helm@dda3372f752e03dde6b3237bc9431cdc2f7a02a2 # v5.0.0
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: 'v3.18.6'
+          version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Package
         id: package
@@ -143,12 +137,43 @@ jobs:
           helm push ${{ steps.package.outputs.path }} oci://ghcr.io/nginx/charts
           helm push ${{ steps.package.outputs.path }} oci://registry-1.docker.io/nginxcharts
 
+      - name: Decode GitHub App private key
+        id: app_key
+        run: |
+          set +x
+          # Mask the raw base64 value
+          echo "::add-mask::$APP_PRIVATE_KEY_B64"
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+          # Mask every line of the decoded PEM key individually
+          while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+              echo "::add-mask::$line"
+            fi
+          done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
+          {
+            echo "private_key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+        if: ${{ inputs.nginx_helm_repo }}
+
+      - name: Generate GitHub App token
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.app_key.outputs.private_key }}
+          owner: nginxinc
+          repositories: helm-charts
+        if: ${{ inputs.nginx_helm_repo }}
+
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: nginxinc/helm-charts
           fetch-depth: 1
-          token: ${{ steps.secrets.outputs.NGINX_PAT }}
+          token: ${{ steps.app_token.outputs.token }}
           path: helm-charts
         if: ${{ inputs.nginx_helm_repo }}
 

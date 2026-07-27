@@ -65,11 +65,6 @@ Pod labels
 */}}
 {{- define "nginx-ingress.podLabels" -}}
 {{- include "nginx-ingress.selectorLabels" . }}
-{{- if .Values.nginxServiceMesh.enable }}
-nsm.nginx.com/enable-ingress: "true"
-nsm.nginx.com/enable-egress: "{{ .Values.nginxServiceMesh.enableEgress }}"
-nsm.nginx.com/{{ .Values.controller.kind }}: {{ include "nginx-ingress.controller.fullname" . }}
-{{- end }}
 {{- if and .Values.nginxAgent.enable (eq (.Values.nginxAgent.customConfigMap | default "") "") }}
 agent-configuration-revision-hash: {{ include "nginx-ingress.agentConfiguration" . | sha1sum | trunc 8 | quote }}
 {{- end }}
@@ -520,6 +515,10 @@ volumeMounts:
   securityContext:
 {{ toYaml .Values.controller.appprotect.enforcer.securityContext | nindent 6 }}
 {{- end }}
+{{- if .Values.controller.appprotect.enforcer.resources }}
+  resources:
+{{ toYaml .Values.controller.appprotect.enforcer.resources | nindent 6 }}
+{{- end }}
   env:
     - name: ENFORCER_PORT
       value: "{{ .Values.controller.appprotect.enforcer.port | default 50000 }}"
@@ -538,6 +537,10 @@ volumeMounts:
 {{- if .Values.controller.appprotect.configManager.securityContext }}
   securityContext:
 {{ toYaml .Values.controller.appprotect.configManager.securityContext | nindent 6 }}
+{{- end }}
+{{- if .Values.controller.appprotect.configManager.resources }}
+  resources:
+{{ toYaml .Values.controller.appprotect.configManager.resources | nindent 6 }}
 {{- end }}
   volumeMounts:
     - name: app-protect-bd-config

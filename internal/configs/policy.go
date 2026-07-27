@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
+	"github.com/nginx/kubernetes-ingress/internal/helpers"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
@@ -70,6 +72,7 @@ type policiesCfg struct {
 	Cache           *version2.Cache
 	CORSHeaders     []version2.AddHeader
 	CORSMap         *version2.Map
+	HSTS            *version2.HSTS
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
 }
@@ -300,7 +303,15 @@ func (p *policiesCfg) addExternalAuthConfig(
 		return res
 	}
 
-	upstreamName := fmt.Sprintf("%s_exauth_%s_%s", ownerDetails.parentType, polNamespace, polName)
+	var upstreamName string
+	if ownerDetails.parentType == "ing" {
+		upstreamName = fmt.Sprintf("ing_%s_%s_exauth_%s_%s",
+			ownerDetails.parentNamespace, ownerDetails.parentName,
+			polNamespace, polName)
+	} else {
+		upstreamName = fmt.Sprintf("%s_exauth_%s_%s",
+			ownerDetails.parentType, polNamespace, polName)
+	}
 	internalPath := fmt.Sprintf("/_external_auth%s", externalAuth.AuthURI)
 
 	p.ExternalAuth = &version2.ExternalAuth{
@@ -850,6 +861,19 @@ func (p *policiesCfg) addWAFConfig(
 		p.WAF.ApBundle = bundlePath
 	}
 
+	if waf.ApBundleSource != nil {
+		// Bundle was written to disk by syncPolicy() before config generation runs.
+		ns, name, _ := helpers.ParseNamespaceName(polKey)
+		filename := wafbundle.FetchedBundleFilename(ns, name, "policy")
+		bundlePath, err := p.BundleValidator.validate(filename)
+		if err != nil {
+			res.addWarningf("WAF policy %s: bundle not yet available (%s) — WAF inactive until bundle is fetched", polKey, filename)
+			res.isError = true
+		} else {
+			p.WAF.ApBundle = bundlePath
+		}
+	}
+
 	if waf.SecurityLog != nil && waf.SecurityLogs == nil {
 		nl.Debug(l, "the field securityLog is deprecated and will be removed in future releases. Use field securityLogs instead")
 		waf.SecurityLogs = append(waf.SecurityLogs, waf.SecurityLog)
@@ -858,7 +882,7 @@ func (p *policiesCfg) addWAFConfig(
 	if waf.SecurityLogs != nil {
 		p.WAF.ApSecurityLogEnable = true
 		p.WAF.ApLogConf = []string{}
-		for _, loco := range waf.SecurityLogs {
+		for idx, loco := range waf.SecurityLogs {
 			logDest := generateString(loco.LogDest, defaultLogOutput)
 
 			if loco.ApLogConf != "" {
@@ -878,6 +902,18 @@ func (p *policiesCfg) addWAFConfig(
 				logBundle, err := p.BundleValidator.validate(loco.ApLogBundle)
 				if err != nil {
 					res.addWarningf("WAF policy %s references an invalid or non-existing log config bundle %s", polKey, logBundle)
+					res.isError = true
+				} else {
+					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
+				}
+			}
+
+			if loco.ApLogBundleSource != nil {
+				ns, name, _ := helpers.ParseNamespaceName(polKey)
+				filename := wafbundle.FetchedBundleFilename(ns, name, fmt.Sprintf("log_%d", idx))
+				logBundle, err := p.BundleValidator.validate(filename)
+				if err != nil {
+					res.addWarningf("WAF policy %s: log bundle %d not yet available (%s) — log profile inactive", polKey, idx, filename)
 					res.isError = true
 				} else {
 					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
@@ -1132,6 +1168,47 @@ func (p *policiesCfg) addCORSConfig(
 	return res
 }
 
+func (p *policiesCfg) addHSTSConfig(
+	hsts *conf_v1.HSTS,
+	polKey string,
+	context string,
+	tls bool,
+) *validationResults {
+	res := newValidationResults()
+
+	if context != specContext {
+		res.addWarningf("HSTS policy %s is not allowed in the %v context", polKey, context)
+		res.isError = true
+		return res
+	}
+
+	if !tls && !hsts.BehindProxy {
+		res.addWarningf("TLS must be enabled for HSTS policy %s", polKey)
+		res.isError = true
+		return res
+	}
+
+	if p.HSTS != nil {
+		res.addWarningf("Multiple HSTS policies in the same context are not valid. HSTS policy %s will be ignored", polKey)
+		return res
+	}
+
+	if hsts.MaxAge == nil {
+		res.addWarningf("HSTS policy %s is missing required field maxAge", polKey)
+		res.isError = true
+		return res
+	}
+
+	p.HSTS = &version2.HSTS{
+		MaxAge:            *hsts.MaxAge,
+		IncludeSubDomains: hsts.IncludeSubDomains,
+		BehindProxy:       hsts.BehindProxy,
+		Preload:           hsts.Preload,
+	}
+
+	return res
+}
+
 // nolint:gocyclo
 func generatePolicies(
 	ctx context.Context,
@@ -1206,6 +1283,8 @@ func generatePolicies(
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails)
 			case pol.Spec.CORS != nil:
 				res = config.addCORSConfig(pol.Spec.CORS, key, ownerDetails)
+			case pol.Spec.HSTS != nil:
+				res = config.addHSTSConfig(pol.Spec.HSTS, key, pathContext, policyOpts.tls)
 			default:
 				res = newValidationResults()
 			}

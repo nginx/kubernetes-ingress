@@ -40,6 +40,9 @@ const SecretTypeAPIKey api_v1.SecretType = "nginx.org/apikey" // #nosec G101
 // SecretTypeLicense contains the license.jwt required for NGINX Plus. #nosec G101
 const SecretTypeLicense api_v1.SecretType = "nginx.com/license" // #nosec G101
 
+// SecretTypeWAFBundle contains credentials for fetching WAF bundles from management planes (N1C, NIM). #nosec G101
+const SecretTypeWAFBundle api_v1.SecretType = "nginx.com/waf-bundle" // #nosec G101
+
 // ValidateTLSSecret validates the secret. If it is valid, the function returns nil.
 func ValidateTLSSecret(secret *api_v1.Secret) error {
 	if secret.Type != api_v1.SecretTypeTLS {
@@ -161,6 +164,28 @@ func ValidateLicenseSecret(secret *api_v1.Secret) error {
 	return nil
 }
 
+// ValidateWAFBundleSecret validates a WAF bundle credentials secret.
+// The secret must be of type nginx.com/waf-bundle and contain a 'token' field
+// (API token for N1C, bearer token for NIM) or 'username'+'password' (basic auth for NIM).
+func ValidateWAFBundleSecret(secret *api_v1.Secret) error {
+	if secret.Type != SecretTypeWAFBundle {
+		return fmt.Errorf("WAF bundle secret must be of the type %v", SecretTypeWAFBundle)
+	}
+
+	_, hasToken := secret.Data["token"]
+	_, hasUsername := secret.Data["username"]
+	_, hasPassword := secret.Data["password"]
+
+	if !hasToken && !hasUsername {
+		return fmt.Errorf("WAF bundle secret must contain 'token' or 'username'+'password'")
+	}
+	if hasUsername && !hasPassword {
+		return fmt.Errorf("WAF bundle secret with 'username' must also contain 'password'")
+	}
+
+	return nil
+}
+
 // IsSupportedSecretType checks if the secret type is supported.
 func IsSupportedSecretType(secretType api_v1.SecretType) bool {
 	return secretType == api_v1.SecretTypeTLS ||
@@ -169,7 +194,8 @@ func IsSupportedSecretType(secretType api_v1.SecretType) bool {
 		secretType == SecretTypeOIDC ||
 		secretType == SecretTypeHtpasswd ||
 		secretType == SecretTypeAPIKey ||
-		secretType == SecretTypeLicense
+		secretType == SecretTypeLicense ||
+		secretType == SecretTypeWAFBundle
 }
 
 // ValidateSecret validates the secret. If it is valid, the function returns nil.
@@ -189,6 +215,8 @@ func ValidateSecret(secret *api_v1.Secret) error {
 		return ValidateAPIKeySecret(secret)
 	case SecretTypeLicense:
 		return ValidateLicenseSecret(secret)
+	case SecretTypeWAFBundle:
+		return ValidateWAFBundleSecret(secret)
 	}
 
 	return fmt.Errorf("secret is of the unsupported type %v", secret.Type)

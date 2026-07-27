@@ -76,10 +76,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: ${{ inputs.gcr_release_registry }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.gcr_release_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -110,7 +110,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -132,10 +132,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: ${{ inputs.ecr_public_registry }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.ecr_public_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -169,20 +169,20 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           aws-region: us-east-1
           role-to-assume: ${{ steps.secrets.outputs.AWS_ROLE_PUBLIC_ECR }}
 
       - name: Login to Public ECR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: public.ecr.aws
 
@@ -202,10 +202,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: ${{ inputs.dockerhub_public_registry }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.dockerhub_public_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -254,14 +254,14 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: DockerHub Login
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
@@ -282,10 +282,10 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: ${{ inputs.quay_public_registry }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.quay_public_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -324,14 +324,14 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Login to Quay.io
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: quay.io
           username: ${{ steps.secrets.outputs.QUAY_USERNAME }}
@@ -354,10 +354,10 @@ jobs:
       contents: read
       id-token: write
       packages: write
-    if: ${{ inputs.github_public_registry }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.github_public_registry)
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.branch }}
 
@@ -388,14 +388,14 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}

@@ -1,5 +1,4 @@
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.utils.ap_resources_utils import (
     create_ap_logconf_from_yaml,
@@ -17,6 +16,7 @@ from suite.utils.resources_utils import (
     create_items_from_yaml,
     get_file_contents,
     get_pod_name_that_contains,
+    retry_get,
     wait_before_test,
 )
 from suite.utils.vs_vsr_resources_utils import (
@@ -197,16 +197,16 @@ class TestAppProtectWAFPolicyVS:
         wait_before_test(120)
 
         print("----------------------- Send request with embedded malicious script----------------------")
-        response1 = requests.get(
+        response1 = retry_get(
             virtual_server_setup.backend_1_url + "</script>",
-            headers={"host": virtual_server_setup.vs_host},
+            virtual_server_setup.vs_host,
         )
         print(response1.text)
 
         print("----------------------- Send request with blocked keyword in UDS----------------------")
-        response2 = requests.get(
+        response2 = retry_get(
             virtual_server_setup.backend_1_url,
-            headers={"host": virtual_server_setup.vs_host},
+            virtual_server_setup.vs_host,
             data="kic",
         )
         print(response2.text)
@@ -268,16 +268,16 @@ class TestAppProtectWAFPolicyVS:
         wait_before_test(120)
 
         print("----------------------- Send request with embedded malicious script----------------------")
-        response1 = requests.get(
+        response1 = retry_get(
             virtual_server_setup.backend_1_url + "</script>",
-            headers={"host": virtual_server_setup.vs_host},
+            virtual_server_setup.vs_host,
         )
         print(response1.text)
 
         print("----------------------- Send request with blocked keyword in UDS----------------------")
-        response2 = requests.get(
+        response2 = retry_get(
             virtual_server_setup.backend_1_url,
-            headers={"host": virtual_server_setup.vs_host},
+            virtual_server_setup.vs_host,
             data="kic",
         )
         print(response2.text)
@@ -333,9 +333,9 @@ class TestAppProtectWAFPolicyVS:
         wait_before_test(120)
 
         print("----------------------- Send request with embedded malicious script----------------------")
-        response = requests.get(
+        response = retry_get(
             virtual_server_setup.backend_1_url + "</script>",
-            headers={"host": virtual_server_setup.vs_host},
+            virtual_server_setup.vs_host,
         )
         print(response.text)
         syslog_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog")
@@ -449,9 +449,9 @@ class TestAppProtectWAFPolicyVSR:
         ap_crd_info = read_ap_custom_resource(kube_apis.custom_objects, test_namespace, "appolicies", ap_policy_uds)
         assert_ap_crd_info(ap_crd_info, ap_policy_uds)
         wait_before_test(120)
-        response = requests.get(
+        response = retry_get(
             f'{req_url}{v_s_route_setup.route_m.paths[0]}+"</script>"',
-            headers={"host": v_s_route_setup.vs_host},
+            v_s_route_setup.vs_host,
         )
         print(response.text)
         delete_policy(kube_apis.custom_objects, "waf-policy", v_s_route_setup.route_m.namespace)
@@ -546,9 +546,9 @@ class TestAppProtectWAFPolicyVSRSelector:
         ap_crd_info = read_ap_custom_resource(kube_apis.custom_objects, test_namespace, "appolicies", ap_policy_uds)
         assert_ap_crd_info(ap_crd_info, ap_policy_uds)
         wait_before_test(120)
-        response = requests.get(
+        response = retry_get(
             f'{req_url}{v_s_route_selector_setup.route_m.paths[0]}+"</script>"',
-            headers={"host": v_s_route_selector_setup.vs_host},
+            v_s_route_selector_setup.vs_host,
         )
         print(response.text)
         delete_policy(kube_apis.custom_objects, "waf-policy", v_s_route_selector_setup.route_m.namespace)

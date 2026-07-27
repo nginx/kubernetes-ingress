@@ -85,8 +85,8 @@ release.yml (manual dispatch)
 Image variants are defined in JSON under `.github/data/`:
 
 - `matrix-images-oss.json`: debian, alpine, ubi (amd64 + arm64)
-- `matrix-images-plus.json`: debian-plus, alpine-plus, alpine-plus-fips, ubi-9-plus
-- `matrix-images-nap.json`: WAF v4/v5, DoS, UBI 8/9 (amd64 only)
+- `matrix-images-plus.json`: debian-plus, alpine-plus, alpine-plus-fips, ubi-10-plus
+- `matrix-images-nap.json`: WAF v4/v5, DoS, UBI 10 (amd64 only)
 - `matrix-smoke-oss.json`, `matrix-smoke-plus.json`, `matrix-smoke-nap.json`: Smoke test matrices
 - `matrix-regression.json`: Regression test matrix (K8s version combinations)
 - `patch-images.json`: Patch image definitions for `patch-image.yml`

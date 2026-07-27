@@ -141,6 +141,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "appprotect-wafv5",
 			namespace:   "appprotect-wafv5",
 		},
+		"appProtectWAFV5Resources": {
+			valuesFile:  "testdata/app-protect-wafv5-resources.yaml",
+			releaseName: "appprotect-wafv5-resources",
+			namespace:   "appprotect-wafv5",
+		},
 		"appProtectDOS": {
 			valuesFile:  "testdata/app-protect-dos.yaml",
 			releaseName: "appprotect-dos",

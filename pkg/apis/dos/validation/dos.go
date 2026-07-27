@@ -24,7 +24,9 @@ var appProtectDosLogConfRequiredFields = [][]string{
 	{"spec", "filter"},
 }
 
-const maxNameLength = 63
+const (
+	maxNameLength = 63
+)
 
 // ValidateDosProtectedResource validates a dos protected resource.
 func ValidateDosProtectedResource(protected *v1beta1.DosProtectedResource) error {
@@ -121,6 +123,15 @@ var (
 	validDNSRegex       = regexp.MustCompile(`^([A-Za-z0-9][A-Za-z0-9-]{1,62}\.)([A-Za-z0-9-]{1,63}\.)*[A-Za-z]{2,6}:\d{1,5}$`)
 	validIPRegex        = regexp.MustCompile(`^(\d{1,3}\.){3}\d{1,3}:\d{1,5}$`)
 	validLocalhostRegex = regexp.MustCompile(`^localhost:\d{1,5}$`)
+
+	// Checks URI structure and rejects characters that would inject NGINX config when
+	// rendered unquoted (e.g. app_protect_dos_monitor uri={{...}}).
+	// Accepts:
+	//   - Full URIs: scheme://host[:port][/path]
+	//   - Host-only: host[:port][/path]
+	//   - Path-only: /path (leading slash required) or relative paths
+	// Rejects: empty strings, whitespace, semicolons, braces, $, backtick
+	uriRegexp = regexp.MustCompile(`^[^\s;{}$` + "`" + `]+$`)
 )
 
 func validateAppProtectDosLogDest(dstAntn string) error {
@@ -158,6 +169,11 @@ var validMonitorProtocol = map[string]bool{
 }
 
 func validateAppProtectDosMonitor(apDosMonitor v1beta1.ApDosMonitor) error {
+	// validate URI structure and reject NGINX config injection characters in one pass
+	if !uriRegexp.MatchString(apDosMonitor.URI) {
+		return fmt.Errorf("app Protect Dos Monitor must have valid URI")
+	}
+
 	_, err := url.Parse(apDosMonitor.URI)
 	if err != nil {
 		return fmt.Errorf("app Protect Dos Monitor must have valid URL")

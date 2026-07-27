@@ -10,7 +10,7 @@ permissions:
 jobs:
   comment:
     name: Issue comment
-    if: ${{ !github.event.issue.pull_request }}
+    if: github.repository == 'nginx/kubernetes-ingress' && (!github.event.issue.pull_request)
     runs-on: ubuntu-24.04
     permissions:
       contents: read

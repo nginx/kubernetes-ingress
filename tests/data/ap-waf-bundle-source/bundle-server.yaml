@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bundle-server-nginx-conf
+data:
+  default.conf: |
+    # TLS-only endpoint (no client cert verification).
+    # Used with insecureSkipVerify: true in the WAF Policy.
+    server {
+        listen 8443 ssl;
+
+        ssl_certificate     /certs/server/tls.crt;
+        ssl_certificate_key /certs/server/tls.key;
+        ssl_protocols       TLSv1.2 TLSv1.3;
+
+        location /bundles/ {
+            root /www;
+            autoindex off;
+        }
+
+        location /health {
+            return 200 "ok\n";
+        }
+    }
+
+    # mTLS endpoint (client certificate required).
+    # Used with secret + trustedCertSecret in the WAF Policy.
+    server {
+        listen 9443 ssl;
+
+        ssl_certificate       /certs/server/tls.crt;
+        ssl_certificate_key   /certs/server/tls.key;
+        ssl_client_certificate /certs/ca/ca.crt;
+        ssl_verify_client     on;
+        ssl_protocols         TLSv1.2 TLSv1.3;
+
+        location /bundles/ {
+            root /www;
+            autoindex off;
+        }
+
+        location /health {
+            return 200 "ok\n";
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bundle-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bundle-server
+  template:
+    metadata:
+      labels:
+        app: bundle-server
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - containerPort: 8443
+          name: tls
+        - containerPort: 9443
+          name: mtls
+        volumeMounts:
+        - name: nginx-conf
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+        - name: server-tls
+          mountPath: /certs/server
+          readOnly: true
+        - name: ca-cert
+          mountPath: /certs/ca
+          readOnly: true
+        - name: bundles
+          mountPath: /www/bundles
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 2
+          periodSeconds: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8443
+            scheme: HTTPS
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+      - name: nginx-conf
+        configMap:
+          name: bundle-server-nginx-conf
+      - name: server-tls
+        secret:
+          secretName: bundle-server-tls
+      - name: ca-cert
+        secret:
+          secretName: bundle-server-ca
+      - name: bundles
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bundle-server
+spec:
+  selector:
+    app: bundle-server
+  ports:
+  - port: 8443
+    targetPort: 8443
+    protocol: TCP
+    name: tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bundle-server-mtls
+spec:
+  selector:
+    app: bundle-server
+  ports:
+  - port: 443
+    targetPort: 9443
+    protocol: TCP
+    name: mtls

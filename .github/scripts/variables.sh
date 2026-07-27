@@ -13,7 +13,7 @@ if [ "$PWD" != "$ROOTDIR" ]; then
 fi
 
 # renovate: datasource=docker depName=kindest/node
-K8S_LATEST_VERSION=1.35.1
+K8S_LATEST_VERSION=1.36.1
 
 get_docker_md5() {
   docker_md5=$(find build .github/data/version.txt internal/configs/njs internal/configs/oidc -type f ! -name "*.md" -exec md5sum {} + | LC_ALL=C sort  | md5sum | awk '{ print $1 }')

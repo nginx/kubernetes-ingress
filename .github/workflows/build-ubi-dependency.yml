@@ -5,8 +5,6 @@ on:
     branches:
       - main
     paths:
-      - build/dependencies/Dockerfile.ubi8
-      - build/dependencies/Dockerfile.ubi9
       - build/dependencies/Dockerfile.ubi10
       - .github/workflows/build-ubi-dependency.yml
   workflow_dispatch:
@@ -24,6 +22,7 @@ permissions:
 jobs:
   build-binaries:
     name: Build Binary Container Image
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     permissions:
       packages: write
@@ -32,10 +31,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tag: ["ubi8", "ubi9", "ubi10"]
+        tag: ["ubi10"]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Azure Login
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
@@ -49,17 +48,29 @@ jobs:
           RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
           echo "::add-mask::$RHEL_CREDS"
           echo "$RHEL_CREDS" > rhel_license
+          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
+          echo "::add-mask::$PLUS_CREDS"
+          IFS=@ CERT=$(echo "$PLUS_CREDS" | jq -r '.crt')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${CERT}"
+          echo "$CERT" > nginx-repo.crt
+          IFS=@ KEY=$(echo "$PLUS_CREDS" | jq -r '.key')
+          while read -r line; do
+            echo "::add-mask::${line}"
+          done <<< "${KEY}"
+          echo "$KEY" > nginx-repo.key
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
         with:
           platforms: arm64
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
@@ -71,7 +82,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: |
             name=${{ env.IMAGE_NAME }},enable=true
@@ -82,7 +93,7 @@ jobs:
           DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
       - name: Build and push
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: ./build/dependencies/Dockerfile.${{ matrix.tag }}
           context: "."
@@ -96,8 +107,11 @@ jobs:
           target: final
           sbom: false
           provenance: mode=max
-          secret-files: rhel_license=rhel_license
+          secret-files: |
+            rhel_license=rhel_license
+            nginx-repo.crt=nginx-repo.crt
+            nginx-repo.key=nginx-repo.key
 
       - name: Clean up secrets
         if: always()
-        run: rm -f rhel_license
+        run: rm -f rhel_license nginx-repo.*

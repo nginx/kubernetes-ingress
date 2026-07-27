@@ -4,7 +4,7 @@ GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.0
+NGINX_OSS_VERSION             ?= 1.31.3
 NGINX_PLUS_VERSION            ?= R37.0
 NAP_WAF_VERSION               ?= 37.0+5.635
 NAP_WAF_COMMON_VERSION        ?= 11.665
@@ -14,6 +14,7 @@ AGENT_V3_VERSION              ?= 3
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
+UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:8fb7d622f38e0d0f4dba7bfc6228fee7241adf7e1c981f16c532cfbd47eccfc9
 
 # renovate: datasource=github-releases depName=dominikh/go-tools
 STATICCHECK_VERSION ?= 2026.1
@@ -23,7 +24,7 @@ GOVULNCHECK_VERSION ?= v1.1.4
 
 GO_DOCKER_IMAGE_NAME    ?= golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.26.3-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.26.5-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
 REGISTRY                      ?= ## The registry where the image is located.
@@ -39,7 +40,7 @@ TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.12.2 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.45.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.48.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.10.0 ## The version of gofumpt to use
 
@@ -183,14 +184,32 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 	@goreleaser -v || (code=$$?; printf "\033[0;31mError\033[0m: there was a problem with GoReleaser. Follow the docs to install it https://goreleaser.com/install\n"; exit $$code)
 	GOOS=$(strip $(GOOS)) GOPATH=$(shell go env GOPATH) GOARCH=$(strip $(ARCH)) goreleaser build --clean --snapshot --id kubernetes-ingress --single-target
 
-.PHONY: debian-image
-debian-image: build ## Create Docker image for Ingress Controller (Debian)
-	$(DOCKER_CMD) --build-arg BUILD_OS=debian --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+###### NIC + NGINX OSS Images (built from scratch) ######
 
 .PHONY: alpine-image
-alpine-image: build ## Create Docker image for Ingress Controller (Alpine)
-	$(DOCKER_CMD) --build-arg BUILD_OS=alpine --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+alpine-image: build ## Build OSS Alpine-based image
+	$(DOCKER_CMD) \
+		--build-arg BUILD_OS=alpine \
+		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
+.PHONY: debian-image
+debian-image: build ## Build OSS Debian-based image
+	$(DOCKER_CMD) \
+		--build-arg BUILD_OS=debian \
+		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+
+.PHONY: ubi-image
+ubi-image: build ## Create OSS UBI-based image
+	$(DOCKER_CMD) \
+		--build-arg BUILD_OS=ubi \
+		--build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE) \
+		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+
+
+###### NIC + NGINX PLUS Images ######
 .PHONY: alpine-image-plus
 alpine-image-plus: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
@@ -264,83 +283,60 @@ debian-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Contro
 		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
-.PHONY: ubi-image
-ubi-image: build ## Create Docker image for Ingress Controller (UBI)
-	$(DOCKER_CMD) --build-arg BUILD_OS=ubi --build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
-
 .PHONY: ubi-image-plus
 ubi-image-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-9-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-10-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi-image-nap-plus
 ubi-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAF)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap \
-		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION)
+	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-10-plus-nap \
+		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi-image-nap-plus-agent
 ubi-image-nap-plus-agent: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAF and Agent v3)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap-agent \
+	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-10-plus-nap-agent \
 		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
-
-.PHONY: ubi8-image-nap-plus
-ubi8-image-nap-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAF)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-8-plus-nap \
-		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION)
-
-.PHONY: ubi8-image-nap-plus-agent
-ubi8-image-nap-plus-agent: build ## Create Docker image for Ingress Controller (UBI8 with NGINX Plus, NGINX App Protect WAF and Agent v3)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-8-plus-nap-agent \
-		--build-arg NAP_MODULES=waf --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi-image-nap-v5-plus
 ubi-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
-	--build-arg BUILD_OS=ubi-9-plus-nap-v5 --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION)
+	--build-arg BUILD_OS=ubi-10-plus-nap-v5 --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi-image-nap-v5-plus-agent
 ubi-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAFv5 and Agent v3)
 	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
-		--build-arg BUILD_OS=ubi-9-plus-nap-v5-agent --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
-
-.PHONY: ubi8-image-nap-v5-plus
-ubi8-image-nap-v5-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect WAFv5)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
-	--build-arg BUILD_OS=ubi-8-plus-nap-v5 --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION)
-
-.PHONY: ubi8-image-nap-v5-plus-agent
-ubi8-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Controller (UBI8 with NGINX Plus, NGINX App Protect WAFv5 and Agent v3)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license \
-		--build-arg BUILD_OS=ubi-8-plus-nap-v5-agent --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+		--build-arg BUILD_OS=ubi-10-plus-nap-v5-agent --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi-image-dos-plus
 ubi-image-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap-agent \
+	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-10-plus-nap-agent \
 		--build-arg NAP_MODULES=dos --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi-image-nap-dos-plus
 ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAF and DoS)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap \
-		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION)
+	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-10-plus-nap \
+		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) --build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi-image-nap-dos-plus-agent
 ubi-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAF, DoS and Agent v3)
-	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-9-plus-nap-agent \
+	$(DOCKER_CMD) $(PLUS_ARGS) --secret id=rhel_license,src=rhel_license --build-arg BUILD_OS=ubi-10-plus-nap-agent \
 		--build-arg NAP_MODULES=waf,dos --build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
-		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) --build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
 .PHONY: ubi10-dependency-image-local
 ubi10-dependency-image-local: ## Build UBI10 dependency image locally (no push). Requires rhel_license. Set PLATFORM=linux/arm64 for arm64 (default: linux/amd64).
-	docker buildx build --platform $(PLATFORM) --file build/dependencies/Dockerfile.ubi10 \
+	docker buildx build --platform $(PLATFORM) \
+		--file build/dependencies/Dockerfile.ubi10 \
+		--tag $(BUILD_IMAGE) \
+		--secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key \
 		--secret id=rhel_license,src=rhel_license --target final --load .
 
 .PHONY: all-images ## Create all the Docker images for Ingress Controller
 all-images:
 	docker builder prune -af; \
-	images="alpine-image alpine-image-nap-plus-fips alpine-image-nap-plus-fips-agent alpine-image-nap-v5-plus-fips alpine-image-nap-v5-plus-fips-agent alpine-image-plus alpine-image-plus-fips debian-image debian-image-dos-plus debian-image-nap-dos-plus debian-image-nap-dos-plus-agent debian-image-nap-plus debian-image-nap-plus-agent debian-image-nap-v5-plus debian-image-nap-v5-plus-agent debian-image-plus ubi-image ubi-image-dos-plus ubi-image-nap-dos-plus ubi-image-nap-dos-plus-agent ubi-image-nap-plus ubi-image-nap-plus-agent ubi-image-nap-v5-plus ubi-image-nap-v5-plus-agent ubi-image-plus ubi8-image-nap-plus-agent ubi8-image-nap-v5-plus ubi8-image-nap-v5-plus-agent"; \
+	images="alpine-image alpine-image-nap-plus-fips alpine-image-nap-plus-fips-agent alpine-image-nap-v5-plus-fips alpine-image-nap-v5-plus-fips-agent alpine-image-plus alpine-image-plus-fips debian-image debian-image-dos-plus debian-image-nap-dos-plus debian-image-nap-dos-plus-agent debian-image-nap-plus debian-image-nap-plus-agent debian-image-nap-v5-plus debian-image-nap-v5-plus-agent debian-image-plus ubi-image ubi-image-dos-plus ubi-image-nap-dos-plus ubi-image-nap-dos-plus-agent ubi-image-nap-plus ubi-image-nap-plus-agent ubi-image-nap-v5-plus ubi-image-nap-v5-plus-agent ubi-image-plus"; \
 	for img in $$images; do \
 		TAG="$(strip $(TAG))-$$img" make $$img; \
 	done
