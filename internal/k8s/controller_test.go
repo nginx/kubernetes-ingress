@@ -4203,6 +4203,8 @@ func TestCreateVirtualServerExPropagatesACMEChallengeFlag(t *testing.T) {
 	vsEx := lbc.createVirtualServerEx(virtualServer, nil, nil)
 	if !vsEx.HasACMEChallengeVSR {
 		t.Fatal("createVirtualServerEx() did not propagate ACME challenge flag")
+	}
+}
 
 func TestVirtualServerRequiresEndpointsUpdate(t *testing.T) {
 	t.Parallel()
