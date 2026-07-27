@@ -13,14 +13,14 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:a21948baea3a4c2995f5a2a827a58f27fdf41a06e3bcb25f7241ae9704f0e89b
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:0d557f564568c9886bce6ff30563887548e6785ce588be6e9821d89a8b60a2b5
 
 
 ############################################# External dependency images #############################################
 FROM golang:1.26.5-alpine@sha256:739b5c7c89c2ba19b5744fab836efe973158e2c4b08808e99285f735af3e2926 AS golang-builder
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
 FROM ${UBI10_PACKAGES_IMAGE} AS ubi10-packages
-FROM redhat/ubi10-minimal:10.2-1782798957@sha256:b217fa65d8c21058887b18f005f587e47a17dd1281a5196ac88d01724a273dbd AS ubi-minimal
+FROM redhat/ubi10-minimal:10.2-1784669047@sha256:04140c8d78c6c6915b5c1fdad2f16d10eac3630c3339999ccdf659d8c903be50 AS ubi-minimal
 
 
 ############################################# NGINX repo keys, .repo files, and helper scripts #############################################
@@ -117,7 +117,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 
 ############################################### NGINX OSS - Debian #############################################
-FROM debian:trixie-slim@sha256:28de0877c2189802884ccd20f15ee41c203573bd87bb6b883f5f46362d24c5c2 AS debian
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS debian
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
@@ -389,7 +389,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Base:     debian:13-slim
 # Installs: nginx-plus, nginx-plus-module-njs/otel/fips-check, libcap2-bin, libcurl4
 # Extended: debian-plus (Agent v3)  •  debian-plus-nap-base  •  debian-plus-nap-v5-base
-FROM debian:13-slim@sha256:28de0877c2189802884ccd20f15ee41c203573bd87bb6b883f5f46362d24c5c2 AS debian-plus-only
+FROM debian:13-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS debian-plus-only
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}

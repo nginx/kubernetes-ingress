@@ -112,7 +112,7 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
           context: "."
@@ -208,7 +208,7 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
           context: "."
@@ -319,7 +319,7 @@ jobs:
             type=raw,value=${{ needs.checks.outputs.docker_md5 }},enable=${{ needs.checks.outputs.docker_md5 != '' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
           context: "."
