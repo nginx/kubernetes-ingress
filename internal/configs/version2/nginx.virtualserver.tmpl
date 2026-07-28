@@ -483,7 +483,7 @@ server {
         {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }};
         {{- end }}
         {{- end }}
-        
+
         {{- range $h := $l.ProxySetHeaders }}
         {{ $proxyOrGRPC }}_set_header {{ $h.Name }} {{ printf "%q" $h.Value }};
         {{- end }}
