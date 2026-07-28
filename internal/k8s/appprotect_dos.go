@@ -220,7 +220,6 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 			switch impl := c.Resource.(type) {
 			case *appprotectdos.DosProtectedResourceEx:
 				l := lbc.loggerForResource(impl.Obj.Namespace)
-				restore := lbc.setConfiguratorLogger(l)
 				nl.Debugf(l, "handling change UPDATE OR ADD for DOS protected %s/%s", impl.Obj.Namespace, impl.Obj.Name)
 				resources := lbc.configuration.FindResourcesForAppProtectDosProtected(impl.Obj.Namespace, impl.Obj.Name)
 				resourceExes := lbc.createExtendedResources(resources)
@@ -228,7 +227,6 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 				lbc.updateResourcesStatusAndEvents(resources, warnings, err)
 				msg := fmt.Sprintf("Configuration for %s/%s was added or updated", impl.Obj.Namespace, impl.Obj.Name)
 				lbc.recorder.Event(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
-				restore()
 			case *appprotectdos.DosPolicyEx:
 				msg := "Configuration was added or updated"
 				lbc.recorder.Event(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, msg)
@@ -246,26 +244,18 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 		} else if c.Op == appprotectdos.Delete {
 			switch impl := c.Resource.(type) {
 			case *appprotectdos.DosPolicyEx:
-				l := lbc.loggerForResource(impl.Obj.GetNamespace())
-				restore := lbc.setConfiguratorLogger(l)
 				lbc.configurator.DeleteAppProtectDosPolicy(impl.Obj)
-				restore()
 
 			case *appprotectdos.DosLogConfEx:
-				l := lbc.loggerForResource(impl.Obj.GetNamespace())
-				restore := lbc.setConfiguratorLogger(l)
 				lbc.configurator.DeleteAppProtectDosLogConf(impl.Obj)
-				restore()
 
 			case *appprotectdos.DosProtectedResourceEx:
 				l := lbc.loggerForResource(impl.Obj.Namespace)
-				restore := lbc.setConfiguratorLogger(l)
 				nl.Debugf(l, "handling change DELETE for DOS protected %s/%s", impl.Obj.Namespace, impl.Obj.Name)
 				resources := lbc.configuration.FindResourcesForAppProtectDosProtected(impl.Obj.Namespace, impl.Obj.Name)
 				resourceExes := lbc.createExtendedResources(resources)
 				warnings, err := lbc.configurator.AddOrUpdateResourcesThatUseDosProtected(resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 				lbc.updateResourcesStatusAndEvents(resources, warnings, err)
-				restore()
 			}
 		}
 	}

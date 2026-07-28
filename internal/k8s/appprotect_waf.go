@@ -373,8 +373,6 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 			case *appprotect.PolicyEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
-				l := lbc.loggerForResource(namespace)
-				restore := lbc.setConfiguratorLogger(l)
 				resources := lbc.configuration.FindResourcesForAppProtectPolicyAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectPolicy(lbc.getAllPolicies(), namespace+"/"+name) {
@@ -386,12 +384,9 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 				warnings, updateErr := lbc.configurator.AddOrUpdateAppProtectResource(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 				lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
 				lbc.recorder.Eventf(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, "AppProtectPolicy %v was added or updated", namespace+"/"+name)
-				restore()
 			case *appprotect.LogConfEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
-				l := lbc.loggerForResource(namespace)
-				restore := lbc.setConfiguratorLogger(l)
 				resources := lbc.configuration.FindResourcesForAppProtectLogConfAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectLogConf(lbc.getAllPolicies(), namespace+"/"+name) {
@@ -403,15 +398,12 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 				warnings, updateErr := lbc.configurator.AddOrUpdateAppProtectResource(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 				lbc.updateResourcesStatusAndEvents(resources, warnings, updateErr)
 				lbc.recorder.Eventf(impl.Obj, api_v1.EventTypeNormal, nl.EventReasonAddedOrUpdated, "AppProtectLogConfig %v was added or updated", namespace+"/"+name)
-				restore()
 			}
 		} else if c.Op == appprotect.Delete {
 			switch impl := c.Resource.(type) {
 			case *appprotect.PolicyEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
-				l := lbc.loggerForResource(namespace)
-				restore := lbc.setConfiguratorLogger(l)
 				resources := lbc.configuration.FindResourcesForAppProtectPolicyAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectPolicy(lbc.getAllPolicies(), namespace+"/"+name) {
@@ -423,13 +415,10 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 				warnings, deleteErr := lbc.configurator.DeleteAppProtectPolicy(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 
 				lbc.updateResourcesStatusAndEvents(resources, warnings, deleteErr)
-				restore()
 
 			case *appprotect.LogConfEx:
 				namespace := impl.Obj.GetNamespace()
 				name := impl.Obj.GetName()
-				l := lbc.loggerForResource(namespace)
-				restore := lbc.setConfiguratorLogger(l)
 				resources := lbc.configuration.FindResourcesForAppProtectLogConfAnnotation(namespace, name)
 
 				for _, wafPol := range getWAFPoliciesForAppProtectLogConf(lbc.getAllPolicies(), namespace+"/"+name) {
@@ -441,7 +430,6 @@ func (lbc *LoadBalancerController) processAppProtectChanges(changes []appprotect
 				warnings, deleteErr := lbc.configurator.DeleteAppProtectLogConf(impl.Obj, resourceExes.IngressExes, resourceExes.MergeableIngresses, resourceExes.VirtualServerExes)
 
 				lbc.updateResourcesStatusAndEvents(resources, warnings, deleteErr)
-				restore()
 			}
 		}
 	}
@@ -453,8 +441,6 @@ func (lbc *LoadBalancerController) processAppProtectUserSigChange(change appprot
 	var allMergeableIngresses []*configs.MergeableIngresses
 	var allVsExes []*configs.VirtualServerEx
 	var allResources []Resource
-
-	defer lbc.setConfiguratorLogger(lbc.Logger)()
 
 	for _, poladd := range change.PolicyAddsOrUpdates {
 		resources := lbc.configuration.FindResourcesForAppProtectPolicyAnnotation(poladd.GetNamespace(), poladd.GetName())

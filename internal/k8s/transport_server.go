@@ -68,7 +68,6 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
 	l := lbc.loggerForResource(ns)
-	defer lbc.setConfiguratorLogger(l)()
 	obj, tsExists, err = lbc.getNamespacedInformer(ns).transportServerLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -222,7 +221,6 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 	podsByIP := make(map[string]string)
 	disableIPV6 := lbc.configuration.isIPV6Disabled
 	logger := lbc.loggerForResource(transportServer.Namespace)
-
 
 	for _, u := range transportServer.Spec.Upstreams {
 		podEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Service, uint16(u.Port)) //nolint:gosec

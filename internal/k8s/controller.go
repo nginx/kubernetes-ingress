@@ -177,57 +177,57 @@ type LoadBalancerController struct {
 	ingressLinkLister             cache.Store
 	namespaceLabeledLister        cache.Store
 	syncQueue                     *taskQueue
-	ctx                          context.Context
-	Logger                       *slog.Logger
-	cancel                       context.CancelFunc
-	configurator                 *configs.Configurator
-	watchNginxConfigMaps         bool
-	watchMGMTConfigMap           bool
-	watchGlobalConfiguration     bool
-	watchIngressLink             bool
-	isNginxPlus                  bool
-	appProtectEnabled            bool
-	appProtectDosEnabled         bool
-	recorder                     record.EventRecorder
-	specialSecrets               specialSecrets
-	ingressClass                 string
-	statusUpdater                *statusUpdater
-	leaderElector                *leaderelection.LeaderElector
-	reportIngressStatus          bool
-	isLeaderElectionEnabled      bool
-	leaderElectionLockName       string
-	resync                       time.Duration
-	namespaceList                []string
-	secretNamespaceList          []string
-	metadata                     controllerMetadata
-	areCustomResourcesEnabled    bool
-	enableOIDC                   bool
-	metricsCollector             collectors.ControllerCollector
-	globalConfigurationValidator *validation.GlobalConfigurationValidator
-	transportServerValidator     *validation.TransportServerValidator
-	isNginxReady                 bool
-	isPrometheusEnabled          bool
-	isLatencyMetricsEnabled      bool
-	configuration                *Configuration
-	secretStore                  secrets.SecretStore
-	appProtectConfiguration      appprotect.Configuration
-	dosConfiguration             *appprotectdos.Configuration
-	configMap                    *api_v1.ConfigMap
-	mgmtConfigMap                *api_v1.ConfigMap
-	certManagerController        *cm_controller.CmController
-	externalDNSController        *ed_controller.ExtDNSController
-	batchSyncEnabled             bool
-	updateAllConfigsOnBatch      bool
-	enableBatchReload            bool
-	isIPV6Disabled               bool
-	namespaceWatcherController   cache.Controller
-	telemetryCollector           *telemetry.Collector
-	telemetryChan                chan struct{}
-	weightChangesDynamicReload   bool
-	nginxConfigMapName           string
-	mgmtConfigMapName            string
-	ShuttingDown                 bool
-	endpointSliceWarnings        map[string]bool // see updateEndpointSliceWarningState
+	ctx                           context.Context
+	Logger                        *slog.Logger
+	cancel                        context.CancelFunc
+	configurator                  *configs.Configurator
+	watchNginxConfigMaps          bool
+	watchMGMTConfigMap            bool
+	watchGlobalConfiguration      bool
+	watchIngressLink              bool
+	isNginxPlus                   bool
+	appProtectEnabled             bool
+	appProtectDosEnabled          bool
+	recorder                      record.EventRecorder
+	specialSecrets                specialSecrets
+	ingressClass                  string
+	statusUpdater                 *statusUpdater
+	leaderElector                 *leaderelection.LeaderElector
+	reportIngressStatus           bool
+	isLeaderElectionEnabled       bool
+	leaderElectionLockName        string
+	resync                        time.Duration
+	namespaceList                 []string
+	secretNamespaceList           []string
+	metadata                      controllerMetadata
+	areCustomResourcesEnabled     bool
+	enableOIDC                    bool
+	metricsCollector              collectors.ControllerCollector
+	globalConfigurationValidator  *validation.GlobalConfigurationValidator
+	transportServerValidator      *validation.TransportServerValidator
+	isNginxReady                  bool
+	isPrometheusEnabled           bool
+	isLatencyMetricsEnabled       bool
+	configuration                 *Configuration
+	secretStore                   secrets.SecretStore
+	appProtectConfiguration       appprotect.Configuration
+	dosConfiguration              *appprotectdos.Configuration
+	configMap                     *api_v1.ConfigMap
+	mgmtConfigMap                 *api_v1.ConfigMap
+	certManagerController         *cm_controller.CmController
+	externalDNSController         *ed_controller.ExtDNSController
+	batchSyncEnabled              bool
+	updateAllConfigsOnBatch       bool
+	enableBatchReload             bool
+	isIPV6Disabled                bool
+	namespaceWatcherController    cache.Controller
+	telemetryCollector            *telemetry.Collector
+	telemetryChan                 chan struct{}
+	weightChangesDynamicReload    bool
+	nginxConfigMapName            string
+	mgmtConfigMapName             string
+	ShuttingDown                  bool
+	endpointSliceWarnings         map[string]bool // see updateEndpointSliceWarningState
 
 	// WAF bundle polling.
 	bundlePollerMgr wafbundle.Manager
@@ -1300,11 +1300,9 @@ func (lbc *LoadBalancerController) sync(task task) {
 		if lbc.updateAllConfigsOnBatch {
 			lbc.updateAllConfigs()
 		} else {
-			restore := lbc.setConfiguratorLogger(lbc.Logger)
 			if err := lbc.configurator.ReloadForBatchUpdates(lbc.enableBatchReload); err != nil {
 				nl.Errorf(lbc.Logger, "error reloading for batch updates: %v", err)
 			}
-			restore()
 		}
 
 		lbc.enableBatchReload = false

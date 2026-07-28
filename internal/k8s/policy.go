@@ -74,7 +74,6 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
 	l := lbc.loggerForResource(ns)
-	defer lbc.setConfiguratorLogger(l)()
 	obj, polExists, err = lbc.getNamespacedInformer(ns).policyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
