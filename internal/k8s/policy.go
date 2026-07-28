@@ -73,7 +73,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.loggerForResource(ns)
+	l := lbc.loggerForNamespace(ns)
 	obj, polExists, err = lbc.getNamespacedInformer(ns).policyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -320,7 +320,7 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	polKey := pol.Namespace + "/" + pol.Name
 	bs := pol.Spec.WAF.ApBundleSource
 
-	l := lbc.loggerForResource(pol.Namespace)
+	l := lbc.loggerForNamespace(pol.Namespace)
 
 	var auth *wafbundle.BundleAuth
 	if bs != nil {
@@ -407,7 +407,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	req := lbc.buildFetchRequest(bs, auth, kind)
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(pol.Namespace)
-	l := lbc.loggerForResource(ns)
+	l := lbc.loggerForNamespace(ns)
 
 	timeout := wafbundle.DefaultTimeout
 	if bs.Timeout != nil && bs.Timeout.Duration > 0 {
@@ -462,7 +462,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 // Existing bundle files remain active and continue protecting traffic.
 func (lbc *LoadBalancerController) handleBundleRefreshFailure(polKey string, fetchErr error) {
 	ns, _, _ := cache.SplitMetaNamespaceKey(polKey)
-	l := lbc.loggerForResource(ns)
+	l := lbc.loggerForNamespace(ns)
 
 	parts := strings.SplitN(polKey, "/", 2)
 	if len(parts) != 2 {
