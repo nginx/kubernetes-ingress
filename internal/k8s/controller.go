@@ -1038,8 +1038,6 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	var mgmtErr error
 	var reloadNginx bool
 
-	defer lbc.setConfiguratorLogger(lbc.Logger)()
-
 	if lbc.configMap != nil {
 		cfgParams, isNGINXConfigValid = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled, lbc.configuration.isDirectiveAutoadjustEnabled, lbc.recorder)
 	}
@@ -1403,12 +1401,6 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 
 func (lbc *LoadBalancerController) loggerForResource(ns string) *slog.Logger {
 	return lbc.Logger.With("resource_namespace", ns)
-}
-
-func (lbc *LoadBalancerController) setConfiguratorLogger(l *slog.Logger) func() {
-	origCtx := lbc.configurator.CfgParams.Context
-	lbc.configurator.CfgParams.Context = nl.ContextWithLogger(origCtx, l)
-	return func() { lbc.configurator.CfgParams.Context = origCtx }
 }
 
 func (lbc *LoadBalancerController) syncVirtualServer(task task) {
@@ -2215,7 +2207,6 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 		return
 	}
 	l := lbc.loggerForResource(namespace)
-	defer lbc.setConfiguratorLogger(l)()
 	obj, secretWatched, err = lbc.getNamespacedInformer(namespace).secretLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -4221,7 +4212,6 @@ func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *co
 	variableNamer := configs.NewVSVariableNamer(vsNew)
 
 	l := lbc.loggerForResource(vsNew.Namespace)
-	defer lbc.setConfiguratorLogger(l)()
 
 	for i, routeNew := range vsNew.Spec.Routes {
 		routeOld := vsOld.Spec.Routes[i]
@@ -4279,7 +4269,6 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 	}
 
 	l := lbc.loggerForResource(vsrNew.Namespace)
-	defer lbc.setConfiguratorLogger(l)()
 
 	if vsrOld.Status.State == conf_v1.StateInvalid {
 		changes, problems := lbc.configuration.AddOrUpdateVirtualServerRoute(vsrNew)
@@ -4386,7 +4375,6 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 	defer lbc.configuration.lock.Unlock()
 	key := getResourceKey(&vsNew.ObjectMeta)
 	l := lbc.loggerForResource(vsNew.Namespace)
-	defer lbc.setConfiguratorLogger(l)()
 	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServer(vsNew)
 	if validationError != nil {
 		delete(lbc.configuration.virtualServers, key)
@@ -4464,7 +4452,6 @@ func (lbc *LoadBalancerController) haltIfVSRConfigInvalid(vsrNew *conf_v1.Virtua
 	defer lbc.configuration.lock.Unlock()
 	key := getResourceKey(&vsrNew.ObjectMeta)
 	l := lbc.loggerForResource(vsrNew.Namespace)
-	defer lbc.setConfiguratorLogger(l)()
 	var vsEx *configs.VirtualServerEx
 
 	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServerRoute(vsrNew)

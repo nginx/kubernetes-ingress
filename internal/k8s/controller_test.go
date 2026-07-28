@@ -8,7 +8,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -2434,80 +2433,6 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 			}
 		})
 	}
-}
-
-func TestSetConfiguratorLogger(t *testing.T) {
-	t.Parallel()
-
-	origCtx := nl.ContextWithLogger(context.Background(), nl.LoggerFromContext(context.Background()))
-	cfgParams := configs.NewDefaultConfigParams(origCtx, false)
-
-	lbc := &LoadBalancerController{
-		Logger:       nl.LoggerFromContext(context.Background()),
-		configurator: &configs.Configurator{CfgParams: cfgParams},
-	}
-
-	scopedLogger := lbc.Logger.With("resource_namespace", "test-ns")
-
-	restore := lbc.setConfiguratorLogger(scopedLogger)
-
-	if lbc.configurator.CfgParams.Context == origCtx {
-		t.Error("expected context to change after setConfiguratorLogger")
-	}
-
-	restore()
-
-	if lbc.configurator.CfgParams.Context != origCtx {
-		t.Error("expected original context to be restored")
-	}
-}
-
-func TestSetConfiguratorLogger_DataRace(t *testing.T) {
-	t.Helper()
-
-	manager := newTestNginxManager()
-	cnf := createTestPolicySyncConfigurator(t, manager)
-
-	lbc := &LoadBalancerController{
-		configurator: cnf,
-		Logger:       nl.LoggerFromContext(context.Background()),
-	}
-
-	const iterations = 1000
-	var wg sync.WaitGroup
-
-	// Writer A: simulates the sync-queue worker setting a scoped logger.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		l := lbc.loggerForResource("ns-a")
-		for i := 0; i < iterations; i++ {
-			restore := lbc.setConfiguratorLogger(l)
-			restore()
-		}
-	}()
-
-	// Writer B: simulates the informer weight-change path setting a scoped logger.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		l := lbc.loggerForResource("ns-b")
-		for i := 0; i < iterations; i++ {
-			restore := lbc.setConfiguratorLogger(l)
-			restore()
-		}
-	}()
-
-	// Reader: simulates telemetry reading CfgParams.Context without the lock.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for i := 0; i < iterations; i++ {
-			_ = nl.LoggerFromContext(lbc.configurator.CfgParams.Context)
-		}
-	}()
-
-	wg.Wait()
 }
 
 func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
