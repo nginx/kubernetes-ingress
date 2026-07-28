@@ -1553,11 +1553,11 @@ func (lbc *LoadBalancerController) processDelete(c ResourceChange) {
 		ns, _, _ := cache.SplitMetaNamespaceKey(key)
 		l := lbc.loggerForNamespace(ns)
 
-		nl.Debugf(logger, "Deleting Ingress: %v\n", key)
+		nl.Debugf(l, "Deleting Ingress: %v\n", key)
 
 		deleteErr := lbc.configurator.DeleteIngress(key, false)
 		if deleteErr != nil {
-			nl.Errorf(logger, "Error when deleting configuration for Ingress %v: %v", key, deleteErr)
+			nl.Errorf(l, "Error when deleting configuration for Ingress %v: %v", key, deleteErr)
 		}
 
 		var ingExists bool
@@ -2752,23 +2752,23 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		if len(policyErrors) > 0 {
 			for _, err := range policyErrors {
 				msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
-				nl.Warnf(logger, "%s", msg)
+				nl.Warnf(l, "%s", msg)
 				ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 			}
 		}
 		if err := lbc.addIngressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
 			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
-			nl.Warnf(logger, "%s", msg)
+			nl.Warnf(l, "%s", msg)
 			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
 		if err := lbc.addEgressMTLSSecretRefs(ingEx.SecretRefs, policies); err != nil {
 			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
-			nl.Warnf(logger, "%s", msg)
+			nl.Warnf(l, "%s", msg)
 			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
 	} else if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" || ingEx.Ingress.Annotations[configs.PoliciesAnnotationPlus] != "" {
 		msg := fmt.Sprintf("Ingress %v/%v has a policies annotation but custom resources are not enabled; policies will be ignored", ing.Namespace, ing.Name)
-		nl.Warnf(logger, "%s", msg)
+		nl.Warnf(l, "%s", msg)
 		ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 	}
 
@@ -2777,7 +2777,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ingEx.LogConfRefs = make(map[string]*unstructured.Unstructured)
 		if err := lbc.addWAFPolicyRefs(ingEx.ApPolRefs, ingEx.LogConfRefs, policies); err != nil {
 			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
-			nl.Warnf(logger, "%s", msg)
+			nl.Warnf(l, "%s", msg)
 			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
 	}
@@ -2789,7 +2789,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 			secretRef := lbc.secretStore.GetSecret(secretKey)
 			if secretRef.Error != nil {
-				nl.Warnf(logger, "Error trying to get the secret %v for Ingress %v/%v: %v", secretName, ing.Namespace, ing.Name, secretRef.Error)
+				nl.Warnf(l, "Error trying to get the secret %v for Ingress %v/%v: %v", secretName, ing.Namespace, ing.Name, secretRef.Error)
 			}
 
 			ingEx.SecretRefs[secretName] = secretRef
@@ -2798,7 +2798,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			if apPolicyAntn, exists := ingEx.Ingress.Annotations[configs.AppProtectPolicyAnnotation]; exists {
 				policy, err := lbc.getAppProtectPolicy(ing)
 				if err != nil {
-					nl.Warnf(logger, "Error Getting App Protect policy %v for Ingress %v/%v: %v", apPolicyAntn, ing.Namespace, ing.Name, err)
+					nl.Warnf(l, "Error Getting App Protect policy %v for Ingress %v/%v: %v", apPolicyAntn, ing.Namespace, ing.Name, err)
 				} else {
 					ingEx.AppProtectPolicy = policy
 				}
@@ -2807,7 +2807,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			if apLogConfAntn, exists := ingEx.Ingress.Annotations[configs.AppProtectLogConfAnnotation]; exists {
 				logConf, err := lbc.getAppProtectLogConfAndDst(ing)
 				if err != nil {
-					nl.Warnf(logger, "Error Getting App Protect Log Config %v for Ingress %v/%v: %v", apLogConfAntn, ing.Namespace, ing.Name, err)
+					nl.Warnf(l, "Error Getting App Protect Log Config %v for Ingress %v/%v: %v", apLogConfAntn, ing.Namespace, ing.Name, err)
 				} else {
 					ingEx.AppProtectLogs = logConf
 				}
@@ -2818,7 +2818,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			if dosProtectedAnnotationValue, exists := ingEx.Ingress.Annotations[configs.AppProtectDosProtectedAnnotation]; exists {
 				dosResEx, err := lbc.dosConfiguration.GetValidDosEx(ing.Namespace, dosProtectedAnnotationValue)
 				if err != nil {
-					nl.Warnf(logger, "Error Getting Dos Protected Resource %v for Ingress %v/%v: %v", dosProtectedAnnotationValue, ing.Namespace, ing.Name, err)
+					nl.Warnf(l, "Error Getting Dos Protected Resource %v for Ingress %v/%v: %v", dosProtectedAnnotationValue, ing.Namespace, ing.Name, err)
 				}
 				if dosResEx != nil {
 					ingEx.DosEx = dosResEx
@@ -2833,7 +2833,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 	// Resolve ExternalAuth trusted cert secrets for Ingress policies
 	if err := lbc.addExternalAuthTrustedCertSecretRefs(ingEx.SecretRefs, policies); err != nil {
-		nl.Warnf(logger, "Error getting ExternalAuth trusted cert secrets for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+		nl.Warnf(l, "Error getting ExternalAuth trusted cert secrets for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
 	}
 
 	ingEx.Endpoints = make(map[string][]string)
@@ -2848,7 +2848,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		var external bool
 		svc, err := lbc.getServiceForIngressBackend(ing.Spec.DefaultBackend, ing.Namespace)
 		if err != nil {
-			nl.Warnf(logger, "Error getting service %v: %v", ing.Spec.DefaultBackend.Service.Name, err)
+			nl.Warnf(l, "Error getting service %v: %v", ing.Spec.DefaultBackend.Service.Name, err)
 		} else {
 			podEndps, external, err = lbc.getEndpointsForIngressBackend(ing.Spec.DefaultBackend, svc)
 			if err == nil && external && lbc.isNginxPlus {
@@ -2857,7 +2857,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		}
 
 		if err != nil {
-			nl.Warnf(logger, "Error retrieving endpoints for the service %v: %v", ing.Spec.DefaultBackend.Service.Name, err)
+			nl.Warnf(l, "Error retrieving endpoints for the service %v: %v", ing.Spec.DefaultBackend.Service.Name, err)
 		}
 
 		if svc != nil && !external && hasUseClusterIP {
@@ -2896,7 +2896,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 	for _, rule := range ing.Spec.Rules {
 		if !validHosts[rule.Host] {
-			nl.Debugf(logger, "Skipping host %s for Ingress %s", rule.Host, ing.Name)
+			nl.Debugf(l, "Skipping host %s for Ingress %s", rule.Host, ing.Name)
 			continue
 		}
 
@@ -2909,14 +2909,14 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			path := path // address gosec G601
 			podEndps := []podEndpoint{}
 			if validMinionPaths != nil && !validMinionPaths[path.Path] {
-				nl.Debugf(logger, "Skipping path %s for minion Ingress %s", path.Path, ing.Name)
+				nl.Debugf(l, "Skipping path %s for minion Ingress %s", path.Path, ing.Name)
 				continue
 			}
 
 			var external bool
 			svc, err := lbc.getServiceForIngressBackend(&path.Backend, ing.Namespace)
 			if err != nil {
-				nl.Debugf(logger, "Error getting service %v: %v", &path.Backend.Service.Name, err)
+				nl.Debugf(l, "Error getting service %v: %v", &path.Backend.Service.Name, err)
 			} else {
 				podEndps, external, err = lbc.getEndpointsForIngressBackend(&path.Backend, svc)
 				if err == nil && external && lbc.isNginxPlus {
@@ -2925,7 +2925,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			}
 
 			if err != nil {
-				nl.Warnf(logger, "Error retrieving endpoints for the service %v: %v", path.Backend.Service.Name, err)
+				nl.Warnf(l, "Error retrieving endpoints for the service %v: %v", path.Backend.Service.Name, err)
 			}
 
 			if svc != nil && !external && hasUseClusterIP {
@@ -4524,7 +4524,7 @@ func (lbc *LoadBalancerController) isPodMarkedForDeletion() bool {
 	pod, err := lbc.client.CoreV1().Pods(podNamespace).Get(context.Background(), podName, meta_v1.GetOptions{})
 	if err == nil && pod.DeletionTimestamp != nil {
 		l := lbc.loggerForNamespace(podNamespace)
-		nl.Debugf(lbc.Logger, "Pod %s/%s is marked for deletion", podNamespace, podName)
+		nl.Debugf(l, "Pod %s/%s is marked for deletion", podNamespace, podName)
 		return true
 	}
 
