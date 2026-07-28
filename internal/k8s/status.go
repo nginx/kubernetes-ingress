@@ -128,7 +128,6 @@ func (su *statusUpdater) getNamespacedInformer(ns string) *namespacedInformer {
 
 // updateIngressWithStatus sets the provided status on the selected Ingress.
 func (su *statusUpdater) updateIngressWithStatus(ing networking.Ingress, status []networking.IngressLoadBalancerIngress) error {
-
 	l := su.logger.With("resource_namespace", ing.Namespace)
 
 	// Get an up-to-date Ingress from the Store

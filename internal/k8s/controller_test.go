@@ -2829,7 +2829,7 @@ func TestUpdateEndpointSliceWarningState(t *testing.T) {
 			svcResources := []Resource{resource}
 			resourceExes := configs.ExtendedResources{}
 
-			lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, tc.cfgWarnings)
+			lbc.updateEndpointSliceWarningState(svcResources, resourceExes, tc.cfgWarnings)
 
 			if len(lbc.endpointSliceWarnings) != len(tc.expectedWarnings) {
 				t.Errorf("expected %d warning entries, got %d", len(tc.expectedWarnings), len(lbc.endpointSliceWarnings))
@@ -2858,26 +2858,26 @@ func TestUpdateEndpointSliceWarningState_WarningToClearTransition(t *testing.T) 
 	resourceExes := configs.ExtendedResources{}
 
 	// Step 1: clean -> clean (no-op)
-	lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, configs.Warnings{})
+	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 1: expected empty map, got %v", lbc.endpointSliceWarnings)
 	}
 
 	// Step 2: clean -> warning
 	warningCfg := configs.Warnings{&networking.Ingress{}: {"no endpoints for auth service"}}
-	lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, warningCfg)
+	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, warningCfg)
 	if !lbc.endpointSliceWarnings["Ingress/default/my-ingress"] {
 		t.Fatalf("step 2: expected warning tracked, got %v", lbc.endpointSliceWarnings)
 	}
 
 	// Step 3: warning -> clean (recovery)
-	lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, configs.Warnings{})
+	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 3: expected empty map after recovery, got %v", lbc.endpointSliceWarnings)
 	}
 
 	// Step 4: clean -> clean again (should be silent)
-	lbc.updateEndpointSliceWarningState(lbc.Logger, svcResources, resourceExes, configs.Warnings{})
+	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
 	if len(lbc.endpointSliceWarnings) != 0 {
 		t.Fatalf("step 4: expected empty map, got %v", lbc.endpointSliceWarnings)
 	}
