@@ -73,7 +73,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.loggerForNamespace(ns)
+	l := lbc.Logger.With(logNamespaceKey, ns)
 	obj, polExists, err = lbc.getNamespacedInformer(ns).policyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -318,7 +318,7 @@ func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
 // Initial fetches are performed asynchronously to avoid blocking the sync queue.
 func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	polKey := pol.Namespace + "/" + pol.Name
-	l := lbc.loggerForNamespace(pol.Namespace)
+	l := lbc.Logger.With(logNamespaceKey, pol.Namespace)
 	bs := pol.Spec.WAF.ApBundleSource
 
 	var auth *wafbundle.BundleAuth
@@ -403,7 +403,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	kind wafbundle.BundleType,
 ) {
 	polKey := pol.Namespace + "/" + pol.Name
-	l := lbc.loggerForNamespace(pol.Namespace)
+	l := lbc.Logger.With(logNamespaceKey, pol.Namespace)
 	req := lbc.buildFetchRequest(bs, auth, kind)
 
 	timeout := wafbundle.DefaultTimeout
@@ -459,7 +459,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 // Existing bundle files remain active and continue protecting traffic.
 func (lbc *LoadBalancerController) handleBundleRefreshFailure(polKey string, fetchErr error) {
 	ns, _, _ := cache.SplitMetaNamespaceKey(polKey)
-	l := lbc.loggerForNamespace(ns)
+	l := lbc.Logger.With(logNamespaceKey, ns)
 
 	parts := strings.SplitN(polKey, "/", 2)
 	if len(parts) != 2 {

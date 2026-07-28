@@ -20,7 +20,7 @@ func createAppProtectPolicyHandlers(lbc *LoadBalancerController) cache.ResourceE
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pol := obj.(*unstructured.Unstructured)
-			nl.Debugf(lbc.Logger.With("resource_namespace", pol.GetNamespace()), "Adding AppProtectPolicy: %v", pol.GetName())
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, pol.GetNamespace()), "Adding AppProtectPolicy: %v", pol.GetName())
 			lbc.AddSyncQueue(pol)
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
@@ -28,7 +28,7 @@ func createAppProtectPolicyHandlers(lbc *LoadBalancerController) cache.ResourceE
 			newPol := obj.(*unstructured.Unstructured)
 			different, err := areResourcesDifferent(lbc.Logger, oldPol, newPol)
 			if err != nil {
-				nl.Debugf(lbc.Logger.With("resource_namespace", oldPol.GetNamespace()), "Error when comparing policy %v", err)
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, oldPol.GetNamespace()), "Error when comparing policy %v", err)
 				lbc.AddSyncQueue(newPol)
 			}
 			if different {
@@ -47,7 +47,7 @@ func createAppProtectLogConfHandlers(lbc *LoadBalancerController) cache.Resource
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			conf := obj.(*unstructured.Unstructured)
-			nl.Debugf(lbc.Logger.With("resource_namespace", conf.GetNamespace()), "Adding AppProtectLogConf: %v", conf.GetName())
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, conf.GetNamespace()), "Adding AppProtectLogConf: %v", conf.GetName())
 			lbc.AddSyncQueue(conf)
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
@@ -55,7 +55,7 @@ func createAppProtectLogConfHandlers(lbc *LoadBalancerController) cache.Resource
 			newConf := obj.(*unstructured.Unstructured)
 			different, err := areResourcesDifferent(lbc.Logger, oldConf, newConf)
 			if err != nil {
-				nl.Debugf(lbc.Logger.With("resource_namespace", oldConf.GetNamespace()), "Error when comparing LogConfs %v", err)
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, oldConf.GetNamespace()), "Error when comparing LogConfs %v", err)
 				lbc.AddSyncQueue(newConf)
 			}
 			if different {
@@ -74,7 +74,7 @@ func createAppProtectUserSigHandlers(lbc *LoadBalancerController) cache.Resource
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			sig := obj.(*unstructured.Unstructured)
-			nl.Debugf(lbc.Logger.With("resource_namespace", sig.GetNamespace()), "Adding AppProtectUserSig: %v", sig.GetName())
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, sig.GetNamespace()), "Adding AppProtectUserSig: %v", sig.GetName())
 			lbc.AddSyncQueue(sig)
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
@@ -82,11 +82,11 @@ func createAppProtectUserSigHandlers(lbc *LoadBalancerController) cache.Resource
 			newSig := obj.(*unstructured.Unstructured)
 			different, err := areResourcesDifferent(lbc.Logger, oldSig, newSig)
 			if err != nil {
-				nl.Debugf(lbc.Logger.With("resource_namespace", oldSig.GetNamespace()), "Error when comparing UserSigs %v", err)
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, oldSig.GetNamespace()), "Error when comparing UserSigs %v", err)
 				lbc.AddSyncQueue(newSig)
 			}
 			if different {
-				nl.Debugf(lbc.Logger.With("resource_namespace", newSig.GetNamespace()), "ApUserSig %v changed, syncing", oldSig.GetName())
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, newSig.GetNamespace()), "ApUserSig %v changed, syncing", oldSig.GetName())
 				lbc.AddSyncQueue(newSig)
 			}
 		},
@@ -142,7 +142,7 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	logger := lbc.loggerForNamespace(ns)
+	logger := lbc.Logger.With(logNamespaceKey, ns)
 	obj, polExists, err = lbc.getNamespacedInformer(ns).appProtectPolicyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -174,7 +174,7 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	logger := lbc.loggerForNamespace(ns)
+	logger := lbc.Logger.With(logNamespaceKey, ns)
 	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectLogConfLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -206,7 +206,7 @@ func (lbc *LoadBalancerController) syncAppProtectUserSig(task task) {
 	var err error
 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	logger := lbc.loggerForNamespace(ns)
+	logger := lbc.Logger.With(logNamespaceKey, ns)
 	obj, sigExists, err = lbc.getNamespacedInformer(ns).appProtectUserSigLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
