@@ -229,6 +229,11 @@ type LoadBalancerController struct {
 	ShuttingDown                  bool
 	endpointSliceWarnings         map[string]bool // see updateEndpointSliceWarningState
 
+	// heldForConfigSafety is set at startup by the ready-flip block when the
+	// config-safety readiness gate refuses to mark the pod Ready because every
+	// resource was excluded (shared-input failure)
+	heldForConfigSafety bool
+
 	// WAF bundle polling.
 	bundlePollerMgr wafbundle.Manager
 	bundleFetcher   wafbundle.Fetcher
@@ -797,6 +802,11 @@ func (lbc *LoadBalancerController) Run() {
 
 	lbc.preSyncSecrets()
 
+	// Enable batch mode during startup: config writes skip per-file nginx -t validation.
+	// All configs are validated with a single nginx -t in updateAllConfigs() → CompleteBatch()
+	// after the queue drains. This reduces startup validation cost from O(N²) to O(N).
+	lbc.configurator.EnableBatchMode()
+
 	nl.Debugf(lbc.Logger, "Starting the queue with %d initial elements", lbc.syncQueue.Len())
 
 	go lbc.syncQueue.Run(time.Second, lbc.ctx.Done())
@@ -1087,6 +1097,16 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	resourceExes := lbc.createExtendedResources(resources)
 	warnings, resourceErrors, updateErr := lbc.configurator.UpdateConfig(resourceExes)
 
+	// Config safety self-healing: when the startup ready-flip branch below held
+	// the pod Not Ready because every resource was excluded (shared-input
+	// failure), a subsequent successful UpdateConfig must flip the
+	// pod back to Ready.
+	if lbc.heldForConfigSafety && len(resourceErrors) == 0 && updateErr == nil {
+		lbc.heldForConfigSafety = false
+		lbc.isNginxReady = true
+		nl.Infof(lbc.Logger, "Config safety: shared input fixed; pod now Ready (recovered from startup exclusion)")
+	}
+
 	eventTitle := nl.EventReasonUpdated
 	eventType := api_v1.EventTypeNormal
 	eventWarningMessage := ""
@@ -1275,13 +1295,48 @@ func (lbc *LoadBalancerController) sync(task task) {
 			lbc.updateTransportServerMetrics()
 		}
 
-		// Step 3: Mark ready BEFORE flushing status updates. The pod can
+		// Step 3:  Mark pod ready BEFORE flushing status updates: The pod can
 		// serve traffic as soon as NGINX is reloaded — status metadata
 		// (Ingress IP, CR state) is not required for traffic serving.
 		// This decouples readiness from status API calls, which can take
 		// minutes at scale for leader pod
-		lbc.isNginxReady = true
-		nl.Debug(lbc.Logger, "NGINX is ready")
+		//
+		// Conditional readiness gate: If config safety batch validation
+		// excluded ALL resources, do NOT mark the pod Ready — it serves zero
+		// useful traffic. Marking it Ready would let K8s terminate working
+		// replicas during a rolling update, causing a complete outage.
+		// If only some resources were excluded (partial failure), mark Ready —
+		// the pod genuinely serves the valid subset.
+		// EffectiveBatchExclusionCount is used rather than len(exclusions) because
+		// a single BatchExclusion can cover multiple resources when they share a
+		// config file (e.g., all empty-host Ingresses share _default-server.conf).
+		// len(exclusions) would under-count and let the pod become Ready when in
+		// fact every empty-host Ingress is effectively broken.
+		exclusions := lbc.configurator.GetBatchExclusions()
+		effectiveCount := lbc.configurator.EffectiveBatchExclusionCount()
+		totalResources := len(lbc.configuration.GetResources())
+
+		// !isNginxReady covers block re-entry: if the self-heal branch in
+		// updateAllConfigs() above just flipped the pod Ready, skip this WARN
+		// and the heldForConfigSafety re-set so the log stays self-consistent.
+		if !lbc.isNginxReady && effectiveCount > 0 && effectiveCount >= totalResources {
+			lbc.heldForConfigSafety = true
+			nl.Warnf(lbc.Logger, "Config safety: ALL %d resource(s) excluded at startup — pod NOT marked ready (shared-input failure suspected). "+
+				"Fix the shared input (e.g., ConfigMap server-snippets) and the pod will become Ready automatically once the next successful reconcile applies a clean config.", effectiveCount)
+		} else {
+			lbc.isNginxReady = true
+			nl.Debug(lbc.Logger, "NGINX is ready")
+		}
+
+		// Log any resources excluded by config safety batch validation.
+		if len(exclusions) > 0 && (lbc.heldForConfigSafety || effectiveCount < totalResources) {
+			var msgs []string
+			for _, excl := range exclusions {
+				msgs = append(msgs, fmt.Sprintf("  - %s (%s): %v", excl.ConfigPath, excl.ResourceName, excl.Error))
+			}
+			nl.Infof(lbc.Logger, "Config safety: startup batch excluded %d resource(s) across %d file(s) due to invalid configuration:\n%s",
+				effectiveCount, len(exclusions), strings.Join(msgs, "\n"))
+		}
 
 		// Step 4: Flush deferred status updates in a background goroutine
 		// using a parallel worker pool (10 concurrent API calls). Snapshot

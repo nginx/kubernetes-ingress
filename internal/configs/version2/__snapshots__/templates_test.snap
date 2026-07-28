@@ -3405,6 +3405,7 @@ server {
 
     location = /_jwks_uri {
         internal;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
         proxy_cache jwk;                              # Cache the JWK Set received from IdP
         proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
         proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
@@ -3435,6 +3436,7 @@ server {
         # to construct the OpenID Connect token request, as per:
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
 
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
         proxy_pass_request_headers off;
@@ -3450,6 +3452,7 @@ server {
         # use the proxy_ directives to construct the OpenID Connect token request, as per:
         #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
         internal;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
 
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
         proxy_pass_request_headers off;
@@ -3464,6 +3467,7 @@ server {
         # Internal location to verify any JWT (e.g., id_token, logout_token)
         # using the auth_jwt module. Extracts the claims and returns them as JSON.
         internal;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
         auth_jwt "" token=$arg_token;
         js_content oidc.extractTokenClaims;
         error_page 500 502 504 @oidc_error;
@@ -3520,6 +3524,7 @@ server {
 
     location = /_jwks_uri {
         internal;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
         proxy_cache jwk;                              # Cache the JWK Set received from IdP
         proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
         proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
@@ -3553,6 +3558,7 @@ server {
         # to construct the OpenID Connect token request, as per:
         #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
         internal;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
 
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
         proxy_pass_request_headers off;
@@ -3571,6 +3577,7 @@ server {
         # use the proxy_ directives to construct the OpenID Connect token request, as per:
         #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
         internal;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
 
         # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
         proxy_pass_request_headers off;
@@ -3588,6 +3595,7 @@ server {
         # Internal location to verify any JWT (e.g., id_token, logout_token)
         # using the auth_jwt module. Extracts the claims and returns them as JSON.
         internal;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
         auth_jwt "" token=$arg_token;
         js_content oidc.extractTokenClaims;
         error_page 500 502 504 @oidc_error;
