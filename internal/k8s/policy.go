@@ -318,9 +318,8 @@ func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
 // Initial fetches are performed asynchronously to avoid blocking the sync queue.
 func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	polKey := pol.Namespace + "/" + pol.Name
-	bs := pol.Spec.WAF.ApBundleSource
-
 	l := lbc.loggerForNamespace(pol.Namespace)
+	bs := pol.Spec.WAF.ApBundleSource
 
 	var auth *wafbundle.BundleAuth
 	if bs != nil {
@@ -356,7 +355,7 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
 			if lbc.reportCustomResourceStatusEnabled() {
 				if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
-					nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+					nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 				}
 			}
 			continue
@@ -404,10 +403,8 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	kind wafbundle.BundleType,
 ) {
 	polKey := pol.Namespace + "/" + pol.Name
+	l := lbc.loggerForNamespace(pol.Namespace)
 	req := lbc.buildFetchRequest(bs, auth, kind)
-
-	ns, _, _ := cache.SplitMetaNamespaceKey(pol.Namespace)
-	l := lbc.loggerForNamespace(ns)
 
 	timeout := wafbundle.DefaultTimeout
 	if bs.Timeout != nil && bs.Timeout.Duration > 0 {
@@ -453,7 +450,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	// Update status to Valid after successful bundle write.
 	if lbc.reportCustomResourceStatusEnabled() {
 		if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "BundleReady", "WAF bundle fetched and ready"); updateErr != nil {
-			nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+			nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 		}
 	}
 }

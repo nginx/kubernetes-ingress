@@ -17,7 +17,7 @@ func createNamespaceHandlers(lbc *LoadBalancerController) cache.ResourceEventHan
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			ns := obj.(*api_v1.Namespace)
-			nl.Debugf(lbc.Logger.With("resource_namespace", ns.GetNamespace()), "Adding Namespace to list of watched Namespaces: %v", ns.Name)
+			nl.Debugf(lbc.Logger.With("resource_namespace", ns.Name), "Adding Namespace to list of watched Namespaces: %v", ns.Name)
 			lbc.AddSyncQueue(obj)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -34,12 +34,12 @@ func createNamespaceHandlers(lbc *LoadBalancerController) cache.ResourceEventHan
 					return
 				}
 			}
-			nl.Debugf(lbc.Logger.With("resource_namespace", ns.GetNamespace()), "Removing Namespace from list of watched Namespaces: %v", ns.Name)
+			nl.Debugf(lbc.Logger.With("resource_namespace", ns.Name), "Removing Namespace from list of watched Namespaces: %v", ns.Name)
 			lbc.AddSyncQueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
-				nl.Debugf(lbc.Logger.With("resource_namespace", cur.(*api_v1.Namespace).GetNamespace()), "Namespace %v changed, syncing", cur.(*api_v1.Namespace).Name)
+				nl.Debugf(lbc.Logger.With("resource_namespace", cur.(*api_v1.Namespace).Name), "Namespace %v changed, syncing", cur.(*api_v1.Namespace).Name)
 				lbc.AddSyncQueue(cur)
 			}
 		},
