@@ -127,12 +127,13 @@ func (nsi *namespacedInformer) addAppProtectDosProtectedResourceHandler(handlers
 
 func (lbc *LoadBalancerController) syncAppProtectDosPolicy(task task) {
 	key := task.Key
-	nl.Debugf(lbc.Logger, "Syncing AppProtectDosPolicy %v", key)
+	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.loggerForResource(ns)
+	nl.Debugf(l, "Syncing AppProtectDosPolicy %v", key)
 	var obj interface{}
 	var polExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
 	obj, polExists, err = lbc.getNamespacedInformer(ns).appProtectDosPolicyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -143,10 +144,10 @@ func (lbc *LoadBalancerController) syncAppProtectDosPolicy(task task) {
 	var problems []appprotectdos.Problem
 
 	if !polExists {
-		nl.Debugf(lbc.Logger, "Deleting APDosPolicy: %v\n", key)
+		nl.Debugf(l, "Deleting APDosPolicy: %v\n", key)
 		changes, problems = lbc.dosConfiguration.DeletePolicy(key)
 	} else {
-		nl.Debugf(lbc.Logger, "Adding or Updating APDosPolicy: %v\n", key)
+		nl.Debugf(l, "Adding or Updating APDosPolicy: %v\n", key)
 		changes, problems = lbc.dosConfiguration.AddOrUpdatePolicy(obj.(*unstructured.Unstructured))
 	}
 
@@ -156,12 +157,13 @@ func (lbc *LoadBalancerController) syncAppProtectDosPolicy(task task) {
 
 func (lbc *LoadBalancerController) syncAppProtectDosLogConf(task task) {
 	key := task.Key
-	nl.Debugf(lbc.Logger, "Syncing APDosLogConf %v", key)
+	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.loggerForResource(ns)
+	nl.Debugf(l, "Syncing APDosLogConf %v", key)
 	var obj interface{}
 	var confExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
 	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectDosLogConfLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -172,10 +174,10 @@ func (lbc *LoadBalancerController) syncAppProtectDosLogConf(task task) {
 	var problems []appprotectdos.Problem
 
 	if !confExists {
-		nl.Debugf(lbc.Logger, "Deleting APDosLogConf: %v\n", key)
+		nl.Debugf(l, "Deleting APDosLogConf: %v\n", key)
 		changes, problems = lbc.dosConfiguration.DeleteLogConf(key)
 	} else {
-		nl.Debugf(lbc.Logger, "Adding or Updating APDosLogConf: %v\n", key)
+		nl.Debugf(l, "Adding or Updating APDosLogConf: %v\n", key)
 		changes, problems = lbc.dosConfiguration.AddOrUpdateLogConf(obj.(*unstructured.Unstructured))
 	}
 
@@ -185,12 +187,13 @@ func (lbc *LoadBalancerController) syncAppProtectDosLogConf(task task) {
 
 func (lbc *LoadBalancerController) syncDosProtectedResource(task task) {
 	key := task.Key
-	nl.Debugf(lbc.Logger, "Syncing DosProtectedResource %v", key)
+	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.loggerForResource(ns)
+	nl.Debugf(l, "Syncing DosProtectedResource %v", key)
 	var obj interface{}
 	var confExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
 	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectDosProtectedLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -201,10 +204,10 @@ func (lbc *LoadBalancerController) syncDosProtectedResource(task task) {
 	var problems []appprotectdos.Problem
 
 	if confExists {
-		nl.Debugf(lbc.Logger, "Adding or Updating DosProtectedResource: %v\n", key)
+		nl.Debugf(l, "Adding or Updating DosProtectedResource: %v\n", key)
 		changes, problems = lbc.dosConfiguration.AddOrUpdateDosProtectedResource(obj.(*v1beta1.DosProtectedResource))
 	} else {
-		nl.Debugf(lbc.Logger, "Deleting DosProtectedResource: %v\n", key)
+		nl.Debugf(l, "Deleting DosProtectedResource: %v\n", key)
 		changes, problems = lbc.dosConfiguration.DeleteProtectedResource(key)
 	}
 

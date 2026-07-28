@@ -1329,7 +1329,7 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 
 	il, err := nsi.ingressLister.List()
 	if err != nil {
-		nl.Warnf(lbc.Logger, "unable to list Ingress resources for recently unwatched namespace %s", nsi.namespace)
+		nl.Warnf(logger, "unable to list Ingress resources for recently unwatched namespace %s", nsi.namespace)
 	} else {
 		for _, ing := range il.Items {
 			ing := ing // address gosec G601
