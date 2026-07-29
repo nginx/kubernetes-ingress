@@ -520,7 +520,7 @@ func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
 			WAF: &conf_v1.WAF{
 				Enable: true,
 				ApBundleSource: &conf_v1.BundleSource{
-					Type:            conf_v1.BundleSourceTypePLM,
+					Type:      conf_v1.BundleSourceTypePLM,
 					Name:      "ap-pol",
 					Namespace: "plm-policies",
 				},
@@ -535,7 +535,7 @@ func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
 			WAF: &conf_v1.WAF{
 				Enable: true,
 				ApBundleSource: &conf_v1.BundleSource{
-					Type:       conf_v1.BundleSourceTypePLM,
+					Type: conf_v1.BundleSourceTypePLM,
 					Name: "ap-pol",
 				},
 			},
@@ -606,7 +606,7 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 					{
 						Enable: true,
 						ApLogBundleSource: &conf_v1.BundleSource{
-							Type:            conf_v1.BundleSourceTypePLM,
+							Type:      conf_v1.BundleSourceTypePLM,
 							Name:      "log-conf",
 							Namespace: "plm-policies",
 						},
@@ -626,7 +626,7 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 					{
 						Enable: true,
 						ApLogBundleSource: &conf_v1.BundleSource{
-							Type:       conf_v1.BundleSourceTypePLM,
+							Type: conf_v1.BundleSourceTypePLM,
 							Name: "log-conf",
 						},
 					},
@@ -645,8 +645,8 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 					{
 						Enable: true,
 						ApLogBundleSource: &conf_v1.BundleSource{
-							Type:       conf_v1.BundleSourceTypeNIM,
-							URL:        "https://nim.example.com",
+							Type: conf_v1.BundleSourceTypeNIM,
+							URL:  "https://nim.example.com",
 							Name: "log-conf",
 						},
 					},
