@@ -17,10 +17,10 @@ import (
 // - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 // - N1C: pull a named managed policy from NGINX One Console via its API.
 // - PLM: fetch a bundle compiled by the F5 WAF Policy Controller from its S3 storage,
-// referencing an APPolicy/APLogConf CR by name via policyName (+ optional policyNamespace).
+// referencing an APPolicy/APLogConf CR by name (+ optional namespace).
 //
-// Type-specific field requirements for HTTPS/NIM/N1C (url required; policyName required
-// for NIM/N1C; policyNamespace required for N1C) are enforced by the controller's Go
+// Type-specific field requirements for HTTPS/NIM/N1C (url required; name required
+// for NIM/N1C; namespace required for N1C) are enforced by the controller's Go
 // validation layer.
 type BundleSourceApplyConfiguration struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
@@ -37,13 +37,13 @@ type BundleSourceApplyConfiguration struct {
 	// for verifying the remote endpoint TLS certificate. The secret must be in the same
 	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
-	// PolicyName is the policy name on the management plane (NIM/N1C), or the name of the
+	// Name is the policy name on the management plane (NIM/N1C), or the name of the
 	// APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS.
-	PolicyName *string `json:"policyName,omitempty"`
-	// PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of
+	Name *string `json:"name,omitempty"`
+	// Namespace is the namespace/tenant on the management plane (N1C), or the namespace of
 	// the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to
 	// the Policy's own namespace); forbidden otherwise.
-	PolicyNamespace *string `json:"policyNamespace,omitempty"`
+	Namespace *string `json:"namespace,omitempty"`
 	// EnablePolling enables background polling to automatically detect and fetch
 	// updated bundles at the configured PollInterval. Defaults to false. When
 	// false, the bundle is fetched once on policy creation or update; subsequent
@@ -101,19 +101,19 @@ func (b *BundleSourceApplyConfiguration) WithTrustedCertSecret(value string) *Bu
 	return b
 }
 
-// WithPolicyName sets the PolicyName field in the declarative configuration to the given value
+// WithName sets the Name field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PolicyName field is set to the value of the last call.
-func (b *BundleSourceApplyConfiguration) WithPolicyName(value string) *BundleSourceApplyConfiguration {
-	b.PolicyName = &value
+// If called multiple times, the Name field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithName(value string) *BundleSourceApplyConfiguration {
+	b.Name = &value
 	return b
 }
 
-// WithPolicyNamespace sets the PolicyNamespace field in the declarative configuration to the given value
+// WithNamespace sets the Namespace field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PolicyNamespace field is set to the value of the last call.
-func (b *BundleSourceApplyConfiguration) WithPolicyNamespace(value string) *BundleSourceApplyConfiguration {
-	b.PolicyNamespace = &value
+// If called multiple times, the Namespace field is set to the value of the last call.
+func (b *BundleSourceApplyConfiguration) WithNamespace(value string) *BundleSourceApplyConfiguration {
+	b.Namespace = &value
 	return b
 }
 

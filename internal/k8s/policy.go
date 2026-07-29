@@ -406,11 +406,11 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 func (lbc *LoadBalancerController) resolvePLMBundleStatus(pol *conf_v1.Policy, bs *conf_v1.BundleSource, kind wafbundle.BundleType) *wafbundle.BundleStatus {
 	polKey := pol.Namespace + "/" + pol.Name
 
-	ns := bs.PolicyNamespace
+	ns := bs.Namespace
 	if ns == "" {
 		ns = pol.Namespace
 	}
-	refKey := ns + "/" + bs.PolicyName
+	refKey := ns + "/" + bs.Name
 
 	gvkKind := appprotect.PolicyGVK.Kind
 	if kind == wafbundle.LogProfileBundle {
@@ -699,8 +699,8 @@ func (lbc *LoadBalancerController) buildFetchRequest(bs *conf_v1.BundleSource, a
 		BundleKind:         kind,
 		URL:                bs.URL,
 		Auth:               auth,
-		PolicyName:         bs.PolicyName,
-		PolicyNamespace:    bs.PolicyNamespace,
+		Name:               bs.Name,
+		Namespace:          bs.Namespace,
 		NAPRelease:         lbc.wafVersion,
 		InsecureSkipVerify: bs.InsecureSkipVerify,
 		VerifyChecksum:     bs.VerifyChecksum,

@@ -314,7 +314,7 @@ func TestResolvePLMBundleStatus_ReadsInformerStore(t *testing.T) {
 		},
 	}
 	pol := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"}}
-	bs := &conf_v1.BundleSource{PolicyName: "compiled-policy", PolicyNamespace: "plm"}
+	bs := &conf_v1.BundleSource{Name: "compiled-policy", Namespace: "plm"}
 
 	got := lbc.resolvePLMBundleStatus(pol, bs, wafbundle.PolicyBundle)
 	if got == nil {
@@ -521,8 +521,8 @@ func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
 				Enable: true,
 				ApBundleSource: &conf_v1.BundleSource{
 					Type:            conf_v1.BundleSourceTypePLM,
-					PolicyName:      "ap-pol",
-					PolicyNamespace: "plm-policies",
+					Name:      "ap-pol",
+					Namespace: "plm-policies",
 				},
 			},
 		},
@@ -536,7 +536,7 @@ func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
 				Enable: true,
 				ApBundleSource: &conf_v1.BundleSource{
 					Type:       conf_v1.BundleSourceTypePLM,
-					PolicyName: "ap-pol",
+					Name: "ap-pol",
 				},
 			},
 		},
@@ -607,8 +607,8 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 						Enable: true,
 						ApLogBundleSource: &conf_v1.BundleSource{
 							Type:            conf_v1.BundleSourceTypePLM,
-							PolicyName:      "log-conf",
-							PolicyNamespace: "plm-policies",
+							Name:      "log-conf",
+							Namespace: "plm-policies",
 						},
 					},
 				},
@@ -627,7 +627,7 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 						Enable: true,
 						ApLogBundleSource: &conf_v1.BundleSource{
 							Type:       conf_v1.BundleSourceTypePLM,
-							PolicyName: "log-conf",
+							Name: "log-conf",
 						},
 					},
 				},
@@ -647,7 +647,7 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 						ApLogBundleSource: &conf_v1.BundleSource{
 							Type:       conf_v1.BundleSourceTypeNIM,
 							URL:        "https://nim.example.com",
-							PolicyName: "log-conf",
+							Name: "log-conf",
 						},
 					},
 				},

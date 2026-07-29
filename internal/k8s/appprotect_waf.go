@@ -338,14 +338,14 @@ func bundleStatusChanged(oldObj, newObj *unstructured.Unstructured) bool {
 }
 
 // plmRefMatchesKey reports whether a PLM BundleSource references the APPolicy/APLogConf
-// identified by key. The reference is bs.PolicyName in bs.PolicyNamespace, defaulting to
+// identified by key. The reference is bs.Name in bs.Namespace, defaulting to
 // the owning Policy's namespace when unset.
 func plmRefMatchesKey(ownerNs string, bs *conf_v1.BundleSource, key string) bool {
-	ns := bs.PolicyNamespace
+	ns := bs.Namespace
 	if ns == "" {
 		ns = ownerNs
 	}
-	return ns+"/"+bs.PolicyName == key
+	return ns+"/"+bs.Name == key
 }
 
 // enqueuePLMPoliciesForAppPolicy re-enqueues every PLM WAF Policy that references the

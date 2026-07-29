@@ -8,8 +8,8 @@ spec:
     apBundleSource:
       type: N1C
       url: "https://<tenant>.console.ves.volterra.io"
-      policyName: "<policy_name>"
-      policyNamespace: "default"
+      name: "<policy_name>"
+      namespace: "default"
       secret: "n1c-credentials"
       enablePolling: true
       pollInterval: "5m"
@@ -18,8 +18,8 @@ spec:
       apLogBundleSource:
         type: N1C
         url: "https://<tenant>.console.ves.volterra.io"
-        policyName: "secops_dashboard"
-        policyNamespace: "default"
+        name: "secops_dashboard"
+        namespace: "default"
         secret: "n1c-credentials"
         enablePolling: true
         pollInterval: "5m"

@@ -1029,10 +1029,10 @@ const (
 //   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 //   - N1C: pull a named managed policy from NGINX One Console via its API.
 //   - PLM: fetch a bundle compiled by the F5 WAF Policy Controller from its S3 storage,
-//     referencing an APPolicy/APLogConf CR by name via policyName (+ optional policyNamespace).
+//     referencing an APPolicy/APLogConf CR by name (+ optional namespace).
 //
-// Type-specific field requirements for HTTPS/NIM/N1C (url required; policyName required
-// for NIM/N1C; policyNamespace required for N1C) are enforced by the controller's Go
+// Type-specific field requirements for HTTPS/NIM/N1C (url required; name required
+// for NIM/N1C; namespace required for N1C) are enforced by the controller's Go
 // validation layer.
 // +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.url) || size(self.url) == 0",message="url is not allowed when type is PLM; the bundle location is read from the referenced CR's status"
 // +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.secret) || size(self.secret) == 0",message="secret is not allowed when type is PLM; S3 credentials are configured cluster-wide via -plm-storage-credentials-secret"
@@ -1040,7 +1040,7 @@ const (
 // +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.verifyChecksum) || self.verifyChecksum == false",message="verifyChecksum is not allowed when type is PLM; the checksum is read from the referenced CR's status"
 // +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.enablePolling) || self.enablePolling == false",message="enablePolling is not allowed when type is PLM; PLM bundles refresh automatically when the referenced CR's status changes"
 // +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.pollInterval)",message="pollInterval is not allowed when type is PLM; PLM bundles refresh automatically when the referenced CR's status changes"
-// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || (has(self.policyName) && size(self.policyName) > 0)",message="policyName is required when type is PLM and must reference an APPolicy/APLogConf resource"
+// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || (has(self.name) && size(self.name) > 0)",message="name is required when type is PLM and must reference an APPolicy/APLogConf resource"
 type BundleSource struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
 	// +kubebuilder:default=HTTPS
@@ -1069,18 +1069,18 @@ type BundleSource struct {
 	// +optional
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
-	// PolicyName is the policy name on the management plane (NIM/N1C), or the name of the
+	// Name is the policy name on the management plane (NIM/N1C), or the name of the
 	// APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
-	PolicyName string `json:"policyName,omitempty"`
+	Name string `json:"name,omitempty"`
 
-	// PolicyNamespace is the namespace/tenant on the management plane (N1C), or the namespace of
+	// Namespace is the namespace/tenant on the management plane (N1C), or the namespace of
 	// the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to
 	// the Policy's own namespace); forbidden otherwise.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
-	PolicyNamespace string `json:"policyNamespace,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 
 	// EnablePolling enables background polling to automatically detect and fetch
 	// updated bundles at the configured PollInterval. Defaults to false. When
