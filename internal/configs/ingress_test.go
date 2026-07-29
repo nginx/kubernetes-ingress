@@ -1665,7 +1665,6 @@ func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConf
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
-						UseForwardedHeaders: true,
 						ProxySSLName:        "coffee-svc.default.svc",
 						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-coffee-svc-80",
 					},
@@ -1678,7 +1677,6 @@ func createExpectedConfigForCafeIngressEx(isPlus bool) version1.IngressNginxConf
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
-						UseForwardedHeaders: true,
 						ProxySSLName:        "tea-svc.default.svc",
 						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-tea-svc-80",
 					},
@@ -2822,7 +2820,6 @@ func TestGenerateNginxCfgForMergeableIngressesWithUseClusterIP(t *testing.T) {
 	expected := createExpectedConfigForMergeableCafeIngressWithUseClusterIP()
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 
-	configParams.UseForwardedHeaders = true
 	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
 		mergeableIngs:        mergeableIngresses,
 		apResources:          nil,
@@ -2888,7 +2885,6 @@ func createExpectedConfigForMergeableCafeIngressWithUseClusterIP() version1.Ingr
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &version1.Ingress{
 							Name:      "cafe-ingress-coffee-minion",
@@ -2911,7 +2907,6 @@ func createExpectedConfigForMergeableCafeIngressWithUseClusterIP() version1.Ingr
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
-						UseForwardedHeaders: true,
 						MinionIngress: &version1.Ingress{
 							Name:      "cafe-ingress-tea-minion",
 							Namespace: "default",
@@ -2998,10 +2993,10 @@ func createExpectedConfigForCafeIngressWithUseClusterIPNamedPorts() version1.Ing
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						UseForwardedHeaders: true,
-						ProxyBuffering:      true,
-						ProxySSLName:        "coffee-svc.default.svc",
-						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-coffee-svc-custom-port-name",
+
+						ProxyBuffering: true,
+						ProxySSLName:   "coffee-svc.default.svc",
+						ProxyPass:      "http://default-cafe-ingress-cafe.example.com-coffee-svc-custom-port-name",
 					},
 					{
 						Path:                "/tea",
@@ -3011,7 +3006,6 @@ func createExpectedConfigForCafeIngressWithUseClusterIPNamedPorts() version1.Ing
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						ProxySSLName:        "tea-svc.default.svc",
 						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-tea-svc-80",
@@ -3090,7 +3084,6 @@ func createExpectedConfigForCafeIngressWithUseClusterIP() version1.IngressNginxC
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						ProxySSLName:        "coffee-svc.default.svc",
 						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-coffee-svc-80",
@@ -3103,7 +3096,6 @@ func createExpectedConfigForCafeIngressWithUseClusterIP() version1.IngressNginxC
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						ProxySSLName:        "tea-svc.default.svc",
 						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-tea-svc-80",
@@ -3817,7 +3809,6 @@ func createExpectedConfigForMergeableCafeIngress(isPlus bool) version1.IngressNg
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &version1.Ingress{
 							Name:      "cafe-ingress-coffee-minion",
@@ -3838,7 +3829,6 @@ func createExpectedConfigForMergeableCafeIngress(isPlus bool) version1.IngressNg
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &version1.Ingress{
 							Name:      "cafe-ingress-tea-minion",
@@ -3922,7 +3912,6 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						UseForwardedHeaders: true,
 						ProxyBuffering:      true,
 						MinionIngress: &version1.Ingress{
 							Name:      "cafe-ingress-coffee-minion",
@@ -3944,7 +3933,6 @@ func createExpectedConfigForCrossNamespaceMergeableCafeIngress() version1.Ingres
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
 						ProxyBuffering:      true,
-						UseForwardedHeaders: true,
 						MinionIngress: &version1.Ingress{
 							Name:      "cafe-ingress-tea-minion",
 							Namespace: "tea",

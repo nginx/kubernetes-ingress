@@ -284,7 +284,7 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		MainKeepaliveRequests:         1000,
 		VariablesHashBucketSize:       256,
 		VariablesHashMaxSize:          1024,
-		UseForwardedHeaders:           true,
+		UseForwardedHeaders:           false,
 		LimitReqKey:                   "${binary_remote_addr}",
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",

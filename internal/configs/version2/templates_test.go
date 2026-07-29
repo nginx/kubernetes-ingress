@@ -541,7 +541,7 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersFals
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
 
-	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersFalse)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersTrue)
 	if err != nil {
 		t.Error(err)
 	}
@@ -1558,11 +1558,10 @@ func vsConfig() VirtualServerConfig {
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					Snippets:            []string{"# location snippet"},
-					Allow:               []string{"127.0.0.1"},
-					Deny:                []string{"127.0.0.1"},
+					Path:     "/",
+					Snippets: []string{"# location snippet"},
+					Allow:    []string{"127.0.0.1"},
+					Deny:     []string{"127.0.0.1"},
 					LimitReqs: []LimitReq{
 						{
 							ZoneName: "loc_pol_rl_test_test_test",
@@ -1609,7 +1608,6 @@ func vsConfig() VirtualServerConfig {
 					},
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@loc0",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -1633,7 +1631,6 @@ func vsConfig() VirtualServerConfig {
 					},
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@loc1",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -1644,7 +1641,6 @@ func vsConfig() VirtualServerConfig {
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders: true,
 					Path:                "@loc2",
 					ProxyConnectTimeout: "30s",
 					ProxyReadTimeout:    "31s",
@@ -1654,7 +1650,6 @@ func vsConfig() VirtualServerConfig {
 					GRPCPass:            "grpc://coffee-v3",
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@match_loc_0",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -1665,7 +1660,6 @@ func vsConfig() VirtualServerConfig {
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@match_loc_default",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -1676,7 +1670,6 @@ func vsConfig() VirtualServerConfig {
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders:  true,
 					Path:                 "/return",
 					ProxyInterceptErrors: true,
 					ErrorPages: []ErrorPage{
@@ -1928,11 +1921,10 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					Snippets:            []string{"# location snippet"},
-					Allow:               []string{"127.0.0.1"},
-					Deny:                []string{"127.0.0.1"},
+					Path:     "/",
+					Snippets: []string{"# location snippet"},
+					Allow:    []string{"127.0.0.1"},
+					Deny:     []string{"127.0.0.1"},
 					LimitReqs: []LimitReq{
 						{
 							ZoneName: "loc_pol_rl_test_test_test",
@@ -1979,7 +1971,6 @@ var (
 					},
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@loc0",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -2003,7 +1994,6 @@ var (
 					},
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@loc1",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -2014,7 +2004,6 @@ var (
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders: true,
 					Path:                "@loc2",
 					ProxyConnectTimeout: "30s",
 					ProxyReadTimeout:    "31s",
@@ -2024,7 +2013,6 @@ var (
 					GRPCPass:            "grpc://coffee-v3",
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@match_loc_0",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -2035,7 +2023,6 @@ var (
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@match_loc_default",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -2046,7 +2033,6 @@ var (
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders:  true,
 					Path:                 "/return",
 					ProxyInterceptErrors: true,
 					ErrorPages: []ErrorPage{
@@ -2285,11 +2271,10 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					Snippets:            []string{"# location snippet"},
-					Allow:               []string{"127.0.0.1"},
-					Deny:                []string{"127.0.0.1"},
+					Path:     "/",
+					Snippets: []string{"# location snippet"},
+					Allow:    []string{"127.0.0.1"},
+					Deny:     []string{"127.0.0.1"},
 					LimitReqs: []LimitReq{
 						{
 							ZoneName: "loc_pol_rl_test_test_test_sync",
@@ -2336,7 +2321,6 @@ var (
 					},
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@loc0",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -2360,7 +2344,6 @@ var (
 					},
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@loc1",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -2371,7 +2354,6 @@ var (
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders: true,
 					Path:                "@loc2",
 					ProxyConnectTimeout: "30s",
 					ProxyReadTimeout:    "31s",
@@ -2381,7 +2363,6 @@ var (
 					GRPCPass:            "grpc://coffee-v3",
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@match_loc_0",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -2392,7 +2373,6 @@ var (
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "@match_loc_default",
 					ProxyConnectTimeout:      "30s",
 					ProxyReadTimeout:         "31s",
@@ -2403,7 +2383,6 @@ var (
 					ProxyNextUpstreamTimeout: "5s",
 				},
 				{
-					UseForwardedHeaders:  true,
 					Path:                 "/return",
 					ProxyInterceptErrors: true,
 					ErrorPages: []ErrorPage{
@@ -2470,8 +2449,7 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -2489,8 +2467,7 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -2502,8 +2479,7 @@ var (
 			StatusZone: "example.com",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 			Gunzip: true,
@@ -2516,8 +2492,7 @@ var (
 			StatusZone: "example.com",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 			Gunzip: false,
@@ -2530,8 +2505,7 @@ var (
 			StatusZone: "example.com",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -2543,7 +2517,6 @@ var (
 			StatusZone: "example.com",
 			Locations: []Location{
 				{
-					UseForwardedHeaders:  true,
 					Path:                 "/",
 					ProxyPass:            "http://test-upstream",
 					ClientBodyBufferSize: "16k",
@@ -2552,7 +2525,7 @@ var (
 		},
 	}
 
-	virtualServerCfgWithUseForwardedHeadersFalse = VirtualServerConfig{
+	virtualServerCfgWithUseForwardedHeadersTrue = VirtualServerConfig{
 		Server: Server{
 			ServerName: "example.com",
 			StatusZone: "example.com",
@@ -2560,7 +2533,7 @@ var (
 				{
 					Path:                "/",
 					ProxyPass:           "http://test-upstream",
-					UseForwardedHeaders: false,
+					UseForwardedHeaders: true,
 				},
 			},
 		},
@@ -2766,7 +2739,6 @@ var (
 
 			Locations: []Location{
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "/tea",
 					ProxyPass:                "http://vs_default_cafe_tea",
 					ProxyNextUpstream:        "error timeout",
@@ -2787,7 +2759,6 @@ var (
 					},
 				},
 				{
-					UseForwardedHeaders:      true,
 					Path:                     "/coffee",
 					ProxyPass:                "http://vs_default_cafe_coffee",
 					ProxyNextUpstream:        "error timeout",
@@ -2820,8 +2791,7 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -2851,8 +2821,7 @@ var (
 			StatusZone: "example.com",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -2943,10 +2912,9 @@ var (
 			VSName:          "cafe",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/tea",
-					ServiceName:         "tea-svc",
-					ProxyPass:           "http://vs_default_cafe_tea",
+					Path:        "/tea",
+					ServiceName: "tea-svc",
+					ProxyPass:   "http://vs_default_cafe_tea",
 					JWTAuth: &JWTAuth{
 						Key:      "default/jwt-policy-route",
 						Realm:    "Route Realm API",
@@ -2961,10 +2929,9 @@ var (
 					},
 				},
 				{
-					UseForwardedHeaders: true,
-					Path:                "/coffee",
-					ServiceName:         "coffee-svc",
-					ProxyPass:           "http://vs_default_cafe_coffee",
+					Path:        "/coffee",
+					ServiceName: "coffee-svc",
+					ProxyPass:   "http://vs_default_cafe_coffee",
 					JWTAuth: &JWTAuth{
 						Key:      "default/jwt-policy-route",
 						Realm:    "Route Realm API",
@@ -3058,10 +3025,9 @@ var (
 			VSName:          "cafe",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/tea",
-					ProxyPass:           "http://vs_default_cafe_tea",
-					ServiceName:         "tea-svc",
+					Path:        "/tea",
+					ProxyPass:   "http://vs_default_cafe_tea",
+					ServiceName: "tea-svc",
 					JWTAuth: &JWTAuth{
 						Key:      "default/jwt-policy-route",
 						Realm:    "Route Realm API",
@@ -3075,10 +3041,9 @@ var (
 					},
 				},
 				{
-					UseForwardedHeaders: true,
-					Path:                "/coffee",
-					ProxyPass:           "http://vs_default_cafe_coffee",
-					ServiceName:         "coffee-svc",
+					Path:        "/coffee",
+					ProxyPass:   "http://vs_default_cafe_coffee",
+					ServiceName: "coffee-svc",
 					JWTAuth: &JWTAuth{
 						Key:      "default/jwt-policy-route",
 						Realm:    "Route Realm API",
@@ -3109,8 +3074,7 @@ var (
 			HTTPSPort:       8443,
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3134,8 +3098,7 @@ var (
 			HTTPSIPv6:       "::2",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3150,8 +3113,7 @@ var (
 			HTTPSPort:       0,
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3171,8 +3133,7 @@ var (
 			HTTPSPort:       8443,
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3190,8 +3151,7 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3210,8 +3170,7 @@ var (
 			NGINXDebugLevel: "debug",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3230,8 +3189,7 @@ var (
 			NGINXDebugLevel: "error",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3248,8 +3206,7 @@ var (
 			NGINXDebugLevel: "error",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3270,8 +3227,7 @@ var (
 			NGINXDebugLevel: "error",
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
+					Path: "/",
 				},
 			},
 		},
@@ -3288,7 +3244,7 @@ var (
 				MaxAge:            2592000,
 				IncludeSubDomains: true,
 			},
-			Locations: []Location{{UseForwardedHeaders: true, Path: "/"}},
+			Locations: []Location{{Path: "/"}},
 		},
 	}
 	virtualServerCfgWithHSTSBehindProxy = VirtualServerConfig{
@@ -3299,7 +3255,7 @@ var (
 				MaxAge:      2592000,
 				BehindProxy: true,
 			},
-			Locations: []Location{{UseForwardedHeaders: true, Path: "/"}},
+			Locations: []Location{{Path: "/"}},
 		},
 	}
 	virtualServerCfgWithHSTSPreload = VirtualServerConfig{
@@ -3315,7 +3271,7 @@ var (
 				IncludeSubDomains: true,
 				Preload:           true,
 			},
-			Locations: []Location{{UseForwardedHeaders: true, Path: "/"}},
+			Locations: []Location{{Path: "/"}},
 		},
 	}
 	virtualServerCfgWithHSTSAtLocationLevel = VirtualServerConfig{
@@ -3337,9 +3293,8 @@ var (
 			HSTS: &HSTS{MaxAge: 2592000},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					ProxyPass:           "http://upstream",
+					Path:      "/",
+					ProxyPass: "http://upstream",
 					AddHeaders: []AddHeader{
 						{Header: Header{Name: "X-Custom", Value: "value"}, Always: true},
 					},
@@ -3391,9 +3346,8 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					ProxyPass:           "http://test-upstream",
+					Path:      "/",
+					ProxyPass: "http://test-upstream",
 					// Location-level cache policy with basic options
 					Cache: &Cache{
 						ZoneName:              "test_cache_location_location_cache",
@@ -3454,9 +3408,8 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					ProxyPass:           "http://test-upstream",
+					Path:      "/",
+					ProxyPass: "http://test-upstream",
 					// Location-level cache policy with specific status codes
 					Cache: &Cache{
 						ZoneName:              "test_cache_location_simple_cache",
@@ -3530,9 +3483,8 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/api",
-					ProxyPass:           "http://extended-upstream",
+					Path:      "/api",
+					ProxyPass: "http://extended-upstream",
 				},
 			},
 		},
@@ -3728,9 +3680,8 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					ProxyPass:           "http://vs_default_cafe_tea",
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
 					JWTAuth: &JWTAuth{
 						Key: "default/jwt-ssl-policy",
 					},
@@ -3766,9 +3717,8 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					ProxyPass:           "http://vs_default_cafe_tea",
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
 					JWTAuth: &JWTAuth{
 						Key: "default/jwt-ssl-policy",
 					},
@@ -3802,9 +3752,8 @@ var (
 			},
 			Locations: []Location{
 				{
-					UseForwardedHeaders: true,
-					Path:                "/",
-					ProxyPass:           "http://vs_default_cafe_tea",
+					Path:      "/",
+					ProxyPass: "http://vs_default_cafe_tea",
 					JWTAuth: &JWTAuth{
 						Key: "default/jwt-no-ssl-policy",
 					},
