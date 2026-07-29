@@ -84,8 +84,8 @@ type Request struct {
 	Auth               *BundleAuth
 	TLSCA              []byte
 	InsecureSkipVerify bool
-	PolicyName         string
-	PolicyNamespace    string
+	Name               string
+	Namespace          string
 	NAPRelease         string
 	Timeout            time.Duration
 	RetryAttempts      int
