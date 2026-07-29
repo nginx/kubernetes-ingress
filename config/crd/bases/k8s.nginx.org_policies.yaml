@@ -880,14 +880,14 @@ spec:
                           InsecureSkipVerify disables TLS certificate verification when fetching bundles.
                           Not recommended for production use.
                         type: boolean
-                      policyName:
-                        description: PolicyName is the policy name on the management
+                      name:
+                        description: Name is the policy/logconf name on the management
                           plane. Required for NIM and N1C; forbidden for HTTPS.
                         maxLength: 63
                         type: string
-                      policyNamespace:
-                        description: PolicyNamespace is the namespace/tenant on the
-                          management plane. Required for N1C only.
+                      namespace:
+                        description: Namespace is the namespace/tenant on the management
+                          plane. Required for N1C only.
                         maxLength: 63
                         type: string
                       pollInterval:
@@ -977,14 +977,14 @@ spec:
                               InsecureSkipVerify disables TLS certificate verification when fetching bundles.
                               Not recommended for production use.
                             type: boolean
-                          policyName:
-                            description: PolicyName is the policy name on the management
+                          name:
+                            description: Name is the policy/logconf name on the management
                               plane. Required for NIM and N1C; forbidden for HTTPS.
                             maxLength: 63
                             type: string
-                          policyNamespace:
-                            description: PolicyNamespace is the namespace/tenant on
-                              the management plane. Required for N1C only.
+                          namespace:
+                            description: Namespace is the namespace/tenant on the
+                              management plane. Required for N1C only.
                             maxLength: 63
                             type: string
                           pollInterval:
@@ -1081,14 +1081,15 @@ spec:
                                 InsecureSkipVerify disables TLS certificate verification when fetching bundles.
                                 Not recommended for production use.
                               type: boolean
-                            policyName:
-                              description: PolicyName is the policy name on the management
-                                plane. Required for NIM and N1C; forbidden for HTTPS.
+                            name:
+                              description: Name is the policy/logconf name on the
+                                management plane. Required for NIM and N1C; forbidden
+                                for HTTPS.
                               maxLength: 63
                               type: string
-                            policyNamespace:
-                              description: PolicyNamespace is the namespace/tenant
-                                on the management plane. Required for N1C only.
+                            namespace:
+                              description: Namespace is the namespace/tenant on the
+                                management plane. Required for N1C only.
                               maxLength: 63
                               type: string
                             pollInterval:
