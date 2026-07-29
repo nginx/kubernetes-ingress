@@ -38,8 +38,6 @@ import (
 
 	k8spolicies "github.com/nginx/kubernetes-ingress/internal/k8s/policies"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
-	"github.com/nginxinc/nginx-service-mesh/pkg/spiffe"
-	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/labels"
@@ -207,9 +205,6 @@ type LoadBalancerController struct {
 	metricsCollector              collectors.ControllerCollector
 	globalConfigurationValidator  *validation.GlobalConfigurationValidator
 	transportServerValidator      *validation.TransportServerValidator
-	spiffeCertFetcher             *spiffe.X509CertFetcher
-	internalRoutesEnabled         bool
-	syncLock                      sync.Mutex
 	isNginxReady                  bool
 	isPrometheusEnabled           bool
 	isLatencyMetricsEnabled       bool
@@ -233,6 +228,11 @@ type LoadBalancerController struct {
 	mgmtConfigMapName             string
 	ShuttingDown                  bool
 	endpointSliceWarnings         map[string]bool // see updateEndpointSliceWarningState
+
+	// heldForConfigSafety is set at startup by the ready-flip block when the
+	// config-safety readiness gate refuses to mark the pod Ready because every
+	// resource was excluded (shared-input failure)
+	heldForConfigSafety bool
 
 	// WAF bundle polling.
 	bundlePollerMgr wafbundle.Manager
@@ -289,8 +289,6 @@ type NewLoadBalancerControllerInput struct {
 	GlobalConfigurationValidator *validation.GlobalConfigurationValidator
 	TransportServerValidator     *validation.TransportServerValidator
 	VirtualServerValidator       *validation.VirtualServerValidator
-	SpireAgentAddress            string
-	InternalRoutesEnabled        bool
 	IsPrometheusEnabled          bool
 	IsLatencyMetricsEnabled      bool
 	IsTLSPassthroughEnabled      bool
@@ -347,7 +345,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		metricsCollector:             input.MetricsCollector,
 		globalConfigurationValidator: input.GlobalConfigurationValidator,
 		transportServerValidator:     input.TransportServerValidator,
-		internalRoutesEnabled:        input.InternalRoutesEnabled,
 		isPrometheusEnabled:          input.IsPrometheusEnabled,
 		isLatencyMetricsEnabled:      input.IsLatencyMetricsEnabled,
 		isIPV6Disabled:               input.IsIPV6Disabled,
@@ -383,13 +380,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
-	var err error
-	if input.SpireAgentAddress != "" {
-		lbc.spiffeCertFetcher, err = spiffe.NewX509CertFetcher(input.SpireAgentAddress, nil)
-		if err != nil {
-			nl.Fatalf(lbc.Logger, "failed to initialize spiffe certfetcher: %v", err)
-		}
-	}
 
 	isDynamicNs := input.WatchNamespaceLabel != ""
 
@@ -483,7 +473,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		input.IsNginxPlus,
 		input.AppProtectEnabled,
 		input.AppProtectDosEnabled,
-		input.InternalRoutesEnabled,
 		input.VirtualServerValidator,
 		input.GlobalConfigurationValidator,
 		input.TransportServerValidator,
@@ -758,35 +747,6 @@ func (lbc *LoadBalancerController) Run() {
 		go lbc.namespaceWatcherController.Run(lbc.ctx.Done())
 	}
 
-	if lbc.spiffeCertFetcher != nil {
-		_, _, err := lbc.spiffeCertFetcher.Start(lbc.ctx)
-		lbc.addInternalRouteServer()
-		if err != nil {
-			nl.Fatal(lbc.Logger, err)
-		}
-
-		// wait for initial bundle
-		timeoutch := make(chan bool, 1)
-		go func() { time.Sleep(time.Second * 30); timeoutch <- true }()
-		select {
-		case cert := <-lbc.spiffeCertFetcher.CertCh:
-			lbc.syncSVIDRotation(cert)
-		case <-timeoutch:
-			nl.Fatal(lbc.Logger, "Failed to download initial spiffe trust bundle")
-		}
-
-		go func() {
-			for {
-				select {
-				case err := <-lbc.spiffeCertFetcher.WatchErrCh:
-					nl.Errorf(lbc.Logger, "error watching for SVID rotations: %v", err)
-					return
-				case cert := <-lbc.spiffeCertFetcher.CertCh:
-					lbc.syncSVIDRotation(cert)
-				}
-			}
-		}()
-	}
 	if lbc.certManagerController != nil {
 		go lbc.certManagerController.Run(lbc.ctx.Done())
 	}
@@ -841,6 +801,11 @@ func (lbc *LoadBalancerController) Run() {
 	}
 
 	lbc.preSyncSecrets()
+
+	// Enable batch mode during startup: config writes skip per-file nginx -t validation.
+	// All configs are validated with a single nginx -t in updateAllConfigs() → CompleteBatch()
+	// after the queue drains. This reduces startup validation cost from O(N²) to O(N).
+	lbc.configurator.EnableBatchMode()
 
 	nl.Debugf(lbc.Logger, "Starting the queue with %d initial elements", lbc.syncQueue.Len())
 
@@ -955,16 +920,18 @@ func (lbc *LoadBalancerController) findVirtualServersUsingRatelimitScaling() []R
 	return resources
 }
 
-func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *configs.VirtualServerEx, serviceName string) bool {
+func (lbc *LoadBalancerController) virtualServerRequiresEndpointsUpdate(vsEx *configs.VirtualServerEx, svcNamespace, serviceName string) bool {
 	for _, upstream := range vsEx.VirtualServer.Spec.Upstreams {
-		if upstream.Service == serviceName && !upstream.UseClusterIP {
+		ns, name := configs.ParseServiceReference(upstream.Service, vsEx.VirtualServer.Namespace)
+		if ns == svcNamespace && name == serviceName && !upstream.UseClusterIP {
 			return true
 		}
 	}
 
 	for _, vsr := range vsEx.VirtualServerRoutes {
 		for _, upstream := range vsr.Spec.Upstreams {
-			if upstream.Service == serviceName && !upstream.UseClusterIP {
+			ns, name := configs.ParseServiceReference(upstream.Service, vsr.Namespace)
+			if ns == svcNamespace && name == serviceName && !upstream.UseClusterIP {
 				return true
 			}
 		}
@@ -1130,6 +1097,16 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	resourceExes := lbc.createExtendedResources(resources)
 	warnings, resourceErrors, updateErr := lbc.configurator.UpdateConfig(resourceExes)
 
+	// Config safety self-healing: when the startup ready-flip branch below held
+	// the pod Not Ready because every resource was excluded (shared-input
+	// failure), a subsequent successful UpdateConfig must flip the
+	// pod back to Ready.
+	if lbc.heldForConfigSafety && len(resourceErrors) == 0 && updateErr == nil {
+		lbc.heldForConfigSafety = false
+		lbc.isNginxReady = true
+		nl.Infof(lbc.Logger, "Config safety: shared input fixed; pod now Ready (recovered from startup exclusion)")
+	}
+
 	eventTitle := nl.EventReasonUpdated
 	eventType := api_v1.EventTypeNormal
 	eventWarningMessage := ""
@@ -1222,10 +1199,6 @@ func (lbc *LoadBalancerController) sync(task task) {
 		nl.Debugf(lbc.Logger, "Batch processing %v items", lbc.syncQueue.Len())
 	}
 	nl.Debugf(lbc.Logger, "Syncing %v", task.Key)
-	if lbc.spiffeCertFetcher != nil {
-		lbc.syncLock.Lock()
-		defer lbc.syncLock.Unlock()
-	}
 	if lbc.batchSyncEnabled && task.Kind != endpointslice {
 		nl.Debug(lbc.Logger, "Task is not endpointslice - enabling batch reload")
 		lbc.enableBatchReload = true
@@ -1322,13 +1295,48 @@ func (lbc *LoadBalancerController) sync(task task) {
 			lbc.updateTransportServerMetrics()
 		}
 
-		// Step 3: Mark ready BEFORE flushing status updates. The pod can
+		// Step 3:  Mark pod ready BEFORE flushing status updates: The pod can
 		// serve traffic as soon as NGINX is reloaded — status metadata
 		// (Ingress IP, CR state) is not required for traffic serving.
 		// This decouples readiness from status API calls, which can take
 		// minutes at scale for leader pod
-		lbc.isNginxReady = true
-		nl.Debug(lbc.Logger, "NGINX is ready")
+		//
+		// Conditional readiness gate: If config safety batch validation
+		// excluded ALL resources, do NOT mark the pod Ready — it serves zero
+		// useful traffic. Marking it Ready would let K8s terminate working
+		// replicas during a rolling update, causing a complete outage.
+		// If only some resources were excluded (partial failure), mark Ready —
+		// the pod genuinely serves the valid subset.
+		// EffectiveBatchExclusionCount is used rather than len(exclusions) because
+		// a single BatchExclusion can cover multiple resources when they share a
+		// config file (e.g., all empty-host Ingresses share _default-server.conf).
+		// len(exclusions) would under-count and let the pod become Ready when in
+		// fact every empty-host Ingress is effectively broken.
+		exclusions := lbc.configurator.GetBatchExclusions()
+		effectiveCount := lbc.configurator.EffectiveBatchExclusionCount()
+		totalResources := len(lbc.configuration.GetResources())
+
+		// !isNginxReady covers block re-entry: if the self-heal branch in
+		// updateAllConfigs() above just flipped the pod Ready, skip this WARN
+		// and the heldForConfigSafety re-set so the log stays self-consistent.
+		if !lbc.isNginxReady && effectiveCount > 0 && effectiveCount >= totalResources {
+			lbc.heldForConfigSafety = true
+			nl.Warnf(lbc.Logger, "Config safety: ALL %d resource(s) excluded at startup — pod NOT marked ready (shared-input failure suspected). "+
+				"Fix the shared input (e.g., ConfigMap server-snippets) and the pod will become Ready automatically once the next successful reconcile applies a clean config.", effectiveCount)
+		} else {
+			lbc.isNginxReady = true
+			nl.Debug(lbc.Logger, "NGINX is ready")
+		}
+
+		// Log any resources excluded by config safety batch validation.
+		if len(exclusions) > 0 && (lbc.heldForConfigSafety || effectiveCount < totalResources) {
+			var msgs []string
+			for _, excl := range exclusions {
+				msgs = append(msgs, fmt.Sprintf("  - %s (%s): %v", excl.ConfigPath, excl.ResourceName, excl.Error))
+			}
+			nl.Infof(lbc.Logger, "Config safety: startup batch excluded %d resource(s) across %d file(s) due to invalid configuration:\n%s",
+				effectiveCount, len(exclusions), strings.Join(msgs, "\n"))
+		}
 
 		// Step 4: Flush deferred status updates in a background goroutine
 		// using a parallel worker pool (10 concurrent API calls). Snapshot
@@ -2325,13 +2333,24 @@ func (lbc *LoadBalancerController) handleSecretUpdate(secret *api_v1.Secret, res
 
 	resourceExes := lbc.createExtendedResources(resources)
 
-	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, !lbc.configurator.DynamicSSLReloadEnabled())
+	reloadIfUnchanged := shouldForceReloadOnSecretUpdate(secret.Type, lbc.configurator.DynamicSSLReloadEnabled())
+	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, reloadIfUnchanged)
 	if addOrUpdateErr != nil {
 		nl.Errorf(lbc.Logger, "Error when updating Secret %v: %v", secretNsName, addOrUpdateErr)
 		lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "%v was updated, but not applied: %v", secretNsName, addOrUpdateErr)
 	}
 
 	lbc.updateResourcesStatusAndEvents(resources, warnings, addOrUpdateErr)
+}
+
+// shouldForceReloadOnSecretUpdate reports whether NGINX must be reloaded on a secret
+// update even if the rendered config bytes are unchanged. The -ssl-dynamic-reload
+// optimization only applies to TLS server secrets (kubernetes.io/tls), whose
+// ssl_certificate / ssl_certificate_key directives read the file at request time via
+// a variable path. Any non-TLS secret type is parsed at config-load time and would
+// otherwise remain stale until an unrelated event triggers a reload.
+func shouldForceReloadOnSecretUpdate(secretType api_v1.SecretType, dynamicSSLReloadEnabled bool) bool {
+	return secretType != api_v1.SecretTypeTLS || !dynamicSSLReloadEnabled
 }
 
 func (lbc *LoadBalancerController) validationTLSSpecialSecret(secret *api_v1.Secret, secretName string, secretList *[]string) error {
@@ -4205,27 +4224,9 @@ func formatWarningMessages(w []string) string {
 	return strings.Join(w, "; ")
 }
 
-func (lbc *LoadBalancerController) syncSVIDRotation(svidResponse *workloadapi.X509Context) {
-	lbc.syncLock.Lock()
-	defer lbc.syncLock.Unlock()
-	nl.Debug(lbc.Logger, "Rotating SPIFFE Certificates")
-	err := lbc.configurator.AddOrUpdateSpiffeCerts(svidResponse)
-	if err != nil {
-		nl.Errorf(lbc.Logger, "failed to rotate SPIFFE certificates: %v", err)
-	}
-}
-
 // IsNginxReady returns ready status of NGINX
 func (lbc *LoadBalancerController) IsNginxReady() bool {
 	return lbc.isNginxReady
-}
-
-func (lbc *LoadBalancerController) addInternalRouteServer() {
-	if lbc.internalRoutesEnabled {
-		if err := lbc.configurator.AddInternalRouteConfig(); err != nil {
-			nl.Warnf(lbc.Logger, "failed to configure internal route server: %v", err)
-		}
-	}
 }
 
 func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {

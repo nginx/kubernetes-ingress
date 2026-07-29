@@ -1906,6 +1906,7 @@ def ensure_response_from_backend(req_url, host, additional_headers=None, check40
 
     if sni and check404:
         session = create_sni_session()
+        resp = None
         for _ in range(60):
             try:
                 resp = session.get(
@@ -1919,33 +1920,166 @@ def ensure_response_from_backend(req_url, host, additional_headers=None, check40
                         f"After {_} retries at 1 second interval, got {resp.status_code} response. Continue with tests..."
                     )
                     return
-                time.sleep(1)
             except requests.exceptions.SSLError as e:
+                # SSLError subclasses ConnectionError, so this must come first.
                 exception = str(e)
                 print(f"SSL certificate exception: {exception}")
                 resp = mock.Mock()
                 resp.status_code = "None"
-        pytest.fail(f"Keep getting {resp.status_code} from {req_url} after 60 seconds. Exiting...")
+            except requests.exceptions.ConnectionError as e:
+                # NGINX reloads recycle workers and can drop in-flight connections; retry.
+                print(f"Connection dropped during reload: {e}")
+                resp = mock.Mock()
+                resp.status_code = "None"
+            time.sleep(1)
+        _status = resp.status_code if resp is not None else "no response (connection kept dropping)"
+        pytest.fail(f"Keep getting {_status} from {req_url} after 60 seconds. Exiting...")
 
     if check404:
+        resp = None
         for _ in range(60):
-            resp = requests.get(req_url, headers=headers, verify=False)
-            if resp.status_code != 502 and resp.status_code != 504 and resp.status_code != 404:
-                print(
-                    f"After {_} retries at 1 second interval, got {resp.status_code} response. Continue with tests..."
-                )
-                return
+            try:
+                resp = requests.get(req_url, headers=headers, verify=False)
+                if resp.status_code != 502 and resp.status_code != 504 and resp.status_code != 404:
+                    print(
+                        f"After {_} retries at 1 second interval, got {resp.status_code} response. Continue with tests..."
+                    )
+                    return
+            except requests.exceptions.ConnectionError as e:
+                # NGINX reloads recycle workers and can drop in-flight connections; retry.
+                print(f"Connection dropped during reload: {e}")
             time.sleep(1)
-        pytest.fail(f"Keep getting {resp.status_code} from {req_url} after 60 seconds. Exiting...")
+        _status = resp.status_code if resp is not None else "no response (connection kept dropping)"
+        pytest.fail(f"Keep getting {_status} from {req_url} after 60 seconds. Exiting...")
 
     else:
+        resp = None
         for _ in range(30):
-            resp = requests.get(req_url, headers=headers, verify=False)
-            if resp.status_code != 502 and resp.status_code != 504:
-                print(f"After {_} retries at 1 second interval, got non 502|504 response. Continue with tests...")
-                return
+            try:
+                resp = requests.get(req_url, headers=headers, verify=False)
+                if resp.status_code != 502 and resp.status_code != 504:
+                    print(
+                        f"After {_} retries at {RECONFIGURATION_DELAY} second interval, "
+                        f"got non 502|504 response. Continue with tests..."
+                    )
+                    return
+            except requests.exceptions.ConnectionError as e:
+                # NGINX reloads recycle workers and can drop in-flight connections; retry.
+                print(f"Connection dropped during reload: {e}")
             wait_before_test()
-        pytest.fail(f"Keep getting 502|504 from {req_url} after 60 seconds. Exiting...")
+        _status = resp.status_code if resp is not None else "no response (connection kept dropping)"
+        pytest.fail(
+            f"Keep getting {_status} (expected non 502|504) from {req_url} "
+            f"after {30 * RECONFIGURATION_DELAY} seconds. Exiting..."
+        )
+
+
+def retry_get_until_body_contains(req_url, host, expected_body, retries=60, verify=False):
+    """
+    Repeatedly GET req_url until expected_body appears in the response body.
+
+    Tolerates ConnectionError/RemoteDisconnected caused by NGINX reloads
+    (worker recycling during App Protect reconfiguration closes connections).
+
+    :param req_url: url to request
+    :param host: value for the Host header
+    :param expected_body: substring expected to appear in the response body
+    :param retries: number of retries at 1 second interval
+    :param verify: passed through to requests.get for TLS verification
+    :return: the final requests.Response (may not contain expected_body if exhausted)
+    """
+    resp = None
+    last_error = None
+    for i in range(retries + 1):
+        try:
+            resp = requests.get(req_url, headers={"host": host}, verify=verify)
+            if expected_body in resp.text:
+                return resp
+        except requests.exceptions.ConnectionError as e:
+            last_error = e
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+        if i < retries:
+            wait_before_test(1)
+    if resp is None:
+        pytest.fail(
+            f"Never got a response from {req_url} after {retries + 1} attempts; "
+            f"connection kept dropping during reloads. Last error: {last_error}"
+        )
+    return resp
+
+
+def retry_get_until_status_code(req_url, host, expected_status, retries=60, wait_seconds=1, session=None, **kwargs):
+    """
+    Repeatedly GET req_url until the response status code equals expected_status.
+
+    Tolerates ConnectionError/RemoteDisconnected caused by NGINX reloads
+    (worker recycling during reconfiguration closes in-flight connections).
+
+    :param req_url: url to request
+    :param host: value for the Host header (ignored if a "headers" kwarg is provided)
+    :param expected_status: status code to wait for
+    :param retries: number of retries
+    :param wait_seconds: delay between attempts (passed to wait_before_test)
+    :param session: optional requests.Session (e.g. an SNI/client-cert session); defaults to the requests module
+    :param kwargs: extra arguments passed to get (e.g. cert, verify, headers, allow_redirects)
+    :return: the final requests.Response (may not have expected_status if exhausted)
+    """
+    getter = session if session is not None else requests
+    if "headers" not in kwargs:
+        kwargs["headers"] = {} if host is None else {"host": host}
+    resp = None
+    last_error = None
+    for i in range(retries + 1):
+        try:
+            resp = getter.get(req_url, **kwargs)
+            if resp.status_code == expected_status:
+                return resp
+        except requests.exceptions.ConnectionError as e:
+            last_error = e
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+        if i < retries:
+            wait_before_test(wait_seconds)
+    if resp is None:
+        pytest.fail(
+            f"Never got a response from {req_url} after {retries + 1} attempts; "
+            f"connection kept dropping during reloads. Last error: {last_error}"
+        )
+    return resp
+
+
+def retry_get(req_url, host, retries=3, wait_seconds=1, session=None, **kwargs):
+    """
+    GET req_url once, retrying only when a ConnectionError is raised.
+
+    Use this to guard a single request that immediately follows a config change
+    (and therefore a possible NGINX reload) when the assertion cannot be
+    expressed as "body contains X" or "status == Y" (e.g. asserting a substring
+    is absent, or an arbitrary status). Returns the first successful response.
+
+    :param req_url: url to request
+    :param host: value for the Host header (ignored if a "headers" kwarg is provided)
+    :param retries: number of extra attempts if the connection is dropped
+    :param wait_seconds: delay between attempts (passed to wait_before_test)
+    :param session: optional requests.Session; defaults to the requests module
+    :param kwargs: extra arguments passed to get
+    :return: the first successful requests.Response
+    """
+    getter = session if session is not None else requests
+    if "headers" not in kwargs:
+        kwargs["headers"] = {} if host is None else {"host": host}
+    last_error = None
+    for i in range(retries + 1):
+        try:
+            return getter.get(req_url, **kwargs)
+        except requests.exceptions.ConnectionError as e:
+            last_error = e
+            print(f"Attempt {i + 1}: connection dropped during reload ({e})")
+            if i < retries:
+                wait_before_test(wait_seconds)
+    pytest.fail(
+        f"Never got a response from {req_url} after {retries + 1} attempts; "
+        f"connection kept dropping during reloads. Last error: {last_error}"
+    )
 
 
 def get_service_endpoint(kube_apis, service_name, namespace) -> str:

@@ -279,20 +279,10 @@ server {
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
-        {{- else if $.SpiffeCerts }}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
        {{- else }}
     ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
     ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- end }}
-    {{- else }}
-      {{- if $.SpiffeCerts }}
-    listen 443 ssl;
-    {{if not $s.DisableIPV6}}listen [::]:443 ssl;{{end}}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-      {{- end }}
     {{- end }}
 
     {{- with $s.IngressMTLS }}
@@ -882,16 +872,6 @@ server {
             return 204;
         }
         {{- end }}
-
-            {{- if $.SpiffeClientCerts }}
-        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        {{ $proxyOrGRPC }}_ssl_server_name on;
-        {{ $proxyOrGRPC }}_ssl_verify on;
-        {{ $proxyOrGRPC }}_ssl_verify_depth 25;
-        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
-            {{- end }}
 
         {{- with $l.Cache }}
         proxy_cache {{ $l.Cache.ZoneName }};

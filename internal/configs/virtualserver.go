@@ -299,8 +299,6 @@ type virtualServerConfigurator struct {
 	isTLSPassthrough           bool
 	enableSnippets             bool
 	warnings                   Warnings
-	spiffeCerts                bool
-	enableInternalRoutes       bool
 	isIPV6Disabled             bool
 	DynamicSSLReloadEnabled    bool
 	StaticSSLPath              string
@@ -344,8 +342,6 @@ func newVirtualServerConfigurator(
 		isTLSPassthrough:           staticParams.TLSPassthrough,
 		enableSnippets:             staticParams.EnableSnippets,
 		warnings:                   make(map[runtime.Object][]string),
-		spiffeCerts:                staticParams.NginxServiceMesh,
-		enableInternalRoutes:       staticParams.EnableInternalRoutes,
 		isIPV6Disabled:             staticParams.DisableIPV6,
 		DynamicSSLReloadEnabled:    staticParams.DynamicSSLReload,
 		StaticSSLPath:              staticParams.StaticSSLPath,
@@ -477,13 +473,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	dosCfg := generateDosCfg(dosResources[""])
-
-	// enabledInternalRoutes controls if a virtual server is configured as an internal route.
-	enabledInternalRoutes := vsEx.VirtualServer.Spec.InternalRoute
-	if vsEx.VirtualServer.Spec.InternalRoute && !vsc.enableInternalRoutes {
-		vsc.addWarningf(vsEx.VirtualServer, "Internal Route cannot be configured for virtual server %s. Internal Routes can be enabled by setting the enable-internal-routes flag", vsEx.VirtualServer.Name)
-		enabledInternalRoutes = false
-	}
 
 	// crUpstreams maps an UpstreamName to its conf_v1.Upstream as they are generated
 	// necessary for generateLocation to know what Upstream each Location references
@@ -1126,7 +1115,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
-		SplitClients:     splitClients,
 		Maps:             removeDuplicateMaps(maps),
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
@@ -1184,12 +1172,11 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			DisableIPV6:               vsc.isIPV6Disabled,
 			NGINXDebugLevel:           vsc.cfgParams.MainErrorLogLevel,
 		},
-		SpiffeCerts:             enabledInternalRoutes,
-		SpiffeClientCerts:       vsc.spiffeCerts && !enabledInternalRoutes,
 		DynamicSSLReloadEnabled: vsc.DynamicSSLReloadEnabled,
 		StaticSSLPath:           vsc.StaticSSLPath,
 		KeyValZones:             keyValZones,
 		KeyVals:                 keyVals,
+		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
 	}
 
@@ -1326,7 +1313,7 @@ func generateUpstreams(
 	_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(ownerNamespace, u.Service)]
 	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
 	upstreams = append(upstreams, ups)
-	u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
+	u.TLS.Enable = isTLSEnabled(u)
 	crUpstreams[upstreamName] = u
 
 	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
@@ -2865,16 +2852,10 @@ func generateProxySSLName(svcName, ns string) string {
 	return fmt.Sprintf("%s.%s.svc", svcName, ns)
 }
 
-// isTLSEnabled checks whether TLS is enabled for the given upstream, taking into account the configuration
-// of the NGINX Service Mesh and the presence of SPIFFE certificates.
-func isTLSEnabled(upstream conf_v1.Upstream, hasSpiffeCerts, isInternalRoute bool) bool {
-	if isInternalRoute {
-		// Internal routes in the NGINX Service Mesh do not require TLS.
-		return false
-	}
-
-	// TLS is enabled if explicitly configured for the upstream or if SPIFFE certificates are present.
-	return upstream.TLS.Enable || hasSpiffeCerts
+// isTLSEnabled checks whether TLS is enabled for the given upstream.
+func isTLSEnabled(upstream conf_v1.Upstream) bool {
+	// TLS is enabled if explicitly configured for the upstream.
+	return upstream.TLS.Enable
 }
 
 func isGRPC(protocolType string) bool {

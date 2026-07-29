@@ -70,8 +70,6 @@ type VirtualServerSpec struct {
 	Dos string `json:"dos"`
 	// The externalDNS configuration for a VirtualServer.
 	ExternalDNS ExternalDNS `json:"externalDNS"`
-	// InternalRoute allows for the configuration of internal routing.
-	InternalRoute bool `json:"internalRoute"`
 }
 
 // VirtualServerListener references a custom http and/or https listener defined in GlobalConfiguration.

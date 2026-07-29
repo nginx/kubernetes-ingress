@@ -382,18 +382,46 @@ jobs:
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_PAT"
-          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+      - name: Get secrets from vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+        with:
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-nic-trigger-remote-workflow-app-client-id, nginx-bot-nic-trigger-remote-workflow-app-private-key"
+          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
 
-      - name:
+      - name: Decode GitHub App private key
+        id: app_key
+        run: |
+          set +x
+          # Mask the raw base64 value
+          echo "::add-mask::$APP_PRIVATE_KEY_B64"
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+          # Mask every line of the decoded PEM key individually
+          while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+              echo "::add-mask::$line"
+            fi
+          done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
+          {
+            echo "private_key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App token
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.app_key.outputs.private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: nginx-ingress-helm-operator
+
+      - name: Trigger Operator sync
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          github-token: ${{ steps.secrets.outputs.NGINX_PAT }}
+          github-token: ${{ steps.app_token.outputs.token }}
           script: |
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
@@ -419,24 +447,52 @@ jobs:
   #     id-token: write
   #   steps:
   #     - name: Azure login
-  #       uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+  #       uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
   #       with:
   #         client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
   #         tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
   #         subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-  #     - name: Setup secrets
-  #       id: secrets
-  #       run: |
-  #         echo "Setting secrets for job"
-  #         NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-  #         echo "::add-mask::$NGINX_PAT"
-  #         echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
-
-  #     - name:
-  #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+  #     - name: Get secrets from vault
+  #       uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
   #       with:
-  #         github-token: ${{ steps.secrets.outputs.NGINX_PAT }}
+  #         vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+  #         secret-names: "nginx-bot-nic-trigger-remote-workflow-app-client-id, nginx-bot-nic-trigger-remote-workflow-app-private-key"
+  #         env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+  #     - name: Decode GitHub App private key
+  #       id: app_key
+  #       run: |
+  #         set +x
+  #         # Mask the raw base64 value
+  #         echo "::add-mask::$APP_PRIVATE_KEY_B64"
+  #         private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+  #         # Mask every line of the decoded PEM key individually
+  #         while IFS= read -r line; do
+  #           if [[ -n "$line" ]]; then
+  #             echo "::add-mask::$line"
+  #           fi
+  #         done <<< "$private_key"
+  #         delimiter="GHEOF_$(openssl rand -hex 12)"
+  #         {
+  #           echo "private_key<<$delimiter"
+  #           echo "$private_key"
+  #           echo "$delimiter"
+  #         } >> "$GITHUB_OUTPUT"
+
+  #     - name: Generate GitHub App token
+  #       id: app_token
+  #       uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+  #       with:
+  #         client-id: ${{ env.APP_CLIENT_ID }}
+  #         private-key: ${{ steps.app_key.outputs.private_key }}
+  #         owner: ${{ github.repository_owner }}
+  #         repositories: kubernetes-ingress-gcp
+
+  #     - name: Trigger GCP Marketplace sync
+  #       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+  #       with:
+  #         github-token: ${{ steps.app_token.outputs.token }}
   #         script: |
   #           await github.rest.actions.createWorkflowDispatch({
   #             owner: context.repo.owner,
@@ -459,23 +515,52 @@ jobs:
   #   needs: [publish-helm-chart,release-plus-azure-mktpl]
   #   steps:
   #     - name: Azure login
-  #       uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+  #       uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
   #       with:
   #         client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
   #         tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
   #         subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-  #     - name: Setup secrets
-  #       id: secrets
-  #       run: |
-  #         echo "Setting secrets for job"
-  #         NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-  #         echo "::add-mask::$NGINX_PAT"
-  #         echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
-  #     - name:
-  #       uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+  #     - name: Get secrets from vault
+  #       uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
   #       with:
-  #         github-token: ${{ steps.secrets.outputs.NGINX_PAT }}
+  #         vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+  #         secret-names: "nginx-bot-nic-trigger-remote-workflow-app-client-id, nginx-bot-nic-trigger-remote-workflow-app-private-key"
+  #         env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+  #     - name: Decode GitHub App private key
+  #       id: app_key
+  #       run: |
+  #         set +x
+  #         # Mask the raw base64 value
+  #         echo "::add-mask::$APP_PRIVATE_KEY_B64"
+  #         private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+  #         # Mask every line of the decoded PEM key individually
+  #         while IFS= read -r line; do
+  #           if [[ -n "$line" ]]; then
+  #             echo "::add-mask::$line"
+  #           fi
+  #         done <<< "$private_key"
+  #         delimiter="GHEOF_$(openssl rand -hex 12)"
+  #         {
+  #           echo "private_key<<$delimiter"
+  #           echo "$private_key"
+  #           echo "$delimiter"
+  #         } >> "$GITHUB_OUTPUT"
+
+  #     - name: Generate GitHub App token
+  #       id: app_token
+  #       uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+  #       with:
+  #         client-id: ${{ env.APP_CLIENT_ID }}
+  #         private-key: ${{ steps.app_key.outputs.private_key }}
+  #         owner: ${{ github.repository_owner }}
+  #         repositories: kubernetes-ingress-azure
+
+  #     - name: Trigger Azure Marketplace CNAB build
+  #       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+  #       with:
+  #         github-token: ${{ steps.app_token.outputs.token }}
   #         script: |
   #           await github.rest.actions.createWorkflowDispatch({
   #             owner: context.repo.owner,

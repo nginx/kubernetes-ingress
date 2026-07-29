@@ -515,6 +515,317 @@ func TestExecuteTemplate_ForIngressWithServerLevelAddHeaders(t *testing.T) {
 	}
 }
 
+// TestExecuteTemplate_ForIngressWithCustomHTTPErrors verifies that the
+// nginx.org/custom-http-errors annotation on a standard Ingress renders at
+// server context (proxy_intercept_errors + error_page inside the server {}
+// block, applying to all locations via NGINX inheritance) and that the
+// shared @custom_default_backend named location is emitted once per server.
+func TestExecuteTemplate_ForIngressWithCustomHTTPErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404, 500, 502},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
+					Locations: []Location{{
+						Path:      "/coffee",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			if !strings.Contains(out, "proxy_intercept_errors on;") {
+				t.Errorf("want 'proxy_intercept_errors on;' in output")
+			}
+			if !strings.Contains(out, "error_page 404 500 502 @custom_default_backend;") {
+				t.Errorf("want combined error_page directive in output")
+			}
+			if !strings.Contains(out, "location @custom_default_backend {") {
+				t.Errorf("want @custom_default_backend named location in output")
+			}
+			if !strings.Contains(out, "proxy_pass http://default-cafe-ingress--error-pages-svc-80;") {
+				t.Errorf("want handler proxy_pass to default-backend upstream in output")
+			}
+			if !strings.Contains(out, "proxy_intercept_errors off;") {
+				t.Errorf("want handler-location 'proxy_intercept_errors off;' to prevent recursion")
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForIngressWithCustomHTTPErrors_NoHandler verifies that
+// when the annotation is present but the server has no @custom_default_backend
+// (e.g. the Ingress has no spec.defaultBackend), server-level
+// proxy_intercept_errors on; is still emitted (NGINX serves its built-in
+// error pages for the codes) but no error_page directive and no handler
+// location are emitted.
+func TestExecuteTemplate_ForIngressWithCustomHTTPErrors_NoHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:                 "cafe.example.com",
+					ServerTokens:         "off",
+					StatusZone:           "cafe.example.com",
+					CustomHTTPErrorCodes: []int{404, 500},
+					// CustomHTTPErrorBackend intentionally empty — no default backend, so
+					// the handler location and server-level error_page must not render.
+					Locations: []Location{{
+						Path:      "/coffee",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			if !strings.Contains(out, "proxy_intercept_errors on;") {
+				t.Errorf("want 'proxy_intercept_errors on;' in output")
+			}
+			if strings.Contains(out, "@custom_default_backend") {
+				t.Errorf("did not expect @custom_default_backend reference when no handler is configured")
+			}
+			if strings.Contains(out, "@custom_default_backend;") {
+				t.Errorf("did not expect error_page routed to handler when no handler is configured")
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForMergeableIngressWithCustomHTTPErrors_MinionOverride
+// verifies the mergeable model: master sets server-level codes; a minion
+// location sets its own codes and NGINX's error_page inheritance rule
+// replaces (not merges) the server-level directive for that specific
+// location. The shared @custom_default_backend handler is emitted once.
+func TestExecuteTemplate_ForMergeableIngressWithCustomHTTPErrors_MinionOverride(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
+					Locations: []Location{
+						{
+							Path:      "/coffee",
+							Upstream:  testUpstream,
+							ProxyPass: "http://test",
+							// Minion inherits server-level 404 via NGINX inheritance —
+							// no location-level codes needed.
+						},
+						{
+							Path:                 "/tea",
+							Upstream:             testUpstream,
+							ProxyPass:            "http://test",
+							CustomHTTPErrorCodes: []int{502, 503},
+							// Minion overrides: this location's error_page block replaces
+							// the server's 404 with 502 503.
+						},
+					},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			// Server-level directive with master's codes.
+			if !strings.Contains(out, "error_page 404 @custom_default_backend;") {
+				t.Errorf("want server-level error_page 404 @custom_default_backend in output")
+			}
+			// Minion-level override with its own codes.
+			if !strings.Contains(out, "error_page 502 503 @custom_default_backend;") {
+				t.Errorf("want minion-level error_page 502 503 @custom_default_backend in output")
+			}
+			// Handler location appears exactly once.
+			if got := strings.Count(out, "location @custom_default_backend {"); got != 1 {
+				t.Errorf("want @custom_default_backend location emitted once, got %d", got)
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForIngressWithCustomHTTPErrors_SkipDefaultBackendLocation
+// verifies that the synthesized default-backend location emits
+// proxy_intercept_errors off; to break the intercept loop that would
+// otherwise send its own responses back through @custom_default_backend.
+func TestExecuteTemplate_ForIngressWithCustomHTTPErrors_SkipDefaultBackendLocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
+					Locations: []Location{{
+						Path:                 "/",
+						Upstream:             testUpstream,
+						ProxyPass:            "http://test",
+						SkipCustomHTTPErrors: true,
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			if !strings.Contains(out, "proxy_intercept_errors off;") {
+				t.Errorf("want 'proxy_intercept_errors off;' inside the synthesized location")
+			}
+			// The location block must not carry an error_page to @custom_default_backend
+			// (that would keep the loop alive despite intercept being off).
+			if strings.Contains(out, "\t\terror_page 404 = @custom_default_backend;") {
+				t.Errorf("did not expect location-level error_page inside the skipped location")
+			}
+		})
+	}
+}
+
+// TestExecuteTemplate_ForIngressWithoutCustomHTTPErrors verifies that when the
+// annotation is absent, neither proxy_intercept_errors nor the handler
+// location are emitted.
+func TestExecuteTemplate_ForIngressWithoutCustomHTTPErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:         "cafe.example.com",
+					ServerTokens: "off",
+					StatusZone:   "cafe.example.com",
+					Locations: []Location{{
+						Path:      "/coffee",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			if strings.Contains(out, "proxy_intercept_errors") {
+				t.Errorf("did not expect proxy_intercept_errors when annotation is absent")
+			}
+			if strings.Contains(out, "@custom_default_backend") {
+				t.Errorf("did not expect @custom_default_backend when annotation is absent")
+			}
+		})
+	}
+}
+
 // TestExecuteTemplate_ForMergeableIngressWithMasterOnlyAddHeaderAnnotation verifies
 // that a master-only nginx.org/add-header annotation emits add_header in the server {}
 // block only. Minion locations carry no location-level add_header for this case;

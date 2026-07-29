@@ -3055,10 +3055,8 @@ func TestGenerateProxySSLName(t *testing.T) {
 func TestIsTLSEnabled(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		upstream   conf_v1.Upstream
-		spiffeCert bool
-		nsmEgress  bool
-		expected   bool
+		upstream conf_v1.Upstream
+		expected bool
 	}{
 		{
 			upstream: conf_v1.Upstream{
@@ -3066,17 +3064,7 @@ func TestIsTLSEnabled(t *testing.T) {
 					Enable: false,
 				},
 			},
-			spiffeCert: false,
-			expected:   false,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: false,
-				},
-			},
-			spiffeCert: true,
-			expected:   true,
+			expected: false,
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -3084,34 +3072,14 @@ func TestIsTLSEnabled(t *testing.T) {
 					Enable: true,
 				},
 			},
-			spiffeCert: true,
-			expected:   true,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: true,
-				},
-			},
-			spiffeCert: false,
-			expected:   true,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: true,
-				},
-			},
-			nsmEgress:  true,
-			spiffeCert: false,
-			expected:   false,
+			expected: true,
 		},
 	}
 
 	for _, test := range tests {
-		result := isTLSEnabled(test.upstream, test.spiffeCert, test.nsmEgress)
+		result := isTLSEnabled(test.upstream)
 		if result != test.expected {
-			t.Errorf("isTLSEnabled(%v, %v) returned %v but expected %v", test.upstream, test.spiffeCert, result, test.expected)
+			t.Errorf("isTLSEnabled(%v) returned %v but expected %v", test.upstream, result, test.expected)
 		}
 	}
 }

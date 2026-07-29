@@ -244,7 +244,7 @@ func TestParseAnnotationsAddHeaderInherit(t *testing.T) {
 	}
 
 	baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 	if result.AddHeaderInherit != addHeaderInheritMerge {
 		t.Errorf("Expected AddHeaderInherit %q, got %q", addHeaderInheritMerge, result.AddHeaderInherit)
@@ -271,7 +271,7 @@ func TestParseAnnotationsProxyRedirect(t *testing.T) {
 	}
 
 	baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 	if result.ProxyRedirectFrom != from {
 		t.Errorf("Expected ProxyRedirectFrom %q, got %q", from, result.ProxyRedirectFrom)
@@ -297,13 +297,70 @@ func TestParseAnnotationsProxyRedirectOff(t *testing.T) {
 	}
 
 	baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+	result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 	if result.ProxyRedirectFrom != "off" {
 		t.Errorf("Expected ProxyRedirectFrom %q, got %q", "off", result.ProxyRedirectFrom)
 	}
 	if result.ProxyRedirectTo != "" {
 		t.Errorf("Expected ProxyRedirectTo to be empty, got %q", result.ProxyRedirectTo)
+	}
+}
+
+func TestParseAnnotationsCustomHTTPErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        []int
+	}{
+		{
+			name:        "not set leaves field nil",
+			annotations: map[string]string{},
+			want:        nil,
+		},
+		{
+			name: "single code populates slice",
+			annotations: map[string]string{
+				CustomHTTPErrorsAnnotation: "404",
+			},
+			want: []int{404},
+		},
+		{
+			name: "codes are sorted and deduplicated",
+			annotations: map[string]string{
+				CustomHTTPErrorsAnnotation: "500, 404, 404",
+			},
+			want: []int{404, 500},
+		},
+		{
+			name: "invalid value falls back to nil",
+			annotations: map[string]string{
+				CustomHTTPErrorsAnnotation: "abc",
+			},
+			want: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: tc.annotations,
+					},
+				},
+			}
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
+			if !reflect.DeepEqual(result.CustomHTTPErrors, tc.want) {
+				t.Errorf("CustomHTTPErrors = %v, want %v", result.CustomHTTPErrors, tc.want)
+			}
+		})
 	}
 }
 
@@ -552,7 +609,7 @@ func TestSSLCipherAnnotationParsing(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.ServerSSLCiphers != tt.expected.ServerSSLCiphers {
 				t.Errorf("Expected ServerSSLCiphers %q, got %q", tt.expected.ServerSSLCiphers, result.ServerSSLCiphers)
@@ -684,7 +741,7 @@ func TestSSLCipherAnnotationBooleanValues(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.ServerSSLPreferServerCiphers != tc.expected {
 				validityMsg := "valid"
@@ -973,13 +1030,13 @@ func TestClientBodyBufferSizeAnnotationValid(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.ClientBodyBufferSize != tt.expected {
 				t.Errorf("Test %q: expected ClientBodyBufferSize %q, got %q", tt.name, tt.expected, result.ClientBodyBufferSize)
 			}
 
-			result2 := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result2 := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 			if result2.ClientBodyBufferSize != tt.expected {
 				t.Errorf("Test %q with other annotations: expected ClientBodyBufferSize %q, got %q", tt.name, tt.expected, result2.ClientBodyBufferSize)
 			}
@@ -1062,7 +1119,7 @@ func TestClientBodyBufferSizeAnnotationInvalid(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.ClientBodyBufferSize != "" {
 				t.Errorf(`Test %q: expected ClientBodyBufferSize %q, got ""`, tt.name, result.ClientBodyBufferSize)
@@ -1146,7 +1203,7 @@ func TestSSLRedirectAnnotations(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.SSLRedirect != tt.expected {
 				t.Errorf("Test %q: expected SSLRedirect %t, got %t", tt.name, tt.expected, result.SSLRedirect)
@@ -1209,7 +1266,7 @@ func TestAppRootAnnotation(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.AppRoot != tt.expected {
 				t.Errorf("Test %q: expected AppRoot %q, got %q", tt.name, tt.expected, result.AppRoot)
@@ -1258,7 +1315,7 @@ func TestProxyNextUpstreamAnnotation(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.ProxyNextUpstream != tt.expected {
 				t.Errorf("Test %q: expected ProxyNextUpstream %q, got %q", tt.name, tt.expected, result.ProxyNextUpstream)
@@ -1321,7 +1378,7 @@ func TestProxyNextUpstreamTimeoutAnnotation(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.ProxyNextUpstreamTimeout != tt.expected {
 				t.Errorf("Test %q: expected ProxyNextUpstreamTimeout %q, got %q", tt.name, tt.expected, result.ProxyNextUpstreamTimeout)
@@ -1370,7 +1427,7 @@ func TestProxyNextUpstreamTriesAnnotationValid(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.ProxyNextUpstreamTries == nil {
 				t.Errorf("Test %q: expected ProxyNextUpstreamTries %d, got nil", tt.name, tt.expected)
@@ -1418,7 +1475,7 @@ func TestProxyNextUpstreamTriesAnnotationInvalid(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.ProxyNextUpstreamTries != nil && *result.ProxyNextUpstreamTries != 0 {
 				t.Errorf("Test %q: expected ProxyNextUpstreamTries to be nil or 0, got %d", tt.name, result.ProxyNextUpstreamTries)
@@ -1481,7 +1538,7 @@ func TestHTTPRedirectCodeAnnotationBehavior(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			if result.HTTPRedirectCode != tt.expectedCode {
 				t.Errorf("Test %q: expected HTTPRedirectCode %d, got %d", tt.name, tt.expectedCode, result.HTTPRedirectCode)
@@ -1536,7 +1593,7 @@ func TestParseAnnotationsAddHeader(t *testing.T) {
 			}
 
 			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
-			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false, false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
 
 			// Annotation must populate cfgParams.AddHeaders (server {} context).
 			if len(result.AddHeaders) != len(tc.wantNames) {

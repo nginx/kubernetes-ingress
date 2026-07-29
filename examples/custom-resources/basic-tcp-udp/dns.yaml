@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
       - name: coredns
-        image: coredns/coredns:1.14.4
+        image: coredns/coredns:1.14.6
         args: [ "-conf", "/etc/coredns/Corefile" ]
         volumeMounts:
         - name: config-volume

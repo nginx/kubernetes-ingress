@@ -279,7 +279,7 @@ func (lbc *LoadBalancerController) cleanupUnwatchedAppDosResources(nsi *namespac
 		lbc.processAppProtectDosProblems(problems)
 	}
 	for _, obj := range nsi.appProtectDosProtectedLister.List() {
-		dosPol := obj.((*unstructured.Unstructured))
+		dosPol := obj.(*v1beta1.DosProtectedResource)
 		namespace := dosPol.GetNamespace()
 		name := dosPol.GetName()
 
