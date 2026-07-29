@@ -1,18 +1,24 @@
 # syntax=docker/dockerfile:1.25
 ARG BUILD_OS=debian
+
 # renovate: datasource=docker depName=nginx/nginx
+ARG OSS_PACKAGE_REPO=packages.nginx.org
 ARG NGINX_OSS_VERSION=1.31.3
+ARG PACKAGE_REPO=pkgs.nginx.com
 ARG NGINX_PLUS_VERSION=R37.0
+
 ARG NAP_WAF_VERSION=37.0+5.635
 ARG NAP_WAF_COMMON_VERSION=11.665
 ARG NAP_WAF_PLUGIN_VERSION=6.29
+
 ARG AGENT_V3_VERSION=3
 ARG AGENT_V2_VERSION=2
+
 ARG DOWNLOAD_TAG=edge
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
-ARG PACKAGE_REPO=pkgs.nginx.com
+
 ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:d0e6bdcb164b114fddf05e39f47433fee2c7901521f1d77cf71bb330d666ce06
 
 
@@ -91,6 +97,7 @@ USER 101
 
 ############################################### NGINX OSS - Alpine #############################################
 FROM alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40 AS alpine
+ARG OSS_PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
@@ -100,7 +107,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 	apk add --no-cache openssl curl ca-certificates libcap libstdc++ libc-utils \
 	&& addgroup -S -g 101 nginx \
 	&& adduser -S -D -H -G nginx -h /var/cache/nginx -s /sbin/nologin -g nginx -u 101 nginx \
-    && apk add -X "https://nginx.org/packages/mainline/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+    && apk add -X "https://${OSS_PACKAGE_REPO}/nginx/mainline/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
       nginx~${NGINX_OSS_VERSION} \
       nginx-module-njs~${NGINX_OSS_VERSION} \
       nginx-module-otel~${NGINX_OSS_VERSION} \
@@ -118,6 +125,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 ############################################### NGINX OSS - Debian #############################################
 FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS debian
+ARG OSS_PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
@@ -131,7 +139,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
 	&& gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key \
 	&& echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-	http://packages.nginx.org/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
+	http://${OSS_PACKAGE_REPO}/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
     && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
     http://packages.nginx.org/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
@@ -155,6 +163,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 # Used as: BUILD_OS=ubi
 FROM ubi-minimal AS ubi
 ARG IC_VERSION
+ARG OSS_PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
@@ -185,7 +194,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& dnf --setopt=protected_packages= remove -y $(comm -13 pkgs-installed pkgs-new | comm -13 pkgs-nginx -) \
 	&& rm pkgs-installed pkgs-new pkgs-nginx \
 	&& printf "%s\n" "[nginx]" "name=nginx repo" \
-	"baseurl=https://packages.nginx.org/nginx/mainline/centos/10/\$basearch/" \
+	"baseurl=https://${OSS_PACKAGE_REPO}/nginx/mainline/centos/10/\$basearch/" \
 	"gpgcheck=1" "enabled=1" "module_hotfixes=true" > /etc/yum.repos.d/nginx.repo \
     && printf "%s\n" "[agent]" "name=agent repo" \
     "baseurl=https://packages.nginx.org/nginx-agent/centos/10/\$basearch/" \
