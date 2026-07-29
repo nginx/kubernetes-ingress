@@ -34,6 +34,14 @@ on:
       go-path:
         required: true
         type: string
+      pkg-src-oss:
+        required: false
+        type: string
+        default: "packages.nginx.org"
+      pkg-src-plus:
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
       image-matrix-oss:
         required: true
         type: string
