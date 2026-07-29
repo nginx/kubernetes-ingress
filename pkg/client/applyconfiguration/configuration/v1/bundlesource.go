@@ -33,7 +33,7 @@ type BundleSourceApplyConfiguration struct {
 	// for verifying the remote endpoint TLS certificate. The secret must be in the same
 	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
-	// Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	Name *string `json:"name,omitempty"`
 	// Namespace is the namespace/tenant on the management plane. Required for N1C only.
 	Namespace *string `json:"namespace,omitempty"`
