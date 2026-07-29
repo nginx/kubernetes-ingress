@@ -537,11 +537,11 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithClientBodyBufferSize(t 
 	t.Log(string(got))
 }
 
-func TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersFalse(t *testing.T) {
+func TestExecuteVirtualServerTemplate_RendersTemplateWithDisableForwardedHeadersTrue(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)
 
-	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersTrue)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithDisableForwardedHeadersTrue)
 	if err != nil {
 		t.Error(err)
 	}
@@ -2525,15 +2525,15 @@ var (
 		},
 	}
 
-	virtualServerCfgWithUseForwardedHeadersTrue = VirtualServerConfig{
+	virtualServerCfgWithDisableForwardedHeadersTrue = VirtualServerConfig{
 		Server: Server{
 			ServerName: "example.com",
 			StatusZone: "example.com",
 			Locations: []Location{
 				{
-					Path:                "/",
-					ProxyPass:           "http://test-upstream",
-					UseForwardedHeaders: true,
+					Path:                    "/",
+					ProxyPass:               "http://test-upstream",
+					DisableForwardedHeaders: true,
 				},
 			},
 		},

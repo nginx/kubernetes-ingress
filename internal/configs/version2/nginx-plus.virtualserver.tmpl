@@ -756,7 +756,7 @@ server {
         {{- if not ($custom_headers | hasCIKey "X-Real-IP") }}
         {{ $proxyOrGRPC }}_set_header X-Real-IP $remote_addr;
         {{- end }}
-        {{- if not $l.UseForwardedHeaders }}
+        {{- if not $l.DisableForwardedHeaders }}
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-For") }}
         {{ $proxyOrGRPC }}_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         {{- end }}

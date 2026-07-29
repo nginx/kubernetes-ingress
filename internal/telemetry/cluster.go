@@ -100,7 +100,7 @@ var configMapFilteredKeys = []string{
 	"zone-sync-resolver-addresses",
 	"zone-sync-resolver-valid",
 	"zone-sync-resolver-ipv6",
-	"use-forwarded-headers",
+	"disable-forwarded-headers",
 }
 
 var mgmtConfigMapFilteredKeys = []string{

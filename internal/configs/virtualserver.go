@@ -2043,7 +2043,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ServiceName:              serviceName,
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
-		UseForwardedHeaders:      cfgParams.UseForwardedHeaders,
+		DisableForwardedHeaders:  cfgParams.DisableForwardedHeaders,
 		VSRNamespace:             vsrNamespace,
 		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, upstreamName),
 	}

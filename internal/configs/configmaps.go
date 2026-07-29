@@ -113,13 +113,13 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
-	if useForwardedHeaders, exists, err := GetMapKeyAsBool(cfgm.Data, "use-forwarded-headers", cfgm); exists {
+	if disableForwardedHeaders, exists, err := GetMapKeyAsBool(cfgm.Data, "disable-forwarded-headers", cfgm); exists {
 		if err != nil {
 			nl.Error(l, err)
 			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
 			configOk = false
 		} else {
-			cfgParams.UseForwardedHeaders = useForwardedHeaders
+			cfgParams.DisableForwardedHeaders = disableForwardedHeaders
 		}
 	}
 

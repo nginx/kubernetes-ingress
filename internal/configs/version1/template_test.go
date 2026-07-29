@@ -4039,7 +4039,7 @@ func TestExecuteTemplate_ForIngressWithAddHeaderInherit(t *testing.T) {
 	}
 }
 
-func TestExecuteTemplate_ForIngressWithUseForwardedHeaders(t *testing.T) {
+func TestExecuteTemplate_ForIngressWithDisableForwardedHeaders(t *testing.T) {
 	t.Parallel()
 
 	tmpl := newNGINXIngressTmpl(t)
@@ -4470,7 +4470,7 @@ var (
 						Path:                "/tea",
 						Upstream:            testUpstream,
 						ProxyConnectTimeout: "10s",
-						UseForwardedHeaders: true,
+						DisableForwardedHeaders: true,
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
 						ClientMaxBodySize:   "2m",
