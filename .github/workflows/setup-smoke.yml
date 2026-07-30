@@ -249,6 +249,13 @@ jobs:
           path: ${{ steps.smoke-tests.outputs.test-results-path }}
         if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
 
+      - name: Publish Unit Test Results
+        uses: EnricoMi/publish-unit-test-result-action@170e2a5f632e3a890fc252195f4e0c4e12c1d8c0 # v2.18.0
+        with:
+          junit_files: ${{ steps.smoke-tests.outputs.test-junit-path }}
+          check_name: "Smoke Test Results (${{ inputs.image }})"
+        if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
+
       - name: Clean up secrets
         run: |
           rm -f nginx-repo.crt nginx-repo.key rhel_license
