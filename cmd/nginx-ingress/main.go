@@ -1040,7 +1040,7 @@ func processConfigMaps(kubeClient *kubernetes.Clientset, cfgParams *configs.Conf
 		if err != nil {
 			nl.Fatalf(l, "Error when getting %v: %v", *nginxConfigMaps, err)
 		}
-		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, *enableDirectiveAutoadjust, eventLog)
+		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, *enableDirectiveAutoadjust, *enableSnippets, eventLog)
 		if cfgParams.MainServerSSLDHParamFileContent != nil {
 			fileName, err := nginxManager.CreateDHParam(*cfgParams.MainServerSSLDHParamFileContent)
 			if err != nil {
