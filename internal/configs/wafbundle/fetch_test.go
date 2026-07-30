@@ -212,7 +212,7 @@ const (
 	testPolicyName   = "TestPolicy"
 	testPolicyObjID  = "pol_abc123"
 	testVersionObjID = "pv_v1"
-	testNAPRelease   = "5.13.1"
+	testNAPRelease   = "5.13.4"
 	testAPIToken     = "test-dataplane-token"
 	testBundleData   = "fake-bundle-tgz-content"
 )
@@ -724,7 +724,7 @@ func TestNIMFetchLogProfile(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/nap-compiler/versions/latest"):
-			_ = json.NewEncoder(w).Encode(nimCompilerVersionResponse{Version: "5.13.1"})
+			_ = json.NewEncoder(w).Encode(nimCompilerVersionResponse{Version: "5.13.4"})
 		case strings.Contains(r.URL.Path, "/logprofiles/"):
 			_ = json.NewEncoder(w).Encode(nimLogProfileBundleResponse{CompiledBundle: logB64})
 		default:
@@ -832,7 +832,7 @@ func TestN1CFetchEOFBecomesNonTransient(t *testing.T) {
 
 	req := n1cTestRequest()
 	req.URL = srv.URL
-	req.NAPRelease = "5.13.3"
+	req.NAPRelease = "5.13.4"
 	req.RetryAttempts = 2
 	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
 	if err == nil {
@@ -841,7 +841,7 @@ func TestN1CFetchEOFBecomesNonTransient(t *testing.T) {
 	if !isNonTransient(err) {
 		t.Errorf("EOF after retries should be non-transient, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "5.13.3") {
+	if !strings.Contains(err.Error(), "5.13.4") {
 		t.Errorf("error should mention NAP release, got: %v", err)
 	}
 	if callCount.Load() != 2 {

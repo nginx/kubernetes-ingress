@@ -103,7 +103,7 @@ spec:
       - name: regcred
       initContainers:
       - name: compile-policy
-        image: private-registry.nginx.com/nap/waf-compiler:5.13.1
+        image: private-registry.nginx.com/nap/waf-compiler:5.13.4
         args:
         - -p
         - /policies/attack-signatures-blocking.json
@@ -115,7 +115,7 @@ spec:
         - name: bundles
           mountPath: /bundles
       - name: compile-log-profile
-        image: private-registry.nginx.com/nap/waf-compiler:5.13.1
+        image: private-registry.nginx.com/nap/waf-compiler:5.13.4
         args:
         - -l
         - /policies/log-default.json
