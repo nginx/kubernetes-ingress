@@ -144,6 +144,9 @@ http {
     {{- if .MainOtelGlobalTraceEnabled }}
     otel_trace on;
     {{- end}}
+    {{- if .MainOtelTraceContext}}
+    otel_trace_context {{ .MainOtelTraceContext }};
+    {{- end}}
     {{- end}}
     {{- if .NginxStatus}}
     # stub_status
