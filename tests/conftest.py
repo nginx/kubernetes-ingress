@@ -232,6 +232,11 @@ def pytest_runtest_makereport(item) -> None:
     outcome = yield
     rep = outcome.get_result()
 
+    if rep.failed:
+        file_path, line_no, _ = rep.location
+        summary = str(rep.longrepr).strip().splitlines()[-1] if rep.longrepr else "Test failed"
+        print(f"\n::error file={file_path},line={line_no + 1},title=Test Failed: {item.nodeid}::{summary}")
+
     # we only look at actual failing test calls, not setup/teardown
     if rep.when == "call" and rep.failed and item.config.getoption("--show-ic-logs") == "yes":
         pod_namespace = item.funcargs["ingress_controller_prerequisites"].namespace
