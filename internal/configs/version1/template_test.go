@@ -4467,13 +4467,13 @@ var (
 				HTTPRedirectCode:  301,
 				Locations: []Location{
 					{
-						Path:                "/tea",
-						Upstream:            testUpstream,
-						ProxyConnectTimeout: "10s",
+						Path:                    "/tea",
+						Upstream:                testUpstream,
+						ProxyConnectTimeout:     "10s",
 						DisableForwardedHeaders: true,
-						ProxyReadTimeout:    "10s",
-						ProxySendTimeout:    "10s",
-						ClientMaxBodySize:   "2m",
+						ProxyReadTimeout:        "10s",
+						ProxySendTimeout:        "10s",
+						ClientMaxBodySize:       "2m",
 						MinionIngress: &Ingress{
 							Name:      "tea-minion",
 							Namespace: "default",
