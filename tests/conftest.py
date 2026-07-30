@@ -254,3 +254,28 @@ def pytest_runtest_makereport(item) -> None:
     if rep.when == "call" and item.config.getoption("--skip-fixture-teardown") == "yes":
         print("\n===================== WARNING =====================")
         print("Make sure to remove resources from this test run manually using kubectl utility\n")
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
+    """Write failed test summary table to GITHUB_STEP_SUMMARY if running in GitHub Actions."""
+    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_file or exitstatus == 0:
+        return
+
+    failed_reports = terminalreporter.stats.get("failed", [])
+    if not failed_reports:
+        return
+
+    try:
+        with open(summary_file, "a", encoding="utf-8") as f:
+            f.write("\n### ❌ Failed Tests Summary\n\n")
+            f.write("| Test Case | Failure Summary |\n")
+            f.write("| --- | --- |\n")
+            for rep in failed_reports:
+                nodeid = rep.nodeid
+                summary = str(rep.longrepr).strip().splitlines()[-1] if rep.longrepr else "Test failed"
+                summary_clean = summary.replace("|", "\\|")
+                f.write(f"| `{nodeid}` | `{summary_clean}` |\n")
+            f.write("\n")
+    except Exception as e:
+        print(f"Failed to write to GITHUB_STEP_SUMMARY: {e}")
