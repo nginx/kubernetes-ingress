@@ -250,7 +250,7 @@ jobs:
         if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Publish Unit Test Results
-        uses: EnricoMi/publish-unit-test-result-action@170e2a5f632e3a890fc252195f4e0c4e12c1d8c0 # v2.18.0
+        uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
         with:
           junit_files: ${{ steps.smoke-tests.outputs.test-junit-path }}
           check_name: "Smoke Test Results (${{ inputs.image }})"
