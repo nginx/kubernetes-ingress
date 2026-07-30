@@ -2053,10 +2053,6 @@ func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionWithoutMast
 	}
 }
 
-// TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MasterAnnotation
-// covers inheritance: nginx.org/upstream-vhost set only on the master must be
-// inherited by every minion location that doesn't set its own value, mirroring
-// the nginx.org/proxy-set-headers master-default behavior (README Example 3).
 func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MasterAnnotation(t *testing.T) {
 	t.Parallel()
 
@@ -2097,11 +2093,6 @@ func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MasterAnnotation(t *
 	}
 }
 
-// TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOverride
-// covers the case where a minion carries its own nginx.org/upstream-vhost
-// value that differs from the master's: the minion's own location must use
-// its own value, while a sibling minion without the annotation still inherits
-// the master's value.
 func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOverride(t *testing.T) {
 	t.Parallel()
 
@@ -2151,9 +2142,6 @@ func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOverride(t *te
 	}
 }
 
-// TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOnly covers the
-// case where only a minion sets nginx.org/upstream-vhost (no master value to
-// inherit): only that minion's location must carry the value.
 func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOnly(t *testing.T) {
 	t.Parallel()
 

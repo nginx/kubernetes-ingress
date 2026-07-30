@@ -4,7 +4,7 @@ metadata:
   name: cafe-ingress-master
   annotations:
     nginx.org/mergeable-ingress-type: "master"
-    nginx.org/upstream-vhost: "backend.example.com"
+    nginx.org/upstream-vhost: "example.internal"
 spec:
   ingressClassName: nginx
   tls:
