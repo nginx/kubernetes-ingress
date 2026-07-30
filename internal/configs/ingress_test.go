@@ -2053,6 +2053,155 @@ func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionWithoutMast
 	}
 }
 
+// TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MasterAnnotation
+// covers inheritance: nginx.org/upstream-vhost set only on the master must be
+// inherited by every minion location that doesn't set its own value, mirroring
+// the nginx.org/proxy-set-headers master-default behavior (README Example 3).
+func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MasterAnnotation(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[UpstreamVhostAnnotation] = "master.example.com"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	if len(result.Servers) != 1 {
+		t.Fatalf("expected 1 server, got %d", len(result.Servers))
+	}
+
+	sawCoffee, sawTea := false, false
+	for _, loc := range result.Servers[0].Locations {
+		switch loc.Path {
+		case "/coffee":
+			sawCoffee = true
+			if loc.UpstreamVhost != "master.example.com" {
+				t.Errorf("coffee Location.UpstreamVhost = %q, want inherited %q", loc.UpstreamVhost, "master.example.com")
+			}
+		case "/tea":
+			sawTea = true
+			if loc.UpstreamVhost != "master.example.com" {
+				t.Errorf("tea Location.UpstreamVhost = %q, want inherited %q", loc.UpstreamVhost, "master.example.com")
+			}
+		}
+	}
+	if !sawCoffee || !sawTea {
+		t.Fatalf("expected /coffee and /tea locations, saw coffee=%v tea=%v", sawCoffee, sawTea)
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOverride
+// covers the case where a minion carries its own nginx.org/upstream-vhost
+// value that differs from the master's: the minion's own location must use
+// its own value, while a sibling minion without the annotation still inherits
+// the master's value.
+func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOverride(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[UpstreamVhostAnnotation] = "master.example.com"
+
+	var coffee *IngressEx
+	for _, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			coffee = m
+			break
+		}
+	}
+	if coffee == nil {
+		t.Fatal("coffee minion not found in test fixture")
+	}
+	coffee.Ingress.Annotations[UpstreamVhostAnnotation] = "coffee.example.com"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+
+	sawCoffee, sawTea := false, false
+	for _, loc := range result.Servers[0].Locations {
+		switch loc.Path {
+		case "/coffee":
+			sawCoffee = true
+			if loc.UpstreamVhost != "coffee.example.com" {
+				t.Errorf("coffee Location.UpstreamVhost = %q, want minion override %q", loc.UpstreamVhost, "coffee.example.com")
+			}
+		case "/tea":
+			sawTea = true
+			if loc.UpstreamVhost != "master.example.com" {
+				t.Errorf("tea Location.UpstreamVhost = %q, want inherited %q", loc.UpstreamVhost, "master.example.com")
+			}
+		}
+	}
+	if !sawCoffee || !sawTea {
+		t.Fatalf("expected /coffee and /tea locations, saw coffee=%v tea=%v", sawCoffee, sawTea)
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOnly covers the
+// case where only a minion sets nginx.org/upstream-vhost (no master value to
+// inherit): only that minion's location must carry the value.
+func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOnly(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+
+	var coffee *IngressEx
+	for _, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			coffee = m
+			break
+		}
+	}
+	if coffee == nil {
+		t.Fatal("coffee minion not found in test fixture")
+	}
+	coffee.Ingress.Annotations[UpstreamVhostAnnotation] = "coffee.example.com"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+
+	sawCoffee, sawTea := false, false
+	for _, loc := range result.Servers[0].Locations {
+		switch loc.Path {
+		case "/coffee":
+			sawCoffee = true
+			if loc.UpstreamVhost != "coffee.example.com" {
+				t.Errorf("coffee Location.UpstreamVhost = %q, want %q", loc.UpstreamVhost, "coffee.example.com")
+			}
+		case "/tea":
+			sawTea = true
+			if loc.UpstreamVhost != "" {
+				t.Errorf("tea Location.UpstreamVhost = %q, want empty (no annotation on master or tea minion)", loc.UpstreamVhost)
+			}
+		}
+	}
+	if !sawCoffee || !sawTea {
+		t.Fatalf("expected /coffee and /tea locations, saw coffee=%v tea=%v", sawCoffee, sawTea)
+	}
+}
+
 func createCafeIngressEx() IngressEx {
 	cafeIngress := networking.Ingress{
 		ObjectMeta: meta_v1.ObjectMeta{

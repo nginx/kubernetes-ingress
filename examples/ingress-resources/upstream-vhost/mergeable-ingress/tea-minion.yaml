@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress-tea-minion
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: cafe.example.com
+    http:
+      paths:
+      - path: /tea
+        pathType: Prefix
+        backend:
+          service:
+            name: tea-svc
+            port:
+              number: 80
