@@ -50,7 +50,6 @@ jobs:
       contents: read # for ./.github/actions/build-push-retry
       id-token: write # for OIDC login to GCR
       checks: write # for publish-unit-test-result-action
-      pull-requests: write # for publish-unit-test-result-action
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
@@ -256,6 +255,7 @@ jobs:
         with:
           junit_files: ${{ steps.smoke-tests.outputs.test-junit-path }}
           check_name: "Smoke Test Results (${{ inputs.image }})"
+          comment_mode: off
         if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Clean up secrets
