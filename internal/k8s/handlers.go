@@ -41,7 +41,7 @@ func createIngressHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 			}
 			l := lbc.Logger.With(logNamespaceKey, ingress.GetNamespace())
 			nl.Debugf(l, "Removing Ingress: %v", ingress.Name)
-			lbc.AddSyncQueue(ingress)
+			lbc.AddSyncQueue(obj)
 		},
 		UpdateFunc: func(old, current interface{}) {
 			c := current.(*networking.Ingress)
@@ -69,8 +69,8 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 		},
 		DeleteFunc: func(obj interface{}) {
 			secret, isSecr := obj.(*v1.Secret)
-			l := lbc.Logger.With(logNamespaceKey, secret.GetNamespace())
 			if !isSecr {
+				l := lbc.Logger.With(logNamespaceKey, secret.GetNamespace())
 				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
 					nl.Debugf(l, "Error received unexpected object: %v", obj)
@@ -83,11 +83,10 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 				}
 			}
 			if !secrets.IsSupportedSecretType(secret.Type) {
-				nl.Debugf(l.With(logNamespaceKey, secret.GetNamespace()), "Ignoring Secret %v of unsupported type %v", secret.Name, secret.Type)
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, secret.GetNamespace()), "Ignoring Secret %v of unsupported type %v", secret.Name, secret.Type)
 				return
 			}
-
-			nl.Debugf(l, "Removing Secret: %v", secret.Name)
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, secret.GetNamespace()), "Removing Secret: %v", secret.Name)
 			lbc.AddSyncQueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
@@ -129,8 +128,7 @@ func createVirtualServerHandlers(lbc *LoadBalancerController) cache.ResourceEven
 					return
 				}
 			}
-			l := lbc.Logger.With(logNamespaceKey, vs.GetNamespace())
-			nl.Debugf(l, "Removing VirtualServer: %v", vs.Name)
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, vs.GetNamespace()), "Removing VirtualServer: %v", vs.Name)
 			lbc.AddSyncQueue(vs)
 		},
 		UpdateFunc: func(old, cur interface{}) {
@@ -190,8 +188,7 @@ func createVirtualServerRouteHandlers(lbc *LoadBalancerController) cache.Resourc
 					return
 				}
 			}
-			l := lbc.Logger.With(logNamespaceKey, vsr.GetNamespace())
-			nl.Debugf(l, "Removing VirtualServerRoute: %v", vsr.Name)
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, vsr.GetNamespace()), "Removing VirtualServerRoute: %v", vsr.Name)
 			lbc.AddSyncQueue(vsr)
 		},
 		UpdateFunc: func(old, cur interface{}) {

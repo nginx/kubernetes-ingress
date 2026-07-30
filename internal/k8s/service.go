@@ -26,8 +26,7 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			svc := obj.(*v1.Service)
-
-			nl.Infof(lbc.Logger, "Adding service: %v", svc.Name)
+			nl.Infof(lbc.Logger.With(logNamespaceKey, svc.Namespace), "Adding service: %v", svc.Name)
 			lbc.AddSyncQueue(svc)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -44,9 +43,8 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 					return
 				}
 			}
-
-			nl.Infof(lbc.Logger, "Removing service: %v", svc.Name)
-			lbc.AddSyncQueue(svc)
+			nl.Infof(lbc.Logger.With(logNamespaceKey, svc.Namespace), "Removing service: %v", svc.Name)
+			lbc.AddSyncQueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
@@ -57,7 +55,7 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 				}
 				oldSvc := old.(*v1.Service)
 				if hasServicedChanged(oldSvc, curSvc) {
-					nl.Infof(lbc.Logger, "Service %v changed, syncing", curSvc.Name)
+					nl.Infof(lbc.Logger.With(logNamespaceKey, oldSvc.Namespace), "Service %v changed, syncing", curSvc.Name)
 					lbc.AddSyncQueue(curSvc)
 				}
 			}
