@@ -7083,7 +7083,7 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhost(t *testing.T) {
 						Locations: []Location{
 							{
 								Path:          "/coffee",
-								UpstreamVhost: "backend.internal",
+								UpstreamVhost: "example.internal",
 								Upstream:      testUpstream,
 								ProxyPass:     "http://test",
 							},
@@ -7094,13 +7094,13 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhost(t *testing.T) {
 					Name:      "cafe-ingress",
 					Namespace: "default",
 					Annotations: map[string]string{
-						"nginx.org/upstream-vhost": "backend.internal",
+						"nginx.org/upstream-vhost": "example.internal",
 					},
 				},
 			},
 			description: "Should generate proxy_set_header Host with the annotation value when nginx.org/upstream-vhost is set",
 			wantDirectives: []string{
-				"proxy_set_header Host backend.internal;",
+				"proxy_set_header Host example.internal;",
 			},
 			unwantDirectives: []string{
 				"proxy_set_header Host $host;",
@@ -7186,7 +7186,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhost(t *testing.T) {
 						Locations: []Location{
 							{
 								Path:          "/coffee",
-								UpstreamVhost: "backend.internal",
+								UpstreamVhost: "example.internal",
 								Upstream:      testUpstream,
 								ProxyPass:     "http://test",
 							},
@@ -7197,13 +7197,13 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhost(t *testing.T) {
 					Name:      "cafe-ingress",
 					Namespace: "default",
 					Annotations: map[string]string{
-						"nginx.org/upstream-vhost": "backend.internal",
+						"nginx.org/upstream-vhost": "example.internal",
 					},
 				},
 			},
 			description: "Should generate proxy_set_header Host with the annotation value when nginx.org/upstream-vhost is set",
 			wantDirectives: []string{
-				"proxy_set_header Host backend.internal;",
+				"proxy_set_header Host example.internal;",
 			},
 			unwantDirectives: []string{
 				"proxy_set_header Host $host;",
@@ -7291,7 +7291,7 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhostGRPC(t *testing.T) {
 						Locations: []Location{
 							{
 								Path:          "/coffee",
-								UpstreamVhost: "backend.internal",
+								UpstreamVhost: "example.internal",
 								Upstream:      testUpstream,
 								ProxyPass:     "grpc://test",
 								GRPC:          true,
@@ -7303,13 +7303,13 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhostGRPC(t *testing.T) {
 					Name:      "cafe-ingress",
 					Namespace: "default",
 					Annotations: map[string]string{
-						"nginx.org/upstream-vhost": "backend.internal",
+						"nginx.org/upstream-vhost": "example.internal",
 					},
 				},
 			},
 			description: "Should generate grpc_set_header Host with the annotation value when nginx.org/upstream-vhost is set on a GRPC location",
 			wantDirectives: []string{
-				"grpc_set_header Host backend.internal;",
+				"grpc_set_header Host example.internal;",
 			},
 			unwantDirectives: []string{
 				"grpc_set_header Host $host;",
@@ -7400,7 +7400,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhostGRPC(t *testing.T) {
 						Locations: []Location{
 							{
 								Path:          "/coffee",
-								UpstreamVhost: "backend.internal",
+								UpstreamVhost: "example.internal",
 								Upstream:      testUpstream,
 								ProxyPass:     "grpc://test",
 								GRPC:          true,
@@ -7412,13 +7412,13 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhostGRPC(t *testing.T) {
 					Name:      "cafe-ingress",
 					Namespace: "default",
 					Annotations: map[string]string{
-						"nginx.org/upstream-vhost": "backend.internal",
+						"nginx.org/upstream-vhost": "example.internal",
 					},
 				},
 			},
 			description: "Should generate grpc_set_header Host with the annotation value when nginx.org/upstream-vhost is set on a GRPC location",
 			wantDirectives: []string{
-				"grpc_set_header Host backend.internal;",
+				"grpc_set_header Host example.internal;",
 			},
 			unwantDirectives: []string{
 				"grpc_set_header Host $host;",

@@ -3,7 +3,7 @@ kind: Ingress
 metadata:
   name: cafe-ingress
   annotations:
-    nginx.org/upstream-vhost: "backend.example.com"
+    nginx.org/upstream-vhost: "example.internal"
 spec:
   ingressClassName: nginx
   tls:
