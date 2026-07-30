@@ -44,6 +44,7 @@ type ConfigParams struct {
 	MainOtelExporterHeaderName             string
 	MainOtelExporterHeaderValue            string
 	MainOtelServiceName                    string
+	MainOtelTraceContext                   string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string

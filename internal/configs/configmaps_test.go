@@ -1948,6 +1948,7 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 		expectedExporterHeaderValue string
 		expectedServiceName         string
 		expectedTraceInHTTP         bool
+		expectedTraceContext        string
 		msg                         string
 	}{
 		{
@@ -2023,6 +2024,49 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 			expectedTraceInHTTP:         false,
 			msg:                         "no config",
 		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context": "propagate",
+				},
+			},
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "",
+			expectedTraceContext:     "propagate",
+			msg:                      "trace context set without an exporter endpoint",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+					"otel-trace-context":     "extract",
+				},
+			},
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedTraceContext:     "extract",
+			msg:                      "endpoint set with trace context extract",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context": "inject",
+				},
+			},
+			expectedLoadModule:   true,
+			expectedTraceContext: "inject",
+			msg:                  "trace context inject",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context": "ignore",
+				},
+			},
+			expectedLoadModule:   true,
+			expectedTraceContext: "ignore",
+			msg:                  "trace context ignore",
+		},
 	}
 
 	isPlus := true
@@ -2057,6 +2101,9 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
 				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
 			}
+			if result.MainOtelTraceContext != test.expectedTraceContext {
+				t.Errorf("MainOtelTraceContext: want %q, got %q", test.expectedTraceContext, result.MainOtelTraceContext)
+			}
 		})
 	}
 }
@@ -2071,6 +2118,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 		expectedExporterHeaderValue string
 		expectedServiceName         string
 		expectedTraceInHTTP         bool
+		expectedTraceContext        string
 		msg                         string
 	}{
 		{
@@ -2255,6 +2303,16 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			expectedTraceInHTTP:         false,
 			msg:                         "invalid, subdomain is more than 63 characters long",
 		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context": "not-a-real-value",
+				},
+			},
+			expectedLoadModule:   false,
+			expectedTraceContext: "",
+			msg:                  "invalid, trace context value not recognized",
+		},
 	}
 
 	isPlus := false
@@ -2288,6 +2346,9 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			}
 			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
 				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
+			}
+			if result.MainOtelTraceContext != test.expectedTraceContext {
+				t.Errorf("MainOtelTraceContext: want %q, got %q", test.expectedTraceContext, result.MainOtelTraceContext)
 			}
 		})
 	}

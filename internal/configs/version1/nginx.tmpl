@@ -131,18 +131,23 @@ http {
     {{- end}}
 
     {{- if .MainOtelLoadModule }}
+    {{- if .MainOtelExporterEndpoint }}
     otel_exporter {
         endpoint {{ .MainOtelExporterEndpoint }};
         {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
         header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
         {{- end }}
     }
+    {{- end }}
 
     {{- if .MainOtelServiceName}}
     otel_service_name {{ .MainOtelServiceName }};
     {{- end }}
     {{- if .MainOtelGlobalTraceEnabled }}
     otel_trace on;
+    {{- end}}
+    {{- if .MainOtelTraceContext}}
+    otel_trace_context {{ .MainOtelTraceContext }};
     {{- end}}
     {{- end}}
     {{- if .NginxStatus}}

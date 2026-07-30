@@ -979,6 +979,23 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		cfgParams.MainOtelTraceInHTTP = otelTraceInHTTP
 	}
 
+	if otelTraceContext, exists := cfgm.Data["otel-trace-context"]; exists {
+		otelTraceContext = strings.TrimSpace(otelTraceContext)
+		switch otelTraceContext {
+		case "extract", "inject", "propagate", "ignore":
+			cfgParams.MainOtelTraceContext = otelTraceContext
+		case "":
+		default:
+			errorText := fmt.Sprintf(
+				"ConfigMap %s/%s: invalid value for 'otel-trace-context': %q, must be one of 'extract', 'inject', 'propagate', 'ignore', ignoring",
+				cfgm.GetNamespace(), cfgm.GetName(), otelTraceContext,
+			)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			otelValid = false
+		}
+	}
+
 	if (cfgParams.MainOtelExporterHeaderName != "" && cfgParams.MainOtelExporterHeaderValue == "") ||
 		(cfgParams.MainOtelExporterHeaderName == "" && cfgParams.MainOtelExporterHeaderValue != "") {
 		cfgParams.MainOtelExporterHeaderName = ""
@@ -989,7 +1006,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		otelValid = false
 	}
 
-	if cfgParams.MainOtelExporterEndpoint != "" {
+	if cfgParams.MainOtelExporterEndpoint != "" || cfgParams.MainOtelTraceContext != "" {
 		cfgParams.MainOtelLoadModule = true
 	}
 
@@ -1223,6 +1240,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		MainOtelExporterHeaderName:         config.MainOtelExporterHeaderName,
 		MainOtelExporterHeaderValue:        config.MainOtelExporterHeaderValue,
 		MainOtelServiceName:                config.MainOtelServiceName,
+		MainOtelTraceContext:               config.MainOtelTraceContext,
 		ProxyProtocol:                      config.ProxyProtocol,
 		ResolverAddresses:                  config.ResolverAddresses,
 		ResolverIPV6:                       config.ResolverIPV6,
