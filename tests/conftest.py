@@ -241,7 +241,7 @@ def pytest_runtest_makereport(item) -> None:
     if rep.when == "call" and rep.failed and item.config.getoption("--show-ic-logs") == "yes":
         pod_namespace = item.funcargs["ingress_controller_prerequisites"].namespace
         pod_name = get_first_pod_name(item.funcargs["kube_apis"].v1, pod_namespace)
-        print("\n===================== IC Logs Start =====================")
+        print("\n::group::NGINX Ingress Controller Pod Logs")
         count = 0
         while (not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace)) and count < 10:
             count += 1
@@ -249,7 +249,7 @@ def pytest_runtest_makereport(item) -> None:
         pod = item.funcargs["kube_apis"].v1.read_namespaced_pod(pod_name, pod_namespace)
         container_name = pod.spec.containers[0].name
         print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace, container=container_name))
-        print("\n===================== IC Logs End =====================")
+        print("::endgroup::")
 
     if rep.when == "call" and item.config.getoption("--skip-fixture-teardown") == "yes":
         print("\n===================== WARNING =====================")
