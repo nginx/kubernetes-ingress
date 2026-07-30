@@ -27,21 +27,21 @@ func createIngressHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 		},
 		DeleteFunc: func(obj interface{}) {
 			ingress, isIng := obj.(*networking.Ingress)
-			l := lbc.Logger.With(logNamespaceKey, ingress.GetNamespace())
 			if !isIng {
 				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					nl.Debugf(l, "Error received unexpected object: %v", obj)
+					nl.Debugf(lbc.Logger, "Error received unexpected object: %v", obj)
 					return
 				}
 				ingress, ok = deletedState.Obj.(*networking.Ingress)
 				if !ok {
-					nl.Debugf(l, "Error DeletedFinalStateUnknown contained non-Ingress object: %v", deletedState.Obj)
+					nl.Debugf(lbc.Logger, "Error DeletedFinalStateUnknown contained non-Ingress object: %v", deletedState.Obj)
 					return
 				}
 			}
+			l := lbc.Logger.With(logNamespaceKey, ingress.GetNamespace())
 			nl.Debugf(l, "Removing Ingress: %v", ingress.Name)
-			lbc.AddSyncQueue(obj)
+			lbc.AddSyncQueue(ingress)
 		},
 		UpdateFunc: func(old, current interface{}) {
 			c := current.(*networking.Ingress)
@@ -117,19 +117,19 @@ func createVirtualServerHandlers(lbc *LoadBalancerController) cache.ResourceEven
 		},
 		DeleteFunc: func(obj interface{}) {
 			vs, isVs := obj.(*conf_v1.VirtualServer)
-			l := lbc.Logger.With(logNamespaceKey, vs.GetNamespace())
 			if !isVs {
 				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					nl.Debugf(l, "Error received unexpected object: %v", obj)
+					nl.Debugf(lbc.Logger, "Error received unexpected object: %v", obj)
 					return
 				}
 				vs, ok = deletedState.Obj.(*conf_v1.VirtualServer)
 				if !ok {
-					nl.Debugf(l, "Error DeletedFinalStateUnknown contained non-VirtualServer object: %v", deletedState.Obj)
+					nl.Debugf(lbc.Logger, "Error DeletedFinalStateUnknown contained non-VirtualServer object: %v", deletedState.Obj)
 					return
 				}
 			}
+			l := lbc.Logger.With(logNamespaceKey, vs.GetNamespace())
 			nl.Debugf(l, "Removing VirtualServer: %v", vs.Name)
 			lbc.AddSyncQueue(vs)
 		},
@@ -178,19 +178,19 @@ func createVirtualServerRouteHandlers(lbc *LoadBalancerController) cache.Resourc
 		},
 		DeleteFunc: func(obj interface{}) {
 			vsr, isVsr := obj.(*conf_v1.VirtualServerRoute)
-			l := lbc.Logger.With(logNamespaceKey, vsr.GetNamespace())
 			if !isVsr {
 				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					nl.Debugf(l, "Error received unexpected object: %v", obj)
+					nl.Debugf(lbc.Logger, "Error received unexpected object: %v", obj)
 					return
 				}
 				vsr, ok = deletedState.Obj.(*conf_v1.VirtualServerRoute)
 				if !ok {
-					nl.Debugf(l, "Error DeletedFinalStateUnknown contained non-VirtualServerRoute object: %v", deletedState.Obj)
+					nl.Debugf(lbc.Logger, "Error DeletedFinalStateUnknown contained non-VirtualServerRoute object: %v", deletedState.Obj)
 					return
 				}
 			}
+			l := lbc.Logger.With(logNamespaceKey, vsr.GetNamespace())
 			nl.Debugf(l, "Removing VirtualServerRoute: %v", vsr.Name)
 			lbc.AddSyncQueue(vsr)
 		},
