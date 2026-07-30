@@ -2,14 +2,18 @@
 ARG BUILD_OS=debian
 
 # renovate: datasource=docker depName=nginx/nginx
-ARG OSS_PACKAGE_REPO=packages.nginx.org
 ARG NGINX_OSS_VERSION=1.31.3
-ARG PACKAGE_REPO=pkgs.nginx.com
 ARG NGINX_PLUS_VERSION=R37.0
+
+ARG OSS_PACKAGE_REPO=packages.nginx.org
+ARG AGENT_REPO=packages.nginx.org
+ARG PLUS_PACKAGE_REPO=pkgs.nginx.com
+ARG NAP_WAF_REPO=pkgs.nginx.com
 
 ARG NAP_WAF_VERSION=37.0+5.635
 ARG NAP_WAF_COMMON_VERSION=11.665
 ARG NAP_WAF_PLUGIN_VERSION=6.29
+ARG NAP_DOS_VERSION=37.0+5.635
 
 ARG AGENT_V3_VERSION=3
 ARG AGENT_V2_VERSION=2
@@ -34,7 +38,9 @@ FROM scratch AS nginx-files
 ARG IC_VERSION
 ARG BUILD_OS
 ARG NGINX_PLUS_VERSION
-ARG PACKAGE_REPO
+ARG PLUS_PACKAGE_REPO
+ARG AGENT_REPO
+ARG NAP_WAF_REPO
 
 # the following links can be replaced with local files if needed, i.e. ADD --chown=101:0 <local_file> <container_file>
 ADD --link --chown=101:0 https://cs.nginx.com/static/files/90pkgs-nginx 90pkgs-nginx
@@ -53,17 +59,19 @@ ADD --link --chown=101:0 https://raw.githubusercontent.com/nginx/k8s-common/main
 ADD --link --chown=101:0 https://raw.githubusercontent.com/nginx/k8s-common/main/files/nap-waf-v5-debian-13.source nap-waf-v5-13.sources
 ADD --link --chown=101:0 https://raw.githubusercontent.com/nginx/k8s-common/main/files/agent-debian-13.source debian-agent-13.sources
 
-RUN --mount=from=busybox:musl,src=/bin/,dst=/bin/ printf "%s\n" "Acquire::https::pkgs.nginx.com::User-Agent k8s-ic-$IC_VERSION${BUILD_OS##debian-plus}-apt;" >> 90pkgs-nginx \
-	&& if ! grep -q "${PACKAGE_REPO}" 90pkgs-nginx ; then cat 90pkgs-nginx | sed -e "s/pkgs.nginx.com/${PACKAGE_REPO}/g" >> 90pkgs-nginx; fi \
+RUN --mount=from=busybox:musl,src=/bin/,dst=/bin/ \
+    printf "%s\n" "Acquire::https::pkgs.nginx.com::User-Agent k8s-ic-$IC_VERSION${BUILD_OS##debian-plus}-apt;" >> 90pkgs-nginx \
+	&& if ! grep -q "${PLUS_PACKAGE_REPO}" 90pkgs-nginx ; then cat 90pkgs-nginx | sed -e "s/pkgs.nginx.com/${PLUS_PACKAGE_REPO}/g" >> 90pkgs-nginx; fi \
 	&& printf "%s\n" "user_agent=k8s-ic-$IC_VERSION${BUILD_OS##ubi*plus}-dnf" | tee -a nginx-plus-*.repo \
 	&& mkdir dos \
 	&& mv app-protect-dos-10.repo nap-dos-13.sources dos/ \
-	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s;%VERSION%;${DOS_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" -e "s;${PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/nap-dos-13.sources \
-	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${DOS_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" -e "s;${PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/app-protect-dos-10.repo \
-	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" -e "s;${PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" *.sources \
+	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s;%VERSION%;${DOS_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/nap-dos-13.sources \
+	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${DOS_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/app-protect-dos-10.repo \
+	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" *.sources \
 	&& sed -i -e "s/=0/=1/" app-protect-v5.repo \
-	&& sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" -e "s;${PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nginx-plus-10.repo app-protect-10.repo \
-	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${PACKAGE_REPO};g" nginx-agent.repo app-protect-v5.repo \
+	&& sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nginx-plus-10.repo app-protect-10.repo \
+	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${AGENT_REPO};g" nginx-agent.repo \
+	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${NAP_WAF_REPO};g" app-protect-v5.repo \
 	&& mv dos/* . \
 	&& echo HTTP_USER_AGENT="k8s-ic-$IC_VERSION${BUILD_OS##alpine-plus}-apk" > user_agent
 
