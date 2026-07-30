@@ -49,6 +49,8 @@ jobs:
     permissions:
       contents: read # for ./.github/actions/build-push-retry
       id-token: write # for OIDC login to GCR
+      checks: write # for publish-unit-test-result-action
+      pull-requests: write # for publish-unit-test-result-action
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
