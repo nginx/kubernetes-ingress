@@ -41,7 +41,7 @@ func createIngressHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 			}
 			l := lbc.Logger.With(logNamespaceKey, ingress.GetNamespace())
 			nl.Debugf(l, "Removing Ingress: %v", ingress.Name)
-			lbc.AddSyncQueue(obj)
+			lbc.AddSyncQueue(ingress)
 		},
 		UpdateFunc: func(old, current interface{}) {
 			c := current.(*networking.Ingress)
