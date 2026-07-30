@@ -377,14 +377,17 @@ func (lbc *LoadBalancerController) isConfiguredPLMStorageSecret(key string) bool
 	return exists
 }
 
-// enqueuePoliciesUsingPLMStorage directly re-enqueues every Policy CR using a
-// PLM bundle source after a configured storage Secret changes. The subsequent
-// bundle fetch resolves current S3 credentials and TLS material.
+// enqueuePoliciesUsingPLMStorage directly re-enqueues only Policy CRs with a
+// missing or stale PLM bundle after a configured storage Secret changes. The
+// subsequent bundle fetch resolves current S3 credentials and TLS material.
 func (lbc *LoadBalancerController) enqueuePoliciesUsingPLMStorage(key string) {
 	if !lbc.plmEnabled || !lbc.isConfiguredPLMStorageSecret(key) {
 		return
 	}
 	for _, pol := range getPoliciesUsingPLMStorage(lbc.getAllPolicies()) {
+		if !lbc.policyNeedsPLMBundleFetch(pol) {
+			continue
+		}
 		nl.Debugf(lbc.Logger, "Re-enqueuing PLM policy %s/%s due to storage Secret %s change", pol.Namespace, pol.Name, key)
 		lbc.AddSyncQueue(pol)
 	}

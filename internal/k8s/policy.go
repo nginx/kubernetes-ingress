@@ -512,6 +512,35 @@ func (lbc *LoadBalancerController) bundleNeedsFetch(path string, plmStatus *wafb
 	return !strings.EqualFold(wafbundle.ComputeChecksum(data), plmStatus.SHA256)
 }
 
+// policyNeedsPLMBundleFetch reports whether any PLM policy or log bundle for
+// pol is missing or differs from the checksum published by its referenced AP resource.
+func (lbc *LoadBalancerController) policyNeedsPLMBundleFetch(pol *conf_v1.Policy) bool {
+	if pol.Spec.WAF == nil || lbc.wafBundlePath == "" {
+		return false
+	}
+
+	if bs := pol.Spec.WAF.ApBundleSource; bs != nil && bs.Type == conf_v1.BundleSourceTypePLM {
+		status := lbc.resolvePLMBundleStatus(pol, bs, wafbundle.PolicyBundle)
+		path := filepath.Join(lbc.wafBundlePath, wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
+		if status != nil && lbc.bundleNeedsFetch(path, status) {
+			return true
+		}
+	}
+
+	for index, securityLog := range pol.Spec.WAF.SecurityLogs {
+		if securityLog == nil || securityLog.ApLogBundleSource == nil || securityLog.ApLogBundleSource.Type != conf_v1.BundleSourceTypePLM {
+			continue
+		}
+		status := lbc.resolvePLMBundleStatus(pol, securityLog.ApLogBundleSource, wafbundle.LogProfileBundle)
+		path := filepath.Join(lbc.wafBundlePath, wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", index)))
+		if status != nil && lbc.bundleNeedsFetch(path, status) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // fetchBundleAsync launches performInitialFetch in a background goroutine.
 // It re-enqueues the policy only when the fetch succeeds. Failed PLM fetches
 // retry when the referenced AP resource status or configured storage Secret changes;

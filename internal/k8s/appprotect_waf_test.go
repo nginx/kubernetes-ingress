@@ -2,6 +2,8 @@ package k8s
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -698,6 +700,52 @@ func TestGetPoliciesUsingPLMStorage(t *testing.T) {
 	want := []*conf_v1.Policy{plmPolicy, plmLog}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("getPoliciesUsingPLMStorage() (-want +got):\n%s", diff)
+	}
+}
+
+func TestPolicyNeedsPLMBundleFetch(t *testing.T) {
+	t.Parallel()
+
+	bundle := []byte("compiled-policy")
+	checksum := wafbundle.ComputeChecksum(bundle)
+	apPolicy := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{"namespace": "plm", "name": "compiled-policy"},
+		"status": map[string]interface{}{"bundle": map[string]interface{}{
+			"state":  wafbundle.BundleStateReady,
+			"sha256": checksum,
+		}},
+	}}
+	apPolicy.SetKind(appprotect.PolicyGVK.Kind)
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	if err := store.Add(apPolicy); err != nil {
+		t.Fatalf("failed to add APPolicy to informer store: %v", err)
+	}
+
+	dir := t.TempDir()
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"},
+		Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{
+			Type: conf_v1.BundleSourceTypePLM, Name: "compiled-policy", Namespace: "plm",
+		}}},
+	}
+	lbc := &LoadBalancerController{
+		Logger:        nl.LoggerFromContext(context.Background()),
+		wafBundlePath: dir,
+		namespacedInformers: map[string]*namespacedInformer{
+			"": {appProtectPolicyLister: store},
+		},
+	}
+
+	if !lbc.policyNeedsPLMBundleFetch(pol) {
+		t.Error("policyNeedsPLMBundleFetch() = false for a missing bundle, want true")
+	}
+
+	path := filepath.Join(dir, wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
+	if err := os.WriteFile(path, bundle, 0o600); err != nil {
+		t.Fatalf("failed to write bundle: %v", err)
+	}
+	if lbc.policyNeedsPLMBundleFetch(pol) {
+		t.Error("policyNeedsPLMBundleFetch() = true for a current bundle, want false")
 	}
 }
 
