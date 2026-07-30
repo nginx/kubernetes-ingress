@@ -4568,6 +4568,75 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			},
 			msg: "invalid nginx.org/rewrite-target annotation, pipe character for alternatives",
 		},
+
+		// nginx.org/upstream-vhost annotation tests
+		{
+			annotations: map[string]string{
+				"nginx.org/upstream-vhost": "example.internal",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			expectedErrors: nil,
+			msg:            "valid nginx.org/upstream-vhost annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/upstream-vhost": "my-app.example.com",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			expectedErrors: nil,
+			msg:            "valid nginx.org/upstream-vhost annotation with subdomain",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/upstream-vhost": "",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			expectedErrors: []string{
+				`annotations.nginx.org/upstream-vhost: Required value`,
+			},
+			msg: "invalid nginx.org/upstream-vhost annotation, empty value",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/upstream-vhost": "$host",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			expectedErrors: []string{
+				`annotations.nginx.org/upstream-vhost: Invalid value: "$host": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')`,
+			},
+			msg: "invalid nginx.org/upstream-vhost annotation, NGINX variable not allowed",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/upstream-vhost": "example.com; proxy_pass http://evil.com;",
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			expectedErrors: []string{
+				`annotations.nginx.org/upstream-vhost: Invalid value: "example.com; proxy_pass http://evil.com;": a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*')`,
+			},
+			msg: "invalid nginx.org/upstream-vhost annotation, injection characters not allowed",
+		},
+
 		{
 			annotations: map[string]string{
 				"nginx.org/app-root": "/coffee",

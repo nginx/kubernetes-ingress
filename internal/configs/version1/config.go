@@ -215,6 +215,7 @@ type Location struct {
 	Websocket               bool
 	Rewrite                 string
 	RewriteTarget           string
+	UpstreamVhost           string
 	SSL                     bool
 	GRPC                    bool
 	ProxyBuffering          bool
