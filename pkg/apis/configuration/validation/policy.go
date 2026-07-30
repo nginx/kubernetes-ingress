@@ -456,7 +456,7 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 }
 
 func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
-	// Required fields and format checks (clientSecret, scope, redirectURI, logoutURI,
+	// Required fields and format checks (clientSecret, redirectURI, logoutURI,
 	// postLogoutRedirectURI, sessionTimeout) are enforced at the CRD level via
 	// kubebuilder Pattern/XValidation markers. Only checks that require runtime
 	// state or can't be expressed in CEL remain here.
@@ -474,6 +474,9 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 	allErrs = append(allErrs, validateIssuerURL(oidcNative.Issuer, fieldPath.Child("issuer"))...)
 	// ClientID char validation (rejects $, unescaped \, etc.) — not expressible in a simple CRD pattern.
 	allErrs = append(allErrs, validateClientID(oidcNative.ClientID, fieldPath.Child("clientID"))...)
+	if oidcNative.Scope != "" {
+		allErrs = append(allErrs, validateOIDCNativeScope(oidcNative.Scope, fieldPath.Child("scope"))...)
+	}
 
 	// Defense in depth for fields rendered verbatim into NGINX directives.
 	// The CRD-level Patterns catch most bad input, but block nginx-injection
@@ -486,8 +489,12 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 		{"issuer", oidcNative.Issuer},
 		{"configURL", oidcNative.ConfigURL},
 		{"scope", oidcNative.Scope},
+		{"redirectURI", oidcNative.RedirectURI},
 		{"cookieName", oidcNative.CookieName},
 		{"extraAuthArgs", oidcNative.ExtraAuthArgs},
+		{"logoutURI", oidcNative.LogoutURI},
+		{"postLogoutRedirectURI", oidcNative.PostLogoutRedirectURI},
+		{"frontChannelLogoutURI", oidcNative.FrontChannelLogoutURI},
 		{"sslName", oidcNative.SSLName},
 	} {
 		if f.value != "" && containsDangerousChars(f.value) {
@@ -497,6 +504,16 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 	}
 
 	return allErrs
+}
+
+func validateOIDCNativeScope(scope string, fieldPath *field.Path) field.ErrorList {
+	tokens := strings.FieldsFunc(scope, func(r rune) bool { return r == '+' || unicode.IsSpace(r) })
+	for _, token := range tokens {
+		if token == "openid" {
+			return nil
+		}
+	}
+	return field.ErrorList{field.Required(fieldPath, "openid is required as a scope token")}
 }
 
 func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {

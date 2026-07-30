@@ -578,6 +578,7 @@ server {
     {{- if $p.ProxyLocation }}
     location = {{ $p.ProxyLocation }} {
         auth_oidc off;
+        client_max_body_size 0;
         proxy_pass $oidc_idp_request_uri;
         proxy_ssl_server_name on;
         {{- if $p.SSLName }}
@@ -585,9 +586,11 @@ server {
         proxy_set_header Host {{ $p.SSLName }};
         {{- end }}
         proxy_ssl_verify {{ if $p.SSLVerify }}on{{ else }}off{{ end }};
+        {{- if $p.SSLVerify }}
+        proxy_ssl_verify_depth {{ $p.SSLVerifyDepth }};
+        {{- end }}
         {{- if $p.ProxyTrustedCertPath }}
         proxy_ssl_trusted_certificate {{ $p.ProxyTrustedCertPath }};
-        proxy_ssl_verify_depth {{ $p.SSLVerifyDepth }};
         {{- end }}
         proxy_buffers 8 {{ $p.ProxyBufferSize }};
         proxy_buffer_size {{ $p.ProxyBufferSize }};
@@ -689,8 +692,8 @@ server {
         {{ $proxyOrGRPC }}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_name {{ .SSLName }};
         {{- end }}
-
         {{- if $l.OIDC }}
+        auth_oidc off;
         auth_jwt "" token=$session_jwt;
         error_page 401 = @do_oidc_flow;
         auth_jwt_key_request /_jwks_uri;

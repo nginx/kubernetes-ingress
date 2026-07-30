@@ -2083,6 +2083,14 @@ func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
 			},
 			msg: "keycloak provider with path in issuer",
 		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+				Scope:    "profile openid email",
+			},
+			msg: "space separated scope tokens",
+		},
 	}
 
 	for _, test := range tests {
@@ -2182,8 +2190,31 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 			fieldPath: "oidcNative.sslName",
 			msg:       "dangerous chars in sslName",
 		},
-		// clientSecret format, scope, redirectURI, logoutURI, postLogoutRedirectURI,
-		// and sessionTimeout are validated at the CRD level via kubebuilder markers.
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", RedirectURI: "/$callback"},
+			fieldPath:  "oidcNative.redirectURI",
+			msg:        "dangerous chars in redirect URI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", LogoutURI: "/`logout"},
+			fieldPath:  "oidcNative.logoutURI",
+			msg:        "dangerous chars in logout URI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", PostLogoutRedirectURI: "/$logout"},
+			fieldPath:  "oidcNative.postLogoutRedirectURI",
+			msg:        "dangerous chars in post logout URI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", FrontChannelLogoutURI: "/`frontchannel"},
+			fieldPath:  "oidcNative.frontChannelLogoutURI",
+			msg:        "dangerous chars in front channel logout URI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", Scope: "notopenid"},
+			fieldPath:  "oidcNative.scope",
+			msg:        "openid must be a complete scope token",
+		},
 	}
 
 	for _, test := range tests {

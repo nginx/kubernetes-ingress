@@ -81,7 +81,7 @@ Only `/api` requires authentication. `/public` is open. The callback URI is auto
 
 | Level | What's validated |
 | --- | --- |
-| **CRD (kubebuilder markers)** | issuer pattern (https), clientSecret RFC 1123, redirectURI/logoutURI/postLogoutRedirectURI path pattern, scope contains openid (CEL), sessionTimeout time format, pkce enum, proxyBufferSize format |
+| **CRD (kubebuilder markers)** | issuer pattern (https), clientSecret RFC 1123, redirectURI/logoutURI/postLogoutRedirectURI path pattern, scope includes openid as a token (CEL), sessionTimeout time format, pkce enum, proxyBufferSize format |
 | **Go validation** | issuer hostname chars, clientID injection-safe chars (no $, \, ") |
 | **Config generation** | Secret existence, secret type, CA secret type, NJS/Native conflict on same context, IdP hostname extraction from issuer |
 
@@ -195,7 +195,7 @@ The `session_store` directive on the `oidc_provider` block always references thi
 
 ### Scope Format
 
-The native module's `scope` directive expects space-separated values (`openid profile email`), unlike the NJS OIDC which used `+`-separated (`openid+profile+email`). The config generation automatically converts `+` to spaces for backward compatibility.
+The native module's `scope` directive expects space-separated values (`openid profile email`), unlike the NJS OIDC which used `+`-separated (`openid+profile+email`). The config generation automatically converts `+` to spaces for backward compatibility. When a scope is configured, `openid` must be a complete scope token.
 
 ### Secret Handling
 

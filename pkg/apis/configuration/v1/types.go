@@ -1118,11 +1118,11 @@ type OIDCNative struct {
 	ConfigURL string `json:"configURL,omitempty"`
 	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid".
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:XValidation:rule="self == '' || self.contains('openid')",message="scope must contain 'openid'"
+	// +kubebuilder:validation:XValidation:rule="self == '' || self.matches('(^|[ +])openid([ +]|$)')",message="scope must contain 'openid' as a token"
 	Scope string `json:"scope,omitempty"`
 	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60]*$`
 	RedirectURI string `json:"redirectURI,omitempty"`
 	// Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION.
 	// +kubebuilder:validation:Optional
@@ -1136,15 +1136,15 @@ type OIDCNative struct {
 	PKCE string `json:"pkce,omitempty"`
 	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60]*$`
 	LogoutURI string `json:"logoutURI,omitempty"`
 	// Defines the path where the user is redirected after logout. Must be a path on the same VirtualServer host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60]*$`
 	PostLogoutRedirectURI string `json:"postLogoutRedirectURI,omitempty"`
 	// Defines the URI path for triggering OIDC front-channel logout. When set, the IdP calls this URI in a hidden iframe when the user logs out globally, allowing NGINX to terminate the local session.
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:Pattern=`^/[^\s{};\\]*$`
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60]*$`
 	FrontChannelLogoutURI string `json:"frontChannelLogoutURI,omitempty"`
 	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
 	// +kubebuilder:validation:Optional

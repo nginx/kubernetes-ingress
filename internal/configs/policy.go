@@ -104,6 +104,9 @@ type policyOptions struct {
 	// this OIDC policy. It is reused by addOIDCConfig() when the same policy name is encountered
 	// on subsequent routes.
 	oidcConfig *version2.OIDC
+	// oidcNativeLocations maps generated exact-match location paths to their
+	// provider and role, preventing two providers from owning the same handler.
+	oidcNativeLocations map[string]string
 }
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
@@ -839,7 +842,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	// Resolve trusted CA cert (and optional CRL) if specified.
 	// nginx.org/ca secrets can contain both ca.crt and ca.crl; the SecretStore
 	// writes both to disk and returns their paths space-separated.
-	trustedCertPath := ""
+	trustedCertPath := policyOpts.defaultCABundle
 	trustedCrlPath := ""
 	if oidcNative.TrustedCertSecret != "" {
 		trustedCertKey := fmt.Sprintf("%s/%s", polNamespace, oidcNative.TrustedCertSecret)
@@ -931,8 +934,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		proxyBufferSize = "32k"
 	}
 
-	// Pre-compute the proxy_ssl_trusted_certificate path. Only render when TLS
-	// verification is enabled AND a trusted cert is available; otherwise leave empty.
+	// Only render trusted CA material when TLS verification is enabled.
 	proxyTrustedCertPath := ""
 	if sslVerify && trustedCertPath != "" {
 		proxyTrustedCertPath = trustedCertPath
@@ -955,6 +957,36 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		}
 	}
 
+	locations := []struct {
+		path string
+		role string
+	}{
+		{path: redirectURI, role: "callback"},
+		{path: oidcNative.PostLogoutRedirectURI, role: "post-logout"},
+		{path: proxyLocation, role: "proxy"},
+	}
+	for _, location := range locations {
+		if location.path == "" {
+			continue
+		}
+		owner := fmt.Sprintf("%s:%s", providerName, location.role)
+		if existing, exists := policyOpts.oidcNativeLocations[location.path]; exists && existing != owner {
+			res.addWarningf("OIDCNative policy %s uses generated location %s, which conflicts with %s", polKey, location.path, existing)
+			res.isError = true
+			return res
+		}
+	}
+	for _, location := range locations {
+		if location.path != "" && policyOpts.oidcNativeLocations != nil {
+			policyOpts.oidcNativeLocations[location.path] = fmt.Sprintf("%s:%s", providerName, location.role)
+		}
+	}
+
+	sslTrustedCert := ""
+	if sslVerify {
+		sslTrustedCert = trustedCertPath
+	}
+
 	p.OIDCProvider = &version2.OIDCProvider{
 		Name:                  providerName,
 		PolicyKey:             polKey,
@@ -975,7 +1007,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		SessionTimeout:        oidcNative.SessionTimeout,
 		Sync:                  sync,
 		UserInfoEnable:        oidcNative.UserInfoEnable,
-		SSLTrustedCert:        trustedCertPath,
+		SSLTrustedCert:        sslTrustedCert,
 		SSLCrl:                trustedCrlPath,
 		SSLVerify:             sslVerify,
 		SSLName:               sslName,

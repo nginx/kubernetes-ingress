@@ -3677,3 +3677,26 @@ func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
 }
+
+func TestVirtualServerForNginxPlusDisablesInheritedOIDCNative(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := VirtualServerConfig{
+		Server: Server{
+			OIDC:             &OIDC{},
+			OIDCProviderName: "native-provider",
+			Locations: []Location{{
+				Path:      "/njs",
+				ProxyPass: "http://test-upstream",
+				OIDC:      true,
+			}},
+		},
+	}
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?s)location /njs \{.*?auth_oidc off;`).Match(data) {
+		t.Error("NJS OIDC locations must disable an inherited native OIDC policy")
+	}
+}

@@ -908,22 +908,24 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				OIDCProvider: &version2.OIDCProvider{
-					Name:            "oidc_default_oidc_native_policy_default_test",
-					PolicyKey:       "default/oidc-native-policy",
-					Issuer:          "https://accounts.google.com",
-					ClientID:        "my-client-id",
-					ClientSecret:    "super_secret_123",
-					Scope:           "openid profile",
-					RedirectURI:     "/callback",
-					CookieName:      "NGX_OIDC_oidc_default_oidc_native_policy_default_test",
-					SessionStore:    "oidc_sessions_oidc_default_oidc_native_policy_default_test",
-					LogoutURI:       "/logout",
-					SessionTimeout:  "4h",
-					SSLVerify:       true,
-					SSLName:         "accounts.google.com",
-					SSLVerifyDepth:  1,
-					ProxyLocation:   "/_oidc_idp_oidc_default_oidc_native_policy_default_test",
-					ProxyBufferSize: "32k",
+					Name:                 "oidc_default_oidc_native_policy_default_test",
+					PolicyKey:            "default/oidc-native-policy",
+					Issuer:               "https://accounts.google.com",
+					ClientID:             "my-client-id",
+					ClientSecret:         "super_secret_123",
+					Scope:                "openid profile",
+					RedirectURI:          "/callback",
+					CookieName:           "NGX_OIDC_oidc_default_oidc_native_policy_default_test",
+					SessionStore:         "oidc_sessions_oidc_default_oidc_native_policy_default_test",
+					LogoutURI:            "/logout",
+					SessionTimeout:       "4h",
+					SSLTrustedCert:       "/etc/ssl/certs/ca-certificate.crt",
+					SSLVerify:            true,
+					SSLName:              "accounts.google.com",
+					SSLVerifyDepth:       1,
+					ProxyLocation:        "/_oidc_idp_oidc_default_oidc_native_policy_default_test",
+					ProxyBufferSize:      "32k",
+					ProxyTrustedCertPath: "/etc/ssl/certs/ca-certificate.crt",
 				},
 			},
 			msg: "oidcNative reference",
@@ -952,18 +954,20 @@ func TestGeneratePolicies(t *testing.T) {
 			expected: policiesCfg{
 				Context: ctx,
 				OIDCProvider: &version2.OIDCProvider{
-					Name:            "oidc_default_oidc_native_minimal_default_test",
-					PolicyKey:       "default/oidc-native-minimal",
-					Issuer:          "https://keycloak.example.com/realms/master",
-					ClientID:        "nginx-plus",
-					RedirectURI:     "/oidc_callback_oidc_default_oidc_native_minimal_default_test",
-					CookieName:      "NGX_OIDC_oidc_default_oidc_native_minimal_default_test",
-					SessionStore:    "oidc_sessions_oidc_default_oidc_native_minimal_default_test",
-					SSLVerify:       true,
-					SSLName:         "keycloak.example.com",
-					SSLVerifyDepth:  1,
-					ProxyLocation:   "/_oidc_idp_oidc_default_oidc_native_minimal_default_test",
-					ProxyBufferSize: "32k",
+					Name:                 "oidc_default_oidc_native_minimal_default_test",
+					PolicyKey:            "default/oidc-native-minimal",
+					Issuer:               "https://keycloak.example.com/realms/master",
+					ClientID:             "nginx-plus",
+					RedirectURI:          "/oidc_callback_oidc_default_oidc_native_minimal_default_test",
+					CookieName:           "NGX_OIDC_oidc_default_oidc_native_minimal_default_test",
+					SessionStore:         "oidc_sessions_oidc_default_oidc_native_minimal_default_test",
+					SSLTrustedCert:       "/etc/ssl/certs/ca-certificate.crt",
+					SSLVerify:            true,
+					SSLName:              "keycloak.example.com",
+					SSLVerifyDepth:       1,
+					ProxyLocation:        "/_oidc_idp_oidc_default_oidc_native_minimal_default_test",
+					ProxyBufferSize:      "32k",
+					ProxyTrustedCertPath: "/etc/ssl/certs/ca-certificate.crt",
 				},
 			},
 			msg: "oidcNative minimal reference without secret",
@@ -5221,5 +5225,68 @@ func TestAddWafConfig(t *testing.T) {
 		if diff := cmp.Diff(test.expected.warnings, result.warnings); diff != "" {
 			t.Errorf("policiesCfg.addWAFConfig() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 		}
+	}
+}
+
+func TestOIDCNativeDefaultCAAndLocations(t *testing.T) {
+	t.Parallel()
+	ownerDetails := policyOwnerDetails{
+		parentNamespace: "default",
+		parentName:      "test",
+		parentType:      "vs",
+	}
+	policyOpts := policyOptions{
+		defaultCABundle:     "/etc/ssl/certs/ca-certificates.crt",
+		oidcNativeLocations: make(map[string]string),
+	}
+	policy := &conf_v1.OIDCNative{
+		Issuer:   "https://accounts.google.com",
+		ClientID: "client",
+	}
+
+	config := newPoliciesConfig(nil)
+	result := config.addOIDCNativeConfig(policy, "default/first", "default", ownerDetails, policyOpts)
+	if result.isError {
+		t.Fatalf("unexpected OIDCNative error: %v", result.warnings)
+	}
+	if config.OIDCProvider.SSLTrustedCert != policyOpts.defaultCABundle || config.OIDCProvider.ProxyTrustedCertPath != policyOpts.defaultCABundle {
+		t.Fatalf("expected default CA bundle to be used, got provider=%q proxy=%q", config.OIDCProvider.SSLTrustedCert, config.OIDCProvider.ProxyTrustedCertPath)
+	}
+
+	second := newPoliciesConfig(nil)
+	result = second.addOIDCNativeConfig(&conf_v1.OIDCNative{
+		Issuer:      "https://login.example.com",
+		ClientID:    "second-client",
+		RedirectURI: config.OIDCProvider.RedirectURI,
+	}, "default/second", "default", ownerDetails, policyOpts)
+	if !result.isError {
+		t.Fatal("expected duplicate OIDCNative callback location to be rejected")
+	}
+
+	postLogoutOpts := policyOpts
+	postLogoutOpts.oidcNativeLocations = make(map[string]string)
+	firstPostLogout := newPoliciesConfig(nil)
+	result = firstPostLogout.addOIDCNativeConfig(&conf_v1.OIDCNative{
+		Issuer:                "https://accounts.google.com",
+		ClientID:              "post-logout-client",
+		PostLogoutRedirectURI: "/logout",
+	}, "default/post-logout", "default", ownerDetails, postLogoutOpts)
+	if result.isError {
+		t.Fatalf("unexpected OIDCNative post-logout error: %v", result.warnings)
+	}
+	callbackCollision := newPoliciesConfig(nil)
+	result = callbackCollision.addOIDCNativeConfig(&conf_v1.OIDCNative{
+		Issuer:      "https://login.example.com",
+		ClientID:    "callback-client",
+		RedirectURI: "/logout",
+	}, "default/callback", "default", ownerDetails, postLogoutOpts)
+	if !result.isError {
+		t.Fatal("expected callback and post-logout location collision to be rejected")
+	}
+
+	reused := newPoliciesConfig(nil)
+	result = reused.addOIDCNativeConfig(policy, "default/first", "default", ownerDetails, policyOpts)
+	if result.isError {
+		t.Fatalf("expected reusing the same OIDCNative provider to be valid: %v", result.warnings)
 	}
 }

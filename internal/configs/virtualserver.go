@@ -434,12 +434,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
-		tls:             sslConfig != nil,
-		zoneSync:        vsEx.ZoneSync,
-		secretRefs:      vsEx.SecretRefs,
-		apResources:     apResources,
-		defaultCABundle: vsc.CABundlePath,
-		replicas:        vsc.IngressControllerReplicas,
+		tls:                 sslConfig != nil,
+		zoneSync:            vsEx.ZoneSync,
+		secretRefs:          vsEx.SecretRefs,
+		apResources:         apResources,
+		defaultCABundle:     vsc.CABundlePath,
+		replicas:            vsc.IngressControllerReplicas,
+		oidcNativeLocations: make(map[string]string),
 	}
 
 	ownerDetails := policyOwnerDetails{
