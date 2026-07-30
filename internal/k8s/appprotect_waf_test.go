@@ -686,6 +686,21 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 	}
 }
 
+func TestGetPoliciesUsingPLMStorage(t *testing.T) {
+	t.Parallel()
+
+	plmPolicy := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypePLM}}}}
+	plmLog := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{SecurityLogs: []*conf_v1.SecurityLog{{ApLogBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypePLM}}}}}}
+	nimPolicy := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypeNIM}}}}
+	noWAF := &conf_v1.Policy{}
+
+	got := getPoliciesUsingPLMStorage([]*conf_v1.Policy{plmPolicy, plmLog, nimPolicy, noWAF})
+	want := []*conf_v1.Policy{plmPolicy, plmLog}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("getPoliciesUsingPLMStorage() (-want +got):\n%s", diff)
+	}
+}
+
 // apResourceWithStatusBundle builds an APPolicy/APLogConf-shaped unstructured object
 // whose spec is fixed and whose .status.bundle is set to the given fields.
 func apResourceWithStatusBundle(state, location, sha256 string) *unstructured.Unstructured {

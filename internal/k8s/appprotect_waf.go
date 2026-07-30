@@ -372,6 +372,44 @@ func (lbc *LoadBalancerController) enqueuePLMPoliciesForAppLogConf(key string) {
 	}
 }
 
+func (lbc *LoadBalancerController) isConfiguredPLMStorageSecret(key string) bool {
+	_, exists := lbc.plmStorageSecrets[key]
+	return exists
+}
+
+// enqueuePoliciesUsingPLMStorage directly re-enqueues every Policy CR using a
+// PLM bundle source after a configured storage Secret changes. The subsequent
+// bundle fetch resolves current S3 credentials and TLS material.
+func (lbc *LoadBalancerController) enqueuePoliciesUsingPLMStorage(key string) {
+	if !lbc.plmEnabled || !lbc.isConfiguredPLMStorageSecret(key) {
+		return
+	}
+	for _, pol := range getPoliciesUsingPLMStorage(lbc.getAllPolicies()) {
+		nl.Debugf(lbc.Logger, "Re-enqueuing PLM policy %s/%s due to storage Secret %s change", pol.Namespace, pol.Name, key)
+		lbc.AddSyncQueue(pol)
+	}
+}
+
+func getPoliciesUsingPLMStorage(policies []*conf_v1.Policy) []*conf_v1.Policy {
+	var result []*conf_v1.Policy
+	for _, pol := range policies {
+		if pol.Spec.WAF == nil {
+			continue
+		}
+		if pol.Spec.WAF.ApBundleSource != nil && pol.Spec.WAF.ApBundleSource.Type == conf_v1.BundleSourceTypePLM {
+			result = append(result, pol)
+			continue
+		}
+		for _, sl := range pol.Spec.WAF.SecurityLogs {
+			if sl != nil && sl.ApLogBundleSource != nil && sl.ApLogBundleSource.Type == conf_v1.BundleSourceTypePLM {
+				result = append(result, pol)
+				break
+			}
+		}
+	}
+	return result
+}
+
 // addWAFPolicyRefs ensures the app protect resources that are referenced in policies exist.
 // nolint:gocyclo
 func (lbc *LoadBalancerController) addWAFPolicyRefs(

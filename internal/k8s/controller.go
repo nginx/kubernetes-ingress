@@ -235,10 +235,12 @@ type LoadBalancerController struct {
 	heldForConfigSafety bool
 
 	// WAF bundle polling.
-	bundlePollerMgr wafbundle.Manager
-	bundleFetcher   wafbundle.Fetcher
-	wafVersion      string
-	wafBundlePath   string
+	bundlePollerMgr             wafbundle.Manager
+	bundleFetcher               wafbundle.Fetcher
+	wafVersion                  string
+	wafBundlePath               string
+	plmStorageSecrets           map[string]struct{}
+	plmCredentialsSecretFactory informers.SharedInformerFactory
 
 	// plmEnabled is true when PLM (F5 WAF Policy Controller) S3 storage is
 	// configured (-plm-storage-url set)
@@ -361,6 +363,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		wafVersion:                   input.AppProtectVersion,
 		wafBundlePath:                input.WAFBundlePath,
 		plmEnabled:                   input.PLMStorageSpec.Endpoint != "",
+		plmStorageSecrets:            plmStorageSecretKeys(input.PLMStorageSpec),
 	}
 
 	if input.AppProtectEnabled && input.WAFBundlePath != "" {
@@ -395,6 +398,9 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 			},
 			nl.LoggerFromContext(input.LoggerContext),
 		)
+	}
+	if lbc.plmEnabled {
+		lbc.addPLMCredentialsSecretInformer(input.PLMStorageSpec.Credentials)
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
@@ -555,6 +561,30 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	}
 
 	return lbc
+}
+
+func plmStorageSecretKeys(spec wafbundle.S3ConfigSpec) map[string]struct{} {
+	keys := make(map[string]struct{})
+	for _, ref := range []types.NamespacedName{spec.Credentials, spec.CA, spec.ClientSSL} {
+		if ref.Name != "" {
+			keys[ref.Namespace+"/"+ref.Name] = struct{}{}
+		}
+	}
+	return keys
+}
+
+func (lbc *LoadBalancerController) addPLMCredentialsSecretInformer(ref types.NamespacedName) {
+	if ref.Name == "" {
+		return
+	}
+
+	factory := informers.NewSharedInformerFactoryWithOptions(lbc.client, lbc.resync, informers.WithNamespace(ref.Namespace))
+	informer := factory.Core().V1().Secrets().Informer()
+	if _, err := informer.AddEventHandler(createPLMCredentialsSecretHandlers(lbc, ref.Namespace+"/"+ref.Name)); err != nil {
+		nl.Fatalf(lbc.Logger, "Failed to add PLM credentials secret handler for namespace %s: %v", ref.Namespace, err)
+	}
+	lbc.plmCredentialsSecretFactory = factory
+	lbc.cacheSyncs = append(lbc.cacheSyncs, informer.HasSynced)
 }
 
 type namespacedInformer struct {
@@ -792,6 +822,9 @@ func (lbc *LoadBalancerController) Run() {
 
 	for _, nif := range lbc.namespacedInformers {
 		nif.start()
+	}
+	if lbc.plmCredentialsSecretFactory != nil {
+		go lbc.plmCredentialsSecretFactory.Start(lbc.ctx.Done())
 	}
 
 	if lbc.watchNginxConfigMaps {
@@ -2287,6 +2320,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonSecretDeleted, "A special secret [%s] was deleted.  Retaining the secret on this pod but this will affect new pods.", key)
 			nl.Warnf(lbc.Logger, "A special Secret %v was removed. Retaining the Secret.", key)
 		}
+		lbc.enqueuePoliciesUsingPLMStorage(key)
 		return
 	}
 
@@ -2305,6 +2339,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 	if len(resources) > 0 {
 		lbc.handleSecretUpdate(secret, resources)
 	}
+	lbc.enqueuePoliciesUsingPLMStorage(key)
 }
 
 func removeDuplicateResources(resources []Resource) []Resource {

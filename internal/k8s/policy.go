@@ -513,12 +513,9 @@ func (lbc *LoadBalancerController) bundleNeedsFetch(path string, plmStatus *wafb
 }
 
 // fetchBundleAsync launches performInitialFetch in a background goroutine.
-// It re-enqueues the policy ONLY when the fetch succeeds, to trigger poller
-// reconciliation. On failure the bundle file is not written, so re-enqueuing
-// would immediately re-trigger the fetch (bundleNeedsFetch stays true) and spin
-// an unthrottled loop; instead the retry comes from the throttled paths:
-// the next APPolicy/APLogConf status change (PLM) or the poller's next interval.
-// This keeps the sync queue unblocked during long-running fetches.
+// It re-enqueues the policy only when the fetch succeeds. Failed PLM fetches
+// retry when the referenced AP resource status or configured storage Secret changes;
+// non-PLM sources retry through their configured poller interval.
 func (lbc *LoadBalancerController) fetchBundleAsync(
 	pol *conf_v1.Policy,
 	bs *conf_v1.BundleSource,
@@ -537,8 +534,8 @@ func (lbc *LoadBalancerController) fetchBundleAsync(
 // performInitialFetch synchronously fetches a single bundle and writes it to destPath.
 // It reports whether the policy should be re-enqueued: true when the bundle was
 // written (or was unchanged), false when the fetch/write failed. On failure it
-// records a Warning status; the retry comes from the next status-change event
-// (PLM) or the poller's next interval, NOT from an immediate re-enqueue.
+// records a Warning status; PLM retries are triggered by AP resource status or
+// configured storage Secret updates, while non-PLM retries use the poller.
 // plmStatus is non-nil only for PLM sources and carries the resolved bundle location + checksum.
 func (lbc *LoadBalancerController) performInitialFetch(
 	pol *conf_v1.Policy,
