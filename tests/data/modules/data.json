@@ -80,11 +80,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -130,15 +130,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.29"
+          "version": "6.30"
         },
         {
           "name": "nginx-agent",
@@ -210,11 +210,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-ip-intelligence",
@@ -365,11 +365,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0.5.690"
         },
         {
           "name": "app-protect",
-          "version": "37.0.5.635"
+          "version": "37.0.5.690"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -411,15 +411,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0.5.690"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "37.0.5.635"
+          "version": "37.0.5.690"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.29"
+          "version": "6.30"
         }
       ],
       "system": "alpine",
@@ -511,11 +511,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-ip-intelligence",
@@ -561,15 +561,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.29"
+          "version": "6.30"
         }
       ],
       "system": "ubi",
@@ -637,7 +637,7 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
@@ -649,7 +649,7 @@
         },
         {
           "name": "app-protect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-ip-intelligence",
@@ -695,11 +695,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -745,11 +745,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -795,11 +795,11 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0.5.690"
         },
         {
           "name": "app-protect",
-          "version": "37.0.5.635"
+          "version": "37.0.5.690"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -845,15 +845,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.29"
+          "version": "6.30"
         },
         {
           "name": "nginx-agent",
@@ -887,15 +887,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.29"
+          "version": "6.30"
         },
         {
           "name": "nginx-agent",
@@ -929,15 +929,15 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0.5.635"
+          "version": "37.0.5.690"
         },
         {
           "name": "app-protect-module-plus",
-          "version": "37.0.5.635"
+          "version": "37.0.5.690"
         },
         {
           "name": "app-protect-plugin",
-          "version": "6.29"
+          "version": "6.30"
         },
         {
           "name": "nginx-agent",
@@ -971,7 +971,7 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
@@ -983,7 +983,7 @@
         },
         {
           "name": "app-protect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-ip-intelligence",
@@ -1029,7 +1029,7 @@
         },
         {
           "name": "nginx-plus-module-appprotect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "nginx-plus-module-appprotectdos",
@@ -1041,7 +1041,7 @@
         },
         {
           "name": "app-protect",
-          "version": "37.0+5.635"
+          "version": "37.0+5.690"
         },
         {
           "name": "app-protect-ip-intelligence",
