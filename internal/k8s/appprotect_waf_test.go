@@ -711,8 +711,9 @@ func TestPolicyNeedsPLMBundleFetch(t *testing.T) {
 	apPolicy := &unstructured.Unstructured{Object: map[string]interface{}{
 		"metadata": map[string]interface{}{"namespace": "plm", "name": "compiled-policy"},
 		"status": map[string]interface{}{"bundle": map[string]interface{}{
-			"state":  wafbundle.BundleStateReady,
-			"sha256": checksum,
+			"state":    wafbundle.BundleStateReady,
+			"location": "s3://plm/bundles/compiled-policy.tgz",
+			"sha256":   checksum,
 		}},
 	}}
 	apPolicy.SetKind(appprotect.PolicyGVK.Kind)
