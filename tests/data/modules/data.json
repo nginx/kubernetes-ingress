@@ -96,7 +96,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "nginx-agent",
@@ -218,7 +218,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -361,7 +361,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "nginx-plus-module-appprotect",
@@ -519,7 +519,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -653,7 +653,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -711,7 +711,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "nginx-agent",
@@ -761,7 +761,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "nginx-agent",
@@ -811,7 +811,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "nginx-agent",
@@ -987,7 +987,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "app-protect-attack-signatures",
@@ -1045,7 +1045,7 @@
         },
         {
           "name": "app-protect-ip-intelligence",
-          "version": "1.55.0"
+          "version": "1.59.0"
         },
         {
           "name": "app-protect-attack-signatures",
