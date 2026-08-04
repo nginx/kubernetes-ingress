@@ -3,9 +3,9 @@ ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
 ARG NGINX_OSS_VERSION=1.31.3
 ARG NGINX_PLUS_VERSION=R37.0
-ARG NAP_WAF_VERSION=37.0+5.635
-ARG NAP_WAF_COMMON_VERSION=11.665
-ARG NAP_WAF_PLUGIN_VERSION=6.29
+ARG NAP_WAF_VERSION=37.0+5.690
+ARG NAP_WAF_COMMON_VERSION=11.735
+ARG NAP_WAF_PLUGIN_VERSION=6.30
 ARG AGENT_V3_VERSION=3
 ARG AGENT_V2_VERSION=2
 ARG DOWNLOAD_TAG=edge
@@ -13,7 +13,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:d0e6bdcb164b114fddf05e39f47433fee2c7901521f1d77cf71bb330d666ce06
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:017b7ebd96a0011e0db28a9d29ebe1adbbb38c736f82fa918081dca7c558f6fb
 
 
 ############################################# External dependency images #############################################
