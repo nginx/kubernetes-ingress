@@ -72,6 +72,13 @@ jobs:
           cat $GITHUB_OUTPUT
         shell: bash --noprofile --norc -o pipefail {0}
 
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+        with:
+          platforms: arm64
+          cache-image: true
+        if: ${{ steps.docs.outputs.docs_only == 'false' }}
+
       - name: Setup Golang Environment
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
