@@ -212,7 +212,7 @@ const (
 	testPolicyName   = "TestPolicy"
 	testPolicyObjID  = "pol_abc123"
 	testVersionObjID = "pv_v1"
-	testNAPRelease   = "5.13.1"
+	testNAPRelease   = "5.14.0"
 	testAPIToken     = "test-dataplane-token"
 	testBundleData   = "fake-bundle-tgz-content"
 )
@@ -231,12 +231,12 @@ func writeJSON(w http.ResponseWriter, v any) {
 
 func n1cTestRequest() *Request {
 	return &Request{
-		Type:            SourceTypeN1C,
-		URL:             "", // set per test
-		PolicyName:      testPolicyName,
-		PolicyNamespace: testNS,
-		NAPRelease:      testNAPRelease,
-		Auth:            &BundleAuth{APIToken: testAPIToken},
+		Type:       SourceTypeN1C,
+		URL:        "", // set per test
+		Name:       testPolicyName,
+		Namespace:  testNS,
+		NAPRelease: testNAPRelease,
+		Auth:       &BundleAuth{APIToken: testAPIToken},
 	}
 }
 
@@ -357,7 +357,7 @@ func TestN1CFetchPolicyNotFound(t *testing.T) {
 
 	req := n1cTestRequest()
 	req.URL = srv.URL
-	req.PolicyName = "NonExistent"
+	req.Name = "NonExistent"
 	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
 	if err == nil || !isNonTransient(err) {
 		t.Error("policy not found should be non-transient error")
@@ -490,7 +490,7 @@ func TestN1CFetchPagination(t *testing.T) {
 
 	req := n1cTestRequest()
 	req.URL = srv.URL
-	req.PolicyName = targetPolicy
+	req.Name = targetPolicy
 	result, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -526,7 +526,7 @@ func TestN1CFetchLogProfile(t *testing.T) {
 
 	req := n1cTestRequest()
 	req.URL = srv.URL
-	req.PolicyName = profileName
+	req.Name = profileName
 	result, err := NewHTTPFetcher().FetchLogProfileBundle(context.Background(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -571,10 +571,10 @@ const (
 
 func nimTestRequest(srvURL string) *Request {
 	return &Request{
-		Type:       SourceTypeNIM,
-		URL:        srvURL,
-		PolicyName: testNIMPolicyName,
-		Auth:       &BundleAuth{BearerToken: testNIMToken},
+		Type: SourceTypeNIM,
+		URL:  srvURL,
+		Name: testNIMPolicyName,
+		Auth: &BundleAuth{BearerToken: testNIMToken},
 	}
 }
 
@@ -724,7 +724,7 @@ func TestNIMFetchLogProfile(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/nap-compiler/versions/latest"):
-			_ = json.NewEncoder(w).Encode(nimCompilerVersionResponse{Version: "5.13.1"})
+			_ = json.NewEncoder(w).Encode(nimCompilerVersionResponse{Version: "5.14.0"})
 		case strings.Contains(r.URL.Path, "/logprofiles/"):
 			_ = json.NewEncoder(w).Encode(nimLogProfileBundleResponse{CompiledBundle: logB64})
 		default:
@@ -734,10 +734,10 @@ func TestNIMFetchLogProfile(t *testing.T) {
 	defer srv.Close()
 
 	req := &Request{
-		Type:       SourceTypeNIM,
-		URL:        srv.URL,
-		PolicyName: "log_all",
-		Auth:       &BundleAuth{BearerToken: testNIMToken},
+		Type: SourceTypeNIM,
+		URL:  srv.URL,
+		Name: "log_all",
+		Auth: &BundleAuth{BearerToken: testNIMToken},
 	}
 	result, err := NewHTTPFetcher().FetchLogProfileBundle(context.Background(), req)
 	if err != nil {
@@ -779,10 +779,10 @@ func TestNIMFetchBasicAuth(t *testing.T) {
 	defer srv.Close()
 
 	req := &Request{
-		Type:       SourceTypeNIM,
-		URL:        srv.URL,
-		PolicyName: testNIMPolicyName,
-		Auth:       &BundleAuth{Username: "admin", Password: "secret"},
+		Type: SourceTypeNIM,
+		URL:  srv.URL,
+		Name: testNIMPolicyName,
+		Auth: &BundleAuth{Username: "admin", Password: "secret"},
 	}
 	result, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
 	if err != nil {
@@ -832,7 +832,7 @@ func TestN1CFetchEOFBecomesNonTransient(t *testing.T) {
 
 	req := n1cTestRequest()
 	req.URL = srv.URL
-	req.NAPRelease = "5.13.3"
+	req.NAPRelease = "5.14.0"
 	req.RetryAttempts = 2
 	_, err := NewHTTPFetcher().FetchPolicyBundle(context.Background(), req)
 	if err == nil {
@@ -841,7 +841,7 @@ func TestN1CFetchEOFBecomesNonTransient(t *testing.T) {
 	if !isNonTransient(err) {
 		t.Errorf("EOF after retries should be non-transient, got: %v", err)
 	}
-	if !strings.Contains(err.Error(), "5.13.3") {
+	if !strings.Contains(err.Error(), "5.14.0") {
 		t.Errorf("error should mention NAP release, got: %v", err)
 	}
 	if callCount.Load() != 2 {
