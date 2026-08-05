@@ -253,9 +253,9 @@ jobs:
       - name: Publish Unit Test Results
         uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
         with:
-          junit_files: ${{ steps.smoke-tests.outputs.test-junit-path }}
+          files: ${{ steps.smoke-tests.outputs.test-junit-path }}
           check_name: "Smoke Test Results (${{ inputs.image }})"
-          comment_mode: off
+          comment_mode: "off"
         if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Clean up secrets
