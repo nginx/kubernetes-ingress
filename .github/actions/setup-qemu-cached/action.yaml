@@ -3,7 +3,7 @@ description: Restores a cached binfmt image and installs the requested QEMU emul
 
 inputs:
   cache-mode:
-    description: Use prime to populate a missing cache, or restore to require it
+    description: Use prime to populate a missing cache, or restore to only consume it
     default: restore
   image:
     description: Binfmt image to load and install
@@ -21,7 +21,6 @@ runs:
       with:
         path: ${{ runner.temp }}/qemu-binfmt
         key: qemu-binfmt-${{ runner.os }}-${{ runner.arch }}-${{ inputs.image }}
-        fail-on-cache-miss: ${{ inputs.cache-mode == 'restore' }}
 
     - name: Pull binfmt image
       if: steps.cache.outputs.cache-hit != 'true'
@@ -35,7 +34,7 @@ runs:
         docker save --output "$QEMU_CACHE_DIR/binfmt.tar" "$QEMU_IMAGE"
 
     - name: Save binfmt image
-      if: steps.cache.outputs.cache-hit != 'true'
+      if: steps.cache.outputs.cache-hit != 'true' && inputs.cache-mode == 'prime'
       uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: ${{ runner.temp }}/qemu-binfmt
