@@ -35,7 +35,6 @@
 .github/workflows/issues.yaml
 .github/workflows/labeler.yml
 .github/workflows/lint-format.yml
-.github/workflows/mend.yml
 .github/workflows/notifications.yml
 .github/workflows/oss-release.yml
 .github/workflows/patch-image.yml

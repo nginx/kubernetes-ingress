@@ -73,7 +73,6 @@ release.yml (manual dispatch)
 | `codeql-analysis.yml` | GitHub CodeQL scanning |
 | `scorecards.yml` | OpenSSF Scorecards |
 | `dependency-review.yml` | Dependency review for PRs |
-| `mend.yml` | Mend (WhiteSource) software composition analysis |
 | `certify-ubi-image.yml` | Red Hat UBI certification for OpenShift |
 
 ---

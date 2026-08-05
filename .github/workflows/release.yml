@@ -161,15 +161,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  mend:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'mend'))
-    name: Run Mend workflow
-    uses: ./.github/workflows/mend.yml
-    needs: [tag]
-    with:
-      branch: "v${{ inputs.nic_version }}"
-    secrets: inherit
-
   release-oss:
     if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-oss'))
     name: Release Docker OSS
