@@ -281,6 +281,18 @@
     },
     {
       "customType": "regex",
+      "datasourceTemplate": "docker",
+      "description": "Update pinned Docker images in composite actions",
+      "managerFilePatterns": [
+        "/^\\.github\\/actions\\/.+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "default: docker\\.io\\/(?<depName>[^:@\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+) # renovate: datasource=docker"
+      ],
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "description": "Update Operator SDK version in bundle Dockerfile",
       "managerFilePatterns": [
         "/bundle\\.Dockerfile$/"
