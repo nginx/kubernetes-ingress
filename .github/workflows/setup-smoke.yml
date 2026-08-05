@@ -49,7 +49,6 @@ jobs:
     permissions:
       contents: read # for ./.github/actions/build-push-retry
       id-token: write # for OIDC login to GCR
-      checks: write # for publish-unit-test-result-action
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
@@ -247,15 +246,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.smoke-tests.outputs.test-results-name }}
-          path: ${{ steps.smoke-tests.outputs.test-results-path }}
-        if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
-
-      - name: Publish Unit Test Results
-        uses: EnricoMi/publish-unit-test-result-action@d0a4676d0e0b938bc201470d88276b7c74c712b3 # v2.24.0
-        with:
-          files: ${{ steps.smoke-tests.outputs.test-junit-path }}
-          check_name: "Smoke Test Results (${{ inputs.image }})"
-          comment_mode: "off"
+          path: |
+            ${{ steps.smoke-tests.outputs.test-results-path }}
+            ${{ steps.smoke-tests.outputs.test-junit-path }}
         if: ${{ !cancelled() && steps.stable_exists.outputs.exists != 'true' }}
 
       - name: Clean up secrets

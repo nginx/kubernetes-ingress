@@ -814,7 +814,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      checks: write
     uses: ./.github/workflows/setup-smoke.yml
     secrets: inherit
     with:
@@ -847,7 +846,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      checks: write
     uses: ./.github/workflows/setup-smoke.yml
     secrets: inherit
     with:
@@ -880,7 +878,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      checks: write
     uses: ./.github/workflows/setup-smoke.yml
     secrets: inherit
     with:
