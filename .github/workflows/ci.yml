@@ -181,10 +181,9 @@ jobs:
           echo "run_tests=${run_tests}" >> $GITHUB_OUTPUT
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+        uses: ./.github/actions/setup-qemu-cached
         with:
-          platforms: arm64
-          cache-image: true
+          cache-mode: prime
         if: ${{ steps.docker_build.outputs.docker_build == 'true' || steps.run_tests.outputs.run_tests == 'true' }}
 
       - name: Output variables
@@ -462,10 +461,7 @@ jobs:
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
-        with:
-          platforms: arm64
-          cache-image: true
+        uses: ./.github/actions/setup-qemu-cached
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Azure login
