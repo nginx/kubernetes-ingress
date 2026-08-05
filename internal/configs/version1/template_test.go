@@ -2056,6 +2056,9 @@ func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithoutCustomDefaultHTTPAnd
 			t.Errorf("want %q in generated config", want)
 		}
 	}
+	if strings.Contains(mainConf, "status_zone") {
+		t.Errorf("status_zone directive should not be present in default server config, got: %s", mainConf)
+	}
 	snaps.MatchSnapshot(t, buf.String())
 }
 
