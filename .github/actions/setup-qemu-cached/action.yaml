@@ -29,9 +29,10 @@ runs:
         QEMU_CACHE_DIR: ${{ runner.temp }}/qemu-binfmt
         QEMU_IMAGE: ${{ inputs.image }}
       run: |
+        qemu_image="${QEMU_IMAGE%@*}"
         mkdir -p "$QEMU_CACHE_DIR"
         docker pull "$QEMU_IMAGE"
-        docker save --output "$QEMU_CACHE_DIR/binfmt.tar" "$QEMU_IMAGE"
+        docker save --output "$QEMU_CACHE_DIR/binfmt.tar" "$qemu_image"
 
     - name: Save binfmt image
       if: steps.cache.outputs.cache-hit != 'true' && inputs.cache-mode == 'prime'
@@ -49,4 +50,6 @@ runs:
       env:
         QEMU_IMAGE: ${{ inputs.image }}
         QEMU_PLATFORMS: ${{ inputs.platforms }}
-      run: docker run --rm --privileged "$QEMU_IMAGE" --install "$QEMU_PLATFORMS"
+      run: |
+        qemu_image="${QEMU_IMAGE%@*}"
+        docker run --rm --privileged "$qemu_image" --install "$QEMU_PLATFORMS"
