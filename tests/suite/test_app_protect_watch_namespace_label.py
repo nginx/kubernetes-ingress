@@ -1,7 +1,6 @@
 import time
 
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.utils.ap_resources_utils import (
     create_ap_logconf_from_yaml,
@@ -20,6 +19,7 @@ from suite.utils.resources_utils import (
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
     patch_namespace_with_label,
+    retry_get_until_body_contains,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -156,8 +156,8 @@ class TestAppProtectWatchNamespaceLabelEnabled:
         ensure_response_from_backend(backend_setup.req_url, backend_setup.ingress_host, check404=True)
 
         print("----------------------- Send request ----------------------")
-        resp = requests.get(
-            f"{backend_setup.req_url}/test.bat", headers={"host": backend_setup.ingress_host}, verify=False
+        resp = retry_get_until_body_contains(
+            f"{backend_setup.req_url}/test.bat", backend_setup.ingress_host, valid_resp_body
         )
 
         print(resp.text)
@@ -176,17 +176,9 @@ class TestAppProtectWatchNamespaceLabelEnabled:
         ensure_response_from_backend(backend_setup.req_url, backend_setup.ingress_host, check404=True)
 
         print("----------------------- Send request ----------------------")
-        resp = requests.get(
-            f"{backend_setup.req_url}/test.bat", headers={"host": backend_setup.ingress_host}, verify=False
+        resp = retry_get_until_body_contains(
+            f"{backend_setup.req_url}/test.bat", backend_setup.ingress_host, invalid_resp_body
         )
-        retry = 0
-        while invalid_resp_body not in resp.text and retry <= 60:
-            resp = requests.get(
-                f"{backend_setup.req_url}/test.bat", headers={"host": backend_setup.ingress_host}, verify=False
-            )
-            retry += 1
-            wait_before_test(1)
-            print(f"Policy not yet enforced, retrying... #{retry}")
 
         assert invalid_resp_body in resp.text
         assert resp.status_code == 200
@@ -202,17 +194,9 @@ class TestAppProtectWatchNamespaceLabelEnabled:
         ensure_response_from_backend(backend_setup.req_url, backend_setup.ingress_host, check404=True)
 
         print("----------------------- Send request ----------------------")
-        resp = requests.get(
-            f"{backend_setup.req_url}/test.bat", headers={"host": backend_setup.ingress_host}, verify=False
+        resp = retry_get_until_body_contains(
+            f"{backend_setup.req_url}/test.bat", backend_setup.ingress_host, valid_resp_body
         )
-        retry = 0
-        while valid_resp_body not in resp.text and retry <= 60:
-            resp = requests.get(
-                f"{backend_setup.req_url}/test.bat", headers={"host": backend_setup.ingress_host}, verify=False
-            )
-            retry += 1
-            wait_before_test(1)
-            print(f"Policy not yet removed, retrying... #{retry}")
 
         assert valid_resp_body in resp.text
         assert resp.status_code == 200

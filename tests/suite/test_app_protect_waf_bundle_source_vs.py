@@ -1,5 +1,4 @@
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.utils.ap_resources_utils import (
     assert_waf_blocked,
@@ -14,7 +13,7 @@ from suite.utils.bundle_source_utils import (
 )
 from suite.utils.custom_resources_utils import read_custom_resource, wait_for_resource_status
 from suite.utils.policy_resources_utils import delete_policy
-from suite.utils.resources_utils import wait_before_test
+from suite.utils.resources_utils import retry_get, wait_before_test
 from suite.utils.vs_vsr_resources_utils import (
     create_virtual_server_from_yaml,
     delete_virtual_server,
@@ -208,9 +207,10 @@ class TestWAFBundleSourceFailureVS:
         # WAF is inactive so a malicious request should NOT be blocked with
         # the rejection page. The VS may return a 500 or the backend's response
         # depending on how the NGINX config was generated.
-        response = requests.get(
+        # Tolerate a connection dropped by an NGINX reload; retry the single request.
+        response = retry_get(
             virtual_server_setup.backend_1_url + "</script>",
-            headers={"host": virtual_server_setup.vs_host},
+            virtual_server_setup.vs_host,
         )
         assert "The requested URL was rejected" not in response.text
 

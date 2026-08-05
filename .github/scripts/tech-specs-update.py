@@ -23,7 +23,6 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -140,7 +139,7 @@ def update_nap_sc_row(sc_row, nap_waf_version):
     """
     if nap_waf_version and "+" in nap_waf_version:
         new_prefix = nap_waf_version.split("+")[0]
-        m = re.search(r"(\d+)\+", sc_row)
+        m = re.search(r"(\d+(?:\.\d+)*)\+", sc_row)
         if m and m.group(1) != new_prefix:
             return sc_row.replace(m.group(1) + "+", new_prefix + "+", 1)
     return sc_row
@@ -171,56 +170,35 @@ def generate_compat_table_md(json_data, sc_row=None):
     used as-is to preserve original formatting.  Otherwise a fresh shortcode
     row is generated from the JSON shortcode_row values.
 
-    Prunes rows past their End of Technical Support date, keeping the most
-    recently expired row as a reference.
     """
     sr = json_data["nic_k8s"]["shortcode_row"]
     rows = json_data["nic_k8s"]["rows"]
 
+    if sc_row is not None:
+        col_count = len(sc_row.split("|")[1:-1])
+        if col_count != 5:
+            sc_row = None
+
     header = (
         "| NIC version | Kubernetes versions tested  "
         "| NIC Helm Chart version | NIC Operator version "
-        "| NGINX / NGINX Plus version | End of Technical Support |"
+        "| NGINX / NGINX Plus version |"
     )
-    sep = "| --- | --- | --- | --- | --- | --- |"
+    sep = "| --- | --- | --- | --- | --- |"
 
     if sc_row is None:
         sc_row = (
             f"| {{{{< nic-version >}}}} | {sr['k8s_versions']} "
             f"| {{{{< nic-helm-version >}}}} | {{{{< nic-operator-version >}}}} "
-            f"| {sr['nginx_version']} | - |"
+            f"| {sr['nginx_version']} |"
         )
 
-    # EOTS pruning
-    now = datetime.now()
-    active_rows = []
-    expired_rows = []
-    for row in rows:
-        eots = row.get("eots_date", "-")
-        if eots and eots != "-":
-            try:
-                eots_date = datetime.strptime(eots, "%b %d, %Y")
-                if now > eots_date:
-                    expired_rows.append((eots_date, row))
-                    continue
-            except ValueError:
-                # End of Technical Support value doesn't match expected date format — keep the row rather than pruning it.
-                print(
-                    f"WARNING: Could not parse End of Technical Support date '{eots}' for NIC version '{row.get('nic_version', 'unknown')}', keeping row"
-                )
-        active_rows.append(row)
-
-    # Keep the most recently expired row as a migration reference
-    if expired_rows:
-        expired_rows.sort(key=lambda x: x[0], reverse=True)
-        active_rows.append(expired_rows[0][1])
-
     data_lines = []
-    for row in active_rows:
+    for row in rows:
         data_lines.append(
             f"| {row['nic_version']} | {row['k8s_versions']} "
             f"| {row['helm_version']} | {row['operator_version']} "
-            f"| {row['nginx_version']} | {row['eots_date']} |"
+            f"| {row['nginx_version']} |"
         )
 
     return "\n".join([header, sep, sc_row] + data_lines)
@@ -303,14 +281,14 @@ def update_nginx_prose(md, nginx_new):
         if oss_match:
             current_oss = oss_match.group(1)
             if current_oss != new_oss:
-                md = re.sub(r"\b" + re.escape(current_oss) + r"\b", new_oss, md)
+                md = re.sub(r"\b" + re.escape(current_oss) + r"(?!\.?\d)", new_oss, md)
 
     if new_plus:
-        plus_match = re.search(r"NGINX Plus images include NGINX Plus (R\d+(?:\s+P\d+)?)", md)
+        plus_match = re.search(r"NGINX Plus images include NGINX Plus (R\d+(?:\.\d+)*(?:\s+P\d+)?)", md)
         if plus_match:
             current_plus = plus_match.group(1)
             if current_plus != new_plus:
-                md = re.sub(r"\b" + re.escape(current_plus) + r"\b", new_plus, md)
+                md = re.sub(r"\b" + re.escape(current_plus) + r"(?!\.?\d)", new_plus, md)
 
     return md
 
@@ -340,7 +318,6 @@ def freeze_compat_row(json_data, current_nic, current_helm, current_operator):
         "helm_version": current_helm,
         "operator_version": current_operator,
         "nginx_version": sr["nginx_version"],
-        "eots_date": "-",
     }
     json_data["nic_k8s"]["rows"].insert(0, frozen)
     print(f"INFO: Frozen compat row for {current_nic}")

@@ -3,7 +3,6 @@ import subprocess
 from datetime import datetime
 
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.utils.custom_assertions import wait_and_assert_status_code
 from suite.utils.custom_resources_utils import (
@@ -29,6 +28,7 @@ from suite.utils.resources_utils import (
     get_vs_nginx_template_conf,
     nginx_reload,
     replace_configmap_from_yaml,
+    retry_get,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -205,9 +205,7 @@ class TestDos:
         print("----------------------- Send request ----------------------")
         ensure_response_from_backend(virtual_server_setup_dos.backend_1_url, virtual_server_setup_dos.vs_host)
 
-        response = requests.get(
-            virtual_server_setup_dos.backend_1_url, headers={"host": virtual_server_setup_dos.vs_host}
-        )
+        response = retry_get(virtual_server_setup_dos.backend_1_url, virtual_server_setup_dos.vs_host)
         print(response.text)
 
         wait_before_test(20)
