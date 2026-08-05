@@ -7,9 +7,13 @@ VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
 NGINX_OSS_VERSION             ?= 1.31.3
 NGINX_PLUS_VERSION            ?= R37.0
+NAP_WAF_VERSION               ?= 37.0+5.690
+NAP_WAF_COMMON_VERSION        ?= 11.735
+NAP_WAF_PLUGIN_VERSION        ?= 6.30
 
-OSS_REPO 		      ?= "packages.nginx.org" ## The package repo to install nginx oss from
+OSS_REPO 		      		  ?= "packages.nginx.org" ## The package repo to install nginx oss from
 PLUS_REPO                     ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
+
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 NAP_WAF_VERSION               ?= 37.0+5.635
