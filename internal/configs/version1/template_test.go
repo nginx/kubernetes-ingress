@@ -4045,7 +4045,7 @@ func TestExecuteTemplate_ForIngressWithDisableForwardedHeaders(t *testing.T) {
 	tmpl := newNGINXIngressTmpl(t)
 	buf := &bytes.Buffer{}
 
-	err := tmpl.Execute(buf, ingressCfgForwardedHeaderEnabled)
+	err := tmpl.Execute(buf, ingressCfgForwardedHeaderDisabled)
 	t.Log(buf.String())
 	if err != nil {
 		t.Fatal(err)
@@ -4453,7 +4453,7 @@ var (
 		},
 	}
 
-	ingressCfgForwardedHeaderEnabled = IngressNginxConfig{
+	ingressCfgForwardedHeaderDisabled = IngressNginxConfig{
 		Servers: []Server{
 			{
 				Name:              "test.example.com",
