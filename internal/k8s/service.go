@@ -44,7 +44,7 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 				}
 			}
 			nl.Infof(lbc.Logger.With(logNamespaceKey, svc.Namespace, logKindKey, serviceKind, logNameKey, svc.Name), "Removing service: %v", svc.Name)
-			lbc.AddSyncQueue(obj)
+			lbc.AddSyncQueue(svc)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {

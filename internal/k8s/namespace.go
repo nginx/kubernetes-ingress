@@ -35,7 +35,7 @@ func createNamespaceHandlers(lbc *LoadBalancerController) cache.ResourceEventHan
 				}
 			}
 			nl.Debugf(lbc.Logger.With(logNamespaceKey, ns.Name, logKindKey, namespaceKind), "Removing Namespace from list of watched Namespaces: %v", ns.Name)
-			lbc.AddSyncQueue(obj)
+			lbc.AddSyncQueue(ns)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			if !reflect.DeepEqual(old, cur) {
