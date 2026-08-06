@@ -32,6 +32,7 @@ runs:
         qemu_image="${QEMU_IMAGE%@*}"
         mkdir -p "$QEMU_CACHE_DIR"
         docker pull "$QEMU_IMAGE"
+        docker tag "$QEMU_IMAGE" "$qemu_image"
         docker save --output "$QEMU_CACHE_DIR/binfmt.tar" "$qemu_image"
 
     - name: Save binfmt image
