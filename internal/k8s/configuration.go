@@ -26,6 +26,12 @@ const (
 	virtualServerKind      = "VirtualServer"
 	virtualServerRouteKind = "VirtualServerRoute"
 	transportServerKind    = "TransportServer"
+	policyKind             = "Policy"
+	secretKind             = "Secret"
+	serviceKind            = "Service"
+	namespaceKind          = "Namespace"
+	endpointSliceKind      = "EndpointSlice"
+	appProtectDosKind      = "AppProtectDosPolicy"
 )
 
 // Operation defines an operation to perform for a resource.

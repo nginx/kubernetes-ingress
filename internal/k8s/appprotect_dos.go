@@ -127,8 +127,8 @@ func (nsi *namespacedInformer) addAppProtectDosProtectedResourceHandler(handlers
 
 func (lbc *LoadBalancerController) syncAppProtectDosPolicy(task task) {
 	key := task.Key
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectDosKind, logNameKey, n)
 	nl.Debugf(l, "Syncing AppProtectDosPolicy %v", key)
 	var obj interface{}
 	var polExists bool
@@ -157,8 +157,8 @@ func (lbc *LoadBalancerController) syncAppProtectDosPolicy(task task) {
 
 func (lbc *LoadBalancerController) syncAppProtectDosLogConf(task task) {
 	key := task.Key
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectDosKind, logNameKey, n)
 	nl.Debugf(l, "Syncing APDosLogConf %v", key)
 	var obj interface{}
 	var confExists bool
@@ -187,8 +187,8 @@ func (lbc *LoadBalancerController) syncAppProtectDosLogConf(task task) {
 
 func (lbc *LoadBalancerController) syncDosProtectedResource(task task) {
 	key := task.Key
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectDosKind, logNameKey, n)
 	nl.Debugf(l, "Syncing DosProtectedResource %v", key)
 	var obj interface{}
 	var confExists bool
@@ -222,7 +222,7 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 		if c.Op == appprotectdos.AddOrUpdate {
 			switch impl := c.Resource.(type) {
 			case *appprotectdos.DosProtectedResourceEx:
-				l := lbc.Logger.With(logNamespaceKey, impl.Obj.Namespace)
+				l := lbc.Logger.With(logNamespaceKey, impl.Obj.Namespace, logKindKey, appProtectDosKind, logNameKey, impl.Obj.Name)
 				nl.Debugf(l, "handling change UPDATE OR ADD for DOS protected %s/%s", impl.Obj.Namespace, impl.Obj.Name)
 				resources := lbc.configuration.FindResourcesForAppProtectDosProtected(impl.Obj.Namespace, impl.Obj.Name)
 				resourceExes := lbc.createExtendedResources(resources)
@@ -253,7 +253,7 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 				lbc.configurator.DeleteAppProtectDosLogConf(impl.Obj)
 
 			case *appprotectdos.DosProtectedResourceEx:
-				l := lbc.Logger.With(logNamespaceKey, impl.Obj.Namespace)
+				l := lbc.Logger.With(logNamespaceKey, impl.Obj.Namespace, logKindKey, appProtectDosKind, logNameKey, impl.Obj.Name)
 				nl.Debugf(l, "handling change DELETE for DOS protected %s/%s", impl.Obj.Namespace, impl.Obj.Name)
 				resources := lbc.configuration.FindResourcesForAppProtectDosProtected(impl.Obj.Namespace, impl.Obj.Name)
 				resourceExes := lbc.createExtendedResources(resources)

@@ -26,7 +26,7 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			svc := obj.(*v1.Service)
-			nl.Infof(lbc.Logger.With(logNamespaceKey, svc.Namespace), "Adding service: %v", svc.Name)
+			nl.Infof(lbc.Logger.With(logNamespaceKey, svc.Namespace, logKindKey, serviceKind, logNameKey, svc.Name), "Adding service: %v", svc.Name)
 			lbc.AddSyncQueue(svc)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -43,7 +43,7 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 					return
 				}
 			}
-			nl.Infof(lbc.Logger.With(logNamespaceKey, svc.Namespace), "Removing service: %v", svc.Name)
+			nl.Infof(lbc.Logger.With(logNamespaceKey, svc.Namespace, logKindKey, serviceKind, logNameKey, svc.Name), "Removing service: %v", svc.Name)
 			lbc.AddSyncQueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
@@ -55,7 +55,7 @@ func createServiceHandlers(lbc *LoadBalancerController) cache.ResourceEventHandl
 				}
 				oldSvc := old.(*v1.Service)
 				if hasServicedChanged(oldSvc, curSvc) {
-					nl.Infof(lbc.Logger.With(logNamespaceKey, oldSvc.Namespace), "Service %v changed, syncing", curSvc.Name)
+					nl.Infof(lbc.Logger.With(logNamespaceKey, oldSvc.Namespace, logKindKey, serviceKind, logNameKey, oldSvc.Name), "Service %v changed, syncing", curSvc.Name)
 					lbc.AddSyncQueue(curSvc)
 				}
 			}
@@ -208,8 +208,8 @@ func (lbc *LoadBalancerController) syncService(task task) {
 	var exists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, serviceKind, logNameKey, n)
 	obj, exists, err = lbc.getNamespacedInformer(ns).svcLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)

@@ -66,8 +66,8 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 	var tsExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, transportServerKind, logNameKey, n)
 	obj, tsExists, err = lbc.getNamespacedInformer(ns).transportServerLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -123,7 +123,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(
 		if lbc.reportCustomResourceStatusEnabled() {
 			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
 			if err != nil {
-				nl.Errorf(lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace), "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+				nl.Errorf(lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, tsConfig.TransportServer.Kind, logNameKey, tsConfig.TransportServer.Name), "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
 			}
 		}
 	}
@@ -158,7 +158,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
 	lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
-	logger := lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace)
+	logger := lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, tsConfig.TransportServer.Kind, logNameKey, tsConfig.TransportServer.Name)
 
 	if lbc.reportCustomResourceStatusEnabled() {
 		// Defer TS status updates during startup to avoid serial API calls
@@ -220,7 +220,7 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 	externalNameSvcs := make(map[string]bool)
 	podsByIP := make(map[string]string)
 	disableIPV6 := lbc.configuration.isIPV6Disabled
-	logger := lbc.Logger.With(logNamespaceKey, transportServer.Namespace)
+	logger := lbc.Logger.With(logNamespaceKey, transportServer.Namespace, logKindKey, transportServer.Kind, logNameKey, transportServer.Name)
 
 	for _, u := range transportServer.Spec.Upstreams {
 		podEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Service, uint16(u.Port)) //nolint:gosec

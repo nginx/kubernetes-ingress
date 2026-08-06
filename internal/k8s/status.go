@@ -128,7 +128,7 @@ func (su *statusUpdater) getNamespacedInformer(ns string) *namespacedInformer {
 
 // updateIngressWithStatus sets the provided status on the selected Ingress.
 func (su *statusUpdater) updateIngressWithStatus(ing networking.Ingress, status []networking.IngressLoadBalancerIngress) error {
-	l := su.logger.With(logNamespaceKey, ing.Namespace)
+	l := su.logger.With(logNamespaceKey, ing.Namespace, logKindKey, ingressKind, logNameKey, ing.Name)
 
 	// Get an up-to-date Ingress from the Store
 	key, err := su.keyFunc(&ing)
@@ -194,7 +194,7 @@ func (su *statusUpdater) BulkUpdateIngressStatus(ings []networking.Ingress) erro
 // updated, and then attempts to update. We often need to fetch fresh copies due to the
 // k8s API using ResourceVersion to stop updates on stale items.
 func (su *statusUpdater) retryStatusUpdate(clientIngress typednetworking.IngressInterface, ingCopy *networking.Ingress) error {
-	l := su.logger.With(logNamespaceKey, ingCopy.Namespace)
+	l := su.logger.With(logNamespaceKey, ingCopy.Namespace, logKindKey, ingressKind, logNameKey, ingCopy.Name)
 	apiIng, err := clientIngress.Get(context.TODO(), ingCopy.Name, metav1.GetOptions{})
 	if err != nil {
 		nl.Infof(l, "error getting ingress resource: %v", err)
@@ -434,7 +434,7 @@ func (su *statusUpdater) UpdateTransportServerStatus(ts *conf_v1.TransportServer
 	var exists bool
 	var err error
 
-	l := su.logger.With(logNamespaceKey, ts.Namespace)
+	l := su.logger.With(logNamespaceKey, ts.Namespace, logKindKey, transportServerKind, logNameKey, ts.Name)
 	tsLatest, exists, err = su.getNamespacedInformer(ts.Namespace).transportServerLister.Get(ts)
 	if err != nil {
 		nl.Infof(l, "error getting TransportServer from Store: %v", err)
@@ -482,7 +482,7 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 	var exists bool
 	var err error
 
-	l := su.logger.With(logNamespaceKey, vs.Namespace)
+	l := su.logger.With(logNamespaceKey, vs.Namespace, logKindKey, virtualServerKind, logNameKey, vs.Name)
 	vsLatest, exists, err = su.getNamespacedInformer(vs.Namespace).virtualServerLister.Get(vs)
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServer from Store: %v", err)
@@ -549,7 +549,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 	var exists bool
 	var err error
 
-	l := su.logger.With(logNamespaceKey, vsr.Namespace)
+	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
@@ -589,7 +589,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServ
 	var exists bool
 	var err error
 
-	l := su.logger.With(logNamespaceKey, vsr.Namespace)
+	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
@@ -625,7 +625,7 @@ func (su *statusUpdater) updateVirtualServerExternalEndpoints(vs *conf_v1.Virtua
 	var exists bool
 	var err error
 
-	l := su.logger.With(logNamespaceKey, vs.Namespace)
+	l := su.logger.With(logNamespaceKey, vs.Namespace, logKindKey, virtualServerKind, logNameKey, vs.Name)
 	vsLatest, exists, err = su.getNamespacedInformer(vs.Namespace).virtualServerLister.Get(vs)
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServer from Store: %v", err)
@@ -653,7 +653,7 @@ func (su *statusUpdater) updateVirtualServerRouteExternalEndpoints(vsr *conf_v1.
 	var exists bool
 	var err error
 
-	l := su.logger.With(logNamespaceKey, vsr.Namespace)
+	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
@@ -701,7 +701,7 @@ func (su *statusUpdater) UpdatePolicyStatus(pol *conf_v1.Policy, state string, r
 	var exists bool
 	var err error
 
-	l := su.logger.With(logNamespaceKey, pol.Namespace)
+	l := su.logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
 	polLatest, exists, err = su.getNamespacedInformer(pol.Namespace).policyLister.Get(pol)
 	if err != nil {
 		nl.Infof(l, "error getting policy from Store: %v", err)

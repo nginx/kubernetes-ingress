@@ -82,6 +82,8 @@ const (
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 
 	logNamespaceKey = "resource_namespace"
+	logKindKey      = "resource_kind"
+	logNameKey      = "resource_name"
 )
 
 var (
@@ -882,14 +884,14 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			found = true
 			_, err := lbc.configurator.AddOrUpdateIngress(ingress)
 			if err != nil {
-				nl.Errorf(lbc.Logger.With(logNamespaceKey, ingress.Ingress.Namespace), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Ingress.Namespace, ingress.Ingress.Name, err)
+				nl.Errorf(lbc.Logger.With(logNamespaceKey, ingress.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingress.Ingress.Name), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Ingress.Namespace, ingress.Ingress.Name, err)
 			}
 		}
 		for _, ingress := range resourceExes.MergeableIngresses {
 			found = true
 			_, err := lbc.configurator.AddOrUpdateMergeableIngress(ingress)
 			if err != nil {
-				nl.Errorf(lbc.Logger.With(logNamespaceKey, ingress.Master.Ingress.Namespace), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Master.Ingress.Namespace, ingress.Master.Ingress.Name, err)
+				nl.Errorf(lbc.Logger.With(logNamespaceKey, ingress.Master.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingress.Master.Ingress.Name), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Master.Ingress.Namespace, ingress.Master.Ingress.Name, err)
 			}
 		}
 
@@ -899,7 +901,7 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			resourceExes = lbc.createExtendedResources(resources)
 			for _, vserver := range resourceExes.VirtualServerExes {
 				found = true
-				l := lbc.Logger.With(logNamespaceKey, vserver.VirtualServer.Namespace)
+				l := lbc.Logger.With(logNamespaceKey, vserver.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vserver.VirtualServer.Name)
 				_, err := lbc.configurator.AddOrUpdateVirtualServer(vserver)
 				if err != nil {
 					nl.Errorf(l, "Error updating ratelimit for VirtualServer %s/%s: %s", vserver.VirtualServer.Namespace, vserver.VirtualServer.Name, err)
@@ -1439,7 +1441,7 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 		sec := obj.(*api_v1.Secret)
 		key := getResourceKey(&sec.ObjectMeta)
 		resources := lbc.configuration.FindResourcesForSecret(sec.Namespace, sec.Name)
-		sl := lbc.Logger.With(logNamespaceKey, sec.GetNamespace())
+		sl := lbc.Logger.With(logNamespaceKey, sec.GetNamespace(), logKindKey, secretKind, logNameKey, sec.GetName())
 		lbc.secretStore.DeleteSecret(key)
 
 		nl.Debugf(sl, "Deleting Secret: %v\n", key)
@@ -1461,8 +1463,8 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 	var vsExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, virtualServerKind, logNameKey, n)
 	obj, vsExists, err = lbc.getNamespacedInformer(ns).virtualServerLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -1513,23 +1515,23 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 			case *networking.Ingress:
 				err := lbc.statusUpdater.ClearIngressStatus(*obj)
 				if err != nil {
-					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.Namespace), "Error when updating the status for Ingress %v/%v: %v", obj.Namespace, obj.Name, err)
+					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.GetNamespace(), logKindKey, ingressKind, logNameKey, obj.GetName()), "Error when updating the status for Ingress %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServer:
 				err := lbc.statusUpdater.UpdateVirtualServerStatus(obj, state, p.Reason, p.Message)
 				if err != nil {
-					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.Namespace), "Error when updating the status for VirtualServer %v/%v: %v", obj.Namespace, obj.Name, err)
+					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.GetNamespace(), logKindKey, virtualServerKind, logNameKey, obj.GetName()), "Error when updating the status for VirtualServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.TransportServer:
 				err := lbc.statusUpdater.UpdateTransportServerStatus(obj, state, p.Reason, p.Message)
 				if err != nil {
-					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.Namespace), "Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
+					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.GetNamespace(), logKindKey, transportServerKind, logNameKey, obj.GetName()), "Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServerRoute:
 				var emptyVSes []*conf_v1.VirtualServer
 				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(obj, state, p.Reason, p.Message, emptyVSes)
 				if err != nil {
-					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.Namespace), "Error when updating the status for VirtualServerRoute %v/%v: %v", obj.Namespace, obj.Name, err)
+					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, obj.GetName()), "Error when updating the status for VirtualServerRoute %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			}
 		}
@@ -1581,8 +1583,8 @@ func (lbc *LoadBalancerController) processDelete(c ResourceChange) {
 	switch impl := c.Resource.(type) {
 	case *VirtualServerConfiguration:
 		key := getResourceKey(&impl.VirtualServer.ObjectMeta)
-		ns, _, _ := cache.SplitMetaNamespaceKey(key)
-		l := lbc.Logger.With(logNamespaceKey, ns)
+		ns, n, _ := cache.SplitMetaNamespaceKey(key)
+		l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, virtualServerKind, logNameKey, n)
 
 		deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
 		if deleteErr != nil {
@@ -1602,8 +1604,8 @@ func (lbc *LoadBalancerController) processDelete(c ResourceChange) {
 		}
 	case *IngressConfiguration:
 		key := getResourceKey(&impl.Ingress.ObjectMeta)
-		ns, _, _ := cache.SplitMetaNamespaceKey(key)
-		l := lbc.Logger.With(logNamespaceKey, ns)
+		ns, n, _ := cache.SplitMetaNamespaceKey(key)
+		l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, ingressKind, logNameKey, n)
 
 		nl.Debugf(l, "Deleting Ingress: %v\n", key)
 
@@ -1625,8 +1627,8 @@ func (lbc *LoadBalancerController) processDelete(c ResourceChange) {
 		}
 	case *TransportServerConfiguration:
 		key := getResourceKey(&impl.TransportServer.ObjectMeta)
-		ns, _, _ := cache.SplitMetaNamespaceKey(key)
-		l := lbc.Logger.With(logNamespaceKey, ns)
+		ns, n, _ := cache.SplitMetaNamespaceKey(key)
+		l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, transportServerKind, logNameKey, n)
 
 		deleteErr := lbc.configurator.DeleteTransportServer(key)
 
@@ -1678,7 +1680,7 @@ func (lbc *LoadBalancerController) UpdateVirtualServerStatusAndEventsOnDelete(vs
 		lbc.recorder.Event(vsConfig.VirtualServer, eventType, eventTitle, msg)
 
 		if lbc.reportCustomResourceStatusEnabled() {
-			l := lbc.Logger.With(logNamespaceKey, vsConfig.VirtualServer.Namespace)
+			l := lbc.Logger.With(logNamespaceKey, vsConfig.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vsConfig.VirtualServer.Name)
 			err := lbc.statusUpdater.UpdateVirtualServerStatus(vsConfig.VirtualServer, state, eventTitle, msg)
 			if err != nil {
 				nl.Errorf(l, "Error when updating the status for VirtualServer %v/%v: %v", vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name, err)
@@ -1713,7 +1715,7 @@ func (lbc *LoadBalancerController) UpdateIngressStatusAndEventsOnDelete(ingConfi
 
 		lbc.recorder.Eventf(ingConfig.Ingress, api_v1.EventTypeWarning, eventTitle, "%v was rejected: %v", getResourceKey(&ingConfig.Ingress.ObjectMeta), eventWarningMessage)
 		if lbc.reportStatusEnabled() {
-			l := lbc.Logger.With(logNamespaceKey, ingConfig.Ingress.Namespace)
+			l := lbc.Logger.With(logNamespaceKey, ingConfig.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingConfig.Ingress.Name)
 			err := lbc.statusUpdater.ClearIngressStatus(*ingConfig.Ingress)
 			if err != nil {
 				nl.Debugf(l, "Error clearing Ingress status: %v", err)
@@ -1827,7 +1829,7 @@ func (lbc *LoadBalancerController) updateMergeableIngressStatusAndEvents(ingConf
 			return
 		}
 
-		l := lbc.Logger.With(logNamespaceKey, ingConfig.Ingress.Namespace)
+		l := lbc.Logger.With(logNamespaceKey, ingConfig.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingConfig.Ingress.Name)
 		err := lbc.statusUpdater.BulkUpdateIngressStatus(ings)
 		if err != nil {
 			nl.Errorf(l, "error updating ing status: %v", err)
@@ -1869,7 +1871,7 @@ func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig
 			return
 		}
 
-		l := lbc.Logger.With(logNamespaceKey, ingConfig.Ingress.Namespace)
+		l := lbc.Logger.With(logNamespaceKey, ingConfig.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingConfig.Ingress.Name)
 		err := lbc.statusUpdater.UpdateIngressStatus(*ingConfig.Ingress)
 		if err != nil {
 			nl.Errorf(l, "error updating ingress status: %v", err)
@@ -1906,7 +1908,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&vsConfig.VirtualServer.ObjectMeta), eventWarningMessage)
 	lbc.recorder.Event(vsConfig.VirtualServer, eventType, eventTitle, msg)
-	l := lbc.Logger.With(logNamespaceKey, vsConfig.VirtualServer.Namespace)
+	l := lbc.Logger.With(logNamespaceKey, vsConfig.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vsConfig.VirtualServer.Name)
 
 	if lbc.reportCustomResourceStatusEnabled() {
 		// Defer VS status updates during startup to avoid serial API calls
@@ -1945,7 +1947,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 
 		msg := fmt.Sprintf("Configuration for %v/%v was added or updated%s", vsr.Namespace, vsr.Name, vsrEventWarningMessage)
 		lbc.recorder.Event(vsr, vsrEventType, vsrEventTitle, msg)
-		l := lbc.Logger.With(logNamespaceKey, vsr.Namespace)
+		l := lbc.Logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 
 		if lbc.reportCustomResourceStatusEnabled() {
 			vss := []*conf_v1.VirtualServer{vsConfig.VirtualServer}
@@ -1970,8 +1972,8 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 	var exists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, virtualServerRouteKind, logNameKey, n)
 	obj, exists, err = lbc.getNamespacedInformer(ns).virtualServerRouteLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -2002,8 +2004,8 @@ func (lbc *LoadBalancerController) syncIngress(task task) {
 	var ingExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, ingressKind, logNameKey, n)
 	ing, ingExists, err = lbc.getNamespacedInformer(ns).ingressLister.GetByKeySafe(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -2260,7 +2262,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 		nl.Warnf(lbc.Logger, "Secret key %v is invalid: %v", key, err)
 		return
 	}
-	l := lbc.Logger.With(logNamespaceKey, namespace)
+	l := lbc.Logger.With(logNamespaceKey, namespace, logKindKey, secretKind, logNameKey, name)
 	obj, secretWatched, err = lbc.getNamespacedInformer(namespace).secretLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -2764,7 +2766,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	}
 
 	ingEx.SecretRefs = make(map[string]*secrets.SecretReference)
-	l := lbc.Logger.With(logNamespaceKey, ing.GetNamespace())
+	l := lbc.Logger.With(logNamespaceKey, ing.GetNamespace(), logKindKey, ingressKind, logNameKey, ing.GetName())
 
 	for _, tls := range ing.Spec.TLS {
 		secretName := tls.SecretName
@@ -3035,7 +3037,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 		virtualServerEx.ZoneSync = lbc.configurator.CfgParams.ZoneSync.Enable
 	}
 
-	l := lbc.Logger.With(logNamespaceKey, virtualServer.GetNamespace())
+	l := lbc.Logger.With(logNamespaceKey, virtualServer.GetNamespace(), logKindKey, virtualServerKind, logNameKey, virtualServer.GetName())
 
 	resource := lbc.configuration.hosts[virtualServer.Spec.Host]
 	if vsc, ok := resource.(*VirtualServerConfiguration); ok {
@@ -3372,7 +3374,7 @@ func (lbc *LoadBalancerController) generateExternalAuthEndpoints(policies []*con
 
 		ns, name := configs.ParseServiceReference(p.Spec.ExternalAuth.AuthServiceName, p.Namespace)
 		svc, err := lbc.getServiceFromInformer(ns, name)
-		l := lbc.Logger.With(logNamespaceKey, ns)
+		l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, serviceKind, logNameKey, name)
 		if err != nil {
 			nl.Warnf(l, "Error getting Service for ExternalAuth %v in policy %v/%v: %v", p.Spec.ExternalAuth.AuthServiceName, p.Namespace, p.Name, err)
 			// Explicitly mark endpoint keys as empty so the warning propagates
@@ -3473,7 +3475,7 @@ func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 		for _, obj := range nsi.policyLister.List() {
 			pol := obj.(*conf_v1.Policy)
 
-			l := lbc.Logger.With(logNamespaceKey, pol.Namespace)
+			l := lbc.Logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
 			err := validation.ValidatePolicy(pol, lbc.policyValidationConfig())
 			if err != nil {
 				nl.Debugf(l, "Skipping invalid Policy %s/%s: %v", pol.Namespace, pol.Name, err)
@@ -4425,7 +4427,7 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 	lbc.configuration.lock.Lock()
 	defer lbc.configuration.lock.Unlock()
 	key := getResourceKey(&vsNew.ObjectMeta)
-	l := lbc.Logger.With(logNamespaceKey, vsNew.Namespace)
+	l := lbc.Logger.With(logNamespaceKey, vsNew.Namespace, logKindKey, virtualServerKind, logNameKey, vsNew.Name)
 	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServer(vsNew)
 	if validationError != nil {
 		delete(lbc.configuration.virtualServers, key)
@@ -4575,7 +4577,7 @@ func (lbc *LoadBalancerController) isPodMarkedForDeletion() bool {
 	podNamespace := lbc.metadata.pod.Namespace
 	pod, err := lbc.client.CoreV1().Pods(podNamespace).Get(context.Background(), podName, meta_v1.GetOptions{})
 	if err == nil && pod.DeletionTimestamp != nil {
-		l := lbc.Logger.With(logNamespaceKey, podNamespace)
+		l := lbc.Logger.With(logNamespaceKey, podNamespace, logKindKey, "Pod", logNameKey, podName)
 		nl.Debugf(l, "Pod %s/%s is marked for deletion", podNamespace, podName)
 		return true
 	}
