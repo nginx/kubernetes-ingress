@@ -1,4 +1,127 @@
 
+[TestExecuteOIDCTemplate_DisablesWAFOnInternalLocationsWhenAppProtectLoaded/module_loaded_disables_WAF_on_every_internal_OIDC_location - 1]
+    # Advanced configuration START
+    set $internal_error_message "NGINX / OpenID Connect login failure\n";
+    set $pkce_id "";
+    set $idp_sid "";
+    # resolver 8.8.8.8; # For DNS lookup of IdP endpoints;
+    subrequest_output_buffer_size 32k; # To fit a complete tokenset response
+    gunzip on; # Decompress IdP responses if necessary
+    # Advanced configuration END
+
+    location = /_jwks_uri {
+        internal;
+        app_protect_enable off;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
+        proxy_cache jwk;                              # Cache the JWK Set received from IdP
+        proxy_cache_valid 200 12h;                    # How long to consider keys "fresh"
+        proxy_cache_use_stale error timeout updating; # Use old JWK Set if cannot reach IdP
+        proxy_ssl_server_name on;                     # Send SNI to IdP host
+
+        proxy_method GET;                             # In case client request was non-GET
+        proxy_set_header Content-Length "";           # ''
+        proxy_pass $oidc_jwt_keyfile;                 # Expecting to find a URI here
+        proxy_ignore_headers Cache-Control Expires Set-Cookie; # Does not influence caching
+    }
+
+    location @do_oidc_flow {
+        status_zone "OIDC start";
+        js_content oidc.auth;
+        default_type text/plain; # In case we throw an error
+    }
+
+    set $redir_location "/_codexch";
+    location = /_codexch {
+        # This location is called by the IdP after successful authentication
+        status_zone "OIDC code exchange";
+        js_content oidc.codeExchange;
+        error_page 500 502 504 @oidc_error;
+    }
+
+    location = /_token {
+        # This location is called by oidcCodeExchange(). We use the proxy_ directives
+        # to construct the OpenID Connect token request, as per:
+        #  http://openid.net/specs/openid-connect-core-1_0.html#TokenRequest
+        internal;
+        app_protect_enable off;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
+
+        # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
+        proxy_pass_request_headers off;
+        proxy_ssl_server_name on;    # Send SNI to IdP host
+
+        proxy_set_header      Content-Type "application/x-www-form-urlencoded";
+        proxy_set_header      Authorization $arg_secret_basic;
+        proxy_pass            $oidc_token_endpoint;
+    }
+
+    location = /_refresh {
+        # This location is called by oidcAuth() when performing a token refresh. We
+        # use the proxy_ directives to construct the OpenID Connect token request, as per:
+        #  https://openid.net/specs/openid-connect-core-1_0.html#RefreshingAccessToken
+        internal;
+        app_protect_enable off;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
+
+        # Exclude client headers to avoid CORS errors with certain IdPs (e.g., Microsoft Entra ID)
+        proxy_pass_request_headers off;
+        proxy_ssl_server_name on;                    # Send SNI to IdP host
+
+        proxy_set_header      Content-Type "application/x-www-form-urlencoded";
+        proxy_set_header      Authorization $arg_secret_basic;
+        proxy_pass            $oidc_token_endpoint;
+    }
+
+    location = /_token_validation {
+        # Internal location to verify any JWT (e.g., id_token, logout_token)
+        # using the auth_jwt module. Extracts the claims and returns them as JSON.
+        internal;
+        app_protect_enable off;
+        client_max_body_size 0;                       # Subrequest inherits parent Content-Length
+        auth_jwt "" token=$arg_token;
+        js_content oidc.extractTokenClaims;
+        error_page 500 502 504 @oidc_error;
+    }
+
+    location = /logout {
+        status_zone "OIDC logout";
+        add_header Set-Cookie "auth_token=; $oidc_cookie_flags";
+        add_header Set-Cookie "auth_nonce=; $oidc_cookie_flags";
+        add_header Set-Cookie "auth_redir=; $oidc_cookie_flags";
+        js_content oidc.logout;
+    }
+
+    location = /front_channel_logout {
+        status_zone "OIDC logout";
+        add_header Cache-Control "no-store";
+        default_type text/plain;
+        js_content oidc.handleFrontChannelLogout;
+    }
+
+    location = /_logout {
+        # This location is the default value of $oidc_logout_redirect (in case it wasn't configured)
+        default_type text/plain;
+        return 200 "Logged out\n";
+    }
+
+    location @oidc_error {
+        # This location is called when oidcAuth() or oidcCodeExchange() returns an error
+        status_zone "OIDC error";
+        default_type text/plain;
+        return 500 $internal_error_message;
+    }
+
+    # location /api/ {
+    #     api write=on;
+    #     allow 127.0.0.1; # Only the NGINX host may call the NGINX Plus API
+    #     deny all;
+    #     access_log off;
+    # }
+
+# vim: syntax=nginx
+
+---
+
 [TestExecuteTemplateForNGINXOSSTransportServerWithSNI - 1]
 
 upstream cafe-upstream {
@@ -1688,6 +1811,113 @@ server {
 
         
         set $default_connection_header close;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_DisablesWAFOnInternalLocationsWhenAppProtectLoaded/module_loaded_disables_WAF_on_every_internal_location - 1]
+
+upstream upstream1 {
+    zone upstream1 ;
+    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    location = /_jwks_uri_server_tenant1 {
+        internal;
+        app_protect_enable off;
+        proxy_method GET;
+        proxy_set_header Content-Length "";
+        proxy_ssl_verify off;
+        proxy_pass_request_headers off;
+        proxy_pass_request_body off;
+        proxy_set_header Host idp.example.com;
+        set $idp_backend idp.example.com;
+        proxy_pass ://$idp_backend/keys;
+    }
+    location = /_validate_apikey_njs {
+            internal;
+            app_protect_enable off;
+            js_content apikey_auth.validate;
+    }
+    js_var $header_query_value "${http_x_api_key}";
+    js_var $apikey_auth_local_map "apikey_map";
+    js_var $apikey_auth_token $apikey_auth_hash;
+    auth_request /_validate_apikey_njs;
+    js_var $apikey_client_name $apikey_map;
+
+    
+
+    
+    location / {
+        set $service "svc";
+        status_zone "svc";
+
+        
+        set $header_query_value "${http_x_api_key}";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://upstream1;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location /_external_auth/authsvc {
+        set $service "authsvc";
+        status_zone "authsvc";
+        internal;
+        app_protect_enable off;
+
+        
+        set $header_query_value "${http_x_api_key}";
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_ext_auth_authsvc/verify;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
     }
 }
 

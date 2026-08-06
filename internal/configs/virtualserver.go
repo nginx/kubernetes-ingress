@@ -306,6 +306,7 @@ type virtualServerConfigurator struct {
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
+	appProtectLoadModule       bool
 }
 
 func (vsc *virtualServerConfigurator) addWarningf(obj runtime.Object, msgFmt string, args ...interface{}) {
@@ -348,6 +349,7 @@ func newVirtualServerConfigurator(
 		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
+		appProtectLoadModule:       staticParams.MainAppProtectLoadModule,
 	}
 }
 
@@ -1113,6 +1115,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	addHSTSToLocationsWithAddHeaders(policiesCfg.HSTS, locations)
 
+	if policiesCfg.OIDC != nil {
+		policiesCfg.OIDC.AppProtectLoadModule = vsc.appProtectLoadModule
+	}
+
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
 		Maps:             removeDuplicateMaps(maps),
@@ -1178,6 +1184,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		KeyVals:                 keyVals,
 		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
+		AppProtectLoadModule:    vsc.appProtectLoadModule,
 	}
 
 	return vsCfg, vsc.warnings
