@@ -923,7 +923,7 @@ spec:
                       logout. When set, the IdP calls this URI in a hidden iframe
                       when the user logs out globally, allowing NGINX to terminate
                       the local session.
-                    pattern: ^/[^\s{};\\]*$
+                    pattern: ^/[^\s{};\\$\x60]*$
                     type: string
                   issuer:
                     description: Sets the Issuer Identifier URL of the OpenID Provider;
@@ -942,7 +942,7 @@ spec:
                     description: Defines the URI path for initiating session logout.
                       Upon session termination, the user is redirected to the Provider's
                       logout endpoint or the post logout page.
-                    pattern: ^/[^\s{};\\]*$
+                    pattern: ^/[^\s{};\\$\x60]*$
                     type: string
                   pkce:
                     description: Explicitly enables or disables PKCE. By default,
@@ -953,11 +953,14 @@ spec:
                     type: string
                   postLogoutRedirectURI:
                     description: Defines the path where the user is redirected after
-                      logout. Must be a path on the same VirtualServer host — absolute
-                      URLs are not supported. When set, NIC also auto-generates an
-                      unauthenticated location at this path serving a plain-text confirmation
-                      response.
-                    pattern: ^/[^\s{};\\]*$
+                      logout. Must be a path on the same host — absolute URLs are
+                      not supported. When set, NIC also auto-generates an unauthenticated
+                      location at this path serving a plain-text confirmation response.
+                      If multiple OIDCNative providers on the same host set the same
+                      path, only one auto-generated location is rendered; providers
+                      whose other generated locations (redirectURI, or the internal
+                      IdP proxy location) collide are rejected instead.
+                    pattern: ^/[^\s{};\\$\x60]*$
                     type: string
                   proxyBufferSize:
                     default: 32k
@@ -969,7 +972,7 @@ spec:
                   redirectURI:
                     description: Allows overriding the default redirect URI. The module
                       defaults to /oidc_callback.
-                    pattern: ^/[^\s{};\\]*$
+                    pattern: ^/[^\s{};\\$\x60]*$
                     type: string
                   scope:
                     description: 'List of OpenID Connect scopes, space-separated.
@@ -977,8 +980,8 @@ spec:
                       email". The module defaults to "openid".'
                     type: string
                     x-kubernetes-validations:
-                    - message: scope must contain 'openid'
-                      rule: self == '' || self.contains('openid')
+                    - message: scope must contain 'openid' as a token
+                      rule: self == '' || self.matches('(^|[ +])openid([ +]|$)')
                   sessionTimeout:
                     description: Sets a timeout after which the session is deleted,
                       unless it was refreshed. The module defaults to 8h.

@@ -2,10 +2,9 @@
 # stores the value under a key other than `client-secret`.
 #
 # Verify:
-#   - `run-test.sh 21 check | grep client_secret` -> empty value (or absent).
-#   - Complete an OIDC flow: Keycloak accepts the auth request but rejects the
-#     token exchange with 401 "unauthorized_client / Invalid client
-#     credentials" (visible in `kubectl logs` from Keycloak).
+#   - `kubectl describe vs webapp | tail -10` -> Warning: "OIDC secret must
+#     have the data field client-secret".
+#   - Browse https://${WEBAPP_HOST}/ -> 500 (no valid OIDC config).
 apiVersion: v1
 kind: Secret
 metadata:

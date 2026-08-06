@@ -472,6 +472,91 @@ func TestRemoveDuplicateAuthJWTClaimSets(t *testing.T) {
 	}
 }
 
+func TestRemoveDuplicateOIDCProviders(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg       string
+		providers []version2.OIDCProvider
+		expected  []version2.OIDCProvider
+	}{
+		{
+			msg: "no duplicates",
+			providers: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+			expected: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+		},
+		{
+			msg: "same provider name is deduplicated",
+			providers: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+			expected: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+		},
+		{
+			msg: "distinct providers sharing a post-logout path keep only the first location",
+			providers: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+			},
+			expected: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: nil,
+				},
+			},
+		},
+		{
+			msg: "distinct providers with distinct post-logout paths both keep their location",
+			providers: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout1"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout2"},
+				},
+			},
+			expected: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout1"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout2"},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		result := removeDuplicateOIDCProviders(test.providers)
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("removeDuplicateOIDCProviders() '%s' mismatch (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}
+
 func TestHasDuplicateMapDefaults(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

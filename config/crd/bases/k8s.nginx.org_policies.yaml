@@ -782,10 +782,13 @@ spec:
                     type: string
                   postLogoutRedirectURI:
                     description: Defines the path where the user is redirected after
-                      logout. Must be a path on the same VirtualServer host — absolute
-                      URLs are not supported. When set, NIC also auto-generates an
-                      unauthenticated location at this path serving a plain-text confirmation
-                      response.
+                      logout. Must be a path on the same host — absolute URLs are
+                      not supported. When set, NIC also auto-generates an unauthenticated
+                      location at this path serving a plain-text confirmation response.
+                      If multiple OIDCNative providers on the same host set the same
+                      path, only one auto-generated location is rendered; providers
+                      whose other generated locations (redirectURI, or the internal
+                      IdP proxy location) collide are rejected instead.
                     pattern: ^/[^\s{};\\$\x60]*$
                     type: string
                   proxyBufferSize:

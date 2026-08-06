@@ -3,8 +3,8 @@
 # Verify:
 #   - `kubectl describe vs webapp | tail -10` -> Warning: missing
 #     `default/does-not-exist` CA secret.
-#   - `run-test.sh 19 check` -> nginx -t may still pass but no oidc_provider
-#     is generated (config discarded on error).
+#   - nginx -t may still pass but no oidc_provider is generated (config
+#     discarded on error).
 #   - Browse https://${WEBAPP_HOST}/ -> 500.
 apiVersion: k8s.nginx.org/v1
 kind: Policy

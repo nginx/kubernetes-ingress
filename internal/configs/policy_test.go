@@ -5237,7 +5237,7 @@ func TestOIDCNativeDefaultCAAndLocations(t *testing.T) {
 	}
 	policyOpts := policyOptions{
 		defaultCABundle:     "/etc/ssl/certs/ca-certificates.crt",
-		oidcNativeLocations: make(map[string]string),
+		oidcNativeLocations: make(map[string]oidcNativeLocationOwner),
 	}
 	policy := &conf_v1.OIDCNative{
 		Issuer:   "https://accounts.google.com",
@@ -5264,7 +5264,7 @@ func TestOIDCNativeDefaultCAAndLocations(t *testing.T) {
 	}
 
 	postLogoutOpts := policyOpts
-	postLogoutOpts.oidcNativeLocations = make(map[string]string)
+	postLogoutOpts.oidcNativeLocations = make(map[string]oidcNativeLocationOwner)
 	firstPostLogout := newPoliciesConfig(nil)
 	result = firstPostLogout.addOIDCNativeConfig(&conf_v1.OIDCNative{
 		Issuer:                "https://accounts.google.com",
@@ -5274,6 +5274,26 @@ func TestOIDCNativeDefaultCAAndLocations(t *testing.T) {
 	if result.isError {
 		t.Fatalf("unexpected OIDCNative post-logout error: %v", result.warnings)
 	}
+	if firstPostLogout.OIDCProvider.PostLogoutLocation == nil {
+		t.Fatal("expected the first provider to keep its post-logout location")
+	}
+
+	// Two different providers sharing the same postLogoutRedirectURI is not
+	// ambiguous (the generated location is a static, provider-agnostic
+	// return); it must be deduplicated rather than rejected.
+	secondPostLogout := newPoliciesConfig(nil)
+	result = secondPostLogout.addOIDCNativeConfig(&conf_v1.OIDCNative{
+		Issuer:                "https://login.example.com",
+		ClientID:              "second-post-logout-client",
+		PostLogoutRedirectURI: "/logout",
+	}, "default/second-post-logout", "default", ownerDetails, postLogoutOpts)
+	if result.isError {
+		t.Fatalf("expected sharing a postLogoutRedirectURI across providers to be valid: %v", result.warnings)
+	}
+	if secondPostLogout.OIDCProvider.PostLogoutLocation != nil {
+		t.Fatal("expected the second provider's duplicate post-logout location to be dropped")
+	}
+
 	callbackCollision := newPoliciesConfig(nil)
 	result = callbackCollision.addOIDCNativeConfig(&conf_v1.OIDCNative{
 		Issuer:      "https://login.example.com",
@@ -5289,4 +5309,107 @@ func TestOIDCNativeDefaultCAAndLocations(t *testing.T) {
 	if result.isError {
 		t.Fatalf("expected reusing the same OIDCNative provider to be valid: %v", result.warnings)
 	}
+}
+
+// TestOIDCAndOIDCNativeSharedLocationRegistry covers NJS OIDC and OIDCNative
+// used on different routes of the same VS (e.g. NJS at the spec level, native
+// overriding one route) -- a combination the design explicitly supports.
+// addOIDCConfig and addOIDCNativeConfig are called against a single shared
+// policyOptions, mirroring how GenerateVirtualServerConfig reuses one
+// policyOptions across every route in a VS. Real Keycloak-based repro: an
+// OIDCNative policy with postLogoutRedirectURI: /_logout (as shown in
+// examples/custom-resources/oidc-native/oidc-native-policy.yaml) alongside
+// any NJS OIDC policy produced a duplicate `location "/_logout"` and an
+// nginx -t failure, because oidc.tmpl always renders /_logout as a static
+// fallback page regardless of any policy field.
+func TestOIDCAndOIDCNativeSharedLocationRegistry(t *testing.T) {
+	t.Parallel()
+	ownerDetails := policyOwnerDetails{
+		parentNamespace: "default",
+		parentName:      "test",
+		parentType:      "vs",
+	}
+
+	t.Run("native postLogoutRedirectURI collides with NJS's fixed /_logout", func(t *testing.T) {
+		t.Parallel()
+		sharedOpts := policyOptions{oidcNativeLocations: make(map[string]oidcNativeLocationOwner)}
+
+		njs := newPoliciesConfig(nil)
+		njsResult := njs.addOIDCConfig(&conf_v1.OIDC{
+			ClientID:      "njs-client",
+			PKCEEnable:    true,
+			AuthEndpoint:  "https://login.example.com/auth",
+			TokenEndpoint: "https://login.example.com/token",
+			JWKSURI:       "https://login.example.com/jwks",
+		}, "default/njs-policy", "default", sharedOpts)
+		if njsResult.isError {
+			t.Fatalf("unexpected OIDC error: %v", njsResult.warnings)
+		}
+
+		native := newPoliciesConfig(nil)
+		nativeResult := native.addOIDCNativeConfig(&conf_v1.OIDCNative{
+			Issuer:                "https://login.example.com",
+			ClientID:              "native-client",
+			PostLogoutRedirectURI: "/_logout",
+		}, "default/native-policy", "default", ownerDetails, sharedOpts)
+		if !nativeResult.isError {
+			t.Fatal("expected OIDCNative postLogoutRedirectURI=/_logout to be rejected when NJS OIDC is also on the VS")
+		}
+	})
+
+	t.Run("native postLogoutRedirectURI does not collide with a distinct path", func(t *testing.T) {
+		t.Parallel()
+		sharedOpts := policyOptions{oidcNativeLocations: make(map[string]oidcNativeLocationOwner)}
+
+		njs := newPoliciesConfig(nil)
+		njsResult := njs.addOIDCConfig(&conf_v1.OIDC{
+			ClientID:      "njs-client",
+			PKCEEnable:    true,
+			AuthEndpoint:  "https://login.example.com/auth",
+			TokenEndpoint: "https://login.example.com/token",
+			JWKSURI:       "https://login.example.com/jwks",
+		}, "default/njs-policy", "default", sharedOpts)
+		if njsResult.isError {
+			t.Fatalf("unexpected OIDC error: %v", njsResult.warnings)
+		}
+
+		native := newPoliciesConfig(nil)
+		nativeResult := native.addOIDCNativeConfig(&conf_v1.OIDCNative{
+			Issuer:                "https://login.example.com",
+			ClientID:              "native-client",
+			PostLogoutRedirectURI: "/_native_logout",
+		}, "default/native-policy", "default", ownerDetails, sharedOpts)
+		if nativeResult.isError {
+			t.Fatalf("expected NJS OIDC and OIDCNative to coexist when their generated locations don't collide: %v", nativeResult.warnings)
+		}
+	})
+
+	t.Run("NJS callback collides with a native provider claiming the same custom redirectURI", func(t *testing.T) {
+		t.Parallel()
+		sharedOpts := policyOptions{oidcNativeLocations: make(map[string]oidcNativeLocationOwner)}
+
+		native := newPoliciesConfig(nil)
+		nativeResult := native.addOIDCNativeConfig(&conf_v1.OIDCNative{
+			Issuer:      "https://login.example.com",
+			ClientID:    "native-client",
+			RedirectURI: "/_codexch",
+		}, "default/native-policy", "default", ownerDetails, sharedOpts)
+		if nativeResult.isError {
+			t.Fatalf("unexpected OIDCNative error: %v", nativeResult.warnings)
+		}
+
+		njs := newPoliciesConfig(nil)
+		njsResult := njs.addOIDCConfig(&conf_v1.OIDC{
+			ClientID:      "njs-client",
+			PKCEEnable:    true,
+			AuthEndpoint:  "https://login.example.com/auth",
+			TokenEndpoint: "https://login.example.com/token",
+			JWKSURI:       "https://login.example.com/jwks",
+			// NJS defaults RedirectURI to /_codexch, matching the native
+			// policy's explicit override above.
+		}, "default/njs-policy", "default", sharedOpts)
+		if !njsResult.isError {
+			t.Fatal("expected NJS OIDC's default callback /_codexch to be rejected when a native provider already claims it")
+		}
+	})
 }

@@ -440,7 +440,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		apResources:         apResources,
 		defaultCABundle:     vsc.CABundlePath,
 		replicas:            vsc.IngressControllerReplicas,
-		oidcNativeLocations: make(map[string]string),
+		oidcNativeLocations: make(map[string]oidcNativeLocationOwner),
 	}
 
 	ownerDetails := policyOwnerDetails{
@@ -1450,13 +1450,31 @@ func removeDuplicateOIDCProviders(providers []version2.OIDCProvider) []version2.
 		return nil
 	}
 	encountered := make(map[string]bool)
+	encounteredPostLogoutPath := make(map[string]bool)
 	var result []version2.OIDCProvider
 
 	for _, v := range providers {
-		if !encountered[v.Name] {
-			encountered[v.Name] = true
-			result = append(result, v)
+		if encountered[v.Name] {
+			continue
 		}
+		encountered[v.Name] = true
+
+		// Post-logout locations carry no provider identity (a static "you
+		// have been logged out" page), so multiple providers may share a
+		// path. addOIDCNativeConfig() already drops PostLogoutLocation on
+		// all but the first provider that claims a given path; this is a
+		// defensive second pass so the template can never emit two
+		// identical `location` blocks regardless of how providers reach
+		// this aggregation point.
+		if v.PostLogoutLocation != nil {
+			if encounteredPostLogoutPath[v.PostLogoutLocation.Path] {
+				v.PostLogoutLocation = nil
+			} else {
+				encounteredPostLogoutPath[v.PostLogoutLocation.Path] = true
+			}
+		}
+
+		result = append(result, v)
 	}
 
 	return result

@@ -104,10 +104,55 @@ type policyOptions struct {
 	// this OIDC policy. It is reused by addOIDCConfig() when the same policy name is encountered
 	// on subsequent routes.
 	oidcConfig *version2.OIDC
-	// oidcNativeLocations maps generated exact-match location paths to their
-	// provider and role, preventing two providers from owning the same handler.
-	oidcNativeLocations map[string]string
+	// oidcNativeLocations maps generated exact-match location paths to the
+	// owner and role that first claimed them. It is shared by both OIDC
+	// implementations: addOIDCNativeConfig() registers each provider's
+	// callback/proxy/post-logout locations, and addOIDCConfig() registers the
+	// NJS OIDC module's fixed internal locations plus its callback. This
+	// prevents either implementation from silently rendering two `location`
+	// blocks with the same path (which nginx -t rejects outright) when NJS
+	// and native OIDC are used on different routes of the same VS. Post-logout
+	// locations claimed by two different OIDCNative providers are exempt --
+	// see oidcNativeLocationOwner and oidcNJSRoleReserved.
+	oidcNativeLocations map[string]oidcNativeLocationOwner
 }
+
+// oidcNativeLocationOwner identifies which OIDCNative provider and role
+// (callback, proxy, post-logout) generated a given location path.
+type oidcNativeLocationOwner struct {
+	provider string
+	role     string
+}
+
+func (o oidcNativeLocationOwner) String() string {
+	return fmt.Sprintf("%s:%s", o.provider, o.role)
+}
+
+// Roles used to key oidcNativeLocations. callback and proxy locations carry
+// provider identity (auth_oidc <provider>, per-provider SNI/TLS) and can never
+// be shared; post-logout locations are identity-free and may be deduplicated
+// -- but only between two OIDCNative providers (see oidcNJSRoleReserved).
+const (
+	oidcNativeRoleCallback   = "callback"
+	oidcNativeRoleProxy      = "proxy"
+	oidcNativeRolePostLogout = "post-logout"
+	// oidcNJSRoleReserved marks the seven fixed internal locations the NJS
+	// OIDC module always renders (independent of any policy field) whenever
+	// spec.oidc is used anywhere in a VirtualServer/VirtualServerRoute set --
+	// /_jwks_uri, /_token, /_refresh, /_token_validation, /logout,
+	// /front_channel_logout, and the static /_logout fallback page. Because
+	// each has module-specific behavior (js_content handlers, auth_jwt, or a
+	// fixed confirmation string), a collision here is always an error, even
+	// against OIDCNative's otherwise-mergeable post-logout role: the two
+	// implementations have no way to reconcile which body/handler wins.
+	oidcNJSRoleReserved = "njs-reserved"
+	// oidcNJSOwner is the constant owner name used for every location the
+	// NJS OIDC module registers. Only one NJS OIDC policy is allowed per
+	// VS/VSR set (see the "Multiple oidc policies" check in addOIDCConfig()),
+	// so there is no per-policy identity to track, unlike OIDCNative
+	// providers.
+	oidcNJSOwner = "njs"
+)
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 	return &policiesCfg{
@@ -710,6 +755,49 @@ func (p *policiesCfg) addOIDCConfig(
 		if postLogoutRedirectURI == "" {
 			postLogoutRedirectURI = "/_logout"
 		}
+
+		// Register every exact-match location oidc.tmpl renders in the
+		// shared per-VS registry (see oidcNativeLocations), so an OIDCNative
+		// provider on a different route of the same VS can't silently claim
+		// one of these paths and produce a duplicate `location` block that
+		// nginx -t would reject. redirectURI is the only one of these that's
+		// user-configurable; the rest are fixed, unconditional locations in
+		// oidc.tmpl regardless of any policy field -- including /_logout,
+		// which is the static fallback page and is rendered even when
+		// postLogoutRedirectURI is customized to a different path.
+		njsLocations := []string{
+			redirectURI,
+			"/_jwks_uri",
+			"/_token",
+			"/_refresh",
+			"/_token_validation",
+			"/logout",
+			"/front_channel_logout",
+			"/_logout",
+		}
+		for _, path := range njsLocations {
+			owner := oidcNativeLocationOwner{provider: oidcNJSOwner, role: oidcNJSRoleReserved}
+			if path == redirectURI {
+				owner.role = oidcNativeRoleCallback
+			}
+			existing, exists := policyOpts.oidcNativeLocations[path]
+			if exists && existing != owner {
+				res.addWarningf("OIDC policy %s uses generated location %s, which conflicts with %s", polKey, path, existing)
+				res.isError = true
+				return res
+			}
+		}
+		for _, path := range njsLocations {
+			if policyOpts.oidcNativeLocations == nil {
+				continue
+			}
+			owner := oidcNativeLocationOwner{provider: oidcNJSOwner, role: oidcNJSRoleReserved}
+			if path == redirectURI {
+				owner.role = oidcNativeRoleCallback
+			}
+			policyOpts.oidcNativeLocations[path] = owner
+		}
+
 		scope := oidc.Scope
 		if scope == "" {
 			scope = "openid"
@@ -961,25 +1049,44 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		path string
 		role string
 	}{
-		{path: redirectURI, role: "callback"},
-		{path: oidcNative.PostLogoutRedirectURI, role: "post-logout"},
-		{path: proxyLocation, role: "proxy"},
+		{path: redirectURI, role: oidcNativeRoleCallback},
+		{path: oidcNative.PostLogoutRedirectURI, role: oidcNativeRolePostLogout},
+		{path: proxyLocation, role: oidcNativeRoleProxy},
 	}
 	for _, location := range locations {
 		if location.path == "" {
 			continue
 		}
-		owner := fmt.Sprintf("%s:%s", providerName, location.role)
-		if existing, exists := policyOpts.oidcNativeLocations[location.path]; exists && existing != owner {
-			res.addWarningf("OIDCNative policy %s uses generated location %s, which conflicts with %s", polKey, location.path, existing)
-			res.isError = true
-			return res
+		owner := oidcNativeLocationOwner{provider: providerName, role: location.role}
+		existing, exists := policyOpts.oidcNativeLocations[location.path]
+		if !exists || existing == owner {
+			continue
 		}
+		if location.role == oidcNativeRolePostLogout && existing.role == oidcNativeRolePostLogout {
+			// Post-logout locations carry no provider identity: they render a
+			// static "you have been logged out" page with no auth_oidc
+			// reference. Two providers legitimately sharing one (e.g. a
+			// single logout confirmation page for a whole host) is
+			// not ambiguous, so drop this provider's copy instead of
+			// erroring. removeDuplicateOIDCProviders() performs the same
+			// dedup defensively so the template can never emit two
+			// identical `location` blocks.
+			postLogoutLoc = nil
+			continue
+		}
+		res.addWarningf("OIDCNative policy %s uses generated location %s, which conflicts with %s", polKey, location.path, existing)
+		res.isError = true
+		return res
 	}
 	for _, location := range locations {
-		if location.path != "" && policyOpts.oidcNativeLocations != nil {
-			policyOpts.oidcNativeLocations[location.path] = fmt.Sprintf("%s:%s", providerName, location.role)
+		if location.path == "" || policyOpts.oidcNativeLocations == nil {
+			continue
 		}
+		if location.role == oidcNativeRolePostLogout && postLogoutLoc == nil {
+			// Deduplicated away above; keep the original owner registered.
+			continue
+		}
+		policyOpts.oidcNativeLocations[location.path] = oidcNativeLocationOwner{provider: providerName, role: location.role}
 	}
 
 	sslTrustedCert := ""

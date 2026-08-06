@@ -83,7 +83,7 @@ Only `/api` requires authentication. `/public` is open. The callback URI is auto
 | --- | --- |
 | **CRD (kubebuilder markers)** | issuer pattern (https), clientSecret RFC 1123, redirectURI/logoutURI/postLogoutRedirectURI path pattern, scope includes openid as a token (CEL), sessionTimeout time format, pkce enum, proxyBufferSize format |
 | **Go validation** | issuer hostname chars, clientID injection-safe chars (no $, \, ") |
-| **Config generation** | Secret existence, secret type, CA secret type, NJS/Native conflict on same context, IdP hostname extraction from issuer |
+| **Config generation** | Secret existence, secret type, CA secret type, NJS/Native conflict on same context, generated-location collisions between native providers on the same VS ([details](#generated-location-collisions)), IdP hostname extraction from issuer |
 
 Design principle: CRD validation for format checks (instant API server feedback). Go validation only for checks that can't be expressed in CRD markers.
 
@@ -229,9 +229,12 @@ verify.
 | --- | --- | --- |
 | **NJS on VS1, Native on VS2** (separate VirtualServers) | Works. Each VS gets its own `server{}` block with its own auth mechanism. | Both implementations live in the same nginx.conf; only the per-VS wiring differs. Independent NIC-level enablement (`-enable-oidc`) covers both. |
 | **NJS on VS spec, Native on one route in the same VS** | Works, but the native route does **not** inherit the NJS server-level auth. The route runs only the native flow. | NIC deliberately breaks the server-level OIDC inheritance when a route sets a native provider — otherwise the NJS `error_page 401 = @do_oidc_flow` would fire alongside `auth_oidc`, producing an ambiguous response. See the `specHasOIDC && routePoliciesCfg.OIDCProvider == nil` guard in [virtualserver.go](../../internal/configs/virtualserver.go). |
+| **NJS and native coexisting on the same VS, and the native provider's `redirectURI`/`postLogoutRedirectURI` collides with one of NJS's generated locations** (e.g. native `postLogoutRedirectURI: /_logout`, matching NJS's fixed fallback page) | **Hard error**. VS goes to Warning. | The NJS module always renders seven fixed internal locations (`/_jwks_uri`, `/_token`, `/_refresh`, `/_token_validation`, `/logout`, `/front_channel_logout`, `/_logout`) plus its callback, regardless of policy fields. Two competing `location` blocks with the same path fail `nginx -t`; see [Generated Location Collisions](#generated-location-collisions). |
 | **Both NJS and native on the *same* route/spec** | **Hard error**. The second one to be processed sets `res.isError = true`; the entire policy config is replaced with `ErrorReturn: 500`. VS goes to Warning state with a message about the OIDC/OIDCNative conflict. | Preserves fail-loud semantics for a configuration that cannot possibly work — `auth_oidc` and NJS `error_page 401 = @do_oidc_flow` on the same location would drive the browser through two different login flows. |
 | **Multiple native providers in the same context** | First wins, second is ignored with a warning event on the VS. Config still renders. | Matches the existing behavior for multiple NJS OIDC policies in the same context (warning-only, not `isError`). |
 | **Multiple native providers across different routes / VSRs** | Fully supported. Each provider gets a unique auto-generated name, callback path, cookie, and session store. | This is the main win over the NJS OIDC implementation. |
+| **Two providers on the same host whose generated callback or proxy location collide** (e.g. both set an explicit `redirectURI` to the same path) | **Hard error**. VS goes to Warning. | These locations carry provider identity (`auth_oidc <provider>`, per-provider SNI/TLS) — the module would route the callback to the wrong provider if they collided. |
+| **Two providers on the same host with the same `postLogoutRedirectURI`** | **Allowed.** NIC renders one `location`; the second provider's copy is dropped, no warning. | The generated post-logout location is identity-free (a static `return 200` confirmation page); rendering it twice would produce a duplicate `location` block and fail nginx `-t`, not a routing ambiguity. See [Generated Location Collisions](#generated-location-collisions). |
 
 The mutex is bidirectional: whichever policy type gets processed first wins the
 context; the second raises the appropriate warning/error. Order is only
@@ -243,6 +246,58 @@ Files carrying this behavior:
 - Cross-type mutex (native seeing existing NJS, and vice-versa) — `addOIDCConfig` / `addOIDCNativeConfig` in [`internal/configs/policy.go`](../../internal/configs/policy.go)
 - Server-to-route inheritance guard — the `specHasOIDC && routePoliciesCfg.OIDCProvider == nil` branch in [`internal/configs/virtualserver.go`](../../internal/configs/virtualserver.go)
 - Policy-spec exclusivity at the API level (both `oidc` and `oidcNative` set on one Policy CR) — `validatePolicySpec` in [`pkg/apis/configuration/validation/policy.go`](../../pkg/apis/configuration/validation/policy.go)
+
+### Generated Location Collisions
+
+A single native provider auto-generates up to three exact-match `location`
+blocks: the callback (`redirectURI`, default `/oidc_callback_<providerName>`),
+the internal IdP proxy (`/_oidc_idp_<providerName>`), and — only when
+`postLogoutRedirectURI` is set — a static post-logout confirmation page. The
+callback and proxy paths embed the auto-generated provider name, so they only
+collide if a user explicitly overrides `redirectURI` to a fixed path also used
+by another provider on the same host. `postLogoutRedirectURI` has no
+such per-provider default; it's a plain user-supplied path, so two providers
+choosing the same value (e.g. one shared "you have been logged out" page for
+an entire host) is a normal, even expected, configuration.
+
+NIC's `addOIDCNativeConfig()` registers every generated path a provider claims
+in a map scoped to the resource being configured (today, always a single
+VirtualServer — `policyOptions.oidcNativeLocations`) as it processes
+providers in order. What happens on a collision depends on whether the
+location carries provider identity:
+
+| Colliding roles | Result |
+| --- | --- |
+| callback ↔ callback, proxy ↔ proxy, callback ↔ proxy, either ↔ post-logout | **Error.** `res.isError = true`; the VS goes to Warning with a message naming both providers and the conflicting path. These locations either route to a specific provider (`auth_oidc <provider>`) or carry provider-specific TLS/SNI settings — sharing one would silently misroute or misconfigure. |
+| post-logout ↔ post-logout | **Deduplicated, no warning.** The first provider's `PostLogoutLocation` is kept; every later provider that claims the same path has its `PostLogoutLocation` set to `nil`, so it renders no location of its own. The rendered page is identical either way — it's a static `return 200`, not a redirect to a provider-specific endpoint. |
+
+**NJS shares the same registry.** `addOIDCConfig()` (the NJS implementation)
+registers its own callback (`redirectURI`, default `/_codexch`) plus the seven
+fixed internal locations `oidc.tmpl` always renders — `/_jwks_uri`, `/_token`,
+`/_refresh`, `/_token_validation`, `/logout`, `/front_channel_logout`, and the
+static `/_logout` fallback page — under a dedicated `njs-reserved` role. This
+was added after `postLogoutRedirectURI: /_logout` on a native provider (the
+value used by the shipped example policy) collided with NJS's always-present
+`/_logout` fallback whenever both implementations ran on different routes of
+the same VS, producing a duplicate-location `nginx -t` failure instead of a
+VS Warning. Because `njs-reserved` is a distinct role from `post-logout`, a
+collision between an NJS location and *any* native role — including
+post-logout — always falls through to the error path above; the two
+implementations have no way to reconcile whose handler or response body
+should win, so nothing here is dedup-eligible the way two native providers'
+post-logout pages are. `oidc.tmpl`'s fixed locations are rendered
+unconditionally (independent of `postLogoutRedirectURI`/`logoutURI`/any other
+NJS policy field), so they're registered as constants, not computed from the
+policy.
+
+`removeDuplicateOIDCProviders()` (in
+[`internal/configs/virtualserver.go`](../../internal/configs/virtualserver.go))
+performs the same post-logout dedup a second time, defensively, at the point
+where all of a VS's providers are aggregated for the template and the
+session-store keyval zones. This guarantees the generated config can never
+contain two identical `location = <path> { ... }` blocks — which would fail
+`nginx -t` with a duplicate-location error — regardless of how providers
+reach that aggregation.
 
 ## Prerequisites
 
