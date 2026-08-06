@@ -599,34 +599,34 @@ func validateBundleSourceType(bs *v1.BundleSource, srcType v1.BundleSourceType, 
 
 	switch srcType {
 	case v1.BundleSourceTypeHTTPS:
-		if bs.PolicyName != "" {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyName"), bs.PolicyName, "policyName is only valid for NIM and N1C"))
+		if bs.Name != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), bs.Name, "name is only valid for NIM and N1C"))
 		}
-		if bs.PolicyNamespace != "" {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyNamespace"), bs.PolicyNamespace, "policyNamespace is only valid for N1C"))
+		if bs.Namespace != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("namespace"), bs.Namespace, "namespace is only valid for N1C"))
 		}
 	case v1.BundleSourceTypeNIM:
-		if bs.PolicyName == "" {
-			allErrs = append(allErrs, field.Required(fieldPath.Child("policyName"), "policyName is required for NIM"))
-		} else if ContainsDangerousChars(bs.PolicyName) {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyName"), bs.PolicyName, "policyName contains dangerous characters"))
+		if bs.Name == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("name"), "name is required for NIM"))
+		} else if ContainsDangerousChars(bs.Name) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), bs.Name, "name contains dangerous characters"))
 		}
-		if bs.PolicyNamespace != "" {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyNamespace"), bs.PolicyNamespace, "policyNamespace is only valid for N1C"))
+		if bs.Namespace != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("namespace"), bs.Namespace, "namespace is only valid for N1C"))
 		}
 		if bs.VerifyChecksum {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("verifyChecksum"), bs.VerifyChecksum, "verifyChecksum is only supported for HTTPS type"))
 		}
 	case v1.BundleSourceTypeN1C:
-		if bs.PolicyName == "" {
-			allErrs = append(allErrs, field.Required(fieldPath.Child("policyName"), "policyName is required for N1C"))
-		} else if ContainsDangerousChars(bs.PolicyName) {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyName"), bs.PolicyName, "policyName contains dangerous characters"))
+		if bs.Name == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("name"), "name is required for N1C"))
+		} else if ContainsDangerousChars(bs.Name) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), bs.Name, "name contains dangerous characters"))
 		}
-		if bs.PolicyNamespace == "" {
-			allErrs = append(allErrs, field.Required(fieldPath.Child("policyNamespace"), "policyNamespace is required for N1C"))
-		} else if ContainsDangerousChars(bs.PolicyNamespace) {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("policyNamespace"), bs.PolicyNamespace, "policyNamespace contains dangerous characters"))
+		if bs.Namespace == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("namespace"), "namespace is required for N1C"))
+		} else if ContainsDangerousChars(bs.Namespace) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("namespace"), bs.Namespace, "namespace contains dangerous characters"))
 		}
 		if bs.VerifyChecksum {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("verifyChecksum"), bs.VerifyChecksum, "verifyChecksum is only supported for HTTPS type"))
