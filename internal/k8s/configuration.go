@@ -31,7 +31,7 @@ const (
 	serviceKind            = "Service"
 	namespaceKind          = "Namespace"
 	endpointSliceKind      = "EndpointSlice"
-	appProtectDosKind      = "AppProtectDosPolicy"
+	appProtectDosKind      = "APDosPolicy"
 )
 
 // Operation defines an operation to perform for a resource.

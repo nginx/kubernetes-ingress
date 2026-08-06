@@ -158,7 +158,7 @@ func (lbc *LoadBalancerController) syncAppProtectDosPolicy(task task) {
 func (lbc *LoadBalancerController) syncAppProtectDosLogConf(task task) {
 	key := task.Key
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectDosKind, logNameKey, n)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, "APDosLogConf", logNameKey, n)
 	nl.Debugf(l, "Syncing APDosLogConf %v", key)
 	var obj interface{}
 	var confExists bool
@@ -188,7 +188,7 @@ func (lbc *LoadBalancerController) syncAppProtectDosLogConf(task task) {
 func (lbc *LoadBalancerController) syncDosProtectedResource(task task) {
 	key := task.Key
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
-	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectDosKind, logNameKey, n)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, "APDosProtectedResource", logNameKey, n)
 	nl.Debugf(l, "Syncing DosProtectedResource %v", key)
 	var obj interface{}
 	var confExists bool

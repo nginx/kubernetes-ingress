@@ -123,7 +123,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(
 		if lbc.reportCustomResourceStatusEnabled() {
 			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
 			if err != nil {
-				nl.Errorf(lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, tsConfig.TransportServer.Kind, logNameKey, tsConfig.TransportServer.Name), "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+				nl.Errorf(lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, transportServerKind, logNameKey, tsConfig.TransportServer.Name), "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
 			}
 		}
 	}

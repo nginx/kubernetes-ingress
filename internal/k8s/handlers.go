@@ -70,23 +70,23 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 		DeleteFunc: func(obj interface{}) {
 			secret, isSecr := obj.(*v1.Secret)
 			if !isSecr {
-				l := lbc.Logger.With(logNamespaceKey, secret.GetNamespace(), logKindKey, secretKind, logNameKey, secret.GetName())
 				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					nl.Debugf(l, "Error received unexpected object: %v", obj)
+					nl.Debugf(lbc.Logger, "Error received unexpected object: %v", obj)
 					return
 				}
 				secret, ok = deletedState.Obj.(*v1.Secret)
 				if !ok {
-					nl.Debugf(l, "Error DeletedFinalStateUnknown contained non-Secret object: %v", deletedState.Obj)
+					nl.Debugf(lbc.Logger, "Error DeletedFinalStateUnknown contained non-Secret object: %v", deletedState.Obj)
 					return
 				}
 			}
+			l := lbc.Logger.With(logNamespaceKey, secret.GetNamespace(), logKindKey, secretKind, logNameKey, secret.GetName())
 			if !secrets.IsSupportedSecretType(secret.Type) {
-				nl.Debugf(lbc.Logger.With(logNamespaceKey, secret.GetNamespace(), logKindKey, secretKind, logNameKey, secret.GetName()), "Ignoring Secret %v of unsupported type %v", secret.Name, secret.Type)
+				nl.Debugf(l, "Ignoring Secret %v of unsupported type %v", secret.Name, secret.Type)
 				return
 			}
-			nl.Debugf(lbc.Logger.With(logNamespaceKey, secret.GetNamespace(), logKindKey, secretKind, logNameKey, secret.GetName()), "Removing Secret: %v", secret.Name)
+			nl.Debugf(l, "Removing Secret: %v", secret.Name)
 			lbc.AddSyncQueue(obj)
 		},
 		UpdateFunc: func(old, cur interface{}) {
