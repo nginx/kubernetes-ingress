@@ -77,17 +77,11 @@ jobs:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ inputs.authenticated }}
-
       - name: Get secrets from NIC vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
         with:
+          client-id: ${{ secrets.AZURE_NIC_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_NIC_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
           secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
           env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
@@ -96,8 +90,10 @@ jobs:
       - name: Get secrets from Common vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
         with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "docker-username, docker-password, nginx-pkg-certificate, nginx-pkg-jwt"
+          secret-names: "docker-username, docker-password, nginx-pkg-certificate, nginx-pkg-key"
           env-names: "DOCKER_USERNAME, DOCKER_PASSWORD, CERT, KEY"
         if: ${{ inputs.authenticated }}
 
@@ -107,7 +103,6 @@ jobs:
           echo "Setting secrets for job"
           echo $CERT > nginx-repo.crt
           echo $KEY > nginx-repo.key
-          echo $RHEL_CREDS > rhel_license
         if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
