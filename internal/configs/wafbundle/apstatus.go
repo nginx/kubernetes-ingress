@@ -8,14 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// Bundle-state values PLM writes to .status.bundle.state on an APPolicy or
-// APLogConf CR. Fetch is only dispatched when state == BundleStateReady.
-const (
-	BundleStateReady      = "ready"
-	BundleStatePending    = "pending"
-	BundleStateProcessing = "processing"
-	BundleStateInvalid    = "invalid"
-)
+// BundleStateReady is the PLM .status.bundle.state value that permits a bundle fetch.
+const BundleStateReady = "ready"
 
 // APPolicyStatus is a typed view over the .status sub-resource of a
 // PLM-compiled APPolicy CR, read from unstructured.Unstructured via the

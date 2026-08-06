@@ -591,8 +591,9 @@ func validatePLMStorageURL(rawURL string) error {
 // validatePLMFlags cross-validates the PLM flag family. --plm-storage-url is
 // the master switch: when empty, any auxiliary PLM flag being set is fatal.
 // All PLM flag validation (URL syntax, secret ref format) happens here.
-func validatePLMFlags(rawURL, credentialsSecret, caSecret, clientSSLSecret string, insecureSkipVerify, nginxPlus, appProtect bool) (refs plmSecretRefs, warn string, err error) {
-	auxSecrets := []struct {
+func validatePLMFlags(rawURL, credentialsSecret, caSecret, clientSSLSecret string, insecureSkipVerify, nginxPlus, appProtect bool) (plmSecretRefs, string, error) {
+	refs := plmSecretRefs{}
+	secretFlags := [...]struct {
 		name, val string
 		dst       *types.NamespacedName
 	}{
@@ -604,7 +605,7 @@ func validatePLMFlags(rawURL, credentialsSecret, caSecret, clientSSLSecret strin
 	// PLM disabled: no auxiliary flag may be set (guards against silent typos
 	// that would otherwise leave PLM off while the operator thinks it's on).
 	if rawURL == "" {
-		for _, sec := range auxSecrets {
+		for _, sec := range secretFlags {
 			if sec.val != "" {
 				return plmSecretRefs{}, "", fmt.Errorf("%s is set but plm-storage-url is not; PLM auxiliary flags require plm-storage-url", sec.name)
 			}
@@ -627,7 +628,7 @@ func validatePLMFlags(rawURL, credentialsSecret, caSecret, clientSSLSecret strin
 	if err := validatePLMStorageURL(rawURL); err != nil {
 		return plmSecretRefs{}, "", err
 	}
-	for _, sec := range auxSecrets {
+	for _, sec := range secretFlags {
 		ref, err := validatePLMSecretRef(sec.name, sec.val)
 		if err != nil {
 			return plmSecretRefs{}, "", err
@@ -636,9 +637,9 @@ func validatePLMFlags(rawURL, credentialsSecret, caSecret, clientSSLSecret strin
 	}
 
 	if insecureSkipVerify {
-		warn = "plm-storage-insecure-skip-verify is enabled; TLS verification of the PLM SeaweedFS filer will be skipped. This is for dev/test only."
+		return refs, "plm-storage-insecure-skip-verify is enabled; TLS verification of the PLM SeaweedFS filer will be skipped. This is for dev/test only.", nil
 	}
-	return refs, warn, nil
+	return refs, "", nil
 }
 
 // parseNginxStatusAllowCIDRs converts a comma separated CIDR/IP address string into an array of CIDR/IP addresses.
