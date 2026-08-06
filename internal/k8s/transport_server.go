@@ -158,7 +158,7 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
 	lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
-	logger := lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, tsConfig.TransportServer.Kind, logNameKey, tsConfig.TransportServer.Name)
+	logger := lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, transportServerKind, logNameKey, tsConfig.TransportServer.Name)
 
 	if lbc.reportCustomResourceStatusEnabled() {
 		// Defer TS status updates during startup to avoid serial API calls
@@ -220,7 +220,7 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 	externalNameSvcs := make(map[string]bool)
 	podsByIP := make(map[string]string)
 	disableIPV6 := lbc.configuration.isIPV6Disabled
-	logger := lbc.Logger.With(logNamespaceKey, transportServer.Namespace, logKindKey, transportServer.Kind, logNameKey, transportServer.Name)
+	logger := lbc.Logger.With(logNamespaceKey, transportServer.Namespace, logKindKey, transportServerKind, logNameKey, transportServer.Name)
 
 	for _, u := range transportServer.Spec.Upstreams {
 		podEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Service, uint16(u.Port)) //nolint:gosec
