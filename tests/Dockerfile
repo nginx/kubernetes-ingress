@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.25
+# syntax=docker/dockerfile:1.26
 FROM python:3.14-trixie@sha256:6ad91c3bc07ebbbcd2ee421e9364606c2ef4fb336e8a62b49b85507f4880c425
 ARG ARCH=amd64
 
