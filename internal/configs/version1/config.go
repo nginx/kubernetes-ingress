@@ -24,7 +24,7 @@ type IngressNginxConfig struct {
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
-	// AppProtectLoadModule mirrors the controller's --enable-app-protect flag so
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
 	// templates can safely emit app_protect_enable off; in internal sub-request
 	// locations only when the WAF module is actually loaded.
 	AppProtectLoadModule bool
