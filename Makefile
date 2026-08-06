@@ -4,25 +4,23 @@ GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 
+OSS_REPO 		      		  ?= "packages.nginx.org" ## The package repo to install nginx oss from
+PLUS_REPO                     ?= "pkgs-test.nginx.com" ## The package repo to install nginx-plus from
+
 # renovate: datasource=docker depName=nginx/nginx
 NGINX_OSS_VERSION             ?= 1.31.3
 NGINX_PLUS_VERSION            ?= R37.0
+
 NAP_WAF_VERSION               ?= 37.0+5.690
 NAP_WAF_COMMON_VERSION        ?= 11.735
 NAP_WAF_PLUGIN_VERSION        ?= 6.30
-
-OSS_REPO 		      		  ?= "packages.nginx.org" ## The package repo to install nginx oss from
-PLUS_REPO                     ?= "pkgs.nginx.com" ## The package repo to install nginx-plus from
-
-PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
-
-NAP_WAF_VERSION               ?= 37.0+5.635
-NAP_WAF_COMMON_VERSION        ?= 11.665
-NAP_WAF_PLUGIN_VERSION        ?= 6.29
+NAP_DOS_VERSION               ?= 37.0+5.690
 
 AGENT_V2_VERSION              ?= 2
 AGENT_V3_VERSION              ?= 3
 
+STAGING_ARGS = OSS_REPO=pkgs-test.nginx.com OSS_ARGS="--secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key"
+PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
 
 # Variables that can be overridden
 UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:8fb7d622f38e0d0f4dba7bfc6228fee7241adf7e1c981f16c532cfbd47eccfc9
@@ -199,34 +197,42 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 .PHONY: alpine-image
 alpine-image: build ## Build OSS Alpine-based image
 	$(DOCKER_CMD) \
-		--secret id=nginx-repo.crt,src=nginx-repo.crt \
-		--secret id=nginx-key.key,src=nginx-repo.key \
+		$(OSS_ARGS) \
 		--build-arg BUILD_OS=alpine \
 		--build-arg OSS_PACKAGE_REPO=$(OSS_REPO) \
 		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
+.PHONY: alpine-image-staging
+alpine-image-staging: build ## Build OSS Alpine-based image from staging repo
+	$(MAKE) alpine-image $(STAGING_ARGS)
+
 .PHONY: debian-image
 debian-image: build ## Build OSS Debian-based image
 	$(DOCKER_CMD) \
-		--secret id=nginx-key.crt,src=nginx-repo.crt \
-		--secret id=nginx-key.key,src=nginx-repo.key \
+		$(OSS_ARGS) \
 		--build-arg BUILD_OS=debian \
 		--build-arg OSS_PACKAGE_REPO=$(OSS_REPO) \
 		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
+.PHONY: debian-image-staging
+debian-image-staging: build ## Build OSS Debian-based image from staging repo
+	$(MAKE) debian-image $(STAGING_ARGS)
+
 .PHONY: ubi-image
 ubi-image: build ## Create OSS UBI-based image
 	$(DOCKER_CMD) \
-		--secret id=nginx-key.crt,src=nginx-repo.crt \
-		--secret id=nginx-key.key,src=nginx-repo.key \
+		$(OSS_ARGS) \
 		--build-arg BUILD_OS=ubi \
 		--build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE) \
 		--build-arg OSS_PACKAGE_REPO=$(OSS_REPO) \
 		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
+.PHONY: ubi-image-staging
+ubi-image-staging: build ## Create OSS UBI-based image
+	$(MAKE) ubi-image $(STAGING_ARGS)
 
 ###### NIC + NGINX PLUS Images ######
 .PHONY: alpine-image-plus

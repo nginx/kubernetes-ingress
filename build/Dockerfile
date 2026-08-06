@@ -9,9 +9,10 @@ ARG NAP_WAF_COMMON_VERSION=11.735
 ARG NAP_WAF_PLUGIN_VERSION=6.30
 ARG NAP_DOS_VERSION=37.0+5.635
 
+ARG PACKAGE_REPO=pkgs.nginx.com
 ARG OSS_PACKAGE_REPO=packages.nginx.org
-ARG AGENT_REPO=packages.nginx.org
 ARG PLUS_PACKAGE_REPO=pkgs.nginx.com
+ARG AGENT_REPO=packages.nginx.org
 ARG NAP_WAF_REPO=pkgs.nginx.com
 
 
@@ -23,8 +24,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:d0e6bdcb164b114fddf05e39f47433fee2c7901521f1d77cf71bb330d666ce06
-ARG PACKAGE_REPO=pkgs.nginx.com
 ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:017b7ebd96a0011e0db28a9d29ebe1adbbb38c736f82fa918081dca7c558f6fb
 
 
@@ -111,7 +110,9 @@ ARG OSS_PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
-RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
+RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
+    --mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
+    --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk/keys/nginx_signing.rsa.pub \
 	--mount=type=bind,from=nginx-files,src=user_agent,target=/tmp/user_agent \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	apk add --no-cache openssl curl ca-certificates libcap libstdc++ libc-utils \
@@ -125,7 +126,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
       nginx-module-geoip~${NGINX_OSS_VERSION} \
       nginx-module-acme~${NGINX_OSS_VERSION} \
       nginx-module-image-filter~${NGINX_OSS_VERSION} \
-    && apk add -X "https://packages.nginx.org/nginx-agent/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+    && apk add -X "https://${OSS_PACKAGE_REPO}/nginx-agent/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
       nginx-agent~${AGENT_V3_VERSION} \
 	&& export $(cat /tmp/user_agent) \
 	&& ldconfig /usr/local/lib/ \
@@ -139,7 +140,9 @@ ARG OSS_PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
-RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
+RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
+    --mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+    --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
 	apt-get update \
@@ -151,7 +154,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	&& echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
 	http://${OSS_PACKAGE_REPO}/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
     && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-    http://packages.nginx.org/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
+    http://${OSS_PACKAGE_REPO}/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
@@ -190,7 +193,9 @@ LABEL name="NGINX Ingress Controller" \
 COPY --link --chown=101:0 LICENSE /licenses/
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
+RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
+    --mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+    --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=ubi-setup.sh,target=/usr/local/bin/ubi-setup.sh \
 	--mount=type=bind,from=nginx-files,src=ubi-clean.sh,target=/usr/local/bin/ubi-clean.sh \
 	--mount=type=bind,from=ubi10-packages,src=/,target=/ubi-bin/ \
@@ -207,7 +212,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_s
 	"baseurl=https://${OSS_PACKAGE_REPO}/nginx/mainline/centos/10/\$basearch/" \
 	"gpgcheck=1" "enabled=1" "module_hotfixes=true" > /etc/yum.repos.d/nginx.repo \
     && printf "%s\n" "[agent]" "name=agent repo" \
-    "baseurl=https://packages.nginx.org/nginx-agent/centos/10/\$basearch/" \
+    "baseurl=https://${OSS_PACKAGE_REPO}/nginx-agent/centos/10/\$basearch/" \
     "gpgcheck=1" "enabled=1" "module_hotfixes=true" >> /etc/yum.repos.d/nginx.repo \
 	&& microdnf --nodocs install -y \
       nginx-${NGINX_OSS_VERSION}* \
