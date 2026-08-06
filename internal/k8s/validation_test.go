@@ -5729,6 +5729,7 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 	t.Parallel()
 
 	headerNameErrMsg := `a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`
+	disallowedHostErrMsg := `the Host header must be set using the nginx.org/upstream-vhost annotation`
 
 	tests := []struct {
 		name           string
@@ -5850,6 +5851,43 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 			value: "Header.Name",
 			expectedErrors: []string{
 				`annotations.nginx.org/proxy-set-headers: Invalid value: "Header.Name": ` + headerNameErrMsg,
+			},
+		},
+
+		// ── Invalid: disallowed header names ────────────────────────────
+		{
+			name:  "disallowed header - Host name only",
+			value: "Host",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Host": ` + disallowedHostErrMsg,
+			},
+		},
+		{
+			name:  "disallowed header - Host with value",
+			value: "Host: example.internal",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Host": ` + disallowedHostErrMsg,
+			},
+		},
+		{
+			name:  "disallowed header - lowercase host",
+			value: "host: example.internal",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "host": ` + disallowedHostErrMsg,
+			},
+		},
+		{
+			name:  "disallowed header - uppercase HOST",
+			value: "HOST: example.internal",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "HOST": ` + disallowedHostErrMsg,
+			},
+		},
+		{
+			name:  "disallowed header mixed with valid headers",
+			value: "Header-1,Host: example.internal,Header-2",
+			expectedErrors: []string{
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "Host": ` + disallowedHostErrMsg,
 			},
 		},
 

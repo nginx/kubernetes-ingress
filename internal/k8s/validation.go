@@ -710,6 +710,12 @@ func validateProxySetHeaderAnnotation(context *annotationValidationContext) fiel
 			continue
 		}
 
+		// Host must be set via the dedicated nginx.org/upstream-vhost annotation
+		if strings.EqualFold(name, "Host") {
+			allErrs = append(allErrs, field.Invalid(context.fieldPath, name, "the Host header must be set using the nginx.org/upstream-vhost annotation"))
+			continue
+		}
+
 		for _, msg := range version1.ValidateAddHeaderName(name) {
 			allErrs = append(allErrs, field.Invalid(context.fieldPath, name, msg))
 		}
