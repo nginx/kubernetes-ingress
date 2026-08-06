@@ -222,7 +222,7 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 		if c.Op == appprotectdos.AddOrUpdate {
 			switch impl := c.Resource.(type) {
 			case *appprotectdos.DosProtectedResourceEx:
-				l := lbc.Logger.With(logNamespaceKey, impl.Obj.Namespace, logKindKey, appProtectDosKind, logNameKey, impl.Obj.Name)
+				l := lbc.Logger.With(logNamespaceKey, impl.Obj.Namespace, logKindKey, "APDosProtectedResource", logNameKey, impl.Obj.Name)
 				nl.Debugf(l, "handling change UPDATE OR ADD for DOS protected %s/%s", impl.Obj.Namespace, impl.Obj.Name)
 				resources := lbc.configuration.FindResourcesForAppProtectDosProtected(impl.Obj.Namespace, impl.Obj.Name)
 				resourceExes := lbc.createExtendedResources(resources)
@@ -253,7 +253,7 @@ func (lbc *LoadBalancerController) processAppProtectDosChanges(changes []appprot
 				lbc.configurator.DeleteAppProtectDosLogConf(impl.Obj)
 
 			case *appprotectdos.DosProtectedResourceEx:
-				l := lbc.Logger.With(logNamespaceKey, impl.Obj.Namespace, logKindKey, appProtectDosKind, logNameKey, impl.Obj.Name)
+				l := lbc.Logger.With(logNamespaceKey, impl.Obj.Namespace, logKindKey, "APDosProtectedResource", logNameKey, impl.Obj.Name)
 				nl.Debugf(l, "handling change DELETE for DOS protected %s/%s", impl.Obj.Namespace, impl.Obj.Name)
 				resources := lbc.configuration.FindResourcesForAppProtectDosProtected(impl.Obj.Namespace, impl.Obj.Name)
 				resourceExes := lbc.createExtendedResources(resources)

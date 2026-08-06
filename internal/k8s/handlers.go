@@ -87,7 +87,7 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 				return
 			}
 			nl.Debugf(l, "Removing Secret: %v", secret.Name)
-			lbc.AddSyncQueue(obj)
+			lbc.AddSyncQueue(secret)
 		},
 		UpdateFunc: func(old, cur interface{}) {
 			// A secret cannot change its type. That's why we only need to check the type of the current secret.

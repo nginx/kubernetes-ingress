@@ -1068,33 +1068,39 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	// update special license secret in mgmtConfigParams
 	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
 		if mgmtCfgParams.Secrets.License != "" {
+			l := lbc.Logger.With(logNamespaceKey, lbc.metadata.namespace, logKindKey, secretKind, logNameKey, mgmtCfgParams.Secrets.License)
 			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.License, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.License, err)
+				nl.Errorf(l, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.License, err)
+			} else {
+				lbc.specialSecrets.licenseSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+				lbc.handleSpecialSecretUpdate(l, secret, reloadNginx)
 			}
-			lbc.specialSecrets.licenseSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
-			lbc.handleSpecialSecretUpdate(lbc.Logger, secret, reloadNginx)
 		}
 		// update special CA secret in mgmtConfigParams
 		if mgmtCfgParams.Secrets.TrustedCert != "" {
+			l := lbc.Logger.With(logNamespaceKey, lbc.metadata.namespace, logKindKey, secretKind, logNameKey, mgmtCfgParams.Secrets.TrustedCert)
 			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.TrustedCert, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.TrustedCert, err)
+				nl.Errorf(l, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.TrustedCert, err)
+			} else {
+				if _, hasCRL := secret.Data[configs.CACrlKey]; hasCRL {
+					lbc.configurator.MgmtCfgParams.Secrets.TrustedCRL = secret.Name
+				}
+				lbc.specialSecrets.trustedCertSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+				lbc.handleSpecialSecretUpdate(l, secret, reloadNginx)
 			}
-			if _, hasCRL := secret.Data[configs.CACrlKey]; hasCRL {
-				lbc.configurator.MgmtCfgParams.Secrets.TrustedCRL = secret.Name
-			}
-			lbc.specialSecrets.trustedCertSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
-			lbc.handleSpecialSecretUpdate(lbc.Logger, secret, reloadNginx)
 		}
 		// update special ClientAuth secret in mgmtConfigParams
 		if mgmtCfgParams.Secrets.ClientAuth != "" {
+			l := lbc.Logger.With(logNamespaceKey, lbc.metadata.namespace, logKindKey, secretKind, logNameKey, mgmtCfgParams.Secrets.ClientAuth)
 			secret, err := lbc.client.CoreV1().Secrets(lbc.metadata.namespace).Get(context.TODO(), mgmtCfgParams.Secrets.ClientAuth, meta_v1.GetOptions{})
 			if err != nil {
-				nl.Errorf(lbc.Logger, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.ClientAuth, err)
+				nl.Errorf(l, "secret %s/%s: %v", lbc.metadata.namespace, mgmtCfgParams.Secrets.ClientAuth, err)
+			} else {
+				lbc.specialSecrets.clientAuthSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
+				lbc.handleSpecialSecretUpdate(l, secret, reloadNginx)
 			}
-			lbc.specialSecrets.clientAuthSecret = fmt.Sprintf("%s/%s", secret.Namespace, secret.Name)
-			lbc.handleSpecialSecretUpdate(lbc.Logger, secret, reloadNginx)
 		}
 	}
 	resources := lbc.configuration.GetResources()
@@ -4435,7 +4441,6 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 	lbc.configuration.lock.Lock()
 	defer lbc.configuration.lock.Unlock()
 	key := getResourceKey(&vsNew.ObjectMeta)
-	l := lbc.Logger.With(logNamespaceKey, vsNew.Namespace, logKindKey, virtualServerKind, logNameKey, vsNew.Name)
 	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServer(vsNew)
 	if validationError != nil {
 		delete(lbc.configuration.virtualServers, key)
@@ -4482,8 +4487,8 @@ func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualS
 			switch impl := c.Resource.(type) {
 			case *VirtualServerConfiguration:
 				key := getResourceKey(&impl.VirtualServer.ObjectMeta)
-				ns, _, _ := cache.SplitMetaNamespaceKey(key)
-
+				ns, n, _ := cache.SplitMetaNamespaceKey(key)
+				l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, virtualServerKind, logNameKey, n)
 				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
 				if deleteErr != nil {
 					nl.Errorf(l, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
