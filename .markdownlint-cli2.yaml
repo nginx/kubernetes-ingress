@@ -1,0 +1,25 @@
+# Rule configuration.
+# For rule descriptions and how to fix: https://github.com/DavidAnson/markdownlint/tree/main#rules--aliases
+config:
+  ul-style:
+    style: dash
+  no-duplicate-heading:
+    siblings_only: true
+  line-length: false
+
+# Hide the Finding: <list of globs> when markdownlint fixes files
+noProgress: true
+
+# Hide the markdownlint-cli and markdownlint versions on each block
+noBanner: true
+
+# Define glob expressions to ignore
+ignores:
+  - ".github/**"
+  - "docs/**" # Ignore developer docs folder
+  - "vendor/**" # Ignore vendor folder
+  - "**/venv/**"
+  - ".local/**"
+
+# Fix any fixable errors
+fix: true
