@@ -58,6 +58,8 @@ const (
 	SourceTypeNIM SourceType = "NIM"
 	// SourceTypeN1C fetches bundles from NGINX One Console.
 	SourceTypeN1C SourceType = "N1C"
+	// SourceTypePLM fetches bundles from the SeaweedFS S3-compatible object store.
+	SourceTypePLM SourceType = "PLM"
 )
 
 // BundleAuth carries authentication material resolved from a Kubernetes Secret.

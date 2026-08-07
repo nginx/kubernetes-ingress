@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -34,6 +35,14 @@ func createAppProtectPolicyHandlers(lbc *LoadBalancerController) cache.ResourceE
 			if different {
 				nl.Debugf(lbc.Logger, "ApPolicy %v changed, syncing", oldPol.GetName())
 				lbc.AddSyncQueue(newPol)
+				return
+			}
+			// PLM writes the compiled bundle location + checksum to .status.bundle;
+			// the spec is unchanged on recompile, so also sync on a status change so
+			// syncAppProtectPolicy re-enqueues the referencing PLM policies.
+			if lbc.plmEnabled && bundleStatusChanged(oldPol, newPol) {
+				nl.Debugf(lbc.Logger, "ApPolicy %v bundle status changed, syncing", oldPol.GetName())
+				lbc.AddSyncQueue(newPol)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -60,6 +69,14 @@ func createAppProtectLogConfHandlers(lbc *LoadBalancerController) cache.Resource
 			}
 			if different {
 				nl.Debugf(lbc.Logger, "ApLogConf %v changed, syncing", oldConf.GetName())
+				lbc.AddSyncQueue(newConf)
+				return
+			}
+			// PLM writes the compiled bundle location + checksum to .status.bundle;
+			// the spec is unchanged on recompile, so also sync on a status change so
+			// syncAppProtectLogConf re-enqueues the referencing PLM policies.
+			if lbc.plmEnabled && bundleStatusChanged(oldConf, newConf) {
+				nl.Debugf(lbc.Logger, "ApLogConf %v bundle status changed, syncing", oldConf.GetName())
 				lbc.AddSyncQueue(newConf)
 			}
 		},
@@ -148,6 +165,11 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 		return
 	}
 
+	if lbc.plmEnabled {
+		lbc.enqueuePLMPoliciesForAppPolicy(key)
+		return
+	}
+
 	var changes []appprotect.Change
 	var problems []appprotect.Problem
 
@@ -176,6 +198,11 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectLogConfLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
+		return
+	}
+
+	if lbc.plmEnabled {
+		lbc.enqueuePLMPoliciesForAppLogConf(key)
 		return
 	}
 
@@ -265,6 +292,127 @@ func isMatchingResourceRef(ownerNs, resRef, key string) bool {
 	return resRef == key
 }
 
+// getPLMPoliciesForAppProtectPolicy returns the WAF Policies whose apBundleSource is a
+// PLM source referencing the APPolicy identified by key (namespace/name). Used to
+// re-enqueue those Policies when the APPolicy status changes (event-driven PLM refresh).
+func getPLMPoliciesForAppProtectPolicy(pols []*conf_v1.Policy, key string) []*conf_v1.Policy {
+	var policies []*conf_v1.Policy
+	for _, pol := range pols {
+		if pol.Spec.WAF == nil {
+			continue
+		}
+		bs := pol.Spec.WAF.ApBundleSource
+		if bs != nil && bs.Type == conf_v1.BundleSourceTypePLM && plmRefMatchesKey(pol.Namespace, bs, key) {
+			policies = append(policies, pol)
+		}
+	}
+	return policies
+}
+
+// getPLMPoliciesForAppProtectLogConf returns the WAF Policies whose securityLogs contain a
+// PLM apLogBundleSource referencing the APLogConf identified by key (namespace/name).
+func getPLMPoliciesForAppProtectLogConf(pols []*conf_v1.Policy, key string) []*conf_v1.Policy {
+	var policies []*conf_v1.Policy
+	for _, pol := range pols {
+		if pol.Spec.WAF == nil {
+			continue
+		}
+		for _, sl := range pol.Spec.WAF.SecurityLogs {
+			if sl != nil && sl.ApLogBundleSource != nil &&
+				sl.ApLogBundleSource.Type == conf_v1.BundleSourceTypePLM &&
+				plmRefMatchesKey(pol.Namespace, sl.ApLogBundleSource, key) {
+				policies = append(policies, pol)
+				break
+			}
+		}
+	}
+	return policies
+}
+
+// bundleStatusChanged reports whether the PLM-managed .status.bundle subtree differs
+// between the old and new APPolicy/APLogConf objects.
+func bundleStatusChanged(oldObj, newObj *unstructured.Unstructured) bool {
+	oldBundle, _, _ := unstructured.NestedMap(oldObj.Object, "status", "bundle")
+	newBundle, _, _ := unstructured.NestedMap(newObj.Object, "status", "bundle")
+	return !reflect.DeepEqual(oldBundle, newBundle)
+}
+
+// plmRefMatchesKey reports whether a PLM BundleSource references the APPolicy/APLogConf
+// identified by key. The reference is bs.Name in bs.Namespace, defaulting to
+// the owning Policy's namespace when unset.
+func plmRefMatchesKey(ownerNs string, bs *conf_v1.BundleSource, key string) bool {
+	ns := bs.Namespace
+	if ns == "" {
+		ns = ownerNs
+	}
+	return ns+"/"+bs.Name == key
+}
+
+// enqueuePLMPoliciesForAppPolicy re-enqueues every PLM WAF Policy that references the
+// APPolicy identified by key. No-op when PLM is disabled.
+func (lbc *LoadBalancerController) enqueuePLMPoliciesForAppPolicy(key string) {
+	if !lbc.plmEnabled {
+		return
+	}
+	for _, pol := range getPLMPoliciesForAppProtectPolicy(lbc.getAllPolicies(), key) {
+		nl.Debugf(lbc.Logger, "Re-enqueuing PLM policy %s/%s due to APPolicy %s change", pol.Namespace, pol.Name, key)
+		lbc.AddSyncQueue(pol)
+	}
+}
+
+// enqueuePLMPoliciesForAppLogConf re-enqueues every PLM WAF Policy that references the
+// APLogConf identified by key. No-op when PLM is disabled.
+func (lbc *LoadBalancerController) enqueuePLMPoliciesForAppLogConf(key string) {
+	if !lbc.plmEnabled {
+		return
+	}
+	for _, pol := range getPLMPoliciesForAppProtectLogConf(lbc.getAllPolicies(), key) {
+		nl.Debugf(lbc.Logger, "Re-enqueuing PLM policy %s/%s due to APLogConf %s change", pol.Namespace, pol.Name, key)
+		lbc.AddSyncQueue(pol)
+	}
+}
+
+func (lbc *LoadBalancerController) isConfiguredPLMStorageSecret(key string) bool {
+	_, exists := lbc.plmStorageSecrets[key]
+	return exists
+}
+
+// enqueuePoliciesUsingPLMStorage directly re-enqueues only Policy CRs with a
+// missing or stale PLM bundle after a configured storage Secret changes. The
+// subsequent bundle fetch resolves current S3 credentials and TLS material.
+func (lbc *LoadBalancerController) enqueuePoliciesUsingPLMStorage(key string) {
+	if !lbc.plmEnabled || !lbc.isConfiguredPLMStorageSecret(key) {
+		return
+	}
+	for _, pol := range getPoliciesUsingPLMStorage(lbc.getAllPolicies()) {
+		if !lbc.policyNeedsPLMBundleFetch(pol) {
+			continue
+		}
+		nl.Debugf(lbc.Logger, "Re-enqueuing PLM policy %s/%s due to storage Secret %s change", pol.Namespace, pol.Name, key)
+		lbc.AddSyncQueue(pol)
+	}
+}
+
+func getPoliciesUsingPLMStorage(policies []*conf_v1.Policy) []*conf_v1.Policy {
+	var result []*conf_v1.Policy
+	for _, pol := range policies {
+		if pol.Spec.WAF == nil {
+			continue
+		}
+		if pol.Spec.WAF.ApBundleSource != nil && pol.Spec.WAF.ApBundleSource.Type == conf_v1.BundleSourceTypePLM {
+			result = append(result, pol)
+			continue
+		}
+		for _, sl := range pol.Spec.WAF.SecurityLogs {
+			if sl != nil && sl.ApLogBundleSource != nil && sl.ApLogBundleSource.Type == conf_v1.BundleSourceTypePLM {
+				result = append(result, pol)
+				break
+			}
+		}
+	}
+	return result
+}
+
 // addWAFPolicyRefs ensures the app protect resources that are referenced in policies exist.
 // nolint:gocyclo
 func (lbc *LoadBalancerController) addWAFPolicyRefs(
@@ -274,6 +422,19 @@ func (lbc *LoadBalancerController) addWAFPolicyRefs(
 	for _, pol := range policies {
 		if pol.Spec.WAF == nil {
 			continue
+		}
+		if lbc.plmEnabled {
+			if pol.Spec.WAF.ApPolicy != "" {
+				return fmt.Errorf("WAF policy %q uses apPolicy, which is not supported when PLM is enabled", pol.Namespace+"/"+pol.Name)
+			}
+			if pol.Spec.WAF.SecurityLog != nil && pol.Spec.WAF.SecurityLog.ApLogConf != "" {
+				return fmt.Errorf("WAF policy %q uses securityLog.apLogConf, which is not supported when PLM is enabled", pol.Namespace+"/"+pol.Name)
+			}
+			for _, log := range pol.Spec.WAF.SecurityLogs {
+				if log != nil && log.ApLogConf != "" {
+					return fmt.Errorf("WAF policy %q uses securityLogs.apLogConf, which is not supported when PLM is enabled", pol.Namespace+"/"+pol.Name)
+				}
+			}
 		}
 
 		if pol.Spec.WAF.ApPolicy != "" {

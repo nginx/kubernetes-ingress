@@ -1,13 +1,20 @@
 package k8s
 
 import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TestAddWAFPolicyRefs(t *testing.T) {
@@ -241,6 +248,85 @@ func TestAddWAFPolicyRefs(t *testing.T) {
 	}
 }
 
+func TestAddWAFPolicyRefs_PLMRejectsRawReferences(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		waf     *conf_v1.WAF
+		wantErr string
+	}{
+		{
+			name:    "apPolicy",
+			waf:     &conf_v1.WAF{ApPolicy: "raw-policy"},
+			wantErr: "apPolicy",
+		},
+		{
+			name:    "deprecated security log apLogConf",
+			waf:     &conf_v1.WAF{SecurityLog: &conf_v1.SecurityLog{ApLogConf: "raw-log"}},
+			wantErr: "securityLog.apLogConf",
+		},
+		{
+			name:    "security logs apLogConf",
+			waf:     &conf_v1.WAF{SecurityLogs: []*conf_v1.SecurityLog{{ApLogConf: "raw-log"}}},
+			wantErr: "securityLogs.apLogConf",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lbc := LoadBalancerController{plmEnabled: true}
+			policies := []*conf_v1.Policy{{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"},
+				Spec:       conf_v1.PolicySpec{WAF: tc.waf},
+			}}
+
+			err := lbc.addWAFPolicyRefs(map[string]*unstructured.Unstructured{}, map[string]*unstructured.Unstructured{}, policies)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+				t.Errorf("addWAFPolicyRefs() error = %v, want error containing %q", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestResolvePLMBundleStatus_ReadsInformerStore(t *testing.T) {
+	t.Parallel()
+
+	apPolicy := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{"namespace": "plm", "name": "compiled-policy"},
+		"status": map[string]interface{}{
+			"bundle": map[string]interface{}{
+				"state":    wafbundle.BundleStateReady,
+				"location": "s3://plm/bundles/compiled-policy.tgz",
+				"sha256":   "0123456789abcdef",
+			},
+		},
+	}}
+	apPolicy.SetKind(appprotect.PolicyGVK.Kind)
+
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	if err := store.Add(apPolicy); err != nil {
+		t.Fatalf("failed to add APPolicy to informer store: %v", err)
+	}
+	lbc := &LoadBalancerController{
+		Logger: nl.LoggerFromContext(context.Background()),
+		namespacedInformers: map[string]*namespacedInformer{
+			"": {appProtectPolicyLister: store},
+		},
+	}
+	pol := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"}}
+	bs := &conf_v1.BundleSource{Name: "compiled-policy", Namespace: "plm"}
+
+	got := lbc.resolvePLMBundleStatus(pol, bs, wafbundle.PolicyBundle)
+	if got == nil {
+		t.Fatal("resolvePLMBundleStatus() = nil, want ready bundle status")
+	}
+	if got.Location != "s3://plm/bundles/compiled-policy.tgz" || got.SHA256 != "0123456789abcdef" {
+		t.Errorf("resolvePLMBundleStatus() = %#v, want informer status bundle", got)
+	}
+}
+
 func TestGetWAFPoliciesForAppProtectPolicy(t *testing.T) {
 	t.Parallel()
 	apPol := &conf_v1.Policy{
@@ -423,5 +509,298 @@ func TestGetWAFPoliciesForAppProtectLogConf(t *testing.T) {
 		if diff := cmp.Diff(test.want, got); diff != "" {
 			t.Errorf("getWAFPoliciesForAppProtectLogConf() returned unexpected result for the case of: %v (-want +got):\n%s", test.msg, diff)
 		}
+	}
+}
+
+func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
+	t.Parallel()
+
+	// PLM source with an explicit namespace on the ref.
+	plmExplicitNs := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				ApBundleSource: &conf_v1.BundleSource{
+					Type:      conf_v1.BundleSourceTypePLM,
+					Name:      "ap-pol",
+					Namespace: "plm-policies",
+				},
+			},
+		},
+	}
+
+	// PLM source without a namespace on the ref; defaults to the Policy's own namespace.
+	plmDefaultNs := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypePLM,
+					Name: "ap-pol",
+				},
+			},
+		},
+	}
+
+	// HTTPS source must never match a PLM key.
+	httpsSource := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypeHTTPS,
+					URL:  "https://example.com/ap-pol.tgz",
+				},
+			},
+		},
+	}
+
+	// No WAF at all.
+	noWAF := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec:       conf_v1.PolicySpec{},
+	}
+
+	policies := []*conf_v1.Policy{plmExplicitNs, plmDefaultNs, httpsSource, noWAF}
+
+	tests := []struct {
+		key  string
+		want []*conf_v1.Policy
+		msg  string
+	}{
+		{
+			key:  "plm-policies/ap-pol",
+			want: []*conf_v1.Policy{plmExplicitNs},
+			msg:  "matches PLM source with explicit ref namespace",
+		},
+		{
+			key:  "apps/ap-pol",
+			want: []*conf_v1.Policy{plmDefaultNs},
+			msg:  "matches PLM source defaulting to owner namespace",
+		},
+		{
+			key:  "plm-policies/other-pol",
+			want: nil,
+			msg:  "no PLM source references this key",
+		},
+	}
+	for _, test := range tests {
+		got := getPLMPoliciesForAppProtectPolicy(policies, test.key)
+		if diff := cmp.Diff(test.want, got); diff != "" {
+			t.Errorf("getPLMPoliciesForAppProtectPolicy() %v (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}
+
+func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
+	t.Parallel()
+
+	// PLM log source with explicit namespace.
+	plmLogExplicitNs := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				SecurityLogs: []*conf_v1.SecurityLog{
+					{
+						Enable: true,
+						ApLogBundleSource: &conf_v1.BundleSource{
+							Type:      conf_v1.BundleSourceTypePLM,
+							Name:      "log-conf",
+							Namespace: "plm-policies",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// PLM log source without a namespace; defaults to the Policy's own namespace.
+	plmLogDefaultNs := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				SecurityLogs: []*conf_v1.SecurityLog{
+					{
+						Enable: true,
+						ApLogBundleSource: &conf_v1.BundleSource{
+							Type: conf_v1.BundleSourceTypePLM,
+							Name: "log-conf",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Non-PLM log source must never match a PLM key.
+	nimLog := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				Enable: true,
+				SecurityLogs: []*conf_v1.SecurityLog{
+					{
+						Enable: true,
+						ApLogBundleSource: &conf_v1.BundleSource{
+							Type: conf_v1.BundleSourceTypeNIM,
+							URL:  "https://nim.example.com",
+							Name: "log-conf",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	policies := []*conf_v1.Policy{plmLogExplicitNs, plmLogDefaultNs, nimLog}
+
+	tests := []struct {
+		key  string
+		want []*conf_v1.Policy
+		msg  string
+	}{
+		{
+			key:  "plm-policies/log-conf",
+			want: []*conf_v1.Policy{plmLogExplicitNs},
+			msg:  "matches PLM log source with explicit ref namespace",
+		},
+		{
+			key:  "apps/log-conf",
+			want: []*conf_v1.Policy{plmLogDefaultNs},
+			msg:  "matches PLM log source defaulting to owner namespace",
+		},
+		{
+			key:  "plm-policies/missing",
+			want: nil,
+			msg:  "no PLM log source references this key",
+		},
+	}
+	for _, test := range tests {
+		got := getPLMPoliciesForAppProtectLogConf(policies, test.key)
+		if diff := cmp.Diff(test.want, got); diff != "" {
+			t.Errorf("getPLMPoliciesForAppProtectLogConf() %v (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}
+
+func TestGetPoliciesUsingPLMStorage(t *testing.T) {
+	t.Parallel()
+
+	plmPolicy := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypePLM}}}}
+	plmLog := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{SecurityLogs: []*conf_v1.SecurityLog{{ApLogBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypePLM}}}}}}
+	nimPolicy := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypeNIM}}}}
+	noWAF := &conf_v1.Policy{}
+
+	got := getPoliciesUsingPLMStorage([]*conf_v1.Policy{plmPolicy, plmLog, nimPolicy, noWAF})
+	want := []*conf_v1.Policy{plmPolicy, plmLog}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("getPoliciesUsingPLMStorage() (-want +got):\n%s", diff)
+	}
+}
+
+func TestPolicyNeedsPLMBundleFetch(t *testing.T) {
+	t.Parallel()
+
+	bundle := []byte("compiled-policy")
+	checksum := wafbundle.ComputeChecksum(bundle)
+	apPolicy := &unstructured.Unstructured{Object: map[string]interface{}{
+		"metadata": map[string]interface{}{"namespace": "plm", "name": "compiled-policy"},
+		"status": map[string]interface{}{"bundle": map[string]interface{}{
+			"state":    wafbundle.BundleStateReady,
+			"location": "s3://plm/bundles/compiled-policy.tgz",
+			"sha256":   checksum,
+		}},
+	}}
+	apPolicy.SetKind(appprotect.PolicyGVK.Kind)
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	if err := store.Add(apPolicy); err != nil {
+		t.Fatalf("failed to add APPolicy to informer store: %v", err)
+	}
+
+	dir := t.TempDir()
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"},
+		Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{
+			Type: conf_v1.BundleSourceTypePLM, Name: "compiled-policy", Namespace: "plm",
+		}}},
+	}
+	lbc := &LoadBalancerController{
+		Logger:        nl.LoggerFromContext(context.Background()),
+		wafBundlePath: dir,
+		namespacedInformers: map[string]*namespacedInformer{
+			"": {appProtectPolicyLister: store},
+		},
+	}
+
+	if !lbc.policyNeedsPLMBundleFetch(pol) {
+		t.Error("policyNeedsPLMBundleFetch() = false for a missing bundle, want true")
+	}
+
+	path := filepath.Join(dir, wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
+	if err := os.WriteFile(path, bundle, 0o600); err != nil {
+		t.Fatalf("failed to write bundle: %v", err)
+	}
+	if lbc.policyNeedsPLMBundleFetch(pol) {
+		t.Error("policyNeedsPLMBundleFetch() = true for a current bundle, want false")
+	}
+}
+
+// apResourceWithStatusBundle builds an APPolicy/APLogConf-shaped unstructured object
+// whose spec is fixed and whose .status.bundle is set to the given fields.
+func apResourceWithStatusBundle(state, location, sha256 string) *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{"namespace": "plm", "name": "ap-pol"},
+			"spec":     map[string]interface{}{"policy": map[string]interface{}{"name": "p"}},
+			"status": map[string]interface{}{
+				"bundle": map[string]interface{}{
+					"state":    state,
+					"location": location,
+					"sha256":   sha256,
+				},
+			},
+		},
+	}
+}
+
+func TestBundleStatusChanged(t *testing.T) {
+	t.Parallel()
+
+	ready := apResourceWithStatusBundle("ready", "s3://b/ap.tgz", "abc123")
+	// Same spec, only the bundle checksum/location changed (PLM recompile).
+	recompiled := apResourceWithStatusBundle("ready", "s3://b/ap-v2.tgz", "def456")
+	// Identical status to ready.
+	readyDup := apResourceWithStatusBundle("ready", "s3://b/ap.tgz", "abc123")
+	// No status at all (spec-only object).
+	noStatus := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"metadata": map[string]interface{}{"namespace": "plm", "name": "ap-pol"},
+			"spec":     map[string]interface{}{"policy": map[string]interface{}{"name": "p"}},
+		},
+	}
+
+	tests := []struct {
+		name   string
+		oldObj *unstructured.Unstructured
+		newObj *unstructured.Unstructured
+		want   bool
+	}{
+		{name: "checksum and location changed on recompile", oldObj: ready, newObj: recompiled, want: true},
+		{name: "identical bundle status", oldObj: ready, newObj: readyDup, want: false},
+		{name: "status.bundle first appears", oldObj: noStatus, newObj: ready, want: true},
+		{name: "no status on either side", oldObj: noStatus, newObj: noStatus, want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := bundleStatusChanged(tc.oldObj, tc.newObj); got != tc.want {
+				t.Errorf("bundleStatusChanged() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

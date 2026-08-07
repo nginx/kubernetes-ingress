@@ -185,13 +185,15 @@ func TestValidateLogFormat(t *testing.T) {
 func TestValidatePLMSecretRef(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		value   string
-		wantErr bool
+		name     string
+		value    string
+		wantNS   string
+		wantName string
+		wantErr  bool
 	}{
 		{name: "empty is accepted", value: "", wantErr: false},
-		{name: "bare name", value: "seaweed-auth", wantErr: false},
-		{name: "namespace/name", value: "plm/seaweed-auth", wantErr: false},
+		{name: "namespace/name", value: "plm/seaweed-auth", wantNS: "plm", wantName: "seaweed-auth", wantErr: false},
+		{name: "bare name rejected (must be namespace/name)", value: "seaweed-auth", wantErr: true},
 		{name: "trailing slash rejected", value: "plm/", wantErr: true},
 		{name: "leading slash rejected", value: "/seaweed-auth", wantErr: true},
 		{name: "double slash rejected", value: "plm/foo/bar", wantErr: true},
@@ -204,12 +206,18 @@ func TestValidatePLMSecretRef(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := validatePLMSecretRef("plm-storage-credentials-secret", tc.value)
-			if tc.wantErr && err == nil {
-				t.Errorf("validatePLMSecretRef(%q) expected error, got nil", tc.value)
+			ref, err := validatePLMSecretRef("plm-storage-credentials-secret", tc.value)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("validatePLMSecretRef(%q) expected error, got nil", tc.value)
+				}
+				return
 			}
-			if !tc.wantErr && err != nil {
+			if err != nil {
 				t.Errorf("validatePLMSecretRef(%q) unexpected error: %v", tc.value, err)
+			}
+			if ref.Namespace != tc.wantNS || ref.Name != tc.wantName {
+				t.Errorf("validatePLMSecretRef(%q) = %s/%s, want %s/%s", tc.value, ref.Namespace, ref.Name, tc.wantNS, tc.wantName)
 			}
 		})
 	}
@@ -327,6 +335,14 @@ func TestValidatePLMFlags(t *testing.T) {
 			wantErrContains: "plm-storage-url",
 		},
 		{
+			name:            "URL set without credentials-secret fails",
+			url:             goodURL,
+			nginxPlus:       true,
+			appProtect:      true,
+			wantErr:         true,
+			wantErrContains: "plm-storage-credentials-secret must be set",
+		},
+		{
 			name:              "invalid credentials secret ref fails",
 			url:               goodURL,
 			credentialsSecret: "PLM/Foo",
@@ -336,22 +352,24 @@ func TestValidatePLMFlags(t *testing.T) {
 			wantErrContains:   "plm-storage-credentials-secret",
 		},
 		{
-			name:            "invalid ca secret ref fails",
-			url:             goodURL,
-			caSecret:        "plm/",
-			nginxPlus:       true,
-			appProtect:      true,
-			wantErr:         true,
-			wantErrContains: "plm-storage-ca-secret",
+			name:              "invalid ca secret ref fails",
+			url:               goodURL,
+			credentialsSecret: "plm/seaweed-auth",
+			caSecret:          "plm/",
+			nginxPlus:         true,
+			appProtect:        true,
+			wantErr:           true,
+			wantErrContains:   "plm-storage-ca-secret",
 		},
 		{
-			name:            "invalid client-ssl secret ref fails",
-			url:             goodURL,
-			clientSSLSecret: "/bad",
-			nginxPlus:       true,
-			appProtect:      true,
-			wantErr:         true,
-			wantErrContains: "plm-storage-client-ssl-secret",
+			name:              "invalid client-ssl secret ref fails",
+			url:               goodURL,
+			credentialsSecret: "plm/seaweed-auth",
+			clientSSLSecret:   "/bad",
+			nginxPlus:         true,
+			appProtect:        true,
+			wantErr:           true,
+			wantErrContains:   "plm-storage-client-ssl-secret",
 		},
 		{
 			name:              "valid config with all secrets is accepted",
@@ -375,7 +393,7 @@ func TestValidatePLMFlags(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			warn, err := validatePLMFlags(
+			refs, warn, err := validatePLMFlags(
 				tc.url,
 				tc.credentialsSecret,
 				tc.caSecret,
@@ -385,23 +403,52 @@ func TestValidatePLMFlags(t *testing.T) {
 				tc.appProtect,
 			)
 			if tc.wantErr {
-				if err == nil {
-					t.Fatalf("validatePLMFlags: expected error, got nil")
-				}
-				if tc.wantErrContains != "" && !strings.Contains(err.Error(), tc.wantErrContains) {
-					t.Errorf("validatePLMFlags: error %q does not contain %q", err.Error(), tc.wantErrContains)
-				}
+				assertPLMFlagsError(t, err, tc.wantErrContains)
 				return
 			}
 			if err != nil {
 				t.Fatalf("validatePLMFlags: unexpected error: %v", err)
 			}
-			if tc.wantWarn && warn == "" {
-				t.Errorf("validatePLMFlags: expected a warning, got empty string")
-			}
-			if !tc.wantWarn && warn != "" {
-				t.Errorf("validatePLMFlags: unexpected warning: %q", warn)
+			assertPLMFlagsWarn(t, warn, tc.wantWarn)
+			if tc.url != "" {
+				assertPLMFlagsRefs(t, refs, tc.credentialsSecret, tc.caSecret, tc.clientSSLSecret)
 			}
 		})
+	}
+}
+
+// assertPLMFlagsError checks the error path of validatePLMFlags.
+func assertPLMFlagsError(t *testing.T, err error, wantContains string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("validatePLMFlags: expected error, got nil")
+	}
+	if wantContains != "" && !strings.Contains(err.Error(), wantContains) {
+		t.Errorf("validatePLMFlags: error %q does not contain %q", err.Error(), wantContains)
+	}
+}
+
+// assertPLMFlagsWarn checks the warning behavior of validatePLMFlags.
+func assertPLMFlagsWarn(t *testing.T, warn string, wantWarn bool) {
+	t.Helper()
+	if wantWarn && warn == "" {
+		t.Errorf("validatePLMFlags: expected a warning, got empty string")
+	}
+	if !wantWarn && warn != "" {
+		t.Errorf("validatePLMFlags: unexpected warning: %q", warn)
+	}
+}
+
+// assertPLMFlagsRefs checks that parsed secret refs match the input when PLM is enabled.
+func assertPLMFlagsRefs(t *testing.T, refs plmSecretRefs, wantCredentials, wantCA, wantClientSSL string) {
+	t.Helper()
+	if got := refs.Credentials.String(); wantCredentials != "" && got != wantCredentials {
+		t.Errorf("validatePLMFlags: Credentials = %q, want %q", got, wantCredentials)
+	}
+	if got := refs.CA.String(); wantCA != "" && got != wantCA {
+		t.Errorf("validatePLMFlags: CA = %q, want %q", got, wantCA)
+	}
+	if got := refs.ClientSSL.String(); wantClientSSL != "" && got != wantClientSSL {
+		t.Errorf("validatePLMFlags: ClientSSL = %q, want %q", got, wantClientSSL)
 	}
 }
