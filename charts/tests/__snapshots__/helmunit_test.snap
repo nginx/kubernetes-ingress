@@ -1815,7 +1815,7 @@ spec:
           - -enable-app-protect=true
           - -enable-app-protect-ip-intelligence=false
           - -app-protect-enforcer-address="127.0.0.1:50000"
-          - "-plm-storage-url=https://f5-waf-seaweed-filer.plm.svc.cluster.local:8333"
+          - "-plm-storage-url=http://f5-waf-seaweed-filer.plm.svc.cluster.local:8333"
           - "-plm-storage-credentials-secret=plm/seaweedfs-auth"
           - "-plm-storage-ca-secret=plm/seaweedfs-ca"
           - "-plm-storage-client-ssl-secret=plm/seaweedfs-client"

@@ -277,6 +277,30 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			namespace:         "default",
 			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.appprotect.v5=true"},
 		},
+		"appProtectWAFPLMWithoutPlus": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-plus.yaml",
+			releaseName:       "appprotect-waf-plm-without-plus",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.nginxplus=true"},
+		},
+		"appProtectWAFPLMWithoutAppProtect": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-appprotect.yaml",
+			releaseName:       "appprotect-waf-plm-without-appprotect",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.appprotect.enable=true"},
+		},
+		"appProtectWAFPLMWithoutCredentials": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-credentials.yaml",
+			releaseName:       "appprotect-waf-plm-without-credentials",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.credentialsSecret must be set when controller.appprotect.plmStorage.url is set"},
+		},
+		"appProtectWAFPLMWithoutURL": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-url.yaml",
+			releaseName:       "appprotect-waf-plm-without-url",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage auxiliary values require controller.appprotect.plmStorage.url"},
+		},
 	}
 
 	// Path to the helm chart we will test
