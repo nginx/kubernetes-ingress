@@ -952,6 +952,78 @@ func resolveOIDCNativeTrustedCert(
 	return trustedCertPath, trustedCrlPath, true
 }
 
+func deriveOIDCNativeSSLName(sslName, issuer string) string {
+	if sslName != "" {
+		return sslName
+	}
+	if u, err := url.Parse(issuer); err == nil && u.Host != "" {
+		if h, _, splitErr := net.SplitHostPort(u.Host); splitErr == nil {
+			return h
+		}
+		return u.Host
+	}
+	return ""
+}
+
+func validateAndRegisterOIDCNativeLocations(
+	polKey string,
+	providerName string,
+	redirectURI string,
+	postLogoutURI string,
+	proxyLocation string,
+	policyOpts policyOptions,
+	res *validationResults,
+) (*version2.AuthOIDCReturnLocation, bool) {
+	var postLogoutLoc *version2.AuthOIDCReturnLocation
+	if postLogoutURI != "" {
+		postLogoutLoc = &version2.AuthOIDCReturnLocation{
+			Path:        postLogoutURI,
+			DefaultType: "text/plain",
+			Return: version2.Return{
+				Code: 200,
+				Text: oidcNativePostLogoutMessage,
+			},
+		}
+	}
+
+	locations := []struct {
+		path string
+		role string
+	}{
+		{path: redirectURI, role: oidcNativeRoleCallback},
+		{path: postLogoutURI, role: oidcNativeRolePostLogout},
+		{path: proxyLocation, role: oidcNativeRoleProxy},
+	}
+	for _, location := range locations {
+		if location.path == "" {
+			continue
+		}
+		owner := oidcNativeLocationOwner{provider: providerName, role: location.role}
+		existing, exists := policyOpts.oidcNativeLocations[location.path]
+		if !exists || existing == owner {
+			continue
+		}
+		if location.role == oidcNativeRolePostLogout && existing.role == oidcNativeRolePostLogout {
+			postLogoutLoc = nil
+			continue
+		}
+		res.addWarningf("OIDCNative policy %s uses generated location %s, which conflicts with %s", polKey, location.path, existing)
+		res.isError = true
+		return nil, false
+	}
+	for _, location := range locations {
+		if location.path == "" || policyOpts.oidcNativeLocations == nil {
+			continue
+		}
+		if location.role == oidcNativeRolePostLogout && postLogoutLoc == nil {
+			continue
+		}
+		policyOpts.oidcNativeLocations[location.path] = oidcNativeLocationOwner{provider: providerName, role: location.role}
+	}
+
+	return postLogoutLoc, true
+}
+
 func (p *policiesCfg) addOIDCNativeConfig(
 	oidcNative *conf_v1.OIDCNative,
 	polKey string,
@@ -994,48 +1066,22 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	_, polName := ParseResourceReference(polKey, polNamespace)
 	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, polName, ownerDetails.parentNamespace, ownerDetails.parentName))
 
-	// Default redirect URI is derived from the provider name for uniqueness.
-	// User can override via the redirectURI field.
 	redirectURI := oidcNative.RedirectURI
 	if redirectURI == "" {
 		redirectURI = fmt.Sprintf("/oidc_callback_%s", providerName)
 	}
 
-	// Default cookie name is derived from the provider name to prevent session
-	// sharing between providers on the same domain.
-	// User can override via the cookieName field.
 	cookieName := oidcNative.CookieName
 	if cookieName == "" {
 		cookieName = fmt.Sprintf("NGX_OIDC_%s", providerName)
 	}
 
-	// Convert + to space in scope for backward compatibility with NJS OIDC format.
-	// The native module's scope directive expects space-separated values.
 	scope := strings.ReplaceAll(oidcNative.Scope, "+", " ")
-
-	// Always configure a named session store per provider.
-	// When zone-sync is enabled, the keyval zone gets the sync flag.
 	sessionStore := fmt.Sprintf("oidc_sessions_%s", providerName)
 	sync := policyOpts.zoneSync
-
-	// Always generate a proxy_location for the provider. NGINX proxies all IdP
-	// requests through this location, giving us control over SNI, Host header,
-	// TLS verification, and DNS resolution regardless of where the IdP lives.
 	proxyLocation := fmt.Sprintf("/_oidc_idp_%s", providerName)
 
-	// Derive the IdP hostname for SNI and Host header from the issuer URL.
-	// User can override via sslName field.
-	sslName := oidcNative.SSLName
-	if sslName == "" {
-		if u, err := url.Parse(oidcNative.Issuer); err == nil && u.Host != "" {
-			// Strip port if present — SNI is hostname only.
-			if h, _, splitErr := net.SplitHostPort(u.Host); splitErr == nil {
-				sslName = h
-			} else {
-				sslName = u.Host
-			}
-		}
-	}
+	sslName := deriveOIDCNativeSSLName(oidcNative.SSLName, oidcNative.Issuer)
 
 	sslVerify := true
 	if oidcNative.SSLVerify != nil {
@@ -1050,76 +1096,18 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		proxyBufferSize = "32k"
 	}
 
-	// Only render trusted CA material when TLS verification is enabled.
 	proxyTrustedCertPath := ""
-	if sslVerify && trustedCertPath != "" {
-		proxyTrustedCertPath = trustedCertPath
-	}
-
-	// Build the auto-generated post-logout location. When PostLogoutRedirectURI is
-	// set (CRD pattern restricts it to a path), we generate an unauthenticated
-	// location that returns a canned confirmation message. Users who want custom
-	// content on the same path should override with a route (post-GA: use a
-	// noAuth policy to complement).
-	var postLogoutLoc *version2.AuthOIDCReturnLocation
-	if oidcNative.PostLogoutRedirectURI != "" {
-		postLogoutLoc = &version2.AuthOIDCReturnLocation{
-			Path:        oidcNative.PostLogoutRedirectURI,
-			DefaultType: "text/plain",
-			Return: version2.Return{
-				Code: 200,
-				Text: oidcNativePostLogoutMessage,
-			},
-		}
-	}
-
-	locations := []struct {
-		path string
-		role string
-	}{
-		{path: redirectURI, role: oidcNativeRoleCallback},
-		{path: oidcNative.PostLogoutRedirectURI, role: oidcNativeRolePostLogout},
-		{path: proxyLocation, role: oidcNativeRoleProxy},
-	}
-	for _, location := range locations {
-		if location.path == "" {
-			continue
-		}
-		owner := oidcNativeLocationOwner{provider: providerName, role: location.role}
-		existing, exists := policyOpts.oidcNativeLocations[location.path]
-		if !exists || existing == owner {
-			continue
-		}
-		if location.role == oidcNativeRolePostLogout && existing.role == oidcNativeRolePostLogout {
-			// Post-logout locations carry no provider identity: they render a
-			// static "you have been logged out" page with no auth_oidc
-			// reference. Two providers legitimately sharing one (e.g. a
-			// single logout confirmation page for a whole host) is
-			// not ambiguous, so drop this provider's copy instead of
-			// erroring. removeDuplicateOIDCProviders() performs the same
-			// dedup defensively so the template can never emit two
-			// identical `location` blocks.
-			postLogoutLoc = nil
-			continue
-		}
-		res.addWarningf("OIDCNative policy %s uses generated location %s, which conflicts with %s", polKey, location.path, existing)
-		res.isError = true
-		return res
-	}
-	for _, location := range locations {
-		if location.path == "" || policyOpts.oidcNativeLocations == nil {
-			continue
-		}
-		if location.role == oidcNativeRolePostLogout && postLogoutLoc == nil {
-			// Deduplicated away above; keep the original owner registered.
-			continue
-		}
-		policyOpts.oidcNativeLocations[location.path] = oidcNativeLocationOwner{provider: providerName, role: location.role}
-	}
-
 	sslTrustedCert := ""
 	if sslVerify {
 		sslTrustedCert = trustedCertPath
+		if trustedCertPath != "" {
+			proxyTrustedCertPath = trustedCertPath
+		}
+	}
+
+	postLogoutLoc, ok := validateAndRegisterOIDCNativeLocations(polKey, providerName, redirectURI, oidcNative.PostLogoutRedirectURI, proxyLocation, policyOpts, res)
+	if !ok {
+		return res
 	}
 
 	p.OIDCProvider = &version2.OIDCProvider{
