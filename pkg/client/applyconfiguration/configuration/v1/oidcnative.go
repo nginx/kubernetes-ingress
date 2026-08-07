@@ -27,7 +27,7 @@ type OIDCNativeApplyConfiguration struct {
 	PKCE *string `json:"pkce,omitempty"`
 	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page.
 	LogoutURI *string `json:"logoutURI,omitempty"`
-	// Defines the path where the user is redirected after logout. Must be a path on the same VirtualServer host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response.
+	// Defines the path where the user is redirected after logout. Must be a path on the same host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response. If multiple OIDCNative providers on the same host set the same path, only one auto-generated location is rendered; providers whose other generated locations (redirectURI, or the internal IdP proxy location) collide are rejected instead.
 	PostLogoutRedirectURI *string `json:"postLogoutRedirectURI,omitempty"`
 	// Defines the URI path for triggering OIDC front-channel logout. When set, the IdP calls this URI in a hidden iframe when the user logs out globally, allowing NGINX to terminate the local session.
 	FrontChannelLogoutURI *string `json:"frontChannelLogoutURI,omitempty"`
