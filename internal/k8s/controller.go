@@ -2796,6 +2796,14 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 	for _, tls := range ing.Spec.TLS {
 		secretName := tls.SecretName
+		if secretName == "" {
+			// No secretName specified. Skip the store lookup to avoid a spurious
+			// "secret doesn't exist" warning on every sync of this Ingress.
+			// If --wildcard-tls-secret is configured, NGINX config generation will
+			// fall back to the wildcard TLS secret for this host.
+			ingEx.SecretRefs[secretName] = &secrets.SecretReference{}
+			continue
+		}
 		secretKey := ing.Namespace + "/" + secretName
 
 		secretRef := lbc.secretStore.GetSecret(secretKey)
