@@ -1,0 +1,20 @@
+# Test 22: A single Policy with both oidc and oidcNative set.
+#
+# Verify:
+#   - `kubectl apply -f test-22-both-oidc.yaml` fails with an admission error
+#     containing "must specify exactly one of ...".
+#   - No policy resource is created.
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test22-both-oidc
+spec:
+  oidc:
+    authEndpoint: https://example.com/auth
+    tokenEndpoint: https://example.com/token
+    jwksURI: https://example.com/jwks
+    clientID: test
+    clientSecret: oidcnative-secret
+  oidcNative:
+    issuer: https://example.com
+    clientID: test
