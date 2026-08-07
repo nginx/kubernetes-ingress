@@ -21,7 +21,12 @@ TAG                         ?= edge ## The tag of the image. For example, edge
 K8S_CLUSTER_NAME            ?= local ## The name used when creating/using a Kind Kubernetes cluster
 # renovate: datasource=docker depName=kindest/node
 K8S_CLUSTER_VERSION         ?= v1.36.1
-K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
+K8S_TIMEOUT                 ?= 75s ## The timeout used when creating a Kind Kubernetes cluster
+NUM_CLUSTERS                ?= 3 ## Number of concurrent Kind clusters for parallel-shard targets
+PARALLEL_PREFIX             ?= test ## Cluster-name prefix for parallel-shard targets (produces <prefix>-1..N)
+SHARD_CONFIG                ?= $(ROOT_DIR)/.github/data/matrix-smoke-oss.json ## Path to a smoke matrix JSON file
+SHARD_LABELS                ?= ## Comma-separated shard labels to run; empty means all in SHARD_CONFIG
+PARALLEL_RESULTS_DIR        ?= $(ROOT_DIR)/tests/parallel-results ## Directory for per-shard result artefacts
 PLUS_JWT                    ?=
 PYTEST_ARGS                 ?=
 ifeq (${REGISTRY},)
@@ -189,6 +194,85 @@ delete-mini-cluster: ## Delete a Minikube K8S cluster
 .PHONY: mini-image-load
 mini-image-load: ## Load the image into the Minikube K8S cluster
 	@minikube image load $(BUILD_IMAGE)
+
+
+.PHONY: create-parallel-kind-clusters
+create-parallel-kind-clusters: $(KIND_KUBE_CONFIG_FOLDER) ## Create $(NUM_CLUSTERS) Kind clusters named $(PARALLEL_PREFIX)-1..N
+	@set -e; \
+	for i in $$(seq 1 $(strip $(NUM_CLUSTERS))); do \
+	  name="$(strip $(PARALLEL_PREFIX))-$$i"; \
+	  echo "Creating kind cluster $$name..."; \
+	  kind create cluster \
+	    --name "$$name" \
+	    --image=kindest/node:$(K8S_CLUSTER_VERSION) \
+	    --config=<(sed 's/dual/$(IP_FAMILY)/' $(ROOT_DIR)/tests/ci-files/parallel-kind-config.yaml) \
+	    --wait $(K8S_TIMEOUT); \
+	done; \
+	rm -f $(KIND_KUBE_CONFIG_FOLDER)/config $(KIND_KUBE_CONFIG_FOLDER)/config-*; \
+	for i in $$(seq 1 $(strip $(NUM_CLUSTERS))); do \
+	  name="$(strip $(PARALLEL_PREFIX))-$$i"; \
+	  kind get kubeconfig --name "$$name" --internal > $(KIND_KUBE_CONFIG_FOLDER)/config-$$i; \
+	done; \
+	echo "$(strip $(NUM_CLUSTERS)) cluster(s) ready; per-cluster kubeconfigs at $(KIND_KUBE_CONFIG_FOLDER)/config-{1..$(strip $(NUM_CLUSTERS))}"
+
+
+.PHONY: delete-parallel-kind-clusters
+delete-parallel-kind-clusters: ## Delete all Kind clusters matching the $(PARALLEL_PREFIX)- prefix
+	@for name in $$(kind get clusters 2>/dev/null | grep -E '^$(strip $(PARALLEL_PREFIX))-[0-9]+$$' || true); do \
+	  echo "Deleting $$name..."; \
+	  kind delete cluster --name "$$name"; \
+	done; \
+	rm -f $(KIND_KUBE_CONFIG_FOLDER)/config $(KIND_KUBE_CONFIG_FOLDER)/config-*
+
+
+.PHONY: parallel-image-load
+parallel-image-load: ## Load $(BUILD_IMAGE) into each $(PARALLEL_PREFIX)-N cluster
+	@if ! docker image inspect $(BUILD_IMAGE) >/dev/null 2>&1; then \
+	  echo "NIC image $(BUILD_IMAGE) not found locally."; \
+	  echo "Build it first, e.g. 'make -f Makefile debian-image' at the repo root,"; \
+	  echo "or 'docker pull $(BUILD_IMAGE)'."; \
+	  exit 1; \
+	fi
+	@set -e; \
+	for i in $$(seq 1 $(strip $(NUM_CLUSTERS))); do \
+	  name="$(strip $(PARALLEL_PREFIX))-$$i"; \
+	  echo "Loading $(BUILD_IMAGE) into $$name..."; \
+	  kind load docker-image $(BUILD_IMAGE) --name "$$name"; \
+	done
+
+
+.PHONY: run-parallel-shards
+run-parallel-shards: secrets ## Distribute shards from $(SHARD_CONFIG) across $(NUM_CLUSTERS) clusters and run pytest in parallel
+	@ROOT_DIR="$(strip $(ROOT_DIR))" \
+	 NUM_CLUSTERS="$(strip $(NUM_CLUSTERS))" \
+	 PARALLEL_PREFIX="$(strip $(PARALLEL_PREFIX))" \
+	 SHARD_CONFIG="$(strip $(SHARD_CONFIG))" \
+	 SHARD_LABELS="$(strip $(SHARD_LABELS))" \
+	 BUILD_IMAGE="$(BUILD_IMAGE)" \
+	 KIND_KUBE_CONFIG_FOLDER="$(strip $(KIND_KUBE_CONFIG_FOLDER))" \
+	 TEST_PREFIX="$(strip $(TEST_PREFIX))" \
+	 TEST_TAG="$(strip $(TEST_TAG))" \
+	 RESULTS_DIR="$(strip $(PARALLEL_RESULTS_DIR))" \
+	 IC_TYPE="$(strip $(IC_TYPE))" \
+	 PLUS_JWT="$(strip $(PLUS_JWT))" \
+	 PYTEST_ARGS="$(PYTEST_ARGS)" \
+	 bash $(ROOT_DIR)/tests/scripts/run-parallel-shards.sh
+
+
+.PHONY: ensure-test-runner-image
+ensure-test-runner-image: ## Build $(TEST_PREFIX):$(TEST_TAG) only if it isn't already in the local Docker daemon
+	@if docker image inspect $(strip $(TEST_PREFIX)):$(strip $(TEST_TAG)) >/dev/null 2>&1; then \
+	  echo "Reusing existing $(strip $(TEST_PREFIX)):$(strip $(TEST_TAG)) (force rebuild with 'make -f tests/Makefile build')."; \
+	else \
+	  echo "Test-runner image $(strip $(TEST_PREFIX)):$(strip $(TEST_TAG)) not found; building..."; \
+	  $(MAKE) -f $(ROOT_DIR)/tests/Makefile build; \
+	fi
+
+
+.PHONY: parallel-smoke
+parallel-smoke: ensure-test-runner-image create-parallel-kind-clusters parallel-image-load ## Create clusters, load image, run shards, delete clusters (cleanup on exit)
+	@bash -c 'trap "$(MAKE) -f $(ROOT_DIR)/tests/Makefile delete-parallel-kind-clusters" EXIT INT TERM; \
+	  $(MAKE) -f $(ROOT_DIR)/tests/Makefile run-parallel-shards'
 
 
 .PHONY: test-lint

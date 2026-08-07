@@ -36,6 +36,10 @@ on:
       force:
         required: true
         type: boolean
+      durations:
+        required: false
+        type: string
+        default: "10"
 
 defaults:
   run:
@@ -240,6 +244,7 @@ jobs:
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
           plus-jwt: ${{ steps.secrets.outputs.PLUS_JWT }}
+          durations: ${{ inputs.durations }}
         if: ${{ steps.stable_exists.outputs.exists != 'true'  }}
 
       - name: Upload Test Results

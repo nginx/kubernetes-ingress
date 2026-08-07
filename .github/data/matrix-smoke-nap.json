@@ -29,7 +29,23 @@
       "image": "debian-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
-      "marker": "'appprotect_watch or appprotect_batch or appprotect_integration or appprotect_waf_policies_vsr or otel'",
+      "marker": "'appprotect_watch or appprotect_batch or otel'",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_WAF_VSR 1/1",
+      "image": "ubi-10-plus-nap",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "'appprotect_waf_policies_vsr'",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AP_WAF_INT 1/1",
+      "image": "debian-plus-nap",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "'appprotect_integration'",
       "platforms": "linux/amd64"
     },
     {
