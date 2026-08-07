@@ -202,6 +202,7 @@ jobs:
           no-cache: true
           build-args: |
             BUILD_OS=${{ inputs.image }}
+            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}
           secret-files: |
@@ -244,8 +245,8 @@ jobs:
           sbom: ${{ inputs.authenticated && !contains(inputs.target, 'aws') }}
           provenance: false
           build-args: |
-            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             BUILD_OS=${{ inputs.image }}
+            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image ) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}

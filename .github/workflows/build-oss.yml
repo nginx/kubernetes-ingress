@@ -196,6 +196,7 @@ jobs:
           push: true
           no-cache: true
           build-args: |
+            OSS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
