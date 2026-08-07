@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -25,6 +26,11 @@ import (
 // DefaultSigninRedirectBasePath is the default base path for the NGINX location
 // that handles sign-in redirect requests (e.g. oauth2-proxy expects /oauth2).
 const DefaultSigninRedirectBasePath = "/oauth2"
+
+// oidcNativePostLogoutMessage is the plain-text response body served by the
+// auto-generated post-logout location when an OIDCNative policy sets
+// PostLogoutRedirectURI.
+const oidcNativePostLogoutMessage = "You have been logged out.\n"
 
 // rateLimit hold the configuration for the ratelimiting Policy
 type rateLimit struct {
@@ -67,6 +73,7 @@ type policiesCfg struct {
 	IngressMTLS     *version2.IngressMTLS
 	EgressMTLS      *version2.EgressMTLS
 	OIDC            *version2.OIDC
+	OIDCProvider    *version2.OIDCProvider
 	APIKey          apiKeyAuth
 	WAF             *version2.WAF
 	Cache           *version2.Cache
@@ -100,7 +107,55 @@ type policyOptions struct {
 	oidcConfig *version2.OIDC
 	// plmEnabled routes apPolicy/apLogConf references to PLM-fetched bundles.
 	plmEnabled bool
+	// oidcNativeLocations maps generated exact-match location paths to the
+	// owner and role that first claimed them. It is shared by both OIDC
+	// implementations: addOIDCNativeConfig() registers each provider's
+	// callback/proxy/post-logout locations, and addOIDCConfig() registers the
+	// NJS OIDC module's fixed internal locations plus its callback. This
+	// prevents either implementation from silently rendering two `location`
+	// blocks with the same path (which nginx -t rejects outright) when NJS
+	// and native OIDC are used on different routes of the same VS. Post-logout
+	// locations claimed by two different OIDCNative providers are exempt --
+	// see oidcNativeLocationOwner and oidcNJSRoleReserved.
+	oidcNativeLocations map[string]oidcNativeLocationOwner
 }
+
+// oidcNativeLocationOwner identifies which OIDCNative provider and role
+// (callback, proxy, post-logout) generated a given location path.
+type oidcNativeLocationOwner struct {
+	provider string
+	role     string
+}
+
+func (o oidcNativeLocationOwner) String() string {
+	return fmt.Sprintf("%s:%s", o.provider, o.role)
+}
+
+// Roles used to key oidcNativeLocations. callback and proxy locations carry
+// provider identity (auth_oidc <provider>, per-provider SNI/TLS) and can never
+// be shared; post-logout locations are identity-free and may be deduplicated
+// -- but only between two OIDCNative providers (see oidcNJSRoleReserved).
+const (
+	oidcNativeRoleCallback   = "callback"
+	oidcNativeRoleProxy      = "proxy"
+	oidcNativeRolePostLogout = "post-logout"
+	// oidcNJSRoleReserved marks the seven fixed internal locations the NJS
+	// OIDC module always renders (independent of any policy field) whenever
+	// spec.oidc is used anywhere in a VirtualServer/VirtualServerRoute set --
+	// /_jwks_uri, /_token, /_refresh, /_token_validation, /logout,
+	// /front_channel_logout, and the static /_logout fallback page. Because
+	// each has module-specific behavior (js_content handlers, auth_jwt, or a
+	// fixed confirmation string), a collision here is always an error, even
+	// against OIDCNative's otherwise-mergeable post-logout role: the two
+	// implementations have no way to reconcile which body/handler wins.
+	oidcNJSRoleReserved = "njs-reserved"
+	// oidcNJSOwner is the constant owner name used for every location the
+	// NJS OIDC module registers. Only one NJS OIDC policy is allowed per
+	// VS/VSR set (see the "Multiple oidc policies" check in addOIDCConfig()),
+	// so there is no per-policy identity to track, unlike OIDCNative
+	// providers.
+	oidcNJSOwner = "njs"
+)
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 	return &policiesCfg{
@@ -640,6 +695,15 @@ func (p *policiesCfg) addOIDCConfig(
 		return res
 	}
 
+	if p.OIDCProvider != nil {
+		res.addWarningf(
+			"OIDC (NJS) policy %s conflicts with OIDCNative policy in the same context. Only one OIDC implementation can be used per context",
+			polKey,
+		)
+		res.isError = true
+		return res
+	}
+
 	var policy *version2.OIDC
 	if policyOpts.oidcPolicyName != "" {
 		if policyOpts.oidcPolicyName != polKey {
@@ -694,6 +758,49 @@ func (p *policiesCfg) addOIDCConfig(
 		if postLogoutRedirectURI == "" {
 			postLogoutRedirectURI = "/_logout"
 		}
+
+		// Register every exact-match location oidc.tmpl renders in the
+		// shared per-VS registry (see oidcNativeLocations), so an OIDCNative
+		// provider on a different route of the same VS can't silently claim
+		// one of these paths and produce a duplicate `location` block that
+		// nginx -t would reject. redirectURI is the only one of these that's
+		// user-configurable; the rest are fixed, unconditional locations in
+		// oidc.tmpl regardless of any policy field -- including /_logout,
+		// which is the static fallback page and is rendered even when
+		// postLogoutRedirectURI is customized to a different path.
+		njsLocations := []string{
+			redirectURI,
+			"/_jwks_uri",
+			"/_token",
+			"/_refresh",
+			"/_token_validation",
+			"/logout",
+			"/front_channel_logout",
+			"/_logout",
+		}
+		for _, path := range njsLocations {
+			owner := oidcNativeLocationOwner{provider: oidcNJSOwner, role: oidcNJSRoleReserved}
+			if path == redirectURI {
+				owner.role = oidcNativeRoleCallback
+			}
+			existing, exists := policyOpts.oidcNativeLocations[path]
+			if exists && existing != owner {
+				res.addWarningf("OIDC policy %s uses generated location %s, which conflicts with %s", polKey, path, existing)
+				res.isError = true
+				return res
+			}
+		}
+		for _, path := range njsLocations {
+			if policyOpts.oidcNativeLocations == nil {
+				continue
+			}
+			owner := oidcNativeLocationOwner{provider: oidcNJSOwner, role: oidcNJSRoleReserved}
+			if path == redirectURI {
+				owner.role = oidcNativeRoleCallback
+			}
+			policyOpts.oidcNativeLocations[path] = owner
+		}
+
 		scope := oidc.Scope
 		if scope == "" {
 			scope = "openid"
@@ -763,6 +870,290 @@ func (p *policiesCfg) addOIDCConfig(
 	}
 
 	p.OIDC = policy
+
+	return res
+}
+
+func resolveOIDCNativeClientSecret(
+	oidcNative *conf_v1.OIDCNative,
+	polKey string,
+	polNamespace string,
+	secretRefs map[string]*secrets.SecretReference,
+	res *validationResults,
+) (string, bool) {
+	if oidcNative.ClientSecret == "" {
+		return "", true
+	}
+	secretKey := fmt.Sprintf("%v/%v", polNamespace, oidcNative.ClientSecret)
+	secretRef, ok := secretRefs[secretKey]
+	if !ok {
+		res.addWarningf("OIDCNative policy %s references a missing secret %s", polKey, secretKey)
+		res.isError = true
+		return "", false
+	}
+
+	var secretType api_v1.SecretType
+	if secretRef.Secret != nil {
+		secretType = secretRef.Secret.Type
+	}
+	if secretType != "" && secretType != secrets.SecretTypeOIDC {
+		res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+		res.isError = true
+		return "", false
+	}
+	if secretRef.Error != nil {
+		res.addWarningf("OIDCNative policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+		res.isError = true
+		return "", false
+	}
+
+	return string(secretRef.Secret.Data[ClientSecretKey]), true
+}
+
+func resolveOIDCNativeTrustedCert(
+	oidcNative *conf_v1.OIDCNative,
+	polKey string,
+	polNamespace string,
+	policyOpts policyOptions,
+	res *validationResults,
+) (string, string, bool) {
+	trustedCertPath := policyOpts.defaultCABundle
+	trustedCrlPath := ""
+	if oidcNative.TrustedCertSecret == "" {
+		return trustedCertPath, trustedCrlPath, true
+	}
+
+	trustedCertKey := fmt.Sprintf("%s/%s", polNamespace, oidcNative.TrustedCertSecret)
+	trustedCertRef, ok := policyOpts.secretRefs[trustedCertKey]
+	if !ok {
+		res.addWarningf("OIDCNative policy %s references a missing trusted cert secret %s", polKey, trustedCertKey)
+		res.isError = true
+		return "", "", false
+	}
+	var secretType api_v1.SecretType
+	if trustedCertRef.Secret != nil {
+		secretType = trustedCertRef.Secret.Type
+	}
+	if secretType != "" && secretType != secrets.SecretTypeCA {
+		res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertKey, secretType, secrets.SecretTypeCA)
+		res.isError = true
+		return "", "", false
+	}
+	if trustedCertRef.Error != nil {
+		res.addWarningf("OIDCNative policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertKey, trustedCertRef.Error)
+		res.isError = true
+		return "", "", false
+	}
+	caFields := strings.Fields(trustedCertRef.Path)
+	if len(caFields) > 0 {
+		trustedCertPath = caFields[0]
+	}
+	if len(caFields) > 1 {
+		trustedCrlPath = caFields[1]
+	}
+	return trustedCertPath, trustedCrlPath, true
+}
+
+func (p *policiesCfg) addOIDCNativeConfig(
+	oidcNative *conf_v1.OIDCNative,
+	polKey string,
+	polNamespace string,
+	ownerDetails policyOwnerDetails,
+	policyOpts policyOptions,
+) *validationResults {
+	secretRefs := policyOpts.secretRefs
+	res := newValidationResults()
+
+	if p.OIDCProvider != nil {
+		res.addWarningf(
+			"Multiple oidcNative policies in the same context is not valid. OIDCNative policy %s will be ignored",
+			polKey,
+		)
+		return res
+	}
+
+	if p.OIDC != nil {
+		res.addWarningf(
+			"OIDCNative policy %s conflicts with OIDC (NJS) policy in the same context. Only one OIDC implementation can be used per context",
+			polKey,
+		)
+		res.isError = true
+		return res
+	}
+
+	// Resolve client secret if specified.
+	clientSecret, ok := resolveOIDCNativeClientSecret(oidcNative, polKey, polNamespace, secretRefs, res)
+	if !ok {
+		return res
+	}
+
+	// Resolve trusted CA cert (and optional CRL) if specified.
+	trustedCertPath, trustedCrlPath, ok := resolveOIDCNativeTrustedCert(oidcNative, polKey, polNamespace, policyOpts, res)
+	if !ok {
+		return res
+	}
+
+	_, polName := ParseResourceReference(polKey, polNamespace)
+	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, polName, ownerDetails.parentNamespace, ownerDetails.parentName))
+
+	// Default redirect URI is derived from the provider name for uniqueness.
+	// User can override via the redirectURI field.
+	redirectURI := oidcNative.RedirectURI
+	if redirectURI == "" {
+		redirectURI = fmt.Sprintf("/oidc_callback_%s", providerName)
+	}
+
+	// Default cookie name is derived from the provider name to prevent session
+	// sharing between providers on the same domain.
+	// User can override via the cookieName field.
+	cookieName := oidcNative.CookieName
+	if cookieName == "" {
+		cookieName = fmt.Sprintf("NGX_OIDC_%s", providerName)
+	}
+
+	// Convert + to space in scope for backward compatibility with NJS OIDC format.
+	// The native module's scope directive expects space-separated values.
+	scope := strings.ReplaceAll(oidcNative.Scope, "+", " ")
+
+	// Always configure a named session store per provider.
+	// When zone-sync is enabled, the keyval zone gets the sync flag.
+	sessionStore := fmt.Sprintf("oidc_sessions_%s", providerName)
+	sync := policyOpts.zoneSync
+
+	// Always generate a proxy_location for the provider. NGINX proxies all IdP
+	// requests through this location, giving us control over SNI, Host header,
+	// TLS verification, and DNS resolution regardless of where the IdP lives.
+	proxyLocation := fmt.Sprintf("/_oidc_idp_%s", providerName)
+
+	// Derive the IdP hostname for SNI and Host header from the issuer URL.
+	// User can override via sslName field.
+	sslName := oidcNative.SSLName
+	if sslName == "" {
+		if u, err := url.Parse(oidcNative.Issuer); err == nil && u.Host != "" {
+			// Strip port if present — SNI is hostname only.
+			if h, _, splitErr := net.SplitHostPort(u.Host); splitErr == nil {
+				sslName = h
+			} else {
+				sslName = u.Host
+			}
+		}
+	}
+
+	sslVerify := true
+	if oidcNative.SSLVerify != nil {
+		sslVerify = *oidcNative.SSLVerify
+	}
+	sslVerifyDepth := 1
+	if oidcNative.SSLVerifyDepth != nil {
+		sslVerifyDepth = *oidcNative.SSLVerifyDepth
+	}
+	proxyBufferSize := oidcNative.ProxyBufferSize
+	if proxyBufferSize == "" {
+		proxyBufferSize = "32k"
+	}
+
+	// Only render trusted CA material when TLS verification is enabled.
+	proxyTrustedCertPath := ""
+	if sslVerify && trustedCertPath != "" {
+		proxyTrustedCertPath = trustedCertPath
+	}
+
+	// Build the auto-generated post-logout location. When PostLogoutRedirectURI is
+	// set (CRD pattern restricts it to a path), we generate an unauthenticated
+	// location that returns a canned confirmation message. Users who want custom
+	// content on the same path should override with a route (post-GA: use a
+	// noAuth policy to complement).
+	var postLogoutLoc *version2.AuthOIDCReturnLocation
+	if oidcNative.PostLogoutRedirectURI != "" {
+		postLogoutLoc = &version2.AuthOIDCReturnLocation{
+			Path:        oidcNative.PostLogoutRedirectURI,
+			DefaultType: "text/plain",
+			Return: version2.Return{
+				Code: 200,
+				Text: oidcNativePostLogoutMessage,
+			},
+		}
+	}
+
+	locations := []struct {
+		path string
+		role string
+	}{
+		{path: redirectURI, role: oidcNativeRoleCallback},
+		{path: oidcNative.PostLogoutRedirectURI, role: oidcNativeRolePostLogout},
+		{path: proxyLocation, role: oidcNativeRoleProxy},
+	}
+	for _, location := range locations {
+		if location.path == "" {
+			continue
+		}
+		owner := oidcNativeLocationOwner{provider: providerName, role: location.role}
+		existing, exists := policyOpts.oidcNativeLocations[location.path]
+		if !exists || existing == owner {
+			continue
+		}
+		if location.role == oidcNativeRolePostLogout && existing.role == oidcNativeRolePostLogout {
+			// Post-logout locations carry no provider identity: they render a
+			// static "you have been logged out" page with no auth_oidc
+			// reference. Two providers legitimately sharing one (e.g. a
+			// single logout confirmation page for a whole host) is
+			// not ambiguous, so drop this provider's copy instead of
+			// erroring. removeDuplicateOIDCProviders() performs the same
+			// dedup defensively so the template can never emit two
+			// identical `location` blocks.
+			postLogoutLoc = nil
+			continue
+		}
+		res.addWarningf("OIDCNative policy %s uses generated location %s, which conflicts with %s", polKey, location.path, existing)
+		res.isError = true
+		return res
+	}
+	for _, location := range locations {
+		if location.path == "" || policyOpts.oidcNativeLocations == nil {
+			continue
+		}
+		if location.role == oidcNativeRolePostLogout && postLogoutLoc == nil {
+			// Deduplicated away above; keep the original owner registered.
+			continue
+		}
+		policyOpts.oidcNativeLocations[location.path] = oidcNativeLocationOwner{provider: providerName, role: location.role}
+	}
+
+	sslTrustedCert := ""
+	if sslVerify {
+		sslTrustedCert = trustedCertPath
+	}
+
+	p.OIDCProvider = &version2.OIDCProvider{
+		Name:                  providerName,
+		PolicyKey:             polKey,
+		Issuer:                oidcNative.Issuer,
+		ClientID:              oidcNative.ClientID,
+		ClientSecret:          clientSecret,
+		ConfigURL:             oidcNative.ConfigURL,
+		Scope:                 scope,
+		RedirectURI:           redirectURI,
+		CookieName:            cookieName,
+		ExtraAuthArgs:         oidcNative.ExtraAuthArgs,
+		PKCE:                  oidcNative.PKCE,
+		LogoutURI:             oidcNative.LogoutURI,
+		PostLogoutURI:         oidcNative.PostLogoutRedirectURI,
+		FrontChannelLogoutURI: oidcNative.FrontChannelLogoutURI,
+		LogoutTokenHint:       oidcNative.LogoutTokenHint,
+		SessionStore:          sessionStore,
+		SessionTimeout:        oidcNative.SessionTimeout,
+		Sync:                  sync,
+		UserInfoEnable:        oidcNative.UserInfoEnable,
+		SSLTrustedCert:        sslTrustedCert,
+		SSLCrl:                trustedCrlPath,
+		SSLVerify:             sslVerify,
+		SSLName:               sslName,
+		SSLVerifyDepth:        sslVerifyDepth,
+		ProxyLocation:         proxyLocation,
+		ProxyBufferSize:       proxyBufferSize,
+		ProxyTrustedCertPath:  proxyTrustedCertPath,
+		PostLogoutLocation:    postLogoutLoc,
+	}
 
 	return res
 }
@@ -1284,6 +1675,8 @@ func generatePolicies(
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
 				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts)
+			case pol.Spec.OIDCNative != nil:
+				res = config.addOIDCNativeConfig(pol.Spec.OIDCNative, key, polNamespace, ownerDetails, policyOpts)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:

@@ -32,6 +32,14 @@ const (
 	splitClientsKeyValZoneSize                      = "100k"
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 	defaultLogOutput                                = "syslog:server=localhost:514"
+	// oidcNativeSessionZoneSize is the shared memory allocated to each
+	// auto-generated OIDCNative session store keyval zone.
+	oidcNativeSessionZoneSize = "10m"
+	// oidcNativeSessionSyncDefaultTimeout is the fallback timeout applied to
+	// the session store keyval zone when zone-sync is enabled and the user
+	// hasn't set sessionTimeout on the policy. NGINX Plus requires `timeout=`
+	// whenever `sync` is on.
+	oidcNativeSessionSyncDefaultTimeout = "1h"
 )
 
 var grpcConflictingErrors = map[int]bool{
@@ -424,13 +432,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
-		tls:             sslConfig != nil,
-		zoneSync:        vsEx.ZoneSync,
-		secretRefs:      vsEx.SecretRefs,
-		apResources:     apResources,
-		defaultCABundle: vsc.CABundlePath,
-		replicas:        vsc.IngressControllerReplicas,
-		plmEnabled:      vsc.plmEnabled,
+		tls:                 sslConfig != nil,
+		zoneSync:            vsEx.ZoneSync,
+		secretRefs:          vsEx.SecretRefs,
+		apResources:         apResources,
+		defaultCABundle:     vsc.CABundlePath,
+		replicas:            vsc.IngressControllerReplicas,
+		plmEnabled:          vsc.plmEnabled,
+		oidcNativeLocations: make(map[string]oidcNativeLocationOwner),
 	}
 
 	ownerDetails := policyOwnerDetails{
@@ -488,9 +497,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var limitReqZones []version2.LimitReqZone
 	var authJWTClaimSets []version2.AuthJWTClaimSet
 	var cacheZones []version2.CacheZone
+	var oidcProviders []version2.OIDCProvider
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
+	if policiesCfg.OIDCProvider != nil {
+		oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
+	}
 
 	// Add cache zone from global policy if present
 	addCacheZone(&cacheZones, policiesCfg.Cache)
@@ -705,7 +718,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			policyOpts.oidcConfig = routePoliciesCfg.OIDC
 			// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
 			policiesCfg.OIDC = routePoliciesCfg.OIDC
-		} else if specHasOIDC {
+		} else if specHasOIDC && routePoliciesCfg.OIDCProvider == nil {
 			// Inherit the spec-level OIDC to routes that don't define their own.
 			// Using the specHasOIDC boolean (set before the loop) avoids reading the potentially
 			// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
@@ -792,8 +805,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
-
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+		if routePoliciesCfg.OIDCProvider != nil {
+			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
+		}
 
 		// Add cache zone from route policy if present
 		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -938,7 +953,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyOpts.oidcConfig = routePoliciesCfg.OIDC
 				// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
 				policiesCfg.OIDC = routePoliciesCfg.OIDC
-			} else if specHasOIDC {
+			} else if specHasOIDC && routePoliciesCfg.OIDCProvider == nil {
 				// Inherit the spec-level OIDC to subroutes that don't define their own.
 				// Using the specHasOIDC boolean (set before the route loop) avoids reading the potentially
 				// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
@@ -1024,8 +1039,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
-
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+			if routePoliciesCfg.OIDCProvider != nil {
+				oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
+			}
 
 			// Add cache zone from subroute policy if present
 			addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -1114,6 +1131,22 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		return upstreams[i].Name < upstreams[j].Name
 	})
 
+	// Generate keyval zones for OIDC Native session stores.
+	dedupedOIDCProviders := removeDuplicateOIDCProviders(oidcProviders)
+	for _, p := range dedupedOIDCProviders {
+		if p.SessionStore != "" {
+			timeout := p.SessionTimeout
+			if p.Sync && timeout == "" {
+				timeout = oidcNativeSessionSyncDefaultTimeout
+			}
+			keyValZones = append(keyValZones, version2.KeyValZone{
+				Name:    p.SessionStore,
+				Size:    oidcNativeSessionZoneSize,
+				Sync:    p.Sync,
+				Timeout: timeout,
+			})
+		}
+	}
 	addHSTSToLocationsWithAddHeaders(policiesCfg.HSTS, locations)
 
 	vsCfg := version2.VirtualServerConfig{
@@ -1122,6 +1155,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
 		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
+		OIDCProviders:    dedupedOIDCProviders,
 		CacheZones:       cacheZones,
 		HTTPSnippets:     httpSnippets,
 		Server: version2.Server{
@@ -1165,6 +1199,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			APIKey:                    policiesCfg.APIKey.Key,
 			APIKeyEnabled:             policiesCfg.APIKey.Enabled,
 			OIDC:                      policiesCfg.OIDC,
+			OIDCProviderName:          getOIDCProviderName(policiesCfg),
 			WAF:                       policiesCfg.WAF,
 			Dos:                       dosCfg,
 			Cache:                     policiesCfg.Cache,
@@ -1402,6 +1437,41 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	return result
 }
 
+func removeDuplicateOIDCProviders(providers []version2.OIDCProvider) []version2.OIDCProvider {
+	if len(providers) == 0 {
+		return nil
+	}
+	encountered := make(map[string]bool)
+	encounteredPostLogoutPath := make(map[string]bool)
+	var result []version2.OIDCProvider
+
+	for _, v := range providers {
+		if encountered[v.Name] {
+			continue
+		}
+		encountered[v.Name] = true
+
+		// Post-logout locations carry no provider identity (a static "you
+		// have been logged out" page), so multiple providers may share a
+		// path. addOIDCNativeConfig() already drops PostLogoutLocation on
+		// all but the first provider that claims a given path; this is a
+		// defensive second pass so the template can never emit two
+		// identical `location` blocks regardless of how providers reach
+		// this aggregation point.
+		if v.PostLogoutLocation != nil {
+			if encounteredPostLogoutPath[v.PostLogoutLocation.Path] {
+				v.PostLogoutLocation = nil
+			} else {
+				encounteredPostLogoutPath[v.PostLogoutLocation.Path] = true
+			}
+		}
+
+		result = append(result, v)
+	}
+
+	return result
+}
+
 func removeDuplicateMaps(maps []version2.Map) []version2.Map {
 	if len(maps) == 0 {
 		return nil
@@ -1446,6 +1516,13 @@ func hasDuplicateMapDefaults(m *version2.Map) bool {
 	return count > 1
 }
 
+func getOIDCProviderName(cfg policiesCfg) string {
+	if cfg.OIDCProvider != nil {
+		return cfg.OIDCProvider.Name
+	}
+	return ""
+}
+
 func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.Allow = cfg.Allow
 	location.Deny = cfg.Deny
@@ -1455,7 +1532,9 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.ExternalAuth = cfg.ExternalAuth
 	location.BasicAuth = cfg.BasicAuth
 	location.EgressMTLS = cfg.EgressMTLS
-	if cfg.OIDC != nil {
+	if cfg.OIDCProvider != nil {
+		location.OIDCProviderName = cfg.OIDCProvider.Name
+	} else if cfg.OIDC != nil {
 		location.OIDC = true
 	}
 	location.WAF = cfg.WAF
