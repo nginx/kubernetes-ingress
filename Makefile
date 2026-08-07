@@ -42,7 +42,7 @@ GOLANGCI_LINT_VERSION         ?= v2.12.2 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
 GOIMPORTS_VERSION             ?= v0.48.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
-GOFUMPT_VERSION               ?= v0.10.0 ## The version of gofumpt to use
+GOFUMPT_VERSION               ?= v0.11.0 ## The version of gofumpt to use
 
 # Additional flags added here can be accessed in main.go.
 # e.g. `main.version` maps to `var version` in main.go
