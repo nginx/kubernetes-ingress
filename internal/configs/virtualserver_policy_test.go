@@ -477,7 +477,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 						{
 							Name:         "/oauth2/signin",
 							Codes:        "401",
-							ResponseCode: -1,
+								ResponseCode: version2.ErrorPageResponseCodeInherit,
 						},
 					},
 					ProxySSLName:            "tea-svc.default.svc",
