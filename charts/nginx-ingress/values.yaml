@@ -131,6 +131,21 @@ controller:
       #    cpu: 500m
       #    memory: 512Mi
 
+    ## Configuration for fetching bundles compiled by F5 WAF Policy Controller (PLM).
+    ## Requires nginxplus=true, appprotect.enable=true, and appprotect.v5=true.
+    ## Secret references must use the namespace/name format.
+    plmStorage:
+      ## SeaweedFS S3 endpoint. Leave empty to disable PLM support.
+      url: ""
+      ## Secret containing the SeaweedFS admin secret under seaweedfs_admin_secret, namespace/name format.
+      credentialsSecret: ""
+      ## Optional Secret containing ca.crt for SeaweedFS TLS verification, namespace/name format.
+      caSecret: ""
+      ## Optional Secret containing tls.crt and tls.key for SeaweedFS mTLS, namespace/name format.
+      clientSSLSecret: ""
+      ## Disable SeaweedFS TLS verification. For development and testing only.
+      insecureSkipVerify: false
+
     ## Configuration for App Protect WAF v5 IP Intelligence
     ipIntelligence:
       enable: false

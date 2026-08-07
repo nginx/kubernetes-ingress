@@ -146,6 +146,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "appprotect-wafv5-resources",
 			namespace:   "appprotect-wafv5",
 		},
+		"appProtectWAFPLM": {
+			valuesFile:  "testdata/app-protect-waf-plm.yaml",
+			releaseName: "appprotect-waf-plm",
+			namespace:   "appprotect-waf-plm",
+		},
 		"appProtectDOS": {
 			valuesFile:  "testdata/app-protect-dos.yaml",
 			releaseName: "appprotect-dos",
@@ -265,6 +270,12 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "global-config-empty-name",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")"},
+		},
+		"appProtectWAFPLMWithoutV5": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-v5.yaml",
+			releaseName:       "appprotect-waf-plm-without-v5",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.appprotect.v5=true"},
 		},
 	}
 
