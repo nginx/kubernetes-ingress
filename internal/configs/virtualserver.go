@@ -1273,8 +1273,8 @@ func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
 		return []version2.ErrorPage{
 			{
-				Name:         cfg.ExternalAuth.SigninURL,
-				Codes:        "401",
+				Name:  cfg.ExternalAuth.SigninURL,
+				Codes: "401",
 				// -1 makes the template emit `=` without a specific code so nginx returns the signin URI's status (e.g. 302) instead of the original 401.
 				ResponseCode: -1,
 			},
