@@ -232,7 +232,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 # Used as: BUILD_OS=alpine-plus
 FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS alpine-plus
 ARG NGINX_PLUS_VERSION
-ARG PACKAGE_REPO
+ARG PLUS_PACKAGE_REPO
 ARG AGENT_V3_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -257,6 +257,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Adds:    OpenSSL FIPS provider from alpine-fips-3.22 (fips.so, fipsmodule.cnf, openssl.cnf)
 # Used as: BUILD_OS=alpine-plus-fips
 FROM alpine-plus AS alpine-plus-fips
+ARG PLUS_PACKAGE_REPO
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -277,7 +278,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS alpine-plus-nap-fips-base
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
-ARG PACKAGE_REPO
+ARG PLUS_PACKAGE_REPO
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -312,7 +313,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 # Used as:  BUILD_OS=alpine-plus-nap-fips
 FROM alpine-plus-nap-fips-base AS alpine-plus-nap-fips
 ARG AGENT_V2_VERSION
-ARG PACKAGE_REPO
+ARG PLUS_PACKAGE_REPO
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
@@ -330,7 +331,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Used as:  BUILD_OS=alpine-plus-nap-fips-agent
 FROM alpine-plus-nap-fips-base AS alpine-plus-nap-fips-agent
 ARG AGENT_V3_VERSION
-ARG PACKAGE_REPO
+ARG PLUS_PACKAGE_REPO
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
@@ -348,7 +349,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Extended: alpine-plus-nap-v5-fips (Agent v2)  •  alpine-plus-nap-v5-fips-agent (Agent v3)
 FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS alpine-plus-nap-v5-fips-base
 ARG NGINX_PLUS_VERSION
-ARG PACKAGE_REPO
+ARG PLUS_PACKAGE_REPO
 ARG NAP_WAF_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -379,7 +380,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 # Used as:  BUILD_OS=alpine-plus-nap-v5-fips
 FROM alpine-plus-nap-v5-fips-base AS alpine-plus-nap-v5-fips
 ARG AGENT_V2_VERSION
-ARG PACKAGE_REPO
+ARG PLUS_PACKAGE_REPO
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
@@ -397,7 +398,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Used as:  BUILD_OS=alpine-plus-nap-v5-fips-agent
 FROM alpine-plus-nap-v5-fips-base AS alpine-plus-nap-v5-fips-agent
 ARG AGENT_V3_VERSION
-ARG PACKAGE_REPO
+ARG PLUS_PACKAGE_REPO
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
@@ -415,6 +416,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Extended: debian-plus (Agent v3)  •  debian-plus-nap-base  •  debian-plus-nap-v5-base
 FROM debian:13-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258 AS debian-plus-only
 ARG NGINX_PLUS_VERSION
+ARG PLUS_PACKAGE_REPO
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -444,6 +446,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 ############################################# Base image for Debian with NGINX Plus #############################################
 FROM debian-plus-only AS debian-plus
 ARG NGINX_PLUS_VERSION
+ARG PLUS_PACKAGE_REPO
 ARG AGENT_V3_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -469,6 +472,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 FROM debian-plus-only AS debian-plus-nap-base
 ARG NAP_MODULES
 ARG NGINX_PLUS_VERSION
+ARG PLUS_PACKAGE_REPO
 ARG NAP_WAF_VERSION
 ARG NAP_WAF_COMMON_VERSION
 ARG NAP_WAF_PLUGIN_VERSION
@@ -513,6 +517,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 # Extended: debian-plus-nap-v5 (Agent v2)  •  debian-plus-nap-v5-agent (Agent v3)
 FROM debian-plus-only AS debian-plus-nap-v5-base
 ARG NGINX_PLUS_VERSION
+ARG PLUS_PACKAGE_REPO
 ARG NAP_WAF_VERSION
 ARG NAP_WAF_PLUGIN_VERSION
 
