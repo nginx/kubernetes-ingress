@@ -75,6 +75,7 @@ After changing `types.go`, always run `make update-codegen` then `make update-cr
 | `nic-testing` | Test | Writing unit, snapshot, Helm, or Python integration tests |
 | `nic-debugging` | Bugfix | Diagnosing failures, NGINX reload errors, config generation bugs |
 | `nic-ci-pipelines` | Review | Working on CI workflows, build matrices, or release pipeline |
+| `nic-code-review` | Review | Reviewing PRs (local chat, `pr-review` prompt, GitHub Copilot Code Review bot) |
 
 ---
 
@@ -88,34 +89,14 @@ After changing `types.go`, always run `make update-codegen` then `make update-cr
 
 ---
 
-## Code Review Checklist
+## Code Review
 
-Comment only at >80% confidence. Be concise and actionable.
+For any PR review -- local or via GitHub Copilot Code Review -- load and follow the [`nic-code-review`](skills/nic-code-review/SKILL.md) skill. It owns the review workflow, guardrails, dimension coverage, output format, and the "do not comment" list.
 
-### Security
+The skill deliberately delegates codebase-specific rules to the domain skills (`nic-structure`, `nic-add-feature`, `nic-add-policy`, `nic-docker-images`, `nic-ci-pipelines`, `nic-testing`).
 
-- Raw NGINX config injection via unsanitized user strings (missing `containsDangerousChars()`)
-- Command injection in shell commands or NGINX directives
-- Credential exposure or hardcoded secrets
-- Docker secrets leaked into image layers
+Absolute minimum reviewer discipline:
 
-### Correctness
-
-- Logic errors causing panics or incorrect behavior
-- Race conditions in concurrent code
-- `*bool` used where plain `bool` (default false) suffices
-- Missing error context in `fmt.Errorf` wrapping
-- Template directives without `{{- if }}` / `{{- with }}` guards
-
-### Architecture
-
-- Missing validation for new CRD fields
-- Missing template rendering for new config struct fields
-- Missing tests for new functionality
-- Helm values changes without schema updates
-- OSS template updated but Plus template missed (or vice versa)
-- Version 1 (Ingress) support forgotten when adding Version 2 (VS) features
-
-### Markdown (for skill/doc authoring)
-
-- Table separator rows must use `| --- | --- |` style — never bare `|---|---|` (MD060)
+- Comment only at >80% confidence.
+- Be concise, actionable, and file+line specific.
+- Never post secrets, tokens, or license contents in review output.

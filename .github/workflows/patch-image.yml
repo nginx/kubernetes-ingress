@@ -89,7 +89,7 @@ jobs:
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: Apply OS patches to Container
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
           context: "."

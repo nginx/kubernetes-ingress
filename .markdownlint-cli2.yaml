@@ -17,6 +17,11 @@ noBanner: true
 ignores:
   - ".github/**"
   - "docs/**" # Ignore developer docs folder
+  - "vendor/**" # Ignore vendor folder
+  - "**/venv/**"
+  - "**/.venv/**"
+  - ".local/**"
+  - "external-auth-blog.md"
 
 # Fix any fixable errors
 fix: true

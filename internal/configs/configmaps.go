@@ -1264,8 +1264,6 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		AppProtectDosLogFormat:             config.MainAppProtectDosLogFormat,
 		AppProtectDosLogFormatEscaping:     config.MainAppProtectDosLogFormatEscaping,
 		AppProtectDosArbFqdn:               config.MainAppProtectDosArbFqdn,
-		InternalRouteServer:                staticCfgParams.EnableInternalRoutes,
-		InternalRouteServerName:            staticCfgParams.InternalRouteServerName,
 		LatencyMetrics:                     staticCfgParams.EnableLatencyMetrics,
 		OIDC: version1.OIDCConfig{
 			Enable:          staticCfgParams.EnableOIDC,

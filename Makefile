@@ -4,11 +4,11 @@ GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 # renovate: datasource=docker depName=nginx/nginx
-NGINX_OSS_VERSION             ?= 1.31.2
+NGINX_OSS_VERSION             ?= 1.31.3
 NGINX_PLUS_VERSION            ?= R37.0
-NAP_WAF_VERSION               ?= 37.0+5.635
-NAP_WAF_COMMON_VERSION        ?= 11.665
-NAP_WAF_PLUGIN_VERSION        ?= 6.29
+NAP_WAF_VERSION               ?= 37.0+5.690
+NAP_WAF_COMMON_VERSION        ?= 11.735
+NAP_WAF_PLUGIN_VERSION        ?= 6.30
 AGENT_V2_VERSION              ?= 2
 AGENT_V3_VERSION              ?= 3
 PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=nginx-repo.crt,src=nginx-repo.crt --secret id=nginx-repo.key,src=nginx-repo.key
@@ -24,7 +24,7 @@ GOVULNCHECK_VERSION ?= v1.1.4
 
 GO_DOCKER_IMAGE_NAME    ?= golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.26.4-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.26.5-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
 REGISTRY                      ?= ## The registry where the image is located.
@@ -40,7 +40,7 @@ TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
 GOLANGCI_LINT_VERSION         ?= v2.12.2 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
-GOIMPORTS_VERSION             ?= v0.47.0 ## The version of goimports to use
+GOIMPORTS_VERSION             ?= v0.48.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
 GOFUMPT_VERSION               ?= v0.10.0 ## The version of gofumpt to use
 
@@ -187,14 +187,14 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 ###### NIC + NGINX OSS Images (built from scratch) ######
 
 .PHONY: alpine-image
-alpine-image: ## Build OSS Alpine-based image
+alpine-image: build ## Build OSS Alpine-based image
 	$(DOCKER_CMD) \
 		--build-arg BUILD_OS=alpine \
 		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: debian-image
-debian-image: ## Build OSS Debian-based image
+debian-image: build ## Build OSS Debian-based image
 	$(DOCKER_CMD) \
 		--build-arg BUILD_OS=debian \
 		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \

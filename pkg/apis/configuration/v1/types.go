@@ -70,8 +70,6 @@ type VirtualServerSpec struct {
 	Dos string `json:"dos"`
 	// The externalDNS configuration for a VirtualServer.
 	ExternalDNS ExternalDNS `json:"externalDNS"`
-	// InternalRoute allows for the configuration of internal routing.
-	InternalRoute bool `json:"internalRoute"`
 }
 
 // VirtualServerListener references a custom http and/or https listener defined in GlobalConfiguration.
@@ -814,6 +812,8 @@ type PolicySpec struct {
 	CORS *CORS `json:"cors"`
 	// The ExternalAuth policy configures NGINX to authenticate client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server.
 	ExternalAuth *ExternalAuth `json:"externalAuth"`
+	// The HSTS policy configures HTTP Strict Transport Security headers
+	HSTS *HSTS `json:"hsts"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -1028,7 +1028,7 @@ const (
 //   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 //   - N1C: pull a named managed policy from NGINX One Console via its API.
 //
-// Type-specific field requirements (policyName required for NIM/N1C, policyNamespace
+// Type-specific field requirements (name required for NIM/N1C, namespace
 // required for N1C) are enforced by the controller's Go validation layer.
 type BundleSource struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
@@ -1058,15 +1058,15 @@ type BundleSource struct {
 	// +optional
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
-	// PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
-	PolicyName string `json:"policyName,omitempty"`
+	Name string `json:"name,omitempty"`
 
-	// PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only.
+	// Namespace is the namespace/tenant on the management plane. Required for N1C only.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
-	PolicyNamespace string `json:"policyNamespace,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 
 	// EnablePolling enables background polling to automatically detect and fetch
 	// updated bundles at the configured PollInterval. When false, the bundle is
@@ -1506,4 +1506,26 @@ type ExternalAuth struct {
 	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)*$`
 	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
 	SNIName string `json:"sniName,omitempty"`
+}
+
+// HSTS defines an HTTP Strict Transport Security policy for enforcing secure connections to the server.
+// +kubebuilder:validation:XValidation:rule="!self.preload || self.includeSubDomains",message="preload requires includeSubDomains to be enabled"
+// +kubebuilder:validation:XValidation:rule="!self.preload || (has(self.maxAge) && self.maxAge >= 31536000)",message="preload requires maxAge to be at least 31536000 (one year)"
+type HSTS struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=0
+	// MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy.
+	MaxAge *int `json:"maxAge"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// IncludeSubDomains extends the HSTS policy to all subdomains of the host.
+	IncludeSubDomains bool `json:"includeSubDomains,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable.
+	BehindProxy bool `json:"behindProxy,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// Preload indicates that the domain should be included in browsers' HSTS preload lists.
+	Preload bool `json:"preload,omitempty"`
 }

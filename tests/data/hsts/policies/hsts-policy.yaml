@@ -1,0 +1,7 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: hsts-policy
+spec:
+  hsts:
+    maxAge: 2592000
