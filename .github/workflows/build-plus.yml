@@ -109,8 +109,8 @@ jobs:
         id: secrets
         run: |
           echo "Setting secrets for job"
-          echo ${{ env.CERT }} > nginx-repo.crt
-          echo ${{ env.KEY }} > nginx-repo.key
+          echo "${{ env.CERT }}" > nginx-repo.crt
+          echo "${{ env.KEY }}" > nginx-repo.key
         if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
