@@ -4499,6 +4499,71 @@ server {
 
 ---
 
+[TestVirtualServerForNginxPlusWithExternalAuthSigninURL - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_exauth_default_external-auth-policy {
+    zone vs_exauth_default_external-auth-policy ;
+    server 10.0.0.40:4180 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone cafe.example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    auth_request /_external_auth/oauth2/auth;
+    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+
+    
+
+    
+    location /tea {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        auth_request /_external_auth/oauth2/auth;
+
+        
+        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+        proxy_intercept_errors on;
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxPlusWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {
@@ -4993,6 +5058,69 @@ server {
 
         
         set $default_connection_header close;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxWithExternalAuthSigninURL - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_exauth_default_external-auth-policy {
+    zone vs_exauth_default_external-auth-policy ;
+    server 10.0.0.40:4180 max_fails=0 fail_timeout= max_conns=0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    auth_request /_external_auth/oauth2/auth;
+    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+
+    
+
+    
+    location /tea {
+        set $service "tea-svc";
+        auth_request /_external_auth/oauth2/auth;
+
+        
+        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+        proxy_intercept_errors on;
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
     }
 }
 
