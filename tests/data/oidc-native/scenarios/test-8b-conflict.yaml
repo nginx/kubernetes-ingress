@@ -1,0 +1,28 @@
+# Test 8b: Both NJS and Native OIDC applied to the same route.
+#
+# Expected: NIC rejects the combination; the VS enters Warning state.
+#
+# Verify:
+#   - `kubectl describe vs webapp` shows a warning event mentioning that
+#     `oidc` and `oidcNative` are mutually exclusive on the same context.
+#   - `run-test.sh 8b check` shows no auth_oidc for this VS (config discarded).
+#   - Browse https://${WEBAPP_HOST}/ -> 500 or default backend (no OIDC applied).
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      policies:
+        - name: oidc-njs-policy
+        - name: oidcnative-policy
+      action:
+        pass: webapp
