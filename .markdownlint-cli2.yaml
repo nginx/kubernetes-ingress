@@ -18,7 +18,7 @@ ignores:
   - ".github/**"
   - "docs/**" # Ignore developer docs folder
   - "vendor/**" # Ignore vendor folder
-  - "**/venv/**"
+  - "**/.venv/**"
   - ".local/**"
 
 # Fix any fixable errors

@@ -3914,6 +3914,92 @@ func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	t.Log(string(data))
 }
 
+func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := VirtualServerConfig{
+		KeyValZones: []KeyValZone{
+			{
+				Name:    "oidc_sessions_oidc_default_my_provider_default_cafe",
+				Size:    "10m",
+				Sync:    true,
+				Timeout: "4h",
+			},
+		},
+		OIDCProviders: []OIDCProvider{
+			{
+				Name:                  "oidc_default_my_provider_default_cafe",
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client-id",
+				ClientSecret:          "my-resolved-secret",
+				ConfigURL:             "https://accounts.google.com/.well-known/openid-configuration",
+				Scope:                 "openid+profile",
+				RedirectURI:           "/callback",
+				CookieName:            "MY_SESSION",
+				ExtraAuthArgs:         "prompt=login",
+				PKCE:                  "on",
+				LogoutURI:             "/logout",
+				PostLogoutURI:         "/logged_out",
+				FrontChannelLogoutURI: "/frontchannel_logout",
+				LogoutTokenHint:       true,
+				SessionStore:          "oidc_sessions_oidc_default_my_provider_default_cafe",
+				SessionTimeout:        "4h",
+				Sync:                  true,
+				UserInfoEnable:        true,
+				SSLTrustedCert:        "/etc/nginx/secrets/default-google-ca-secret",
+				SSLCrl:                "/etc/nginx/secrets/default-google-ca-secret-ca.crl",
+				SSLVerify:             true,
+				SSLName:               "accounts.google.com",
+				SSLVerifyDepth:        3,
+				ProxyLocation:         "/_oidc_idp_oidc_default_my_provider_default_cafe",
+				ProxyBufferSize:       "16k",
+				ProxyTrustedCertPath:  "/etc/nginx/secrets/default-google-ca-secret",
+				PostLogoutLocation: &AuthOIDCReturnLocation{
+					Path:        "/logged_out",
+					DefaultType: "text/plain",
+					Return: Return{
+						Code: 200,
+						Text: "You have been logged out.\n",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name:             "test-upstream",
+				Servers:          []UpstreamServer{{Address: "10.0.0.20:8001"}},
+				MaxFails:         1,
+				FailTimeout:      "10s",
+				UpstreamZoneSize: "256k",
+			},
+		},
+		Server: Server{
+			ServerName:       "cafe.example.com",
+			StatusZone:       "cafe.example.com",
+			OIDCProviderName: "oidc_default_my_provider_default_cafe",
+			VSNamespace:      "default",
+			VSName:           "cafe",
+			Locations: []Location{
+				{
+					Path:             "/",
+					ProxyPass:        "http://test-upstream",
+					OIDCProviderName: "oidc_default_my_provider_default_cafe",
+				},
+				{
+					Path:      "/public",
+					ProxyPass: "http://test-upstream",
+				},
+			},
+		},
+	}
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Errorf("Failed to execute template: %v", err)
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
+}
+
 func TestVirtualServerForNginxPlusWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
 	data, err := newTmplExecutorNGINXPlus(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)
@@ -4005,5 +4091,28 @@ func TestErrorPageRendering(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func TestVirtualServerForNginxPlusDisablesInheritedOIDCNative(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := VirtualServerConfig{
+		Server: Server{
+			OIDC:             &OIDC{},
+			OIDCProviderName: "native-provider",
+			Locations: []Location{{
+				Path:      "/njs",
+				ProxyPass: "http://test-upstream",
+				OIDC:      true,
+			}},
+		},
+	}
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?s)location /njs \{.*?auth_oidc off;`).Match(data) {
+		t.Error("NJS OIDC locations must disable an inherited native OIDC policy")
 	}
 }

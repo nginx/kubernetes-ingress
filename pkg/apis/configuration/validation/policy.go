@@ -126,6 +126,25 @@ func policyFields() []policyFieldValidator {
 			},
 		},
 		{
+			name:  "oidcNative",
+			isSet: func(s *v1.PolicySpec) bool { return s.OIDCNative != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				var errs field.ErrorList
+				if !cfg.EnableOIDC {
+					errs = append(errs, field.Forbidden(p.Child("oidcNative"),
+						"OIDC must be enabled via cli argument -enable-oidc to use OIDCNative policy"))
+				}
+				if !cfg.IsPlus {
+					errs = append(errs, field.Forbidden(p.Child("oidcNative"), "OIDCNative is only supported in NGINX Plus"))
+					return errs, true
+				}
+				return errs, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateOIDCNative(s.OIDCNative, p.Child("oidcNative"))
+			},
+		},
+		{
 			name:  "apiKey",
 			isSet: func(s *v1.PolicySpec) bool { return s.APIKey != nil },
 			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
@@ -199,7 +218,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	if fieldCount != 1 {
 		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
 		if cfg.IsPlus {
-			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
+			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `oidcNative`, `waf`")
 		}
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
 	}
@@ -441,6 +460,67 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	allErrs = append(allErrs, validateURL(oidc.JWKSURI, fieldPath.Child("jwksURI"))...)
 	allErrs = append(allErrs, validateSecretName(oidc.ClientSecret, fieldPath.Child("clientSecret"))...)
 	return append(allErrs, validateClientID(oidc.ClientID, fieldPath.Child("clientID"))...)
+}
+
+func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	// Required fields and format checks (clientSecret, redirectURI, logoutURI,
+	// postLogoutRedirectURI, sessionTimeout) are enforced at the CRD level via
+	// kubebuilder Pattern/XValidation markers. Only checks that require runtime
+	// state or can't be expressed in CEL remain here.
+
+	if oidcNative.Issuer == "" {
+		return field.ErrorList{field.Required(fieldPath.Child("issuer"), "")}
+	}
+	if oidcNative.ClientID == "" {
+		return field.ErrorList{field.Required(fieldPath.Child("clientID"), "")}
+	}
+
+	allErrs := field.ErrorList{}
+
+	// Issuer hostname/port validation goes beyond the CRD pattern (which only checks https:// + host).
+	allErrs = append(allErrs, validateIssuerURL(oidcNative.Issuer, fieldPath.Child("issuer"))...)
+	// ClientID char validation (rejects $, unescaped \, etc.) — not expressible in a simple CRD pattern.
+	allErrs = append(allErrs, validateClientID(oidcNative.ClientID, fieldPath.Child("clientID"))...)
+	if oidcNative.Scope != "" {
+		allErrs = append(allErrs, validateOIDCNativeScope(oidcNative.Scope, fieldPath.Child("scope"))...)
+	}
+
+	// Defense in depth for fields rendered verbatim into NGINX directives.
+	// The CRD-level Patterns catch most bad input, but block nginx-injection
+	// characters explicitly on fields whose pattern is either absent or too
+	// permissive to catch `;{}$` and friends in every position.
+	for _, f := range []struct {
+		name  string
+		value string
+	}{
+		{"issuer", oidcNative.Issuer},
+		{"configURL", oidcNative.ConfigURL},
+		{"scope", oidcNative.Scope},
+		{"redirectURI", oidcNative.RedirectURI},
+		{"cookieName", oidcNative.CookieName},
+		{"extraAuthArgs", oidcNative.ExtraAuthArgs},
+		{"logoutURI", oidcNative.LogoutURI},
+		{"postLogoutRedirectURI", oidcNative.PostLogoutRedirectURI},
+		{"frontChannelLogoutURI", oidcNative.FrontChannelLogoutURI},
+		{"sslName", oidcNative.SSLName},
+	} {
+		if f.value != "" && ContainsDangerousChars(f.value) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child(f.name), f.value,
+				"contains dangerous characters that could cause nginx configuration injection"))
+		}
+	}
+
+	return allErrs
+}
+
+func validateOIDCNativeScope(scope string, fieldPath *field.Path) field.ErrorList {
+	tokens := strings.FieldsFunc(scope, func(r rune) bool { return r == '+' || unicode.IsSpace(r) })
+	for _, token := range tokens {
+		if token == "openid" {
+			return nil
+		}
+	}
+	return field.ErrorList{field.Required(fieldPath, "openid is required as a scope token")}
 }
 
 func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
@@ -967,6 +1047,33 @@ func validatePKCE(PKCEEnable bool, clientSecret string,
 	}
 
 	return nil
+}
+
+// validateIssuerURL validates an OIDC issuer URL, which requires https scheme and a hostname
+// but does not require a path (unlike validateURL). Per the OpenID Connect spec, the issuer
+// identifier is a URL using the https scheme with no query or fragment components.
+func validateIssuerURL(issuer string, fieldPath *field.Path) field.ErrorList {
+	u, err := url.Parse(issuer)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, err.Error())}
+	}
+	if u.Scheme != "https" {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "scheme must be https")}
+	}
+	if u.Host == "" {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "hostname required")}
+	}
+
+	host, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		host = u.Host
+	}
+
+	allErrs := validateSSLName(host, fieldPath)
+	if port != "" {
+		allErrs = append(allErrs, validatePortNumber(port, fieldPath)...)
+	}
+	return allErrs
 }
 
 func validateURL(name string, fieldPath *field.Path) field.ErrorList {
