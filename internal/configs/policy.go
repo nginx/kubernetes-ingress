@@ -872,6 +872,86 @@ func (p *policiesCfg) addOIDCConfig(
 	return res
 }
 
+func resolveOIDCNativeClientSecret(
+	oidcNative *conf_v1.OIDCNative,
+	polKey string,
+	polNamespace string,
+	secretRefs map[string]*secrets.SecretReference,
+	res *validationResults,
+) (string, bool) {
+	if oidcNative.ClientSecret == "" {
+		return "", true
+	}
+	secretKey := fmt.Sprintf("%v/%v", polNamespace, oidcNative.ClientSecret)
+	secretRef, ok := secretRefs[secretKey]
+	if !ok {
+		res.addWarningf("OIDCNative policy %s references a missing secret %s", polKey, secretKey)
+		res.isError = true
+		return "", false
+	}
+
+	var secretType api_v1.SecretType
+	if secretRef.Secret != nil {
+		secretType = secretRef.Secret.Type
+	}
+	if secretType != "" && secretType != secrets.SecretTypeOIDC {
+		res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+		res.isError = true
+		return "", false
+	}
+	if secretRef.Error != nil {
+		res.addWarningf("OIDCNative policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+		res.isError = true
+		return "", false
+	}
+
+	return string(secretRef.Secret.Data[ClientSecretKey]), true
+}
+
+func resolveOIDCNativeTrustedCert(
+	oidcNative *conf_v1.OIDCNative,
+	polKey string,
+	polNamespace string,
+	policyOpts policyOptions,
+	res *validationResults,
+) (string, string, bool) {
+	trustedCertPath := policyOpts.defaultCABundle
+	trustedCrlPath := ""
+	if oidcNative.TrustedCertSecret == "" {
+		return trustedCertPath, trustedCrlPath, true
+	}
+
+	trustedCertKey := fmt.Sprintf("%s/%s", polNamespace, oidcNative.TrustedCertSecret)
+	trustedCertRef, ok := policyOpts.secretRefs[trustedCertKey]
+	if !ok {
+		res.addWarningf("OIDCNative policy %s references a missing trusted cert secret %s", polKey, trustedCertKey)
+		res.isError = true
+		return "", "", false
+	}
+	var secretType api_v1.SecretType
+	if trustedCertRef.Secret != nil {
+		secretType = trustedCertRef.Secret.Type
+	}
+	if secretType != "" && secretType != secrets.SecretTypeCA {
+		res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertKey, secretType, secrets.SecretTypeCA)
+		res.isError = true
+		return "", "", false
+	}
+	if trustedCertRef.Error != nil {
+		res.addWarningf("OIDCNative policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertKey, trustedCertRef.Error)
+		res.isError = true
+		return "", "", false
+	}
+	caFields := strings.Fields(trustedCertRef.Path)
+	if len(caFields) > 0 {
+		trustedCertPath = caFields[0]
+	}
+	if len(caFields) > 1 {
+		trustedCrlPath = caFields[1]
+	}
+	return trustedCertPath, trustedCrlPath, true
+}
+
 func (p *policiesCfg) addOIDCNativeConfig(
 	oidcNative *conf_v1.OIDCNative,
 	polKey string,
@@ -900,68 +980,15 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	}
 
 	// Resolve client secret if specified.
-	clientSecret := ""
-	if oidcNative.ClientSecret != "" {
-		secretKey := fmt.Sprintf("%v/%v", polNamespace, oidcNative.ClientSecret)
-		secretRef, ok := secretRefs[secretKey]
-		if !ok {
-			res.addWarningf("OIDCNative policy %s references a missing secret %s", polKey, secretKey)
-			res.isError = true
-			return res
-		}
-
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != secrets.SecretTypeOIDC {
-			res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
-			res.isError = true
-			return res
-		}
-		if secretRef.Error != nil {
-			res.addWarningf("OIDCNative policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
-			res.isError = true
-			return res
-		}
-
-		clientSecret = string(secretRef.Secret.Data[ClientSecretKey])
+	clientSecret, ok := resolveOIDCNativeClientSecret(oidcNative, polKey, polNamespace, secretRefs, res)
+	if !ok {
+		return res
 	}
 
 	// Resolve trusted CA cert (and optional CRL) if specified.
-	// nginx.org/ca secrets can contain both ca.crt and ca.crl; the SecretStore
-	// writes both to disk and returns their paths space-separated.
-	trustedCertPath := policyOpts.defaultCABundle
-	trustedCrlPath := ""
-	if oidcNative.TrustedCertSecret != "" {
-		trustedCertKey := fmt.Sprintf("%s/%s", polNamespace, oidcNative.TrustedCertSecret)
-		trustedCertRef, ok := secretRefs[trustedCertKey]
-		if !ok {
-			res.addWarningf("OIDCNative policy %s references a missing trusted cert secret %s", polKey, trustedCertKey)
-			res.isError = true
-			return res
-		}
-		var secretType api_v1.SecretType
-		if trustedCertRef.Secret != nil {
-			secretType = trustedCertRef.Secret.Type
-		}
-		if secretType != "" && secretType != secrets.SecretTypeCA {
-			res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertKey, secretType, secrets.SecretTypeCA)
-			res.isError = true
-			return res
-		}
-		if trustedCertRef.Error != nil {
-			res.addWarningf("OIDCNative policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertKey, trustedCertRef.Error)
-			res.isError = true
-			return res
-		}
-		caFields := strings.Fields(trustedCertRef.Path)
-		if len(caFields) > 0 {
-			trustedCertPath = caFields[0]
-		}
-		if len(caFields) > 1 {
-			trustedCrlPath = caFields[1]
-		}
+	trustedCertPath, trustedCrlPath, ok := resolveOIDCNativeTrustedCert(oidcNative, polKey, polNamespace, policyOpts, res)
+	if !ok {
+		return res
 	}
 
 	_, polName := ParseResourceReference(polKey, polNamespace)
