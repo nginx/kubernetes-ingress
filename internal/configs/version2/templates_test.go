@@ -537,6 +537,30 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithClientBodyBufferSize(t 
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersTemplateWithDisableForwardedHeadersTrue(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithDisableForwardedHeadersTrue)
+	if err != nil {
+		t.Error(err)
+	}
+	if bytes.Contains(got, []byte("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for")) {
+		t.Error("don't want `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` directive in generated template")
+	}
+	if bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Host $host")) {
+		t.Error("don't want `proxy_set_header X-Forwarded-Host $host` directive in generated template")
+	}
+	if bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Port $server_port")) {
+		t.Error("don't want `proxy_set_header X-Forwarded-Port $server_port` directive in generated template")
+	}
+	if bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Proto $scheme")) {
+		t.Error("don't want `proxy_set_header X-Forwarded-Proto $scheme` directive in generated template")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2On(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
@@ -2496,6 +2520,20 @@ var (
 					Path:                 "/",
 					ProxyPass:            "http://test-upstream",
 					ClientBodyBufferSize: "16k",
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithDisableForwardedHeadersTrue = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                    "/",
+					ProxyPass:               "http://test-upstream",
+					DisableForwardedHeaders: true,
 				},
 			},
 		},
