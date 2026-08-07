@@ -1273,10 +1273,9 @@ func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
 		return []version2.ErrorPage{
 			{
-				Name:  cfg.ExternalAuth.SigninURL,
-				Codes: "401",
-				// -1 makes the template emit `=` without a specific code so nginx returns the signin URI's status (e.g. 302) instead of the original 401.
-				ResponseCode: -1,
+				Name:         cfg.ExternalAuth.SigninURL,
+				Codes:        "401",
+				ResponseCode: version2.ErrorPageResponseCodeInherit,
 			},
 		}
 	}
@@ -1463,10 +1462,9 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
 		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
-			Name:  cfg.ExternalAuth.SigninURL,
-			Codes: "401",
-			// -1 makes the template emit `=` without a specific code so nginx returns the signin URI's status (e.g. 302) instead of the original 401.
-			ResponseCode: -1,
+			Name:         cfg.ExternalAuth.SigninURL,
+			Codes:        "401",
+			ResponseCode: version2.ErrorPageResponseCodeInherit,
 		})
 		location.ProxyInterceptErrors = true
 	}

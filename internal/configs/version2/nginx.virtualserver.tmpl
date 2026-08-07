@@ -251,6 +251,7 @@ server {
     {{- end }}
 
     {{- range $e := $s.ErrorPages }}
+    {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
     error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
     {{- end }}
 
@@ -407,6 +408,7 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
+        {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
         error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 

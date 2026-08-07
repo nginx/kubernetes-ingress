@@ -277,6 +277,12 @@ type Return struct {
 	Text string
 }
 
+// ErrorPageResponseCodeInherit is the sentinel ResponseCode value that makes the
+// virtualserver template emit `error_page <codes> = "<name>";` with no explicit
+// response code, so nginx forwards the target URI's status (e.g. oauth2-proxy's
+// 302) to the client instead of the original error code.
+const ErrorPageResponseCodeInherit = -1
+
 // ErrorPage defines an error_page of a location.
 type ErrorPage struct {
 	Name         string
