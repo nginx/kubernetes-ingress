@@ -9,7 +9,7 @@ This guide will help you configure Keycloak using Keycloak's API:
 
 - This guide has been tested with Keycloak 26.7.1 and later. If you modify `keycloak.yaml` to use an older version,
   Keycloak may not start correctly or the commands in this guide may not work as expected. The Keycloak OpenID
-  endpoints `oidc.yaml` might also be different in older versions of Keycloak.
+  endpoints in `oidc-native-policy.yaml` might also be different in older versions of Keycloak.
 - If you changed the admin username and password for Keycloak in `keycloak.yaml`, modify the commands accordingly.
 - The instructions use [`jq`](https://stedolan.github.io/jq/).
 
