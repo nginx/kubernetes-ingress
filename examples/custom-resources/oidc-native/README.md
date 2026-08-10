@@ -93,7 +93,7 @@ Follow [`keycloak_setup.md`](./keycloak_setup.md) to create the `nginx-plus` cli
 
 ## Step 6 - Deploy the Client Secret
 
-**Note**: If you're using PKCE, skip this step. PKCE clients do not have client secrets. Applying this will result in a broken deployment.
+**Note**: If you're using PKCE, skip this step and remove `clientSecret: oidcnative-secret` from `oidc-native-policy.yaml`. PKCE clients do not have client secrets. Applying the secret or leaving `clientSecret` configured without a secret will result in missing secret errors.
 
 1. Encode the secret obtained in Step 5:
 
@@ -130,7 +130,7 @@ kubectl apply -f virtual-server.yaml
 ## How it Differs from the NJS OIDC Example
 
 | Feature | NJS OIDC (`spec.oidc`) | Native OIDC (`spec.oidcNative`) |
-| ------- | ---------------------- | ------------------------------- |
+| --- | --- | --- |
 | Implementation | JavaScript (njs) | Native C module |
 | Endpoints | Explicit (auth, token, jwks) | Auto-discovered from issuer metadata |
 | Session storage | Explicit keyval zones | Managed by the module |
