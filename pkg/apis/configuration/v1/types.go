@@ -801,6 +801,7 @@ type PolicySpec struct {
 	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
 	OIDC *OIDC `json:"oidc"`
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native.
+	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
 	OIDCNative *OIDCNative `json:"oidcNative"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAF `json:"waf"`

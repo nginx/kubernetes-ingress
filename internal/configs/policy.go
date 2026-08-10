@@ -904,8 +904,20 @@ func resolveOIDCNativeClientSecret(
 		res.isError = true
 		return "", false
 	}
+	if secretRef.Secret == nil {
+		res.addWarningf("OIDCNative policy %s references an invalid secret %s: secret doesn't exist", polKey, secretKey)
+		res.isError = true
+		return "", false
+	}
 
-	return string(secretRef.Secret.Data[ClientSecretKey]), true
+	clientSecretBytes, ok := secretRef.Secret.Data[ClientSecretKey]
+	if !ok {
+		res.addWarningf("OIDCNative policy %s references a secret %s missing '%s' key", polKey, secretKey, ClientSecretKey)
+		res.isError = true
+		return "", false
+	}
+
+	return string(clientSecretBytes), true
 }
 
 func resolveOIDCNativeTrustedCert(

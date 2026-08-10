@@ -477,6 +477,11 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 
 	allErrs := field.ErrorList{}
 
+	if oidcNative.SSLVerify != nil && !*oidcNative.SSLVerify && oidcNative.TrustedCertSecret != "" {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("trustedCertSecret"),
+			"trustedCertSecret can be set only if sslVerify is true"))
+	}
+
 	// Issuer hostname/port validation goes beyond the CRD pattern (which only checks https:// + host).
 	allErrs = append(allErrs, validateIssuerURL(oidcNative.Issuer, fieldPath.Child("issuer"))...)
 	// ClientID char validation (rejects $, unescaped \, etc.) — not expressible in a simple CRD pattern.
@@ -1062,6 +1067,9 @@ func validateIssuerURL(issuer string, fieldPath *field.Path) field.ErrorList {
 	}
 	if u.Host == "" {
 		return field.ErrorList{field.Invalid(fieldPath, issuer, "hostname required")}
+	}
+	if u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "must not include userinfo, query, or fragment")}
 	}
 
 	host, port, err := net.SplitHostPort(u.Host)
