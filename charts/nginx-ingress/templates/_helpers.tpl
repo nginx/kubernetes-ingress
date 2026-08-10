@@ -250,7 +250,7 @@ Create the global configuration custom namespace from the globalConfiguration.cu
 Build the args for the service binary.
 */}}
 {{- define "nginx-ingress.appprotect.plmStorage.validate" -}}
-{{- $plm := .Values.controller.appprotect.plmStorage -}}
+{{- $plm := default (dict) .Values.controller.appprotect.plmStorage -}}
 {{- if $plm.url }}
 {{- if not .Values.controller.nginxplus }}
 {{- fail "controller.appprotect.plmStorage.url requires controller.nginxplus=true" }}
@@ -295,16 +295,17 @@ Build the args for the service binary.
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.v5 }}
 - -app-protect-enforcer-address="{{ .Values.controller.appprotect.enforcer.host | default "127.0.0.1" }}:{{ .Values.controller.appprotect.enforcer.port | default 50000 }}"
 {{- end }}
-{{- if .Values.controller.appprotect.plmStorage.url }}
-- {{ printf "-plm-storage-url=%s" .Values.controller.appprotect.plmStorage.url | quote }}
-- {{ printf "-plm-storage-credentials-secret=%s" .Values.controller.appprotect.plmStorage.credentialsSecret | quote }}
-{{- if .Values.controller.appprotect.plmStorage.caSecret }}
-- {{ printf "-plm-storage-ca-secret=%s" .Values.controller.appprotect.plmStorage.caSecret | quote }}
+{{- $plm := default (dict) .Values.controller.appprotect.plmStorage -}}
+{{- if $plm.url }}
+- {{ printf "-plm-storage-url=%s" $plm.url | quote }}
+- {{ printf "-plm-storage-credentials-secret=%s" $plm.credentialsSecret | quote }}
+{{- if $plm.caSecret }}
+- {{ printf "-plm-storage-ca-secret=%s" $plm.caSecret | quote }}
 {{- end }}
-{{- if .Values.controller.appprotect.plmStorage.clientSSLSecret }}
-- {{ printf "-plm-storage-client-ssl-secret=%s" .Values.controller.appprotect.plmStorage.clientSSLSecret | quote }}
+{{- if $plm.clientSSLSecret }}
+- {{ printf "-plm-storage-client-ssl-secret=%s" $plm.clientSSLSecret | quote }}
 {{- end }}
-- -plm-storage-insecure-skip-verify={{ .Values.controller.appprotect.plmStorage.insecureSkipVerify }}
+- -plm-storage-insecure-skip-verify={{ $plm.insecureSkipVerify }}
 {{- end }}
 - -enable-app-protect-dos={{ .Values.controller.appprotectdos.enable }}
 {{- if .Values.controller.appprotectdos.enable }}
