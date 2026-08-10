@@ -1,9 +1,10 @@
 # Test 22: A single Policy with both oidc and oidcNative set.
 #
 # Verify:
-#   - `kubectl apply -f test-22-both-oidc.yaml` fails with an admission error
-#     containing "must specify exactly one of ...".
-#   - No policy resource is created.
+#   - `kubectl apply -f test-22-both-oidc.yaml` succeeds (no admission webhook),
+#     but NIC marks the Policy Invalid.
+#   - `kubectl describe policy test22-both-oidc` shows a message containing
+#     "must specify exactly one of ...".
 apiVersion: k8s.nginx.org/v1
 kind: Policy
 metadata:

@@ -451,7 +451,8 @@ class TestOIDCNativeScenarios:
             cleanup_scenario_resources(kube_apis, test_namespace, resources)
 
     # Scenario 8b: conflict -- both oidc and oidcNative on the same route ->
-    # rejected with VS Warning, and no config is generated for that VS.
+    # rejected with VS Warning; the conflicting location fails closed with a
+    # static 500 (no auth_oidc / oidc_provider wiring).
     def test_scenario_8b_rejects_njs_and_native_in_one_context(
         self,
         crd_ingress_controller,
