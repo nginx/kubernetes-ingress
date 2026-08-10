@@ -14,18 +14,35 @@ In this example, we deploy a web application, load-balance it via a VirtualServe
     kubectl get svc nginx-ingress -n nginx-ingress
     ```
 
-## Step 1 - Rewrite the Example Manifests for Your Cluster
+## Step 1 - Configure Hostnames for Your Cluster
 
-Substitute the placeholder `example.com` hostnames with `nip.io` names that resolve to your Ingress Controller IP:
+Get your Ingress Controller IP and set the hostname environment variables:
 
 ```shell
 LB_IP=$(kubectl get svc nginx-ingress -n nginx-ingress -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-WEBAPP_HOST=webapp.${LB_IP}.nip.io
-KEYCLOAK_HOST=keycloak.${LB_IP}.nip.io
-
-sed -i "s/webapp.example.com/${WEBAPP_HOST}/g; s/keycloak.example.com/${KEYCLOAK_HOST}/g" \
-  keycloak.yaml virtual-server-idp.yaml virtual-server.yaml oidc-native-policy.yaml
+export WEBAPP_HOST=webapp.${LB_IP}.nip.io
+export KEYCLOAK_HOST=keycloak.${LB_IP}.nip.io
 ```
+
+### Option A: Manual Replacement (Recommended)
+
+In the example manifests, replace `webapp.example.com` with `${WEBAPP_HOST}` and `keycloak.example.com` with `${KEYCLOAK_HOST}`:
+
+- `keycloak.yaml`
+- `virtual-server-idp.yaml`
+- `virtual-server.yaml`
+- `oidc-native-policy.yaml`
+
+### Option B: Automated Replacement Script
+
+Run this command to rewrite the hostnames across all 4 files automatically:
+
+```shell
+sed -i.bak "s/webapp.example.com/${WEBAPP_HOST}/g; s/keycloak.example.com/${KEYCLOAK_HOST}/g" \
+  keycloak.yaml virtual-server-idp.yaml virtual-server.yaml oidc-native-policy.yaml && rm -f *.bak
+```
+
+---
 
 ## Step 2 - Deploy TLS Secrets
 
@@ -54,29 +71,39 @@ kubectl apply -f virtual-server-idp.yaml
 kubectl apply -f webapp.yaml
 ```
 
-The shipped TLS secrets are self-signed, so your browser will show a certificate warning when visiting either page — accept it once per hostname. Backchannel communication (NGINX ↔ Keycloak) is handled via `sslVerify: false` in the policy.
+The shipped TLS secrets are self-signed, so your browser will show a certificate warning when visiting either page - accept it once per hostname. Backchannel communication (NGINX ↔ Keycloak) is handled via `sslVerify: false` in the policy.
 
 ## Step 5 - Configure Keycloak
 
-1. Open `https://${KEYCLOAK_HOST}` in your browser (accept the cert warning) and log in with `admin` / `admin`.
-2. Follow [`keycloak_setup.md`](./keycloak_setup.md) to create the `nginx-plus` client with these values:
+Configure the Keycloak realm, client, and test user. You can complete this step automatically via the Keycloak API or manually using the Web Admin Console:
+
+### Option A: Automated API Setup (Recommended)
+
+Follow [`keycloak_setup.md`](./keycloak_setup.md) to create the `nginx-plus` client and `nginx-user` account via `curl` commands.
+
+### Option B: Manual Web Admin Console Setup
+
+1. Navigate to the Keycloak Admin Console at `https://keycloak.<EXTERNAL-IP>.nip.io` (or `https://${KEYCLOAK_HOST}`), accept the self-signed TLS certificate warning, and sign in with **`admin` / `admin`**.
+2. Create an OIDC client named `nginx-plus` with the following configuration:
    - **Client authentication**: On
-   - **Valid redirect URIs**: `https://${WEBAPP_HOST}/*`
-   - **Valid post logout redirect URIs**: `https://${WEBAPP_HOST}/_logout`
-3. Create the user `nginx-user` with password `test`.
-4. Copy the client secret shown on the Credentials tab.
+   - **Valid redirect URIs**: `https://webapp.<EXTERNAL-IP>.nip.io/*` (or `https://${WEBAPP_HOST}/*`)
+   - **Valid post logout redirect URIs**: `https://webapp.<EXTERNAL-IP>.nip.io/_logout` (or `https://${WEBAPP_HOST}/_logout`)
+3. Create a test user named `nginx-user` with password `test`.
+4. Copy the client secret from the **Credentials** tab for use in Step 6.
 
 ## Step 6 - Deploy the Client Secret
 
-1. Base64-encode the client secret obtained in Step 5:
+**Note**: If you're using PKCE, skip this step. PKCE clients do not have client secrets. Applying this will result in a broken deployment.
+
+1. Encode the secret obtained in Step 5:
 
     ```shell
-    echo -n "<client-secret-value>" | base64
+    echo -n $SECRET | base64
     ```
 
-2. Edit [`client-secret.yaml`](./client-secret.yaml), replacing `<insert-secret-here>` with the encoded secret.
+2. Edit `client-secret.yaml`, replacing `<insert-secret-here>` with the base64-encoded secret.
 
-3. Deploy the client secret:
+3. Deploy the secret:
 
     ```shell
     kubectl apply -f client-secret.yaml
@@ -91,14 +118,14 @@ kubectl apply -f virtual-server.yaml
 
 ## Step 8 - Test the Authentication Flow
 
-1. Open `https://${WEBAPP_HOST}` in your browser. You are redirected to Keycloak.
+1. Open `https://webapp.<EXTERNAL-IP>.nip.io` (or `https://${WEBAPP_HOST}`) in your browser. You are redirected to Keycloak.
 2. Log in as `nginx-user` / `test`. ![keycloak](./keycloak.png)
 3. You are redirected back to the web application.
 
 ## Step 9 - Log Out
 
-1. Navigate to `https://${WEBAPP_HOST}/logout`. Your session is terminated and you land on `/_logout`. ![logout](./logout.png)
-2. Visit `https://${WEBAPP_HOST}` again — you are prompted to log in.
+1. Navigate to `https://webapp.<EXTERNAL-IP>.nip.io/logout` (or `https://${WEBAPP_HOST}/logout`). Your session is terminated and you land on `/_logout`. ![logout](./logout.png)
+2. Visit `https://webapp.<EXTERNAL-IP>.nip.io` again — you are prompted to log in.
 
 ## How it Differs from the NJS OIDC Example
 
