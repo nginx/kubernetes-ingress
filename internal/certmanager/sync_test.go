@@ -70,7 +70,7 @@ func TestSync(t *testing.T) {
 						DNSNames:   []string{"cafe.example.com"},
 						CommonName: "my-cn",
 						SecretName: "secret-name",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "cluster-issuer-name",
 							Kind: "ClusterIssuer",
 						},
@@ -102,7 +102,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "existing-crt",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -136,7 +136,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "incorrect-cert",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -182,7 +182,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "update-cert",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -204,7 +204,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "update-cert",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -230,7 +230,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "no-owner",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -256,7 +256,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "wrong-owner",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -282,7 +282,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "delete-crt",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -300,7 +300,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "different-secret",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -322,7 +322,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "delete-crt",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -348,7 +348,7 @@ func TestSync(t *testing.T) {
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "no-cn",
 						CommonName: "example-common-name",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -367,7 +367,7 @@ func TestSync(t *testing.T) {
 					Spec: cmapi.CertificateSpec{
 						DNSNames:   []string{"cafe.example.com"},
 						SecretName: "no-cn",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "issuer-name",
 							Kind: "Issuer",
 						},
@@ -435,7 +435,7 @@ func TestSync(t *testing.T) {
 						DNSNames:   []string{"cafe.example.com"},
 						CommonName: "my-cn",
 						SecretName: "my-cert",
-						IssuerRef: cmmeta.ObjectReference{
+						IssuerRef: cmmeta.IssuerReference{
 							Name: "cluster-issuer-name",
 							Kind: "ClusterIssuer",
 						},

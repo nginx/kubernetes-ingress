@@ -127,16 +127,12 @@ func (c *CmController) newNamespacedInformer(ns string) (*namespacedInformer, er
 
 func (c *CmController) addHandlers(nsi *namespacedInformer) error {
 	nsi.vsLister = nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Lister()
-	if _, err := nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(&controllerpkg.QueuingEventHandler{
-		Queue: c.queue,
-	}); err != nil {
+	if _, err := nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(controllerpkg.QueuingEventHandler(c.queue)); err != nil {
 		return fmt.Errorf("failed to add VirtualServer event handler: %w", err)
 	}
 	nsi.mustSync = append(nsi.mustSync, nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().HasSynced)
 
-	if _, err := nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().AddEventHandler(&controllerpkg.BlockingEventHandler{
-		WorkFunc: certificateHandler(c.queue),
-	}); err != nil {
+	if _, err := nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().AddEventHandler(controllerpkg.BlockingEventHandler(certificateHandler(c.queue))); err != nil {
 		return fmt.Errorf("failed to add Certificate event handler: %w", err)
 	}
 	nsi.cmLister = nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Lister()
@@ -181,8 +177,8 @@ func (c *CmController) processItem(ctx context.Context, key types.NamespacedName
 //	    name: vs-1
 //	    blockOwnerDeletion: true
 //	    uid: 7d3897c2-ce27-4144-883a-e1b5f89bd65a
-func certificateHandler(queue workqueue.TypedRateLimitingInterface[types.NamespacedName]) func(obj interface{}) {
-	return func(obj interface{}) {
+func certificateHandler(queue workqueue.TypedRateLimitingInterface[types.NamespacedName]) func(obj metav1.Object) {
+	return func(obj metav1.Object) {
 		crt, ok := obj.(*cmapi.Certificate)
 		if !ok {
 			runtime.HandleError(fmt.Errorf("not a Certificate object: %#v", obj))

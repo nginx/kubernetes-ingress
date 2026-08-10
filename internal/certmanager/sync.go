@@ -151,7 +151,7 @@ func buildCertificates(
 		Spec: cmapi.CertificateSpec{
 			DNSNames:   hosts,
 			SecretName: vs.Spec.TLS.Secret,
-			IssuerRef: cmmeta.ObjectReference{
+			IssuerRef: cmmeta.IssuerReference{
 				Name:  issuerName,
 				Kind:  issuerKind,
 				Group: issuerGroup,
