@@ -6,6 +6,7 @@ ARG NGINX_PLUS_VERSION=R37.0
 ARG NAP_WAF_VERSION=37.0+5.690
 ARG NAP_WAF_COMMON_VERSION=11.735
 ARG NAP_WAF_PLUGIN_VERSION=6.30
+ARG NAP_WAF_IPI_VERSION=1.59
 ARG AGENT_V3_VERSION=3
 ARG AGENT_V2_VERSION=2
 ARG DOWNLOAD_TAG=edge
@@ -253,6 +254,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS alpine-plus-nap-fips-base
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
+ARG NAP_WAF_IPI_VERSION
 ARG PACKAGE_REPO
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -275,7 +277,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} \
-      app-protect-ip-intelligence \
+      app-protect-ip-intelligence~=${NAP_WAF_IPI_VERSION} \
       app-protect-attack-signatures \
       app-protect-threat-campaigns \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
@@ -448,6 +450,7 @@ ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_WAF_COMMON_VERSION
 ARG NAP_WAF_PLUGIN_VERSION
+ARG NAP_WAF_IPI_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -467,7 +470,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	app-protect-common=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
-	app-protect-ip-intelligence \
+	app-protect-ip-intelligence=${NAP_WAF_IPI_VERSION}* \
 	app-protect-attack-signatures \
 	app-protect-threat-campaigns \
 	&& rm -f /etc/apt/sources.list.d/app-protect.sources \
@@ -615,6 +618,7 @@ FROM ubi-minimal AS ubi-10-plus-nap-base
 ARG NAP_MODULES
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
+ARG NAP_WAF_IPI_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -640,7 +644,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
         && cp /tmp/app-protect-10.repo /etc/yum.repos.d/app-protect-10.repo \
         && microdnf --nodocs install -y \
             app-protect-${NAP_WAF_VERSION}* \
-            app-protect-ip-intelligence \
+            app-protect-ip-intelligence-${NAP_WAF_IPI_VERSION}* \
             app-protect-attack-signatures \
             app-protect-threat-campaigns \
         && rm -f /etc/yum.repos.d/app-protect-10.repo \
