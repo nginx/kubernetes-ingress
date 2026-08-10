@@ -1,22 +1,26 @@
 # Keycloak Setup
 
-This guide will help you configure KeyCloak using Keycloak's API:
+This guide will help you configure Keycloak using Keycloak's API:
 
 - Create a `client` with the name `nginx-plus`.
 - Add a user `nginx-user` with the password `test`.
 
 **Notes**:
 
-- This guide has been tested with keycloak 26.4.0 and later. If you modify `keycloak.yaml` to use an older version,
+- This guide has been tested with Keycloak 26.7.1 and later. If you modify `keycloak.yaml` to use an older version,
   Keycloak may not start correctly or the commands in this guide may not work as expected. The Keycloak OpenID
   endpoints `oidc.yaml` might also be different in older versions of Keycloak.
-- if you changed the admin username and password for Keycloak in `keycloak.yaml`, modify the commands accordingly.
+- If you changed the admin username and password for Keycloak in `keycloak.yaml`, modify the commands accordingly.
 - The instructions use [`jq`](https://stedolan.github.io/jq/).
 
 Steps:
 
-1. Ensure the `KEYCLOAK_HOST` and `WEBAPP_HOST` variables from Step 1 of the [README](./README.md) are set in your
-   current shell (for example `KEYCLOAK_HOST=keycloak.<LB_IP>.nip.io`).
+1. Save the address of Keycloak and the web application into shell variables:
+
+    ```shell
+    KEYCLOAK_HOST=${KEYCLOAK_HOST:-keycloak.example.com}
+    WEBAPP_HOST=${WEBAPP_HOST:-webapp.example.com}
+    ```
 
 2. Retrieve the access token and store it into a shell variable:
 
