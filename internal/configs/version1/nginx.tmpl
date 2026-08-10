@@ -131,14 +131,12 @@ http {
     {{- end}}
 
     {{- if .MainOtelLoadModule }}
-    {{- if .MainOtelExporterEndpoint }}
     otel_exporter {
         endpoint {{ .MainOtelExporterEndpoint }};
         {{- if and .MainOtelExporterHeaderName .MainOtelExporterHeaderValue }}
         header {{ .MainOtelExporterHeaderName }} "{{ .MainOtelExporterHeaderValue }}";
         {{- end }}
     }
-    {{- end }}
 
     {{- if .MainOtelServiceName}}
     otel_service_name {{ .MainOtelServiceName }};

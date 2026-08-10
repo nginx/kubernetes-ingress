@@ -987,7 +987,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		case "":
 		default:
 			errorText := fmt.Sprintf(
-				"ConfigMap %s/%s: invalid value for 'otel-trace-context': %q, must be one of 'extract', 'inject', 'propagate', 'ignore', ignoring",
+				"ConfigMap %s/%s: invalid value for 'otel-trace-context': %q, must be one of 'extract', 'inject', 'propagate', 'ignore'",
 				cfgm.GetNamespace(), cfgm.GetName(), otelTraceContext,
 			)
 			nl.Error(l, errorText)
@@ -1006,7 +1006,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		otelValid = false
 	}
 
-	if cfgParams.MainOtelExporterEndpoint != "" || cfgParams.MainOtelTraceContext != "" {
+	if cfgParams.MainOtelExporterEndpoint != "" {
 		cfgParams.MainOtelLoadModule = true
 	}
 
