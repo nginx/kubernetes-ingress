@@ -309,7 +309,11 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	}
 
 	if input.CertManagerEnabled {
-		lbc.certManagerController = cm_controller.NewCmController(cm_controller.BuildOpts(input.LoggerContext, lbc.restConfig, lbc.client, lbc.namespaceList, lbc.recorder, lbc.confClient, isDynamicNs))
+		var cmErr error
+		lbc.certManagerController, cmErr = cm_controller.NewCmController(cm_controller.BuildOpts(input.LoggerContext, lbc.restConfig, lbc.client, lbc.namespaceList, lbc.recorder, lbc.confClient, isDynamicNs))
+		if cmErr != nil {
+			nl.Fatalf(lbc.Logger, "Failed to create cert-manager controller: %v", cmErr)
+		}
 	}
 
 	if input.ExternalDNSEnabled {
