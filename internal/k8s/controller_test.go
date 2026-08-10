@@ -2435,6 +2435,62 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 	}
 }
 
+func TestCreateIngressEx_NoSpuriousWarningWhenTLSSecretNameEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Ingress with a tls: block that has no secretName — relies on --wildcard-tls-secret.
+	ing := createTestIngress("wildcard-tls-ingress", "example.com")
+	ing.Spec.TLS = []networking.IngressTLS{
+		{
+			Hosts: []string{"example.com"},
+			// SecretName intentionally absent — relying on wildcard TLS secret.
+		},
+	}
+
+	tests := []struct {
+		name              string
+		wildcardTLSSecret string
+	}{
+		{
+			name:              "wildcard TLS configured",
+			wildcardTLSSecret: "default/wildcard-tls-secret",
+		},
+		{
+			name:              "wildcard TLS not configured",
+			wildcardTLSSecret: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			lbc := LoadBalancerController{
+				namespacedInformers: map[string]*namespacedInformer{
+					"default": {},
+				},
+				secretStore: secrets.NewEmptyFakeSecretsStore(),
+				specialSecrets: specialSecrets{
+					wildcardTLSSecret: tc.wildcardTLSSecret,
+				},
+				Logger: nl.LoggerFromContext(context.Background()),
+			}
+
+			ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+
+			// The empty-secretName entry must be present in SecretRefs with no error —
+			// downstream addSSLConfig() reads this key and falls through to the wildcard path.
+			ref, exists := ingEx.SecretRefs[""]
+			if !exists {
+				t.Fatal("expected SecretRefs[\"\"] to exist for empty-secretName TLS block")
+			}
+			if ref.Error != nil {
+				t.Errorf("expected no error in SecretRefs[\"\"] when secretName is empty, got: %v", ref.Error)
+			}
+		})
+	}
+}
+
 func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 	t.Parallel()
 
@@ -4020,6 +4076,100 @@ func TestGenerateSecretNSName(t *testing.T) {
 	}
 }
 
+func TestShouldForceReloadOnSecretUpdate(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                    string
+		secretType              api_v1.SecretType
+		dynamicSSLReloadEnabled bool
+		expected                bool
+	}{
+		{
+			name:                    "TLS server secret with dynamic SSL reload enabled skips forced reload",
+			secretType:              api_v1.SecretTypeTLS,
+			dynamicSSLReloadEnabled: true,
+			expected:                false,
+		},
+		{
+			name:                    "TLS server secret with dynamic SSL reload disabled forces reload",
+			secretType:              api_v1.SecretTypeTLS,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "CA secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeCA,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "JWK secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeJWK,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "Htpasswd secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeHtpasswd,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "OIDC secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeOIDC,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "APIKey secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeAPIKey,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "CA secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeCA,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "JWK secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeJWK,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "Htpasswd secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeHtpasswd,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "OIDC secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeOIDC,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "APIKey secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeAPIKey,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := shouldForceReloadOnSecretUpdate(tc.secretType, tc.dynamicSSLReloadEnabled)
+			if got != tc.expected {
+				t.Fatalf("shouldForceReloadOnSecretUpdate(%q, %v) = %v, want %v",
+					tc.secretType, tc.dynamicSSLReloadEnabled, got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 	t.Parallel()
 
@@ -4077,6 +4227,79 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 		if reflect.DeepEqual(vsEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, vsEx)
 		}
+	}
+}
+
+func TestVirtualServerRequiresEndpointsUpdate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		vsEx         *configs.VirtualServerEx
+		svcNamespace string
+		svcName      string
+		expected     bool
+	}{
+		{
+			name: "matches cross-namespace service in VirtualServer upstream",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-ns/backend-svc"}},
+					},
+				},
+			},
+			svcNamespace: "backend-ns",
+			svcName:      "backend-svc",
+			expected:     true,
+		},
+		{
+			name: "does not match useClusterIP upstream",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc", UseClusterIP: true}},
+					},
+				},
+			},
+			svcNamespace: "default",
+			svcName:      "backup-svc",
+			expected:     false,
+		},
+		{
+			name: "does not match unrelated service",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+						},
+					},
+				},
+			},
+			svcNamespace: "default",
+			svcName:      "other-svc",
+			expected:     false,
+		},
+	}
+
+	lbc := &LoadBalancerController{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := lbc.virtualServerRequiresEndpointsUpdate(test.vsEx, test.svcNamespace, test.svcName)
+			if result != test.expected {
+				t.Fatalf("virtualServerRequiresEndpointsUpdate() returned %v, expected %v", result, test.expected)
+			}
+		})
 	}
 }
 

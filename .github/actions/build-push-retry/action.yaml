@@ -1,0 +1,177 @@
+name: Build and Push with Retry
+description: Wraps docker/build-push-action with retry logic for transient push/auth failures
+
+inputs:
+  file:
+    description: Path to the Dockerfile
+    required: true
+  context:
+    description: Build context
+    default: "."
+  tags:
+    description: Image tags (newline-separated)
+    required: true
+  labels:
+    description: Image labels
+    required: false
+  annotations:
+    description: Image annotations
+    required: false
+  platforms:
+    description: Target platforms (e.g. linux/amd64,linux/arm64)
+    required: false
+  target:
+    description: Dockerfile build target
+    required: false
+  build-args:
+    description: Build arguments (newline-separated)
+    required: false
+  secret-files:
+    description: Secret files (newline-separated key=path pairs)
+    required: false
+  cache-from:
+    description: Cache sources
+    required: false
+  cache-to:
+    description: Cache destinations
+    required: false
+  push:
+    description: Push image to registry
+    default: "true"
+  load:
+    description: Load image into local Docker daemon
+    default: "false"
+  pull:
+    description: Always pull base images
+    default: "true"
+  no-cache:
+    description: Disable build cache
+    default: "false"
+  sbom:
+    description: Generate SBOM attestation
+    required: false
+  provenance:
+    description: Generate provenance attestation
+    required: false
+  max-attempts:
+    description: Maximum number of push attempts (1-3)
+    default: "3"
+  retry-wait-seconds:
+    description: Seconds to wait between retries
+    default: "15"
+
+outputs:
+  digest:
+    description: Image digest from successful push
+    value: ${{ steps.attempt1.outputs.digest || steps.attempt2.outputs.digest || steps.attempt3.outputs.digest }}
+  metadata:
+    description: Build result metadata
+    value: ${{ steps.attempt1.outputs.metadata || steps.attempt2.outputs.metadata || steps.attempt3.outputs.metadata }}
+  imageid:
+    description: Image ID
+    value: ${{ steps.attempt1.outputs.imageid || steps.attempt2.outputs.imageid || steps.attempt3.outputs.imageid }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build and Push (attempt 1)
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      id: attempt1
+      continue-on-error: true
+      with:
+        file: ${{ inputs.file }}
+        context: ${{ inputs.context }}
+        tags: ${{ inputs.tags }}
+        labels: ${{ inputs.labels }}
+        annotations: ${{ inputs.annotations }}
+        platforms: ${{ inputs.platforms }}
+        target: ${{ inputs.target }}
+        build-args: ${{ inputs.build-args }}
+        secret-files: ${{ inputs.secret-files }}
+        cache-from: ${{ inputs.cache-from }}
+        cache-to: ${{ inputs.cache-to }}
+        push: ${{ inputs.push }}
+        load: ${{ inputs.load }}
+        pull: ${{ inputs.pull }}
+        no-cache: ${{ inputs.no-cache }}
+        sbom: ${{ inputs.sbom }}
+        provenance: ${{ inputs.provenance }}
+
+    - name: Wait before retry 1
+      if: steps.attempt1.outcome == 'failure' && inputs.max-attempts >= 2
+      shell: bash
+      env:
+        RETRY_WAIT: ${{ inputs.retry-wait-seconds }}
+      run: |
+        echo "::warning::Build/push attempt 1 failed. Retrying in ${RETRY_WAIT}s..."
+        sleep "${RETRY_WAIT}"
+
+    - name: Build and Push (attempt 2)
+      if: steps.attempt1.outcome == 'failure' && inputs.max-attempts >= 2
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      id: attempt2
+      continue-on-error: true
+      with:
+        file: ${{ inputs.file }}
+        context: ${{ inputs.context }}
+        tags: ${{ inputs.tags }}
+        labels: ${{ inputs.labels }}
+        annotations: ${{ inputs.annotations }}
+        platforms: ${{ inputs.platforms }}
+        target: ${{ inputs.target }}
+        build-args: ${{ inputs.build-args }}
+        secret-files: ${{ inputs.secret-files }}
+        cache-from: ${{ inputs.cache-from }}
+        push: ${{ inputs.push }}
+        load: ${{ inputs.load }}
+        pull: ${{ inputs.pull }}
+        no-cache: ${{ inputs.no-cache }}
+        sbom: ${{ inputs.sbom }}
+        provenance: ${{ inputs.provenance }}
+
+    - name: Wait before retry 2
+      if: steps.attempt1.outcome == 'failure' && steps.attempt2.outcome == 'failure' && inputs.max-attempts >= 3
+      shell: bash
+      env:
+        RETRY_WAIT: ${{ inputs.retry-wait-seconds }}
+      run: |
+        echo "::warning::Build/push attempt 2 failed. Retrying in ${RETRY_WAIT}s..."
+        sleep "${RETRY_WAIT}"
+
+    - name: Build and Push (attempt 3)
+      if: steps.attempt1.outcome == 'failure' && steps.attempt2.outcome == 'failure' && inputs.max-attempts >= 3
+      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      id: attempt3
+      continue-on-error: true
+      with:
+        file: ${{ inputs.file }}
+        context: ${{ inputs.context }}
+        tags: ${{ inputs.tags }}
+        labels: ${{ inputs.labels }}
+        annotations: ${{ inputs.annotations }}
+        platforms: ${{ inputs.platforms }}
+        target: ${{ inputs.target }}
+        build-args: ${{ inputs.build-args }}
+        secret-files: ${{ inputs.secret-files }}
+        cache-from: ${{ inputs.cache-from }}
+        push: ${{ inputs.push }}
+        load: ${{ inputs.load }}
+        pull: ${{ inputs.pull }}
+        no-cache: ${{ inputs.no-cache }}
+        sbom: ${{ inputs.sbom }}
+        provenance: ${{ inputs.provenance }}
+
+    - name: Fail if all attempts failed
+      if: steps.attempt1.outcome == 'failure' && (inputs.max-attempts < 2 || steps.attempt2.outcome == 'failure') && (inputs.max-attempts < 3 || steps.attempt3.outcome == 'failure')
+      shell: bash
+      env:
+        MAX_ATTEMPTS: ${{ inputs.max-attempts }}
+      run: |
+        if ! [[ "${MAX_ATTEMPTS}" =~ ^[0-9]+$ ]]; then
+          echo "::error::max-attempts must be a positive integer, got: ${MAX_ATTEMPTS}"
+          exit 1
+        fi
+        attempts="${MAX_ATTEMPTS}"
+        if [ "${attempts}" -gt 3 ]; then attempts=3; fi
+        echo "::error::All ${attempts} build/push attempts failed"
+        exit 1

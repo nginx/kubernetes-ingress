@@ -24,8 +24,6 @@ type VirtualServerConfig struct {
 	AuthJWTClaimSets        []AuthJWTClaimSet
 	CacheZones              []CacheZone
 	Server                  Server
-	SpiffeCerts             bool
-	SpiffeClientCerts       bool
 	SplitClients            []SplitClient
 	StatusMatches           []StatusMatch
 	Upstreams               []Upstream
@@ -252,6 +250,7 @@ type Location struct {
 	VSRNamespace               string
 	GRPCPass                   string
 	CORSEnabled                bool
+	DisableForwardedHeaders    bool
 	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int

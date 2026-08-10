@@ -100,6 +100,7 @@ var configMapFilteredKeys = []string{
 	"zone-sync-resolver-addresses",
 	"zone-sync-resolver-valid",
 	"zone-sync-resolver-ipv6",
+	"disable-forwarded-headers",
 }
 
 var mgmtConfigMapFilteredKeys = []string{
@@ -275,6 +276,8 @@ func (c *Collector) PolicyCount() map[string]int {
 			policyCounters["CORS"]++
 		case spec.ExternalAuth != nil:
 			policyCounters["ExternalAuth"]++
+		case spec.HSTS != nil:
+			policyCounters["HSTS"]++
 		}
 	}
 	return policyCounters

@@ -31,7 +31,7 @@ const (
 // ParseConfigMap parses ConfigMap into ConfigParams.
 //
 //nolint:gocyclo
-func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, hasAppProtect bool, hasAppProtectDos bool, hasTLSPassthrough bool, enableDirectiveAutoadjust bool, eventLog record.EventRecorder) (*ConfigParams, bool) {
+func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, hasAppProtect bool, hasAppProtectDos bool, hasTLSPassthrough bool, enableDirectiveAutoadjust bool, enableSnippets bool, eventLog record.EventRecorder) (*ConfigParams, bool) {
 	l := nl.LoggerFromContext(ctx)
 	cfgParams := NewDefaultConfigParams(ctx, nginxPlus)
 	configOk := true
@@ -110,6 +110,21 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 			configOk = false
 		} else {
 			cfgParams.MainAddHeaders = headers
+		}
+	}
+
+	if disableForwardedHeaders, exists, err := GetMapKeyAsBool(cfgm.Data, "disable-forwarded-headers", cfgm); exists {
+		if !enableSnippets {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: 'disable-forwarded-headers' requires -enable-snippets, ignoring", cfgm.GetNamespace(), cfgm.GetName())
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		} else if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			configOk = false
+		} else {
+			cfgParams.DisableForwardedHeaders = disableForwardedHeaders
 		}
 	}
 
@@ -1264,8 +1279,6 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		AppProtectDosLogFormat:             config.MainAppProtectDosLogFormat,
 		AppProtectDosLogFormatEscaping:     config.MainAppProtectDosLogFormatEscaping,
 		AppProtectDosArbFqdn:               config.MainAppProtectDosArbFqdn,
-		InternalRouteServer:                staticCfgParams.EnableInternalRoutes,
-		InternalRouteServerName:            staticCfgParams.InternalRouteServerName,
 		LatencyMetrics:                     staticCfgParams.EnableLatencyMetrics,
 		OIDC: version1.OIDCConfig{
 			Enable:          staticCfgParams.EnableOIDC,

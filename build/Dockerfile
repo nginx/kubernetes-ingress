@@ -1,11 +1,12 @@
-# syntax=docker/dockerfile:1.25
+# syntax=docker/dockerfile:1.26
 ARG BUILD_OS=debian
 # renovate: datasource=docker depName=nginx/nginx
 ARG NGINX_OSS_VERSION=1.31.3
 ARG NGINX_PLUS_VERSION=R37.0
-ARG NAP_WAF_VERSION=37.0+5.635
-ARG NAP_WAF_COMMON_VERSION=11.665
-ARG NAP_WAF_PLUGIN_VERSION=6.29
+ARG NAP_WAF_VERSION=37.0+5.690
+ARG NAP_WAF_COMMON_VERSION=11.735
+ARG NAP_WAF_PLUGIN_VERSION=6.30
+ARG NAP_WAF_IPI_VERSION=1.59
 ARG AGENT_V3_VERSION=3
 ARG AGENT_V2_VERSION=2
 ARG DOWNLOAD_TAG=edge
@@ -13,14 +14,14 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
 ARG PACKAGE_REPO=pkgs.nginx.com
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:d0e6bdcb164b114fddf05e39f47433fee2c7901521f1d77cf71bb330d666ce06
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:017b7ebd96a0011e0db28a9d29ebe1adbbb38c736f82fa918081dca7c558f6fb
 
 
 ############################################# External dependency images #############################################
-FROM golang:1.26.5-alpine@sha256:739b5c7c89c2ba19b5744fab836efe973158e2c4b08808e99285f735af3e2926 AS golang-builder
+FROM golang:1.26.5-alpine@sha256:0178a641fbb4858c5f1b48e34bdaabe0350a330a1b1149aabd498d0699ff5fb2 AS golang-builder
 FROM ghcr.io/nginx/alpine-fips:0.5.0-alpine3.22@sha256:f907d7541ab03453fd7d630dc0fb8d9a819717ea52a7956fe1f45b9833051177 AS alpine-fips-3.22
 FROM ${UBI10_PACKAGES_IMAGE} AS ubi10-packages
-FROM redhat/ubi10-minimal:10.2-1782798957@sha256:b217fa65d8c21058887b18f005f587e47a17dd1281a5196ac88d01724a273dbd AS ubi-minimal
+FROM redhat/ubi10-minimal:10.2-1785778687@sha256:f0ed153f25c9a3df530ccf2c49ec04430efef206083cbbc16ca76a866ef096b5 AS ubi-minimal
 
 
 ############################################# NGINX repo keys, .repo files, and helper scripts #############################################
@@ -117,7 +118,7 @@ RUN --mount=type=bind,from=nginx-files,src=nginx_signing.rsa.pub,target=/etc/apk
 
 
 ############################################### NGINX OSS - Debian #############################################
-FROM debian:trixie-slim@sha256:28de0877c2189802884ccd20f15ee41c203573bd87bb6b883f5f46362d24c5c2 AS debian
+FROM debian:trixie-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258 AS debian
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
@@ -253,6 +254,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce AS alpine-plus-nap-fips-base
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
+ARG NAP_WAF_IPI_VERSION
 ARG PACKAGE_REPO
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -275,7 +277,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	&& mkdir -p /etc/nginx/reporting/ \
 	&& cp -av /tmp/nginx/reporting/tracking.info /etc/nginx/reporting/tracking.info \
 	&& apk add --no-cache app-protect~=${NAP_WAF_VERSION/+/.} \
-      app-protect-ip-intelligence \
+      app-protect-ip-intelligence~=${NAP_WAF_IPI_VERSION} \
       app-protect-attack-signatures \
       app-protect-threat-campaigns \
 	&& sed -i -e '/nginx.com/d' /etc/apk/repositories \
@@ -389,7 +391,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Base:     debian:13-slim
 # Installs: nginx-plus, nginx-plus-module-njs/otel/fips-check, libcap2-bin, libcurl4
 # Extended: debian-plus (Agent v3)  •  debian-plus-nap-base  •  debian-plus-nap-v5-base
-FROM debian:13-slim@sha256:28de0877c2189802884ccd20f15ee41c203573bd87bb6b883f5f46362d24c5c2 AS debian-plus-only
+FROM debian:13-slim@sha256:3a39a0592364683e6bab97937b72cad5a8fa6dcbbee90edb3bb48c7f8e94f258 AS debian-plus-only
 ARG NGINX_PLUS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
@@ -448,6 +450,7 @@ ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_WAF_COMMON_VERSION
 ARG NAP_WAF_PLUGIN_VERSION
+ARG NAP_WAF_IPI_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -467,7 +470,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	app-protect-common=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
 	app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
-	app-protect-ip-intelligence \
+	app-protect-ip-intelligence=${NAP_WAF_IPI_VERSION}* \
 	app-protect-attack-signatures \
 	app-protect-threat-campaigns \
 	&& rm -f /etc/apt/sources.list.d/app-protect.sources \
@@ -615,6 +618,7 @@ FROM ubi-minimal AS ubi-10-plus-nap-base
 ARG NAP_MODULES
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
+ARG NAP_WAF_IPI_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -640,7 +644,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
         && cp /tmp/app-protect-10.repo /etc/yum.repos.d/app-protect-10.repo \
         && microdnf --nodocs install -y \
             app-protect-${NAP_WAF_VERSION}* \
-            app-protect-ip-intelligence \
+            app-protect-ip-intelligence-${NAP_WAF_IPI_VERSION}* \
             app-protect-attack-signatures \
             app-protect-threat-campaigns \
         && rm -f /etc/yum.repos.d/app-protect-10.repo \
