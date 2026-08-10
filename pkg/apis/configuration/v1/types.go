@@ -1026,7 +1026,7 @@ const (
 //   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 //   - N1C: pull a named managed policy from NGINX One Console via its API.
 //
-// Type-specific field requirements (policyName required for NIM/N1C, policyNamespace
+// Type-specific field requirements (name required for NIM/N1C, namespace
 // required for N1C) are enforced by the controller's Go validation layer.
 type BundleSource struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
@@ -1056,15 +1056,15 @@ type BundleSource struct {
 	// +optional
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
-	// PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
-	PolicyName string `json:"policyName,omitempty"`
+	Name string `json:"name,omitempty"`
 
-	// PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only.
+	// Namespace is the namespace/tenant on the management plane. Required for N1C only.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
-	PolicyNamespace string `json:"policyNamespace,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 
 	// EnablePolling enables background polling to automatically detect and fetch
 	// updated bundles at the configured PollInterval. When false, the bundle is

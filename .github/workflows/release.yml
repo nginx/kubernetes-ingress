@@ -161,15 +161,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  mend:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'mend'))
-    name: Run Mend workflow
-    uses: ./.github/workflows/mend.yml
-    needs: [tag]
-    with:
-      branch: "v${{ inputs.nic_version }}"
-    secrets: inherit
-
   release-oss:
     if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-oss'))
     name: Release Docker OSS
@@ -364,7 +355,7 @@ jobs:
           image: quay.io/nginx/nginx-ingress:${{ inputs.nic_version }}-ubi
           project_id: ${{ steps.secrets.outputs.PYXIS_CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ steps.secrets.outputs.PYXIS_TOKEN }}
-          preflight_version: 1.19.1 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
+          preflight_version: 1.19.2 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
 
   operator:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart'))
