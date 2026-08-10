@@ -1,0 +1,18 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: native-fclo-two
+spec:
+  host: native-fclo-two.example.com
+  tls:
+    secret: tls-secret
+  upstreams:
+    - name: fclo-two
+      service: fclo-two-svc
+      port: 80
+  routes:
+    - path: /
+      policies:
+        - name: oidc-native-policy-two
+      action:
+        pass: fclo-two

@@ -86,6 +86,7 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
     data = {"username": "admin", "password": "admin", "grant_type": "password", "client_id": "admin-cli"}
 
     response = requests.post(url, headers=headers, data=data, verify=False)
+    response.raise_for_status()
     token = response.json()["access_token"]
 
     # Create a user and set credentials
@@ -97,6 +98,7 @@ def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoi
         "credentials": [{"type": "password", "value": password, "temporary": False}],
     }
     response = requests.post(create_user_url, headers=headers, json=user_payload, verify=False)
+    response.raise_for_status()
 
     # Create client "nginx-plus-pkce" for the pkce test (using wildcard for dynamic native callback url paths)
     create_pkce_client_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/admin/realms/master/clients"
