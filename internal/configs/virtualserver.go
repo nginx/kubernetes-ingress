@@ -306,6 +306,7 @@ type virtualServerConfigurator struct {
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
+	plmEnabled                 bool
 }
 
 func (vsc *virtualServerConfigurator) addWarningf(obj runtime.Object, msgFmt string, args ...interface{}) {
@@ -348,6 +349,7 @@ func newVirtualServerConfigurator(
 		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
+		plmEnabled:                 staticParams.PLMEnabled,
 	}
 }
 
@@ -428,6 +430,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		apResources:     apResources,
 		defaultCABundle: vsc.CABundlePath,
 		replicas:        vsc.IngressControllerReplicas,
+		plmEnabled:      vsc.plmEnabled,
 	}
 
 	ownerDetails := policyOwnerDetails{

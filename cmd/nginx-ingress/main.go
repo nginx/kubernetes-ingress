@@ -239,6 +239,7 @@ func main() {
 		NginxVersion:                   nginxVersion,
 		AppProtectBundlePath:           appProtectBundlePath,
 		DefaultCABundle:                caBundlePath,
+		PLMEnabled:                     *plmStorageURL != "",
 	}
 
 	if *nginxPlus {

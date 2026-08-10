@@ -1007,7 +1007,7 @@ type OIDC struct {
 }
 
 // BundleSourceType specifies the remote source backend for a WAF bundle.
-// +kubebuilder:validation:Enum=HTTPS;NIM;N1C;PLM
+// +kubebuilder:validation:Enum=HTTPS;NIM;N1C
 type BundleSourceType string
 
 const (
@@ -1017,30 +1017,21 @@ const (
 	BundleSourceTypeNIM BundleSourceType = "NIM"
 	// BundleSourceTypeN1C fetches a managed policy bundle from NGINX One Console.
 	BundleSourceTypeN1C BundleSourceType = "N1C"
-	// BundleSourceTypePLM fetches a bundle compiled by the F5 WAF Policy Controller (PLM)
-	// from its SeaweedFS S3 storage.
-	BundleSourceTypePLM BundleSourceType = "PLM"
 )
 
 // BundleSource configures fetching a pre-compiled WAF bundle from a remote source.
 //
-// Four source types are supported:
+// Three source types are supported:
 //   - HTTPS (default): fetch a pre-compiled .tgz bundle from any HTTPS server.
 //   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 //   - N1C: pull a named managed policy from NGINX One Console via its API.
-//   - PLM: fetch a bundle compiled by the F5 WAF Policy Controller from its S3 storage,
-//     referencing an APPolicy/APLogConf CR by name (+ optional namespace).
 //
-// Type-specific field requirements for HTTPS/NIM/N1C (url required; name required
-// for NIM/N1C; namespace required for N1C) are enforced by the controller's Go
-// validation layer.
-// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.url) || size(self.url) == 0",message="url is not allowed when type is PLM; the bundle location is read from the referenced CR's status"
-// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.secret) || size(self.secret) == 0",message="secret is not allowed when type is PLM; S3 credentials are configured cluster-wide via -plm-storage-credentials-secret"
-// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.trustedCertSecret) || size(self.trustedCertSecret) == 0",message="trustedCertSecret is not allowed when type is PLM; TLS is configured cluster-wide via -plm-storage-ca-secret"
-// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.verifyChecksum) || self.verifyChecksum == false",message="verifyChecksum is not allowed when type is PLM; the checksum is read from the referenced CR's status"
-// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.enablePolling) || self.enablePolling == false",message="enablePolling is not allowed when type is PLM; PLM bundles refresh automatically when the referenced CR's status changes"
-// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || !has(self.pollInterval)",message="pollInterval is not allowed when type is PLM; PLM bundles refresh automatically when the referenced CR's status changes"
-// +kubebuilder:validation:XValidation:rule="self.type != 'PLM' || (has(self.name) && size(self.name) > 0)",message="name is required when type is PLM and must reference an APPolicy/APLogConf resource"
+// Type-specific field requirements (url required; name required for NIM/N1C;
+// namespace required for N1C) are enforced by the controller's Go validation layer.
+//
+// To reference bundles compiled by the F5 WAF Policy Controller (PLM), use the
+// apPolicy and apLogConf fields on the parent WAF resource. NIC resolves those
+// references as PLM bundles when the -plm-storage-url flag is set.
 type BundleSource struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
 	// +kubebuilder:default=HTTPS
@@ -1048,7 +1039,6 @@ type BundleSource struct {
 	Type BundleSourceType `json:"type,omitempty"`
 
 	// URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
-	// Not used for PLM, where the bundle location is read from the referenced CR's .status.bundle.
 	// +kubebuilder:validation:MaxLength=2083
 	// +kubebuilder:validation:Pattern=`^(https://.*)?$`
 	// +optional
@@ -1069,15 +1059,12 @@ type BundleSource struct {
 	// +optional
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
-	// Name is the policy name on the management plane (NIM/N1C), or the name of the
-	// APPolicy/APLogConf CR to reference (PLM). Required for NIM, N1C, and PLM; forbidden for HTTPS.
+	// Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
 	Name string `json:"name,omitempty"`
 
-	// Namespace is the namespace/tenant on the management plane (N1C), or the namespace of
-	// the referenced APPolicy/APLogConf CR (PLM). Required for N1C; optional for PLM (defaults to
-	// the Policy's own namespace); forbidden otherwise.
+	// Namespace is the namespace/tenant on the management plane. Required for N1C; forbidden otherwise.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
 	Namespace string `json:"namespace,omitempty"`

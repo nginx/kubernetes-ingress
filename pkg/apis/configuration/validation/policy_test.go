@@ -4198,14 +4198,6 @@ func TestValidateBundleSource_HTTPS_Valid(t *testing.T) {
 	}
 }
 
-func TestValidateBundleSource_PLM_ValidWithoutURL(t *testing.T) {
-	t.Parallel()
-	bs := &v1.BundleSource{Type: v1.BundleSourceTypePLM, Name: "dataguard-blocking"}
-	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
-		t.Errorf("unexpected errors: %v", errs)
-	}
-}
-
 func TestValidateBundleSource_HTTPS_Name_Forbidden(t *testing.T) {
 	t.Parallel()
 	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://bundles.example.com/p.tgz", Name: "Foo"}

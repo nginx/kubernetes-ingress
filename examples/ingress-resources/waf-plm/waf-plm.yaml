@@ -5,14 +5,12 @@ metadata:
 spec:
   waf:
     enable: true
-    apBundleSource:
-      type: PLM
-      name: "dataguard-alarm"
-      # namespace: "plm"
+    # apPolicy references an APPolicy CR by "[<namespace>/]<name>". When NIC is
+    # started with -plm-storage-url, the referenced APPolicy must have been
+    # compiled by PLM (status.bundle.state == ready) and NIC fetches the compiled
+    # bundle from PLM S3 storage.
+    apPolicy: "dataguard-alarm"
     securityLogs:
     - enable: true
-      apLogBundleSource:
-        type: PLM
-        name: "logconf"
-        # namespace: "plm"
+      apLogConf: "logconf"
       logDest: "syslog:server=syslog-svc.default:514"
