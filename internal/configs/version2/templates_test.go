@@ -3933,7 +3933,7 @@ func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
 				ClientID:              "my-client-id",
 				ClientSecret:          "my-resolved-secret",
 				ConfigURL:             "https://accounts.google.com/.well-known/openid-configuration",
-				Scope:                 "openid+profile",
+				Scope:                 "openid profile",
 				RedirectURI:           "/callback",
 				CookieName:            "MY_SESSION",
 				ExtraAuthArgs:         "prompt=login",

@@ -4838,6 +4838,93 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "oidc-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[string]*secrets.SecretReference{
+					"default/oidc-secret": {
+						Secret: &api_v1.Secret{
+							Type: secrets.SecretTypeOIDC,
+							Data: map[string][]byte{},
+						},
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references a secret default/oidc-secret missing 'client-secret' key`,
+				},
+			},
+			msg: "oidcNative secret missing client-secret key",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "oidc-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[string]*secrets.SecretReference{
+					"default/oidc-secret": {
+						Secret: nil,
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references an invalid secret default/oidc-secret: secret doesn't exist`,
+				},
+			},
+			msg: "oidcNative secret reference with nil Secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "oidc-native-1",
 					Namespace: "default",
 				},

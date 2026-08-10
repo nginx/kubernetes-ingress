@@ -2215,6 +2215,16 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 			fieldPath:  "oidcNative.scope",
 			msg:        "openid must be a complete scope token",
 		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", SSLVerify: new(bool), TrustedCertSecret: "my-ca"},
+			fieldPath:  "oidcNative.trustedCertSecret",
+			msg:        "trustedCertSecret set when sslVerify is false",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com?query=1", ClientID: "my-client"},
+			fieldPath:  "oidcNative.issuer",
+			msg:        "issuer contains query parameter",
+		},
 	}
 
 	for _, test := range tests {
