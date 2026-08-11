@@ -60,13 +60,13 @@ def get_create_client_payload(name, host):
     return {
         "clientId": name,
         "name": f"{name} client name",
-        "redirectUris": [f"https://{host}:443/*"],
+        "redirectUris": [f"https://{host}/*", f"https://{host}:443/*"],
         "standardFlowEnabled": True,
         "directAccessGrantsEnabled": True,
         "publicClient": False,
         "frontchannelLogout": True,
         "attributes": {
-            "post.logout.redirect.uris": f"https://{host}:443/*",
+            "post.logout.redirect.uris": f"https://{host}/*##https://{host}:443/*",
             "frontchannel.logout.url": f"https://{host}/front_channel_logout",
         },
         "protocol": "openid-connect",
@@ -113,7 +113,7 @@ def create_native_oidc_policy(
         "spec": {
             "oidcNative": {
                 "issuer": f"https://{keycloak_host}/realms/master",
-                "configURL": f"https://{keycloak_host}:8443/realms/master/.well-known/openid-configuration",
+                "configURL": f"https://{keycloak_host}/realms/master/.well-known/openid-configuration",
                 "sslName": keycloak_host,
                 "clientID": client_id,
                 "clientSecret": secret_name,
@@ -248,7 +248,7 @@ def run_oidc_native_fclo(browser_type, ip_address, port):
         page.locator("input[name='username']").fill(username)
         page.locator("input[name='password']").fill(password)
         page.locator('button[type="submit"]').click()
-        page.wait_for_url("https://native-fclo-one.example.com/**")
+        page.wait_for_url("https://native-fclo-one.example.com*")
 
         page_text = page.locator("body").text_content()
         fields_to_check = ["Server address:", "Server name:", "Date:", "Request ID:"]
@@ -312,7 +312,7 @@ def run_oidc_native_rp_logout(browser_type, ip_address, port):
         page.locator("input[name='username']").fill(username)
         page.locator("input[name='password']").fill(password)
         page.locator('button[type="submit"]').click()
-        page.wait_for_url("https://native-fclo-one.example.com/**")
+        page.wait_for_url("https://native-fclo-one.example.com*")
 
         page_text = page.locator("body").text_content()
         fields_to_check = ["Server address:", "Server name:", "Date:", "Request ID:"]
