@@ -2993,9 +2993,10 @@ func createExpectedConfigForCafeIngressWithUseClusterIPNamedPorts() version1.Ing
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
 						ClientMaxBodySize:   "1m",
-						ProxyBuffering:      true,
-						ProxySSLName:        "coffee-svc.default.svc",
-						ProxyPass:           "http://default-cafe-ingress-cafe.example.com-coffee-svc-custom-port-name",
+
+						ProxyBuffering: true,
+						ProxySSLName:   "coffee-svc.default.svc",
+						ProxyPass:      "http://default-cafe-ingress-cafe.example.com-coffee-svc-custom-port-name",
 					},
 					{
 						Path:                "/tea",
