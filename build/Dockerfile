@@ -120,7 +120,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	&& addgroup -S -g 101 nginx \
 	&& adduser -S -D -H -G nginx -h /var/cache/nginx -s /sbin/nologin -g nginx -u 101 nginx \
     && curl -L --cert /etc/apk/cert.pem --key /etc/apk/cert.key https://pkgs-test.nginx.com/debug \
-    && apk add -X "https://${OSS_PACKAGE_REPO}/nginx/mainline/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
+    && printf "%s\n" "https://${OSS_PACKAGE_REPO}/nginx/mainline/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
+    && printf "%s\n" "https://${OSS_PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
+    && apk add --no-cache \
       nginx~${NGINX_OSS_VERSION} \
       nginx-module-njs~${NGINX_OSS_VERSION} \
       nginx-module-otel~${NGINX_OSS_VERSION} \
