@@ -1632,6 +1632,88 @@ func TestExecuteTemplate_ForMainForNGINXPlusTLSPassthroughPortDisabled(t *testin
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressForNGINXPlusWithOIDCNative(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress"
+
+	ingressCfg := IngressNginxConfig{
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+		KeyValZones: []version2.KeyValZone{
+			{
+				Name: "oidc_sessions_" + providerName,
+				Size: "10m",
+			},
+		},
+		OIDCProviders: []version2.OIDCProvider{
+			{
+				Name:            providerName,
+				PolicyKey:       "default/oidc-native-policy",
+				Issuer:          "https://keycloak.example.com/realms/master",
+				ClientID:        "client-id",
+				RedirectURI:     "/oidc_callback_" + providerName,
+				CookieName:      "NGX_OIDC_" + providerName,
+				SessionStore:    "oidc_sessions_" + providerName,
+				SSLVerify:       true,
+				SSLName:         "keycloak.example.com",
+				SSLVerifyDepth:  1,
+				ProxyLocation:   "/_oidc_idp_" + providerName,
+				ProxyBufferSize: "32k",
+				PostLogoutLocation: &version2.AuthOIDCReturnLocation{
+					Path:        "/_logout",
+					DefaultType: "text/plain",
+					Return: version2.Return{
+						Code: 200,
+						Text: "You have been logged out.",
+					},
+				},
+			},
+		},
+		Servers: []Server{
+			{
+				Name:             "cafe.example.com",
+				OIDCProviderName: providerName,
+				Locations: []Location{
+					{
+						Path:             "/tea",
+						OIDCProviderName: providerName,
+					},
+				},
+			},
+		},
+	}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+
+	expectedDirectives := []string{
+		"keyval_zone zone=oidc_sessions_" + providerName + ":10m;",
+		"oidc_provider " + providerName + " {",
+		"auth_oidc " + providerName + ";",
+		"location = /oidc_callback_" + providerName + " {",
+		"location = /_logout {",
+		"location = /_oidc_idp_" + providerName + " {",
+	}
+
+	for _, directive := range expectedDirectives {
+		if !strings.Contains(rendered, directive) {
+			t.Errorf("want %q in generated config", directive)
+		}
+	}
+
+	snaps.MatchSnapshot(t, rendered)
+}
+
 func TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
 	t.Parallel()
 

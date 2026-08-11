@@ -20,11 +20,13 @@ type IngressNginxConfig struct {
 	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
+	OIDCProviders           []version2.OIDCProvider
 	Ingress                 Ingress
 	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
+	KeyValZones             []version2.KeyValZone
 }
 
 // Ingress holds information about an Ingress resource.
@@ -116,6 +118,7 @@ type Server struct {
 	AddHeaders             []version2.AddHeader
 	Allow                  []string
 	Deny                   []string
+	OIDCProviderName       string
 	PoliciesErrorReturn    *version2.Return
 
 	HealthChecks map[string]HealthCheck
@@ -239,6 +242,7 @@ type Location struct {
 	Deny                       []string
 	WAF                        *version2.WAF
 	EgressMTLS                 *version2.EgressMTLS
+	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
 }
 

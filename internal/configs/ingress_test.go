@@ -1251,6 +1251,73 @@ func TestGenerateNginxCfgWithWildcardTLSSecret(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgForOIDCNative(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/oidc-native-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-native-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				OIDCNative: &conf_v1.OIDCNative{
+					Issuer:   "https://keycloak.example.com/realms/master",
+					ClientID: "client-id",
+				},
+			},
+		},
+	}
+
+	isPlus := true
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+
+	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress"
+	expected.OIDCProviders = []version2.OIDCProvider{
+		{
+			Name:            providerName,
+			PolicyKey:       "default/oidc-native-policy",
+			Issuer:          "https://keycloak.example.com/realms/master",
+			ClientID:        "client-id",
+			RedirectURI:     "/oidc_callback_" + providerName,
+			CookieName:      "NGX_OIDC_" + providerName,
+			SessionStore:    "oidc_sessions_" + providerName,
+			SSLVerify:       true,
+			SSLName:         "keycloak.example.com",
+			SSLVerifyDepth:  1,
+			ProxyLocation:   "/_oidc_idp_" + providerName,
+			ProxyBufferSize: "32k",
+		},
+	}
+	expected.KeyValZones = []version2.KeyValZone{
+		{
+			Name: "oidc_sessions_" + providerName,
+			Size: "10m",
+		},
+	}
+	expected.Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy"
+
+	for i := range expected.Servers {
+		expected.Servers[i].OIDCProviderName = providerName
+	}
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
+	}
+}
+
 func TestGenerateNginxCfgWithIPV6Disabled(t *testing.T) {
 	t.Parallel()
 	isPlus := false
@@ -2458,6 +2525,75 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithMissingOrInvalidPolicy(t
 				t.Fatalf("expected warning containing %q, got %v", expectedWarning, resultWarnings)
 			}
 		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesMinionWithOIDCNative(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy"
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/oidc-native-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-native-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				OIDCNative: &conf_v1.OIDCNative{
+					Issuer:   "https://keycloak.example.com/realms/master",
+					ClientID: "client-id",
+				},
+			},
+		},
+	}
+
+	isPlus := true
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+
+	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress_master"
+	expected.OIDCProviders = []version2.OIDCProvider{
+		{
+			Name:            providerName,
+			PolicyKey:       "default/oidc-native-policy",
+			Issuer:          "https://keycloak.example.com/realms/master",
+			ClientID:        "client-id",
+			RedirectURI:     "/oidc_callback_" + providerName,
+			CookieName:      "NGX_OIDC_" + providerName,
+			SessionStore:    "oidc_sessions_" + providerName,
+			SSLVerify:       true,
+			SSLName:         "keycloak.example.com",
+			SSLVerifyDepth:  1,
+			ProxyLocation:   "/_oidc_idp_" + providerName,
+			ProxyBufferSize: "32k",
+		},
+	}
+	expected.KeyValZones = []version2.KeyValZone{
+		{
+			Name: "oidc_sessions_" + providerName,
+			Size: "10m",
+		},
+	}
+
+	for i, loc := range expected.Servers[0].Locations {
+		if loc.Path == "/coffee" {
+			expected.Servers[0].Locations[i].OIDCProviderName = providerName
+			expected.Servers[0].Locations[i].MinionIngress.Annotations["nginx.com/policies"] = "oidc-native-policy"
+		}
+	}
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		mergeableIngs: mergeableIngresses,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
 	}
 }
 
