@@ -38,7 +38,7 @@ jobs:
       lts_tags: ${{ steps.vars.outputs.lts_tags }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch && inputs.branch || github.event.repository.default_branch }}
           fetch-depth: 0
@@ -87,7 +87,7 @@ jobs:
     needs: [checks]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
@@ -109,10 +109,10 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.2.3 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -120,7 +120,7 @@ jobs:
         run: make cover
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
@@ -147,14 +147,14 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.2.3 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Azure login
         uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
@@ -260,7 +260,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
@@ -288,7 +288,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.checks.outputs.branch }}
 

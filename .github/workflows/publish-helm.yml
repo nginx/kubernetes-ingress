@@ -76,7 +76,7 @@ jobs:
       id-token: write # for OIDC login
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/heads/${{ inputs.branch }}
           path: kic
@@ -111,7 +111,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
+          version: v4.2.3 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Package
         id: package
@@ -169,7 +169,7 @@ jobs:
         if: ${{ inputs.nginx_helm_repo }}
 
       - name: Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: nginxinc/helm-charts
           fetch-depth: 1
