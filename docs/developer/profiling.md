@@ -19,6 +19,14 @@ This guide covers how to build, deploy, and profile NGINX Ingress Controller usi
   - [Verb classification](#verb-classification)
   - [What is tracked](#what-is-tracked)
   - [Implementation](#implementation)
+- [Benchmarking](#benchmarking)
+  - [Benchmark coverage](#benchmark-coverage)
+  - [Running benchmarks](#running-benchmarks)
+  - [Per-test profiling with hack/profile.sh](#per-test-profiling-with-hackprofilesh)
+  - [Tracking memory and CPU spikes](#tracking-memory-and-cpu-spikes)
+  - [Scaled benchmarks](#scaled-benchmarks)
+  - [Burst simulation](#burst-simulation)
+  - [Regression tracking with benchstat](#regression-tracking-with-benchstat)
 - [Collecting profiles](#collecting-profiles)
   - [Function call frequency (CPU profile)](#function-call-frequency-cpu-profile)
   - [Goroutine analysis](#goroutine-analysis)
@@ -184,7 +192,7 @@ Access pprof at `http://<node-ip>:<nodeport>/debug/pprof/`.
 
 ## K8s API call tracking
 
-The debug build includes a custom HTTP transport wrapper that records **every Kubernetes API call** NIC makes. It tracks per-verb, per-resource call counts, error counts, and latency statistics. This is the most direct way to answer "how often are we calling the K8s API, and for what?"
+The debug build includes a custom HTTP transport wrapper that records **every Kubernetes API call** NIC makes. It tracks per-verb, per-resource call counts, error counts, and latency statistics.
 
 Served on the same `:6060` port at `/debug/api-stats`.
 
@@ -293,6 +301,250 @@ The tracking is implemented in `cmd/nginx-ingress/debug_transport.go` (only comp
 4. Registers HTTP handlers on `http.DefaultServeMux` (shared with pprof on `:6060`)
 
 In release builds, `wrapTransportWithDebugTracking()` is a no-op (see `debug_transport_release.go`).
+
+## Benchmarking
+
+Go benchmarks measure config generation performance and track allocation regressions. They live in
+`*_bench_test.go` files alongside the unit tests and run with the standard `go test -bench` tooling.
+
+### Benchmark coverage
+
+| File | What it benchmarks |
+| --- | --- |
+| `internal/configs/configurator_bench_test.go` | **Full-path** (config struct + template + file write): Ingress, mergeable Ingress, VirtualServer (base/splits/matches), TransportServer, endpoint updates. **Config-struct-only**: `GenerateVirtualServerConfig` (base/splits/matches), `GenerateTransportServerConfig`. **Other**: annotation parsing, metrics label computation. |
+| `internal/configs/version2/templates_bench_test.go` | **Template execution only** (no config generation): VirtualServer Plus, VirtualServer OSS, TransportServer. Isolates `text/template` rendering cost from config struct generation. |
+| `internal/configs/configurator_bench_peak_test.go` | **Scaled benchmarks**: config generation and full-path at varying sizes (3-500 upstreams/routes). **Burst simulation**: loading 10-100 VirtualServer configs in sequence (reconciliation storm). All benchmarks report **peak per-iteration** allocation alongside the average via `memTracker`. |
+
+### Running benchmarks
+
+```shell
+# Run all benchmarks in the configs packages with memory stats
+go test -tags=aws,helmunit -bench=. -benchmem -count=1 -run='^$' \
+  ./internal/configs/ ./internal/configs/version2/
+
+# Run only VirtualServer-related benchmarks
+go test -tags=aws,helmunit -bench='VirtualServer' -benchmem -count=1 -run='^$' \
+  ./internal/configs/
+
+# Run with multiple iterations for statistical significance (required for benchstat)
+go test -tags=aws,helmunit -bench='BenchmarkAddOrUpdateVirtualServer$' \
+  -benchmem -count=10 -run='^$' ./internal/configs/
+
+# Run scaled benchmarks to see how performance changes with config size
+go test -tags=aws,helmunit -bench='_Scale' -benchmem -count=1 -run='^$' \
+  ./internal/configs/
+
+# Run burst simulation
+go test -tags=aws,helmunit -bench='Burst' -benchmem -count=1 -run='^$' \
+  ./internal/configs/
+```
+
+Key flags:
+
+| Flag | Purpose |
+| --- | --- |
+| `-bench=<regex>` | Run benchmarks matching the pattern (`-bench=.` for all) |
+| `-benchmem` | Report B/op and allocs/op alongside ns/op |
+| `-count=N` | Repeat each benchmark N times (use 10+ for `benchstat`) |
+| `-run='^$'` | Skip unit tests, run only benchmarks |
+| `-benchtime=2s` | Run each benchmark for at least 2 seconds (more samples) |
+| `-cpuprofile=cpu.prof` | Write CPU profile (only meaningful for single-benchmark runs) |
+| `-memprofile=mem.prof` | Write memory profile |
+
+### Per-test profiling with hack/profile.sh
+
+The `hack/profile.sh` script runs each benchmark function individually and saves per-function CPU
+and memory profile files. This is useful for drilling into a specific benchmark with `go tool pprof`.
+
+```shell
+# Run all benchmarks, save profiles to ./profiles/
+./hack/profile.sh
+
+# Custom output directory
+PROF_DIR=/tmp/profiles ./hack/profile.sh
+
+# Only benchmark functions (skip Test* functions)
+PROF_BENCH_ONLY=1 ./hack/profile.sh
+
+# Only functions matching a pattern
+PROF_PATTERN="VirtualServer" PROF_BENCH_ONLY=1 ./hack/profile.sh
+
+# Specific package only
+PROF_PKG="./internal/configs/..." PROF_BENCH_ONLY=1 ./hack/profile.sh
+```
+
+There is also a Makefile target:
+
+```shell
+make test-profile
+```
+
+Output structure:
+
+```
+profiles/
+  internal_configs/
+    001_BenchmarkAddOrUpdateIngress_cpu.prof
+    001_BenchmarkAddOrUpdateIngress_mem.prof
+    001_BenchmarkAddOrUpdateIngress.log
+    002_BenchmarkAddOrUpdateMergeableIngress_cpu.prof
+    ...
+  internal_configs_version2/
+    001_BenchmarkExecuteVirtualServerTemplate_cpu.prof
+    ...
+```
+
+Analyse a profile:
+
+```shell
+# Interactive pprof shell
+go tool pprof profiles/internal_configs/001_BenchmarkAddOrUpdateIngress_cpu.prof
+
+# Web UI with flame graph
+go tool pprof -http=:8080 profiles/internal_configs/001_BenchmarkAddOrUpdateIngress_cpu.prof
+
+# Show only application code (filter out runtime)
+go tool pprof -text profiles/internal_configs/001_BenchmarkAddOrUpdateIngress_cpu.prof \
+  | grep 'configs\.\|fmt\.\|version2\.'
+
+# Memory allocations by function
+go tool pprof -alloc_space -text profiles/internal_configs/001_BenchmarkAddOrUpdateIngress_mem.prof \
+  | grep 'configs\.' | sort -k5 -rn | head -20
+```
+
+### Tracking memory and CPU spikes
+
+Standard benchmarks report **averages** (`B/op`, `allocs/op`), which smooth out exactly the spikes
+you care about during burst config loading. The benchmarks in `configurator_bench_peak_test.go` use
+a `memTracker` helper that records `runtime.MemStats` per iteration and reports peak values via
+`b.ReportMetric`:
+
+```
+BenchmarkGenerateVirtualServerConfig_Scale/up=100/rt=200
+  919us   665,968 B/op   4,341 allocs/op           # standard (averages)
+  668,248 peak-B/op      4,353 peak-allocs/op       # worst single iteration
+  7.180 peak-heap-MB                                 # process heap high-water mark
+```
+
+How to interpret:
+
+- **`peak-B/op` vs `avg-B/op`**: A large gap means some iterations allocate significantly more
+  than others. This indicates spiky allocation patterns that can trigger GC pauses at
+  unpredictable times.
+- **`peak-allocs/op` vs `avg-allocs/op`**: Same for allocation count. High peak alloc counts
+  cause more GC mark work.
+- **`peak-heap-MB`**: Process-wide heap high-water mark during the benchmark. Shows the maximum
+  memory footprint reached. Compare across config sizes to see if large configs cause
+  disproportionate heap growth.
+
+The `memTracker` adds ~1-5% overhead from `runtime.ReadMemStats` per iteration, which is acceptable
+for operations taking >50us. It should not be used on micro-benchmarks (<10us/op) where the
+overhead would dominate.
+
+### Scaled benchmarks
+
+Benchmarks with the `_Scale` suffix run the same operation at multiple config sizes to reveal
+scaling characteristics. This answers: "does a 100-upstream VirtualServer cost 33x more than a
+3-upstream one, or is there super-linear growth?"
+
+```shell
+go test -tags=aws,helmunit -bench='_Scale' -benchmem -count=1 -run='^$' ./internal/configs/
+```
+
+Example output for `BenchmarkGenerateVirtualServerConfig_Scale`:
+
+| Scale | ns/op | B/op | allocs/op | peak-B/op | peak-heap-MB |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| up=3/rt=6 | 106K | 19.5K | 149 | 21.6K | 5.8 |
+| up=10/rt=20 | 189K | 76.6K | 457 | 78.8K | 6.1 |
+| up=50/rt=100 | 539K | 331K | 2,186 | 334K | 6.4 |
+| up=100/rt=200 | 919K | 666K | 4,341 | 668K | 7.2 |
+| up=500/rt=500 | 1.86M | 1.73M | 14,551 | 1.73M | 7.5 |
+
+What to look for:
+
+- **Linear scaling**: B/op and allocs/op should grow roughly proportionally with upstream/route
+  count. The table above shows ~linear growth (good).
+- **Super-linear spikes**: If B/op grows faster than the config size, there may be quadratic
+  loops or unbounded slice growth in the generation code.
+- **Peak-heap divergence**: If `peak-heap-MB` grows much faster than `B/op`, memory is being
+  retained across iterations (possible leak or cache growth).
+
+### Burst simulation
+
+`BenchmarkVirtualServerBurst` simulates a reconciliation storm: N distinct VirtualServer configs
+are generated and written in rapid sequence, as happens during controller startup or a large batch
+`kubectl apply`. It reports per-burst aggregate metrics:
+
+```shell
+go test -tags=aws,helmunit -bench='Burst' -benchmem -count=1 -run='^$' ./internal/configs/
+```
+
+Example output:
+
+| Burst size | Time | burst-avg-B/vs | burst-heap-delta-MB | burst-gc-cycles |
+| --- | ---: | ---: | ---: | ---: |
+| 10 | 1.8ms | 27.4K | 0.1 | 0 |
+| 50 | 5.9ms | 27.2K | 1.0 | 0 |
+| 100 | 8.3ms | 27.2K | 2.2 | 0 |
+
+How to interpret:
+
+- **`burst-avg-B/vs`**: Average bytes allocated per VirtualServer within the burst. Should be
+  stable regardless of burst size. If it grows with burst size, there is amplification (e.g.,
+  a shared data structure growing with each config added).
+- **`burst-heap-delta-MB`**: Heap growth during the burst. Shows how much memory the burst
+  consumes before GC can reclaim it. Use this to size memory requests for pods that handle
+  large numbers of VirtualServers.
+- **`burst-gc-cycles`**: Number of GC cycles triggered during the burst. A value > 0 means
+  the burst is generating enough garbage to trigger GC mid-reconcile, which adds latency.
+  Watch this metric after code changes -- a regression that increases per-VS allocation
+  can push a previously GC-free burst over the threshold.
+
+### Regression tracking with benchstat
+
+To detect performance regressions between code changes, use
+[`benchstat`](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat) to compare benchmark runs with
+statistical confidence:
+
+```shell
+# Install benchstat (one time)
+go install golang.org/x/perf/cmd/benchstat@latest
+
+# Capture baseline (10 runs for statistical significance)
+go test -tags=aws,helmunit \
+  -bench='BenchmarkAddOrUpdateVirtualServer$|BenchmarkGenerateVirtualServerConfig$' \
+  -benchmem -count=10 -run='^$' \
+  ./internal/configs/ > before.txt
+
+# ... make code changes ...
+
+# Capture after
+go test -tags=aws,helmunit \
+  -bench='BenchmarkAddOrUpdateVirtualServer$|BenchmarkGenerateVirtualServerConfig$' \
+  -benchmem -count=10 -run='^$' \
+  ./internal/configs/ > after.txt
+
+# Compare
+benchstat before.txt after.txt
+```
+
+Example `benchstat` output:
+
+```
+                              │ before.txt  │           after.txt            │
+                              │   sec/op    │   sec/op     vs base           │
+AddOrUpdateVirtualServer-12     222.0u ± 3%   211.5u ± 2%  -4.73% (p=0.001)
+GenerateVirtualServerConfig-12  23.40u ± 2%   17.90u ± 1%  -23.5% (p=0.000)
+
+                              │ before.txt  │           after.txt            │
+                              │    B/op     │    B/op      vs base           │
+AddOrUpdateVirtualServer-12     93.64Ki ± 0%  66.15Ki ± 0%  -27.7% (p=0.000)
+GenerateVirtualServerConfig-12  24.86Ki ± 0%  21.93Ki ± 0%  -11.8% (p=0.000)
+```
+
+A regression is any row where `vs base` shows a statistically significant increase (p < 0.05).
+Pay most attention to `B/op` and `allocs/op` -- these directly affect GC pressure under load.
 
 ## Collecting profiles
 

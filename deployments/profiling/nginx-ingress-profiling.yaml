@@ -43,7 +43,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-      - image: nginx/nginx-ingress:profiling
+      - image: localhost:5000/local/nic:profiling
         imagePullPolicy: IfNotPresent
         name: nginx-ingress
         ports:
