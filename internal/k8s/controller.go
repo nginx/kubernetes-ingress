@@ -1047,7 +1047,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	var reloadNginx bool
 
 	if lbc.configMap != nil {
-		cfgParams, isNGINXConfigValid = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled, lbc.configuration.isDirectiveAutoadjustEnabled, lbc.recorder)
+		cfgParams, isNGINXConfigValid = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled, lbc.configuration.isDirectiveAutoadjustEnabled, lbc.configuration.snippetsEnabled, lbc.recorder)
 	}
 	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
 		mgmtCfgParams, mgmtConfigHasWarnings, mgmtErr = configs.ParseMGMTConfigMap(ctx, lbc.mgmtConfigMap, lbc.recorder)
@@ -2740,6 +2740,14 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 	for _, tls := range ing.Spec.TLS {
 		secretName := tls.SecretName
+		if secretName == "" {
+			// No secretName specified. Skip the store lookup to avoid a spurious
+			// "secret doesn't exist" warning on every sync of this Ingress.
+			// If --wildcard-tls-secret is configured, NGINX config generation will
+			// fall back to the wildcard TLS secret for this host.
+			ingEx.SecretRefs[secretName] = &secrets.SecretReference{}
+			continue
+		}
 		secretKey := ing.Namespace + "/" + secretName
 
 		secretRef := lbc.secretStore.GetSecret(secretKey)

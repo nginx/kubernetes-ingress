@@ -4039,6 +4039,34 @@ func TestExecuteTemplate_ForIngressWithAddHeaderInherit(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressWithDisableForwardedHeaders(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgForwardedHeaderDisabled)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	notWantDirectives := []string{
+		"proxy_set_header X-Forwarded-For",
+		"proxy_set_header X-Forwarded-Host",
+		"proxy_set_header X-Forwarded-Port",
+		"proxy_set_header X-Forwarded-Proto",
+	}
+
+	rendered := buf.String()
+	for _, notWant := range notWantDirectives {
+		if strings.Contains(rendered, notWant) {
+			t.Errorf("not want %q in generated config", notWant)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 var (
 	// Ingress Config example without added annotations
 	ingressCfg = IngressNginxConfig{
@@ -4415,6 +4443,44 @@ var (
 				AppProtectDosName:            "testdos",
 				AppProtectDosAccessLogDst:    "/var/log/dos",
 				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	ingressCfgForwardedHeaderDisabled = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                    "/tea",
+						Upstream:                testUpstream,
+						ProxyConnectTimeout:     "10s",
+						DisableForwardedHeaders: true,
+						ProxyReadTimeout:        "10s",
+						ProxySendTimeout:        "10s",
+						ClientMaxBodySize:       "2m",
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+						},
+						ProxyPass: "http://test",
+					},
+				},
 			},
 		},
 		Upstreams: []Upstream{testUpstream},

@@ -2435,6 +2435,62 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 	}
 }
 
+func TestCreateIngressEx_NoSpuriousWarningWhenTLSSecretNameEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Ingress with a tls: block that has no secretName — relies on --wildcard-tls-secret.
+	ing := createTestIngress("wildcard-tls-ingress", "example.com")
+	ing.Spec.TLS = []networking.IngressTLS{
+		{
+			Hosts: []string{"example.com"},
+			// SecretName intentionally absent — relying on wildcard TLS secret.
+		},
+	}
+
+	tests := []struct {
+		name              string
+		wildcardTLSSecret string
+	}{
+		{
+			name:              "wildcard TLS configured",
+			wildcardTLSSecret: "default/wildcard-tls-secret",
+		},
+		{
+			name:              "wildcard TLS not configured",
+			wildcardTLSSecret: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			lbc := LoadBalancerController{
+				namespacedInformers: map[string]*namespacedInformer{
+					"default": {},
+				},
+				secretStore: secrets.NewEmptyFakeSecretsStore(),
+				specialSecrets: specialSecrets{
+					wildcardTLSSecret: tc.wildcardTLSSecret,
+				},
+				Logger: nl.LoggerFromContext(context.Background()),
+			}
+
+			ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+
+			// The empty-secretName entry must be present in SecretRefs with no error —
+			// downstream addSSLConfig() reads this key and falls through to the wildcard path.
+			ref, exists := ingEx.SecretRefs[""]
+			if !exists {
+				t.Fatal("expected SecretRefs[\"\"] to exist for empty-secretName TLS block")
+			}
+			if ref.Error != nil {
+				t.Errorf("expected no error in SecretRefs[\"\"] when secretName is empty, got: %v", ref.Error)
+			}
+		})
+	}
+}
+
 func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 	t.Parallel()
 
