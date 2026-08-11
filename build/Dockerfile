@@ -130,12 +130,11 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
       nginx-module-geoip~${NGINX_OSS_VERSION} \
       nginx-module-acme~${NGINX_OSS_VERSION} \
       nginx-module-image-filter~${NGINX_OSS_VERSION} \
-    && apk add -X "https://${OSS_PACKAGE_REPO}/nginx-agent/alpine/v$(egrep -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" --no-cache \
       nginx-agent~${AGENT_V3_VERSION} \
 	&& export $(cat /tmp/user_agent) \
 	&& ldconfig /usr/local/lib/ \
 	&& agent.sh \
-	&& sed -i -e '/nginx.org/d' /etc/apk/repositories
+	&& sed -i -e "/${OSS_PACKAGE_REPO}/d" /etc/apk/repositories
 
 
 ############################################### NGINX OSS - Debian #############################################
