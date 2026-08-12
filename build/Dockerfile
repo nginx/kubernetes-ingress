@@ -214,9 +214,15 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& printf "%s\n" "[nginx]" "name=nginx repo" \
 	"baseurl=https://${OSS_PACKAGE_REPO}/nginx/mainline/centos/10/\$basearch/" \
 	"gpgcheck=1" "enabled=1" "module_hotfixes=true" > /etc/yum.repos.d/nginx.repo \
+	&& if [ -s /etc/ssl/nginx/nginx-repo.crt ]; then \
+		printf "%s\n" "sslclientcert=/etc/ssl/nginx/nginx-repo.crt" "sslclientkey=/etc/ssl/nginx/nginx-repo.key" >> /etc/yum.repos.d/nginx.repo; \
+	   fi \
     && printf "%s\n" "[agent]" "name=agent repo" \
     "baseurl=https://${OSS_PACKAGE_REPO}/nginx-agent/centos/10/\$basearch/" \
     "gpgcheck=1" "enabled=1" "module_hotfixes=true" >> /etc/yum.repos.d/nginx.repo \
+	&& if [ -s /etc/ssl/nginx/nginx-repo.crt ]; then \
+		printf "%s\n" "sslclientcert=/etc/ssl/nginx/nginx-repo.crt" "sslclientkey=/etc/ssl/nginx/nginx-repo.key" >> /etc/yum.repos.d/nginx.repo; \
+	   fi \
 	&& microdnf --nodocs install -y \
       nginx-${NGINX_OSS_VERSION}* \
       nginx-module-njs-${NGINX_OSS_VERSION}* \

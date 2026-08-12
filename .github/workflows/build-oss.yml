@@ -197,6 +197,7 @@ jobs:
           no-cache: true
           build-args: |
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
+            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
           secret-files: |
@@ -239,6 +240,7 @@ jobs:
           provenance: false
           build-args: |
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
+            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             BUILD_OS=${{ inputs.image }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
