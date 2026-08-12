@@ -389,9 +389,6 @@ def pytest_runtest_makereport(item) -> None:
         # log entry ends up on its own line in the terminal.
         for line in _iter_log_lines(log_output):
             print(line)
-        pod = item.funcargs["kube_apis"].v1.read_namespaced_pod(pod_name, pod_namespace)
-        container_name = pod.spec.containers[0].name
-        print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace, container=container_name))
         print("::endgroup::")
 
     if rep.when == "call" and item.config.getoption("--skip-fixture-teardown") == "yes":

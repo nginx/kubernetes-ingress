@@ -381,13 +381,6 @@ def crds(kube_apis, request) -> None:
     ts_crd_name = get_name_from_yaml(f"{CRDS}/k8s.nginx.org_transportservers.yaml")
     gc_crd_name = get_name_from_yaml(f"{CRDS}/k8s.nginx.org_globalconfigurations.yaml")
 
-    # print("------------------------- Clean up any pre-existing CRDs -----------------------------------")
-    # cleanup_crd(kube_apis.api_extensions_v1, vs_crd_name)
-    # cleanup_crd(kube_apis.api_extensions_v1, vsr_crd_name)
-    # cleanup_crd(kube_apis.api_extensions_v1, pol_crd_name)
-    # cleanup_crd(kube_apis.api_extensions_v1, ts_crd_name)
-    # cleanup_crd(kube_apis.api_extensions_v1, gc_crd_name)
-
     try:
         print("------------------------- Register CRDs -----------------------------------")
         create_crd_from_yaml(

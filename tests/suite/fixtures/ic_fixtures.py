@@ -407,6 +407,7 @@ def crd_ingress_controller_with_dos(
     :return:
     """
     namespace = ingress_controller_prerequisites.namespace
+    dos_arbitrator_name = None
 
     try:
         print("------------------------- Create syslog svc -----------------------")
@@ -434,15 +435,17 @@ def crd_ingress_controller_with_dos(
         ic_pool.ensure(request.param)
     except Exception as ex:
         print(f"Failed to complete DoS IC fixture: {ex}\nClean up the cluster as much as possible.")
-        delete_dos_arbitrator(kube_apis.v1, kube_apis.apps_v1_api, dos_arbitrator_name, namespace)
+        if dos_arbitrator_name:
+            delete_dos_arbitrator(kube_apis.v1, kube_apis.apps_v1_api, dos_arbitrator_name, namespace)
         delete_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
         delete_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
         pytest.fail("IC setup failed")
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
-            print("Remove dos arbitrator:")
-            delete_dos_arbitrator(kube_apis.v1, kube_apis.apps_v1_api, dos_arbitrator_name, namespace)
+            if dos_arbitrator_name:
+                print("Remove dos arbitrator:")
+                delete_dos_arbitrator(kube_apis.v1, kube_apis.apps_v1_api, dos_arbitrator_name, namespace)
             print("Remove the syslog svc:")
             delete_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
             print("Remove the accesslog svc:")
