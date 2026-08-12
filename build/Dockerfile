@@ -155,9 +155,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& useradd --system --gid nginx --no-create-home --home-dir /nonexistent --comment "nginx user" --shell /bin/false --uid 101 nginx \
 	&& gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg /tmp/nginx_signing.key \
 	&& echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-	http://${OSS_PACKAGE_REPO}/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
+	https://${OSS_PACKAGE_REPO}/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
     && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-    http://${OSS_PACKAGE_REPO}/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
+    https://${OSS_PACKAGE_REPO}/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \
