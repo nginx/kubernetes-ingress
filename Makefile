@@ -110,6 +110,7 @@ govulncheck: ## Run govulncheck linter
 test: ## Run GoLang tests
 	go test -tags=aws,helmunit -shuffle=on ./...
 
+.PHONY: test-profile
 test-profile: ## Run GoLang tests with profiling
 	PROF_BENCH_ONLY=0 hack/profile.sh
 

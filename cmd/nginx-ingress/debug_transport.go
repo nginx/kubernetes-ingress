@@ -31,6 +31,9 @@ func init() {
 // record per-verb, per-resource API call counts and latencies.
 // In release builds this is a no-op (see debug_transport_release.go).
 func wrapTransportWithDebugTracking(config *rest.Config) {
+	if config == nil {
+		return
+	}
 	existing := config.WrapTransport
 	config.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
 		if existing != nil {
