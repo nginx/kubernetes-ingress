@@ -97,7 +97,7 @@ class TestRegexpLocation:
         # Wait for IC to reconcile by confirming the first 200-expected URI works
         for uri, code in test_data["expected_results"].items():
             if code == 200:
-                ensure_response_from_backend(f"{req_url}{uri}", v_s_route_setup.vs_host, check404=True)
+                ensure_response_from_backend(f"{req_url}{uri}", v_s_route_setup.vs_host)
                 break
 
         for item in test_data["expected_results"]:
@@ -379,7 +379,7 @@ class TestVSRSelectorRegexpLocation:
         # Wait for IC to reconcile by confirming the first 200-expected URI works
         for uri, code in test_data["expected_results"].items():
             if code == 200:
-                ensure_response_from_backend(f"{req_url}{uri}", v_s_route_selector_setup.vs_host, check404=True)
+                ensure_response_from_backend(f"{req_url}{uri}", v_s_route_selector_setup.vs_host)
                 break
 
         for item in test_data["expected_results"]:
