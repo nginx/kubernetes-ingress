@@ -1,29 +1,9 @@
 import base64
 import secrets
-import time
 
 import pytest
 import requests
 from playwright.sync_api import Error, sync_playwright
-
-
-def wait_for_login_page(page, url, max_retries=6, timeout_per_try=5000):
-    """Navigate to url and wait for Keycloak login form, retrying if NGINX or Keycloak is reloading."""
-    last_error = None
-    for attempt in range(max_retries):
-        try:
-            page.goto(url)
-            page.wait_for_selector("input[name='username']", timeout=timeout_per_try)
-            return
-        except Error as e:
-            last_error = e
-            if attempt < max_retries - 1:
-                time.sleep(2)
-    raise Error(
-        f"Failed to load login page at {url} after {max_retries} attempts (current URL: {page.url}): {last_error}"
-    )
-
-
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
@@ -264,7 +244,7 @@ def run_oidc_native_fclo(browser_type, ip_address, port):
         page = context.new_page()
 
         # Log in to app one via Keycloak
-        wait_for_login_page(page, "https://native-fclo-one.example.com")
+        page.goto("https://native-fclo-one.example.com")
         page.locator("input[name='username']").fill(username)
         page.locator("input[name='password']").fill(password)
         page.locator('button[type="submit"]').click()
@@ -328,7 +308,7 @@ def run_oidc_native_rp_logout(browser_type, ip_address, port):
         page = context.new_page()
 
         # Log in to app one via Keycloak
-        wait_for_login_page(page, "https://native-fclo-one.example.com")
+        page.goto("https://native-fclo-one.example.com")
         page.locator("input[name='username']").fill(username)
         page.locator("input[name='password']").fill(password)
         page.locator('button[type="submit"]').click()

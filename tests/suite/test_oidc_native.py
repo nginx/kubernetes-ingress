@@ -1,30 +1,10 @@
 import base64
 import secrets
-import time
 
 import pytest
 import requests
 import yaml
 from playwright.sync_api import Error, sync_playwright
-
-
-def wait_for_login_page(page, url, max_retries=6, timeout_per_try=5000):
-    """Navigate to url and wait for Keycloak login form, retrying if NGINX or Keycloak is reloading."""
-    last_error = None
-    for attempt in range(max_retries):
-        try:
-            page.goto(url)
-            page.wait_for_selector("input[name='username']", timeout=timeout_per_try)
-            return
-        except Error as e:
-            last_error = e
-            if attempt < max_retries - 1:
-                time.sleep(2)
-    raise Error(
-        f"Failed to load login page at {url} after {max_retries} attempts (current URL: {page.url}): {last_error}"
-    )
-
-
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.custom_assertions import assert_vs_status
 from suite.utils.policy_resources_utils import delete_policy
@@ -381,7 +361,7 @@ def run_oidc_native(browser_type, ip_address, port):
     try:
         page = context.new_page()
 
-        wait_for_login_page(page, "https://virtual-server-tls.example.com")
+        page.goto("https://virtual-server-tls.example.com")
 
         page.locator("input[name='username']").fill(username)
         page.locator("input[name='password']").fill(password)
