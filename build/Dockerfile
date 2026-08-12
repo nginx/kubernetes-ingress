@@ -143,8 +143,8 @@ ARG OSS_PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
 
-RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644 \
-    --mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644 \
+RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode=0644,required=false \
+	--mount=type=secret,id=nginx-repo.key,dst=/etc/ssl/nginx/nginx-repo.key,mode=0644,required=false \
     --mount=type=bind,from=nginx-files,src=nginx_signing.key,target=/tmp/nginx_signing.key \
 	--mount=type=bind,from=nginx-files,src=90pkgs-nginx,target=/etc/apt/apt.conf.d/90pkgs-nginx \
 	--mount=type=bind,from=nginx-files,src=agent.sh,target=/usr/local/bin/agent.sh \
@@ -158,6 +158,12 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	https://${OSS_PACKAGE_REPO}/nginx/mainline/debian `lsb_release -cs` nginx" > /etc/apt/sources.list.d/nginx.list \
     && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
     https://${OSS_PACKAGE_REPO}/nginx-agent/debian `lsb_release -cs` agent" >> /etc/apt/sources.list.d/nginx.list \
+	&& if [ -s /etc/ssl/nginx/nginx-repo.crt ]; then \
+		echo "Acquire::https::${OSS_PACKAGE_REPO}::Verify-Peer \"true\";" > /etc/apt/apt.conf.d/90oss-nginx; \
+		echo "Acquire::https::${OSS_PACKAGE_REPO}::Verify-Host \"true\";" >> /etc/apt/apt.conf.d/90oss-nginx; \
+		echo "Acquire::https::${OSS_PACKAGE_REPO}::SslCert \"/etc/ssl/nginx/nginx-repo.crt\";" >> /etc/apt/apt.conf.d/90oss-nginx; \
+		echo "Acquire::https::${OSS_PACKAGE_REPO}::SslKey \"/etc/ssl/nginx/nginx-repo.key\";" >> /etc/apt/apt.conf.d/90oss-nginx; \
+	   fi \
 	&& printf "%s" "Package: *\nPin: origin nginx.org\nPin: release o=nginx\nPin-Priority: 900\n" > /etc/apt/preferences.d/99nginx \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y \

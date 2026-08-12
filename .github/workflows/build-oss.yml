@@ -197,12 +197,11 @@ jobs:
           no-cache: true
           build-args: |
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
-            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
           secret-files: |
-            nginx-repo.crt=nginx-repo.crt
-            nginx-repo.key=nginx-repo.key
+            ${{ inputs.authenticated && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ inputs.authenticated && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Debug values
@@ -240,13 +239,12 @@ jobs:
           provenance: false
           build-args: |
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
-            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             BUILD_OS=${{ inputs.image }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
           secret-files: |
-            nginx-repo.crt=nginx-repo.crt
-            nginx-repo.key=nginx-repo.key
+            ${{ inputs.authenticated && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ inputs.authenticated && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Make directory for security scan results
