@@ -1,0 +1,56 @@
+name: Setup Cached QEMU
+description: Restores a cached binfmt image and installs the requested QEMU emulators
+
+inputs:
+  cache-mode:
+    description: Use prime to populate a missing cache, or restore to only consume it
+    default: restore
+  image:
+    description: Binfmt image to load and install
+    default: docker.io/tonistiigi/binfmt:latest@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 # renovate: datasource=docker
+  platforms:
+    description: Comma-separated emulators to install
+    default: arm64
+
+runs:
+  using: composite
+  steps:
+    - name: Restore binfmt image
+      id: cache
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ${{ runner.temp }}/qemu-binfmt
+        key: qemu-binfmt-${{ runner.os }}-${{ runner.arch }}-${{ inputs.image }}
+
+    - name: Pull binfmt image
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        QEMU_CACHE_DIR: ${{ runner.temp }}/qemu-binfmt
+        QEMU_IMAGE: ${{ inputs.image }}
+      run: |
+        qemu_image="${QEMU_IMAGE%@*}"
+        mkdir -p "$QEMU_CACHE_DIR"
+        docker pull "$QEMU_IMAGE"
+        docker tag "$QEMU_IMAGE" "$qemu_image"
+        docker save --output "$QEMU_CACHE_DIR/binfmt.tar" "$qemu_image"
+
+    - name: Save binfmt image
+      if: steps.cache.outputs.cache-hit != 'true' && inputs.cache-mode == 'prime'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ${{ runner.temp }}/qemu-binfmt
+        key: qemu-binfmt-${{ runner.os }}-${{ runner.arch }}-${{ inputs.image }}
+
+    - name: Load binfmt image
+      shell: bash
+      run: docker load --input "${{ runner.temp }}/qemu-binfmt/binfmt.tar"
+
+    - name: Install QEMU emulators
+      shell: bash
+      env:
+        QEMU_IMAGE: ${{ inputs.image }}
+        QEMU_PLATFORMS: ${{ inputs.platforms }}
+      run: |
+        qemu_image="${QEMU_IMAGE%@*}"
+        docker run --rm --privileged "$qemu_image" --install "$QEMU_PLATFORMS"

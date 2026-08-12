@@ -39,6 +39,11 @@ jobs:
           echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
+      - name: Setup QEMU
+        uses: ./.github/actions/setup-qemu-cached
+        with:
+          cache-mode: prime
+
   build-docker:
     name: Build Docker OSS
     needs: [checks]
