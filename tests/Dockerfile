@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.26
-FROM python:3.14-trixie@sha256:6ad91c3bc07ebbbcd2ee421e9364606c2ef4fb336e8a62b49b85507f4880c425
+FROM python:3.14-trixie@sha256:7c95ed89000a861ad5d6c7fb06bd5260ca973cc9c58d7ad42fec690e24642a84
 ARG ARCH=amd64
 
 ENV PYTHONUNBUFFERED=1

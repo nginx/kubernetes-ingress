@@ -2647,6 +2647,40 @@ func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *t
 	}
 }
 
+func TestProcessChangesDispatchesAddOrUpdate(t *testing.T) {
+	t.Parallel()
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	lbc := createIngressProcessChangesController(t, manager)
+
+	ing := createTestIngress("dispatch-test", "example.com")
+	ingConfig := NewRegularIngressConfiguration(ing)
+
+	changes := []ResourceChange{
+		{
+			Op:       AddOrUpdate,
+			Resource: ingConfig,
+		},
+	}
+
+	// Verify processChanges dispatches without error
+	lbc.processChanges(changes)
+}
+
+func TestProcessChangesDispatchesDelete(t *testing.T) {
+	t.Parallel()
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	lbc := createIngressProcessChangesController(t, manager)
+
+	ing := createTestIngress("dispatch-delete-test", "example.com")
+	ingConfig := NewRegularIngressConfiguration(ing)
+
+	lbc.processChanges([]ResourceChange{
+		{Op: Delete, Resource: ingConfig},
+	})
+}
+
 func TestGetPodOwnerTypeAndName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

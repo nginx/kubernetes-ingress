@@ -1,0 +1,11 @@
+controller:
+  networkPolicy:
+    enabled: true
+    ingress:
+      - ports:
+          - protocol: TCP
+            port: 443
+    egress:
+      - ports:
+          - protocol: UDP
+            port: 53
