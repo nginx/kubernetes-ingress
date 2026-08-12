@@ -88,6 +88,8 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 | `NGINX_OSS_VERSION` | NGINX OSS version | `build/Dockerfile` |
 | `NAP_MODULES` | App Protect modules | Any of `waf`, `dos`, or `waf,dos` |
 | `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref (set by CI) |
+| `OSS_PACKAGE_REPO` | Repo host for OSS packages | CI inputs (defaults to packages.nginx.org) |
+| `PLUS_PACKAGE_REPO` | Repo host for Plus packages | CI inputs (defaults to pkgs.nginx.com) |
 
 Do not hard-code `IC_VERSION` or `NGINX_VERSION` values in this file or in other docs as they change every release. Always reference `.github/data/version.txt` or the Renovate-managed Dockerfile pin.
 
@@ -111,6 +113,7 @@ Do not hard-code `IC_VERSION` or `NGINX_VERSION` values in this file or in other
 - All images run as **UID 101** (nginx user), with `setcap cap_net_bind_service` for ports 80/443
 - Docker BuildKit always enabled: uses `--mount=type=bind`, `--mount=type=secret`, `--mount=type=cache`
 - Plus credentials use `--secret` mounts, **never** `COPY` into layers
+- OSS builds use optional `--secret` mounts (`required=false`) for `nginx-repo.crt`/`nginx-repo.key` to authenticate against non-default repo hosts like `pkgs-test.nginx.com` when running authenticated CI builds.
 - Fixed upstream base images use **pinned `@sha256:` digests** for reproducibility; some stages intentionally use build-arg/tag-selected bases (for example `BUILD_OS` or download/prebuilt images)
 - All images include `nginx-module-otel` (OpenTelemetry) and `nginx-agent` (usage reporting)
 - Plus images add `njs` and `fips-check` modules
