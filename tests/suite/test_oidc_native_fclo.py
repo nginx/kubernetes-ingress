@@ -103,7 +103,7 @@ def create_native_oidc_secret(kube_apis, namespace, encoded_secret, name):
 
 
 def create_native_oidc_policy(
-    kube_apis, namespace, name, client_id, secret_name, keycloak_host, *, logout_token_hint=False
+    kube_apis, namespace, name, client_id, secret_name, keycloak_host, *, logout_token_hint=True
 ):
     """Create an oidcNative Policy with FCLO, logout, and post-logout settings."""
     policy = {
@@ -262,9 +262,13 @@ def run_oidc_native_fclo(browser_type, ip_address, port):
         for field in fields_to_check:
             assert field in page_text, f"'{field}' not found in page text on native-fclo-two (SSO)"
 
-        # Trigger Keycloak logout and verify both apps are listed
+        # Trigger Keycloak logout and click confirmation button
         page.goto("https://native-fclo-one.example.com/logout")
         page.wait_for_load_state("load")
+        page.locator("#kc-logout").click()
+        page.wait_for_load_state("load")
+
+        # Verify Keycloak processed the logout and listed both relying parties
         page_text = page.locator("body").text_content()
         logout_fields = [
             "You are logging out from following apps",
@@ -273,10 +277,6 @@ def run_oidc_native_fclo(browser_type, ip_address, port):
         ]
         for field in logout_fields:
             assert field in page_text, f"'{field}' not found on keycloak logout page"
-
-        # Click the logout button to complete the FCLO flow
-        page.locator("#kc-logout").click()
-        page.wait_for_load_state("load")
 
         # Verify FCLO terminated the session: navigating to app one should
         # show the Keycloak login form again (not the backend page).
