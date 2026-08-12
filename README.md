@@ -61,14 +61,14 @@ helm install nginx-ingress nginx-ingress/nginx-ingress --namespace nginx-ingress
 > **Note**: Replace `v5.5.0` in the commands below with the [latest release tag](https://github.com/nginx/kubernetes-ingress/releases/latest).
 
 ```shell
-    # Install the Custom Resource Definitions (required for the default configuration)
-    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deploy/crds.yaml
-    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ns-and-sa.yaml
-    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/rbac/rbac.yaml
-    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/nginx-config.yaml
-    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/deployment/nginx-ingress.yaml
-    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/service/loadbalancer.yaml
-    kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ingress-class.yaml
+# Install the Custom Resource Definitions (required for the default configuration)
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deploy/crds.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ns-and-sa.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/rbac/rbac.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/nginx-config.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/deployment/nginx-ingress.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/service/loadbalancer.yaml
+kubectl apply -f https://raw.githubusercontent.com/nginx/kubernetes-ingress/v5.5.0/deployments/common/ingress-class.yaml
 ```
 
 **[Full Installation Guide →](https://docs.nginx.com/nginx-ingress-controller/install/)**
@@ -168,9 +168,6 @@ We'd love to hear from you! Here's how to get involved:
 
 | **Community Call Dates** |
 | --- |
-| **2026-07-13** |
-| **2026-07-27** |
-| **2026-08-10** |
 | **2026-08-24** |
 | **2026-09-07** |
 | **2026-09-21** |
