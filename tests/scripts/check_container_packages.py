@@ -58,16 +58,22 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
             regex = systems[image["system"]]["regex"]
             cmd = systems[image["system"]]["cmd"]
             tag = f"{args.tag}{image['tag_suffix']}"
+            full_tag = f"{image['image']}:{tag}"
             try:
-                i = client.images.get(f"{image['image']}:{tag}")
+                i = client.images.get(full_tag)
                 ## check if the image is for the correct platform
-                if platform != i.attrs["Os"]:
+                image_platform = f"{i.attrs.get('Os', '')}/{i.attrs.get('Architecture', '')}"
+                if platform != image_platform:
                     raise docker.errors.ImageNotFound(
-                        f"Image {image['image']}:{tag} is not for platform {platform}, found {i.attrs['Os']}"
+                        f"Image {full_tag} is not for platform {platform}, found {image_platform}"
                     )
             except docker.errors.ImageNotFound:
-                ## pull the image
-                logger.debug(f"Pulling image {image['image']}:{tag} for platform {platform}")
+                ## pull the image
+                logger.debug(f"Pulling image {full_tag} for platform {platform}")
+                try:
+                    client.images.remove(full_tag, force=True)
+                except Exception:
+                    pass
                 i = client.images.pull(repository=image_name, tag=tag, platform=platform)
                 logger.debug(f"Image {i.id} pulled successfully")
             for package in image["packages"]:
@@ -75,7 +81,7 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
                 output = ""
                 try:
                     output = client.containers.run(
-                        f"{image['image']}:{tag}",
+                        i.id,
                         command,
                         entrypoint="",
                         platform=platform,
@@ -85,7 +91,7 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
                 except (docker.errors.ContainerError, docker.errors.NotFound) as e:
                     logger.debug(f"{e}, retrying")
                     output = client.containers.run(
-                        f"{image['image']}:{tag}",
+                        i.id,
                         command,
                         entrypoint="",
                         platform=platform,
