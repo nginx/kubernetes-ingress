@@ -192,7 +192,8 @@ server {
 	auth_request {{ $server.ExternalAuth.URI.InternalPath }};
 	{{- if $server.ExternalAuth.SigninURL }}
 	proxy_intercept_errors on;
-	error_page 401 "{{ $server.ExternalAuth.SigninURL }}";
+	{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
+	error_page 401 = "{{ $server.ExternalAuth.SigninURL }}";
 	{{- end }}
 	{{- end }}
 
@@ -254,7 +255,8 @@ server {
 		auth_request {{ $location.ExternalAuth.URI.InternalPath }};
 		{{- if $location.ExternalAuth.SigninURL }}
 		proxy_intercept_errors on;
-		error_page 401 "{{ $location.ExternalAuth.SigninURL }}";
+		{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
+		error_page 401 = "{{ $location.ExternalAuth.SigninURL }}";
 		{{- end }}
 		{{- end }}
 

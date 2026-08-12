@@ -72,14 +72,15 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	var polExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, policyKind, logNameKey, n)
 	obj, polExists, err = lbc.getNamespacedInformer(ns).policyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
 	}
 
-	nl.Debugf(lbc.Logger, "Adding, Updating or Deleting Policy: %v\n", key)
+	nl.Debugf(l, "Adding, Updating or Deleting Policy: %v\n", key)
 
 	if polExists && lbc.HasCorrectIngressClass(obj) {
 		pol := obj.(*conf_v1.Policy)
@@ -98,7 +99,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				} else {
 					err = lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateInvalid, "Rejected", msg)
 					if err != nil {
-						nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+						nl.Errorf(l, "Failed to update policy %s status: %v", key, err)
 					}
 				}
 			}
@@ -128,7 +129,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				} else {
 					err = lbc.statusUpdater.UpdatePolicyStatus(pol, state, reason, statusMsg)
 					if err != nil {
-						nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", key, err)
+						nl.Errorf(l, "Failed to update policy %s status: %v", key, err)
 					}
 				}
 			}
@@ -184,7 +185,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 			if !configs.IsPolicySupportedOnIngress(pol) {
 				msg := fmt.Sprintf("Policy %s/%s has unsupported type on Ingress resource %s/%s",
 					pol.Namespace, pol.Name, impl.Ingress.Namespace, impl.Ingress.Name)
-				nl.Error(lbc.Logger, msg)
+				nl.Error(l, msg)
 				lbc.recorder.Event(impl.Ingress, api_v1.EventTypeWarning, nl.EventReasonRejected, msg)
 				// The reload still proceeds so that generatePolicies() surfaces the error
 				// (ErrorReturn 500) consistently regardless of which path triggered the sync.
@@ -317,6 +318,7 @@ func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
 // Initial fetches are performed asynchronously to avoid blocking the sync queue.
 func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	polKey := pol.Namespace + "/" + pol.Name
+	l := lbc.Logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
 	bs := pol.Spec.WAF.ApBundleSource
 
 	var auth *wafbundle.BundleAuth
@@ -328,7 +330,7 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
 			if lbc.reportCustomResourceStatusEnabled() {
 				if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
-					nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+					nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 				}
 			}
 			return
@@ -353,7 +355,7 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
 			if lbc.reportCustomResourceStatusEnabled() {
 				if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
-					nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+					nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 				}
 			}
 			continue
@@ -401,6 +403,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	kind wafbundle.BundleType,
 ) {
 	polKey := pol.Namespace + "/" + pol.Name
+	l := lbc.Logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
 	req := lbc.buildFetchRequest(bs, auth, kind)
 
 	timeout := wafbundle.DefaultTimeout
@@ -420,11 +423,11 @@ func (lbc *LoadBalancerController) performInitialFetch(
 
 	if fetchErr != nil {
 		msg := fmt.Sprintf("WAF bundle not active: initial fetch failed: %v", fetchErr)
-		nl.Warnf(lbc.Logger, "Initial WAF bundle fetch failed for policy %s (will retry): %v", polKey, fetchErr)
+		nl.Warnf(l, "Initial WAF bundle fetch failed for policy %s (will retry): %v", polKey, fetchErr)
 		lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonBundleFetchFailed, msg)
 		if lbc.reportCustomResourceStatusEnabled() {
 			if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonBundleFetchFailed, msg); updateErr != nil {
-				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+				nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 			}
 		}
 		return
@@ -434,11 +437,11 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	}
 	if err := wafbundle.WriteAtomicBundle(destPath, result.Data); err != nil {
 		msg := "WAF bundle not active: failed to write bundle to disk"
-		nl.Errorf(lbc.Logger, "Failed to write WAF bundle for policy %s: %v", polKey, err)
+		nl.Errorf(l, "Failed to write WAF bundle for policy %s: %v", polKey, err)
 		lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonBundleFetchFailed, msg)
 		if lbc.reportCustomResourceStatusEnabled() {
 			if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonBundleFetchFailed, msg); updateErr != nil {
-				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+				nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 			}
 		}
 		return
@@ -447,7 +450,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 	// Update status to Valid after successful bundle write.
 	if lbc.reportCustomResourceStatusEnabled() {
 		if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateValid, "BundleReady", "WAF bundle fetched and ready"); updateErr != nil {
-			nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+			nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 		}
 	}
 }
@@ -455,21 +458,24 @@ func (lbc *LoadBalancerController) performInitialFetch(
 // handleBundleRefreshFailure surfaces refresh-path fetch failures as policy warnings.
 // Existing bundle files remain active and continue protecting traffic.
 func (lbc *LoadBalancerController) handleBundleRefreshFailure(polKey string, fetchErr error) {
+	ns, n, _ := cache.SplitMetaNamespaceKey(polKey)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, policyKind, logNameKey, n)
+
 	parts := strings.SplitN(polKey, "/", 2)
 	if len(parts) != 2 {
-		nl.Warnf(lbc.Logger, "invalid policy key for bundle refresh failure callback: %q", polKey)
+		nl.Warnf(l, "invalid policy key for bundle refresh failure callback: %q", polKey)
 		return
 	}
 
 	nsi := lbc.getNamespacedInformer(parts[0])
 	if nsi == nil {
-		nl.Debugf(lbc.Logger, "skipping refresh failure status update for unwatched namespace in key %q", polKey)
+		nl.Debugf(l, "skipping refresh failure status update for unwatched namespace in key %q", polKey)
 		return
 	}
 
 	obj, exists, err := nsi.policyLister.GetByKey(polKey)
 	if err != nil {
-		nl.Errorf(lbc.Logger, "failed to get policy %s for refresh failure handling: %v", polKey, err)
+		nl.Errorf(l, "failed to get policy %s for refresh failure handling: %v", polKey, err)
 		return
 	}
 	if !exists {
@@ -478,7 +484,7 @@ func (lbc *LoadBalancerController) handleBundleRefreshFailure(polKey string, fet
 
 	pol, ok := obj.(*conf_v1.Policy)
 	if !ok {
-		nl.Errorf(lbc.Logger, "unexpected object type for policy key %s during refresh failure handling", polKey)
+		nl.Errorf(l, "unexpected object type for policy key %s during refresh failure handling", polKey)
 		return
 	}
 	if !lbc.HasCorrectIngressClass(pol) {
@@ -489,7 +495,7 @@ func (lbc *LoadBalancerController) handleBundleRefreshFailure(polKey string, fet
 	lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonBundleFetchFailed, msg)
 	if lbc.reportCustomResourceStatusEnabled() {
 		if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonBundleFetchFailed, msg); updateErr != nil {
-			nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+			nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 		}
 	}
 }
