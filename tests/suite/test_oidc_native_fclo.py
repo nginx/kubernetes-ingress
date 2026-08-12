@@ -323,9 +323,9 @@ def run_oidc_native_rp_logout(browser_type, ip_address, port):
             page.wait_for_load_state("load")
 
         # After confirming, Keycloak redirects to the postLogoutRedirectURI.
-        # The auto-generated location at /_logout returns "Logged out".
+        # The auto-generated location at /_logout returns "Logged out" or "You have been logged out".
         page_text = page.locator("body").text_content()
-        assert "Logged out" in page_text, f"Expected 'Logged out' on post-logout page, got: {page_text[:200]}"
+        assert "logged out" in page_text.lower(), f"Expected 'logged out' on post-logout page, got: {page_text[:200]}"
 
         # Verify the session is terminated: accessing the app should redirect
         # to the Keycloak login form.
