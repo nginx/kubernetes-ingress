@@ -546,8 +546,8 @@ jobs:
 
       - name: Write secrets
         run: |
-          echo ${{ env.PLUS_CERT }} > nginx-repo.crt
-          echo ${{ env.PLUS_KEY }} > nginx-repo.key
+          echo "$PLUS_CERT" > nginx-repo.crt
+          echo "$PLUS_KEY" > nginx-repo.key
         if: ${{ needs.checks.outputs.forked_workflow != 'true' }}
 
       - name: Authenticate to Google Cloud
