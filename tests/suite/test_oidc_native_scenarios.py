@@ -31,7 +31,7 @@ orig_cm_src = f"{DEPLOYMENTS}/common/nginx-config.yaml"
 # materializes a scenario's placeholder host/service names against the
 # suite's TLS/backend fixture, and create_scenario_resources() applies the
 # result plus a default oidcnative-policy against a real cluster.
-oidc_native_scenarios = Path(TEST_DATA) / "oidc-native/scenarios"
+oidc_native_scenarios = Path(TEST_DATA) / "oidc-native/scenarios/vs"
 oidc_native_discovery_url = (
     "https://keycloak.{namespace}.svc.cluster.local:8443/realms/master/.well-known/openid-configuration"
 )
