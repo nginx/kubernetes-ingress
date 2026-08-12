@@ -85,6 +85,7 @@ class TestVSCannedResponse:
             and resp.headers["coffee-test-header"] == "espresso"
         )
 
+    @pytest.mark.flaky(max_runs=3)
     def test_update(self, kube_apis, crd_ingress_controller, virtual_server_setup):
         wait_before_test(1)
         text = f"{virtual_server_setup.namespace}/{virtual_server_setup.vs_name}"

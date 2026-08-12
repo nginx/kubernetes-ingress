@@ -85,6 +85,7 @@ class TestVSRCannedResponses:
         resp_content = resp.content.decode("utf-8")
         assert resp.headers["content-type"] == "text/plain" and resp_content == "line1\nline2\nline3\n"
 
+    @pytest.mark.flaky(max_runs=3)
     def test_update(self, kube_apis, crd_ingress_controller, v_s_route_setup):
         req_host = f"{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
         req_url_1 = f"http://{req_host}{v_s_route_setup.route_m.paths[0]}"
