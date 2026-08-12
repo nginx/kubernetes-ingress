@@ -199,6 +199,9 @@ jobs:
             OSS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+          secret-files: |
+            nginx-repo.crt=nginx-repo.crt
+            nginx-repo.key=nginx-repo.key
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Debug values
