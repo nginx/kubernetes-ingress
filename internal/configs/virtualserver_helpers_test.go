@@ -3055,10 +3055,8 @@ func TestGenerateProxySSLName(t *testing.T) {
 func TestIsTLSEnabled(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		upstream   conf_v1.Upstream
-		spiffeCert bool
-		nsmEgress  bool
-		expected   bool
+		upstream conf_v1.Upstream
+		expected bool
 	}{
 		{
 			upstream: conf_v1.Upstream{
@@ -3066,17 +3064,7 @@ func TestIsTLSEnabled(t *testing.T) {
 					Enable: false,
 				},
 			},
-			spiffeCert: false,
-			expected:   false,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: false,
-				},
-			},
-			spiffeCert: true,
-			expected:   true,
+			expected: false,
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -3084,34 +3072,14 @@ func TestIsTLSEnabled(t *testing.T) {
 					Enable: true,
 				},
 			},
-			spiffeCert: true,
-			expected:   true,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: true,
-				},
-			},
-			spiffeCert: false,
-			expected:   true,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: true,
-				},
-			},
-			nsmEgress:  true,
-			spiffeCert: false,
-			expected:   false,
+			expected: true,
 		},
 	}
 
 	for _, test := range tests {
-		result := isTLSEnabled(test.upstream, test.spiffeCert, test.nsmEgress)
+		result := isTLSEnabled(test.upstream)
 		if result != test.expected {
-			t.Errorf("isTLSEnabled(%v, %v) returned %v but expected %v", test.upstream, test.spiffeCert, result, test.expected)
+			t.Errorf("isTLSEnabled(%v) returned %v but expected %v", test.upstream, result, test.expected)
 		}
 	}
 }
@@ -3787,6 +3755,124 @@ func TestGetExAuthServicePort(t *testing.T) {
 			got := vsc.getExAuthServicePort(tc.cfg, vsEx)
 			if got != tc.expected {
 				t.Errorf("getExAuthServicePort() = %d, want %d", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestAddHSTSToLocationsWithAddHeaders(t *testing.T) {
+	t.Parallel()
+	hsts := &version2.HSTS{MaxAge: 2592000}
+	tests := []struct {
+		name      string
+		hsts      *version2.HSTS
+		locations []version2.Location
+		expected  []version2.Location
+	}{
+		{
+			name: "nil HSTS — no locations modified",
+			hsts: nil,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}},
+			},
+		},
+		{
+			name: "location with AddHeaders — HSTS set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, HSTS: hsts},
+			},
+		},
+		{
+			name: "location without AddHeaders — HSTS not set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/"},
+			},
+			expected: []version2.Location{
+				{Path: "/"},
+			},
+		},
+		{
+			name: "mixed locations — only those with AddHeaders get HSTS",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/tea", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}},
+				{Path: "/coffee"},
+			},
+			expected: []version2.Location{
+				{Path: "/tea", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, HSTS: hsts},
+				{Path: "/coffee"},
+			},
+		},
+		{
+			name: "location with AddHeaderInherit set to 'on' - HSTS not set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOn},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOn},
+			},
+		},
+		{
+			name: "location with AddHeaderInherit set to 'merge' - HSTS not set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritMerge},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritMerge},
+			},
+		},
+		{
+			name: "location with AddHeaderInherit set to 'off' - HSTS set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOff},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOff, HSTS: hsts},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			addHSTSToLocationsWithAddHeaders(test.hsts, test.locations)
+			if !reflect.DeepEqual(test.locations, test.expected) {
+				t.Errorf("addHSTSToLocationsWithAddHeaders() returned\n%+v\nbut expected\n%+v",
+					test.locations, test.expected)
 			}
 		})
 	}

@@ -49,7 +49,7 @@ jobs:
             core.setOutput('commit_count', commits.data.length);
 
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -69,7 +69,7 @@ jobs:
 
       - name: Azure login
         if: ${{ steps.branch.outputs.branch }}
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
@@ -80,16 +80,29 @@ jobs:
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
         with:
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "nginx-bot-cherry-pick-app-client-id, nginx-bot-cherry-pick-app-private-key"
+          secret-names: "nginx-bot-nic-create-pr-app-client-id, nginx-bot-nic-create-pr-app-private-key"
           env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
 
       - name: Decode GitHub App private key
         id: app_key
         if: ${{ steps.branch.outputs.branch }}
         run: |
-          private_key=$(echo "$APP_PRIVATE_KEY_B64" | base64 -d | awk 'BEGIN {ORS="\\n"} {print}' | sed 's/\\n$//')
-          echo "::add-mask::$private_key"
-          echo "private_key=$private_key" >> "$GITHUB_OUTPUT"
+          set +x
+          # Mask the raw base64 value
+          echo "::add-mask::$APP_PRIVATE_KEY_B64"
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+          # Mask every line of the decoded PEM key individually
+          while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+              echo "::add-mask::$line"
+            fi
+          done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
+          {
+            echo "private_key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Generate GitHub App token
         id: app_token

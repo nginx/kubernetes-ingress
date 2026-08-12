@@ -24,8 +24,6 @@ type VirtualServerConfig struct {
 	AuthJWTClaimSets        []AuthJWTClaimSet
 	CacheZones              []CacheZone
 	Server                  Server
-	SpiffeCerts             bool
-	SpiffeClientCerts       bool
 	SplitClients            []SplitClient
 	StatusMatches           []StatusMatch
 	Upstreams               []Upstream
@@ -96,6 +94,7 @@ type Server struct {
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
 	ExternalAuth              *ExternalAuth
+	HSTS                      *HSTS
 	ErrorPages                []ErrorPage
 	BasicAuth                 *BasicAuth
 	IngressMTLS               *IngressMTLS
@@ -238,6 +237,7 @@ type Location struct {
 	ExternalAuth               *ExternalAuth
 	BasicAuth                  *BasicAuth
 	EgressMTLS                 *EgressMTLS
+	HSTS                       *HSTS
 	OIDC                       bool
 	APIKey                     *APIKey
 	WAF                        *WAF
@@ -250,6 +250,7 @@ type Location struct {
 	VSRNamespace               string
 	GRPCPass                   string
 	CORSEnabled                bool
+	DisableForwardedHeaders    bool
 	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
@@ -276,6 +277,12 @@ type Return struct {
 	Code int
 	Text string
 }
+
+// ErrorPageResponseCodeInherit is the sentinel ResponseCode value that makes the
+// virtualserver template emit `error_page <codes> = "<name>";` with no explicit
+// response code, so nginx forwards the target URI's status (e.g. oauth2-proxy's
+// 302) to the client instead of the original error code.
+const ErrorPageResponseCodeInherit = -1
 
 // ErrorPage defines an error_page of a location.
 type ErrorPage struct {
@@ -483,6 +490,14 @@ type ExternalAuth struct {
 	SSLVerifyDepth         int
 	SSLTrustedCert         string // Path to the CA certificate file for upstream verification
 	SNIName                string // Server name for SNI and certificate verification
+}
+
+// HSTS defines HTTP Strict Transport Security configuration.
+type HSTS struct {
+	MaxAge            int
+	IncludeSubDomains bool
+	BehindProxy       bool
+	Preload           bool
 }
 
 // AuthURI defines the components of an AuthURI

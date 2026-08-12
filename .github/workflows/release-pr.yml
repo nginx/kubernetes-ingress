@@ -28,7 +28,7 @@ on:
       nap_version:
         description: "NAP versions (comma-separated: waf_version, waf_release_version) - leave empty to skip NAP update"
         required: false
-        default: "37.0+5.635.1, 5.13.1"
+        default: "37.0+5.690.0, 5.14.0"
       release_date:
         description: "Date for this release (D MMM YYYY)"
         required: true
@@ -97,25 +97,53 @@ jobs:
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.branch.outputs.branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
+      - name: Get secrets from vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+        with:
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-nic-create-pr-app-client-id, nginx-bot-nic-create-pr-app-private-key"
+          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+      - name: Decode GitHub App private key
+        id: app_key
         run: |
-          echo "Setting secrets for job"
-          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_PAT"
-          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+          set +x
+          # Mask the raw base64 value
+          echo "::add-mask::$APP_PRIVATE_KEY_B64"
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+          # Mask every line of the decoded PEM key individually
+          while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+              echo "::add-mask::$line"
+            fi
+          done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
+          {
+            echo "private_key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App token
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.app_key.outputs.private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
 
       - name: Generate secrets for snapshot tests
         run: |
@@ -155,7 +183,7 @@ jobs:
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ steps.secrets.outputs.NGINX_PAT }}
+          token: ${{ steps.app_token.outputs.token }}
           commit-message: Release ${{ steps.parse.outputs.new_version }}
           title: Release ${{ steps.parse.outputs.new_version }}
           branch: docs/release-${{ steps.parse.outputs.new_version }}
@@ -176,7 +204,9 @@ jobs:
       - name: Parse versions
         id: parse
         run: |
+          IFS=',' read -r current_nic_version _ _ <<< "${{ inputs.current_versions }}"
           IFS=',' read -r new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
+          current_nic_version=$(echo "${current_nic_version}" | xargs)
           new_version=$(echo "${{ inputs.nic_version }}" | xargs)
           new_helm_version=$(echo "${new_helm_version}" | xargs)
           new_operator_version=$(echo "${new_operator_version}" | xargs)
@@ -195,28 +225,57 @@ jobs:
           fi
 
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
 
-      - name: Setup secrets
-        id: secrets
+      - name: Get secrets from vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+        with:
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-nic-create-pr-app-client-id, nginx-bot-nic-create-pr-app-private-key"
+          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+      - name: Decode GitHub App private key
+        id: app_key
         run: |
-          echo "Setting secrets for job"
-          NGINX_PAT=$(az keyvault secret show --name nginx-bot-pat --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$NGINX_PAT"
-          echo "NGINX_PAT=$NGINX_PAT" >> $GITHUB_OUTPUT
+          set +x
+          # Mask the raw base64 value
+          echo "::add-mask::$APP_PRIVATE_KEY_B64"
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+          # Mask every line of the decoded PEM key individually
+          while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+              echo "::add-mask::$line"
+            fi
+          done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
+          {
+            echo "private_key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App token
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.app_key.outputs.private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: "${{ github.event.repository.name }},documentation"
 
       - name: Update Documentation Versions
         run: |
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
             "${{ steps.parse.outputs.new_version }}" \
+            "${{ steps.parse.outputs.current_nic_version }}" \
             "${{ steps.parse.outputs.new_helm_version }}" \
             "${{ steps.parse.outputs.new_operator_version }}" \
             "${{ inputs.k8s_versions }}" \
@@ -227,6 +286,6 @@ jobs:
         env:
           GITHUB_USERNAME: nginx-bot
           GITHUB_EMAIL: integrations@nginx.com
-          GITHUB_TOKEN: ${{ steps.secrets.outputs.NGINX_PAT }}
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
           DRY_RUN: ${{ inputs.dry_run && 'true' || 'false' }}
           DEBUG: ${{ inputs.debug && 'true' || 'false' }}

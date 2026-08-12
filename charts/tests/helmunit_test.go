@@ -141,6 +141,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "appprotect-wafv5",
 			namespace:   "appprotect-wafv5",
 		},
+		"appProtectWAFV5Resources": {
+			valuesFile:  "testdata/app-protect-wafv5-resources.yaml",
+			releaseName: "appprotect-wafv5-resources",
+			namespace:   "appprotect-wafv5",
+		},
 		"appProtectDOS": {
 			valuesFile:  "testdata/app-protect-dos.yaml",
 			releaseName: "appprotect-dos",
@@ -184,6 +189,21 @@ func TestHelmNICTemplate(t *testing.T) {
 		"startupStatusValid": {
 			valuesFile:  "testdata/startupstatus-valid.yaml",
 			releaseName: "startupstatus",
+			namespace:   "default",
+		},
+		"networkPolicyDisabled": {
+			valuesFile:  "testdata/network-policy-disabled.yaml",
+			releaseName: "network-policy-disabled",
+			namespace:   "default",
+		},
+		"networkPolicyIngress": {
+			valuesFile:  "testdata/network-policy-ingress.yaml",
+			releaseName: "network-policy-ingress",
+			namespace:   "default",
+		},
+		"networkPolicyIngressEgress": {
+			valuesFile:  "testdata/network-policy-ingress-egress.yaml",
+			releaseName: "network-policy-ingress-egress",
 			namespace:   "default",
 		},
 		"loadBalancerClass": {

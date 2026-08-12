@@ -2,9 +2,14 @@ from unittest import mock
 
 import pytest
 import requests
-from settings import TEST_DATA
+from settings import RECONFIGURATION_DELAY, TEST_DATA
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import create_secret_from_yaml, delete_secret, wait_before_test
+from suite.utils.resources_utils import (
+    create_secret_from_yaml,
+    delete_secret,
+    retry_get_until_status_code,
+    wait_before_test,
+)
 from suite.utils.ssl_utils import create_sni_session
 from suite.utils.vs_vsr_resources_utils import (
     delete_and_create_vs_from_yaml,
@@ -146,19 +151,18 @@ class TestIngressMtlsPolicyVS:
             virtual_server_setup.namespace,
         )
         wait_before_test()
-        resp = mock.Mock()
-        counter = 0
-
-        while resp.status_code != expected_code and counter < 10:
-            resp = session.get(
-                virtual_server_setup.backend_1_url_ssl,
-                cert=(crt, key),
-                headers={"host": virtual_server_setup.vs_host},
-                allow_redirects=False,
-                verify=False,
-            )
-            wait_before_test()
-            counter += 1
+        # Tolerate connections dropped by an NGINX reload during the policy swap.
+        resp = retry_get_until_status_code(
+            virtual_server_setup.backend_1_url_ssl,
+            virtual_server_setup.vs_host,
+            expected_code,
+            retries=10,
+            wait_seconds=RECONFIGURATION_DELAY,
+            session=session,
+            cert=(crt, key),
+            allow_redirects=False,
+            verify=False,
+        )
 
         vs_res = read_vs(kube_apis.custom_objects, test_namespace, virtual_server_setup.vs_name)
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
@@ -239,6 +243,12 @@ class TestIngressMtlsPolicyVS:
                 resp = mock.Mock()
                 resp.status_code = "None"
                 resp.text = "None"
+            except requests.exceptions.ConnectionError as e:
+                # NGINX reload recycled workers and dropped the connection; retry.
+                # Note: SSLError subclasses ConnectionError, so this must come after it.
+                print(f"Connection dropped during reload: {e}")
+                wait_before_test()
+                counter += 1
 
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 
@@ -313,20 +323,18 @@ class TestIngressMtlsPolicyVS:
             virtual_server_setup.namespace,
         )
         wait_before_test()
-        resp = mock.Mock()
-        resp.status_code == 502
-        counter = 0
-
-        while resp.status_code != expected_code and counter < 10:
-            resp = session.get(
-                virtual_server_setup.backend_1_url_ssl,
-                cert=(crt_not_revoked, key_not_revoked),
-                headers={"host": virtual_server_setup.vs_host},
-                allow_redirects=False,
-                verify=False,
-            )
-            wait_before_test()
-            counter += 1
+        # Tolerate connections dropped by an NGINX reload during the VS recreate.
+        resp = retry_get_until_status_code(
+            virtual_server_setup.backend_1_url_ssl,
+            virtual_server_setup.vs_host,
+            expected_code,
+            retries=10,
+            wait_seconds=RECONFIGURATION_DELAY,
+            session=session,
+            cert=(crt_not_revoked, key_not_revoked),
+            allow_redirects=False,
+            verify=False,
+        )
 
         vs_res = read_vs(kube_apis.custom_objects, test_namespace, virtual_server_setup.vs_name)
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
@@ -405,6 +413,12 @@ class TestIngressMtlsPolicyVS:
                 resp = mock.Mock()
                 resp.status_code = "None"
                 resp.text = "None"
+            except requests.exceptions.ConnectionError as e:
+                # NGINX reload recycled workers and dropped the connection; retry.
+                # Note: SSLError subclasses ConnectionError, so this must come after it.
+                print(f"Connection dropped during reload: {e}")
+                wait_before_test()
+                counter += 1
 
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 

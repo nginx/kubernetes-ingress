@@ -14,6 +14,41 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![OpenSSFScorecard](https://api.securityscorecards.dev/projects/github.com/nginx/kubernetes-ingress/badge)](https://scorecard.dev/viewer/?uri=github.com/nginx/kubernetes-ingress)
 [![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/nginx-ingress)](https://artifacthub.io/packages/container/nginx-ingress/kubernetes-ingress)
+[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+![Commercial Support](https://badgen.net/badge/support/commercial/green?icon=awesome)
+
+# NGINX Ingress Controller
+
+This repo provides an implementation of an Ingress Controller for NGINX and NGINX Plus from the people behind NGINX.
+
+---
+
+## Join The Next Community Call
+
+We value community input and would love to see you at the next community call. At these calls, we discuss PRs by community members as well as issues, discussions and feature requests.
+
+**Zoom**: [NGINX Ingress Controller - Community Call](https://f5.zoom.us/j/98544055687?pwd=q4sGaaeWM0DawJTePBGbCngtfLJxgq.1&from=addon)
+
+**Meeting ID:** `985 4405 5687`
+
+**Passcode:** `982193`
+
+**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday.
+
+| **Community Call Dates** |
+| ------------------------ |
+| **2026-02-23**           |
+| **2026-03-09**           |
+| **2026-03-23**           |
+| **2026-04-07**           |
+| **2026-04-20**           |
+| **2026-05-05**           |
+| **2026-05-18**           |
+| **2026-06-02**           |
+| **2026-06-15**           |
+| **2026-06-29**           |
+
+You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
 
 ---
 
@@ -97,7 +132,8 @@ See more [examples](https://github.com/nginx/kubernetes-ingress/tree/main/exampl
 
 ## Docker Images
 
-Official NGINX Ingress Controller images are available from multiple registries:
+The latest stable release is [5.5.0](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.5.0). For production
+use, we recommend that you choose the latest stable release.
 
 | Registry | Link |
 | --- | --- |
@@ -112,8 +148,8 @@ You can also [build your own image](https://docs.nginx.com/nginx-ingress-control
 ### Container images & installation resources
 
 | Version | Description | Image for NGINX | Image for NGINX Plus | Installation Manifests and Helm Chart | Documentation and Examples |
-| --- | --- | --- | --- | --- | --- |
-| Latest stable release | For production use | Use the 5.5.0 images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | Use the 5.5.0 images from the [F5 Container Registry](https://docs.nginx.com/nginx-ingress-controller/install/images/registry-download/) or [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/v5.5.0/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/v5.5.0/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller/). [Examples](https://docs.nginx.com/nginx-ingress-controller/configuration/configuration-examples/). |
+| ------- | ----------- | --------------- | -------------------- | --------------------------------------- | -------------------------- |
+| Latest stable release | For production use | Use the 5.5.4 images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | Use the 5.5.4 images from the [F5 Container Registry](https://docs.nginx.com/nginx-ingress-controller/install/images/registry-download/) or [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/v5.5.4/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/v5.5.4/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller/). [Examples](https://docs.nginx.com/nginx-ingress-controller/configuration/configuration-examples/). |
 | Edge/Nightly | For testing and experimenting | Use the edge or nightly images from [DockerHub](https://hub.docker.com/r/nginx/nginx-ingress/), [GitHub Container](https://github.com/nginx/kubernetes-ingress/pkgs/container/kubernetes-ingress), [Amazon ECR Public Gallery](https://gallery.ecr.aws/nginx/nginx-ingress) or [Quay.io](https://quay.io/repository/nginx/nginx-ingress) or [build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Build your own image](https://docs.nginx.com/nginx-ingress-controller/install/build/). | [Manifests](https://github.com/nginx/kubernetes-ingress/tree/main/deployments). [Helm chart](https://github.com/nginx/kubernetes-ingress/tree/main/charts/nginx-ingress). | [Documentation](https://docs.nginx.com/nginx-ingress-controller). [Examples](https://github.com/nginx/kubernetes-ingress/tree/main/examples). |
 
 ## Releases

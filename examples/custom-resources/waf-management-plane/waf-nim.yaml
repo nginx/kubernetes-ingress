@@ -8,7 +8,7 @@ spec:
     apBundleSource:
       type: NIM
       url: "https://<nim_host>"
-      policyName: "<policy_name>"
+      name: "<policy_name>"
       secret: "nim-credentials"
       enablePolling: true
       pollInterval: "5m"
@@ -17,7 +17,7 @@ spec:
       apLogBundleSource:
         type: NIM
         url: "https://<nim_host>"
-        policyName: "<log_profile_name>"
+        name: "<log_profile_name>"
         secret: "nim-credentials"
         enablePolling: true
         pollInterval: "5m"

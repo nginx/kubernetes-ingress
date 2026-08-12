@@ -84,6 +84,11 @@ The `.spec` object supports the following fields:
 | `externalAuth.sslVerify` | `boolean` | SSLVerify enables verification of the external authentication server's SSL certificate. Default is false. |
 | `externalAuth.sslVerifyDepth` | `integer` | SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1. |
 | `externalAuth.trustedCertSecret` | `string` | TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt. |
+| `hsts` | `object` | The HSTS policy configures HTTP Strict Transport Security headers |
+| `hsts.behindProxy` | `boolean` | BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable. |
+| `hsts.includeSubDomains` | `boolean` | IncludeSubDomains extends the HSTS policy to all subdomains of the host. |
+| `hsts.maxAge` | `integer` | MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy. |
+| `hsts.preload` | `boolean` | Preload indicates that the domain should be included in browsers' HSTS preload lists. |
 | `ingressClassName` | `string` | Specifies which instance of NGINX Ingress Controller must handle the Policy resource. |
 | `ingressMTLS` | `object` | The IngressMTLS policy configures client certificate verification. |
 | `ingressMTLS.clientCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid. |
@@ -142,8 +147,8 @@ The `.spec` object supports the following fields:
 | `waf.apBundleSource` | `object` | ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApPolicy and ApBundle. |
 | `waf.apBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.apBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
-| `waf.apBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
-| `waf.apBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
+| `waf.apBundleSource.name` | `string` | Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
+| `waf.apBundleSource.namespace` | `string` | Namespace is the namespace/tenant on the management plane. Required for N1C only. |
 | `waf.apBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
 | `waf.apBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.apBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
@@ -159,8 +164,8 @@ The `.spec` object supports the following fields:
 | `waf.securityLog.apLogBundleSource` | `object` | ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF. |
 | `waf.securityLog.apLogBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.securityLog.apLogBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
-| `waf.securityLog.apLogBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
-| `waf.securityLog.apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
+| `waf.securityLog.apLogBundleSource.name` | `string` | Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
+| `waf.securityLog.apLogBundleSource.namespace` | `string` | Namespace is the namespace/tenant on the management plane. Required for N1C only. |
 | `waf.securityLog.apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
 | `waf.securityLog.apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.securityLog.apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
@@ -177,8 +182,8 @@ The `.spec` object supports the following fields:
 | `waf.securityLogs[].apLogBundleSource` | `object` | ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF. |
 | `waf.securityLogs[].apLogBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
 | `waf.securityLogs[].apLogBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
-| `waf.securityLogs[].apLogBundleSource.policyName` | `string` | PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
-| `waf.securityLogs[].apLogBundleSource.policyNamespace` | `string` | PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only. |
+| `waf.securityLogs[].apLogBundleSource.name` | `string` | Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
+| `waf.securityLogs[].apLogBundleSource.namespace` | `string` | Namespace is the namespace/tenant on the management plane. Required for N1C only. |
 | `waf.securityLogs[].apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
 | `waf.securityLogs[].apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
 | `waf.securityLogs[].apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |

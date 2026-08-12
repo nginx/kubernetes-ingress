@@ -150,14 +150,16 @@ func (rc *serviceReferenceChecker) IsReferencedByMinion(svcNamespace string, svc
 }
 
 func (rc *serviceReferenceChecker) IsReferencedByVirtualServer(svcNamespace string, svcName string, vs *conf_v1.VirtualServer) bool {
-	if vs.Namespace == svcNamespace {
-		for _, u := range vs.Spec.Upstreams {
-			if rc.hasClusterIP && u.UseClusterIP {
-				continue
-			}
-			if u.Service == svcName || u.Backup == svcName {
-				return true
-			}
+	for _, u := range vs.Spec.Upstreams {
+		if rc.hasClusterIP && u.UseClusterIP {
+			continue
+		}
+		ns, name := configs.ParseServiceReference(u.Service, vs.Namespace)
+		if ns == svcNamespace && name == svcName {
+			return true
+		}
+		if vs.Namespace == svcNamespace && u.Backup == svcName {
+			return true
 		}
 	}
 
@@ -174,14 +176,13 @@ func (rc *serviceReferenceChecker) IsReferencedByVirtualServer(svcNamespace stri
 }
 
 func (rc *serviceReferenceChecker) IsReferencedByVirtualServerRoute(svcNamespace string, svcName string, vsr *conf_v1.VirtualServerRoute) bool {
-	if vsr.Namespace == svcNamespace {
-		for _, u := range vsr.Spec.Upstreams {
-			if rc.hasClusterIP && u.UseClusterIP {
-				continue
-			}
-			if u.Service == svcName {
-				return true
-			}
+	for _, u := range vsr.Spec.Upstreams {
+		if rc.hasClusterIP && u.UseClusterIP {
+			continue
+		}
+		ns, name := configs.ParseServiceReference(u.Service, vsr.Namespace)
+		if ns == svcNamespace && name == svcName {
+			return true
 		}
 	}
 

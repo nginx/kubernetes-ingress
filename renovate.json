@@ -35,7 +35,8 @@
       "matchDatasources": [
         "pypi"
       ],
-      "groupName": "python dependencies"
+      "groupName": "python dependencies",
+      "minimumReleaseAge": "3 days"
     },
     {
       "addLabels": [
@@ -70,7 +71,8 @@
       "matchManagers": [
         "github-actions"
       ],
-      "groupName": "github actions"
+      "groupName": "github actions",
+      "minimumReleaseAge": "3 days"
     },
     {
       "matchPackageNames": [

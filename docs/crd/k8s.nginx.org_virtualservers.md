@@ -29,7 +29,6 @@ The `.spec` object supports the following fields:
 | `host` | `string` | The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. The host value needs to be unique among all Ingress and VirtualServer resources. |
 | `http-snippets` | `string` | Sets a custom snippet in the http context. |
 | `ingressClassName` | `string` | Specifies which Ingress Controller must handle the VirtualServerRoute resource. Must be the same as the ingressClassName of the VirtualServer that references this resource. |
-| `internalRoute` | `boolean` | InternalRoute allows for the configuration of internal routing. |
 | `listener` | `object` | Sets a custom HTTP and/or HTTPS listener. Valid fields are listener.http and listener.https. Each field must reference the name of a valid listener defined in a GlobalConfiguration resource |
 | `listener.http` | `string` | The name of an HTTP listener defined in a GlobalConfiguration resource. |
 | `listener.https` | `string` | The name of an HTTPS listener defined in a GlobalConfiguration resource. |

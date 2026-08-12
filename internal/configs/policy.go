@@ -72,6 +72,7 @@ type policiesCfg struct {
 	Cache           *version2.Cache
 	CORSHeaders     []version2.AddHeader
 	CORSMap         *version2.Map
+	HSTS            *version2.HSTS
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
 }
@@ -1167,6 +1168,47 @@ func (p *policiesCfg) addCORSConfig(
 	return res
 }
 
+func (p *policiesCfg) addHSTSConfig(
+	hsts *conf_v1.HSTS,
+	polKey string,
+	context string,
+	tls bool,
+) *validationResults {
+	res := newValidationResults()
+
+	if context != specContext {
+		res.addWarningf("HSTS policy %s is not allowed in the %v context", polKey, context)
+		res.isError = true
+		return res
+	}
+
+	if !tls && !hsts.BehindProxy {
+		res.addWarningf("TLS must be enabled for HSTS policy %s", polKey)
+		res.isError = true
+		return res
+	}
+
+	if p.HSTS != nil {
+		res.addWarningf("Multiple HSTS policies in the same context are not valid. HSTS policy %s will be ignored", polKey)
+		return res
+	}
+
+	if hsts.MaxAge == nil {
+		res.addWarningf("HSTS policy %s is missing required field maxAge", polKey)
+		res.isError = true
+		return res
+	}
+
+	p.HSTS = &version2.HSTS{
+		MaxAge:            *hsts.MaxAge,
+		IncludeSubDomains: hsts.IncludeSubDomains,
+		BehindProxy:       hsts.BehindProxy,
+		Preload:           hsts.Preload,
+	}
+
+	return res
+}
+
 // nolint:gocyclo
 func generatePolicies(
 	ctx context.Context,
@@ -1241,6 +1283,8 @@ func generatePolicies(
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails)
 			case pol.Spec.CORS != nil:
 				res = config.addCORSConfig(pol.Spec.CORS, key, ownerDetails)
+			case pol.Spec.HSTS != nil:
+				res = config.addHSTSConfig(pol.Spec.HSTS, key, pathContext, policyOpts.tls)
 			default:
 				res = newValidationResults()
 			}
