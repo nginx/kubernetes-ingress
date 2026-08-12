@@ -204,11 +204,11 @@ def crd_ingress_controller(
             print("------------------------- Update ClusterRole -----------------------------------")
             patch_rbac(kube_apis.rbac_v1, f"{TEST_DATA}/virtual-server/rbac-without-vs.yaml")
 
-        ic_pool.ensure(request.param)
-
         if request.param["type"] == "tls-passthrough-custom-port":
             orig_port = ingress_controller_endpoint.port_ssl
             ingress_controller_endpoint.port_ssl = ingress_controller_endpoint.custom_ssl_port
+
+        ic_pool.ensure(request.param)
     except ApiException:
         print("Restore the ClusterRole:")
         patch_rbac(kube_apis.rbac_v1, f"{DEPLOYMENTS}/rbac/rbac.yaml")
