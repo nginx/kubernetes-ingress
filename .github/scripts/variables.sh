@@ -66,7 +66,7 @@ get_docs_only() {
   local range
   if [ -n "${GITHUB_BASE_REF:-}" ]; then
     # PR or merge_group event: compare against the target branch.
-    git fetch --quiet --depth=50 origin "${GITHUB_BASE_REF}" 2>/dev/null || true
+    git fetch --quiet origin "${GITHUB_BASE_REF}" 2>/dev/null || true
     range="origin/${GITHUB_BASE_REF}...HEAD"
   else
     range="HEAD^...HEAD"
@@ -179,13 +179,11 @@ get_run_unit_tests() {
 # because tag-stable depends on this gate transitively, an untested run
 # also will not tag the image as stable. Otherwise: e2e runs whenever
 # there is work to do (tests requested or a docker build is needed).
-# Forks cannot access the authenticated registry, so they build artifacts but
-# skip the e2e workflow.
 get_run_e2e() {
   local run_tests docker_build
   run_tests=$(get_run_tests)
   docker_build=$(get_docker_build)
-  if [ "${RUN_TESTS_INPUT:-}" = "false" ] || [ "${FORKED:-}" = "true" ]; then
+  if [ "${RUN_TESTS_INPUT:-}" = "false" ]; then
     echo "false"
   elif [ "$run_tests" = "true" ] || [ "$docker_build" = "true" ]; then
     echo "true"
@@ -203,7 +201,7 @@ get_run_e2e() {
 get_tag_stable() {
   local run_e2e target_exists="${TARGET_EXISTS:-true}"
   run_e2e=$(get_run_e2e)
-  if [ "$run_e2e" != "true" ]; then
+  if [ "$run_e2e" != "true" ] || [ "${FORKED:-}" = "true" ]; then
     echo "false"
   elif [ "${FORCE:-}" = "true" ]; then
     echo "true"

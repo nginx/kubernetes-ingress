@@ -209,7 +209,7 @@ assert_flag get_run_unit_tests false "opt-out beats force"             FORCE=tru
 # --- get_run_e2e --------------------------------------------------------------
 # assert_flag   function | expected | description
 assert_flag get_run_e2e true  "main repo with work"                    FORKED=false BINARY_CACHE_HIT=false
-assert_flag get_run_e2e false "forked non-docs skips authenticated e2e" FORKED=true DOCS_ONLY=false
+assert_flag get_run_e2e true  "forked non-docs runs e2e"               FORKED=true DOCS_ONLY=false
 assert_flag get_run_e2e false "forked docs-only skips e2e"             FORKED=true DOCS_ONLY=true
 assert_flag get_run_e2e false "main repo, nothing to do"               FORKED=false DOCS_ONLY=true BINARY_CACHE_HIT=true STABLE_EXISTS=true
 assert_flag get_run_e2e false "run_tests_input=false skips e2e"        RUN_TESTS_INPUT=false BINARY_CACHE_HIT=false STABLE_EXISTS=false
@@ -279,7 +279,7 @@ assert_ci_flags "forked PR (build unauthenticated, no tag)" \
 "run_tests=true
 docker_build=true
 run_unit_tests=true
-run_e2e=false
+run_e2e=true
 tag_stable=false
 promote=false" \
   FORKED=true DOCS_ONLY=false REF_NAME=feature-branch

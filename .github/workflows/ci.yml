@@ -876,7 +876,7 @@ jobs:
       github.repository == 'nginx/kubernetes-ingress' && (
       !cancelled() )
     runs-on: ubuntu-24.04
-    needs: [checks, setup-matrix, tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck, unit-tests, verify-codegen]
+    needs: [checks, setup-matrix, tag-target, tag-stable, build-artifacts, smoke-tests-oss, smoke-tests-plus, smoke-tests-nap, package-tests, helm-tests, staticcheck, govulncheck, unit-tests, verify-codegen]
     steps:
       - name: Check results of all required jobs
         env:
@@ -897,6 +897,7 @@ jobs:
           GOVULNCHECK: ${{ needs.govulncheck.result }}
           BUILD_ARTIFACTS: ${{ needs.build-artifacts.result }}
           SETUP_MATRIX: ${{ needs.setup-matrix.result }}
+          TAG_TARGET_RESULT: ${{ needs.tag-target.result }}
           PACKAGE_TESTS: ${{ needs.package-tests.result }}
           HELM_TESTS: ${{ needs.helm-tests.result }}
           SMOKE_OSS: ${{ needs.smoke-tests-oss.result }}
@@ -934,8 +935,8 @@ jobs:
             "${BUILD_ARTIFACTS}"
 
           if [ "${BUILD_ARTIFACTS}" = "success" ]; then
-            require_success "${RUN_E2E}" "E2E (matrix / package / helm / smoke)" \
-              "${SETUP_MATRIX}" "${PACKAGE_TESTS}" "${HELM_TESTS}" "${SMOKE_OSS}" "${SMOKE_PLUS}" "${SMOKE_NAP}"
+            require_success "${RUN_E2E}" "E2E (matrix / tag-target / package / helm / smoke)" \
+              "${SETUP_MATRIX}" "${TAG_TARGET_RESULT}" "${PACKAGE_TESTS}" "${HELM_TESTS}" "${SMOKE_OSS}" "${SMOKE_PLUS}" "${SMOKE_NAP}"
             require_success "${TAG_STABLE}" "Tag stable image" \
               "${TAG_STABLE_RESULT}"
           fi

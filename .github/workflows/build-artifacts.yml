@@ -85,6 +85,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Setup netrc
+        if: ${{ inputs.authenticated }}
         run: |
           cat <<EOF > $HOME/.netrc
           machine azr.artifactory.f5net.com
