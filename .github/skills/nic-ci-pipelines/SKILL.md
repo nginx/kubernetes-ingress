@@ -90,15 +90,35 @@ Image variants are defined in JSON under `.github/data/`:
 - `matrix-regression.json`: Regression test matrix (K8s version combinations)
 - `patch-images.json`: Patch image definitions for `patch-image.yml`
 
+### Centralized CI Decision Logic
+
+CI execution flags are computed during the `checks` job via [`.github/scripts/variables.sh`](file:///Users/s.breen/work/src/github.com/nginx/nic/.github/scripts/variables.sh) and consumed by downstream jobs:
+
+- `run_tests`: Master testing flag (bypassed on docs-only or when up-to-date image exists).
+- `docker_build`: Gates container builds in `build-artifacts`.
+- `run_unit_tests`: Gates Go static analysis, codegen, and unit tests.
+- `run_e2e`: Gates Helm, package, matrix, and smoke test suites.
+- `tag_stable`: Gates image retagging in GCR (`false` for forks).
+- `promote`: Gates image promotion on forced release branch runs.
+
+Detailed architecture and decision diagrams are documented in [docs/developer/CI-logic.md](file:///Users/s.breen/work/src/github.com/nginx/nic/docs/developer/CI-logic.md).
+
+### Developer Tooling & Local Testing
+
+- `./.github/scripts/ci-preview.sh`: Interactive dry-run preview of CI flags for current branch diff or simulated scenario (e.g. `FORKED=true ./.github/scripts/ci-preview.sh`).
+- `./.github/scripts/variables_test.sh`: Unit test suite for decision logic functions.
+- `./.github/scripts/validate-workflow-gating.sh`: Validates strict repository gating across all `.github/workflows/*.yml` files.
+
 ### Caching Strategy
 
-- Go binaries: cached by `go_code_md5` hash
-- Docker images: cached by `docker_md5` hash
-- Stable images in GCR are checked before rebuilding
+- Go binaries: cached by `go_code_md5` hash.
+- Docker images: cached by `docker_md5` hash.
+- Stable images in GCR are probed before rebuilding; warm cache + stable image presence skips rebuilds and re-tests.
+- Docs-only PRs (`docs_only=true`) skip all builds and tests.
 
 ### Fork Awareness
 
-`forked_workflow` variable gates authenticated operations. Forked PRs get local-only builds without secret access.
+`forked_workflow` variable gates authenticated operations. Forked PRs build Docker images locally in the runner and execute unit and e2e tests (`run_e2e=true`), but skip authenticated secrets, `.netrc` setup, and GCR image retagging (`tag_stable=false`).
 
 ### Concurrency
 
