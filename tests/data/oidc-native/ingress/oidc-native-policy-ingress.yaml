@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oidc-native-policy-ingress
+  annotations:
+    nginx.com/policies: "oidc-native-policy"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - oidc-native.example.com
+      secretName: tls-secret
+  rules:
+    - host: oidc-native.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend1-svc
+                port:
+                  number: 80
