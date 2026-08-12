@@ -16,11 +16,11 @@ To optimize developer feedback loops and conserve compute resources, the pipelin
 
 | Feature | The Legacy Approach | The New Architecture |
 | --- | --- | --- |
-| **Logic Location** | Scattered inline bash scripts & duplicated `if:` expressions inside `.github/workflows/ci.yml` | Centralized in pure bash functions inside [`.github/scripts/variables.sh`](file:///Users/s.breen/work/src/github.com/nginx/nic/.github/scripts/variables.sh) |
+| **Logic Location** | Scattered inline bash scripts & duplicated `if:` expressions inside `.github/workflows/ci.yml` | Centralized in pure bash functions inside [`.github/scripts/variables.sh`](.github/scripts/variables.sh) |
 | **Gating Evaluation** | Ad-hoc per-job conditional expressions (`if: github.event_name == ... && steps.vars.outputs.docs_only != 'true'`) | Explicit key=value decision flags computed once in the `checks` job and passed as job outputs |
-| **Local Testability** | Impossible without committing, pushing, and waiting for GitHub Actions | Instant local unit tests via [`.github/scripts/variables_test.sh`](file:///Users/s.breen/work/src/github.com/nginx/nic/.github/scripts/variables_test.sh) |
-| **Dry-Run Previews** | Manual inspection of workflow YAML | Interactive scenario dry-runs via [`.github/scripts/ci-preview.sh`](file:///Users/s.breen/work/src/github.com/nginx/nic/.github/scripts/ci-preview.sh) |
-| **Workflow Safety** | Unguarded jobs could run accidentally or fail silently | Mandatory repository gating checked by [`.github/scripts/validate-workflow-gating.sh`](file:///Users/s.breen/work/src/github.com/nginx/nic/.github/scripts/validate-workflow-gating.sh) |
+| **Local Testability** | Impossible without committing, pushing, and waiting for GitHub Actions | Instant local unit tests via [`.github/scripts/variables_test.sh`](.github/scripts/variables_test.sh) |
+| **Dry-Run Previews** | Manual inspection of workflow YAML | Interactive scenario dry-runs via [`.github/scripts/ci-preview.sh`](.github/scripts/ci-preview.sh) |
+| **Workflow Safety** | Unguarded jobs could run accidentally or fail silently | Mandatory repository gating checked by [`.github/scripts/validate-workflow-gating.sh`](.github/scripts/validate-workflow-gating.sh) |
 | **Required Status Check** | Individual job checks configured in GitHub branch protection | Single `final-results` job that validates expected job outputs against computed flags |
 
 ---

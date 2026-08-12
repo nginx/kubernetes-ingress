@@ -92,7 +92,7 @@ Image variants are defined in JSON under `.github/data/`:
 
 ### Centralized CI Decision Logic
 
-CI execution flags are computed during the `checks` job via [`.github/scripts/variables.sh`](file:///Users/s.breen/work/src/github.com/nginx/nic/.github/scripts/variables.sh) and consumed by downstream jobs:
+CI execution flags are computed during the `checks` job via [`.github/scripts/variables.sh`](.github/scripts/variables.sh) and consumed by downstream jobs:
 
 - `run_tests`: Master testing flag (bypassed on docs-only or when up-to-date image exists).
 - `docker_build`: Gates container builds in `build-artifacts`.
@@ -101,7 +101,7 @@ CI execution flags are computed during the `checks` job via [`.github/scripts/va
 - `tag_stable`: Gates image retagging in GCR (`false` for forks).
 - `promote`: Gates image promotion on forced release branch runs.
 
-Detailed architecture and decision diagrams are documented in [docs/developer/CI-logic.md](file:///Users/s.breen/work/src/github.com/nginx/nic/docs/developer/CI-logic.md).
+Detailed architecture and decision diagrams are documented in [docs/developer/CI-logic.md](docs/developer/CI-logic.md).
 
 ### Developer Tooling & Local Testing
 
