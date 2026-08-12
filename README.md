@@ -17,8 +17,6 @@
 [![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 ![Commercial Support](https://badgen.net/badge/support/commercial/green?icon=awesome)
 
-# NGINX Ingress Controller
-
 This repo provides an implementation of an Ingress Controller for NGINX and NGINX Plus from the people behind NGINX.
 
 ---
