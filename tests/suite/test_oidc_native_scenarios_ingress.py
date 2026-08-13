@@ -224,7 +224,6 @@ def backend_setup(request, kube_apis, test_namespace):
 
 @pytest.mark.policies
 @pytest.mark.native_oidc
-@pytest.mark.ingress
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.usefixtures("crd_ingress_controller")
 @pytest.mark.parametrize(

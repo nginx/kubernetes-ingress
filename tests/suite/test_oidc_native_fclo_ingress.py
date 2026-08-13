@@ -274,7 +274,6 @@ def run_oidc_native_rp_logout_ingress(browser_type, ip_address, port):
 
 @pytest.mark.policies
 @pytest.mark.native_oidc
-@pytest.mark.ingress
 @pytest.mark.usefixtures("crd_ingress_controller")
 @pytest.mark.skip_for_nginx_oss
 @pytest.mark.parametrize(
