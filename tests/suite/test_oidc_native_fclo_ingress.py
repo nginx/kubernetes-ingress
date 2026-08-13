@@ -67,6 +67,7 @@ def keycloak_ingress_fclo_setup(request, kube_apis, test_namespace, ingress_cont
     data = {"username": "admin", "password": "admin", "grant_type": "password", "client_id": "admin-cli"}
 
     response = requests.post(url, headers=headers, data=data, verify=False)
+    response.raise_for_status()
     token = response.json()["access_token"]
 
     create_user_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/admin/realms/master/users"
@@ -272,7 +273,7 @@ def run_oidc_native_rp_logout_ingress(browser_type, ip_address, port):
 
 
 @pytest.mark.policies
-@pytest.mark.policies_oidc_native
+@pytest.mark.native_oidc
 @pytest.mark.ingress
 @pytest.mark.usefixtures("crd_ingress_controller")
 @pytest.mark.skip_for_nginx_oss
