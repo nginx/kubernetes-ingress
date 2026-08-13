@@ -111,6 +111,7 @@ def keycloak_ingress_setup(request, kube_apis, test_namespace, ingress_controlle
     data = {"username": "admin", "password": "admin", "grant_type": "password", "client_id": "admin-cli"}
 
     response = requests.post(url, headers=headers, data=data, verify=False)
+    response.raise_for_status()
     token = response.json()["access_token"]
 
     create_user_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/admin/realms/master/users"
@@ -210,7 +211,7 @@ def keycloak_ingress_setup(request, kube_apis, test_namespace, ingress_controlle
 
 
 @pytest.mark.policies
-@pytest.mark.policies_oidc_native
+@pytest.mark.native_oidc
 @pytest.mark.ingress
 @pytest.mark.usefixtures("crd_ingress_controller")
 @pytest.mark.parametrize(
