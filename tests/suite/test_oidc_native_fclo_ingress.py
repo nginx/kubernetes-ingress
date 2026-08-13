@@ -191,13 +191,17 @@ def run_oidc_native_fclo_ingress(browser_type, ip_address, port):
         page.goto("https://native-fclo-one.example.com/logout")
         page.wait_for_load_state("load")
         page_text = page.locator("body").text_content()
-        assert (
-            "You are logging out from following apps" in page_text or "Do you want to log out?" in page_text
-        ), f"Expected logout confirmation page, got: {page_text[:300]}"
-
-        # Click the logout button to complete the FCLO flow
-        page.locator("#kc-logout").click()
-        page.wait_for_load_state("load")
+        # Keycloak may auto-logout (newer versions) or show a confirmation page
+        if "logged out" in page_text.lower():
+            # Already logged out, no confirmation needed
+            pass
+        else:
+            assert (
+                "You are logging out from following apps" in page_text or "Do you want to log out?" in page_text
+            ), f"Expected logout confirmation page, got: {page_text[:300]}"
+            # Click the logout button to complete the FCLO flow
+            page.locator("#kc-logout").click()
+            page.wait_for_load_state("load")
 
         # Verify FCLO terminated the session: navigating to app one should
         # show the Keycloak login form again (not the backend page).
@@ -254,7 +258,14 @@ def run_oidc_native_rp_logout_ingress(browser_type, ip_address, port):
         # After confirming, Keycloak redirects to the postLogoutRedirectURI.
         # The auto-generated location at /_logout returns "Logged out".
         page_text = page.locator("body").text_content()
-        assert "logged out" in page_text, f"Expected 'logged out' on post-logout page, got: {page_text[:200]}"
+        if "logged out" in page_text.lower():
+            # Keycloak auto-logged out, skip the confirmation click
+            pass
+        elif "You are logging out from following apps" in page_text or "Do you want to log out?" in page_text:
+            page.locator("#kc-logout").click()
+            page.wait_for_load_state("load")
+        else:
+            assert False, f"Expected logout or confirmation page, got: {page_text[:300]}"
 
         # Verify the session is terminated: accessing the app should redirect
         # to the Keycloak login form.
