@@ -13,7 +13,7 @@ require (
 	github.com/gruntwork-io/terratest v1.0.1
 	github.com/jinzhu/copier v0.4.0
 	github.com/nginx/nginx-plus-go-client/v3 v3.0.1
-	github.com/nginx/nginx-prometheus-exporter v1.5.1
+	github.com/nginx/nginx-prometheus-exporter v1.5.3
 	github.com/nginx/telemetry-exporter v0.1.5
 	github.com/nginxinc/nginx-service-mesh v1.7.0
 	github.com/prometheus/client_golang v1.24.1
