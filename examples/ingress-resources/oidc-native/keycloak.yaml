@@ -2,11 +2,16 @@ apiVersion: v1
 kind: Service
 metadata:
   name: keycloak
+  labels:
+    app: keycloak
 spec:
   ports:
     - name: http
       port: 8080
       targetPort: 8080
+    - name: https
+      port: 443
+      targetPort: 8443
   selector:
     app: keycloak
 ---
@@ -14,6 +19,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: keycloak
+  labels:
+    app: keycloak
 spec:
   replicas: 1
   selector:
@@ -26,27 +33,38 @@ spec:
     spec:
       containers:
         - name: keycloak
-          image: quay.io/keycloak/keycloak:25.0.2
-          args:
-            - "start-dev"
-            - "--import-realm"
+          image: quay.io/keycloak/keycloak:26.7.1
+          args: ["start-dev"]
           env:
-            - name: KEYCLOAK_ADMIN
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
               value: "admin"
-            - name: KEYCLOAK_ADMIN_PASSWORD
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
               value: "admin"
-            - name: KC_PROXY_HEADERS
-              value: "xforwarded"
             - name: KC_HTTP_ENABLED
               value: "true"
-            - name: KC_HOSTNAME_STRICT
-              value: "false"
+            - name: KC_PROXY_HEADERS
+              value: "xforwarded"
+            - name: KC_HOSTNAME
+              value: "https://keycloak.207.175.48.210.nip.io"
+            - name: KC_HTTPS_CERTIFICATE_FILE
+              value: "/etc/x509/https/tls.crt"
+            - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+              value: "/etc/x509/https/tls.key"
+          volumeMounts:
+            - name: tls-secret
+              mountPath: /etc/x509/https
+              readOnly: true
           ports:
             - name: http
               containerPort: 8080
+            - name: https
+              containerPort: 8443
           readinessProbe:
             httpGet:
               path: /realms/master
               port: 8080
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 30
+      volumes:
+        - name: tls-secret
+          secret:
+            secretName: keycloak-tls-secret
