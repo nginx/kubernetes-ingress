@@ -210,7 +210,6 @@ def keycloak_ingress_setup(request, kube_apis, test_namespace, ingress_controlle
     return KeycloakSetup(encoded_secret, keycloak_service_host)
 
 
-@pytest.mark.policies
 @pytest.mark.native_oidc
 @pytest.mark.usefixtures("crd_ingress_controller")
 @pytest.mark.parametrize(
