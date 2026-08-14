@@ -20,8 +20,8 @@ SOURCE_TAG=${SOURCE_TAG:-stable}
 TARGET_TAG=${TARGET_TAG:-edge}
 ADDITIONAL_TAG=${ADDITIONAL_TAG:-""}
 
-SOURCE_REGISTRY=${1:-"gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"}
-TARGET_REGISTRY=${2:-"gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release"}
+SOURCE_REGISTRY=${1:-${SOURCE_REGISTRY:-"gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"}}
+TARGET_REGISTRY=${2:-${TARGET_REGISTRY:-"gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release"}}
 
 REGISTRY_USERNAME=${REGISTRY_USERNAME:-""}
 REGISTRY_PASSWORD=${REGISTRY_PASSWORD:-""}

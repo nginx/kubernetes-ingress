@@ -18,6 +18,10 @@ on:
       github_public_registry:
         required: true
         type: boolean
+      source_registry:
+        required: false
+        type: string
+        default: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
       source_tag:
         required: true
         type: string
@@ -48,6 +52,10 @@ on:
       github_public_registry:
         required: true
         type: boolean
+      source_registry:
+        required: false
+        type: string
+        default: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
       source_tag:
         required: true
         type: string
@@ -116,6 +124,23 @@ jobs:
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
 
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ inputs.source_registry }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
+
       - name: Publish OSS images
         run: |
           export CONFIG_PATH=.github/config/config-oss-gcr-release
@@ -124,7 +149,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-oss-to-ecr-public-registry:
     name: Push OSS images to the AWS Public Registry
@@ -186,6 +211,23 @@ jobs:
         with:
           registry: public.ecr.aws
 
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ inputs.source_registry }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
+
       - name: Publish images
         run: |
           export CONFIG_PATH=.github/config/config-oss-ecr
@@ -194,7 +236,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-oss-to-dockerhub-public-registry:
     name: Push OSS images to the DockerHub Public Registry
@@ -266,6 +308,23 @@ jobs:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
 
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ inputs.source_registry }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
+
       - name: Publish images
         run: |
           export CONFIG_PATH=.github/config/config-oss-dockerhub
@@ -274,7 +333,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-oss-to-quay-public-registry:
     name: Push OSS images to the Quay Public Registry
@@ -337,6 +396,23 @@ jobs:
           username: ${{ steps.secrets.outputs.QUAY_USERNAME }}
           password: ${{ steps.secrets.outputs.QUAY_ROBOT_TOKEN }}
 
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ inputs.source_registry }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
+
       - name: Publish images
         run: |
           export CONFIG_PATH=.github/config/config-oss-quay
@@ -345,7 +421,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-oss-to-github-public-registry:
     name: Push OSS images to the GitHub Public Registry
@@ -401,6 +477,23 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ inputs.source_registry }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
+
       - name: Publish images
         run: |
           export CONFIG_PATH=.github/config/config-oss-github
@@ -409,4 +502,4 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
