@@ -4740,10 +4740,10 @@ metadata:
   name: common-labels-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -4756,10 +4756,10 @@ metadata:
   name: common-labels-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -4774,10 +4774,10 @@ metadata:
   name: common-labels-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -4789,10 +4789,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: common-labels-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -4907,10 +4907,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: common-labels-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -4930,10 +4930,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: common-labels-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -4993,10 +4993,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: common-labels-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -5018,10 +5018,10 @@ metadata:
   name: common-labels-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -5051,10 +5051,10 @@ metadata:
   name: common-labels-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -5134,6 +5134,7 @@ spec:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/common-labels-nginx-ingress
           - -ingress-class=nginx
@@ -5142,6 +5143,7 @@ spec:
           - -nginx-debug=false
           - -log-level=info
           - -log-format=glog
+          - -enable-config-safety=false
           - -nginx-status=true
           - -nginx-status-port=8080
           - -nginx-status-allow-cidrs=127.0.0.1
@@ -5164,6 +5166,7 @@ spec:
           - -enable-external-dns=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -5177,10 +5180,10 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
@@ -5198,10 +5201,10 @@ metadata:
   name: common-labels-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.5.0
+    helm.sh/chart: nginx-ingress-2.7.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: common-labels
-    app.kubernetes.io/version: "5.4.0"
+    app.kubernetes.io/version: "5.6.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
     environment: production
