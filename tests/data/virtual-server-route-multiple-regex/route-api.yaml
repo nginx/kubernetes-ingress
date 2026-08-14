@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: route-api
+spec:
+  host: vsr-multi-regex.example.com
+  subroutes:
+  - path: "~/api/v1"
+    action:
+      return:
+        code: 200
+        body: "api-v1"
+  - path: "~/api/v2"
+    action:
+      return:
+        code: 200
+        body: "api-v2"

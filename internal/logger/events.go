@@ -24,4 +24,6 @@ const (
 	EventReasonUpdatePodLabel            = "UpdatePodLabel"            //nolint:revive
 	EventReasonUsageGraceEnding          = "UsageGraceEnding"          //nolint:revive
 	EventReasonServiceFailedToCreate     = "ServiceFailedToCreate"     //nolint:revive
+	EventReasonInvalidConfiguration      = "InvalidConfiguration"      //nolint:revive
+	EventReasonBundleFetchFailed         = "BundleFetchFailed"         //nolint:revive
 )

@@ -56,6 +56,9 @@ const HTTPRedirectCodeAnnotation = "nginx.org/http-redirect-code"
 // ProxySetHeadersAnnotation is the annotation where the proxy set headers are specified.
 const ProxySetHeadersAnnotation = "nginx.org/proxy-set-headers"
 
+// AddHeaderAnnotation is the annotation where add_header directives are specified.
+const AddHeaderAnnotation = "nginx.org/add-header"
+
 // ProxyNextUpstreamAnnotation is the annotation where the proxy next upstream settings are specified.
 const ProxyNextUpstreamAnnotation = "nginx.org/proxy-next-upstream"
 
@@ -80,14 +83,26 @@ const AppProtectLogConfDstAnnotation = "appprotect.f5.com/app-protect-security-l
 // AppProtectDosProtectedAnnotation is the namespace/name reference of a DosProtectedResource
 const AppProtectDosProtectedAnnotation = "appprotectdos.f5.com/app-protect-dos-resource"
 
-// nginxMeshInternalRoute specifies if the ingress resource is an internal route.
-const nginxMeshInternalRouteAnnotation = "nsm.nginx.com/internal-route"
-
 // StickyCookieServicesAnnotation is the annotation where the sticky cookie configuration is specified.
 const StickyCookieServicesAnnotation = "nginx.org/sticky-cookie-services"
 
 // StickyCookieServicesAnnotationPlus is the annotation where the sticky cookie configuration is specified for NGINX Plus.
 const StickyCookieServicesAnnotationPlus = "nginx.com/sticky-cookie-services"
+
+// AddHeaderInheritAnnotation is the annotation where add_header inheritance behavior is specified.
+const AddHeaderInheritAnnotation = "nginx.org/add-header-inherit"
+
+// ProxyRedirectFromAnnotation is the annotation for the proxy_redirect "from" parameter.
+const ProxyRedirectFromAnnotation = "nginx.org/proxy-redirect-from"
+
+// ProxyRedirectToAnnotation is the annotation for the proxy_redirect "to" parameter.
+const ProxyRedirectToAnnotation = "nginx.org/proxy-redirect-to"
+
+// CustomHTTPErrorsAnnotation is the annotation for enabling custom error handling for a
+// comma-separated list of upstream status codes (and 4xx/5xx range shorthands). When set,
+// NGINX intercepts matching upstream responses (proxy_intercept_errors on) and routes
+// them via error_page to the Ingress's spec.defaultBackend when one is configured.
+const CustomHTTPErrorsAnnotation = "nginx.org/custom-http-errors"
 
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
@@ -170,7 +185,7 @@ var allowedAnnotationKeys = []string{
 }
 
 // nolint: gocyclo
-func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool, enableDirectiveAutoadjust bool) ConfigParams {
+func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableDirectiveAutoadjust bool) ConfigParams {
 	l := nl.LoggerFromContext(baseCfgParams.Context)
 	cfgParams := *baseCfgParams
 
@@ -254,6 +269,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.LocationSnippets = locationSnippets
 	}
 
+	if addHeaderInherit, exists := ingEx.Ingress.Annotations[AddHeaderInheritAnnotation]; exists {
+		if parsedAddHeaderInherit, err := ParseAddHeaderInherit(addHeaderInherit); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value %s: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), AddHeaderInheritAnnotation, addHeaderInherit, err)
+		} else {
+			cfgParams.AddHeaderInherit = parsedAddHeaderInherit
+		}
+	}
+
 	if proxyConnectTimeout, exists := ingEx.Ingress.Annotations["nginx.org/proxy-connect-timeout"]; exists {
 		if parsedProxyConnectTimeout, err := ParseTime(proxyConnectTimeout); err != nil {
 			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-connect-timeout: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyConnectTimeout, err)
@@ -288,6 +311,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxySetHeaders, exists := ingEx.Ingress.Annotations[ProxySetHeadersAnnotation]; exists {
 		cfgParams.ProxySetHeaders = version1.ParseProxySetHeaders(proxySetHeaders)
+	}
+
+	if addHeader, exists := ingEx.Ingress.Annotations[AddHeaderAnnotation]; exists {
+		cfgParams.AddHeaders = version1.ParseAddHeaders(addHeader)
 	}
 
 	if proxyNextUpstream, exists := ingEx.Ingress.Annotations[ProxyNextUpstreamAnnotation]; exists {
@@ -428,18 +455,15 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	// Only run balance validation if auto-adjust is enabled
 	if enableDirectiveAutoadjust {
-		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications, err := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
-		if err != nil {
-			nl.Errorf(l, "error reconciling proxy_buffers, proxy_buffer_size, and proxy_busy_buffers_size values: %s", err.Error())
-		} else {
-			cfgParams.ProxyBuffers = balancedProxyBuffers
-			cfgParams.ProxyBufferSize = balancedProxyBufferSize
-			cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+		balancedProxyBuffers, balancedProxyBufferSize, balancedProxyBusyBufferSize, modifications := validation.BalanceProxyValues(cfgParams.ProxyBuffers, cfgParams.ProxyBufferSize, cfgParams.ProxyBusyBuffersSize, enableDirectiveAutoadjust)
 
-			if len(modifications) > 0 {
-				for _, modification := range modifications {
-					nl.Infof(l, "Changes made to proxy values: %s", modification)
-				}
+		cfgParams.ProxyBuffers = balancedProxyBuffers
+		cfgParams.ProxyBufferSize = balancedProxyBufferSize
+		cfgParams.ProxyBusyBuffersSize = balancedProxyBusyBufferSize
+
+		if len(modifications) > 0 {
+			for _, modification := range modifications {
+				nl.Infof(l, "Changes made to proxy values: %s", modification)
 			}
 		}
 	}
@@ -450,6 +474,24 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 
 	if proxyMaxTempFileSize, exists := ingEx.Ingress.Annotations["nginx.org/proxy-max-temp-file-size"]; exists {
 		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize
+	}
+
+	if proxyRedirectFrom, exists := ingEx.Ingress.Annotations[ProxyRedirectFromAnnotation]; exists {
+		cfgParams.ProxyRedirectFrom = proxyRedirectFrom
+	}
+	if proxyRedirectTo, exists := ingEx.Ingress.Annotations[ProxyRedirectToAnnotation]; exists {
+		cfgParams.ProxyRedirectTo = proxyRedirectTo
+	}
+
+	if val, exists := ingEx.Ingress.Annotations[CustomHTTPErrorsAnnotation]; exists {
+		codes, err := ParseCustomHTTPErrors(val)
+		if err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value %s: got %q: %v",
+				ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(),
+				CustomHTTPErrorsAnnotation, val, err)
+		} else {
+			cfgParams.CustomHTTPErrors = codes
+		}
 	}
 
 	if isPlus {
@@ -555,15 +597,6 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if hasAppProtectDos {
 		if appProtectDosResource, exists := ingEx.Ingress.Annotations["appprotectdos.f5.com/app-protect-dos-resource"]; exists {
 			cfgParams.AppProtectDosResource = appProtectDosResource
-		}
-	}
-	if enableInternalRoutes {
-		if spiffeServerCerts, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, nginxMeshInternalRouteAnnotation, ingEx.Ingress); exists {
-			if err != nil {
-				nl.Error(l, err)
-			} else {
-				cfgParams.SpiffeServerCerts = spiffeServerCerts
-			}
 		}
 	}
 

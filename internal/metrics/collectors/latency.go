@@ -86,13 +86,14 @@ func NewLatencyMetricsCollector(
 	upstreamServerPeerLabelNames []string,
 ) *LatencyMetricsCollector {
 	return &LatencyMetricsCollector{
-		httpLatency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace:   metricsNamespace,
-			Name:        "upstream_server_response_latency_ms",
-			Help:        "Bucketed response times from when NGINX establishes a connection to an upstream server to when the last byte of the response body is received by NGINX",
-			ConstLabels: constLabels,
-			Buckets:     latencyBucketsMilliSeconds,
-		},
+		httpLatency: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Namespace:   metricsNamespace,
+				Name:        "upstream_server_response_latency_ms",
+				Help:        "Bucketed response times from when NGINX establishes a connection to an upstream server to when the last byte of the response body is received by NGINX",
+				ConstLabels: constLabels,
+				Buckets:     latencyBucketsMilliSeconds,
+			},
 			createLatencyLabelNames(upstreamServerLabelNames, upstreamServerPeerLabelNames),
 		),
 		upstreamServerLabels:         make(map[string][]string),

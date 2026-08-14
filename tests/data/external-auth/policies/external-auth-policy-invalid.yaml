@@ -1,0 +1,8 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-policy-invalid
+spec:
+  externalAuth:
+    authURI: "no-leading-slash"
+    authServiceName: "external-auth-svc"

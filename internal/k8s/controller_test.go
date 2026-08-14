@@ -27,26 +27,52 @@ import (
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 )
 
-type trackingNginxManager struct {
+type testNginxManager struct {
 	*nginx.FakeManager
-	createdConfigNames []string
+
+	CreatedConfigNames []string
+	FailCreateForName  string
+	FailCreateOnCall   int
+	CreateCalls        int
 }
 
-func newTrackingNginxManager() *trackingNginxManager {
-	return &trackingNginxManager{
-		FakeManager: nginx.NewFakeManager("/etc/nginx"),
+func newTestNginxManager() *testNginxManager {
+	return &testNginxManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
+}
+
+func (m *testNginxManager) CreateConfig(name string, content []byte) (bool, error) {
+	m.CreateCalls++
+	m.CreatedConfigNames = append(m.CreatedConfigNames, name)
+
+	if m.FailCreateForName == name && m.FailCreateOnCall > 0 && m.FailCreateOnCall == m.CreateCalls {
+		return false, fmt.Errorf("injected CreateConfig failure for %s at call %d", name, m.CreateCalls)
 	}
+
+	return m.FakeManager.CreateConfig(name, content)
 }
 
-func (m *trackingNginxManager) CreateConfig(name string, content []byte) (bool, error) {
-	m.createdConfigNames = append(m.createdConfigNames, name)
-	return m.FakeManager.CreateConfig(name, content)
+// fakeStore wraps FakeCustomStore to satisfy the cache.Store interface, which gained
+// Bookmark and LastStoreSyncResourceVersion in k8s.io/client-go v0.36.
+// FakeCustomStore was not updated upstream to implement these methods.
+type fakeStore struct {
+	cache.FakeCustomStore
+}
+
+// Bookmark tracks the latest resource version seen via bookmark events.
+// Not needed in tests — resource version tracking is not exercised here.
+func (f *fakeStore) Bookmark(_ string) {}
+
+// LastStoreSyncResourceVersion returns the latest resource version the store has seen.
+// Not needed in tests — returns empty string as a safe zero value.
+func (f *fakeStore) LastStoreSyncResourceVersion() string {
+	return ""
 }
 
 func createTestPolicySyncConfigurator(t *testing.T, manager nginx.Manager) *configs.Configurator {
@@ -81,6 +107,35 @@ func createTestPolicySyncConfigurator(t *testing.T, manager nginx.Manager) *conf
 		IsPrometheusEnabled:     false,
 		IsLatencyMetricsEnabled: false,
 	})
+}
+
+func createIngressProcessChangesController(t *testing.T, manager nginx.Manager) *LoadBalancerController {
+	t.Helper()
+
+	ingressStore := &cache.FakeCustomStore{
+		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
+			return nil, false, nil
+		},
+	}
+
+	return &LoadBalancerController{
+		configurator: createTestPolicySyncConfigurator(t, manager),
+		recorder:     record.NewFakeRecorder(100),
+		secretStore:  secrets.NewEmptyFakeSecretsStore(),
+		namespacedInformers: map[string]*namespacedInformer{
+			"default": {
+				ingressLister: storeToIngressLister{Store: &fakeStore{FakeCustomStore: *ingressStore}},
+			},
+		},
+		Logger: nl.LoggerFromContext(context.Background()),
+	}
+}
+
+func newHostlessIngressChange(name string) *IngressConfiguration {
+	ing := createTestIngress(name, "")
+	ingCfg := NewRegularIngressConfiguration(ing)
+	ingCfg.ValidHosts[""] = true
+	return ingCfg
 }
 
 func TestHasCorrectIngressClass(t *testing.T) {
@@ -2082,7 +2137,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 		Spec: conf_v1.PolicySpec{},
 	}
 
-	policyLister := &cache.FakeCustomStore{
+	policyLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
 			switch key {
 			case "default/valid-policy":
@@ -2097,7 +2152,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 				return nil, false, errors.New("GetByKey error")
 			}
 		},
-	}
+	}}
 
 	nsi := make(map[string]*namespacedInformer)
 	nsi[""] = &namespacedInformer{policyLister: policyLister}
@@ -2133,7 +2188,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `waf`"),
 		errors.New("policy nginx-ingress/valid-policy doesn't exist"),
 		errors.New("failed to get policy nginx-ingress/some-policy: GetByKey error"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
@@ -2183,7 +2238,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 		Spec: conf_v1.PolicySpec{},
 	}
 
-	policyLister := &cache.FakeCustomStore{
+	policyLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
 			switch key {
 			case "default/valid-policy":
@@ -2198,7 +2253,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 				return nil, false, errors.New("GetByKey error")
 			}
 		},
-	}
+	}}
 
 	nsi := make(map[string]*namespacedInformer)
 	// simulate a watch of the default namespace
@@ -2231,7 +2286,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `waf`"),
 		errors.New("failed to get namespace nginx-ingress"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
 	}
@@ -2307,11 +2362,11 @@ func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
 	ing := createTestIngress("ing-with-missing-policy", "example.com")
 	ing.Annotations[configs.PoliciesAnnotation] = "missing-policy"
 
-	policyLister := &cache.FakeCustomStore{
+	policyLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
 			return nil, false, nil
 		},
-	}
+	}}
 
 	lbc := LoadBalancerController{
 		namespacedInformers: map[string]*namespacedInformer{
@@ -2380,6 +2435,62 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 	}
 }
 
+func TestCreateIngressEx_NoSpuriousWarningWhenTLSSecretNameEmpty(t *testing.T) {
+	t.Parallel()
+
+	// Ingress with a tls: block that has no secretName — relies on --wildcard-tls-secret.
+	ing := createTestIngress("wildcard-tls-ingress", "example.com")
+	ing.Spec.TLS = []networking.IngressTLS{
+		{
+			Hosts: []string{"example.com"},
+			// SecretName intentionally absent — relying on wildcard TLS secret.
+		},
+	}
+
+	tests := []struct {
+		name              string
+		wildcardTLSSecret string
+	}{
+		{
+			name:              "wildcard TLS configured",
+			wildcardTLSSecret: "default/wildcard-tls-secret",
+		},
+		{
+			name:              "wildcard TLS not configured",
+			wildcardTLSSecret: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			lbc := LoadBalancerController{
+				namespacedInformers: map[string]*namespacedInformer{
+					"default": {},
+				},
+				secretStore: secrets.NewEmptyFakeSecretsStore(),
+				specialSecrets: specialSecrets{
+					wildcardTLSSecret: tc.wildcardTLSSecret,
+				},
+				Logger: nl.LoggerFromContext(context.Background()),
+			}
+
+			ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
+
+			// The empty-secretName entry must be present in SecretRefs with no error —
+			// downstream addSSLConfig() reads this key and falls through to the wildcard path.
+			ref, exists := ingEx.SecretRefs[""]
+			if !exists {
+				t.Fatal("expected SecretRefs[\"\"] to exist for empty-secretName TLS block")
+			}
+			if ref.Error != nil {
+				t.Errorf("expected no error in SecretRefs[\"\"] when secretName is empty, got: %v", ref.Error)
+			}
+		})
+	}
+}
+
 func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 	t.Parallel()
 
@@ -2410,23 +2521,23 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 		},
 	}
 
-	policyLister := &cache.FakeCustomStore{
+	policyLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(key string) (item interface{}, exists bool, err error) {
 			if key == "default/test-policy" {
 				return pol, true, nil
 			}
 			return nil, false, nil
 		},
-	}
+	}}
 
-	svcLister := &cache.FakeCustomStore{
+	svcLister := &fakeStore{cache.FakeCustomStore{
 		GetByKeyFunc: func(_ string) (item interface{}, exists bool, err error) {
 			return nil, false, nil
 		},
-	}
+	}}
 
-	trackingManager := newTrackingNginxManager()
-	cnf := createTestPolicySyncConfigurator(t, trackingManager)
+	manager := newTestNginxManager()
+	cnf := createTestPolicySyncConfigurator(t, manager)
 
 	lbc := LoadBalancerController{
 		namespacedInformers: map[string]*namespacedInformer{
@@ -2445,12 +2556,12 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 
 	lbc.syncPolicy(task{Key: "default/test-policy"})
 
-	if len(trackingManager.createdConfigNames) == 0 {
+	if len(manager.CreatedConfigNames) == 0 {
 		t.Fatalf("expected mergeable ingress config to be created on policy update")
 	}
 
 	foundMasterConfig := false
-	for _, name := range trackingManager.createdConfigNames {
+	for _, name := range manager.CreatedConfigNames {
 		if name == "default-master-ingress" {
 			foundMasterConfig = true
 			break
@@ -2458,8 +2569,116 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 	}
 
 	if !foundMasterConfig {
-		t.Fatalf("expected config for mergeable master ingress to be updated, got configs: %v", trackingManager.createdConfigNames)
+		t.Fatalf("expected config for mergeable master ingress to be updated, got configs: %v", manager.CreatedConfigNames)
 	}
+}
+
+func TestProcessChangesHostlessDeleteFailureStillProcessesNextAdd(t *testing.T) {
+	t.Parallel()
+
+	manager := newTestNginxManager()
+	lbc := createIngressProcessChangesController(t, manager)
+
+	oldCfg := newHostlessIngressChange("hostless-old")
+	oldEx := lbc.createIngressEx(oldCfg.Ingress, oldCfg.ValidHosts, nil)
+	_, err := lbc.configurator.AddOrUpdateIngress(oldEx)
+	if err != nil {
+		t.Fatalf("failed to seed old hostless ingress: %v", err)
+	}
+
+	manager.CreatedConfigNames = nil
+	manager.CreateCalls = 0
+	manager.FailCreateForName = "_default-server"
+	manager.FailCreateOnCall = 1
+
+	newCfg := newHostlessIngressChange("hostless-new")
+	changes := []ResourceChange{
+		{Op: Delete, Resource: oldCfg},
+		{Op: AddOrUpdate, Resource: newCfg},
+	}
+
+	lbc.processChanges(changes)
+
+	if lbc.configurator.HasIngress(oldCfg.Ingress) {
+		t.Fatal("expected old hostless ingress to be removed")
+	}
+	if !lbc.configurator.HasIngress(newCfg.Ingress) {
+		t.Fatal("expected new hostless ingress to be added even when delete step failed")
+	}
+	if manager.CreateCalls < 2 {
+		t.Fatalf("expected both delete-sync and add steps to attempt default-server writes, got %d call(s)", manager.CreateCalls)
+	}
+}
+
+func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *testing.T) {
+	t.Parallel()
+
+	manager := newTestNginxManager()
+	lbc := createIngressProcessChangesController(t, manager)
+
+	oldCfg := newHostlessIngressChange("hostless-old")
+	oldEx := lbc.createIngressEx(oldCfg.Ingress, oldCfg.ValidHosts, nil)
+	_, err := lbc.configurator.AddOrUpdateIngress(oldEx)
+	if err != nil {
+		t.Fatalf("failed to seed old hostless ingress: %v", err)
+	}
+
+	manager.CreatedConfigNames = nil
+	manager.CreateCalls = 0
+	manager.FailCreateForName = "_default-server"
+	manager.FailCreateOnCall = 2
+
+	newCfg := newHostlessIngressChange("hostless-new")
+	changes := []ResourceChange{
+		{Op: Delete, Resource: oldCfg},
+		{Op: AddOrUpdate, Resource: newCfg},
+	}
+
+	lbc.processChanges(changes)
+
+	if lbc.configurator.HasIngress(oldCfg.Ingress) {
+		t.Fatal("expected old hostless ingress to be removed")
+	}
+	if lbc.configurator.HasIngress(newCfg.Ingress) {
+		t.Fatal("expected new hostless ingress not to be stored when add step fails")
+	}
+	if manager.CreateCalls < 2 {
+		t.Fatalf("expected add step to be attempted after delete step, got %d call(s)", manager.CreateCalls)
+	}
+}
+
+func TestProcessChangesDispatchesAddOrUpdate(t *testing.T) {
+	t.Parallel()
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	lbc := createIngressProcessChangesController(t, manager)
+
+	ing := createTestIngress("dispatch-test", "example.com")
+	ingConfig := NewRegularIngressConfiguration(ing)
+
+	changes := []ResourceChange{
+		{
+			Op:       AddOrUpdate,
+			Resource: ingConfig,
+		},
+	}
+
+	// Verify processChanges dispatches without error
+	lbc.processChanges(changes)
+}
+
+func TestProcessChangesDispatchesDelete(t *testing.T) {
+	t.Parallel()
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	lbc := createIngressProcessChangesController(t, manager)
+
+	ing := createTestIngress("dispatch-delete-test", "example.com")
+	ingConfig := NewRegularIngressConfiguration(ing)
+
+	lbc.processChanges([]ResourceChange{
+		{Op: Delete, Resource: ingConfig},
+	})
 }
 
 func TestGetPodOwnerTypeAndName(t *testing.T) {
@@ -2605,6 +2824,121 @@ func (t *testResource) String() string {
 	return t.keyWithKind
 }
 
+func TestUpdateEndpointSliceWarningState(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		initialWarnings  map[string]bool
+		cfgWarnings      configs.Warnings
+		expectStatusCall bool
+		expectedWarnings map[string]bool
+	}{
+		{
+			name:             "clean_to_clean_skips_update",
+			initialWarnings:  map[string]bool{},
+			cfgWarnings:      configs.Warnings{},
+			expectStatusCall: false,
+			expectedWarnings: map[string]bool{},
+		},
+		{
+			name:             "clean_to_warning_triggers_update",
+			initialWarnings:  map[string]bool{},
+			cfgWarnings:      configs.Warnings{&networking.Ingress{}: {"no endpoints"}},
+			expectStatusCall: true,
+			expectedWarnings: map[string]bool{"Ingress/test-ns/test-ingress": true},
+		},
+		{
+			name:             "warning_to_warning_triggers_update",
+			initialWarnings:  map[string]bool{"Ingress/test-ns/test-ingress": true},
+			cfgWarnings:      configs.Warnings{&networking.Ingress{}: {"no endpoints"}},
+			expectStatusCall: true,
+			expectedWarnings: map[string]bool{"Ingress/test-ns/test-ingress": true},
+		},
+		{
+			name:             "warning_to_clean_triggers_update",
+			initialWarnings:  map[string]bool{"Ingress/test-ns/test-ingress": true},
+			cfgWarnings:      configs.Warnings{},
+			expectStatusCall: false, // updateResourcesStatusAndEvents is called but testResource has no type match
+			expectedWarnings: map[string]bool{},
+		},
+		{
+			name:             "clean_after_recovery_skips_update",
+			initialWarnings:  map[string]bool{},
+			cfgWarnings:      configs.Warnings{},
+			expectStatusCall: false,
+			expectedWarnings: map[string]bool{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			lbc := &LoadBalancerController{
+				endpointSliceWarnings: tc.initialWarnings,
+				recorder:              record.NewFakeRecorder(10),
+				Logger:                nl.LoggerFromContext(context.Background()),
+			}
+
+			resource := &testResource{keyWithKind: "Ingress/test-ns/test-ingress"}
+			svcResources := []Resource{resource}
+			resourceExes := configs.ExtendedResources{}
+
+			lbc.updateEndpointSliceWarningState(svcResources, resourceExes, tc.cfgWarnings)
+
+			if len(lbc.endpointSliceWarnings) != len(tc.expectedWarnings) {
+				t.Errorf("expected %d warning entries, got %d", len(tc.expectedWarnings), len(lbc.endpointSliceWarnings))
+			}
+			for key, expected := range tc.expectedWarnings {
+				if lbc.endpointSliceWarnings[key] != expected {
+					t.Errorf("expected endpointSliceWarnings[%q] = %v, got %v", key, expected, lbc.endpointSliceWarnings[key])
+				}
+			}
+		})
+	}
+}
+
+func TestUpdateEndpointSliceWarningState_WarningToClearTransition(t *testing.T) {
+	t.Parallel()
+
+	// Verifies the full lifecycle: clean -> warning -> clean
+	lbc := &LoadBalancerController{
+		endpointSliceWarnings: make(map[string]bool),
+		recorder:              record.NewFakeRecorder(10),
+		Logger:                nl.LoggerFromContext(context.Background()),
+	}
+
+	resource := &testResource{keyWithKind: "Ingress/default/my-ingress"}
+	svcResources := []Resource{resource}
+	resourceExes := configs.ExtendedResources{}
+
+	// Step 1: clean -> clean (no-op)
+	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
+	if len(lbc.endpointSliceWarnings) != 0 {
+		t.Fatalf("step 1: expected empty map, got %v", lbc.endpointSliceWarnings)
+	}
+
+	// Step 2: clean -> warning
+	warningCfg := configs.Warnings{&networking.Ingress{}: {"no endpoints for auth service"}}
+	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, warningCfg)
+	if !lbc.endpointSliceWarnings["Ingress/default/my-ingress"] {
+		t.Fatalf("step 2: expected warning tracked, got %v", lbc.endpointSliceWarnings)
+	}
+
+	// Step 3: warning -> clean (recovery)
+	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
+	if len(lbc.endpointSliceWarnings) != 0 {
+		t.Fatalf("step 3: expected empty map after recovery, got %v", lbc.endpointSliceWarnings)
+	}
+
+	// Step 4: clean -> clean again (should be silent)
+	lbc.updateEndpointSliceWarningState(svcResources, resourceExes, configs.Warnings{})
+	if len(lbc.endpointSliceWarnings) != 0 {
+		t.Fatalf("step 4: expected empty map, got %v", lbc.endpointSliceWarnings)
+	}
+}
+
 func TestRemoveDuplicateResources(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -2738,6 +3072,28 @@ func TestFindPoliciesForSecret(t *testing.T) {
 			},
 		},
 	}
+	extAuthPol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "external-auth-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				TrustedCertSecret: "ext-auth-secret",
+			},
+		},
+	}
+	extAuthCrossNsPol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "external-auth-cross-ns-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				TrustedCertSecret: "other-ns/ext-auth-secret",
+			},
+		},
+	}
 
 	tests := []struct {
 		policies        []*conf_v1.Policy
@@ -2843,6 +3199,41 @@ func TestFindPoliciesForSecret(t *testing.T) {
 			secretName:      "oidc-secret",
 			expected:        []*conf_v1.Policy{oidcPol},
 			msg:             "Find policy in default ns, ignore other types",
+		},
+		{
+			policies:        []*conf_v1.Policy{extAuthPol},
+			secretNamespace: "default",
+			secretName:      "ext-auth-secret",
+			expected:        []*conf_v1.Policy{extAuthPol},
+			msg:             "Find external auth policy in same namespace",
+		},
+		{
+			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
+			secretNamespace: "other-ns",
+			secretName:      "ext-auth-secret",
+			expected:        []*conf_v1.Policy{extAuthCrossNsPol},
+			msg:             "Find external auth policy with cross-namespace secret reference",
+		},
+		{
+			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
+			secretNamespace: "default",
+			secretName:      "ext-auth-secret",
+			expected:        nil,
+			msg:             "Ignore external auth policy when secret namespace does not match cross-namespace reference",
+		},
+		{
+			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
+			secretNamespace: "other-ns",
+			secretName:      "different-secret",
+			expected:        nil,
+			msg:             "Ignore external auth policy when secret name does not match",
+		},
+		{
+			policies:        []*conf_v1.Policy{jwtPol1, extAuthCrossNsPol},
+			secretNamespace: "other-ns",
+			secretName:      "ext-auth-secret",
+			expected:        []*conf_v1.Policy{extAuthCrossNsPol},
+			msg:             "Find cross-namespace external auth policy, ignore other types",
 		},
 	}
 	for _, test := range tests {
@@ -3603,7 +3994,7 @@ func TestAddOidcSecret(t *testing.T) {
 
 func TestPreSyncSecrets(t *testing.T) {
 	t.Parallel()
-	secretLister := &cache.FakeCustomStore{
+	secretLister := &fakeStore{cache.FakeCustomStore{
 		ListFunc: func() []interface{} {
 			return []interface{}{
 				&api_v1.Secret{
@@ -3622,7 +4013,7 @@ func TestPreSyncSecrets(t *testing.T) {
 				},
 			}
 		},
-	}
+	}}
 	nsi := make(map[string]*namespacedInformer)
 	nsi[""] = &namespacedInformer{secretLister: secretLister, isSecretsEnabledNamespace: true}
 
@@ -3719,6 +4110,100 @@ func TestGenerateSecretNSName(t *testing.T) {
 	}
 }
 
+func TestShouldForceReloadOnSecretUpdate(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name                    string
+		secretType              api_v1.SecretType
+		dynamicSSLReloadEnabled bool
+		expected                bool
+	}{
+		{
+			name:                    "TLS server secret with dynamic SSL reload enabled skips forced reload",
+			secretType:              api_v1.SecretTypeTLS,
+			dynamicSSLReloadEnabled: true,
+			expected:                false,
+		},
+		{
+			name:                    "TLS server secret with dynamic SSL reload disabled forces reload",
+			secretType:              api_v1.SecretTypeTLS,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "CA secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeCA,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "JWK secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeJWK,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "Htpasswd secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeHtpasswd,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "OIDC secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeOIDC,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "APIKey secret forces reload even when dynamic SSL reload is enabled",
+			secretType:              secrets.SecretTypeAPIKey,
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "CA secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeCA,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "JWK secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeJWK,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "Htpasswd secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeHtpasswd,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "OIDC secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeOIDC,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "APIKey secret forces reload when dynamic SSL reload is disabled",
+			secretType:              secrets.SecretTypeAPIKey,
+			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := shouldForceReloadOnSecretUpdate(tc.secretType, tc.dynamicSSLReloadEnabled)
+			if got != tc.expected {
+				t.Fatalf("shouldForceReloadOnSecretUpdate(%q, %v) = %v, want %v",
+					tc.secretType, tc.dynamicSSLReloadEnabled, got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 	t.Parallel()
 
@@ -3776,6 +4261,79 @@ func TestCreateVirtualServerExWithZoneSync(t *testing.T) {
 		if reflect.DeepEqual(vsEx, tc.expected) {
 			t.Fatalf("Expected %v, but got %v", tc.expected, vsEx)
 		}
+	}
+}
+
+func TestVirtualServerRequiresEndpointsUpdate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		vsEx         *configs.VirtualServerEx
+		svcNamespace string
+		svcName      string
+		expected     bool
+	}{
+		{
+			name: "matches cross-namespace service in VirtualServer upstream",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-ns/backend-svc"}},
+					},
+				},
+			},
+			svcNamespace: "backend-ns",
+			svcName:      "backend-svc",
+			expected:     true,
+		},
+		{
+			name: "does not match useClusterIP upstream",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc", UseClusterIP: true}},
+					},
+				},
+			},
+			svcNamespace: "default",
+			svcName:      "backup-svc",
+			expected:     false,
+		},
+		{
+			name: "does not match unrelated service",
+			vsEx: &configs.VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+					},
+				},
+				VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+					{
+						ObjectMeta: meta_v1.ObjectMeta{Namespace: "default"},
+						Spec: conf_v1.VirtualServerRouteSpec{
+							Upstreams: []conf_v1.Upstream{{Service: "backend-svc", Backup: "backup-svc"}},
+						},
+					},
+				},
+			},
+			svcNamespace: "default",
+			svcName:      "other-svc",
+			expected:     false,
+		},
+	}
+
+	lbc := &LoadBalancerController{}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := lbc.virtualServerRequiresEndpointsUpdate(test.vsEx, test.svcNamespace, test.svcName)
+			if result != test.expected {
+				t.Fatalf("virtualServerRequiresEndpointsUpdate() returned %v, expected %v", result, test.expected)
+			}
+		})
 	}
 }
 
@@ -3901,6 +4459,544 @@ func TestIsPodMarkedForDeletion(t *testing.T) {
 			result := lbc.isPodMarkedForDeletion()
 			if result != test.expectedResult {
 				t.Errorf("Returned %v but expected %v", result, test.expectedResult)
+			}
+		})
+	}
+}
+
+func TestGenerateExternalAuthEndpoints(t *testing.T) {
+	t.Parallel()
+
+	endpointPort80 := int32(8080)
+	endpointPort9000 := int32(9000)
+	endpointReady := true
+
+	// buildLBC creates a LoadBalancerController wired with the given services and endpoint slices
+	// in the specified namespace. Passing nil slices creates an empty cache.
+	buildLBC := func(t *testing.T, namespace string, svcs []*api_v1.Service, endpointSlices []*discovery_v1.EndpointSlice) *LoadBalancerController {
+		t.Helper()
+		svcStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+		for _, svc := range svcs {
+			if err := svcStore.Add(svc); err != nil {
+				t.Fatalf("error adding service: %v", err)
+			}
+		}
+		esStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+		for _, es := range endpointSlices {
+			if err := esStore.Add(es); err != nil {
+				t.Fatalf("error adding endpoint slice: %v", err)
+			}
+		}
+		nsi := &namespacedInformer{
+			svcLister:           svcStore,
+			endpointSliceLister: storeToEndpointSliceLister{Store: esStore},
+			podLister:           indexerToPodLister{Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})},
+		}
+		objs := make([]runtime.Object, 0, len(svcs))
+		for _, svc := range svcs {
+			objs = append(objs, svc)
+		}
+		return &LoadBalancerController{
+			client:              fake.NewClientset(objs...),
+			isNginxPlus:         false,
+			Logger:              nl.LoggerFromContext(context.Background()),
+			metricsCollector:    collectors.NewControllerFakeCollector(),
+			namespacedInformers: map[string]*namespacedInformer{namespace: nsi},
+		}
+	}
+
+	// Shared fixtures
+	authSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "auth-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Ports: []api_v1.ServicePort{
+				{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)},
+			},
+			Selector: map[string]string{"app": "auth"},
+		},
+	}
+
+	authES80 := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "auth-svc-abc", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "auth-svc"},
+		},
+		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+			{Addresses: []string{"10.0.0.2"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+		},
+	}
+
+	multiPortSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "multi-port-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Ports: []api_v1.ServicePort{
+				{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)},
+				{Name: "custom", Port: 9000, TargetPort: intstr.FromInt(9000)},
+			},
+			Selector: map[string]string{"app": "multi"},
+		},
+	}
+
+	multiPortES80 := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "multi-port-svc-http", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "multi-port-svc"},
+		},
+		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.10"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+		},
+	}
+
+	multiPortES9000 := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "multi-port-svc-custom", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "multi-port-svc"},
+		},
+		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort9000}},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.11"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+		},
+	}
+
+	tests := []struct {
+		name              string
+		setupLBC          func(t *testing.T) *LoadBalancerController
+		policies          []*conf_v1.Policy
+		initialEndpoints  map[string][]string
+		expectedEndpoints map[string][]string
+	}{
+		{
+			name:              "nil policies produces no endpoints",
+			setupLBC:          func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			policies:          nil,
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name:              "empty policies slice produces no endpoints",
+			setupLBC:          func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			policies:          []*conf_v1.Policy{},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name:     "policy with nil ExternalAuth is skipped",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			policies: []*conf_v1.Policy{
+				{ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"}, Spec: conf_v1.PolicySpec{}},
+			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name:     "policy with empty AuthServiceName is skipped",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p1", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: ""}},
+				},
+			},
+			expectedEndpoints: map[string][]string{},
+		},
+		{
+			name: "AuthServiceName resolves service endpoints",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "multi-port service resolves endpoints for all ports",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "multi-port-svc"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/multi-port-svc:80":   {"10.0.0.10:8080"},
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
+			},
+		},
+		{
+			name:     "service not found is handled gracefully",
+			setupLBC: func(t *testing.T) *LoadBalancerController { return buildLBC(t, "default", nil, nil) },
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "nonexistent-svc"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/nonexistent-svc:80": {},
+			},
+		},
+		{
+			name: "multiple policies with mixed configurations",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			policies: []*conf_v1.Policy{
+				{ObjectMeta: meta_v1.ObjectMeta{Name: "p-nil", Namespace: "default"}, Spec: conf_v1.PolicySpec{}},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p-empty", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: ""}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "p-valid", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "duplicate policies with same AuthServiceName produce single endpoint set",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-1", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-2", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/verify", AuthServiceName: "auth-svc"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "existing endpoints in map are preserved",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
+				},
+			},
+			initialEndpoints: map[string][]string{
+				"default/existing-svc:8080": {"192.168.1.1:8080"},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/existing-svc:8080": {"192.168.1.1:8080"},
+				"default/auth-svc:80":       {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "endpoint key uses VirtualServer namespace for ParseServiceReference",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				svc := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-svc", Namespace: "custom-ns"},
+					Spec: api_v1.ServiceSpec{
+						Ports:    []api_v1.ServicePort{{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)}},
+						Selector: map[string]string{"app": "auth"},
+					},
+				}
+				es := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "auth-svc-ns", Namespace: "custom-ns",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "auth-svc"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.1.0.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				return buildLBC(t, "custom-ns", []*api_v1.Service{svc}, []*discovery_v1.EndpointSlice{es})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "custom-ns"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"custom-ns/auth-svc:80": {"10.1.0.1:8080"},
+			},
+		},
+		{
+			name: "two policies with different services produce separate endpoint keys",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				svcA := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-a", Namespace: "default"},
+					Spec: api_v1.ServiceSpec{
+						Ports:    []api_v1.ServicePort{{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)}},
+						Selector: map[string]string{"app": "auth-a"},
+					},
+				}
+				svcB := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-b", Namespace: "default"},
+					Spec: api_v1.ServiceSpec{
+						Ports:    []api_v1.ServicePort{{Name: "http", Port: 80, TargetPort: intstr.FromInt(8080)}},
+						Selector: map[string]string{"app": "auth-b"},
+					},
+				}
+				esA := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "auth-a-es", Namespace: "default",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "auth-a"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.0.1.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				esB := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "auth-b-es", Namespace: "default",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "auth-b"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.0.2.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				return buildLBC(t, "default", []*api_v1.Service{svcA, svcB}, []*discovery_v1.EndpointSlice{esA, esB})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-a-pol", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-a"}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-b-pol", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-b"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-a:80": {"10.0.1.1:8080"},
+				"default/auth-b:80": {"10.0.2.1:8080"},
+			},
+		},
+		{
+			name: "valid policy followed by error policy still adds valid entries",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "good", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "bad", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "nonexistent-svc"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80":        {"10.0.0.1:8080", "10.0.0.2:8080"},
+				"default/nonexistent-svc:80": {},
+			},
+		},
+		{
+			name: "AuthServicePorts uses policy-specified port instead of service ports",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/check",
+						AuthServiceName:  "multi-port-svc",
+						AuthServicePorts: []int{9000},
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
+			},
+		},
+		{
+			name: "AuthServicePorts with multiple ports resolves each specified port",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/check",
+						AuthServiceName:  "multi-port-svc",
+						AuthServicePorts: []int{80, 9000},
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/multi-port-svc:80":   {"10.0.0.10:8080"},
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
+			},
+		},
+		{
+			name: "AuthServicePorts with single port on single-port service",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/check",
+						AuthServiceName:  "auth-svc",
+						AuthServicePorts: []int{80},
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:80": {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "AuthServicePorts with nonexistent port is handled gracefully",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc}, []*discovery_v1.EndpointSlice{authES80})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/check",
+						AuthServiceName:  "auth-svc",
+						AuthServicePorts: []int{9999},
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/auth-svc:9999": {},
+			},
+		},
+		{
+			name: "AuthServicePorts mixed with policy without AuthServicePorts",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{authSvc, multiPortSvc}, []*discovery_v1.EndpointSlice{authES80, multiPortES80, multiPortES9000})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "policy-with-ports", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/check",
+						AuthServiceName:  "multi-port-svc",
+						AuthServicePorts: []int{9000},
+					}},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "policy-without-ports", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/check", AuthServiceName: "auth-svc"}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
+				"default/auth-svc:80":         {"10.0.0.1:8080", "10.0.0.2:8080"},
+			},
+		},
+		{
+			name: "empty AuthServicePorts slice falls back to service ports",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				return buildLBC(t, "default", []*api_v1.Service{multiPortSvc}, []*discovery_v1.EndpointSlice{multiPortES80, multiPortES9000})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/check",
+						AuthServiceName:  "multi-port-svc",
+						AuthServicePorts: []int{},
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"default/multi-port-svc:80":   {"10.0.0.10:8080"},
+				"default/multi-port-svc:9000": {"10.0.0.11:9000"},
+			},
+		},
+		{
+			name: "cross-namespace AuthServiceName with namespace prefix resolves endpoints",
+			setupLBC: func(t *testing.T) *LoadBalancerController {
+				t.Helper()
+				crossNsSvc := &api_v1.Service{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "basic-auth-svc", Namespace: "my-namespace"},
+					Spec: api_v1.ServiceSpec{
+						Ports: []api_v1.ServicePort{
+							{Name: "http", Port: 8080, TargetPort: intstr.FromInt(8080)},
+							{Name: "https", Port: 8443, TargetPort: intstr.FromInt(8443)},
+						},
+						Selector: map[string]string{"app": "basic-auth"},
+					},
+				}
+				crossNsES := &discovery_v1.EndpointSlice{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name: "basic-auth-svc-abc", Namespace: "my-namespace",
+						Labels: map[string]string{discovery_v1.LabelServiceName: "basic-auth-svc"},
+					},
+					Ports: []discovery_v1.EndpointPort{{Port: &endpointPort80}},
+					Endpoints: []discovery_v1.Endpoint{
+						{Addresses: []string{"10.2.0.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+					},
+				}
+				// Use "" as namespace key to simulate watching all namespaces (global informer)
+				return buildLBC(t, "", []*api_v1.Service{crossNsSvc}, []*discovery_v1.EndpointSlice{crossNsES})
+			},
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "ext-auth-policy", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+						AuthURI:          "/auth",
+						AuthServiceName:  "my-namespace/basic-auth-svc",
+						AuthServicePorts: []int{8080},
+					}},
+				},
+			},
+			expectedEndpoints: map[string][]string{
+				"my-namespace/basic-auth-svc:8080": {"10.2.0.1:8080"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lbc := tc.setupLBC(t)
+
+			endpoints := make(map[string][]string)
+			for k, v := range tc.initialEndpoints {
+				endpoints[k] = v
+			}
+
+			lbc.generateExternalAuthEndpoints(tc.policies, endpoints)
+
+			if len(endpoints) != len(tc.expectedEndpoints) {
+				t.Fatalf("expected %d endpoint entries, got %d: %v", len(tc.expectedEndpoints), len(endpoints), endpoints)
+			}
+			for key, expectedEps := range tc.expectedEndpoints {
+				gotEps, exists := endpoints[key]
+				if !exists {
+					t.Errorf("expected key %q in endpoints map, got: %v", key, endpoints)
+					continue
+				}
+				sort.Strings(gotEps)
+				sort.Strings(expectedEps)
+				if !reflect.DeepEqual(gotEps, expectedEps) {
+					t.Errorf("key %q: expected %v, got %v", key, expectedEps, gotEps)
+				}
 			}
 		})
 	}

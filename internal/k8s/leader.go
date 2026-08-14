@@ -53,7 +53,8 @@ func newLeaderElector(client kubernetes.Interface, callbacks leaderelection.Lead
 			RenewDeadline: ttl / 2,
 			RetryPeriod:   ttl / 4,
 			Callbacks:     callbacks,
-		})
+		},
+	)
 }
 
 // createLeaderHandler builds the handler funcs for leader handling

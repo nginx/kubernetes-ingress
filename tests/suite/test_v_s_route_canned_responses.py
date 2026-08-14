@@ -148,22 +148,15 @@ class TestVSRCannedResponses:
             ingress_controller_prerequisites.namespace,
         )
         vsr_src = f"{TEST_DATA}/virtual-server-route-canned-responses/route-multiple-invalid-openapi.yaml"
-        try:
+        with pytest.raises(ApiException) as exc_info:
             patch_v_s_route_from_yaml(
                 kube_apis.custom_objects, v_s_route_setup.route_m.name, vsr_src, v_s_route_setup.namespace
             )
-        except ApiException as ex:
-            assert (
-                ex.status == 422
-                and "action.return.type in body must be of type" in ex.body
-                and "action.return.body in body must be of type" in ex.body
-                and "action.return.code in body must be of type" in ex.body
-                and "action.return.headers in body must be of type" in ex.body
-            )
-        except Exception as ex:
-            pytest.fail(f"An unexpected exception is raised: {ex}")
-        else:
-            pytest.fail("Expected an exception but there was none")
+        assert exc_info.value.status == 422
+        assert "action.return.type in body must be of type" in exc_info.value.body
+        assert "action.return.body in body must be of type" in exc_info.value.body
+        assert "action.return.code in body must be of type" in exc_info.value.body
+        assert "action.return.headers in body must be of type" in exc_info.value.body
 
         wait_before_test(1)
         config_new = get_vs_nginx_template_conf(

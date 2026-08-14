@@ -24,8 +24,6 @@ type VirtualServerConfig struct {
 	AuthJWTClaimSets        []AuthJWTClaimSet
 	CacheZones              []CacheZone
 	Server                  Server
-	SpiffeCerts             bool
-	SpiffeClientCerts       bool
 	SplitClients            []SplitClient
 	StatusMatches           []StatusMatch
 	Upstreams               []Upstream
@@ -95,6 +93,9 @@ type Server struct {
 	JWTAuth                   *JWTAuth
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
+	ExternalAuth              *ExternalAuth
+	HSTS                      *HSTS
+	ErrorPages                []ErrorPage
 	BasicAuth                 *BasicAuth
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
@@ -110,6 +111,7 @@ type Server struct {
 	DisableIPV6               bool
 	Gunzip                    bool
 	NGINXDebugLevel           string
+	AddHeaderInherit          string
 }
 
 // SSL defines SSL configuration for a server.
@@ -195,55 +197,64 @@ type Dos struct {
 
 // Location defines a location.
 type Location struct {
-	Path                     string
-	Internal                 bool
-	Snippets                 []string
-	ProxyConnectTimeout      string
-	ProxyReadTimeout         string
-	ProxySendTimeout         string
-	ClientMaxBodySize        string
-	ClientBodyBufferSize     string
-	ProxyMaxTempFileSize     string
-	ProxyBuffering           bool
-	ProxyBuffers             string
-	ProxyBufferSize          string
-	ProxyBusyBuffersSize     string
-	ProxyPass                string
-	ProxyNextUpstream        string
-	ProxyNextUpstreamTimeout string
-	ProxyNextUpstreamTries   int
-	ProxyInterceptErrors     bool
-	ProxyPassRequestHeaders  bool
-	ProxySetHeaders          []Header
-	ProxyHideHeaders         []string
-	ProxyPassHeaders         []string
-	ProxyIgnoreHeaders       string
-	ProxyPassRewrite         string
-	AddHeaders               []AddHeader
-	Rewrites                 []string
-	HasKeepalive             bool
-	ErrorPages               []ErrorPage
-	ProxySSLName             string
-	InternalProxyPass        string
-	Allow                    []string
-	Deny                     []string
-	LimitReqOptions          LimitReqOptions
-	LimitReqs                []LimitReq
-	JWTAuth                  *JWTAuth
-	BasicAuth                *BasicAuth
-	EgressMTLS               *EgressMTLS
-	OIDC                     bool
-	APIKey                   *APIKey
-	WAF                      *WAF
-	Dos                      *Dos
-	PoliciesErrorReturn      *Return
-	Cache                    *Cache
-	ServiceName              string
-	IsVSR                    bool
-	VSRName                  string
-	VSRNamespace             string
-	GRPCPass                 string
-	CORSEnabled              bool
+	Path                       string
+	Internal                   bool
+	Snippets                   []string
+	ProxyConnectTimeout        string
+	ProxyReadTimeout           string
+	ProxySendTimeout           string
+	ClientMaxBodySize          string
+	ClientBodyBufferSize       string
+	ProxyMaxTempFileSize       string
+	ProxyBuffering             bool
+	ProxyBuffers               string
+	ProxyBufferSize            string
+	ProxyBusyBuffersSize       string
+	ProxyPass                  string
+	ProxyNextUpstream          string
+	ProxyNextUpstreamTimeout   string
+	ProxyNextUpstreamTries     int
+	ProxyInterceptErrors       bool
+	ProxyPassRequestHeaders    bool
+	ProxyPassRequestBody       string
+	ProxySetHeaders            []Header
+	ProxyHideHeaders           []string
+	ProxyPassHeaders           []string
+	ProxyIgnoreHeaders         string
+	ProxyPassRewrite           string
+	AddHeaders                 []AddHeader
+	Rewrites                   []string
+	HasKeepalive               bool
+	ErrorPages                 []ErrorPage
+	ProxySSLName               string
+	InternalProxyPass          string
+	Allow                      []string
+	Deny                       []string
+	LimitReqOptions            LimitReqOptions
+	LimitReqs                  []LimitReq
+	JWTAuth                    *JWTAuth
+	AuthRequestOff             bool
+	ExternalAuth               *ExternalAuth
+	BasicAuth                  *BasicAuth
+	EgressMTLS                 *EgressMTLS
+	HSTS                       *HSTS
+	OIDC                       bool
+	APIKey                     *APIKey
+	WAF                        *WAF
+	Dos                        *Dos
+	PoliciesErrorReturn        *Return
+	Cache                      *Cache
+	ServiceName                string
+	IsVSR                      bool
+	VSRName                    string
+	VSRNamespace               string
+	GRPCPass                   string
+	CORSEnabled                bool
+	DisableForwardedHeaders    bool
+	AddHeaderInherit           string
+	ProxySSLVerify             bool
+	ProxySSLVerifyDepth        int
+	ProxySSLTrustedCertificate string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -266,6 +277,12 @@ type Return struct {
 	Code int
 	Text string
 }
+
+// ErrorPageResponseCodeInherit is the sentinel ResponseCode value that makes the
+// virtualserver template emit `error_page <codes> = "<name>";` with no explicit
+// response code, so nginx forwards the target URI's status (e.g. oauth2-proxy's
+// 302) to the client instead of the original error code.
+const ErrorPageResponseCodeInherit = -1
 
 // ErrorPage defines an error_page of a location.
 type ErrorPage struct {
@@ -399,7 +416,8 @@ type LimitReqZone struct {
 }
 
 func (rlz LimitReqZone) String() string {
-	return fmt.Sprintf("{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
+	return fmt.Sprintf(
+		"{Key %q, ZoneName %q, ZoneSize %v, Rate %q, GroupValue %q, PolicyValue %q, GroupVariable %q, PolicyResult %q, GroupDefault %t, GroupSource %q, Sync %t}",
 		rlz.Key,
 		rlz.ZoneName,
 		rlz.ZoneSize,
@@ -458,6 +476,37 @@ type JwksURI struct {
 	SSLVerify      bool
 	TrustedCert    string
 	SSLVerifyDepth int
+}
+
+// ExternalAuth holds external authentication configuration.
+type ExternalAuth struct {
+	URI                    *AuthURI
+	SigninURL              string
+	Snippets               string
+	ServicePorts           []int
+	SigninRedirectBasePath string // Base path for OAuth2/signin redirect location, defaults to /oauth2
+	SSLEnabled             bool
+	SSLVerify              bool
+	SSLVerifyDepth         int
+	SSLTrustedCert         string // Path to the CA certificate file for upstream verification
+	SNIName                string // Server name for SNI and certificate verification
+}
+
+// HSTS defines HTTP Strict Transport Security configuration.
+type HSTS struct {
+	MaxAge            int
+	IncludeSubDomains bool
+	BehindProxy       bool
+	Preload           bool
+}
+
+// AuthURI defines the components of an AuthURI
+type AuthURI struct {
+	Service      string
+	Upstream     string
+	Port         string
+	Path         string
+	InternalPath string
 }
 
 // BasicAuth refers to basic HTTP authentication mechanism options

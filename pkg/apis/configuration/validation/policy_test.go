@@ -3,8 +3,10 @@ package validation
 import (
 	"strings"
 	"testing"
+	"time"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -248,7 +250,6 @@ func TestValidatePolicy_JWTIsNotValidOn(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
@@ -391,7 +392,6 @@ func TestValidatePolicy_IsValidOnJWTPolicy(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
@@ -462,7 +462,6 @@ func TestValidatePolicy_RequiresKeyCacheValueForJWTPolicy(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
@@ -479,11 +478,9 @@ func TestValidatePolicy_RequiresKeyCacheValueForJWTPolicy(t *testing.T) {
 func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		policy           *v1.Policy
-		isPlus           bool
-		enableOIDC       bool
-		enableAppProtect bool
-		msg              string
+		policy *v1.Policy
+		cfg    PolicyValidationConfig
+		msg    string
 	}{
 		{
 			policy: &v1.Policy{
@@ -493,9 +490,7 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:           false,
-			enableOIDC:       false,
-			enableAppProtect: false,
+			cfg: PolicyValidationConfig{},
 		},
 		{
 			policy: &v1.Policy{
@@ -506,10 +501,8 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:           true,
-			enableOIDC:       false,
-			enableAppProtect: false,
-			msg:              "use jwt(plus only) policy",
+			cfg: PolicyValidationConfig{IsPlus: true},
+			msg: "use jwt(plus only) policy",
 		},
 		{
 			policy: &v1.Policy{
@@ -530,9 +523,8 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:     true,
-			enableOIDC: true,
-			msg:        "use OIDC (plus only)",
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: true},
+			msg: "use OIDC (plus only)",
 		},
 		{
 			policy: &v1.Policy{
@@ -542,18 +534,12 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:           true,
-			enableOIDC:       false,
-			enableAppProtect: true,
-			msg:              "use WAF(plus only) policy",
+			cfg: PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
+			msg: "use WAF(plus only) policy",
 		},
 	}
 	for _, test := range tests {
-		err := ValidatePolicy(test.policy, PolicyValidationConfig{
-			IsPlus:           test.isPlus,
-			EnableOIDC:       test.enableOIDC,
-			EnableAppProtect: test.enableAppProtect,
-		})
+		err := ValidatePolicy(test.policy, test.cfg)
 		if err != nil {
 			t.Errorf("ValidatePolicy() returned error %v for valid input for the case of %v", err, test.msg)
 		}
@@ -563,20 +549,16 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		policy           *v1.Policy
-		isPlus           bool
-		enableOIDC       bool
-		enableAppProtect bool
-		msg              string
+		policy *v1.Policy
+		cfg    PolicyValidationConfig
+		msg    string
 	}{
 		{
 			policy: &v1.Policy{
 				Spec: v1.PolicySpec{},
 			},
-			isPlus:           false,
-			enableOIDC:       false,
-			enableAppProtect: false,
-			msg:              "empty policy spec",
+			cfg: PolicyValidationConfig{},
+			msg: "empty policy spec",
 		},
 		{
 			policy: &v1.Policy{
@@ -591,10 +573,8 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:           true,
-			enableOIDC:       false,
-			enableAppProtect: false,
-			msg:              "multiple policies in spec",
+			cfg: PolicyValidationConfig{IsPlus: true},
+			msg: "multiple policies in spec",
 		},
 		{
 			policy: &v1.Policy{
@@ -605,10 +585,8 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:           false,
-			enableOIDC:       false,
-			enableAppProtect: false,
-			msg:              "jwt(plus only) policy on OSS",
+			cfg: PolicyValidationConfig{},
+			msg: "jwt(plus only) policy on OSS",
 		},
 		{
 			policy: &v1.Policy{
@@ -618,10 +596,8 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:           false,
-			enableOIDC:       false,
-			enableAppProtect: false,
-			msg:              "WAF(plus only) policy on OSS",
+			cfg: PolicyValidationConfig{},
+			msg: "WAF(plus only) policy on OSS",
 		},
 		{
 			policy: &v1.Policy{
@@ -640,9 +616,8 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:     true,
-			enableOIDC: false,
-			msg:        "OIDC policy with enable OIDC flag disabled",
+			cfg: PolicyValidationConfig{IsPlus: true},
+			msg: "OIDC policy with enable OIDC flag disabled",
 		},
 		{
 			policy: &v1.Policy{
@@ -661,9 +636,8 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:     false,
-			enableOIDC: true,
-			msg:        "OIDC policy in OSS",
+			cfg: PolicyValidationConfig{EnableOIDC: true},
+			msg: "OIDC policy in OSS",
 		},
 		{
 			policy: &v1.Policy{
@@ -673,10 +647,8 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:           true,
-			enableOIDC:       false,
-			enableAppProtect: false,
-			msg:              "WAF policy with AP disabled",
+			cfg: PolicyValidationConfig{IsPlus: true},
+			msg: "WAF policy with AP disabled",
 		},
 		{
 			policy: &v1.Policy{
@@ -696,9 +668,8 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:     true,
-			enableOIDC: true,
-			msg:        "OIDC policy with invalid ZoneSyncLeeway",
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: true},
+			msg: "OIDC policy with invalid ZoneSyncLeeway",
 		},
 		{
 			policy: &v1.Policy{
@@ -717,17 +688,12 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 					},
 				},
 			},
-			isPlus:     true,
-			enableOIDC: true,
-			msg:        "OIDC policy with invalid AuthExtraArgs",
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: true},
+			msg: "OIDC policy with invalid AuthExtraArgs",
 		},
 	}
 	for _, test := range tests {
-		err := ValidatePolicy(test.policy, PolicyValidationConfig{
-			IsPlus:           test.isPlus,
-			EnableOIDC:       test.enableOIDC,
-			EnableAppProtect: test.enableAppProtect,
-		})
+		err := ValidatePolicy(test.policy, test.cfg)
 		if err == nil {
 			t.Errorf("ValidatePolicy() returned no error for invalid input")
 		}
@@ -2799,7 +2765,6 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
@@ -3105,7 +3070,6 @@ func TestValidatePolicy_IsValidCachePolicy(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			err := ValidatePolicy(tc.policy, PolicyValidationConfig{
@@ -3312,6 +3276,63 @@ func TestValidateCORS(t *testing.T) {
 			expectErr: true,
 			errMsg:    "HEAD method should not be explicitly listed",
 		},
+		{
+			name: "Valid allowHeaders wildcard standalone",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"*"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid exposeHeaders wildcard standalone",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"*"},
+			},
+			expectErr: false,
+		},
+		{
+			// "*" covers non-credentialed requests; Authorization must be listed
+			// explicitly for credentialed requests because "*" is treated as a
+			// literal header name in that context (MDN spec).
+			name: "Valid allowHeaders wildcard with explicit Authorization for credentialed requests",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				AllowHeaders:     []string{"*", "Authorization"},
+				AllowCredentials: new(true),
+			},
+			expectErr: false,
+		},
+		{
+			// Same reasoning as allowHeaders: "*" is literal in credentialed context,
+			// so Authorization can be listed explicitly alongside it.
+			name: "Valid exposeHeaders wildcard with explicit Authorization for credentialed requests",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				ExposeHeaders:    []string{"*", "Authorization"},
+				AllowCredentials: new(true),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid allowHeaders embedded wildcard",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"X-*-Header"},
+			},
+			expectErr: true,
+			errMsg:    "wildcard '*' may only be used as a standalone value",
+		},
+		{
+			name: "Invalid exposeHeaders embedded wildcard",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"X-*-Header"},
+			},
+			expectErr: true,
+			errMsg:    "wildcard '*' may only be used as a standalone value",
+		},
 	}
 
 	for _, test := range tests {
@@ -3394,5 +3415,1032 @@ func TestCORSMDNCompliance(t *testing.T) {
 				t.Errorf("Expected no validation errors for %s, but got: %v", config.description, errs)
 			}
 		})
+	}
+}
+
+func TestValidateHSTS_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		hsts *v1.HSTS
+	}{
+		{
+			name: "valid hsts with maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            new(2592000),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+		},
+		{
+			name: "valid hsts with maxAge value of zero",
+			hsts: &v1.HSTS{
+				MaxAge:            new(0),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("hsts")
+			allErrs := validateHSTS(test.hsts, fieldPath)
+			if len(allErrs) > 0 {
+				t.Errorf("validateHSTS() returned errors %v for valid input for the case of %v", allErrs, test.name)
+			}
+		})
+	}
+}
+
+func TestValidateHSTS_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		hsts     *v1.HSTS
+		errCount int
+	}{
+		{
+			name: "invalid hsts with negative maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            new(-123),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+			errCount: 1,
+		},
+		{
+			name: "invalid hsts with nil maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            nil,
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+			errCount: 1,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("hsts")
+			allErrs := validateHSTS(test.hsts, fieldPath)
+			if len(allErrs) == 0 {
+				t.Errorf("validateHSTS() returned no errors for invalid input for the case of %v", test.name)
+			} else if test.errCount > 0 && len(allErrs) != test.errCount {
+				t.Errorf("validateHSTS() returned %d errors, expected %d errors for the case of %v. Errors: %v", len(allErrs), test.errCount, test.name, allErrs)
+			}
+		})
+	}
+}
+
+func TestValidateExternalAuth_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		externalAuth *v1.ExternalAuth
+		msg          string
+	}{
+		{
+			name: "valid authURI and authServiceName only",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+			},
+			msg: "valid relative path for authURI with authServiceName",
+		},
+		{
+			name: "valid authURI with complex path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/api/v1/auth/validate-user",
+				AuthServiceName: "auth-svc",
+			},
+			msg: "valid relative path with multiple segments",
+		},
+		{
+			name: "valid authURI and authSigninURI",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/signin",
+			},
+			msg: "both authURI and authSigninURI as valid relative paths",
+		},
+		{
+			name: "valid authURI with root path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/",
+				AuthServiceName: "auth-svc",
+			},
+			msg: "authURI with just root path",
+		},
+		{
+			name: "valid path with dashes and underscores",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth/validate-user_session",
+				AuthServiceName: "auth-svc",
+			},
+			msg: "authURI path with dashes and underscores",
+		},
+		{
+			name: "valid path with numbers",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/api/v2/auth/validate",
+				AuthServiceName: "auth-svc",
+			},
+			msg: "authURI path with version numbers",
+		},
+		{
+			name: "valid authSigninURI with complex path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/oauth2/start",
+			},
+			msg: "authSigninURI with multi-segment path",
+		},
+		{
+			name: "valid authSigninURI omitted",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+			},
+			msg: "authSigninURI is optional and can be omitted",
+		},
+		{
+			name: "valid authSigninRedirectBasePath",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:                    "/auth",
+				AuthServiceName:            "auth-svc",
+				AuthSigninRedirectBasePath: "/custom-oauth",
+			},
+			msg: "authSigninRedirectBasePath with valid path should pass",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath, false)
+			if len(allErrs) > 0 {
+				t.Errorf("validateExternalAuth() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateExternalAuth_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		externalAuth *v1.ExternalAuth
+		msg          string
+		errCount     int
+	}{
+		{
+			name: "empty authURI",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "",
+				AuthServiceName: "auth-svc",
+			},
+			msg:      "empty authURI should fail (required field)",
+			errCount: 1,
+		},
+		{
+			name: "authURI with only whitespace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "   ",
+				AuthServiceName: "auth-svc",
+			},
+			msg:      "authURI with whitespace should fail path validation",
+			errCount: 1,
+		},
+		{
+			name: "authURI path with invalid characters - braces",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth/{user}/validate",
+				AuthServiceName: "auth-svc",
+			},
+			msg:      "authURI path containing curly braces should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURI path with invalid characters - semicolon",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth;validate",
+				AuthServiceName: "auth-svc",
+			},
+			msg:      "authURI path containing semicolon should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURI path with invalid characters - whitespace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth validate",
+				AuthServiceName: "auth-svc",
+			},
+			msg:      "authURI path containing whitespace should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURI path with invalid characters - backslash",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth\\validate",
+				AuthServiceName: "auth-svc",
+			},
+			msg:      "authURI path containing backslash should fail",
+			errCount: 1,
+		},
+		{
+			name: "authURI path not starting with slash",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "auth/validate",
+				AuthServiceName: "auth-svc",
+			},
+			msg:      "authURI path not starting with / should fail",
+			errCount: 1,
+		},
+		{
+			name: "invalid authServiceName with underscore",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "_invalid_hostname",
+			},
+			msg:      "authServiceName with underscore should fail DNS-1123 validation",
+			errCount: 1,
+		},
+		{
+			name: "invalid authServiceName with port",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-server:8080",
+			},
+			msg:      "authServiceName containing port should fail DNS-1123 validation",
+			errCount: 1,
+		},
+		{
+			name: "invalid authServiceName with space",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth server",
+			},
+			msg:      "authServiceName containing space should fail DNS-1123 validation",
+			errCount: 1,
+		},
+		{
+			name: "authSigninURI with only whitespace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "   ",
+			},
+			msg:      "authSigninURI with only whitespace should fail (not empty, so it's validated)",
+			errCount: 1,
+		},
+		{
+			name: "invalid authSigninURI path with braces",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/signin/{user}",
+			},
+			msg:      "authSigninURI path containing curly braces should fail",
+			errCount: 1,
+		},
+		{
+			name: "invalid authSigninURI path with semicolon",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/signin;redirect",
+			},
+			msg:      "authSigninURI path containing semicolon should fail",
+			errCount: 1,
+		},
+		{
+			name: "both authURI and authSigninURI invalid",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth/{user}",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/signin/{redirect}",
+			},
+			msg:      "both fields invalid should return multiple errors",
+			errCount: 2,
+		},
+		{
+			name: "authURI path with backslash and brace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth\\{user}",
+				AuthServiceName: "auth-svc",
+			},
+			msg:      "authURI path with multiple invalid characters should fail",
+			errCount: 1,
+		},
+		{
+			name: "invalid authSigninRedirectBasePath with braces",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:                    "/auth",
+				AuthServiceName:            "auth-svc",
+				AuthSigninRedirectBasePath: "/signin/{redirect}",
+			},
+			msg:      "authSigninRedirectBasePath with curly braces should fail",
+			errCount: 1,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath, false)
+			if len(allErrs) == 0 {
+				t.Errorf("validateExternalAuth() returned no errors for invalid input for the case of %v", test.msg)
+			} else if test.errCount > 0 && len(allErrs) != test.errCount {
+				t.Errorf("validateExternalAuth() returned %d errors, expected %d errors for the case of %v. Errors: %v", len(allErrs), test.errCount, test.msg, allErrs)
+			}
+		})
+	}
+}
+
+func TestValidateExternalAuth_EdgeCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		externalAuth *v1.ExternalAuth
+		expectError  bool
+		msg          string
+	}{
+		{
+			name: "empty authSigninURI is valid (optional field)",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "",
+			},
+			expectError: false,
+			msg:         "empty authSigninURI should be valid as it's an optional field",
+		},
+		{
+			name: "authURI with very long path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/very/long/path/with/many/segments/to/validate/authentication/request/from/client",
+				AuthServiceName: "auth-svc",
+			},
+			expectError: false,
+			msg:         "authURI with very long path should be valid",
+		},
+		{
+			name: "authURI with encoded characters in path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth/validate%20user",
+				AuthServiceName: "auth-svc",
+			},
+			expectError: false,
+			msg:         "authURI with URL-encoded characters should be valid",
+		},
+		{
+			name: "authURI with dots in path",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth/v1.0/validate",
+				AuthServiceName: "auth-svc",
+			},
+			expectError: false,
+			msg:         "authURI with dots in path should be valid",
+		},
+		{
+			name: "authURI with multiple slashes",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth//validate",
+				AuthServiceName: "auth-svc",
+			},
+			expectError: false,
+			msg:         "authURI with consecutive slashes should be valid (NGINX handles this)",
+		},
+		{
+			name: "authURI with trailing slash",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth/validate/",
+				AuthServiceName: "auth-svc",
+			},
+			expectError: false,
+			msg:         "authURI with trailing slash should be valid",
+		},
+		{
+			name: "authSigninURI with query parameters",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/oauth2/start?rd=https://example.com",
+			},
+			expectError: false,
+			msg:         "authSigninURI with query parameters should be valid",
+		},
+		{
+			name: "authServiceName with full kubernetes DNS name",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/validate",
+				AuthServiceName: "my-auth-service.my-namespace.svc.cluster.local",
+			},
+			expectError: true,
+			msg:         "authServiceName with full Kubernetes service DNS name should not be valid",
+		},
+		{
+			name: "empty authServiceName is valid",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "",
+			},
+			expectError: true,
+			msg:         "empty authServiceName should not be valid (required field)",
+		},
+		{
+			name: "sanity check with all fields valid",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/signin",
+			},
+			expectError: false,
+			msg:         "normal case for sanity check",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath, false)
+
+			if test.expectError && len(allErrs) == 0 {
+				t.Errorf("validateExternalAuth() returned no errors for case that should fail: %v", test.msg)
+			} else if !test.expectError && len(allErrs) > 0 {
+				t.Errorf("validateExternalAuth() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateExternalAuth_AuthSnippets(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		externalAuth   *v1.ExternalAuth
+		enableSnippets bool
+		expectError    bool
+		msg            string
+	}{
+		{
+			name: "authSnippets allowed when snippets enabled",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSnippets:    "proxy_set_header X-Custom-Header value;",
+			},
+			enableSnippets: true,
+			expectError:    false,
+			msg:            "authSnippets with enableSnippets=true should be valid",
+		},
+		{
+			name: "authSnippets rejected when snippets disabled",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSnippets:    "proxy_set_header X-Custom-Header value;",
+			},
+			enableSnippets: false,
+			expectError:    true,
+			msg:            "authSnippets with enableSnippets=false should be rejected",
+		},
+		{
+			name: "empty authSnippets allowed when snippets disabled",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSnippets:    "",
+			},
+			enableSnippets: false,
+			expectError:    false,
+			msg:            "empty authSnippets should be valid regardless of enableSnippets",
+		},
+		{
+			name: "empty authSnippets allowed when snippets enabled",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSnippets:    "",
+			},
+			enableSnippets: true,
+			expectError:    false,
+			msg:            "empty authSnippets should be valid when enableSnippets=true",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath, test.enableSnippets)
+
+			if test.expectError && len(allErrs) == 0 {
+				t.Errorf("validateExternalAuth() returned no errors for case that should fail: %v", test.msg)
+			} else if !test.expectError && len(allErrs) > 0 {
+				t.Errorf("validateExternalAuth() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidatePolicy_ExternalAuthWithSnippets(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		policy      *v1.Policy
+		cfg         PolicyValidationConfig
+		expectError bool
+		msg         string
+	}{
+		{
+			name: "externalAuth policy with authSnippets and snippets enabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					ExternalAuth: &v1.ExternalAuth{
+						AuthURI:         "/auth",
+						AuthServiceName: "auth-svc",
+						AuthSnippets:    "proxy_set_header X-Custom-Header value;",
+					},
+				},
+			},
+			cfg:         PolicyValidationConfig{EnableSnippets: true},
+			expectError: false,
+			msg:         "externalAuth policy with authSnippets should pass when snippets are enabled",
+		},
+		{
+			name: "externalAuth policy with authSnippets and snippets disabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					ExternalAuth: &v1.ExternalAuth{
+						AuthURI:         "/auth",
+						AuthServiceName: "auth-svc",
+						AuthSnippets:    "proxy_set_header X-Custom-Header value;",
+					},
+				},
+			},
+			cfg:         PolicyValidationConfig{},
+			expectError: true,
+			msg:         "externalAuth policy with authSnippets should fail when snippets are disabled",
+		},
+		{
+			name: "externalAuth policy without authSnippets and snippets disabled",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					ExternalAuth: &v1.ExternalAuth{
+						AuthURI:         "/auth",
+						AuthServiceName: "auth-svc",
+					},
+				},
+			},
+			cfg:         PolicyValidationConfig{},
+			expectError: false,
+			msg:         "externalAuth policy without authSnippets should pass when snippets are disabled",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidatePolicy(test.policy, test.cfg)
+			if test.expectError && err == nil {
+				t.Errorf("ValidatePolicy() returned no error for case: %v", test.msg)
+			} else if !test.expectError && err != nil {
+				t.Errorf("ValidatePolicy() returned error %v for case: %v", err, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateExternalAuth_SSLFields(t *testing.T) {
+	t.Parallel()
+
+	validVerifyDepth := 2
+
+	tests := []struct {
+		name         string
+		externalAuth *v1.ExternalAuth
+		expectError  bool
+		msg          string
+	}{
+		{
+			name: "valid SSL configuration with all fields",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				SSLVerifyDepth:    &validVerifyDepth,
+				TrustedCertSecret: "ca-secret",
+			},
+			expectError: false,
+			msg:         "valid SSL configuration with sslEnabled, sslVerify, sslVerifyDepth, and trustedCertSecret",
+		},
+		{
+			name: "valid SSL configuration with sslEnabled only",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				SSLEnabled:      true,
+			},
+			expectError: false,
+			msg:         "SSL enabled without verification is valid",
+		},
+		{
+			name: "sslVerify without sslEnabled should fail",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				SSLEnabled:      false,
+				SSLVerify:       true,
+			},
+			expectError: true,
+			msg:         "sslVerify requires sslEnabled to be true",
+		},
+		{
+			name: "trustedCertSecret without sslVerify should fail",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         false,
+				TrustedCertSecret: "ca-secret",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret requires sslVerify to be true",
+		},
+		{
+			name: "valid sslEnabled and sslVerify without trustedCertSecret",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+			},
+			expectError: false,
+			msg:         "sslVerify without trustedCertSecret is valid (uses default CA bundle)",
+		},
+		{
+			name: "valid trustedCertSecret with namespace prefix",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "other-ns/ca-secret",
+			},
+			expectError: false,
+			msg:         "trustedCertSecret with namespace prefix is valid",
+		},
+		{
+			name: "valid sniName with SSL enabled and verify",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+				SNIName:         "auth.example.com",
+			},
+			expectError: false,
+			msg:         "explicit sniName is valid when sslVerify is enabled",
+		},
+		{
+			name: "trustedCertSecret without sslEnabled should fail",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        false,
+				SSLVerify:         false,
+				TrustedCertSecret: "ca-secret",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret requires both sslEnabled and sslVerify",
+		},
+		{
+			name: "trustedCertSecret with invalid namespace/name format",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "ns/name/extra",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret with too many slashes should fail",
+		},
+		{
+			name: "trustedCertSecret with invalid namespace",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "INVALID_NS/ca-secret",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret with invalid namespace should fail",
+		},
+		{
+			name: "trustedCertSecret with invalid secret name",
+			externalAuth: &v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-svc",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "INVALID_SECRET_NAME",
+			},
+			expectError: true,
+			msg:         "trustedCertSecret with invalid secret name should fail",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("externalAuth")
+			allErrs := validateExternalAuth(test.externalAuth, fieldPath, false)
+			if test.expectError && len(allErrs) == 0 {
+				t.Errorf("validateExternalAuth() returned no errors for case: %v", test.msg)
+			} else if !test.expectError && len(allErrs) > 0 {
+				t.Errorf("validateExternalAuth() returned errors %v for case: %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateBundleSource_HTTPS_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://bundles.example.com/policy.tgz"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_HTTPS_Name_Forbidden(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://bundles.example.com/p.tgz", Name: "Foo"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for name on HTTPS source")
+	}
+}
+
+func TestValidateBundleSource_N1C_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{
+		Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io",
+		Name: "StrictPolicy", Namespace: "default", Secret: "dataplane-key",
+	}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_N1C_MissingName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io", Namespace: "default"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for missing name on N1C")
+	}
+}
+
+func TestValidateBundleSource_N1C_MissingNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io", Name: "P"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for missing namespace on N1C")
+	}
+}
+
+func TestValidateBundleSource_URL_HTTP_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "http://example.com/p.tgz"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for http:// URL")
+	}
+}
+
+func TestValidateBundleSource_URL_DangerousChars(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p;rm -rf"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for dangerous chars in URL")
+	}
+}
+
+func TestValidateBundleSource_PollInterval_TooShort_WhenPollingEnabled(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 30 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: true, PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for pollInterval < 1m when enablePolling is true")
+	}
+}
+
+func TestValidateBundleSource_PollInterval_TooShort_IgnoredWhenPollingDisabled(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 30 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: false, PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("expected no error for short pollInterval when enablePolling is false, got: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_PollInterval_Valid(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 5 * time.Minute}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: true, PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_NIM_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", Name: "TestPolicy"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors for valid NIM source: %v", errs)
+	}
+}
+
+func TestValidateWAF_MutualExclusivity_AllThree(t *testing.T) {
+	t.Parallel()
+	waf := &v1.WAF{
+		Enable: true, ApPolicy: "some/policy", ApBundle: "bundle.tgz",
+		ApBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz"},
+	}
+	if errs := validateWAF(waf, field.NewPath("waf")); len(errs) == 0 {
+		t.Error("expected error when all three WAF source fields set")
+	}
+}
+
+func TestValidateWAF_ApBundleSource_N1C_Valid(t *testing.T) {
+	t.Parallel()
+	waf := &v1.WAF{
+		Enable: true,
+		ApBundleSource: &v1.BundleSource{
+			Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io",
+			Name: "Strict", Namespace: "default",
+		},
+	}
+	if errs := validateWAF(waf, field.NewPath("waf")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateLogConf_ApLogBundleSource_RequiresBundleMode(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	if errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), false); len(errs) == 0 {
+		t.Error("expected error: apLogBundleSource requires bundle mode")
+	}
+}
+
+func TestValidateLogConf_ApLogBundleSource_BundleMode_Valid(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	if errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), true); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_NIM_MissingName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for missing name on NIM")
+	}
+}
+
+func TestValidateBundleSource_NIM_ForbiddenNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", Name: "TestPolicy", Namespace: "nope"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for namespace on NIM")
+	}
+}
+
+func TestValidateBundleSource_EmptyURL(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: ""}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for empty URL")
+	}
+}
+
+func TestValidateBundleSource_NegativeTimeout(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: -5 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", Timeout: &dur}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for negative timeout")
+	}
+}
+
+func TestValidateBundleSource_ZeroTimeout(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 0}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", Timeout: &dur}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for zero timeout")
+	}
+}
+
+func TestValidateBundleSource_TrustedCertSecretValidated(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", TrustedCertSecret: "INVALID_NAME"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for invalid trustedCertSecret name")
+	}
+}
+
+func TestValidateBundleSource_TrustedCertSecretValid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", TrustedCertSecret: "my-ca-secret"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_VerifyChecksum_NIM_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", Name: "P", VerifyChecksum: true}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for verifyChecksum on NIM type")
+	}
+}
+
+func TestValidateBundleSource_VerifyChecksum_N1C_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://example.com", Name: "P", Namespace: "ns", VerifyChecksum: true}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for verifyChecksum on N1C type")
+	}
+}
+
+func TestValidateBundleSource_DangerousName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", Name: "bad;policy"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for dangerous chars in name")
+	}
+}
+
+func TestValidateBundleSource_DangerousNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://example.com", Name: "P", Namespace: "ns{bad}"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for dangerous chars in namespace")
+	}
+}
+
+func TestValidateLogConf_ThreeWayMutualExclusivity(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogConf:         "some/logconf",
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), true)
+	if len(errs) == 0 {
+		t.Error("expected error when both apLogConf and apLogBundleSource are set")
 	}
 }

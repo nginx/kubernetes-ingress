@@ -1,0 +1,11 @@
+{
+  "image": [
+    "debian-plus"
+  ],
+  "platforms": [
+    "linux/arm64, linux/amd64"
+  ],
+  "target": [
+    "goreleaser"
+  ]
+}

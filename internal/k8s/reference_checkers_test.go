@@ -876,7 +876,7 @@ func TestServiceIsReferencedByIngressAndMinion(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		rc := newServiceReferenceChecker(false)
+		rc := newServiceReferenceChecker(false, nil)
 
 		result := rc.IsReferencedByIngress(test.serviceNamespace, test.serviceName, test.ing)
 		if result != test.expected {
@@ -956,7 +956,7 @@ func TestBackupServiceIsReferencedByVirtualServer(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		rc := newServiceReferenceChecker(false)
+		rc := newServiceReferenceChecker(false, nil)
 
 		result := rc.IsReferencedByVirtualServer(test.serviceNamespace, test.backupServiceName, test.vs)
 		if result != test.expected {
@@ -1065,10 +1065,70 @@ func TestServiceIsReferencedByVirtualServerAndVirtualServerRoutes(t *testing.T) 
 			expected:         false,
 			msg:              "wrong name for service in an upstream",
 		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			serviceNamespace: "other-namespace",
+			serviceName:      "test-service",
+			expected:         true,
+			msg:              "cross-namespace service is referenced in an upstream",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			serviceNamespace: "some-namespace",
+			serviceName:      "test-service",
+			expected:         false,
+			msg:              "wrong namespace for cross-namespace service in an upstream",
+		},
 	}
 
 	for _, test := range tests {
-		rc := newServiceReferenceChecker(false)
+		rc := newServiceReferenceChecker(false, nil)
 
 		result := rc.IsReferencedByVirtualServer(test.serviceNamespace, test.serviceName, test.vs)
 		if result != test.expected {
@@ -1148,7 +1208,7 @@ func TestServiceIsReferencedByTransportServer(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		rc := newServiceReferenceChecker(false)
+		rc := newServiceReferenceChecker(false, nil)
 
 		result := rc.IsReferencedByTransportServer(test.serviceNamespace, test.serviceName, test.ts)
 		if result != test.expected {
@@ -1223,7 +1283,7 @@ func TestBackupServiceIsReferencedByTransportServer(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		rc := newServiceReferenceChecker(false)
+		rc := newServiceReferenceChecker(false, nil)
 
 		result := rc.IsReferencedByTransportServer(test.backupServiceNamespace, test.backupServiceName, test.ts)
 		if result != test.expected {
@@ -1789,10 +1849,102 @@ func TestEndpointIsReferencedByVirtualServerAndVirtualServerRoutes(t *testing.T)
 			expected:         true,
 			msg:              "one upstream without Cluster IP",
 		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			serviceNamespace: "other-namespace",
+			serviceName:      "test-service",
+			expected:         true,
+			msg:              "cross-namespace service is referenced in an upstream",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			serviceNamespace: "some-namespace",
+			serviceName:      "test-service",
+			expected:         false,
+			msg:              "wrong namespace for cross-namespace service in an upstream",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service:      "other-namespace/test-service",
+							UseClusterIP: true,
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service:      "other-namespace/test-service",
+							UseClusterIP: true,
+						},
+					},
+				},
+			},
+			serviceNamespace: "other-namespace",
+			serviceName:      "test-service",
+			expected:         false,
+			msg:              "cross-namespace upstream uses clusterIP",
+		},
 	}
 
 	for _, test := range tests {
-		rc := newServiceReferenceChecker(true)
+		rc := newServiceReferenceChecker(true, nil)
 
 		result := rc.IsReferencedByVirtualServer(test.serviceNamespace, test.serviceName, test.vs)
 		if result != test.expected {
@@ -2049,6 +2201,255 @@ func TestReplicaReferenceChecker(t *testing.T) {
 		result := checker.IsReferencedByIngress("foo", "bar", testcase.Ingress)
 		if result != testcase.Expected {
 			t.Errorf("replicaReferenceChecker did not work for case %d", i)
+		}
+	}
+}
+
+func TestExternalAuthServiceIsReferencedByVirtualServer(t *testing.T) {
+	t.Parallel()
+	policyServices := map[string]string{
+		"default/ext-auth-policy": "oauth2-proxy",
+		"auth-ns/cross-ns-policy": "auth-ns/auth-svc",
+		"default/no-auth-policy":  "",
+		"default/multi-ns-policy": "other-ns/other-svc",
+	}
+
+	tests := []struct {
+		vs               *conf_v1.VirtualServer
+		serviceNamespace string
+		serviceName      string
+		expected         bool
+		msg              string
+	}{
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Policies: []conf_v1.PolicyReference{
+						{Name: "ext-auth-policy"},
+					},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "oauth2-proxy",
+			expected:         true,
+			msg:              "service referenced by spec-level external auth policy (same namespace)",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Routes: []conf_v1.Route{
+						{
+							Policies: []conf_v1.PolicyReference{
+								{Name: "ext-auth-policy"},
+							},
+						},
+					},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "oauth2-proxy",
+			expected:         true,
+			msg:              "service referenced by route-level external auth policy",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Policies: []conf_v1.PolicyReference{
+						{Name: "cross-ns-policy", Namespace: "auth-ns"},
+					},
+				},
+			},
+			serviceNamespace: "auth-ns",
+			serviceName:      "auth-svc",
+			expected:         true,
+			msg:              "cross-namespace service referenced by cross-namespace policy",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Policies: []conf_v1.PolicyReference{
+						{Name: "multi-ns-policy"},
+					},
+				},
+			},
+			serviceNamespace: "other-ns",
+			serviceName:      "other-svc",
+			expected:         true,
+			msg:              "cross-namespace service in AuthServiceName resolved correctly",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Policies: []conf_v1.PolicyReference{
+						{Name: "ext-auth-policy"},
+					},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "some-other-service",
+			expected:         false,
+			msg:              "service not matching external auth policy service",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Policies: []conf_v1.PolicyReference{
+						{Name: "nonexistent-policy"},
+					},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "oauth2-proxy",
+			expected:         false,
+			msg:              "policy not in policyServices map",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{Service: "backend-svc"},
+					},
+					Policies: []conf_v1.PolicyReference{
+						{Name: "ext-auth-policy"},
+					},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "backend-svc",
+			expected:         true,
+			msg:              "service referenced by upstream (not policy) still works",
+		},
+	}
+
+	for _, test := range tests {
+		rc := newServiceReferenceChecker(false, policyServices)
+
+		result := rc.IsReferencedByVirtualServer(test.serviceNamespace, test.serviceName, test.vs)
+		if result != test.expected {
+			t.Errorf("IsReferencedByVirtualServer() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
+		}
+	}
+}
+
+func TestExternalAuthServiceIsReferencedByVirtualServerRoute(t *testing.T) {
+	t.Parallel()
+	policyServices := map[string]string{
+		"default/ext-auth-policy": "oauth2-proxy",
+		"auth-ns/cross-ns-policy": "auth-ns/auth-svc",
+	}
+
+	tests := []struct {
+		vsr              *conf_v1.VirtualServerRoute
+		serviceNamespace string
+		serviceName      string
+		expected         bool
+		msg              string
+	}{
+		{
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Subroutes: []conf_v1.Route{
+						{
+							Policies: []conf_v1.PolicyReference{
+								{Name: "ext-auth-policy"},
+							},
+						},
+					},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "oauth2-proxy",
+			expected:         true,
+			msg:              "service referenced by subroute-level external auth policy",
+		},
+		{
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Subroutes: []conf_v1.Route{
+						{
+							Policies: []conf_v1.PolicyReference{
+								{Name: "cross-ns-policy", Namespace: "auth-ns"},
+							},
+						},
+					},
+				},
+			},
+			serviceNamespace: "auth-ns",
+			serviceName:      "auth-svc",
+			expected:         true,
+			msg:              "cross-namespace policy service referenced by VSR subroute",
+		},
+		{
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Subroutes: []conf_v1.Route{
+						{
+							Policies: []conf_v1.PolicyReference{
+								{Name: "ext-auth-policy"},
+							},
+						},
+					},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "some-other-service",
+			expected:         false,
+			msg:              "service not matching VSR subroute external auth policy",
+		},
+		{
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{Service: "backend-svc"},
+					},
+				},
+			},
+			serviceNamespace: "default",
+			serviceName:      "backend-svc",
+			expected:         true,
+			msg:              "service referenced by VSR upstream still works",
+		},
+	}
+
+	for _, test := range tests {
+		rc := newServiceReferenceChecker(false, policyServices)
+
+		result := rc.IsReferencedByVirtualServerRoute(test.serviceNamespace, test.serviceName, test.vsr)
+		if result != test.expected {
+			t.Errorf("IsReferencedByVirtualServerRoute() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
 		}
 	}
 }

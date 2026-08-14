@@ -1,0 +1,8 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: external-auth-policy-cross-ns
+spec:
+  externalAuth:
+    authURI: "/auth"
+    authServiceName: "CROSS_NS_PLACEHOLDER/external-auth-svc"

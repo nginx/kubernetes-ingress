@@ -1,0 +1,9 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: ingress-mtls-policy
+spec:
+  ingressMTLS:
+    clientCertSecret: ingress-mtls-secret
+    verifyClient: "on"
+    verifyDepth: 1

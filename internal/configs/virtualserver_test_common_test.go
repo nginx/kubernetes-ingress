@@ -908,6 +908,19 @@ var (
 		},
 	}
 
+	virtualServerExWithAddHeaderInheritMerge = VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host:             "cafe.example.com",
+				AddHeaderInherit: "merge",
+			},
+		},
+	}
+
 	fakeBV = fakeBundleValidator{}
 )
 

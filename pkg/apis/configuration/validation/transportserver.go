@@ -180,7 +180,7 @@ func validateTransportServerUpstreams(upstreams []conf_v1.TransportServerUpstrea
 
 		allErrs = append(allErrs, validateServiceName(u.Service, idxPath.Child("service"))...)
 		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(u.MaxFails, idxPath.Child("maxFails"))...)
-		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(u.MaxFails, idxPath.Child("maxConns"))...)
+		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(u.MaxConns, idxPath.Child("maxConns"))...)
 		allErrs = append(allErrs, validateTime(u.FailTimeout, idxPath.Child("failTimeout"))...)
 
 		for _, msg := range validation.IsValidPortNum(u.Port) {
@@ -287,7 +287,7 @@ func validateHealthCheckMatch(match *conf_v1.TransportServerMatch, fieldPath *fi
 	}
 
 	allErrs := validateMatchExpect(match.Expect, fieldPath.Child("expect"))
-	allErrs = append(allErrs, validateMatchSend(match.Expect, fieldPath.Child("send"))...)
+	allErrs = append(allErrs, validateMatchSend(match.Send, fieldPath.Child("send"))...)
 	return allErrs
 }
 

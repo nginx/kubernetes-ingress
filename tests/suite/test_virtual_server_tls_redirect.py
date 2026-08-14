@@ -270,22 +270,15 @@ class TestVirtualServerTLSRedirect:
             ingress_controller_prerequisites.namespace,
         )
         source_yaml = f"{TEST_DATA}/virtual-server-tls-redirect/virtual-server-invalid.yaml"
-        try:
+        with pytest.raises(ApiException) as exc_info:
             patch_virtual_server_from_yaml(
                 kube_apis.custom_objects, virtual_server_setup.vs_name, source_yaml, virtual_server_setup.namespace
             )
-        except ApiException as ex:
-            assert (
-                ex.status == 422
-                and "spec.tls.redirect.enable" in ex.body
-                and "spec.tls.redirect.code" in ex.body
-                and "spec.tls.redirect.basedOn" in ex.body
-                and "spec.tls.secret" in ex.body
-            )
-        except Exception as ex:
-            pytest.fail(f"An unexpected exception is raised: {ex}")
-        else:
-            pytest.fail("Expected an exception but there was none")
+        assert exc_info.value.status == 422
+        assert "spec.tls.redirect.enable" in exc_info.value.body
+        assert "spec.tls.redirect.code" in exc_info.value.body
+        assert "spec.tls.redirect.basedOn" in exc_info.value.body
+        assert "spec.tls.secret" in exc_info.value.body
 
         wait_before_test(1)
         config_new = get_vs_nginx_template_conf(

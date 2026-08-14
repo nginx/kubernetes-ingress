@@ -29,6 +29,8 @@ type RouteApplyConfiguration struct {
 	ErrorPages []ErrorPageApplyConfiguration `json:"errorPages,omitempty"`
 	// Sets a custom snippet in the location context. Overrides the location-snippets ConfigMap key.
 	LocationSnippets *string `json:"location-snippets,omitempty"`
+	// Controls header inheritance behavior at the location level. Allowed values are: on, off, merge. When set to "merge", headers from this context are merged with headers in child contexts. When set to "on", standard NGINX inheritance applies. When set to "off", no headers are inherited from parent contexts.
+	AddHeaderInherit *string `json:"add-header-inherit,omitempty"`
 	// A reference to a DosProtectedResource, setting this enables DOS protection of the VirtualServer route.
 	Dos *string `json:"dos,omitempty"`
 }
@@ -128,6 +130,14 @@ func (b *RouteApplyConfiguration) WithErrorPages(values ...*ErrorPageApplyConfig
 // If called multiple times, the LocationSnippets field is set to the value of the last call.
 func (b *RouteApplyConfiguration) WithLocationSnippets(value string) *RouteApplyConfiguration {
 	b.LocationSnippets = &value
+	return b
+}
+
+// WithAddHeaderInherit sets the AddHeaderInherit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AddHeaderInherit field is set to the value of the last call.
+func (b *RouteApplyConfiguration) WithAddHeaderInherit(value string) *RouteApplyConfiguration {
+	b.AddHeaderInherit = &value
 	return b
 }
 

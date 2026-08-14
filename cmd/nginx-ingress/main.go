@@ -216,7 +216,6 @@ func main() {
 		TLSPassthrough:                 *enableTLSPassthrough,
 		TLSPassthroughPort:             *tlsPassthroughPort,
 		EnableSnippets:                 *enableSnippets,
-		NginxServiceMesh:               *spireAgentAddress != "",
 		MainAppProtectLoadModule:       *appProtect,
 		MainAppProtectV5LoadModule:     appProtectV5,
 		MainAppProtectDosLoadModule:    *appProtectDos,
@@ -243,7 +242,7 @@ func main() {
 		}
 	}
 
-	mustWriteNginxMainConfig(staticCfgParams, cfgParams, mgmtCfgParams, templateExecutor, nginxManager)
+	mustWriteInitialNginxConfig(staticCfgParams, cfgParams, mgmtCfgParams, templateExecutor, nginxManager)
 
 	if *enableTLSPassthrough {
 		var emptyFile []byte
@@ -257,7 +256,7 @@ func main() {
 		licenseReporter.Config.PlusClient = plusClient
 	}
 
-	plusCollector, syslogListener, latencyCollector := createPlusAndLatencyCollectors(ctx, registry, constLabels, kubeClient, plusClient, staticCfgParams.NginxServiceMesh)
+	plusCollector, syslogListener, latencyCollector := createPlusAndLatencyCollectors(ctx, registry, constLabels, kubeClient, plusClient)
 	cnf := configs.NewConfigurator(configs.ConfiguratorParams{
 		NginxManager:                        nginxManager,
 		StaticCfgParams:                     staticCfgParams,
@@ -304,6 +303,7 @@ func main() {
 		AppProtectEnabled:            *appProtect,
 		AppProtectDosEnabled:         *appProtectDos,
 		AppProtectVersion:            appProtectVersion,
+		WAFBundlePath:                appProtectBundlePath,
 		IsNginxPlus:                  *nginxPlus,
 		IngressClass:                 *ingressClass,
 		ExternalServiceName:          *externalService,
@@ -323,8 +323,6 @@ func main() {
 		GlobalConfigurationValidator: globalConfigurationValidator,
 		TransportServerValidator:     transportServerValidator,
 		VirtualServerValidator:       virtualServerValidator,
-		SpireAgentAddress:            *spireAgentAddress,
-		InternalRoutesEnabled:        *enableInternalRoutes,
 		IsPrometheusEnabled:          *enablePrometheusMetrics,
 		IsLatencyMetricsEnabled:      *enableLatencyMetrics,
 		IsTLSPassthroughEnabled:      *enableTLSPassthrough,
@@ -334,6 +332,7 @@ func main() {
 		ExternalDNSEnabled:           *enableExternalDNS,
 		IsIPV6Disabled:               *disableIPV6,
 		IsDirectiveAutoadjustEnabled: *enableDirectiveAutoadjust,
+		AllowEmptyIngressHost:        *allowEmptyIngressHost,
 		WatchNamespaceLabel:          *watchNamespaceLabel,
 		EnableTelemetryReporting:     *enableTelemetryReporting,
 		TelemetryReportingEndpoint:   telemetryEndpoint,
@@ -414,7 +413,8 @@ func mustCreateConfigAndKubeClient(ctx context.Context) (*rest.Config, *kubernet
 				ClusterInfo: clientcmdapi.Cluster{
 					Server: *proxyURL,
 				},
-			}).ClientConfig()
+			},
+		).ClientConfig()
 		if err != nil {
 			nl.Fatalf(l, "error creating client configuration: %v", err)
 		}
@@ -633,17 +633,25 @@ type childProcesses struct {
 	aPDosDone      chan error
 	agentEnable    bool
 	agentDone      chan error
+	ipRepdEnable   bool
+	ipRepdDone     chan error
 }
 
 // newChildProcesses starts the several child processes based on flags set.
 // AppProtect. AppProtectDos, Agent.
 func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childProcesses {
 	var aPPluginDone chan error
+	var ipRepdDone chan error
 
 	// Do not start AppProtect Plugins when using v5.
 	if *appProtect && !appProtectV5 {
 		aPPluginDone = make(chan error, 1)
 		nginxManager.AppProtectPluginStart(aPPluginDone, *appProtectLogLevel)
+
+		if *appProtectIPIntelligence {
+			ipRepdDone = make(chan error, 1)
+			nginxManager.IPRepdStart(ipRepdDone)
+		}
 	}
 
 	var aPPDosAgentDone chan error
@@ -670,6 +678,8 @@ func startChildProcesses(nginxManager nginx.Manager, appProtectV5 bool) childPro
 		aPDosDone:      aPPDosAgentDone,
 		agentEnable:    *agent,
 		agentDone:      agentDone,
+		ipRepdEnable:   *appProtect && !appProtectV5,
+		ipRepdDone:     ipRepdDone,
 	}
 }
 
@@ -752,9 +762,9 @@ func createGlobalConfigurationValidator() *cr_validation.GlobalConfigurationVali
 	return cr_validation.NewGlobalConfigurationValidator(forbiddenListenerPorts)
 }
 
-// mustWriteNginxMainConfig calls internally os.Exit
-// if can't generate a valid NGINX config.
-func mustWriteNginxMainConfig(staticCfgParams *configs.StaticConfigParams, cfgParams *configs.ConfigParams, mgmtCfgParams *configs.MGMTConfigParams, templateExecutor *version1.TemplateExecutor, nginxManager nginx.Manager) {
+// mustWriteInitialNginxConfig calls internally os.Exit
+// if it can't generate valid initial NGINX configs.
+func mustWriteInitialNginxConfig(staticCfgParams *configs.StaticConfigParams, cfgParams *configs.ConfigParams, mgmtCfgParams *configs.MGMTConfigParams, templateExecutor *version1.TemplateExecutor, nginxManager nginx.Manager) {
 	l := nl.LoggerFromContext(cfgParams.Context)
 	ngxConfig := configs.GenerateNginxMainConfig(staticCfgParams, cfgParams, mgmtCfgParams)
 	content, err := templateExecutor.ExecuteMainConfigTemplate(ngxConfig)
@@ -762,6 +772,15 @@ func mustWriteNginxMainConfig(staticCfgParams *configs.StaticConfigParams, cfgPa
 		nl.Fatalf(l, "Error generating NGINX main config: %v", err)
 	}
 	if _, err := nginxManager.CreateMainConfig(content); err != nil {
+		nl.Fatalf(l, "%v", err)
+	}
+
+	defaultServerCfg := configs.GenerateDefaultServerConfig(staticCfgParams, cfgParams)
+	defaultServerContent, err := templateExecutor.ExecuteIngressConfigTemplate(&defaultServerCfg)
+	if err != nil {
+		nl.Fatalf(l, "Error generating initial default server config: %v", err)
+	}
+	if _, err := nginxManager.CreateConfig(configs.DefaultServerConfigName, defaultServerContent); err != nil {
 		nl.Fatalf(l, "%v", err)
 	}
 
@@ -825,6 +844,8 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 		nl.Fatalf(lbc.Logger, "AppProtectPlugin command exited unexpectedly with status: %v", err)
 	case err := <-cpcfg.aPDosDone:
 		nl.Fatalf(lbc.Logger, "AppProtectDosAgent command exited unexpectedly with status: %v", err)
+	case err := <-cpcfg.ipRepdDone:
+		nl.Fatalf(lbc.Logger, "iprepd command exited unexpectedly with status: %v", err)
 	case <-signalChan:
 		nl.Info(lbc.Logger, "Received SIGTERM, shutting down")
 		lbc.ShuttingDown = true
@@ -838,6 +859,10 @@ func handleTermination(lbc *k8s.LoadBalancerController, nginxManager nginx.Manag
 		if cpcfg.aPDosEnable {
 			nginxManager.AppProtectDosAgentQuit()
 			<-cpcfg.aPDosDone
+		}
+		if cpcfg.ipRepdEnable {
+			nginxManager.IPRepdQuit()
+			<-cpcfg.ipRepdDone
 		}
 		listener.Stop()
 	}
@@ -870,7 +895,10 @@ func ready(lbc *k8s.LoadBalancerController) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "Ready")
+		if _, err := fmt.Fprintln(w, "Ready"); err != nil {
+			// Log error but don't fail the handler since status was already written
+			nl.Error(lbc.Logger, "Failed to write readiness response", err)
+		}
 	}
 }
 
@@ -920,7 +948,6 @@ func createPlusAndLatencyCollectors(
 	constLabels map[string]string,
 	kubeClient *kubernetes.Clientset,
 	plusClient *client.NginxClient,
-	isMesh bool,
 ) (*nginxCollector.NginxPlusCollector, metrics.SyslogListener, collectors.LatencyCollector) {
 	l := nl.LoggerFromContext(ctx)
 	var prometheusSecret *api_v1.Secret
@@ -941,9 +968,6 @@ func createPlusAndLatencyCollectors(
 	if *enablePrometheusMetrics {
 		upstreamServerVariableLabels := []string{"service", "resource_type", "resource_name", "resource_namespace"}
 		upstreamServerPeerVariableLabelNames := []string{"pod_name"}
-		if isMesh {
-			upstreamServerPeerVariableLabelNames = append(upstreamServerPeerVariableLabelNames, "pod_owner")
-		}
 		if *nginxPlus {
 			streamUpstreamServerVariableLabels := []string{"service", "resource_type", "resource_name", "resource_namespace"}
 			streamUpstreamServerPeerVariableLabelNames := []string{"pod_name"}
@@ -1016,7 +1040,7 @@ func processConfigMaps(kubeClient *kubernetes.Clientset, cfgParams *configs.Conf
 		if err != nil {
 			nl.Fatalf(l, "Error when getting %v: %v", *nginxConfigMaps, err)
 		}
-		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, *enableDirectiveAutoadjust, eventLog)
+		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, *enableDirectiveAutoadjust, *enableSnippets, eventLog)
 		if cfgParams.MainServerSSLDHParamFileContent != nil {
 			fileName, err := nginxManager.CreateDHParam(*cfgParams.MainServerSSLDHParamFileContent)
 			if err != nil {
@@ -1201,7 +1225,7 @@ func createHeadlessService(l *slog.Logger, kubeClient kubernetes.Interface, cont
 
 func logEventAndExit(ctx context.Context, eventLog record.EventRecorder, obj pkg_runtime.Object, reason string, err error) {
 	l := nl.LoggerFromContext(ctx)
-	eventLog.Eventf(obj, api_v1.EventTypeWarning, reason, err.Error())
+	eventLog.Event(obj, api_v1.EventTypeWarning, reason, err.Error())
 	time.Sleep(fatalEventFlushTime) // wait for the event to be flushed
 	nl.Fatal(l, err.Error())
 }

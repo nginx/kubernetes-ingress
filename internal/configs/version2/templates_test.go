@@ -15,7 +15,11 @@ func TestMain(m *testing.M) {
 	v := m.Run()
 
 	// After all tests have run `go-snaps` will sort snapshots
-	snaps.Clean(m, snaps.CleanOpts{Sort: true})
+	_, err := snaps.Clean(m, snaps.CleanOpts{Sort: true})
+	if err != nil {
+		// Log but don't fail - this is cleanup
+		_, _ = fmt.Fprintf(os.Stderr, "Warning: failed to clean snapshots: %v\n", err)
+	}
 
 	os.Exit(v)
 }
@@ -533,6 +537,30 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithClientBodyBufferSize(t 
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersTemplateWithDisableForwardedHeadersTrue(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithDisableForwardedHeadersTrue)
+	if err != nil {
+		t.Error(err)
+	}
+	if bytes.Contains(got, []byte("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for")) {
+		t.Error("don't want `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for` directive in generated template")
+	}
+	if bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Host $host")) {
+		t.Error("don't want `proxy_set_header X-Forwarded-Host $host` directive in generated template")
+	}
+	if bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Port $server_port")) {
+		t.Error("don't want `proxy_set_header X-Forwarded-Port $server_port` directive in generated template")
+	}
+	if bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Proto $scheme")) {
+		t.Error("don't want `proxy_set_header X-Forwarded-Proto $scheme` directive in generated template")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2On(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
@@ -979,6 +1007,142 @@ func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T
 
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSAtServerLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("Strict-Transport-Security")) {
+		t.Error("want Strict-Transport-Security directive, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=2592000")) {
+		t.Error("want max-age=2592000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSBehindProxy(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSBehindProxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("http_x_forwarded_proto")) {
+		t.Error("want X-Forwarded-Proto condition, got none")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSPreload(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSPreload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("preload")) {
+		t.Error("want preload in header value, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=31536000")) {
+		t.Error("want max-age=31536000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSAtLocationLevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(got)
+	locationIdx := strings.Index(content, "location /")
+	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
+	if hstsIdx == -1 {
+		t.Error("want Strict-Transport-Security inside location block, got none")
+	}
+	snaps.MatchSnapshot(t, content)
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtServerLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("Strict-Transport-Security")) {
+		t.Error("want Strict-Transport-Security directive, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=2592000")) {
+		t.Error("want max-age=2592000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSBehindProxy(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSBehindProxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("http_x_forwarded_proto")) {
+		t.Error("want X-Forwarded-Proto condition, got none")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSPreload(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSPreload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(got, []byte("preload")) {
+		t.Error("want preload in header value, got none")
+	}
+	if !bytes.Contains(got, []byte("max-age=31536000")) {
+		t.Error("want max-age=31536000 in header value")
+	}
+	if !bytes.Contains(got, []byte("includeSubDomains")) {
+		t.Error("want includeSubDomains in header value")
+	}
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtLocationLevel(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithHSTSAtLocationLevel)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(got)
+	locationIdx := strings.Index(content, "location /")
+	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
+	if hstsIdx == -1 {
+		t.Error("want Strict-Transport-Security inside location block, got none")
+	}
+	snaps.MatchSnapshot(t, content)
 }
 
 func TestExecuteVirtualServerTemplateWithNGINXDebugLevelDebug(t *testing.T) {
@@ -2361,6 +2525,20 @@ var (
 		},
 	}
 
+	virtualServerCfgWithDisableForwardedHeadersTrue = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                    "/",
+					ProxyPass:               "http://test-upstream",
+					DisableForwardedHeaders: true,
+				},
+			},
+		},
+	}
+
 	virtualServerCfgWithRateLimitJWTClaim = VirtualServerConfig{
 		LimitReqZones: []LimitReqZone{
 			{
@@ -3054,7 +3232,77 @@ var (
 			},
 		},
 	}
-
+	virtualServerCfgWithHSTS = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{
+				MaxAge:            2592000,
+				IncludeSubDomains: true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSBehindProxy = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			HSTS: &HSTS{
+				MaxAge:      2592000,
+				BehindProxy: true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSPreload = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{
+				MaxAge:            31536000,
+				IncludeSubDomains: true,
+				Preload:           true,
+			},
+			Locations: []Location{{Path: "/"}},
+		},
+	}
+	virtualServerCfgWithHSTSAtLocationLevel = VirtualServerConfig{
+		Upstreams: []Upstream{
+			{
+				Name: "upstream",
+				Servers: []UpstreamServer{
+					{Address: "10.0.0.1:8080"},
+				},
+			},
+		},
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			SSL: &SSL{
+				Certificate:    "example.pem",
+				CertificateKey: "example.pem",
+			},
+			HSTS: &HSTS{MaxAge: 2592000},
+			Locations: []Location{
+				{
+					Path:      "/",
+					ProxyPass: "http://upstream",
+					AddHeaders: []AddHeader{
+						{Header: Header{Name: "X-Custom", Value: "value"}, Always: true},
+					},
+					HSTS: &HSTS{MaxAge: 2592000},
+				},
+			},
+		},
+	}
 	virtualServerCfgWithCachePolicyNGINXPlus = VirtualServerConfig{
 		CacheZones: []CacheZone{
 			{
@@ -3577,6 +3825,69 @@ var virtualServerCfgAllPathTypes = VirtualServerConfig{
 	},
 }
 
+var virtualServerCfgWithExternalAuthSigninURL = VirtualServerConfig{
+	Upstreams: []Upstream{
+		{
+			Name: "vs_default_cafe_tea",
+			Servers: []UpstreamServer{
+				{Address: "10.0.0.20:80"},
+			},
+		},
+		{
+			Name: "vs_exauth_default_external-auth-policy",
+			Servers: []UpstreamServer{
+				{Address: "10.0.0.40:4180"},
+			},
+		},
+	},
+	Server: Server{
+		ServerName: "cafe.example.com",
+		StatusZone: "cafe.example.com",
+		ExternalAuth: &ExternalAuth{
+			URI: &AuthURI{
+				Service:      "oauth2-proxy",
+				Upstream:     "vs_exauth_default_external-auth-policy",
+				Path:         "/oauth2/auth",
+				InternalPath: "/_external_auth/oauth2/auth",
+			},
+			SigninURL:              "/oauth2/start?rd=$scheme://$host$request_uri",
+			SigninRedirectBasePath: "/oauth2",
+		},
+		ErrorPages: []ErrorPage{
+			{
+				Name:         "/oauth2/start?rd=$scheme://$host$request_uri",
+				Codes:        "401",
+				ResponseCode: -1,
+			},
+		},
+		Locations: []Location{
+			{
+				Path:        "/tea",
+				ProxyPass:   "http://vs_default_cafe_tea",
+				ServiceName: "tea-svc",
+				ExternalAuth: &ExternalAuth{
+					URI: &AuthURI{
+						Service:      "oauth2-proxy",
+						Upstream:     "vs_exauth_default_external-auth-policy",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_external_auth/oauth2/auth",
+					},
+					SigninURL:              "/oauth2/start?rd=$scheme://$host$request_uri",
+					SigninRedirectBasePath: "/oauth2",
+				},
+				ErrorPages: []ErrorPage{
+					{
+						Name:         "/oauth2/start?rd=$scheme://$host$request_uri",
+						Codes:        "401",
+						ResponseCode: -1,
+					},
+				},
+				ProxyInterceptErrors: true,
+			},
+		},
+	},
+}
+
 func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
@@ -3586,4 +3897,113 @@ func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
+}
+
+func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
+	t.Parallel()
+	data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	// Guard the exact nginx directive; a missing `=` (or missing space) here reintroduces the 401+Location bug.
+	const want = `error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";`
+	if !strings.Contains(string(data), want) {
+		t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
+}
+
+func TestVirtualServerForNginxPlusWithExternalAuthSigninURL(t *testing.T) {
+	t.Parallel()
+	data, err := newTmplExecutorNGINXPlus(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)
+	if err != nil {
+		t.Fatalf("Failed to execute template: %v", err)
+	}
+	const want = `error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";`
+	if !strings.Contains(string(data), want) {
+		t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
+}
+
+// TestErrorPageRendering guards the rendered `error_page` directive for the three
+// ResponseCode encodings the ExternalAuth signin flow depends on: -1 (emit `=`
+// without a code so nginx returns the target's status), 0 (emit no `=`), and
+// >0 (emit `=<code>`).
+func TestErrorPageRendering(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		pages []ErrorPage
+		want  string
+	}{
+		{
+			name:  "ExternalAuth signin URL renders `error_page 401 = \"...\"`",
+			pages: []ErrorPage{{Name: "/oauth2/start", Codes: "401", ResponseCode: -1}},
+			want:  `error_page 401 = "/oauth2/start";`,
+		},
+		{
+			name:  "ResponseCode 0 renders `error_page CODES \"NAME\"` without `=`",
+			pages: []ErrorPage{{Name: "@error_page_2", Codes: "500", ResponseCode: 0}},
+			want:  `error_page 500 "@error_page_2";`,
+		},
+		{
+			name:  "Positive ResponseCode renders `error_page CODES =CODE \"NAME\"`",
+			pages: []ErrorPage{{Name: "@error_page_1", Codes: "400 500", ResponseCode: 200}},
+			want:  `error_page 400 500 =200 "@error_page_1";`,
+		},
+		{
+			name:  "Redirect ErrorPage renders `error_page CODES =301 \"URL\"`",
+			pages: []ErrorPage{{Name: "https://example.com/", Codes: "404", ResponseCode: 301}},
+			want:  `error_page 404 =301 "https://example.com/";`,
+		},
+		{
+			name:  "Named location with ResponseCode 0 renders without `=`",
+			pages: []ErrorPage{{Name: "@fallback", Codes: "404", ResponseCode: 0}},
+			want:  `error_page 404 "@fallback";`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			scopes := map[string]VirtualServerConfig{
+				"server": {
+					Server: Server{
+						ServerName: "cafe.example.com",
+						StatusZone: "cafe.example.com",
+						ErrorPages: tc.pages,
+					},
+				},
+				"location": {
+					Server: Server{
+						ServerName: "cafe.example.com",
+						StatusZone: "cafe.example.com",
+						Locations: []Location{
+							{
+								Path:       "/tea",
+								ProxyPass:  "http://tea-svc",
+								ErrorPages: tc.pages,
+							},
+						},
+					},
+				},
+			}
+			for scope, cfg := range scopes {
+				t.Run(scope, func(t *testing.T) {
+					t.Parallel()
+					data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&cfg)
+					if err != nil {
+						t.Fatalf("ExecuteVirtualServerTemplate: %v", err)
+					}
+					if !strings.Contains(string(data), tc.want) {
+						t.Errorf("rendered config missing %q\n---\n%s", tc.want, string(data))
+					}
+				})
+			}
+		})
+	}
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"sort"
 	"testing"
 
@@ -883,6 +882,39 @@ func TestGeneratePolicies(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "hsts-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/hsts-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            new(2592000),
+							IncludeSubDomains: true,
+							BehindProxy:       true,
+						},
+					},
+				},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				Context: ctx,
+				HSTS: &version2.HSTS{
+					MaxAge:            2592000,
+					IncludeSubDomains: true,
+					BehindProxy:       true,
+				},
+			},
+			msg: "hsts reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "api-key-policy",
 					Namespace: "default",
 				},
@@ -1275,8 +1307,8 @@ func TestGeneratePolicies(t *testing.T) {
 
 			result.BundleValidator = nil
 
-			if !reflect.DeepEqual(tc.expected, result) {
-				t.Error(cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
+			if diff := cmp.Diff(tc.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")); diff != "" {
+				t.Error(diff)
 			}
 			if len(warnings) > 0 {
 				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", warnings, tc.msg)
@@ -1463,14 +1495,14 @@ func TestAddCORSConfig(t *testing.T) {
 					t.Errorf("Expected both CORS headers to be empty, but got actual=%d expected=%d", len(actualCORS), len(expectedCORS))
 				}
 			} else {
-				if !reflect.DeepEqual(actualCORS, expectedCORS) {
-					t.Errorf("CORS headers mismatch.\nExpected: %+v\nGot: %+v", expectedCORS, actualCORS)
+				if diff := cmp.Diff(expectedCORS, actualCORS); diff != "" {
+					t.Errorf("CORS headers mismatch (-want +got):\n%s", diff)
 				}
 			}
 
 			// Compare CORS map
-			if !reflect.DeepEqual(config.CORSMap, test.expected.CORSMap) {
-				t.Errorf("CORS map mismatch.\nExpected: %+v\nGot: %+v", test.expected.CORSMap, config.CORSMap)
+			if diff := cmp.Diff(test.expected.CORSMap, config.CORSMap); diff != "" {
+				t.Errorf("CORS map mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -1713,18 +1745,783 @@ func TestGenerateCORSPolicy(t *testing.T) {
 				nil,
 			)
 
-			if !reflect.DeepEqual(result.CORSHeaders, test.expected.CORSHeaders) {
-				t.Errorf("%s: CORS headers mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.CORSHeaders, result.CORSHeaders)
+			if diff := cmp.Diff(test.expected.CORSHeaders, result.CORSHeaders); diff != "" {
+				t.Errorf("%s: CORS headers mismatch (-want +got):\n%s", test.msg, diff)
 			}
 
-			if !reflect.DeepEqual(result.CORSMap, test.expected.CORSMap) {
-				t.Errorf("%s: CORS map mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.CORSMap, result.CORSMap)
+			if diff := cmp.Diff(test.expected.CORSMap, result.CORSMap); diff != "" {
+				t.Errorf("%s: CORS map mismatch (-want +got):\n%s", test.msg, diff)
 			}
 
 			if result.Context != test.expected.Context {
 				t.Errorf("%s: Context mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.Context, result.Context)
 			}
 		})
+	}
+}
+
+func TestAddExternalAuthConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		extAuth     *conf_v1.ExternalAuth
+		expected    *version2.ExternalAuth
+		wantWarning bool
+		msg         string
+	}{
+		{
+			name: "basic auth URI only",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				ServicePorts: nil,
+			},
+			msg: "basic external auth with URI only",
+		},
+		{
+			name: "auth URI with signin URI",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/oauth2/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/oauth2/signin",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/oauth2/auth",
+					InternalPath: "/_external_auth/oauth2/auth",
+				},
+				SigninURL:              "/oauth2/signin",
+				ServicePorts:           nil,
+				SigninRedirectBasePath: DefaultSigninRedirectBasePath,
+			},
+			msg: "external auth with signin URI",
+		},
+		{
+			name: "auth URI with snippets",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/check",
+				AuthServiceName: "auth-svc",
+				AuthSnippets:    "proxy_set_header X-Forwarded-Host $host;",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/check",
+					InternalPath: "/_external_auth/check",
+				},
+				Snippets:     "proxy_set_header X-Forwarded-Host $host;",
+				ServicePorts: nil,
+			},
+			msg: "external auth with snippets",
+		},
+		{
+			name: "full external auth config",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/oauth2/auth",
+				AuthServiceName: "oauth2-proxy",
+				AuthSigninURI:   "/oauth2/start",
+				AuthSnippets:    "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "oauth2-proxy",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/oauth2/auth",
+					InternalPath: "/_external_auth/oauth2/auth",
+				},
+				SigninURL:              "/oauth2/start",
+				Snippets:               "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+				ServicePorts:           nil,
+				SigninRedirectBasePath: DefaultSigninRedirectBasePath,
+			},
+			msg: "full external auth with URI, signin URI, and snippets",
+		},
+		{
+			name: "auth URI with service name containing namespace",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/validate",
+				AuthServiceName: "auth-ns/auth-svc",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-ns/auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/validate",
+					InternalPath: "/_external_auth/validate",
+				},
+				ServicePorts: nil,
+			},
+			msg: "external auth with namespaced service name",
+		},
+		{
+			name: "empty signin URI is not set",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				ServicePorts: nil,
+			},
+			msg: "empty signin URI should not be set",
+		},
+		{
+			name: "empty snippets are not set",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSnippets:    "",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				ServicePorts: nil,
+			},
+			msg: "empty snippets should not be set",
+		},
+		{
+			name: "duplicate external auth produces warning",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:  "first-auth-svc",
+					Upstream: "first-auth-svc",
+					Path:     "/first",
+				},
+				ServicePorts: nil,
+			},
+			wantWarning: true,
+			msg:         "duplicate external auth policy should produce warning and be ignored",
+		},
+		{
+			name: "auth with single AuthServicePort",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:          "/check",
+				AuthServiceName:  "auth-svc",
+				AuthServicePorts: []int{9000},
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/check",
+					InternalPath: "/_external_auth/check",
+				},
+				ServicePorts: []int{9000},
+			},
+			msg: "external auth with single AuthServicePort",
+		},
+		{
+			name: "auth with multiple AuthServicePorts",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:          "/check",
+				AuthServiceName:  "auth-svc",
+				AuthServicePorts: []int{80, 9000},
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/check",
+					InternalPath: "/_external_auth/check",
+				},
+				ServicePorts: []int{80, 9000},
+			},
+			msg: "external auth with multiple AuthServicePorts",
+		},
+		{
+			name: "auth with empty AuthServicePorts",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:          "/check",
+				AuthServiceName:  "auth-svc",
+				AuthServicePorts: []int{},
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/check",
+					InternalPath: "/_external_auth/check",
+				},
+				ServicePorts: []int{},
+			},
+			msg: "external auth with empty AuthServicePorts should still be set",
+		},
+		{
+			name: "custom AuthSigninRedirectBasePath",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:                    "/auth",
+				AuthServiceName:            "auth-svc",
+				AuthSigninURI:              "/signin",
+				AuthSigninRedirectBasePath: "/custom-signin",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				SigninURL:              "/signin",
+				ServicePorts:           nil,
+				SigninRedirectBasePath: "/custom-signin",
+			},
+			msg: "custom AuthSigninRedirectBasePath should be set",
+		},
+		{
+			name: "empty AuthSigninRedirectBasePath defaults to /oauth2",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-svc",
+				AuthSigninURI:   "/signin",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				SigninURL:              "/signin",
+				ServicePorts:           nil,
+				SigninRedirectBasePath: DefaultSigninRedirectBasePath,
+			},
+			msg: "empty AuthSigninRedirectBasePath should default to /oauth2",
+		},
+		{
+			name: "SSL verify derives SNIName from authServiceName in same namespace",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-tls-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-tls-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				SSLEnabled:     true,
+				SSLVerify:      true,
+				SSLVerifyDepth: 1,
+				SNIName:        "auth-tls-svc.default.svc",
+			},
+			msg: "SNIName should be derived as <svc>.<ns>.svc when not explicitly set",
+		},
+		{
+			name: "SSL verify derives SNIName from cross-namespace authServiceName",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "other-ns/auth-tls-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "other-ns/auth-tls-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				SSLEnabled:     true,
+				SSLVerify:      true,
+				SSLVerifyDepth: 1,
+				SNIName:        "auth-tls-svc.other-ns.svc",
+			},
+			msg: "SNIName should use the namespace from the cross-namespace service reference",
+		},
+		{
+			name: "SSL verify uses explicit SNIName when set",
+			extAuth: &conf_v1.ExternalAuth{
+				AuthURI:         "/auth",
+				AuthServiceName: "auth-tls-svc",
+				SSLEnabled:      true,
+				SSLVerify:       true,
+				SNIName:         "auth.example.com",
+			},
+			expected: &version2.ExternalAuth{
+				URI: &version2.AuthURI{
+					Service:      "auth-tls-svc",
+					Upstream:     "vs_exauth_default_ext-auth-policy",
+					Path:         "/auth",
+					InternalPath: "/_external_auth/auth",
+				},
+				SSLEnabled:     true,
+				SSLVerify:      true,
+				SSLVerifyDepth: 1,
+				SNIName:        "auth.example.com",
+			},
+			msg: "explicit SNIName should override the derived default",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			config := &policiesCfg{}
+			polNamespace := "default"
+			polName := "ext-auth-policy"
+
+			// For the duplicate test, set up a pre-existing ExternalAuth
+			if test.wantWarning {
+				config.ExternalAuth = &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:  "first-auth-svc",
+						Upstream: "first-auth-svc",
+						Path:     "/first",
+					},
+				}
+			}
+
+			polKey := polNamespace + "/" + polName
+			res := config.addExternalAuthConfig(test.extAuth, polKey, polNamespace, polName, nil, policyOptions{}, policyOwnerDetails{parentType: "vs"})
+
+			if test.wantWarning {
+				if len(res.warnings) == 0 {
+					t.Errorf("%s: expected warnings but got none", test.msg)
+				}
+			} else {
+				if len(res.warnings) > 0 {
+					t.Errorf("%s: unexpected warnings: %v", test.msg, res.warnings)
+				}
+			}
+
+			if diff := cmp.Diff(test.expected, config.ExternalAuth); diff != "" {
+				t.Errorf("%s: ExternalAuth mismatch (-want +got):\n%s", test.msg, diff)
+			}
+		})
+	}
+}
+
+func TestGenerateExternalAuthPolicy(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tests := []struct {
+		name       string
+		owner      policyOwnerDetails
+		path       string
+		policyRefs []conf_v1.PolicyReference
+		policies   map[string]*conf_v1.Policy
+		expected   policiesCfg
+		msg        string
+	}{
+		{
+			name: "VirtualServer with basic external auth policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "ext-auth-policy", Namespace: "default"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ext-auth-policy": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURI:         "/auth",
+							AuthServiceName: "auth-svc",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "vs_exauth_default_ext-auth-policy",
+						Path:         "/auth",
+						InternalPath: "/_external_auth/auth",
+					},
+					ServicePorts: nil,
+				},
+			},
+			msg: "VirtualServer with basic external auth URI",
+		},
+		{
+			name: "VirtualServer with full external auth policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "full-ext-auth"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/full-ext-auth": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURI:         "/oauth2/auth",
+							AuthServiceName: "oauth2-proxy",
+							AuthSigninURI:   "/oauth2/start",
+							AuthSnippets:    "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "oauth2-proxy",
+						Upstream:     "vs_exauth_default_full-ext-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_external_auth/oauth2/auth",
+					},
+					SigninURL:              "/oauth2/start",
+					Snippets:               "proxy_set_header X-Auth-Request-Redirect $request_uri;",
+					ServicePorts:           nil,
+					SigninRedirectBasePath: DefaultSigninRedirectBasePath,
+				},
+			},
+			msg: "VirtualServer with full external auth including signin URI and snippets",
+		},
+		{
+			name: "VirtualServer with HTTPS external auth",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "default",
+				ownerName:       "test-vs",
+				parentNamespace: "default",
+				parentName:      "test-vs",
+				parentType:      "vs",
+			},
+			path: "/",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "https-ext-auth", Namespace: "default"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/https-ext-auth": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURI:         "/validate",
+							AuthServiceName: "auth-svc",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "vs_exauth_default_https-ext-auth",
+						Path:         "/validate",
+						InternalPath: "/_external_auth/validate",
+					},
+					ServicePorts: nil,
+				},
+			},
+			msg: "VirtualServer with external auth URI",
+		},
+		{
+			name: "VirtualServerRoute with external auth policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
+				parentType:      "vs",
+			},
+			path: "/api/v1",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "vsr-ext-auth", Namespace: "app-namespace"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"app-namespace/vsr-ext-auth": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURI:         "/oauth2/auth",
+							AuthServiceName: "auth-svc",
+							AuthSigninURI:   "/oauth2/signin",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "auth-svc",
+						Upstream:     "vs_exauth_app-namespace_vsr-ext-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_external_auth/oauth2/auth",
+					},
+					SigninURL:              "/oauth2/signin",
+					ServicePorts:           nil,
+					SigninRedirectBasePath: DefaultSigninRedirectBasePath,
+				},
+			},
+			msg: "VirtualServerRoute with external auth policy including signin URI",
+		},
+		{
+			name: "VirtualServerRoute with cross-namespace external auth policy",
+			owner: policyOwnerDetails{
+				ownerNamespace:  "app-namespace",
+				ownerName:       "test-vsr",
+				parentNamespace: "default",
+				parentName:      "parent-vs",
+				parentType:      "vs",
+			},
+			path: "/api/v1",
+			policyRefs: []conf_v1.PolicyReference{
+				{Name: "shared-ext-auth", Namespace: "shared-policies"},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"shared-policies/shared-ext-auth": {
+					Spec: conf_v1.PolicySpec{
+						ExternalAuth: &conf_v1.ExternalAuth{
+							AuthURI:         "/oauth2/auth",
+							AuthServiceName: "central-auth",
+							AuthSnippets:    "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				ExternalAuth: &version2.ExternalAuth{
+					URI: &version2.AuthURI{
+						Service:      "central-auth",
+						Upstream:     "vs_exauth_shared-policies_shared-ext-auth",
+						Path:         "/oauth2/auth",
+						InternalPath: "/_external_auth/oauth2/auth",
+					},
+					Snippets:     "proxy_set_header X-Original-URI $request_uri;\nproxy_set_header X-Forwarded-Host $host;",
+					ServicePorts: nil,
+				},
+			},
+			msg: "VirtualServerRoute cross-namespace external auth policy with snippets",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, _ := generatePolicies(
+				ctx,
+				test.owner,
+				test.policyRefs,
+				test.policies,
+				"http",
+				test.path,
+				policyOptions{tls: false},
+				nil,
+			)
+
+			if diff := cmp.Diff(test.expected.ExternalAuth, result.ExternalAuth); diff != "" {
+				t.Errorf("%s: ExternalAuth mismatch (-want +got):\n%s", test.msg, diff)
+			}
+
+			if result.Context != test.expected.Context {
+				t.Errorf("%s: Context mismatch.\nExpected: %+v\nGot: %+v", test.msg, test.expected.Context, result.Context)
+			}
+		})
+	}
+}
+
+func TestAddHSTSConfig(t *testing.T) {
+	t.Parallel()
+
+	polKey := "default/hsts-policy"
+
+	tests := []struct {
+		name          string
+		hsts          *conf_v1.HSTS
+		context       string
+		tls           bool
+		expectedHSTS  *version2.HSTS
+		expectError   bool
+		expectWarning bool
+	}{
+		{
+			name: "hsts policy with maxAge only",
+			hsts: &conf_v1.HSTS{
+				MaxAge: new(2592000),
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge: 2592000,
+			},
+		},
+		{
+			name: "hsts policy with max age and includeSubDomains",
+			hsts: &conf_v1.HSTS{
+				MaxAge:            new(2592000),
+				IncludeSubDomains: true,
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge:            2592000,
+				IncludeSubDomains: true,
+			},
+		},
+		{
+			name: "hsts policy with max age and behindProxy",
+			hsts: &conf_v1.HSTS{
+				MaxAge:      new(2592000),
+				BehindProxy: true,
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge:      2592000,
+				BehindProxy: true,
+			},
+		},
+		{
+			name: "hsts policy with all fields set",
+			hsts: &conf_v1.HSTS{
+				MaxAge:            new(31536000),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+				Preload:           true,
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge:            31536000,
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+				Preload:           true,
+			},
+		},
+		{
+			name: "hsts policy with maxAge of zero",
+			hsts: &conf_v1.HSTS{
+				MaxAge: new(0),
+			},
+			context: specContext,
+			tls:     true,
+			expectedHSTS: &version2.HSTS{
+				MaxAge: 0,
+			},
+		},
+		{
+			name:          "hsts policy with nil maxAge",
+			hsts:          &conf_v1.HSTS{},
+			tls:           true,
+			expectedHSTS:  nil,
+			expectError:   true,
+			expectWarning: true,
+		},
+		{
+			name:          "hsts policy without TLS enabled",
+			hsts:          &conf_v1.HSTS{MaxAge: new(2592000)},
+			context:       specContext,
+			tls:           false,
+			expectedHSTS:  nil,
+			expectError:   true,
+			expectWarning: true,
+		},
+		{
+			name: "hsts policy with behindProxy set to true without TLS enabled",
+			hsts: &conf_v1.HSTS{
+				MaxAge:      new(2592000),
+				BehindProxy: true,
+			},
+			context: specContext,
+			tls:     false,
+			expectedHSTS: &version2.HSTS{
+				MaxAge:      2592000,
+				BehindProxy: true,
+			},
+		},
+		{
+			name: "hsts policy in the route context",
+			hsts: &conf_v1.HSTS{
+				MaxAge: new(2592000),
+			},
+			context:       routeContext,
+			tls:           true,
+			expectedHSTS:  nil,
+			expectError:   true,
+			expectWarning: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			config := &policiesCfg{}
+			res := config.addHSTSConfig(test.hsts, polKey, test.context, test.tls)
+			if test.expectError && !res.isError {
+				t.Errorf("addHSTSConfig() expected error but got none")
+			}
+			if !test.expectError && res.isError {
+				t.Errorf("addHSTSConfig() unexpected error")
+			}
+			if test.expectWarning && len(res.warnings) == 0 {
+				t.Errorf("addHSTSConfig() expected warning but got none")
+			}
+			if diff := cmp.Diff(test.expectedHSTS, config.HSTS); diff != "" {
+				t.Errorf("addHSTSConfig() HSTS mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestAddHSTSConfig_MultiplePolicy(t *testing.T) {
+	t.Parallel()
+
+	config := &policiesCfg{}
+	polKey1 := "default/hsts-policy-one"
+	polKey2 := "default/hsts-policy-two"
+
+	first := &conf_v1.HSTS{MaxAge: new(2592000)}
+	second := &conf_v1.HSTS{MaxAge: new(7200)}
+
+	config.addHSTSConfig(first, polKey1, specContext, true)
+	res := config.addHSTSConfig(second, polKey2, specContext, true)
+
+	if res.isError {
+		t.Error("addHSTSConfig() expected no error for ignored duplicate but got isError=true")
+	}
+	if len(res.warnings) == 0 {
+		t.Error("addHSTSConfig() expected warning for duplicate policy, got none")
+	}
+	if config.HSTS.MaxAge != 2592000 {
+		t.Errorf("addHSTSConfig() first policy should be preserved, got MaxAge=%d", config.HSTS.MaxAge)
 	}
 }
 
@@ -1814,8 +2611,8 @@ func TestGeneratePolicies_GeneratesWAFPolicyOnValidApBundle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			res, warnings := generatePolicies(ctx, ownerDetails, tc.policyRefs, tc.policies, tc.context, tc.path, policyOptions{apResources: &appProtectPolicyResources{}, replicas: 1, oidcPolicyName: ""}, &fakeBV)
 			res.BundleValidator = nil
-			if !reflect.DeepEqual(tc.want, res) {
-				t.Error(cmp.Diff(tc.want, res))
+			if diff := cmp.Diff(tc.want, res, cmpopts.IgnoreFields(policiesCfg{}, "Context")); diff != "" {
+				t.Error(diff)
 			}
 			if len(warnings) > 0 {
 				t.Errorf("generatePolicies() returned unexpected warnings %v for the case of %s", warnings, tc.name)
@@ -2571,6 +3368,42 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: false,
+			},
+			context: "minion",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`IngressMTLS policy default/ingress-mtls-policy is not allowed in the minion context`,
+				},
+			},
+			msg: "ingress mtls on minion ingress",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "ingress-mtls-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ingress-mtls-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "ingress-mtls-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						IngressMTLS: &conf_v1.IngressMTLS{
+							ClientCertSecret: "ingress-mtls-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				tls: false,
 				secretRefs: map[string]*secrets.SecretReference{
 					"default/ingress-mtls-secret": {
 						Secret: &api_v1.Secret{
@@ -2580,7 +3413,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 					},
 				},
 			},
-			context: "route",
+			context: "spec",
 			expected: policiesCfg{
 				ErrorReturn: &version2.Return{
 					Code: 500,
@@ -2588,7 +3421,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`TLS must be enabled in VirtualServer for IngressMTLS policy default/ingress-mtls-policy`,
+					`TLS must be enabled for IngressMTLS policy default/ingress-mtls-policy`,
 				},
 			},
 			msg: "ingress mtls missing TLS config",
@@ -2645,6 +3478,43 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "ingress mtls ca.crl and ingressMTLS.Crl set",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "ingress-mtls-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/ingress-mtls-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "ingress-mtls-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						IngressMTLS: &conf_v1.IngressMTLS{
+							ClientCertSecret: "ingress-mtls-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				tls:        true,
+				secretRefs: map[string]*secrets.SecretReference{},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`IngressMTLS policy "default/ingress-mtls-policy" references a non-existent secret default/ingress-mtls-secret`,
+				},
+			},
+			msg: "ingress mtls absent secret ref",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3176,6 +4046,134 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "hsts-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/hsts-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            nil,
+							IncludeSubDomains: true,
+							BehindProxy:       true,
+							Preload:           false,
+						},
+					},
+				},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`HSTS policy default/hsts-policy is missing required field maxAge`,
+				},
+			},
+			msg: "hsts policy missing max age",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "hsts-policy",
+					Namespace: "default",
+				},
+				{
+					Name:      "hsts-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/hsts-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            new(1234567),
+							IncludeSubDomains: true,
+							BehindProxy:       true,
+						},
+					},
+				},
+				"default/hsts-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            new(7654321),
+							IncludeSubDomains: false,
+							BehindProxy:       false,
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{tls: true},
+			context:    "spec",
+			expected: policiesCfg{
+				Context: ctx,
+				HSTS: &version2.HSTS{
+					MaxAge:            1234567,
+					IncludeSubDomains: true,
+					BehindProxy:       true,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Multiple HSTS policies in the same context are not valid. HSTS policy default/hsts-policy-2 will be ignored`,
+				},
+			},
+			msg: "multiple hsts policies",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "hsts-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/hsts-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "hsts-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						HSTS: &conf_v1.HSTS{
+							MaxAge:            new(1234567),
+							IncludeSubDomains: true,
+							BehindProxy:       true,
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{tls: true},
+			context:    "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`HSTS policy default/hsts-policy is not allowed in the route context`,
+				},
+			},
+			msg: "hsts policy in route context",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "api-key-policy",
 					Namespace: "default",
 				},
@@ -3540,16 +4538,126 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			result, warnings := generatePolicies(ctx, ownerDetails, test.policyRefs, test.policies, test.context, test.path, test.policyOpts, &fakeBV)
 			result.BundleValidator = nil
 
-			if !reflect.DeepEqual(test.expected, result) {
-				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, cmp.Diff(test.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")))
+			if diff := cmp.Diff(test.expected, result, cmpopts.IgnoreFields(policiesCfg{}, "Context")); diff != "" {
+				t.Errorf("generatePolicies() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 			}
-			if !reflect.DeepEqual(warnings, test.expectedWarnings) {
+			if diff := cmp.Diff(test.expectedWarnings, warnings); diff != "" {
 				t.Errorf(
-					"generatePolicies() returned warnings of \n%v but expected \n%v for the case of %s",
-					warnings,
-					test.expectedWarnings,
+					"generatePolicies() warnings mismatch (-want +got) for the case of %s:\n%s",
 					test.msg,
+					diff,
 				)
+			}
+		})
+	}
+}
+
+func TestIsPolicySupportedOnIngress(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		policy   *conf_v1.Policy
+		expected bool
+	}{
+		{
+			name:     "AccessControl is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{AccessControl: &conf_v1.AccessControl{Allow: []string{"127.0.0.1"}}}},
+			expected: true,
+		},
+		{
+			name:     "CORS is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{CORS: &conf_v1.CORS{}}},
+			expected: true,
+		},
+		{
+			name:     "IngressMTLS is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{IngressMTLS: &conf_v1.IngressMTLS{ClientCertSecret: "ca"}}},
+			expected: true,
+		},
+		{
+			name:     "EgressMTLS is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{EgressMTLS: &conf_v1.EgressMTLS{}}},
+			expected: true,
+		},
+		{
+			name:     "RateLimit is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{}}},
+			expected: false,
+		},
+		{
+			name:     "JWTAuth is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
+			expected: false,
+		},
+		{
+			name:     "BasicAuth is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
+			expected: false,
+		},
+		{
+			name:     "OIDC is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
+			expected: false,
+		},
+		{
+			name:     "APIKey is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
+			expected: false,
+		},
+		{
+			name:     "WAF is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{}}},
+			expected: true,
+		},
+		{
+			name:     "Cache is not supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
+			expected: false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsPolicySupportedOnIngress(tc.policy); got != tc.expected {
+				t.Errorf("IsPolicySupportedOnIngress() = %v, want %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGeneratePolicies_UnsupportedOnIngress(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	ingOwnerDetails := policyOwnerDetails{
+		owner:           nil,
+		ownerName:       "cafe-ingress",
+		ownerNamespace:  "default",
+		parentNamespace: "default",
+		parentName:      "cafe-ingress",
+		parentType:      "ing",
+	}
+	policyRef := []conf_v1.PolicyReference{{Name: "test-policy", Namespace: "default"}}
+
+	unsupportedPolicies := map[string]*conf_v1.Policy{
+		"RateLimit": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{RateLimit: &conf_v1.RateLimit{}}},
+		"JWTAuth":   {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{JWTAuth: &conf_v1.JWTAuth{}}},
+		"BasicAuth": {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{BasicAuth: &conf_v1.BasicAuth{}}},
+		"OIDC":      {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
+		"APIKey":    {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{APIKey: &conf_v1.APIKey{}}},
+		"Cache":     {ObjectMeta: meta_v1.ObjectMeta{Name: "test-policy", Namespace: "default"}, Spec: conf_v1.PolicySpec{Cache: &conf_v1.Cache{}}},
+	}
+
+	for policyType, pol := range unsupportedPolicies {
+		t.Run(policyType, func(t *testing.T) {
+			t.Parallel()
+			policies := map[string]*conf_v1.Policy{"default/test-policy": pol}
+			result, warnings := generatePolicies(ctx, ingOwnerDetails, policyRef, policies, "spec", "", policyOptions{}, nil)
+
+			if result.ErrorReturn == nil || result.ErrorReturn.Code != 500 {
+				t.Errorf("generatePolicies() expected ErrorReturn{500} for unsupported policy type %s on Ingress, got %v", policyType, result.ErrorReturn)
+			}
+			if len(warnings[nil]) == 0 {
+				t.Errorf("generatePolicies() expected a warning for unsupported policy type %s on Ingress", policyType)
 			}
 		})
 	}
@@ -3588,8 +4696,8 @@ func TestGenerateLRZPolicyGroupMap(t *testing.T) {
 
 	for _, test := range tests {
 		result := generateLRZPolicyGroupMap(test.lrz)
-		if !reflect.DeepEqual(result, test.expected) {
-			t.Errorf("generateLRZPolicyGroupMap() returned \n%v, but expected \n%v", result, test.expected)
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("generateLRZPolicyGroupMap() mismatch (-want +got):\n%s", diff)
 		}
 	}
 }
@@ -3812,8 +4920,8 @@ func TestGenerateLRZGroupMaps(t *testing.T) {
 		for k, v := range test.expected {
 			sort.Slice(v.Parameters, func(i, j int) bool { return v.Parameters[i].Value < v.Parameters[j].Value })
 			sort.Slice(result[k].Parameters, func(i, j int) bool { return result[k].Parameters[i].Value < result[k].Parameters[j].Value })
-			if !reflect.DeepEqual(result[k], v) {
-				t.Errorf("generateLRZGroupMaps() returned \n%v, but expected \n%v", result, test.expected)
+			if diff := cmp.Diff(v, result[k]); diff != "" {
+				t.Errorf("generateLRZGroupMaps() mismatch (-want +got):\n%s", diff)
 			}
 		}
 	}

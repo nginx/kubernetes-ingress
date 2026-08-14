@@ -78,8 +78,9 @@ def read_custom_resource(
         response = custom_objects.get_namespaced_custom_object(api_group, "v1", namespace, plural, name)
         return response
 
-    except ApiException:
-        logging.exception(f"Exception occurred while reading CRD")
+    except ApiException as ex:
+        if ex.status != 404:
+            logging.error(f"Exception occurred while reading CRD", exc_info=True)
         raise
 
 
@@ -141,8 +142,10 @@ def create_resource_from_manifest(custom_objects: CustomObjectsApi, body, namesp
         custom_objects.create_namespaced_custom_object(group, version, namespace, plural, body)
         print(f"Custom resource {body['kind']} created with name '{body['metadata']['name']}'")
     except ApiException as ex:
-        logging.exception(f"Exception: {ex} occurred while creating {body['kind']}: {body['metadata']['name']}")
-        raise ex
+        logging.error(
+            f"Exception: {ex} occurred while creating {body['kind']}: {body['metadata']['name']}", exc_info=True
+        )
+        raise
 
 
 def read_custom_resource_v1(custom_objects: CustomObjectsApi, namespace, plural, name) -> object:
@@ -161,8 +164,9 @@ def read_custom_resource_v1(custom_objects: CustomObjectsApi, namespace, plural,
         pprint(response)
         return response
 
-    except ApiException:
-        logging.exception(f"Exception occurred while reading CRD")
+    except ApiException as ex:
+        if ex.status != 404:
+            logging.error(f"Exception occurred while reading CRD", exc_info=True)
         raise
 
 
@@ -231,7 +235,9 @@ def create_resource_from_yaml(custom_objects: CustomObjectsApi, yaml_manifest, n
         print(f"Custom resource {body['kind']} created with name '{body['metadata']['name']}'")
         return body
     except ApiException as ex:
-        logging.exception(f"Exception: {ex} occurred while creating {body['kind']}: {body['metadata']['name']}")
+        logging.error(
+            f"Exception: {ex} occurred while creating {body['kind']}: {body['metadata']['name']}", exc_info=True
+        )
         raise
 
 
@@ -433,7 +439,7 @@ def patch_custom_resource(custom_objects: CustomObjectsApi, name, yaml_manifest,
     try:
         custom_objects.patch_namespaced_custom_object("k8s.nginx.org", "v1", namespace, plural, name, dep)
     except ApiException:
-        logging.exception(f"Failed with exception while patching custom resource: {name}")
+        logging.error(f"Failed with exception while patching custom resource: {name}", exc_info=True)
         raise
 
 
@@ -448,7 +454,7 @@ def patch_ts(custom_objects: CustomObjectsApi, namespace, body) -> None:
     try:
         custom_objects.patch_namespaced_custom_object("k8s.nginx.org", "v1", namespace, "transportservers", name, body)
     except ApiException:
-        logging.exception(f"Failed with exception while patching custom resource: {name}")
+        logging.error(f"Failed with exception while patching custom resource: {name}", exc_info=True)
         raise
 
 

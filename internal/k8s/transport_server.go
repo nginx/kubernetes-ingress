@@ -49,12 +49,15 @@ func createTransportServerHandlers(lbc *LoadBalancerController) cache.ResourceEv
 	}
 }
 
-func (nsi *namespacedInformer) addTransportServerHandler(handlers cache.ResourceEventHandlerFuncs) {
+func (nsi *namespacedInformer) addTransportServerHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().TransportServers().Informer()
-	informer.AddEventHandler(handlers) //nolint:errcheck,gosec
+	if _, err := informer.AddEventHandler(handlers); err != nil {
+		return fmt.Errorf("failed to add TransportServer event handler: %w", err)
+	}
 	nsi.transportServerLister = informer.GetStore()
 
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+	return nil
 }
 
 func (lbc *LoadBalancerController) syncTransportServer(task task) {
@@ -63,7 +66,8 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 	var tsExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, transportServerKind, logNameKey, n)
 	obj, tsExists, err = lbc.getNamespacedInformer(ns).transportServerLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -74,10 +78,10 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 	var problems []ConfigurationProblem
 
 	if !tsExists {
-		nl.Debugf(lbc.Logger, "Deleting TransportServer: %v\n", key)
+		nl.Debugf(l, "Deleting TransportServer: %v\n", key)
 		changes, problems = lbc.configuration.DeleteTransportServer(key)
 	} else {
-		nl.Debugf(lbc.Logger, "Adding or Updating TransportServer: %v\n", key)
+		nl.Debugf(l, "Adding or Updating TransportServer: %v\n", key)
 		ts := obj.(*conf_v1.TransportServer)
 		changes, problems = lbc.configuration.AddOrUpdateTransportServer(ts)
 	}
@@ -114,12 +118,12 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEventsOnDelete(
 		}
 
 		msg := fmt.Sprintf("TransportServer %s was rejected %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
-		lbc.recorder.Eventf(tsConfig.TransportServer, eventType, eventTitle, msg)
+		lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
 
 		if lbc.reportCustomResourceStatusEnabled() {
 			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
 			if err != nil {
-				nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+				nl.Errorf(lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, transportServerKind, logNameKey, tsConfig.TransportServer.Name), "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
 			}
 		}
 	}
@@ -153,12 +157,21 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 	}
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&tsConfig.TransportServer.ObjectMeta), eventWarningMessage)
-	lbc.recorder.Eventf(tsConfig.TransportServer, eventType, eventTitle, msg)
+	lbc.recorder.Event(tsConfig.TransportServer, eventType, eventTitle, msg)
+	logger := lbc.Logger.With(logNamespaceKey, tsConfig.TransportServer.Namespace, logKindKey, transportServerKind, logNameKey, tsConfig.TransportServer.Name)
 
 	if lbc.reportCustomResourceStatusEnabled() {
-		err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
-		if err != nil {
-			nl.Errorf(lbc.Logger, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+		// Defer TS status updates during startup to avoid serial API calls
+		// that block readiness. See flushPendingStatusesAsync().
+		if !lbc.isNginxReady {
+			lbc.pendingStatusTSes = append(lbc.pendingStatusTSes, pendingTSStatus{
+				ts: tsConfig.TransportServer, state: state, reason: eventTitle, message: msg,
+			})
+		} else {
+			err := lbc.statusUpdater.UpdateTransportServerStatus(tsConfig.TransportServer, state, eventTitle, msg)
+			if err != nil {
+				nl.Errorf(logger, "Error when updating the status for TransportServer %v/%v: %v", tsConfig.TransportServer.Namespace, tsConfig.TransportServer.Name, err)
+			}
 		}
 	}
 }
@@ -207,6 +220,7 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 	externalNameSvcs := make(map[string]bool)
 	podsByIP := make(map[string]string)
 	disableIPV6 := lbc.configuration.isIPV6Disabled
+	logger := lbc.Logger.With(logNamespaceKey, transportServer.Namespace, logKindKey, transportServerKind, logNameKey, transportServer.Name)
 
 	for _, u := range transportServer.Spec.Upstreams {
 		podEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Service, uint16(u.Port)) //nolint:gosec
@@ -214,7 +228,7 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 			externalNameSvcs[configs.GenerateExternalNameSvcKey(transportServer.Namespace, u.Service)] = true
 		}
 		if err != nil {
-			nl.Warnf(lbc.Logger, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
+			nl.Warnf(logger, "Error getting Endpoints for Upstream %v: %v", u.Name, err)
 		}
 
 		// subselector is not supported yet in TransportServer upstreams. That's why we pass "nil" here
@@ -242,7 +256,7 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 
 		scrtRef := lbc.secretStore.GetSecret(scrtKey)
 		if scrtRef.Error != nil {
-			nl.Warnf(lbc.Logger, "Error trying to get the secret %v for TransportServer %v: %v", scrtKey, transportServer.Name, scrtRef.Error)
+			nl.Warnf(logger, "Error trying to get the secret %v for TransportServer %v: %v", scrtKey, transportServer.Name, scrtRef.Error)
 		}
 
 		scrtRefs[scrtKey] = scrtRef

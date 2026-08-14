@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: route-images
+spec:
+  host: vsr-multi-regex.example.com
+  subroutes:
+  - path: "~*/images/jpg"
+    action:
+      return:
+        code: 200
+        body: "images-jpg"
+  - path: "~*/images/png"
+    action:
+      return:
+        code: 200
+        body: "images-png"

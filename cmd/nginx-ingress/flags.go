@@ -79,6 +79,8 @@ var (
 	appProtectEnforcerAddress = flag.String("app-protect-enforcer-address", appProtectEnforcerAddrDefault,
 		`Sets address for App Protect v5 Enforcer. Requires -nginx-plus and -enable-app-protect.`)
 
+	appProtectIPIntelligence = flag.Bool("enable-app-protect-ip-intelligence", false, "Enable App Protect IP Intelligence. Requires -nginx-plus and -enable-app-protect.")
+
 	agent              = flag.Bool("agent", false, "Enable NGINX Agent")
 	agentInstanceGroup = flag.String("agent-instance-group", "nginx-ingress-controller", "Grouping used to associate NGINX Ingress Controller instances")
 
@@ -190,13 +192,6 @@ var (
 
 	tlsPassthroughPort = flag.Int("tls-passthrough-port", 443, "Set custom port for TLS Passthrough. [1024 - 65535]")
 
-	spireAgentAddress = flag.String("spire-agent-address", "",
-		`Specifies the address of the running Spire agent. Requires -nginx-plus and is for use with NGINX Service Mesh only. If the flag is set,
-			but the Ingress Controller is not able to connect with the Spire Agent, the Ingress Controller will fail to start.`)
-
-	enableInternalRoutes = flag.Bool("enable-internal-routes", false,
-		`Enable support for internal routes with NGINX Service Mesh. Requires -spire-agent-address and -nginx-plus. Is for use with NGINX Service Mesh only.`)
-
 	readyStatus = flag.Bool("ready-status", true, "Enables the readiness endpoint '/nginx-ready'. The endpoint returns a success code when NGINX has loaded all the config after the startup")
 
 	readyStatusPort = flag.Int("ready-status-port", 8081, "Set the port where the readiness endpoint is exposed. [1024 - 65535]")
@@ -229,6 +224,13 @@ var (
 	enableDynamicWeightChangesReload = flag.Bool(dynamicWeightChangesParam, false, "Enable changing weights of split clients without reloading NGINX. Requires -nginx-plus")
 
 	enableDirectiveAutoadjust = flag.Bool("enable-directive-autoadjust", false, "Enable automatic adjustment of NGINX directives to avoid conflicting NGINX configuration. Results may vary and might not be ideal in all cases.")
+
+	allowEmptyIngressHost = flag.Bool("allow-empty-ingress-host", false,
+		`Allows Ingress resources to omit the host field. If multiple Ingress resources without a host conflict,
+	NGINX Ingress Controller resolves the collision using the winner selection algorithm. To use multiple
+	Ingress resources without a host across namespaces without conflict, use mergeable Ingress. To configure
+	TLS, use -default-server-tls-secret. To configure listener ports, use -default-http-listener-port or
+	-default-https-listener-port. Default is false.`)
 
 	startupCheckFn func() error
 )
@@ -378,8 +380,8 @@ func mustValidateFlags(ctx context.Context) {
 	}
 
 	if *appProtectLogLevel != appProtectLogLevelDefault && *appProtect && *nginxPlus {
-		appProtectlogLevelValidationError := validateLogLevel(*appProtectLogLevel)
-		if appProtectlogLevelValidationError != nil {
+		appProtectLogLevelValidationError := validateLogLevel(*appProtectLogLevel)
+		if appProtectLogLevelValidationError != nil {
 			nl.Fatalf(l, "Invalid value for app-protect-log-level: %v", *appProtectLogLevel)
 		}
 	}
@@ -414,10 +416,6 @@ func mustValidateFlags(ctx context.Context) {
 
 	if *appProtectDosMemory != 0 && !*appProtectDos && !*nginxPlus {
 		nl.Fatal(l, "NGINX App Protect Dos memory support is for NGINX Plus and App Protect Dos is enable")
-	}
-
-	if *enableInternalRoutes && *spireAgentAddress == "" {
-		nl.Fatal(l, "enable-internal-routes flag requires spire-agent-address")
 	}
 
 	if *enableCertManager && !*enableCustomResources {

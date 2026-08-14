@@ -62,7 +62,11 @@ permissions:
 jobs:
   binaries:
     name: Build Binaries
+    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
+    concurrency:
+      group: binary-cache-${{ github.ref }}-${{ inputs.go-md5 }}
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -70,15 +74,23 @@ jobs:
       json: ${{ steps.nic_binaries.outputs.json }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch }}
 
+      - name: Fetch Cached Binary Artifacts
+        id: binary-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ github.workspace }}/dist
+          key: nginx-ingress-${{ inputs.go-md5 }}
+        if: ${{ inputs.force }}
+
       - name: Setup Golang Environment
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-        if: ${{ inputs.force }}
+        if: ${{ inputs.force && steps.binary-cache.outputs.cache-hit != 'true' }}
 
       - name: Setup netrc
         run: |
@@ -88,10 +100,10 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ inputs.force || inputs.authenticated == 'true' }}
+        if: ${{ steps.binary-cache.outputs.cache-hit != 'true' && (inputs.force || inputs.authenticated == 'true') }}
 
       - name: Build binaries
-        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7.0.0
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           version: v2.12.3 # renovate: datasource=github-releases depName=goreleaser/goreleaser,
           args: build --snapshot --clean
@@ -100,7 +112,7 @@ jobs:
           GOPATH: ${{ inputs.go-path }}
           GOPROXY: ${{ inputs.go-proxy }}
           GORELEASER_CURRENT_TAG: "v${{ inputs.ic-version }}"
-        if: ${{ inputs.force }}
+        if: ${{ inputs.force && steps.binary-cache.outputs.cache-hit != 'true' }}
 
       - name: Extract NGINX Ingress Controller binary info
         id: nic_binaries
@@ -109,11 +121,11 @@ jobs:
         if: ${{ inputs.force }}
 
       - name: Store Artifacts in Cache
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
-        if: ${{ inputs.force }}
+        if: ${{ inputs.force && steps.binary-cache.outputs.cache-hit != 'true' }}
 
       - name: Cleanup netrc
         run: rm -f $HOME/.netrc
@@ -201,9 +213,13 @@ jobs:
   build-docker:
     name: Build Docker OSS
     needs: [binaries]
+    concurrency:
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-oss ) }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-oss.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -229,9 +245,13 @@ jobs:
   build-docker-plus:
     name: Build Docker Plus
     needs: [binaries]
+    concurrency:
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-plus ) }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -256,9 +276,13 @@ jobs:
   build-docker-nap:
     name: Build Docker NAP
     needs: [binaries]
+    concurrency:
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-nap ) }}
+    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}

@@ -27,12 +27,12 @@ type VirtualServerSpecApplyConfiguration struct {
 	HTTPSnippets *string `json:"http-snippets,omitempty"`
 	// Sets a custom snippet in server context. Overrides the server-snippets ConfigMap key.
 	ServerSnippets *string `json:"server-snippets,omitempty"`
+	// Controls header inheritance behavior at the server level. Allowed values are: on, off, merge. When set to "merge", headers from this context are merged with headers in child contexts. When set to "on", standard NGINX inheritance applies. When set to "off", no headers are inherited from parent contexts.
+	AddHeaderInherit *string `json:"add-header-inherit,omitempty"`
 	// A reference to a DosProtectedResource, setting this enables DOS protection of the VirtualServer route.
 	Dos *string `json:"dos,omitempty"`
 	// The externalDNS configuration for a VirtualServer.
 	ExternalDNS *ExternalDNSApplyConfiguration `json:"externalDNS,omitempty"`
-	// InternalRoute allows for the configuration of internal routing.
-	InternalRoute *bool `json:"internalRoute,omitempty"`
 }
 
 // VirtualServerSpecApplyConfiguration constructs a declarative configuration of the VirtualServerSpec type for use with
@@ -136,6 +136,14 @@ func (b *VirtualServerSpecApplyConfiguration) WithServerSnippets(value string) *
 	return b
 }
 
+// WithAddHeaderInherit sets the AddHeaderInherit field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AddHeaderInherit field is set to the value of the last call.
+func (b *VirtualServerSpecApplyConfiguration) WithAddHeaderInherit(value string) *VirtualServerSpecApplyConfiguration {
+	b.AddHeaderInherit = &value
+	return b
+}
+
 // WithDos sets the Dos field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Dos field is set to the value of the last call.
@@ -149,13 +157,5 @@ func (b *VirtualServerSpecApplyConfiguration) WithDos(value string) *VirtualServ
 // If called multiple times, the ExternalDNS field is set to the value of the last call.
 func (b *VirtualServerSpecApplyConfiguration) WithExternalDNS(value *ExternalDNSApplyConfiguration) *VirtualServerSpecApplyConfiguration {
 	b.ExternalDNS = value
-	return b
-}
-
-// WithInternalRoute sets the InternalRoute field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the InternalRoute field is set to the value of the last call.
-func (b *VirtualServerSpecApplyConfiguration) WithInternalRoute(value bool) *VirtualServerSpecApplyConfiguration {
-	b.InternalRoute = &value
 	return b
 }

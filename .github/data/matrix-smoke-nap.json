@@ -2,7 +2,7 @@
   "images": [
     {
       "label": "AP_WAF 1/4",
-      "image": "ubi-8-plus-nap",
+      "image": "ubi-10-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
       "marker": "'appprotect_waf_policies_allow or otel'",
@@ -10,7 +10,7 @@
     },
     {
       "label": "AP_WAF 2/4",
-      "image": "ubi-9-plus-nap",
+      "image": "ubi-10-plus-nap",
       "type": "plus",
       "nap_modules": "waf",
       "marker": "'appprotect_waf_policies and not appprotect_waf_policies_allow and not appprotect_waf_policies_vsr'",
@@ -58,7 +58,7 @@
     },
     {
       "label": "AP_DOS 3/3",
-      "image": "ubi-9-plus-nap",
+      "image": "ubi-10-plus-nap",
       "type": "plus",
       "nap_modules": "dos",
       "marker": "'dos_learning'",
@@ -70,6 +70,14 @@
       "type": "plus",
       "nap_modules": "waf",
       "marker": "agentv2",
+      "platforms": "linux/amd64"
+    },
+    {
+      "label": "AGENT_V3_NAP 1/1",
+      "image": "debian-plus-nap-agent",
+      "type": "plus",
+      "nap_modules": "waf",
+      "marker": "agentv3",
       "platforms": "linux/amd64"
     }
   ],

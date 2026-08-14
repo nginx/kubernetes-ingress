@@ -53,7 +53,7 @@ func TestParseConfigMapWithAppProtectCompressedRequestsAction(t *testing.T) {
 				"app-protect-compressed-requests-action": test.action,
 			},
 		}
-		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 		if result.MainAppProtectCompressedRequestsAction != test.expect {
 			t.Errorf("ParseConfigMap() returned %q but expected %q for the case %s", result.MainAppProtectCompressedRequestsAction, test.expect, test.msg)
 		}
@@ -123,7 +123,7 @@ func TestParseConfigMapWithAppProtectReconnectPeriod(t *testing.T) {
 				"app-protect-reconnect-period-seconds": test.period,
 			},
 		}
-		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+		result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 		if result.MainAppProtectReconnectPeriod != test.expect {
 			t.Errorf("ParseConfigMap() returned %q but expected %q for the case %s", result.MainAppProtectReconnectPeriod, test.expect, test.msg)
 		}
@@ -165,7 +165,7 @@ func TestParseConfigMapWithTLSPassthroughProxyProtocol(t *testing.T) {
 					"real-ip-header": test.realIPheader,
 				},
 			}
-			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if result.RealIPHeader != test.want {
 				t.Errorf("want %q, got %q", test.want, result.RealIPHeader)
 			}
@@ -208,7 +208,7 @@ func TestParseConfigMapWithoutTLSPassthroughProxyProtocol(t *testing.T) {
 					"real-ip-header": test.realIPheader,
 				},
 			}
-			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if result.RealIPHeader != test.want {
 				t.Errorf("want %q, got %q", test.want, result.RealIPHeader)
 			}
@@ -256,7 +256,7 @@ func TestParseConfigMapAccessLog(t *testing.T) {
 					"access-log-off": test.accessLogOff,
 				},
 			}
-			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if result.MainAccessLog != test.want {
 				t.Errorf("want %q, got %q", test.want, result.MainAccessLog)
 			}
@@ -289,7 +289,7 @@ func TestParseConfigMapAccessLogDefault(t *testing.T) {
 					"access-log-off": "False",
 				},
 			}
-			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if result.MainAccessLog != test.want {
 				t.Errorf("want %q, got %q", test.want, result.MainAccessLog)
 			}
@@ -470,7 +470,7 @@ func TestParseConfigMapOIDC(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if !configOk {
 				t.Error("want configOk true, got configOk false")
 			}
@@ -639,7 +639,7 @@ func TestParseConfigMapOIDCErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			_, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			_, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 
 			if test.expectedErr && configOk {
 				t.Errorf("want configOk false, got configOk true for %s", test.msg)
@@ -1595,7 +1595,7 @@ func TestParseZoneSync(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, _ := ParseConfigMap(context.Background(), test.configMap, true, false, false, false, true, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), test.configMap, true, false, false, false, true, true, makeEventLogger())
 			if result.ZoneSync.Enable != test.want.Enable {
 				t.Errorf("Enable: want %v, got %v", test.want.Enable, result.ZoneSync)
 			}
@@ -1638,7 +1638,7 @@ func TestParseZoneSyncForOSS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			_, configOk := ParseConfigMap(context.Background(), test.configMap, false, false, false, false, true, makeEventLogger())
+			_, configOk := ParseConfigMap(context.Background(), test.configMap, false, false, false, false, true, true, makeEventLogger())
 			if configOk {
 				t.Errorf("Expected config not valid, got valid")
 			}
@@ -1679,7 +1679,7 @@ func TestParseZoneSyncPort(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, _ := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, _ := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if result.ZoneSync.Port != test.want.Port {
 				t.Errorf("Port: want %v, got %v", test.want.Port, result.ZoneSync.Port)
 			}
@@ -1714,7 +1714,7 @@ func TestZoneSyncPortSetToDefaultOnZoneSyncEnabledAndPortNotProvided(t *testing.
 	directiveAutoadjustEnabled := false
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if !configOk {
 				t.Error("zone-sync: want configOk true, got configOk false ")
 			}
@@ -1786,7 +1786,7 @@ func TestParseZoneSyncPortErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if ok {
 				t.Error("Expected config not valid, got valid")
 			}
@@ -1863,7 +1863,7 @@ func TestParseZoneSyncResolverErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
-			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			_, ok := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if ok {
 				t.Error("Expected config not valid, got valid")
 			}
@@ -1921,7 +1921,7 @@ func TestParseZoneSyncResolverIPV6MapResolverIPV6(t *testing.T) {
 			hasTLSPassthrough := false
 			directiveAutoadjustEnabled := false
 
-			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 
 			if !configOk {
 				t.Errorf("zone-sync-resolver-ipv6: want configOk true, got configOk %v  ", configOk)
@@ -2035,7 +2035,7 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			result, configOk := ParseConfigMap(context.Background(), test.configMap, isPlus,
-				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if configOk != expectedConfigOk {
 				t.Errorf("configOk: want %v, got %v", expectedConfigOk, configOk)
 			}
@@ -2267,7 +2267,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.msg, func(t *testing.T) {
 			result, configOk := ParseConfigMap(context.Background(), test.configMap, isPlus,
-				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+				hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 			if configOk != expectedConfigOk {
 				t.Errorf("configOk: want %v, got %v", expectedConfigOk, configOk)
 			}
@@ -2349,7 +2349,7 @@ func TestParseProxyBuffers(t *testing.T) {
 				t.Parallel()
 
 				eventRecorder := makeEventLogger()
-				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, eventRecorder)
 
 				if !configOk {
 					t.Errorf("%s: expected config to be valid but got invalid", test.description)
@@ -2428,7 +2428,7 @@ func TestParseProxyBuffers(t *testing.T) {
 				t.Parallel()
 
 				eventRecorder := makeEventLogger()
-				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+				result, configOk := ParseConfigMap(context.Background(), test.configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, eventRecorder)
 
 				if !configOk {
 					t.Errorf("%s: expected config to be valid but got invalid", test.description)
@@ -2521,7 +2521,7 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 				}
 
 				eventRecorder := makeEventLogger()
-				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, eventRecorder)
 
 				if configOk != test.expectValid {
 					t.Errorf("%s: expected configOk=%v, got configOk=%v", test.description, test.expectValid, configOk)
@@ -2580,7 +2580,7 @@ func TestParseProxyBuffersInvalidFormat(t *testing.T) {
 				}
 
 				eventRecorder := makeEventLogger()
-				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, eventRecorder)
+				result, configOk := ParseConfigMap(context.Background(), cm, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, eventRecorder)
 
 				// When auto-adjust is disabled, config should always be valid since no validation occurs
 				if !configOk {
@@ -2680,6 +2680,7 @@ func TestParseConfigMapClientBodyBufferSizeValid(t *testing.T) {
 				hasAppProtectDos,
 				hasTLSPassthrough,
 				directiveAutoadjustEnabled,
+				true,
 				makeEventLogger(),
 			)
 
@@ -2779,6 +2780,7 @@ func TestParseConfigMapClientBodyBufferSizeInvalid(t *testing.T) {
 				hasAppProtectDos,
 				hasTLSPassthrough,
 				directiveAutoadjustEnabled,
+				true,
 				makeEventLogger(),
 			)
 
@@ -2814,7 +2816,7 @@ func TestParseErrorLogLevelToVirtualServer(t *testing.T) {
 
 			eventRecorder := makeEventLogger()
 
-			result, configOk := ParseConfigMap(context.Background(), cm, true, false, false, false, false, eventRecorder)
+			result, configOk := ParseConfigMap(context.Background(), cm, true, false, false, false, false, true, eventRecorder)
 
 			if !configOk {
 				t.Errorf("expected config map with error-log-level set to be %s to be valid", testLevel)
@@ -2974,7 +2976,7 @@ func TestParseConfigMapWithHTTPRedirectCode(t *testing.T) {
 				Data: test.configMap,
 			}
 
-			result, configOK := ParseConfigMap(context.Background(), configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, makeEventLogger())
+			result, configOK := ParseConfigMap(context.Background(), configMap, nginxPlus, hasAppProtect, hasAppProtectDos, hasTLSPassthrough, directiveAutoadjustEnabled, true, makeEventLogger())
 
 			if test.expectError {
 				assert.False(t, configOK, test.msg)
@@ -2987,6 +2989,290 @@ func TestParseConfigMapWithHTTPRedirectCode(t *testing.T) {
 	}
 }
 
+// TestParseAndValidateAddHeaders unit-tests the helper directly, covering all
+// validation branches without going through ParseConfigMap.
+func TestParseAndValidateAddHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     string
+		wantLen int
+		wantErr bool
+	}{
+		// Valid inputs
+		{name: "single header", raw: "X-Frame-Options:DENY", wantLen: 1},
+		{name: "header with always", raw: "X-Frame-Options:DENY:always", wantLen: 1},
+		{name: "multiple headers", raw: "X-Frame-Options:DENY, X-Content-Type-Options:nosniff", wantLen: 2},
+		{name: "empty string", raw: "", wantLen: 0},
+		// Invalid header names
+		{name: "name with space", raw: "X Bad:value", wantErr: true},
+		{name: "name with @", raw: "X-He@der:value", wantErr: true},
+		// Invalid header values
+		{name: "value with $", raw: "X-Header:$nginx_var", wantErr: true},
+		{name: "value with newline", raw: "X-Header:foo\nbar", wantErr: true},
+		{name: "value with carriage return", raw: "X-Header:foo\rbar", wantErr: true},
+		// All-or-nothing: first entry valid, second invalid → error
+		{name: "mixed valid and invalid", raw: "X-Good:ok, X-Bad:$inject", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := parseAndValidateAddHeaders(tc.raw)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("want error, got nil (headers: %v)", got)
+				}
+				if len(got) != 0 {
+					t.Errorf("want no headers on error, got %v", got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != tc.wantLen {
+				t.Errorf("want %d headers, got %d: %v", tc.wantLen, len(got), got)
+			}
+		})
+	}
+}
+
+// TestParseConfigMapAddHeader verifies that the ConfigMap "add-header" key populates
+// ConfigParams.MainAddHeaders in the http {} context and does not populate
+// AddHeaders, which is reserved for the nginx.org/add-header annotation in server {} context.
+func TestParseConfigMapAddHeader(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		data            map[string]string
+		wantMainHeaders []string // expected header names in MainAddHeaders
+		wantNoHeaders   bool     // true when key is absent or all entries invalid
+		wantConfigOk    bool
+	}{
+		{
+			name:            "single header without always",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY"},
+			wantMainHeaders: []string{"X-Frame-Options"},
+			wantConfigOk:    true,
+		},
+		{
+			name:            "multiple headers",
+			data:            map[string]string{"add-header": "X-Frame-Options:DENY, X-Content-Type-Options:nosniff"},
+			wantMainHeaders: []string{"X-Frame-Options", "X-Content-Type-Options"},
+			wantConfigOk:    true,
+		},
+		{
+			name:          "key absent — MainAddHeaders stays nil",
+			data:          map[string]string{},
+			wantNoHeaders: true,
+			wantConfigOk:  true,
+		},
+		{
+			name:          "invalid header — configOk false, no headers set",
+			data:          map[string]string{"add-header": "X-Bad:$inject"},
+			wantNoHeaders: true,
+			wantConfigOk:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{Data: tc.data}
+			result, configOk := ParseConfigMap(context.Background(), cm,
+				false, false, false, false, false, true, makeEventLogger())
+
+			if configOk != tc.wantConfigOk {
+				t.Errorf("configOk: want %v, got %v", tc.wantConfigOk, configOk)
+			}
+
+			// ConfigMap "add-header" must populate MainAddHeaders (http {} context).
+			if tc.wantNoHeaders {
+				if len(result.MainAddHeaders) != 0 {
+					t.Errorf("want MainAddHeaders empty, got %v", result.MainAddHeaders)
+				}
+				return
+			}
+
+			if len(result.MainAddHeaders) != len(tc.wantMainHeaders) {
+				t.Fatalf("want %d MainAddHeaders, got %d: %v",
+					len(tc.wantMainHeaders), len(result.MainAddHeaders), result.MainAddHeaders)
+			}
+			for i, want := range tc.wantMainHeaders {
+				if got := result.MainAddHeaders[i].Name; got != want {
+					t.Errorf("MainAddHeaders[%d].Name: want %q, got %q", i, want, got)
+				}
+			}
+
+			// ConfigMap must never populate AddHeaders (annotation path → server {} context).
+			if len(result.AddHeaders) != 0 {
+				t.Errorf("ConfigMap must not populate AddHeaders (server context); got %v", result.AddHeaders)
+			}
+		})
+	}
+}
+
 func makeEventLogger() record.EventRecorder {
 	return record.NewFakeRecorder(1024)
+}
+
+func TestParseConfigMapWithAddHeaderInherit(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		value       string
+		expect      string
+		expectError bool
+		msg         string
+	}{
+		{
+			value:       "on",
+			expect:      "on",
+			expectError: false,
+			msg:         "valid value on",
+		},
+		{
+			value:       "off",
+			expect:      "off",
+			expectError: false,
+			msg:         "valid value off",
+		},
+		{
+			value:       "merge",
+			expect:      "merge",
+			expectError: false,
+			msg:         "valid value merge",
+		},
+		{
+			value:       "ON",
+			expect:      "on",
+			expectError: false,
+			msg:         "invalid value ON (mixed case)",
+		},
+		{
+			value:       "Merge",
+			expect:      "merge",
+			expectError: false,
+			msg:         "invalid value Merge (mixed case)",
+		},
+		{
+			value:       "MERGE",
+			expect:      "merge",
+			expectError: false,
+			msg:         "invalid value MERGE (mixed case)",
+		},
+		{
+			value:       "OFF",
+			expect:      "off",
+			expectError: false,
+			msg:         "invalid value OFF (mixed case)",
+		},
+		{
+			value:       "oFf",
+			expect:      "off",
+			expectError: false,
+			msg:         "invalid value oFf (mixed case)",
+		},
+		{
+			value:       "invalid",
+			expect:      "",
+			expectError: true,
+			msg:         "invalid value",
+		},
+		{
+			value:       "yes",
+			expect:      "",
+			expectError: true,
+			msg:         "invalid value yes",
+		},
+		{
+			value:       "",
+			expect:      "",
+			expectError: true,
+			msg:         "empty value",
+		},
+	}
+	for _, test := range tests {
+		cm := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "nginx-config",
+				Namespace: "nginx-ingress",
+			},
+			Data: map[string]string{},
+		}
+		cm.Data["add-header-inherit"] = test.value
+		result, configOK := ParseConfigMap(context.Background(), cm, false, false, false, false, false, true, makeEventLogger())
+		if result.AddHeaderInherit != test.expect {
+			t.Errorf("ParseConfigMap() returned AddHeaderInherit=%q but expected %q for the case: %s", result.AddHeaderInherit, test.expect, test.msg)
+		}
+		if test.expectError && configOK {
+			t.Errorf("ParseConfigMap() returned configOK=true but expected false for the case: %s", test.msg)
+		}
+		if !test.expectError && !configOK {
+			t.Errorf("ParseConfigMap() returned configOK=false but expected true for the case: %s", test.msg)
+		}
+	}
+}
+
+func TestParseConfigMapDisableForwardedHeaders(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg            string
+		data           map[string]string
+		enableSnippets bool
+		wantDisabled   bool
+		wantConfigOk   bool
+	}{
+		{
+			msg:            "disable-forwarded-headers true with snippets enabled",
+			data:           map[string]string{"disable-forwarded-headers": "true"},
+			enableSnippets: true,
+			wantDisabled:   true,
+			wantConfigOk:   true,
+		},
+		{
+			msg:            "disable-forwarded-headers false with snippets enabled",
+			data:           map[string]string{"disable-forwarded-headers": "false"},
+			enableSnippets: true,
+			wantDisabled:   false,
+			wantConfigOk:   true,
+		},
+		{
+			msg:            "disable-forwarded-headers true with snippets disabled",
+			data:           map[string]string{"disable-forwarded-headers": "true"},
+			enableSnippets: false,
+			wantDisabled:   false,
+			wantConfigOk:   false,
+		},
+		{
+			msg:            "disable-forwarded-headers invalid bool with snippets enabled",
+			data:           map[string]string{"disable-forwarded-headers": "notabool"},
+			enableSnippets: true,
+			wantDisabled:   false,
+			wantConfigOk:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: tc.data,
+			}
+			recorder := makeEventLogger()
+			cfgParams, configOk := ParseConfigMap(context.Background(), cm, false, false, false, false, false, tc.enableSnippets, recorder)
+			if configOk != tc.wantConfigOk {
+				t.Errorf("configOk: want %v, got %v", tc.wantConfigOk, configOk)
+			}
+			if cfgParams.DisableForwardedHeaders != tc.wantDisabled {
+				t.Errorf("DisableForwardedHeaders: want %v, got %v", tc.wantDisabled, cfgParams.DisableForwardedHeaders)
+			}
+		})
+	}
 }

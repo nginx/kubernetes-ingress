@@ -1,0 +1,6 @@
+controller:
+  allowEmptyIngressHost: true
+  defaultHTTPListenerPort: 8080
+  defaultHTTPSListenerPort: 8443
+  defaultTLS:
+    secret: default/empty-host-tls

@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
+	"github.com/nginx/kubernetes-ingress/internal/helpers"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
@@ -19,6 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+// DefaultSigninRedirectBasePath is the default base path for the NGINX location
+// that handles sign-in redirect requests (e.g. oauth2-proxy expects /oauth2).
+const DefaultSigninRedirectBasePath = "/oauth2"
 
 // rateLimit hold the configuration for the ratelimiting Policy
 type rateLimit struct {
@@ -56,6 +62,7 @@ type policiesCfg struct {
 	Deny            []string
 	RateLimit       rateLimit
 	JWTAuth         jwtAuth
+	ExternalAuth    *version2.ExternalAuth
 	BasicAuth       *version2.BasicAuth
 	IngressMTLS     *version2.IngressMTLS
 	EgressMTLS      *version2.EgressMTLS
@@ -65,6 +72,7 @@ type policiesCfg struct {
 	Cache           *version2.Cache
 	CORSHeaders     []version2.AddHeader
 	CORSMap         *version2.Map
+	HSTS            *version2.HSTS
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
 }
@@ -96,6 +104,22 @@ func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 	return &policiesCfg{
 		BundleValidator: bv,
 	}
+}
+
+// IsPolicySupportedOnIngress reports whether the given policy type is supported
+// on Ingress resources.
+// This is the single source of truth for the Ingress policy allowlist and must be kept
+// in sync with any callers that filter policies for Ingress resources (e.g. syncPolicy).
+// To add support for a new policy type on Ingress, add its Spec field to this function.
+// Also ensure that createIngressEx() in controller.go loads any required secret or service
+// references for that policy type.
+func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
+	return pol.Spec.AccessControl != nil ||
+		pol.Spec.CORS != nil ||
+		pol.Spec.ExternalAuth != nil ||
+		pol.Spec.IngressMTLS != nil ||
+		pol.Spec.EgressMTLS != nil ||
+		pol.Spec.WAF != nil
 }
 
 func (p *policiesCfg) addAccessControlConfig(accessControl *conf_v1.AccessControl) *validationResults {
@@ -264,6 +288,128 @@ func (p *policiesCfg) addJWTAuthConfig(
 	return res
 }
 
+func (p *policiesCfg) addExternalAuthConfig(
+	externalAuth *conf_v1.ExternalAuth,
+	polKey string,
+	polNamespace string,
+	polName string,
+	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
+	ownerDetails policyOwnerDetails,
+) *validationResults {
+	res := newValidationResults()
+	if p.ExternalAuth != nil {
+		res.addWarningf("Multiple external auth policies in the same context is not valid. External auth policy %s will be ignored", polNamespace+"/"+polName)
+		return res
+	}
+
+	var upstreamName string
+	if ownerDetails.parentType == "ing" {
+		upstreamName = fmt.Sprintf("ing_%s_%s_exauth_%s_%s",
+			ownerDetails.parentNamespace, ownerDetails.parentName,
+			polNamespace, polName)
+	} else {
+		upstreamName = fmt.Sprintf("%s_exauth_%s_%s",
+			ownerDetails.parentType, polNamespace, polName)
+	}
+	internalPath := fmt.Sprintf("/_external_auth%s", externalAuth.AuthURI)
+
+	p.ExternalAuth = &version2.ExternalAuth{
+		URI: &version2.AuthURI{
+			Service:      externalAuth.AuthServiceName,
+			Upstream:     upstreamName,
+			Path:         externalAuth.AuthURI,
+			InternalPath: internalPath,
+		},
+		ServicePorts: externalAuth.AuthServicePorts,
+		SSLEnabled:   externalAuth.SSLEnabled,
+	}
+	if externalAuth.AuthSigninURI != "" {
+		p.ExternalAuth.SigninURL = externalAuth.AuthSigninURI
+
+		// Set the SigninRedirectBasePath to the default value, and override it if the user has specified a custom value. This is needed to ensure that the correct default path is used when the user specifies a custom signin URI but does not specify a custom signin redirect base path.
+		p.ExternalAuth.SigninRedirectBasePath = DefaultSigninRedirectBasePath
+		if externalAuth.AuthSigninRedirectBasePath != "" {
+			p.ExternalAuth.SigninRedirectBasePath = externalAuth.AuthSigninRedirectBasePath
+		}
+	}
+	if externalAuth.AuthSnippets != "" {
+		p.ExternalAuth.Snippets = externalAuth.AuthSnippets
+	}
+
+	// Handle SSL verification for external auth
+	if externalAuth.SSLEnabled && externalAuth.SSLVerify {
+		sslRes := p.configureExternalAuthSSL(externalAuth, polKey, polNamespace, secretRefs, policyOpts)
+		res.warnings = append(res.warnings, sslRes.warnings...)
+		if sslRes.isError {
+			res.isError = true
+			return res
+		}
+	}
+
+	return res
+}
+
+// configureExternalAuthSSL configures SSL verification settings for external auth.
+func (p *policiesCfg) configureExternalAuthSSL(
+	externalAuth *conf_v1.ExternalAuth,
+	polKey string,
+	polNamespace string,
+	secretRefs map[string]*secrets.SecretReference,
+	policyOpts policyOptions,
+) *validationResults {
+	res := newValidationResults()
+	p.ExternalAuth.SSLVerify = true
+
+	sslVerifyDepth := 1
+	if externalAuth.SSLVerifyDepth != nil {
+		sslVerifyDepth = *externalAuth.SSLVerifyDepth
+	}
+	p.ExternalAuth.SSLVerifyDepth = sslVerifyDepth
+
+	trustedCertPath := policyOpts.defaultCABundle
+	if externalAuth.TrustedCertSecret != "" {
+		secretNS, secretName := ParseResourceReference(externalAuth.TrustedCertSecret, polNamespace)
+		trustedCertSecretRefName := fmt.Sprintf("%s/%s", secretNS, secretName)
+		trustedCertSecretRef := secretRefs[trustedCertSecretRefName]
+
+		if trustedCertSecretRef == nil {
+			res.addWarningf("ExternalAuth policy %s references a non-existent trusted cert secret %s", polKey, trustedCertSecretRefName)
+			res.isError = true
+			return res
+		}
+
+		var secretType api_v1.SecretType
+		if trustedCertSecretRef.Secret != nil {
+			secretType = trustedCertSecretRef.Secret.Type
+		}
+		if secretType != "" && secretType != secrets.SecretTypeCA {
+			res.addWarningf("ExternalAuth policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertSecretRefName, secretType, secrets.SecretTypeCA)
+			res.isError = true
+			return res
+		} else if trustedCertSecretRef.Error != nil {
+			res.addWarningf("ExternalAuth policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertSecretRefName, trustedCertSecretRef.Error)
+			res.isError = true
+			return res
+		}
+
+		caFields := strings.Fields(trustedCertSecretRef.Path)
+		if len(caFields) > 0 {
+			trustedCertPath = caFields[0]
+		}
+	}
+	p.ExternalAuth.SSLTrustedCert = trustedCertPath
+
+	if externalAuth.SNIName != "" {
+		p.ExternalAuth.SNIName = externalAuth.SNIName
+	} else {
+		svcNs, svcName := ParseServiceReference(externalAuth.AuthServiceName, polNamespace)
+		p.ExternalAuth.SNIName = fmt.Sprintf("%s.%s.svc", svcName, svcNs)
+	}
+
+	return res
+}
+
 func (p *policiesCfg) addBasicAuthConfig(
 	basicAuth *conf_v1.BasicAuth,
 	polKey string,
@@ -308,13 +454,13 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	secretRefs map[string]*secrets.SecretReference,
 ) *validationResults {
 	res := newValidationResults()
-	if !tls {
-		res.addWarningf("TLS must be enabled in VirtualServer for IngressMTLS policy %s", polKey)
+	if context != specContext {
+		res.addWarningf("IngressMTLS policy %s is not allowed in the %v context", polKey, context)
 		res.isError = true
 		return res
 	}
-	if context != specContext {
-		res.addWarningf("IngressMTLS policy %s is not allowed in the %v context", polKey, context)
+	if !tls {
+		res.addWarningf("TLS must be enabled for IngressMTLS policy %s", polKey)
 		res.isError = true
 		return res
 	}
@@ -325,6 +471,11 @@ func (p *policiesCfg) addIngressMTLSConfig(
 
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, ingressMTLS.ClientCertSecret)
 	secretRef := secretRefs[secretKey]
+	if secretRef == nil {
+		res.addWarningf("IngressMTLS policy %q references a non-existent secret %s", polKey, secretKey)
+		res.isError = true
+		return res
+	}
 	var secretType api_v1.SecretType
 	if secretRef.Secret != nil {
 		secretType = secretRef.Secret.Type
@@ -710,6 +861,19 @@ func (p *policiesCfg) addWAFConfig(
 		p.WAF.ApBundle = bundlePath
 	}
 
+	if waf.ApBundleSource != nil {
+		// Bundle was written to disk by syncPolicy() before config generation runs.
+		ns, name, _ := helpers.ParseNamespaceName(polKey)
+		filename := wafbundle.FetchedBundleFilename(ns, name, "policy")
+		bundlePath, err := p.BundleValidator.validate(filename)
+		if err != nil {
+			res.addWarningf("WAF policy %s: bundle not yet available (%s) — WAF inactive until bundle is fetched", polKey, filename)
+			res.isError = true
+		} else {
+			p.WAF.ApBundle = bundlePath
+		}
+	}
+
 	if waf.SecurityLog != nil && waf.SecurityLogs == nil {
 		nl.Debug(l, "the field securityLog is deprecated and will be removed in future releases. Use field securityLogs instead")
 		waf.SecurityLogs = append(waf.SecurityLogs, waf.SecurityLog)
@@ -718,7 +882,7 @@ func (p *policiesCfg) addWAFConfig(
 	if waf.SecurityLogs != nil {
 		p.WAF.ApSecurityLogEnable = true
 		p.WAF.ApLogConf = []string{}
-		for _, loco := range waf.SecurityLogs {
+		for idx, loco := range waf.SecurityLogs {
 			logDest := generateString(loco.LogDest, defaultLogOutput)
 
 			if loco.ApLogConf != "" {
@@ -738,6 +902,18 @@ func (p *policiesCfg) addWAFConfig(
 				logBundle, err := p.BundleValidator.validate(loco.ApLogBundle)
 				if err != nil {
 					res.addWarningf("WAF policy %s references an invalid or non-existing log config bundle %s", polKey, logBundle)
+					res.isError = true
+				} else {
+					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
+				}
+			}
+
+			if loco.ApLogBundleSource != nil {
+				ns, name, _ := helpers.ParseNamespaceName(polKey)
+				filename := wafbundle.FetchedBundleFilename(ns, name, fmt.Sprintf("log_%d", idx))
+				logBundle, err := p.BundleValidator.validate(filename)
+				if err != nil {
+					res.addWarningf("WAF policy %s: log bundle %d not yet available (%s) — log profile inactive", polKey, idx, filename)
 					res.isError = true
 				} else {
 					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
@@ -779,7 +955,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 		if parentNamespace == ownerNamespace && parentName == ownerName {
 			return fmt.Sprintf("cors_origin_%s_%s_%s", rfc1123ToSnake(parentNamespace), rfc1123ToSnake(parentName), rfc1123ToSnake(parentType))
 		}
-		return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s",
+		return fmt.Sprintf(
+			"cors_origin_%s_%s_%s_%s_%s",
 			rfc1123ToSnake(parentNamespace),
 			rfc1123ToSnake(parentName),
 			rfc1123ToSnake(parentType),
@@ -789,7 +966,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 	}
 
 	if parentNamespace == ownerNamespace && parentName == ownerName {
-		return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s",
+		return fmt.Sprintf(
+			"cors_origin_%s_%s_%s_%s_%s",
 			rfc1123ToSnake(parentNamespace),
 			rfc1123ToSnake(parentName),
 			rfc1123ToSnake(parentType),
@@ -798,7 +976,8 @@ func generateCORSVariableName(polKey string, ownerDetails policyOwnerDetails) st
 		)
 	}
 
-	return fmt.Sprintf("cors_origin_%s_%s_%s_%s_%s_%s_%s",
+	return fmt.Sprintf(
+		"cors_origin_%s_%s_%s_%s_%s_%s_%s",
 		rfc1123ToSnake(parentNamespace),
 		rfc1123ToSnake(parentName),
 		rfc1123ToSnake(parentType),
@@ -989,6 +1168,47 @@ func (p *policiesCfg) addCORSConfig(
 	return res
 }
 
+func (p *policiesCfg) addHSTSConfig(
+	hsts *conf_v1.HSTS,
+	polKey string,
+	context string,
+	tls bool,
+) *validationResults {
+	res := newValidationResults()
+
+	if context != specContext {
+		res.addWarningf("HSTS policy %s is not allowed in the %v context", polKey, context)
+		res.isError = true
+		return res
+	}
+
+	if !tls && !hsts.BehindProxy {
+		res.addWarningf("TLS must be enabled for HSTS policy %s", polKey)
+		res.isError = true
+		return res
+	}
+
+	if p.HSTS != nil {
+		res.addWarningf("Multiple HSTS policies in the same context are not valid. HSTS policy %s will be ignored", polKey)
+		return res
+	}
+
+	if hsts.MaxAge == nil {
+		res.addWarningf("HSTS policy %s is missing required field maxAge", polKey)
+		res.isError = true
+		return res
+	}
+
+	p.HSTS = &version2.HSTS{
+		MaxAge:            *hsts.MaxAge,
+		IncludeSubDomains: hsts.IncludeSubDomains,
+		BehindProxy:       hsts.BehindProxy,
+		Preload:           hsts.Preload,
+	}
+
+	return res
+}
+
 // nolint:gocyclo
 func generatePolicies(
 	ctx context.Context,
@@ -1013,6 +1233,16 @@ func generatePolicies(
 		key := fmt.Sprintf("%s/%s", polNamespace, p.Name)
 
 		if pol, exists := policies[key]; exists {
+			// Reject policy types that are not supported on Ingress resources.
+			// IsPolicySupportedOnIngress is the single source of truth for the allowlist.
+			// If a new resource type with a subset of supported policy types is added,
+			// a matching parentType check must also be added in syncPolicy() in internal/k8s/policy.go.
+			if ownerDetails.parentType == "ing" && !IsPolicySupportedOnIngress(pol) {
+				warnings.AddWarningf(ownerDetails.owner, "Policy %s is not supported on Ingress resources", key)
+				return policiesCfg{
+					ErrorReturn: &version2.Return{Code: 500},
+				}, warnings
+			}
 			var res *validationResults
 			switch {
 			case pol.Spec.AccessControl != nil:
@@ -1028,6 +1258,8 @@ func generatePolicies(
 				)
 			case pol.Spec.JWTAuth != nil:
 				res = config.addJWTAuthConfig(pol.Spec.JWTAuth, key, polNamespace, policyOpts.secretRefs)
+			case pol.Spec.ExternalAuth != nil:
+				res = config.addExternalAuthConfig(pol.Spec.ExternalAuth, key, polNamespace, p.Name, policyOpts.secretRefs, policyOpts, ownerDetails)
 			case pol.Spec.BasicAuth != nil:
 				res = config.addBasicAuthConfig(pol.Spec.BasicAuth, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.IngressMTLS != nil:
@@ -1051,6 +1283,8 @@ func generatePolicies(
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails)
 			case pol.Spec.CORS != nil:
 				res = config.addCORSConfig(pol.Spec.CORS, key, ownerDetails)
+			case pol.Spec.HSTS != nil:
+				res = config.addHSTSConfig(pol.Spec.HSTS, key, pathContext, policyOpts.tls)
 			default:
 				res = newValidationResults()
 			}
@@ -1170,14 +1404,16 @@ func generateGroupedLimitReqZone(
 	encPath := encoder.EncodeToString([]byte(path))
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.JWT != nil {
 		lrz.GroupValue = rateLimitPol.Condition.JWT.Match
-		lrz.PolicyValue = fmt.Sprintf("rl_%s_%s_%s_match_%s",
+		lrz.PolicyValue = fmt.Sprintf(
+			"rl_%s_%s_%s_match_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
 			strings.ToLower(rateLimitPol.Condition.JWT.Match),
 		)
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_%s_group_%s_%s_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf(
+			"$rl_%s_%s_%s_group_%s_%s_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
@@ -1197,14 +1433,16 @@ func generateGroupedLimitReqZone(
 	if rateLimitPol.Condition != nil && rateLimitPol.Condition.Variables != nil && len(*rateLimitPol.Condition.Variables) > 0 {
 		variable := (*rateLimitPol.Condition.Variables)[0]
 		lrz.GroupValue = fmt.Sprintf("\"%s\"", variable.Match)
-		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf("rl_%s_%s_%s_match_%s",
+		lrz.PolicyValue = rfc1123ToSnake(fmt.Sprintf(
+			"rl_%s_%s_%s_match_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,
 			strings.ToLower(policy.Name),
 		))
 
-		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf("$rl_%s_%s_%s_variable_%s_%s_%s",
+		lrz.GroupVariable = rfc1123ToSnake(fmt.Sprintf(
+			"$rl_%s_%s_%s_variable_%s_%s_%s",
 			ownerDetails.parentNamespace,
 			ownerDetails.parentName,
 			ownerDetails.parentType,

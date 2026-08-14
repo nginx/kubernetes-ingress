@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.org/policies: "ingress-mtls-policy"
+  name: ingress-mtls-policy-ingress
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ingress-mtls.example.com
+      secretName: tls-secret
+  rules:
+    - host: ingress-mtls.example.com
+      http:
+        paths:
+          - path: /backend1
+            pathType: Prefix
+            backend:
+              service:
+                name: backend1-svc
+                port:
+                  number: 80

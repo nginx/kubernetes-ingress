@@ -147,7 +147,8 @@ class TestConfigRollbackTSCreate:
             assert resp.status_code == 200
         else:
             host_str = host.strip("[]")
-            client = socket.create_connection((host_str, port))
+            client = socket.create_connection((host_str, port), timeout=10)
+            client.settimeout(10)
             client.sendall(b"connect")
             response = client.recv(4096)
             client.close()
@@ -192,7 +193,8 @@ class TestConfigRollbackTSCreate:
         else:
             host_str = host.strip("[]")
             try:
-                client = socket.create_connection((host_str, port))
+                client = socket.create_connection((host_str, port), timeout=10)
+                client.settimeout(10)
                 client.sendall(b"connect")
                 client.recv(4096)
                 client.close()
@@ -264,7 +266,8 @@ class TestConfigRollbackTransportServer:
 
         # Step 1: TS has valid config and serves traffic
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
-        client = socket.create_connection((host, port))
+        client = socket.create_connection((host, port), timeout=10)
+        client.settimeout(10)
         client.sendall(b"connect")
         response = client.recv(4096)
         client.close()
@@ -282,7 +285,8 @@ class TestConfigRollbackTransportServer:
         wait_before_test()
 
         # Step 3: TS traffic still works — invalid config was rolled back
-        client = socket.create_connection((host, port))
+        client = socket.create_connection((host, port), timeout=10)
+        client.settimeout(10)
         client.sendall(b"connect")
         response = client.recv(4096)
         client.close()
@@ -374,7 +378,8 @@ class TestConfigRollbackTransportServer:
             ic_pod,
             ingress_controller_prerequisites.namespace,
         )
-        client = socket.create_connection((ts_host, ts_port))
+        client = socket.create_connection((ts_host, ts_port), timeout=10)
+        client.settimeout(10)
         client.sendall(b"connect")
         response = client.recv(4096)
         client.close()
@@ -418,7 +423,8 @@ class TestConfigRollbackTransportServer:
         assert_valid_vs(kube_apis, virtual_server_setup.namespace, virtual_server_setup.vs_name)
 
         # Step 6: TS traffic still works
-        client = socket.create_connection((ts_host, ts_port))
+        client = socket.create_connection((ts_host, ts_port), timeout=10)
+        client.settimeout(10)
         client.sendall(b"connect")
         response = client.recv(4096)
         client.close()

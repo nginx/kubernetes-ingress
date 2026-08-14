@@ -28,7 +28,6 @@ import (
 	controllerpkg "github.com/cert-manager/cert-manager/pkg/controller"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/runtime"
 
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -110,31 +109,34 @@ func BuildOpts(ctx context.Context, kc *rest.Config, cl kubernetes.Interface, ns
 	}
 }
 
-func (c *CmController) newNamespacedInformer(ns string) *namespacedInformer {
+func (c *CmController) newNamespacedInformer(ns string) (*namespacedInformer, error) {
 	nsi := &namespacedInformer{}
 	nsi.stopCh = make(chan struct{})
 	nsi.cmSharedInformerFactory = cm_informers.NewSharedInformerFactoryWithOptions(c.cmClient, resyncPeriod, cm_informers.WithNamespace(ns))
 	nsi.kubeSharedInformerFactory = kubeinformers.NewSharedInformerFactoryWithOptions(c.kubeClient, resyncPeriod, kubeinformers.WithNamespace(ns))
 	nsi.vsSharedInformerFactory = vsinformers.NewSharedInformerFactoryWithOptions(c.vsClient, resyncPeriod, vsinformers.WithNamespace(ns))
 
-	c.addHandlers(nsi)
+	if err := c.addHandlers(nsi); err != nil {
+		return nil, fmt.Errorf("failed to add event handlers for namespace %s: %w", ns, err)
+	}
 
 	c.informerGroup[ns] = nsi
-	return nsi
+	return nsi, nil
 }
 
-func (c *CmController) addHandlers(nsi *namespacedInformer) {
+func (c *CmController) addHandlers(nsi *namespacedInformer) error {
 	nsi.vsLister = nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Lister()
-	nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(&controllerpkg.QueuingEventHandler{
-		Queue: c.queue,
-	})
+	if _, err := nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().AddEventHandler(controllerpkg.QueuingEventHandler(c.queue)); err != nil {
+		return fmt.Errorf("failed to add VirtualServer event handler: %w", err)
+	}
 	nsi.mustSync = append(nsi.mustSync, nsi.vsSharedInformerFactory.K8s().V1().VirtualServers().Informer().HasSynced)
 
-	nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().AddEventHandler(&controllerpkg.BlockingEventHandler{
-		WorkFunc: certificateHandler(c.queue),
-	})
+	if _, err := nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().AddEventHandler(controllerpkg.BlockingEventHandler(certificateHandler(c.queue))); err != nil {
+		return fmt.Errorf("failed to add Certificate event handler: %w", err)
+	}
 	nsi.cmLister = nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Lister()
 	nsi.mustSync = append(nsi.mustSync, nsi.cmSharedInformerFactory.Certmanager().V1().Certificates().Informer().HasSynced)
+	return nil
 }
 
 func (c *CmController) processItem(ctx context.Context, key types.NamespacedName) error {
@@ -174,14 +176,8 @@ func (c *CmController) processItem(ctx context.Context, key types.NamespacedName
 //	    name: vs-1
 //	    blockOwnerDeletion: true
 //	    uid: 7d3897c2-ce27-4144-883a-e1b5f89bd65a
-func certificateHandler(queue workqueue.TypedRateLimitingInterface[types.NamespacedName]) func(obj interface{}) {
-	return func(obj interface{}) {
-		crt, ok := obj.(*cmapi.Certificate)
-		if !ok {
-			runtime.HandleError(fmt.Errorf("not a Certificate object: %#v", obj))
-			return
-		}
-
+func certificateHandler(queue workqueue.TypedRateLimitingInterface[types.NamespacedName]) func(obj *cmapi.Certificate) {
+	return func(crt *cmapi.Certificate) {
 		ref := metav1.GetControllerOf(crt)
 		if ref == nil {
 			// No controller should care about orphans being deleted or
@@ -204,9 +200,12 @@ func certificateHandler(queue workqueue.TypedRateLimitingInterface[types.Namespa
 }
 
 // NewCmController creates a new CmController
-func NewCmController(opts *CmOpts) *CmController {
+func NewCmController(opts *CmOpts) (*CmController, error) {
 	// Create a cert-manager api client
-	intcl, _ := cm_clientset.NewForConfig(opts.kubeConfig)
+	intcl, err := cm_clientset.NewForConfig(opts.kubeConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cert-manager client: %w", err)
+	}
 
 	ig := make(map[string]*namespacedInformer)
 
@@ -225,11 +224,13 @@ func NewCmController(opts *CmOpts) *CmController {
 			// no initial namespaces with watched label - skip creating informers for now
 			break
 		}
-		cm.newNamespacedInformer(ns)
+		if _, err := cm.newNamespacedInformer(ns); err != nil {
+			return nil, fmt.Errorf("failed to create cert-manager namespaced informer for namespace %s: %w", ns, err)
+		}
 	}
 
 	cm.register()
-	return cm
+	return cm, nil
 }
 
 // Run will set up the event handlers for types we are interested in, as well
@@ -312,7 +313,12 @@ func (c *CmController) AddNewNamespacedInformer(ns string) {
 	nl.Debugf(l, "Adding or Updating cert-manager Watchers for Namespace: %v", ns)
 	nsi := getNamespacedInformer(ns, c.informerGroup)
 	if nsi == nil {
-		nsi = c.newNamespacedInformer(ns)
+		var err error
+		nsi, err = c.newNamespacedInformer(ns)
+		if err != nil {
+			nl.Errorf(l, "Failed to create cert-manager namespaced informer for namespace %s: %v", ns, err)
+			return
+		}
 		nsi.start()
 	}
 	if !cache.WaitForCacheSync(nsi.stopCh, nsi.mustSync...) {

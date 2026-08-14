@@ -141,6 +141,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "appprotect-wafv5",
 			namespace:   "appprotect-wafv5",
 		},
+		"appProtectWAFV5Resources": {
+			valuesFile:  "testdata/app-protect-wafv5-resources.yaml",
+			releaseName: "appprotect-wafv5-resources",
+			namespace:   "appprotect-wafv5",
+		},
 		"appProtectDOS": {
 			valuesFile:  "testdata/app-protect-dos.yaml",
 			releaseName: "appprotect-dos",
@@ -166,14 +171,39 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "app-protect-wafv5-agentv2",
 			namespace:   "default",
 		},
+		"appProtectWAFV5AgentV3": {
+			valuesFile:  "testdata/app-protect-wafv5-agentv3.yaml",
+			releaseName: "app-protect-wafv5-agentv3",
+			namespace:   "default",
+		},
 		"appProtectWAFV4AgentV2": {
 			valuesFile:  "testdata/app-protect-waf-agentv2.yaml",
 			releaseName: "app-protect-waf-agentv2",
 			namespace:   "default",
 		},
+		"appProtectWAFV4AgentV3": {
+			valuesFile:  "testdata/app-protect-waf-agentv3.yaml",
+			releaseName: "app-protect-waf-agentv3",
+			namespace:   "default",
+		},
 		"startupStatusValid": {
 			valuesFile:  "testdata/startupstatus-valid.yaml",
 			releaseName: "startupstatus",
+			namespace:   "default",
+		},
+		"networkPolicyDisabled": {
+			valuesFile:  "testdata/network-policy-disabled.yaml",
+			releaseName: "network-policy-disabled",
+			namespace:   "default",
+		},
+		"networkPolicyIngress": {
+			valuesFile:  "testdata/network-policy-ingress.yaml",
+			releaseName: "network-policy-ingress",
+			namespace:   "default",
+		},
+		"networkPolicyIngressEgress": {
+			valuesFile:  "testdata/network-policy-ingress-egress.yaml",
+			releaseName: "network-policy-ingress-egress",
 			namespace:   "default",
 		},
 		"loadBalancerClass": {
@@ -189,6 +219,11 @@ func TestHelmNICTemplate(t *testing.T) {
 		"commonLabels": {
 			valuesFile:  "testdata/common-labels.yaml",
 			releaseName: "common-labels",
+			namespace:   "default",
+		},
+		"allowEmptyIngressHost": {
+			valuesFile:  "testdata/allow-empty-ingress-host.yaml",
+			releaseName: "allow-empty-ingress-host",
 			namespace:   "default",
 		},
 	}

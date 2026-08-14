@@ -10,6 +10,7 @@ import (
 // ConfigParams holds NGINX configuration parameters that affect the main NGINX config
 // as well as configs for Ingress resources.
 type ConfigParams struct {
+	AddHeaderInherit                       string
 	AppRoot                                string
 	Context                                context.Context
 	ClientMaxBodySize                      string
@@ -29,6 +30,8 @@ type ConfigParams struct {
 	LBMethod                               string
 	LocationSnippets                       []string
 	MainAccessLog                          string
+	MainAddHeaders                         []version2.AddHeader
+	DisableForwardedHeaders                bool
 	MainErrorLogLevel                      string
 	MainHTTPSnippets                       []string
 	MainKeepaliveRequests                  int64
@@ -77,6 +80,7 @@ type ConfigParams struct {
 	ProxyBufferSize                        string
 	ProxyBusyBuffersSize                   string
 	ProxyConnectTimeout                    string
+	AddHeaders                             []version2.AddHeader
 	ProxyHideHeaders                       []string
 	ProxyMaxTempFileSize                   string
 	ProxyPassHeaders                       []string
@@ -87,6 +91,9 @@ type ConfigParams struct {
 	ProxyNextUpstream                      string
 	ProxyNextUpstreamTimeout               string
 	ProxyNextUpstreamTries                 *uint64
+	ProxyRedirectFrom                      string
+	ProxyRedirectTo                        string
+	CustomHTTPErrors                       []int
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
 	ResolverAddresses                      []string
@@ -131,8 +138,6 @@ type ConfigParams struct {
 	Ports    []int
 	SSLPorts []int
 
-	SpiffeServerCerts bool
-
 	LimitReqRate       string
 	LimitReqKey        string
 	LimitReqZoneSize   string
@@ -159,13 +164,10 @@ type StaticConfigParams struct {
 	TLSPassthrough                 bool
 	TLSPassthroughPort             int
 	EnableSnippets                 bool
-	NginxServiceMesh               bool
-	EnableInternalRoutes           bool
 	MainAppProtectLoadModule       bool
 	MainAppProtectV5LoadModule     bool
 	MainAppProtectDosLoadModule    bool
 	MainAppProtectV5EnforcerAddr   string
-	InternalRouteServerName        string
 	EnableLatencyMetrics           bool
 	EnableOIDC                     bool
 	SSLRejectHandshake             bool
@@ -282,6 +284,7 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		MainKeepaliveRequests:         1000,
 		VariablesHashBucketSize:       256,
 		VariablesHashMaxSize:          1024,
+		DisableForwardedHeaders:       false,
 		LimitReqKey:                   "${binary_remote_addr}",
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",

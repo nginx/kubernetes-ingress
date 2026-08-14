@@ -19,3 +19,14 @@ controller:
     configManager:
       image:
         repository: my.private.reg/nap/waf-config-mgr
+    ipIntelligence:
+      enable: true
+      image:
+        repository: my.private.reg/nap/waf-ip-intelligence
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsUser: 101
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - all

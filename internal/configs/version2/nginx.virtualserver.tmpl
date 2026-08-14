@@ -1,7 +1,7 @@
 {{- /*gotype: github.com/nginx/kubernetes-ingress/internal/configs/version2.VirtualServerConfig*/ -}}
 {{ range $u := .Upstreams }}
 upstream {{ $u.Name }} {
-    {{- if ne $u.UpstreamZoneSize "0" }}zone {{ $u.Name }} {{ $u.UpstreamZoneSize }};{{ end }}
+    {{ if ne $u.UpstreamZoneSize "0" }}zone {{ $u.Name }} {{ $u.UpstreamZoneSize }};{{ end }}
     {{- if $u.LBMethod }}
     {{ $u.LBMethod }};
     {{- end }}
@@ -55,6 +55,9 @@ server {
     {{- if $s.Gunzip }}
     gunzip on;
     {{- end }}
+    {{- if $s.AddHeaderInherit }}
+    add_header_inherit {{ $s.AddHeaderInherit }};
+    {{- end }}
     {{ makeHTTPListener $s | printf }}
 
     server_name {{ $s.ServerName }};
@@ -78,20 +81,10 @@ server {
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
-        {{- else if $.SpiffeCerts }}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- else }}
     ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
     ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- end }}
-    {{- else }}
-      {{- if $.SpiffeCerts }}
-    listen 443 ssl;
-    {{if not $s.DisableIPV6}}listen [::]:443 ssl;{{end}}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-      {{- end }}
     {{- end }}
 
     {{- with $s.IngressMTLS }}
@@ -239,6 +232,29 @@ server {
     proxy_ssl_name {{ .SSLName }};
     {{- end }}
 
+    {{- if $s.HSTS }}
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    {{- if $s.HSTS.BehindProxy}}
+    if ($http_x_forwarded_proto = 'https') {
+    {{- else}}
+    if ($https = on) {
+    {{- end}}
+        set $hsts_header_val "max-age={{$s.HSTS.MaxAge}}{{if $s.HSTS.IncludeSubDomains}}; includeSubDomains{{end}}{{if $s.HSTS.Preload}}; preload{{end}}";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+    {{- end}}
+
+    {{- if $s.ExternalAuth }}
+    auth_request {{ $s.ExternalAuth.URI.InternalPath }};
+    {{- end }}
+
+    {{- range $e := $s.ErrorPages }}
+    {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
+    error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    {{- end }}
+
     {{- range $snippet := $s.Snippets }}
     {{ $snippet }}
     {{- end }}
@@ -284,8 +300,17 @@ server {
         {{- if $l.Internal }}
         internal;
         {{- end }}
+        {{- if $l.AddHeaderInherit }}
+        add_header_inherit {{ $l.AddHeaderInherit }};
+        {{- end }}
         {{- range $snippet := $l.Snippets }}
         {{ $snippet }}
+        {{- end }}
+
+        {{- if $l.AuthRequestOff }}
+        auth_request off;
+        {{- else if $l.ExternalAuth }}
+        auth_request {{ $l.ExternalAuth.URI.InternalPath }};
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}
@@ -383,7 +408,8 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ $e.ResponseCode }}{{ end }} "{{ $e.Name }}";
+        {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
+        error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}
@@ -431,6 +457,9 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
+        {{- if $l.ProxyPassRequestBody }}
+        proxy_pass_request_body {{ $l.ProxyPassRequestBody }};
+        {{- end }}
             {{- end }}
 
         {{- $custom_headers := $l.ProxySetHeaders | headerListToCIMap }}
@@ -439,6 +468,7 @@ server {
         {{ $proxyOrGRPC }}_set_header X-Real-IP $remote_addr;
         {{- end }}
 
+        {{- if not $l.DisableForwardedHeaders }}
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-For") }}
         {{ $proxyOrGRPC }}_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         {{- end }}
@@ -453,6 +483,7 @@ server {
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Proto") }}
         {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }};
+        {{- end }}
         {{- end }}
 
         {{- range $h := $l.ProxySetHeaders }}
@@ -470,15 +501,6 @@ server {
             {{- end }}
             {{- range $h := $l.AddHeaders }}
         add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
-            {{- end }}
-            {{- if $.SpiffeClientCerts }}
-        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        {{ $proxyOrGRPC }}_ssl_server_name on;
-        {{ $proxyOrGRPC }}_ssl_verify on;
-        {{ $proxyOrGRPC }}_ssl_verify_depth 25;
-        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
             {{- end }}
 
         {{- with $l.Cache }}
@@ -538,11 +560,33 @@ server {
         }
         {{- end }}
 
+        {{- if $l.HSTS}}
+        set $hsts_header_val "";
+        proxy_hide_header Strict-Transport-Security;
+        {{- if $l.HSTS.BehindProxy}}
+        if ($http_x_forwarded_proto = 'https') {
+        {{- else}}
+        if ($https = on) {
+        {{- end}}
+            set $hsts_header_val "max-age={{$l.HSTS.MaxAge}}{{if $l.HSTS.IncludeSubDomains}}; includeSubDomains{{end}}{{if $l.HSTS.Preload}}; preload{{end}}";
+        }
+        add_header Strict-Transport-Security "$hsts_header_val" always;
+        {{- end}}
+
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};
             {{- else }}
         proxy_pass {{ $l.ProxyPass }}{{ $l.ProxyPassRewrite }};
             {{- end }}
+        {{- if $l.ProxySSLVerify }}
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth {{ $l.ProxySSLVerifyDepth }};
+        proxy_ssl_server_name on;
+        proxy_ssl_name {{ $l.ProxySSLName }};
+        {{- end }}
+        {{- if $l.ProxySSLTrustedCertificate }}
+        proxy_ssl_trusted_certificate {{ $l.ProxySSLTrustedCertificate }};
+        {{- end }}
         {{ $proxyOrGRPC }}_next_upstream {{ $l.ProxyNextUpstream }};
         {{ $proxyOrGRPC }}_next_upstream_timeout {{ $l.ProxyNextUpstreamTimeout }};
         {{ $proxyOrGRPC }}_next_upstream_tries {{ $l.ProxyNextUpstreamTries }};

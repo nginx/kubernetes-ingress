@@ -1,0 +1,19 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: vsr-media
+spec:
+  host: api-gateway.example.com
+  subroutes:
+  - path: "~*/images/jpg"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: "JPEG image\nVSR: vsr-media\nPath directive: ~*/images/jpg\nRequest URI: ${request_uri}\n"
+  - path: "~*/images/png"
+    action:
+      return:
+        code: 200
+        type: text/plain
+        body: "PNG image\nVSR: vsr-media\nPath directive: ~*/images/png\nRequest URI: ${request_uri}\n"

@@ -4555,3 +4555,117 @@ func TestGetNameForSourceForMatchesRouteMapFromCondition(t *testing.T) {
 		}
 	}
 }
+
+// TestGenerateVirtualServerConfigForVSRWithMultipleRegexSubroutes verifies that when a single
+// VirtualServerRoute is referenced by multiple VS regex routes, each subroute produces a
+// separate nginx location block with the correct regex path format.
+func TestGenerateVirtualServerConfigForVSRWithMultipleRegexSubroutes(t *testing.T) {
+	t.Parallel()
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Routes: []conf_v1.Route{
+					{
+						Path:  "~/api/v1",
+						Route: "default/api",
+					},
+					{
+						Path:  "~/api/v2",
+						Route: "default/api",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/api-svc:80": {
+				"10.0.0.10:80",
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api",
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Host: "cafe.example.com",
+					Upstreams: []conf_v1.Upstream{
+						{
+							Name:    "api-svc",
+							Service: "api-svc",
+							Port:    80,
+						},
+					},
+					Subroutes: []conf_v1.Route{
+						{
+							Path: "~/api/v1",
+							Action: &conf_v1.Action{
+								Pass: "api-svc",
+							},
+						},
+						{
+							Path: "~/api/v2",
+							Action: &conf_v1.Action{
+								Pass: "api-svc",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	baseCfgParams := ConfigParams{Context: context.Background()}
+
+	expected := []version2.Location{
+		{
+			Path:                     `~ "/api/v1"`,
+			ProxyPass:                "http://vs_default_cafe_vsr_default_api_api-svc",
+			ProxyNextUpstream:        "error timeout",
+			ProxyNextUpstreamTimeout: "0s",
+			ProxyNextUpstreamTries:   0,
+			Internal:                 false,
+			ProxySSLName:             "api-svc.default.svc",
+			ProxyPassRequestHeaders:  true,
+			ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+			ServiceName:              "api-svc",
+			IsVSR:                    true,
+			VSRName:                  "api",
+			VSRNamespace:             "default",
+		},
+		{
+			Path:                     `~ "/api/v2"`,
+			ProxyPass:                "http://vs_default_cafe_vsr_default_api_api-svc",
+			ProxyNextUpstream:        "error timeout",
+			ProxyNextUpstreamTimeout: "0s",
+			ProxyNextUpstreamTries:   0,
+			Internal:                 false,
+			ProxySSLName:             "api-svc.default.svc",
+			ProxyPassRequestHeaders:  true,
+			ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+			ServiceName:              "api-svc",
+			IsVSR:                    true,
+			VSRName:                  "api",
+			VSRNamespace:             "default",
+		},
+	}
+
+	isPlus := false
+	isResolverConfigured := false
+	isWildcardEnabled := false
+	vsc := newVirtualServerConfigurator(&baseCfgParams, isPlus, isResolverConfigured, &StaticConfigParams{}, isWildcardEnabled, &fakeBV)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if diff := cmp.Diff(expected, result.Server.Locations); diff != "" {
+		t.Errorf("GenerateVirtualServerConfig() mismatch (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
+	}
+}

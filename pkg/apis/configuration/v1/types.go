@@ -63,12 +63,13 @@ type VirtualServerSpec struct {
 	HTTPSnippets string `json:"http-snippets"`
 	// Sets a custom snippet in server context. Overrides the server-snippets ConfigMap key.
 	ServerSnippets string `json:"server-snippets"`
+	// Controls header inheritance behavior at the server level. Allowed values are: on, off, merge. When set to "merge", headers from this context are merged with headers in child contexts. When set to "on", standard NGINX inheritance applies. When set to "off", no headers are inherited from parent contexts.
+	// +kubebuilder:validation:Enum=on;off;merge
+	AddHeaderInherit string `json:"add-header-inherit"`
 	// A reference to a DosProtectedResource, setting this enables DOS protection of the VirtualServer route.
 	Dos string `json:"dos"`
 	// The externalDNS configuration for a VirtualServer.
 	ExternalDNS ExternalDNS `json:"externalDNS"`
-	// InternalRoute allows for the configuration of internal routing.
-	InternalRoute bool `json:"internalRoute"`
 }
 
 // VirtualServerListener references a custom http and/or https listener defined in GlobalConfiguration.
@@ -287,6 +288,9 @@ type Route struct {
 	ErrorPages []ErrorPage `json:"errorPages"`
 	// Sets a custom snippet in the location context. Overrides the location-snippets ConfigMap key.
 	LocationSnippets string `json:"location-snippets"`
+	// Controls header inheritance behavior at the location level. Allowed values are: on, off, merge. When set to "merge", headers from this context are merged with headers in child contexts. When set to "on", standard NGINX inheritance applies. When set to "off", no headers are inherited from parent contexts.
+	// +kubebuilder:validation:Enum=on;off;merge
+	AddHeaderInherit string `json:"add-header-inherit"`
 	// A reference to a DosProtectedResource, setting this enables DOS protection of the VirtualServer route.
 	Dos string `json:"dos"`
 }
@@ -804,6 +808,10 @@ type PolicySpec struct {
 	Cache *Cache `json:"cache"`
 	// The CORS policy configures Cross-Origin Resource Sharing headers
 	CORS *CORS `json:"cors"`
+	// The ExternalAuth policy configures NGINX to authenticate client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server.
+	ExternalAuth *ExternalAuth `json:"externalAuth"`
+	// The HSTS policy configures HTTP Strict Transport Security headers
+	HSTS *HSTS `json:"hsts"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -998,21 +1006,117 @@ type OIDC struct {
 	SSLVerifyDepth *int `json:"sslVerifyDepth"`
 }
 
+// BundleSourceType specifies the remote source backend for a WAF bundle.
+// +kubebuilder:validation:Enum=HTTPS;NIM;N1C
+type BundleSourceType string
+
+const (
+	// BundleSourceTypeHTTPS fetches a pre-compiled .tgz bundle from any HTTPS endpoint.
+	BundleSourceTypeHTTPS BundleSourceType = "HTTPS"
+	// BundleSourceTypeNIM fetches a managed policy bundle from NGINX Instance Manager.
+	BundleSourceTypeNIM BundleSourceType = "NIM"
+	// BundleSourceTypeN1C fetches a managed policy bundle from NGINX One Console.
+	BundleSourceTypeN1C BundleSourceType = "N1C"
+)
+
+// BundleSource configures fetching a pre-compiled WAF bundle from a remote source.
+//
+// Three source types are supported:
+//   - HTTPS (default): fetch a pre-compiled .tgz bundle from any HTTPS server.
+//   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
+//   - N1C: pull a named managed policy from NGINX One Console via its API.
+//
+// Type-specific field requirements (name required for NIM/N1C, namespace
+// required for N1C) are enforced by the controller's Go validation layer.
+type BundleSource struct {
+	// Type is the bundle source backend. Defaults to HTTPS.
+	// +kubebuilder:default=HTTPS
+	// +optional
+	Type BundleSourceType `json:"type,omitempty"`
+
+	// URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=2083
+	// +kubebuilder:validation:Pattern=`^https://`
+	URL string `json:"url"`
+
+	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
+	// For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
+	// For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
+	// For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +optional
+	Secret string `json:"secret,omitempty"`
+
+	// TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
+	// for verifying the remote endpoint TLS certificate. The secret must be in the same
+	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// +optional
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
+
+	// Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	Name string `json:"name,omitempty"`
+
+	// Namespace is the namespace/tenant on the management plane. Required for N1C only.
+	// +kubebuilder:validation:MaxLength=63
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// EnablePolling enables background polling to automatically detect and fetch
+	// updated bundles at the configured PollInterval. When false, the bundle is
+	// fetched once on policy creation or update; subsequent updates require
+	// modifying the Policy resource to trigger a new fetch.
+	// +kubebuilder:validation:Required
+	EnablePolling bool `json:"enablePolling"`
+
+	// PollInterval is how often to re-fetch the bundle when enablePolling is true.
+	// Minimum 1m. Default 5m. Ignored when enablePolling is false.
+	// +optional
+	PollInterval *metav1.Duration `json:"pollInterval,omitempty"`
+
+	// Timeout is the per-request HTTP timeout. Default 60s.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+
+	// RetryAttempts is the number of retry attempts on transient failure. Range 1–10.
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=10
+	// +optional
+	RetryAttempts *int `json:"retryAttempts,omitempty"`
+
+	// InsecureSkipVerify disables TLS certificate verification when fetching bundles.
+	// Not recommended for production use.
+	// +optional
+	InsecureSkipVerify bool `json:"insecureSkipVerify,omitempty"`
+
+	// VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only.
+	// +optional
+	VerifyChecksum bool `json:"verifyChecksum,omitempty"`
+}
+
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.
+// Mutual exclusivity of apPolicy, apBundle, and apBundleSource is enforced by the Go validation layer.
 type WAF struct {
 	// Enables NGINX App Protect WAF.
 	Enable bool `json:"enable"`
-	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle.
+	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource.
 	ApPolicy string `json:"apPolicy"`
-	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy.
+	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundleSource.
 	ApBundle string `json:"apBundle"`
-	//
-	SecurityLog *SecurityLog `json:"securityLog"`
-	//
-	SecurityLogs []*SecurityLog `json:"securityLogs"`
+	// ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
+	// Mutually exclusive with ApPolicy and ApBundle.
+	// +optional
+	ApBundleSource *BundleSource  `json:"apBundleSource,omitempty"`
+	SecurityLog    *SecurityLog   `json:"securityLog"`
+	SecurityLogs   []*SecurityLog `json:"securityLogs"`
 }
 
 // SecurityLog defines the security log of a WAF policy.
+// Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer.
 type SecurityLog struct {
 	// Enables security log.
 	Enable bool `json:"enable"`
@@ -1020,6 +1124,10 @@ type SecurityLog struct {
 	ApLogConf string `json:"apLogConf"`
 	// The App Protect WAF log bundle resource. Only works with apBundle.
 	ApLogBundle string `json:"apLogBundle"`
+	// ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
+	// Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
+	// +optional
+	ApLogBundleSource *BundleSource `json:"apLogBundleSource,omitempty"`
 	// The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>.
 	LogDest string `json:"logDest"`
 }
@@ -1257,4 +1365,84 @@ type CORS struct {
 	// MaxAge defines how long (in seconds) the results of a preflight request can be cached.
 	// Default: 86400 (24 hours). Maximum recommended value is 86400 (24 hours).
 	MaxAge *int `json:"maxAge,omitempty"`
+}
+
+// ExternalAuth defines an external authentication policy for authenticating client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server that requires redirection for authentication.
+type ExternalAuth struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^/.*$`
+	// +kubebuilder:default="/"
+	// AuthURI is the URI of the external authentication server to which the request will be sent for authentication. The URI is a relative URI, for example /auth.
+	AuthURI string `json:"authURI"`
+
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// AuthServiceName is the name of the Kubernetes service to which the request will be sent for authentication.  It can be in the same namespace as the Policy resource or in a different namespace. If the service is in a different namespace, it should be specified in the format <namespace>/<service>. For example, auth-service or auth-namespace/auth-service.
+	AuthServiceName string `json:"authServiceName"`
+
+	// +kubebuilder:validation:Optional
+	// AuthServicePorts are the ports of the Kubernetes service to which requests will be sent for authentication. If not specified, the ports will be looked up from the service definition. This field is only required if the user wants to choose a specific port from the service definition, otherwise the first port will be used by default.
+	AuthServicePorts []int `json:"authServicePorts,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/.*$`
+	// AuthSigninURI is the URI which requests will be redirected to if the external authentication server determines that the client needs to be authenticated. This is typically used when the external authentication server is an oauth2-proxy or any custom authentication server that requires redirection for authentication. The URI is a relative URI, for example /signin.
+	AuthSigninURI string `json:"authSigninURI,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// AuthSnippets can be used to add custom configuration snippets to the location block of the external authentication configuration. This can be used for example to add additional headers to the request sent to the external authentication server, or to configure additional parameters for the auth_request module. The content of this field will be added as-is to the location block, so it must be a valid NGINX configuration snippet.
+	AuthSnippets string `json:"authSnippets,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[a-zA-Z0-9._~:/?#\[\]@!$&'()*+,;=-]*$`
+	// AuthSigninRedirectBasePath is the base path for the NGINX location block that handles sign-in redirect requests from the external authentication server. For example, oauth2-proxy expects /oauth2. If not specified, defaults to /oauth2.
+	AuthSigninRedirectBasePath string `json:"authSigninRedirectBasePath,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// SSLEnabled enables HTTPS when proxying requests to the external authentication server. Default is false.
+	SSLEnabled bool `json:"sslEnabled"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// SSLVerify enables verification of the external authentication server's SSL certificate. Default is false.
+	SSLVerify bool `json:"sslVerify"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default:=1
+	// SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1.
+	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	// TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?)*$`
+	// SNIName sets the server name used for SNI and certificate verification when connecting to the external authentication server over TLS. If not specified, defaults to <service-name>.<namespace>.svc derived from authServiceName.
+	SNIName string `json:"sniName,omitempty"`
+}
+
+// HSTS defines an HTTP Strict Transport Security policy for enforcing secure connections to the server.
+// +kubebuilder:validation:XValidation:rule="!self.preload || self.includeSubDomains",message="preload requires includeSubDomains to be enabled"
+// +kubebuilder:validation:XValidation:rule="!self.preload || (has(self.maxAge) && self.maxAge >= 31536000)",message="preload requires maxAge to be at least 31536000 (one year)"
+type HSTS struct {
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=0
+	// MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy.
+	MaxAge *int `json:"maxAge"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// IncludeSubDomains extends the HSTS policy to all subdomains of the host.
+	IncludeSubDomains bool `json:"includeSubDomains,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable.
+	BehindProxy bool `json:"behindProxy,omitempty"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default:=false
+	// Preload indicates that the domain should be included in browsers' HSTS preload lists.
+	Preload bool `json:"preload,omitempty"`
 }
