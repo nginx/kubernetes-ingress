@@ -16,7 +16,7 @@ ARG PACKAGE_REPO=pkgs.nginx.com
 
 
 ############################################# Base images containing libs for FIPS #############################################
-FROM golang:1.26.5-alpine@sha256:739b5c7c89c2ba19b5744fab836efe973158e2c4b08808e99285f735af3e2926 AS golang-builder
+FROM golang:1.26.6-alpine@sha256:af8d6740070b8906d12eae1c3e3ea0957fb63f492051ea05e354c38ef9fe88df AS golang-builder
 
 ############################################# NGINX files #############################################
 FROM scratch AS nginx-files
