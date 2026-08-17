@@ -31,6 +31,7 @@ type ConfigParams struct {
 	LocationSnippets                       []string
 	MainAccessLog                          string
 	MainAddHeaders                         []version2.AddHeader
+	DisableForwardedHeaders                bool
 	MainErrorLogLevel                      string
 	MainHTTPSnippets                       []string
 	MainKeepaliveRequests                  int64
@@ -283,6 +284,7 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		MainKeepaliveRequests:         1000,
 		VariablesHashBucketSize:       256,
 		VariablesHashMaxSize:          1024,
+		DisableForwardedHeaders:       false,
 		LimitReqKey:                   "${binary_remote_addr}",
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",

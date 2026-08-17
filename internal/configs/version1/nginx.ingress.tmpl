@@ -192,7 +192,8 @@ server {
 	auth_request {{ $server.ExternalAuth.URI.InternalPath }};
 	{{- if $server.ExternalAuth.SigninURL }}
 	proxy_intercept_errors on;
-	error_page 401 "{{ $server.ExternalAuth.SigninURL }}";
+	{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
+	error_page 401 = "{{ $server.ExternalAuth.SigninURL }}";
 	{{- end }}
 	{{- end }}
 
@@ -254,7 +255,8 @@ server {
 		auth_request {{ $location.ExternalAuth.URI.InternalPath }};
 		{{- if $location.ExternalAuth.SigninURL }}
 		proxy_intercept_errors on;
-		error_page 401 "{{ $location.ExternalAuth.SigninURL }}";
+		{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
+		error_page 401 = "{{ $location.ExternalAuth.SigninURL }}";
 		{{- end }}
 		{{- end }}
 
@@ -326,11 +328,12 @@ server {
 		grpc_send_timeout {{$location.ProxySendTimeout}};
 		grpc_set_header Host $host;
 		grpc_set_header X-Real-IP $remote_addr;
+		{{- if not $location.DisableForwardedHeaders }}
 		grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		grpc_set_header X-Forwarded-Host $host;
 		grpc_set_header X-Forwarded-Port $server_port;
 		grpc_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
-
+		{{- end}}
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
 		{{- end}}
@@ -374,10 +377,12 @@ server {
 		{{- end}}
 		proxy_set_header Host $host;
 		proxy_set_header X-Real-IP $remote_addr;
+		{{- if not $location.DisableForwardedHeaders }}
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		proxy_set_header X-Forwarded-Host $host;
 		proxy_set_header X-Forwarded-Port $server_port;
 		proxy_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
+		{{- end}}
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
 		{{- if $location.ProxyBuffers}}
 		proxy_buffers {{$location.ProxyBuffers}};
