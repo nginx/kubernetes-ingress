@@ -6,7 +6,7 @@ ADD --link --chown=101:0 https://cs.nginx.com/static/files/app-protect-10.repo a
 ADD --link --chown=101:0 https://cs.nginx.com/static/files/app-protect-dos-10.repo app-protect-dos-10.repo
 ADD --link --chown=101:0 https://cs.nginx.com/static/files/dependencies.repo dependencies.repo
 
-FROM redhat/ubi10@sha256:ab7e7c852eaa79e80ebb201553da6b1428aff469d0f5d4877b0ffa64879fe2b2 AS rpm-build
+FROM redhat/ubi10@sha256:c9da135a3cdc105995ba8b75e7344671dac9560145bcf9ab73f42e64e441458c AS rpm-build
 RUN --mount=type=bind,from=nginx-files,src=nginx-plus-10.repo,target=/tmp/nginx-plus.repo \
     --mount=type=bind,from=nginx-files,src=app-protect-10.repo,target=/tmp/app-protect-10.repo \
     --mount=type=bind,from=nginx-files,src=app-protect-dos-10.repo,target=/tmp/app-protect-dos-10.repo \
