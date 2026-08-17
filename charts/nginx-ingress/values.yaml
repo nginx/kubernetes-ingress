@@ -84,7 +84,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.13.4"
+        tag: "5.14.0"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -108,7 +108,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.13.4"
+        tag: "5.14.0"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -139,7 +139,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-ip-intelligence
 
         ## The tag of the App Protect WAF v5 IP Intelligence image.
-        tag: "5.13.4"
+        tag: "5.14.0"
         ## The digest of the App Protect WAF v5 IP Intelligence image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -713,6 +713,16 @@ controller:
   ## May require increasing map_hash_bucket_size, map_hash_max_size,
   ## variable_hash_bucket_size, and variable_hash_max_size in the ConfigMap based on the number of two-way splits.
   enableWeightChangesDynamicReload: false
+
+  ## Configure an optional NetworkPolicy for the Ingress Controller pods.
+  networkPolicy:
+    ## Create a NetworkPolicy that targets the controller pods.
+    enabled: false
+    ## If enabled=true and both ingress and egress are empty, the resulting NetworkPolicy denies all ingress by default.
+    ## Configure ingress rules. When non-empty, the Ingress policy type is added automatically.
+    ingress: []
+    ## Configure egress rules. When non-empty, the Egress policy type is added automatically.
+    egress: []
 
 rbac:
   ## Configures RBAC.

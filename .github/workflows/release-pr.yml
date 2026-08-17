@@ -28,7 +28,7 @@ on:
       nap_version:
         description: "NAP versions (comma-separated: waf_version, waf_release_version) - leave empty to skip NAP update"
         required: false
-        default: "37.0+5.635.1, 5.13.1"
+        default: "37.0+5.690.0, 5.14.0"
       release_date:
         description: "Date for this release (D MMM YYYY)"
         required: true
@@ -97,13 +97,13 @@ jobs:
           echo "branch=release-$version" >> $GITHUB_OUTPUT
 
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.branch.outputs.branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
@@ -225,10 +225,10 @@ jobs:
           fi
 
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}

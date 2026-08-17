@@ -307,12 +307,12 @@ type n1cCompileStatus struct {
 func fetchN1CPolicyBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
 	token := n1cToken(req)
 
-	pol, err := findN1CPolicy(ctx, client, req.URL, req.PolicyNamespace, req.PolicyName, token)
+	pol, err := findN1CPolicy(ctx, client, req.URL, req.Namespace, req.Name, token)
 	if err != nil {
 		return Result{}, err
 	}
 
-	statusURL := buildN1CCompileStatusURL(req.URL, req.PolicyNamespace, pol.ObjectID, pol.Latest.ObjectID, req.NAPRelease)
+	statusURL := buildN1CCompileStatusURL(req.URL, req.Namespace, pol.ObjectID, pol.Latest.ObjectID, req.NAPRelease)
 	status, err := pollN1CCompileStatus(ctx, client, statusURL, token)
 	if err != nil {
 		return Result{}, err
@@ -322,7 +322,7 @@ func fetchN1CPolicyBundle(ctx context.Context, client *http.Client, req *Request
 		return Result{Unchanged: true}, nil
 	}
 
-	downloadURL := buildN1CCompileDownloadURL(req.URL, req.PolicyNamespace, pol.ObjectID, pol.Latest.ObjectID, req.NAPRelease)
+	downloadURL := buildN1CCompileDownloadURL(req.URL, req.Namespace, pol.ObjectID, pol.Latest.ObjectID, req.NAPRelease)
 	data, err := n1cDownload(ctx, client, downloadURL, token)
 	if err != nil {
 		return Result{}, err
@@ -343,12 +343,12 @@ func fetchN1CPolicyBundle(ctx context.Context, client *http.Client, req *Request
 func fetchN1CLogProfileBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
 	token := n1cToken(req)
 
-	profileObjID, err := findN1CLogProfile(ctx, client, req.URL, req.PolicyNamespace, req.PolicyName, token)
+	profileObjID, err := findN1CLogProfile(ctx, client, req.URL, req.Namespace, req.Name, token)
 	if err != nil {
 		return Result{}, err
 	}
 
-	downloadURL := buildN1CLogProfileCompileURL(req.URL, req.PolicyNamespace, profileObjID, req.NAPRelease)
+	downloadURL := buildN1CLogProfileCompileURL(req.URL, req.Namespace, profileObjID, req.NAPRelease)
 	data, err := n1cDownload(ctx, client, downloadURL, token)
 	if err != nil {
 		return Result{}, err
@@ -625,7 +625,7 @@ var unixEpochRFC3339 = time.Unix(0, 0).UTC().Format(time.RFC3339)
 func fetchNIMPolicyBundle(ctx context.Context, client *http.Client, req *Request) (Result, error) {
 	auth := nimAuth(req)
 
-	policyUID, metadataHash, err := resolveLatestNIMPolicy(ctx, client, req.URL, req.PolicyName, auth)
+	policyUID, metadataHash, err := resolveLatestNIMPolicy(ctx, client, req.URL, req.Name, auth)
 	if err != nil {
 		return Result{}, err
 	}
@@ -688,7 +688,7 @@ func fetchNIMLogProfileBundle(ctx context.Context, client *http.Client, req *Req
 	}
 
 	logProfileURL := fmt.Sprintf("%s/api/platform/v1/security/logprofiles/%s/%s/bundle",
-		strings.TrimRight(req.URL, "/"), url.PathEscape(req.PolicyName), url.PathEscape(versionResp.Version))
+		strings.TrimRight(req.URL, "/"), url.PathEscape(req.Name), url.PathEscape(versionResp.Version))
 	body, err = nimGet(ctx, client, logProfileURL, auth)
 	if err != nil {
 		return Result{}, fmt.Errorf("failed to fetch NIM log profile bundle: %w", err)

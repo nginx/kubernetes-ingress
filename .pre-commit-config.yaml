@@ -69,7 +69,7 @@ repos:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 8.0.1
+    rev: 9.0.0a3
     hooks:
       - id: isort
 
@@ -91,7 +91,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.4
+    rev: 0.38.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -100,9 +100,12 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.0
+    rev: v0.23.2
     hooks:
       - id: markdownlint-cli2
+        args: [ "**/*.md", "--fix" ]
+        pass_filenames: false
+        always_run: true
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12

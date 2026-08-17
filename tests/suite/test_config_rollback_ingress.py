@@ -1,16 +1,18 @@
 """Tests for config rollback with Ingress resources."""
 
+import copy
+
 import pytest
 import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import (
-    assert_event,
     assert_ingress_conf_not_exists,
     assert_valid_ts,
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
     create_example_app,
+    create_ingress,
     create_ingress_from_yaml,
     create_items_from_yaml,
     delete_common_app,
@@ -342,10 +344,6 @@ class TestConfigRollbackIngress:
         assert ts_conf_before == ts_conf_after
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
 
-    @pytest.mark.parametrize(
-        "protect_ingress",
-        ["ingress1", "ingress2"],
-    )
     def test_configmap_partial_rollback(
         self,
         kube_apis,
@@ -356,45 +354,29 @@ class TestConfigRollbackIngress:
         ingress_setup,
         test_namespace,
         restore_configmap,
-        protect_ingress,
     ):
-        """ConfigMap location-snippets invalid: one Ingress is protected (has own annotation that
-        overrides ConfigMap), the other is not — the unprotected Ingress rolls back while the
-        protected Ingress and TS remain Valid.
-
-        Parametrized with protect_ingress=ingress1/ingress2 to test both orderings, so we don't
-        rely on alphabetical resource processing order.
+        """ConfigMap location-snippets invalid: consecutive resource failures trigger shared-input
+        early exit and skip the remaining resources.
         """
         ingress1_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
-        # Step 1: both Ingresses start without own location-snippets annotations
-        # Ingress1 = fixture Ingress, Ingress2 = created from plain YAML
+        # Step 1: create three valid Ingresses
         wait_and_assert_status_code(200, ingress1_url, ingress_setup.ingress_host)
         ingress2_name = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, ingress_2_src)
+        with open(ingress_2_src) as f:
+            ingress3 = copy.deepcopy(yaml.safe_load(f))
+        ingress3["metadata"]["name"] = "config-rollback-ingress3"
+        ingress3["spec"]["rules"][0]["host"] = "config-rollback-ingress3.example.com"
+        ingress3_name = create_ingress(kube_apis.networking_v1, test_namespace, ingress3)
         wait_before_test()
         ingress2_host = get_first_ingress_host_from_yaml(ingress_2_src)
+        ingress3_host = ingress3["spec"]["rules"][0]["host"]
         ingress2_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
+        ingress3_url = ingress2_url
         wait_and_assert_status_code(200, ingress2_url, ingress2_host)
+        wait_and_assert_status_code(200, ingress3_url, ingress3_host)
 
-        # Step 2: protect one Ingress by adding a valid location-snippet annotation
-        # The protected Ingress's own annotation overrides ConfigMap location-snippets
-        if protect_ingress == "ingress1":
-            with open(ingress_src) as f:
-                body = yaml.safe_load(f)
-            if "annotations" not in body["metadata"]:
-                body["metadata"]["annotations"] = {}
-            body["metadata"]["annotations"]["nginx.org/location-snippets"] = "sub_filter_once off;"
-            replace_ingress(kube_apis.networking_v1, ingress_setup.ingress_name, test_namespace, body)
-        else:
-            with open(ingress_2_src) as f:
-                body = yaml.safe_load(f)
-            if "annotations" not in body["metadata"]:
-                body["metadata"]["annotations"] = {}
-            body["metadata"]["annotations"]["nginx.org/location-snippets"] = "sub_filter_once off;"
-            replace_ingress(kube_apis.networking_v1, ingress2_name, test_namespace, body)
-        wait_before_test()
-
-        # Step 3: capture TS config before ConfigMap change
+        # Step 2: capture TS config before ConfigMap change
         ts_conf_before = get_ts_nginx_template_conf(
             kube_apis.v1,
             transport_server_setup.namespace,
@@ -403,19 +385,7 @@ class TestConfigRollbackIngress:
             ingress_controller_prerequisites.namespace,
         )
 
-        # Step 3a: capture initial event counts before ConfigMap change
-        if protect_ingress == "ingress1":
-            protected_name = ingress_setup.ingress_name
-            protected_url, protected_host = ingress1_url, ingress_setup.ingress_host
-            unprotected_name = ingress2_name
-        else:
-            protected_name = ingress2_name
-            protected_url, protected_host = ingress2_url, ingress2_host
-            unprotected_name = ingress_setup.ingress_name
-
-        initial_num_protected_events = len(get_events_for_object(kube_apis.v1, test_namespace, protected_name))
-
-        # Step 4: apply ConfigMap with invalid location-snippets
+        # Step 3: apply ConfigMap with invalid location-snippets
         config_map = ingress_controller_prerequisites.config_map.copy()
         config_map["data"] = {"location-snippets": "add_header;"}
         replace_configmap(
@@ -426,22 +396,17 @@ class TestConfigRollbackIngress:
         )
         wait_before_test()
 
-        # Step 5: the UNPROTECTED Ingress fails validation and rolls back,
-        # the PROTECTED Ingress remains valid (own annotation overrides ConfigMap)
-        # Unprotected Ingress → event shows error
-        unprotected_events = get_events_for_object(kube_apis.v1, test_namespace, unprotected_name)
-        assert_event("but was not applied", unprotected_events)
-        assert_event('invalid number of arguments in "add_header" directive', unprotected_events)
-
-        # Protected Ingress → no new event types (Normal/AddedOrUpdated coalesced), still serves traffic
-        new_protected_events = get_events_for_object(kube_apis.v1, test_namespace, protected_name)
-        assert len(new_protected_events) == initial_num_protected_events, (
-            f"Expected no new event objects for protected Ingress '{protected_name}', "
-            f"but event count changed from {initial_num_protected_events} to {len(new_protected_events)}"
+        # Step 4: logs show threshold-triggered early exit; previous-good traffic keeps working
+        ic_logs = kube_apis.v1.read_namespaced_pod_log(
+            ingress_setup.ingress_pod_name, ingress_controller_prerequisites.namespace, since_seconds=30
         )
-        wait_and_assert_status_code(200, protected_url, protected_host)
+        assert "Shared-input failure detected: 2 consecutive resource configs failed validation" in ic_logs
+        assert "Skipping remaining 2 resource(s) and final reload" in ic_logs
+        wait_and_assert_status_code(200, ingress1_url, ingress_setup.ingress_host)
+        wait_and_assert_status_code(200, ingress2_url, ingress2_host)
+        wait_and_assert_status_code(200, ingress3_url, ingress3_host)
 
-        # Step 6: TS config unchanged (stream blocks not affected by location-snippets)
+        # Step 5: TS config unchanged (stream blocks not affected by location-snippets)
         ts_conf_after = get_ts_nginx_template_conf(
             kube_apis.v1,
             transport_server_setup.namespace,
@@ -452,7 +417,7 @@ class TestConfigRollbackIngress:
         assert ts_conf_before == ts_conf_after
         assert_valid_ts(kube_apis, transport_server_setup.namespace, transport_server_setup.name)
 
-        # Step 7: ConfigMap event reflects partial failure
+        # Step 6: ConfigMap event reflects partial failure
         cm_events = get_events_for_object(
             kube_apis.v1,
             ingress_controller_prerequisites.namespace,
@@ -462,9 +427,20 @@ class TestConfigRollbackIngress:
         assert latest_cm.reason == "UpdatedWithError"
         assert "some resource configs failed validation" in latest_cm.message
 
+        # Step 7: restoring the ConfigMap returns the controller to the normal state
+        config_map["data"] = {}
+        replace_configmap(
+            kube_apis.v1,
+            config_map["metadata"]["name"],
+            ingress_controller_prerequisites.namespace,
+            config_map,
+        )
+        wait_before_test()
+        wait_and_assert_status_code(200, ingress1_url, ingress_setup.ingress_host)
+        wait_and_assert_status_code(200, ingress2_url, ingress2_host)
+        wait_and_assert_status_code(200, ingress3_url, ingress3_host)
+
         # Cleanup
         delete_ingress(kube_apis.networking_v1, ingress2_name, test_namespace)
-        with open(ingress_src) as f:
-            original_body = yaml.safe_load(f)
-        replace_ingress(kube_apis.networking_v1, ingress_setup.ingress_name, test_namespace, original_body)
+        delete_ingress(kube_apis.networking_v1, ingress3_name, test_namespace)
         wait_before_test()

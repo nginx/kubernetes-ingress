@@ -24,6 +24,30 @@ This skill defines **how** to review a NIC PR: the workflow, guardrails, dimensi
 - Never post secrets, tokens, license keys, or any credential value in a review comment.
 - Do not fabricate file paths, symbol names, or line numbers. Always verify before citing.
 
+## Verify before flagging
+
+Before writing a Blocking or Non-blocking comment, you must confirm the claim against actual code or config. Speculation is not review. If you cannot verify, downgrade to a Question or skip.
+
+| If the comment claims... | You must first... |
+| --- | --- |
+| "X is not tracked / covered / handled by tool Y" | Read Y's config (`renovate.json`, `.golangci.yml`, `Makefile`, workflow file). Default managers cover more than you think. |
+| "This library / action does Z on failure / edge case" | Read the library docs or source, or find an existing call site in the repo that proves the behaviour. |
+| "This shell / expression / YAML will evaluate as W" | Trace it end-to-end. GitHub Actions expression semantics, bash quoting, and YAML type coercion all have non-obvious rules. |
+| "This is a security issue because untrusted input reaches sink S" | Identify the actual trust boundary. Inputs from repo-controlled workflows, composite action callers inside the same repo, and matrix values are not "untrusted" in the OWASP sense. |
+| "The generated file / snapshot is wrong" | Re-run the generator (`make update-codegen`, `make update-crds`, `make test-update-snaps`) and diff. Comment on the source, not the artifact. |
+| "This will break at runtime" | Grep for at least one caller. Read the surrounding function. A missing nil check may already be guarded upstream. |
+
+If verification is impractical (e.g. requires running the CI), phrase the finding as a **Question**, not a Blocking or Non-blocking bullet.
+
+## Confidence downgrades
+
+Move a finding down the severity ladder when any of these apply:
+
+- The bug depends on a code path you have not read end-to-end -> Question.
+- The behaviour depends on external tool internals (BuildKit cache, Docker registry retry, Kubernetes API server ordering) -> Question, unless you can cite the docs.
+- The "vulnerability" requires an attacker who already controls the repo / workflow file -> Non-blocking hygiene note at most.
+- The finding is "this could be better" without a concrete failure mode -> drop it.
+
 ## Review workflow
 
 1. **Read the PR title, description, and linked issue.** Understand intent before reading the diff.
@@ -113,6 +137,18 @@ Walk these in order. Each dimension names the concerns to keep in mind; **load t
 - Test fixture YAMLs that only add data.
 - Individual snapshot diffs, comment on the template change that produced them.
 - Personal preference nits ("I would name this X"). Suggest only if it hurts correctness or clarity.
+
+### Common AI false-positive patterns to avoid
+
+These are failure modes reviewers repeatedly hit. Skip the comment when you notice one.
+
+- **Tooling-gap claims without reading the config.** ("Renovate won't update this", "golangci-lint doesn't cover that.") Read the config first, or omit the claim.
+- **"Might break" without a call site.** If you cannot name a caller that hits the path, do not file it as Blocking.
+- **Security theatre on internal inputs.** Shell injection warnings for values that come from the same repo's workflow files are hygiene at best, not vulnerabilities.
+- **Speculating on library internals.** "BuildKit might corrupt the cache", "the client-go informer might miss the event" -- if you cannot cite the docs or source, it is a Question, not a finding.
+- **Duplicated / overlapping suggestions.** Merge related bullets into one; do not repeat the same fix on three lines of the same file.
+- **Correcting yourself mid-review.** If you notice a finding is wrong while writing it, delete it. Do not ship "*(self-correction: not blocking)*" bullets.
+- **Restating docs / obvious intent.** If the diff has a comment or PR description that explains the choice, do not challenge it without new information.
 
 ---
 

@@ -1275,7 +1275,7 @@ func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
 			{
 				Name:         cfg.ExternalAuth.SigninURL,
 				Codes:        "401",
-				ResponseCode: 0,
+				ResponseCode: version2.ErrorPageResponseCodeInherit,
 			},
 		}
 	}
@@ -1464,7 +1464,7 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
 			Name:         cfg.ExternalAuth.SigninURL,
 			Codes:        "401",
-			ResponseCode: 0,
+			ResponseCode: version2.ErrorPageResponseCodeInherit,
 		})
 		location.ProxyInterceptErrors = true
 	}
@@ -2043,6 +2043,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ServiceName:              serviceName,
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
+		DisableForwardedHeaders:  cfgParams.DisableForwardedHeaders,
 		VSRNamespace:             vsrNamespace,
 		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, upstreamName),
 	}

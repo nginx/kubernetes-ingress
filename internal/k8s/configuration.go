@@ -22,10 +22,21 @@ import (
 )
 
 const (
-	ingressKind            = "Ingress"
-	virtualServerKind      = "VirtualServer"
-	virtualServerRouteKind = "VirtualServerRoute"
-	transportServerKind    = "TransportServer"
+	ingressKind                        = "Ingress"
+	virtualServerKind                  = "VirtualServer"
+	virtualServerRouteKind             = "VirtualServerRoute"
+	transportServerKind                = "TransportServer"
+	policyKind                         = "Policy"
+	secretKind                         = "Secret"
+	serviceKind                        = "Service"
+	namespaceKind                      = "Namespace"
+	endpointSliceKind                  = "EndpointSlice"
+	appProtectKind                     = "APPolicy"
+	appProtectLogConfKind              = "APLogConf"
+	appProtectUserSigKind              = "APUserSig"
+	appProtectDosKind                  = "APDosPolicy"
+	appProtectDosProtectedResourceKind = "APDosProtectedResource"
+	appProtectDosLogConfKind           = "APDosLogConf"
 )
 
 // Operation defines an operation to perform for a resource.
