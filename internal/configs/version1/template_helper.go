@@ -30,7 +30,7 @@ func makeLocationPath(loc *Location, ingressAnnotations map[string]string) strin
 		regexType, hasRegex := loc.MinionIngress.Annotations["nginx.org/path-regex"]
 
 		if isMergeable && ingressType == "minion" && hasRegex {
-			return makePathWithRegex(loc.Path, regexType)
+			return applyPathRegex(loc.Path, regexType)
 		}
 		if isMergeable && ingressType == "minion" && !hasRegex {
 			return loc.Path
@@ -42,7 +42,17 @@ func makeLocationPath(loc *Location, ingressAnnotations map[string]string) strin
 	if !ok {
 		return loc.Path
 	}
-	return makePathWithRegex(loc.Path, regexType)
+	return applyPathRegex(loc.Path, regexType)
+}
+
+// applyPathRegex applies a path-regex annotation to a location path.
+// If the path was already produced as an exact match location (`= /path`),
+// preserve it as-is to avoid generating an invalid regex location.
+func applyPathRegex(path, regexType string) string {
+	if strings.HasPrefix(strings.TrimSpace(path), "= ") {
+		return path
+	}
+	return makePathWithRegex(path, regexType)
 }
 
 // makePathWithRegex takes a path representing a location and a regexType

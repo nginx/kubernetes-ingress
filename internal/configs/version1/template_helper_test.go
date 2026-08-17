@@ -45,6 +45,19 @@ func TestMakeLocationPath_WithRegexExactModifier(t *testing.T) {
 	}
 }
 
+func TestMakeLocationPath_PathRegexSetDoesNotModifyExactPath(t *testing.T)  {
+	t.Parallel()
+
+	want := "= /coffee"
+	got := makeLocationPath(
+		&Location{Path: "= /coffee"},
+		map[string]string{"nginx.org/path-regex": "case_sensitive"},
+	)
+	if got != want {
+		t.Errorf("got: %s, want: %s", got, want)
+	}
+}
+
 func TestMakeLocationPath_WithBogusRegexModifier(t *testing.T) {
 	t.Parallel()
 
