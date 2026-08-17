@@ -325,8 +325,8 @@ github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee h1:W5t00kpgFd
 github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq1c1nUAm88MOHcQC9l5mIlSMApZMrHA=
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
-github.com/nginx/nginx-plus-go-client/v3 v3.0.1 h1:SU8MoRQVSa1aXqNUI3fc+OA9GM30aqAhV4yBWs9tD2s=
-github.com/nginx/nginx-plus-go-client/v3 v3.0.1/go.mod h1:PjlGB6drb5RCWnUp1XDTlzKFPRI2a3ePg2kNCb1AN94=
+github.com/nginx/nginx-plus-go-client/v3 v3.0.2 h1:MhEfGY5u1+pGAw76dAKK4Rcp6X68/GHFYIvQytpzI8A=
+github.com/nginx/nginx-plus-go-client/v3 v3.0.2/go.mod h1:nuDxMBO4xrJHZ60rwDZGW04JNZyWI8bp1WLFt4U9Hhw=
 github.com/nginx/nginx-prometheus-exporter v1.5.1 h1:44jvKTJ4S0SydKbXw7H9V5VjcGdM3tdOPDd4em86GZQ=
 github.com/nginx/nginx-prometheus-exporter v1.5.1/go.mod h1:5b+M6fx4v6UQsihjrN/UeBBR2DabEsfgTjhqG/Xt12w=
 github.com/nginx/telemetry-exporter v0.1.5 h1:niCAHMii9a74UW3GuqpBt/n1/FIAKrZtTxtEH0MGSiU=
