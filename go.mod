@@ -18,7 +18,7 @@ require (
 	github.com/nginxinc/nginx-service-mesh v1.7.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/spiffe/go-spiffe/v2 v2.8.1
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.44.0
 	golang.org/x/crypto v0.54.0
