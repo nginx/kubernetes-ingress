@@ -128,10 +128,12 @@ func (su *statusUpdater) getNamespacedInformer(ns string) *namespacedInformer {
 
 // updateIngressWithStatus sets the provided status on the selected Ingress.
 func (su *statusUpdater) updateIngressWithStatus(ing networking.Ingress, status []networking.IngressLoadBalancerIngress) error {
+	l := su.logger.With(logNamespaceKey, ing.Namespace, logKindKey, ingressKind, logNameKey, ing.Name)
+
 	// Get an up-to-date Ingress from the Store
 	key, err := su.keyFunc(&ing)
 	if err != nil {
-		nl.Infof(su.logger, "error getting key for ing: %v", err)
+		nl.Infof(l, "error getting key for ing: %v", err)
 		return err
 	}
 
@@ -140,11 +142,11 @@ func (su *statusUpdater) updateIngressWithStatus(ing networking.Ingress, status 
 	var exists bool
 	ingCopy, exists, err = su.getNamespacedInformer(ns).ingressLister.GetByKeySafe(key)
 	if err != nil {
-		nl.Infof(su.logger, "error getting ing from Store by key: %v", err)
+		nl.Infof(l, "error getting ing from Store by key: %v", err)
 		return err
 	}
 	if !exists {
-		nl.Infof(su.logger, "ing doesn't exist in Store")
+		nl.Infof(l, "ing doesn't exist in Store")
 		return nil
 	}
 
@@ -157,14 +159,14 @@ func (su *statusUpdater) updateIngressWithStatus(ing networking.Ingress, status 
 	clientIngress := su.client.NetworkingV1().Ingresses(ingCopy.Namespace)
 	_, err = clientIngress.UpdateStatus(context.TODO(), ingCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting ingress status: %v", err)
+		nl.Infof(l, "error setting ingress status: %v", err)
 		err = su.retryStatusUpdate(clientIngress, ingCopy)
 		if err != nil {
-			nl.Infof(su.logger, "error retrying status update: %v", err)
+			nl.Infof(l, "error retrying status update: %v", err)
 			return err
 		}
 	}
-	nl.Infof(su.logger, "updated status for ing: %v %v", ing.Namespace, ing.Name)
+	nl.Infof(l, "updated status for ing: %v %v", ing.Namespace, ing.Name)
 	return nil
 }
 
@@ -192,17 +194,18 @@ func (su *statusUpdater) BulkUpdateIngressStatus(ings []networking.Ingress) erro
 // updated, and then attempts to update. We often need to fetch fresh copies due to the
 // k8s API using ResourceVersion to stop updates on stale items.
 func (su *statusUpdater) retryStatusUpdate(clientIngress typednetworking.IngressInterface, ingCopy *networking.Ingress) error {
+	l := su.logger.With(logNamespaceKey, ingCopy.Namespace, logKindKey, ingressKind, logNameKey, ingCopy.Name)
 	apiIng, err := clientIngress.Get(context.TODO(), ingCopy.Name, metav1.GetOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error getting ingress resource: %v", err)
+		nl.Infof(l, "error getting ingress resource: %v", err)
 		return err
 	}
 	if !reflect.DeepEqual(ingCopy.Status.LoadBalancer, apiIng.Status.LoadBalancer) {
-		nl.Infof(su.logger, "retrying update status for ingress: %v, %v", ingCopy.Namespace, ingCopy.Name)
+		nl.Infof(l, "retrying update status for ingress: %v, %v", ingCopy.Namespace, ingCopy.Name)
 		apiIng.Status.LoadBalancer = ingCopy.Status.LoadBalancer
 		_, err := clientIngress.UpdateStatus(context.TODO(), apiIng, metav1.UpdateOptions{})
 		if err != nil {
-			nl.Infof(su.logger, "update retry failed: %v", err)
+			nl.Infof(l, "update retry failed: %v", err)
 		}
 		return err
 	}
@@ -431,13 +434,14 @@ func (su *statusUpdater) UpdateTransportServerStatus(ts *conf_v1.TransportServer
 	var exists bool
 	var err error
 
+	l := su.logger.With(logNamespaceKey, ts.Namespace, logKindKey, transportServerKind, logNameKey, ts.Name)
 	tsLatest, exists, err = su.getNamespacedInformer(ts.Namespace).transportServerLister.Get(ts)
 	if err != nil {
-		nl.Infof(su.logger, "error getting TransportServer from Store: %v", err)
+		nl.Infof(l, "error getting TransportServer from Store: %v", err)
 		return err
 	}
 	if !exists {
-		nl.Infof(su.logger, "TransportServer doesn't exist in Store")
+		nl.Infof(l, "TransportServer doesn't exist in Store")
 		return nil
 	}
 
@@ -452,7 +456,7 @@ func (su *statusUpdater) UpdateTransportServerStatus(ts *conf_v1.TransportServer
 
 	_, err = su.confClient.K8sV1().TransportServers(tsCopy.Namespace).UpdateStatus(context.TODO(), tsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting TransportServer %v/%v status, retrying: %v", tsCopy.Namespace, tsCopy.Name, err)
+		nl.Infof(l, "error setting TransportServer %v/%v status, retrying: %v", tsCopy.Namespace, tsCopy.Name, err)
 		return su.retryUpdateTransportServerStatus(tsCopy)
 	}
 	return err
@@ -478,13 +482,14 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 	var exists bool
 	var err error
 
+	l := su.logger.With(logNamespaceKey, vs.Namespace, logKindKey, virtualServerKind, logNameKey, vs.Name)
 	vsLatest, exists, err = su.getNamespacedInformer(vs.Namespace).virtualServerLister.Get(vs)
 	if err != nil {
-		nl.Infof(su.logger, "error getting VirtualServer from Store: %v", err)
+		nl.Infof(l, "error getting VirtualServer from Store: %v", err)
 		return err
 	}
 	if !exists {
-		nl.Infof(su.logger, "VirtualServer doesn't exist in Store")
+		nl.Infof(l, "VirtualServer doesn't exist in Store")
 		return nil
 	}
 
@@ -501,7 +506,7 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 
 	_, err = su.confClient.K8sV1().VirtualServers(vsCopy.Namespace).UpdateStatus(context.TODO(), vsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting VirtualServer %v/%v status, retrying: %v", vsCopy.Namespace, vsCopy.Name, err)
+		nl.Infof(l, "error setting VirtualServer %v/%v status, retrying: %v", vsCopy.Namespace, vsCopy.Name, err)
 		return su.retryUpdateVirtualServerStatus(vsCopy)
 	}
 	return err
@@ -544,13 +549,14 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 	var exists bool
 	var err error
 
+	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
 	if err != nil {
-		nl.Infof(su.logger, "error getting VirtualServerRoute from Store: %v", err)
+		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
 		return err
 	}
 	if !exists {
-		nl.Infof(su.logger, "VirtualServerRoute doesn't exist in Store")
+		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
 		return nil
 	}
 
@@ -568,7 +574,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 
 	_, err = su.confClient.K8sV1().VirtualServerRoutes(vsrCopy.Namespace).UpdateStatus(context.TODO(), vsrCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
+		nl.Infof(l, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
 		return su.retryUpdateVirtualServerRouteStatus(vsrCopy)
 	}
 	return err
@@ -583,13 +589,14 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServ
 	var exists bool
 	var err error
 
+	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
 	if err != nil {
-		nl.Infof(su.logger, "error getting VirtualServerRoute from Store: %v", err)
+		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
 		return err
 	}
 	if !exists {
-		nl.Infof(su.logger, "VirtualServerRoute doesn't exist in Store")
+		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
 		return nil
 	}
 
@@ -606,7 +613,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServ
 
 	_, err = su.confClient.K8sV1().VirtualServerRoutes(vsrCopy.Namespace).UpdateStatus(context.TODO(), vsrCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
+		nl.Infof(l, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
 		return su.retryUpdateVirtualServerRouteStatus(vsrCopy)
 	}
 	return err
@@ -618,13 +625,14 @@ func (su *statusUpdater) updateVirtualServerExternalEndpoints(vs *conf_v1.Virtua
 	var exists bool
 	var err error
 
+	l := su.logger.With(logNamespaceKey, vs.Namespace, logKindKey, virtualServerKind, logNameKey, vs.Name)
 	vsLatest, exists, err = su.getNamespacedInformer(vs.Namespace).virtualServerLister.Get(vs)
 	if err != nil {
-		nl.Infof(su.logger, "error getting VirtualServer from Store: %v", err)
+		nl.Infof(l, "error getting VirtualServer from Store: %v", err)
 		return err
 	}
 	if !exists {
-		nl.Infof(su.logger, "VirtualServer doesn't exist in Store")
+		nl.Infof(l, "VirtualServer doesn't exist in Store")
 		return nil
 	}
 
@@ -633,7 +641,7 @@ func (su *statusUpdater) updateVirtualServerExternalEndpoints(vs *conf_v1.Virtua
 
 	_, err = su.confClient.K8sV1().VirtualServers(vsCopy.Namespace).UpdateStatus(context.TODO(), vsCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting VirtualServer %v/%v status, retrying: %v", vsCopy.Namespace, vsCopy.Name, err)
+		nl.Infof(l, "error setting VirtualServer %v/%v status, retrying: %v", vsCopy.Namespace, vsCopy.Name, err)
 		return su.retryUpdateVirtualServerStatus(vsCopy)
 	}
 	return err
@@ -645,13 +653,14 @@ func (su *statusUpdater) updateVirtualServerRouteExternalEndpoints(vsr *conf_v1.
 	var exists bool
 	var err error
 
+	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
 	if err != nil {
-		nl.Infof(su.logger, "error getting VirtualServerRoute from Store: %v", err)
+		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
 		return err
 	}
 	if !exists {
-		nl.Infof(su.logger, "VirtualServerRoute doesn't exist in Store")
+		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
 		return nil
 	}
 
@@ -660,7 +669,7 @@ func (su *statusUpdater) updateVirtualServerRouteExternalEndpoints(vsr *conf_v1.
 
 	_, err = su.confClient.K8sV1().VirtualServerRoutes(vsrCopy.Namespace).UpdateStatus(context.TODO(), vsrCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
+		nl.Infof(l, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
 		return su.retryUpdateVirtualServerRouteStatus(vsrCopy)
 	}
 	return err
@@ -692,18 +701,19 @@ func (su *statusUpdater) UpdatePolicyStatus(pol *conf_v1.Policy, state string, r
 	var exists bool
 	var err error
 
+	l := su.logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
 	polLatest, exists, err = su.getNamespacedInformer(pol.Namespace).policyLister.Get(pol)
 	if err != nil {
-		nl.Infof(su.logger, "error getting policy from Store: %v", err)
+		nl.Infof(l, "error getting policy from Store: %v", err)
 		return err
 	}
 	if !exists {
-		nl.Infof(su.logger, "Policy doesn't exist in Store")
+		nl.Infof(l, "Policy doesn't exist in Store")
 		return nil
 	}
 
 	if !su.hasCorrectIngressClass(polLatest) {
-		nl.Infof(su.logger, "ignoring policy with incorrect ingress class")
+		nl.Infof(l, "ignoring policy with incorrect ingress class")
 		return nil
 	}
 
@@ -719,7 +729,7 @@ func (su *statusUpdater) UpdatePolicyStatus(pol *conf_v1.Policy, state string, r
 
 	_, err = su.confClient.K8sV1().Policies(polCopy.Namespace).UpdateStatus(context.TODO(), polCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(su.logger, "error setting Policy %v/%v status, retrying: %v", polCopy.Namespace, polCopy.Name, err)
+		nl.Infof(l, "error setting Policy %v/%v status, retrying: %v", polCopy.Namespace, polCopy.Name, err)
 		return su.retryUpdatePolicyStatus(polCopy)
 	}
 
