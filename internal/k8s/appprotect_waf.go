@@ -20,7 +20,7 @@ func createAppProtectPolicyHandlers(lbc *LoadBalancerController) cache.ResourceE
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			pol := obj.(*unstructured.Unstructured)
-			nl.Debugf(lbc.Logger, "Adding AppProtectPolicy: %v", pol.GetName())
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, pol.GetNamespace(), logKindKey, pol.GetKind(), logNameKey, pol.GetName()), "Adding AppProtectPolicy: %v", pol.GetName())
 			lbc.AddSyncQueue(pol)
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
@@ -28,7 +28,7 @@ func createAppProtectPolicyHandlers(lbc *LoadBalancerController) cache.ResourceE
 			newPol := obj.(*unstructured.Unstructured)
 			different, err := areResourcesDifferent(lbc.Logger, oldPol, newPol)
 			if err != nil {
-				nl.Debugf(lbc.Logger, "Error when comparing policy %v", err)
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, oldPol.GetNamespace(), logKindKey, oldPol.GetKind(), logNameKey, oldPol.GetName()), "Error when comparing policy %v", err)
 				lbc.AddSyncQueue(newPol)
 			}
 			if different {
@@ -47,7 +47,7 @@ func createAppProtectLogConfHandlers(lbc *LoadBalancerController) cache.Resource
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			conf := obj.(*unstructured.Unstructured)
-			nl.Debugf(lbc.Logger, "Adding AppProtectLogConf: %v", conf.GetName())
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, conf.GetNamespace(), logKindKey, conf.GetKind(), logNameKey, conf.GetName()), "Adding AppProtectLogConf: %v", conf.GetName())
 			lbc.AddSyncQueue(conf)
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
@@ -55,7 +55,7 @@ func createAppProtectLogConfHandlers(lbc *LoadBalancerController) cache.Resource
 			newConf := obj.(*unstructured.Unstructured)
 			different, err := areResourcesDifferent(lbc.Logger, oldConf, newConf)
 			if err != nil {
-				nl.Debugf(lbc.Logger, "Error when comparing LogConfs %v", err)
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, oldConf.GetNamespace(), logKindKey, oldConf.GetKind(), logNameKey, oldConf.GetName()), "Error when comparing LogConfs %v", err)
 				lbc.AddSyncQueue(newConf)
 			}
 			if different {
@@ -74,7 +74,7 @@ func createAppProtectUserSigHandlers(lbc *LoadBalancerController) cache.Resource
 	handlers := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			sig := obj.(*unstructured.Unstructured)
-			nl.Debugf(lbc.Logger, "Adding AppProtectUserSig: %v", sig.GetName())
+			nl.Debugf(lbc.Logger.With(logNamespaceKey, sig.GetNamespace(), logKindKey, sig.GetKind(), logNameKey, sig.GetName()), "Adding AppProtectUserSig: %v", sig.GetName())
 			lbc.AddSyncQueue(sig)
 		},
 		UpdateFunc: func(oldObj, obj interface{}) {
@@ -82,11 +82,11 @@ func createAppProtectUserSigHandlers(lbc *LoadBalancerController) cache.Resource
 			newSig := obj.(*unstructured.Unstructured)
 			different, err := areResourcesDifferent(lbc.Logger, oldSig, newSig)
 			if err != nil {
-				nl.Debugf(lbc.Logger, "Error when comparing UserSigs %v", err)
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, oldSig.GetNamespace(), logKindKey, oldSig.GetKind(), logNameKey, oldSig.GetName()), "Error when comparing UserSigs %v", err)
 				lbc.AddSyncQueue(newSig)
 			}
 			if different {
-				nl.Debugf(lbc.Logger, "ApUserSig %v changed, syncing", oldSig.GetName())
+				nl.Debugf(lbc.Logger.With(logNamespaceKey, newSig.GetNamespace(), logKindKey, newSig.GetKind(), logNameKey, newSig.GetName()), "ApUserSig %v changed, syncing", oldSig.GetName())
 				lbc.AddSyncQueue(newSig)
 			}
 		},
@@ -141,7 +141,8 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 	var polExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	logger := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectKind, logNameKey, n)
 	obj, polExists, err = lbc.getNamespacedInformer(ns).appProtectPolicyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -152,11 +153,11 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 	var problems []appprotect.Problem
 
 	if !polExists {
-		nl.Debugf(lbc.Logger, "Deleting AppProtectPolicy: %v\n", key)
+		nl.Debugf(logger, "Deleting AppProtectPolicy: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.DeletePolicy(key)
 	} else {
-		nl.Debugf(lbc.Logger, "Adding or Updating AppProtectPolicy: %v\n", key)
+		nl.Debugf(logger, "Adding or Updating AppProtectPolicy: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.AddOrUpdatePolicy(obj.(*unstructured.Unstructured))
 	}
@@ -172,7 +173,8 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 	var confExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	logger := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectLogConfKind, logNameKey, n)
 	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectLogConfLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -183,11 +185,11 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 	var problems []appprotect.Problem
 
 	if !confExists {
-		nl.Debugf(lbc.Logger, "Deleting AppProtectLogConf: %v\n", key)
+		nl.Debugf(logger, "Deleting AppProtectLogConf: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.DeleteLogConf(key)
 	} else {
-		nl.Debugf(lbc.Logger, "Adding or Updating AppProtectLogConf: %v\n", key)
+		nl.Debugf(logger, "Adding or Updating AppProtectLogConf: %v\n", key)
 
 		changes, problems = lbc.appProtectConfiguration.AddOrUpdateLogConf(obj.(*unstructured.Unstructured))
 	}
@@ -203,7 +205,8 @@ func (lbc *LoadBalancerController) syncAppProtectUserSig(task task) {
 	var sigExists bool
 	var err error
 
-	ns, _, _ := cache.SplitMetaNamespaceKey(key)
+	ns, n, _ := cache.SplitMetaNamespaceKey(key)
+	logger := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectUserSigKind, logNameKey, n)
 	obj, sigExists, err = lbc.getNamespacedInformer(ns).appProtectUserSigLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
@@ -214,11 +217,11 @@ func (lbc *LoadBalancerController) syncAppProtectUserSig(task task) {
 	var problems []appprotect.Problem
 
 	if !sigExists {
-		nl.Debugf(lbc.Logger, "Deleting AppProtectUserSig: %v\n", key)
+		nl.Debugf(logger, "Deleting AppProtectUserSig: %v\n", key)
 
 		change, problems = lbc.appProtectConfiguration.DeleteUserSig(key)
 	} else {
-		nl.Debugf(lbc.Logger, "Adding or Updating AppProtectUserSig: %v\n", key)
+		nl.Debugf(logger, "Adding or Updating AppProtectUserSig: %v\n", key)
 
 		change, problems = lbc.appProtectConfiguration.AddOrUpdateUserSig(obj.(*unstructured.Unstructured))
 	}

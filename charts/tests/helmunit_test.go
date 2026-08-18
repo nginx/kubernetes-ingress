@@ -191,6 +191,21 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "startupstatus",
 			namespace:   "default",
 		},
+		"networkPolicyDisabled": {
+			valuesFile:  "testdata/network-policy-disabled.yaml",
+			releaseName: "network-policy-disabled",
+			namespace:   "default",
+		},
+		"networkPolicyIngress": {
+			valuesFile:  "testdata/network-policy-ingress.yaml",
+			releaseName: "network-policy-ingress",
+			namespace:   "default",
+		},
+		"networkPolicyIngressEgress": {
+			valuesFile:  "testdata/network-policy-ingress-egress.yaml",
+			releaseName: "network-policy-ingress-egress",
+			namespace:   "default",
+		},
 		"loadBalancerClass": {
 			valuesFile:  "testdata/service-loadbalancerclass.yaml",
 			releaseName: "loadbalancerclass",

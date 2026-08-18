@@ -49,10 +49,10 @@ jobs:
       additional_tag: ${{ steps.vars.outputs.additional_tag }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -74,7 +74,7 @@ jobs:
           REF=${{ github.ref_name }} ./.github/scripts/variables.sh additional_tag >> $GITHUB_OUTPUT
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -100,7 +100,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -129,10 +129,10 @@ jobs:
       GOPROXY: ${{ needs.checks.outputs.go_proxy }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -146,8 +146,9 @@ jobs:
           chmod 600 $HOME/.netrc
 
       - name: govulncheck
-        uses: golang/govulncheck-action@b625fbe08f3bccbe446d94fbf87fcc875a4f50ee # v1.0.4
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
         with:
+          go-version-file: go.mod
           repo-checkout: false
           cache: false
           output-format: sarif
@@ -163,7 +164,7 @@ jobs:
           fi
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         if: steps.check-sarif.outputs.sarif_has_results == 'true'
         with:
           sarif_file: govulncheck.sarif
@@ -306,10 +307,10 @@ jobs:
     needs: [release-oss]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -349,7 +350,7 @@ jobs:
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_oss ) }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Make directory for security scan results
         id: directory
@@ -360,7 +361,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           context: workflow
           images: |
@@ -371,7 +372,7 @@ jobs:
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -389,7 +390,7 @@ jobs:
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
 
       - name: Azure login Common Vault
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
@@ -415,21 +416,21 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: DockerHub Login for Docker Scout
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d # v1.22.0
+        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -448,7 +449,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}
@@ -467,7 +468,7 @@ jobs:
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_plus ) }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Make directory for security scan results
         id: directory
@@ -478,7 +479,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           context: workflow
           images: |
@@ -489,7 +490,7 @@ jobs:
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -507,7 +508,7 @@ jobs:
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
 
       - name: Azure login Common Vault
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
@@ -533,21 +534,21 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: DockerHub Login for Docker Scout
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d # v1.22.0
+        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -566,7 +567,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}
@@ -585,7 +586,7 @@ jobs:
       matrix: ${{ fromJSON( needs.checks.outputs.image_matrix_nap ) }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: NAP modules
         id: nap_modules
@@ -603,7 +604,7 @@ jobs:
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           context: workflow
           images: |
@@ -614,7 +615,7 @@ jobs:
             type=raw,value=${{ github.ref_name == github.event.repository.default_branch && 'edge' || github.ref_name }}
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -632,7 +633,7 @@ jobs:
           echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
 
       - name: Azure login Common Vault
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
@@ -658,21 +659,21 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
       - name: DockerHub Login for Docker Scout
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
           password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@7520205ff60037fdc436b40b6a1d1e55a839ec2d # v1.22.0
+        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -691,7 +692,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}
@@ -705,10 +706,10 @@ jobs:
       contents: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Create/Update Draft
-        uses: lucacome/draft-release@3c9a48ffbf0dfe983aea7e3cd8d524965f25e1a8 # v2.2.0
+        uses: lucacome/draft-release@79e6ec7db3f1de9d330fdc716e45841c99a78196 # v2.2.1
         id: release-notes
         with:
           minor-label: "enhancement"

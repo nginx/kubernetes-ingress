@@ -38,7 +38,7 @@ jobs:
       lts_tags: ${{ steps.vars.outputs.lts_tags }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch && inputs.branch || github.event.repository.default_branch }}
           fetch-depth: 0
@@ -87,12 +87,12 @@ jobs:
     needs: [checks]
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -112,7 +112,7 @@ jobs:
           version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Setup Golang Environment
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -120,7 +120,7 @@ jobs:
         run: make cover
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v6.0.2
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./coverage.txt
           token: ${{ steps.secrets.outputs.CODECOV_TOKEN }} # required
@@ -147,7 +147,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
@@ -157,7 +157,7 @@ jobs:
           version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -188,7 +188,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -260,7 +260,7 @@ jobs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
@@ -288,7 +288,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.checks.outputs.branch }}
 
@@ -304,7 +304,7 @@ jobs:
           fi
 
       - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
           client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
@@ -335,7 +335,7 @@ jobs:
           service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
