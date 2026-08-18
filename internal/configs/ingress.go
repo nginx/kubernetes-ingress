@@ -290,6 +290,13 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		allWarnings.AddWarningf(ncp.ingEx.Ingress, "The annotation 'ingress.kubernetes.io/ssl-redirect' is deprecated and will be removed. Please use 'nginx.org/ssl-redirect' instead.")
 	}
 
+	for _, h := range cfgParams.ProxySetHeaders {
+		if strings.EqualFold(h.Name, "Host") {
+			allWarnings.AddWarningf(ncp.ingEx.Ingress, "Host in '%s' creates a duplicate 'proxy_set_header Host' directive; remove it and use '%s' to set the upstream Host.", ProxySetHeadersAnnotation, UpstreamVhostAnnotation)
+			break
+		}
+	}
+
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
 	var maps []version2.Map
