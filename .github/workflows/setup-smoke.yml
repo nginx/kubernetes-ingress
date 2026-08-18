@@ -66,64 +66,30 @@ jobs:
           echo "build_tag=${{ inputs.build-tag }}${{ contains(inputs.image, 'ubi') && '-ubi' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}${{ contains(inputs.image, 'agent') && '-agent' || ''}}" >> $GITHUB_OUTPUT
           echo "stable_tag=${{ inputs.stable-tag }}${{ contains(inputs.image, 'ubi') && '-ubi' || '' }}${{ contains(inputs.image, 'alpine') && '-alpine' || '' }}${{ contains(inputs.target, 'aws') && '-mktpl' || '' }}${{ contains(inputs.image, 'fips') && '-fips' || ''}}${{ contains(inputs.image, 'agent') && '-agent' || ''}}" >> $GITHUB_OUTPUT
 
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+      - name: Setup NIC secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
         if: ${{ inputs.authenticated }}
 
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-          PLUS_CREDS=$(az keyvault secret show --name plus-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$PLUS_CREDS"
-          PLUS_JWT=$(echo $PLUS_CREDS | jq -r '.jwt')
-          echo "::add-mask::$PLUS_JWT"
-          echo "PLUS_JWT=$PLUS_JWT" >> $GITHUB_OUTPUT
-          IFS=@ CERT=$(echo $PLUS_CREDS | jq -r '.crt')
-          while read -r line; do
-            echo "::add-mask::${line}"
-          done <<< "${CERT}"
-          echo $CERT > nginx-repo.crt
-          IFS=@ KEY=$(echo $PLUS_CREDS | jq -r '.key')
-          while read -r line; do
-            echo "::add-mask::${line}"
-          done <<< "${KEY}"
-          echo $KEY > nginx-repo.key
-          IFS=@ RHEL_CREDS=$(az keyvault secret show --name rhel-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          while read -r line; do
-            echo "::add-mask::${line}"
-          done <<< "${RHEL_CREDS}"
-          echo $RHEL_CREDS > rhel_license
-        if: ${{ inputs.authenticated }}
-
-      - name: Azure login Common Vault
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+      - name: Setup Common secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-pkg-jwt, nginx-pkg-certificate, nginx-pkg-key, docker-username, docker-password"
+          env-names: "PLUS_JWT, PLUS_CERT, PLUS_KEY, DOCKER_USERNAME, DOCKER_PASSWORD"
         if: ${{ inputs.authenticated }}
 
-      - name: Setup secrets Common Vault
-        id: secrets-common
+      - name: Write secrets
         run: |
-          echo "Setting secrets for job"
-          DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$DOCKER_USERNAME"
-          echo "DOCKER_USERNAME=$DOCKER_USERNAME" >> $GITHUB_OUTPUT
-          DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$DOCKER_PASSWORD"
-          echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
+          echo "$PLUS_CERT" > nginx-repo.crt
+          echo "$PLUS_KEY" > nginx-repo.key
         if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
@@ -131,8 +97,8 @@ jobs:
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
         if: ${{ inputs.authenticated }}
 
       - name: Login to GCR
@@ -146,8 +112,8 @@ jobs:
       - name: DockerHub Login
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
-          username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
-          password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
         if: ${{ inputs.authenticated }}
 
       - name: Check if stable image exists
@@ -219,7 +185,6 @@ jobs:
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key
-            ${{ contains(inputs.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
         if: ${{ !inputs.authenticated }}
 
       - name: Generate WAF v5 tgz from JSON
@@ -239,7 +204,7 @@ jobs:
           k8s-version: ${{ inputs.k8s-version }}
           registry-token: ${{ steps.auth.outputs.access_token }}
           test-image: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
-          plus-jwt: ${{ steps.secrets.outputs.PLUS_JWT }}
+          plus-jwt: ${{ env.PLUS_JWT }}
         if: ${{ steps.stable_exists.outputs.exists != 'true'  }}
 
       - name: Upload Test Results
@@ -253,5 +218,5 @@ jobs:
 
       - name: Clean up secrets
         run: |
-          rm -f nginx-repo.crt nginx-repo.key rhel_license
+          rm -f nginx-repo.crt nginx-repo.key
         if: always()

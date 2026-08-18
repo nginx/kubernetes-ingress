@@ -76,16 +76,11 @@ jobs:
           echo "docker_md5=${docker_md5:0:8}" >> $GITHUB_OUTPUT
           echo $GITHUB_OUTPUT
 
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
-
       - name: Get secrets from vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
         with:
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
           secret-names: "nginx-bot-nic-create-pr-app-client-id, nginx-bot-nic-create-pr-app-private-key"
           env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
