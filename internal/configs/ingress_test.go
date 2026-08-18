@@ -2190,6 +2190,90 @@ func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOnly(t *testin
 	}
 }
 
+func TestGenerateNginxCfgForHostInProxySetHeadersWarning(t *testing.T) {
+	t.Parallel()
+
+	cafeIngressEx := createCafeIngressEx()
+	expectedWarning := fmt.Sprintf("Host in '%s' creates a duplicate 'proxy_set_header Host' directive; remove it and use '%s' to set the upstream Host.", ProxySetHeadersAnnotation, UpstreamVhostAnnotation)
+
+	tests := []struct {
+		annotations      map[string]string
+		expectedWarnings Warnings
+		msg              string
+	}{
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "Host: example.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "Host with value generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "Host",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "bare Host generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "host: example.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "lowercase host generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "HOST: example.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "uppercase HOST generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "X-Forwarded-ABC,Host: example.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "Host mixed with other headers generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "Host: a.internal,Host: b.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "multiple Host entries generate a single warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "X-Forwarded-ABC",
+			},
+			expectedWarnings: Warnings{},
+			msg:              "no Host header does not generate warning",
+		},
+		{
+			annotations:      map[string]string{},
+			expectedWarnings: Warnings{},
+			msg:              "no proxy-set-headers annotation",
+		},
+	}
+
+	for _, test := range tests {
+		cafeIngressEx.Ingress.Annotations = test.annotations
+		configParams := NewDefaultConfigParams(context.Background(), false)
+
+		_, warnings := generateNginxCfg(NginxCfgParams{
+			staticParams:  &StaticConfigParams{},
+			ingEx:         &cafeIngressEx,
+			BaseCfgParams: configParams,
+			isPlus:        false,
+		})
+
+		if !reflect.DeepEqual(test.expectedWarnings, warnings) {
+			t.Errorf("generateNginxCfg() returned %v but expected %v for the case of %s", warnings, test.expectedWarnings, test.msg)
+		}
+	}
+}
+
 func createCafeIngressEx() IngressEx {
 	cafeIngress := networking.Ingress{
 		ObjectMeta: meta_v1.ObjectMeta{
