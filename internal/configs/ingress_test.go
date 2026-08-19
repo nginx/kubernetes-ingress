@@ -475,6 +475,20 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 			warningSubstr: "WAF policy default/waf-policy is not supported in annotation nginx.org/policies",
 		},
 		{
+			name:            "filters oidc_native policy from nginx org policies",
+			annotationValue: "oidc-native-policy",
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-native-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{OIDCNative: &conf_v1.OIDCNative{ClientID: "test"}},
+				},
+			},
+			policyRefs:    []conf_v1.PolicyReference{{Name: "oidc-native-policy"}},
+			expectedRefs:  nil,
+			expectError:   true,
+			warningSubstr: "OIDCNative policy default/oidc-native-policy is not supported in annotation nginx.org/policies",
+		},
+		{
 			name:            "keeps non plus policy from nginx org policies",
 			annotationValue: "cors-policy",
 			policies: map[string]*conf_v1.Policy{

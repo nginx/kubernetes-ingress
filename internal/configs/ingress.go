@@ -102,6 +102,7 @@ type NginxCfgParams struct {
 	isResolverConfigured      bool
 	isWildcardEnabled         bool
 	ingressControllerReplicas int
+	oidcNativeLocations       map[string]oidcNativeLocationOwner
 }
 
 type ingressPolicyAnnotationRequirement struct {
@@ -1276,6 +1277,8 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	}
 	isMinion := false
 
+	sharedOIDCLocations := make(map[string]oidcNativeLocationOwner)
+
 	masterNginxCfg, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:              ncp.staticParams,
 		ingEx:                     ncp.mergeableIngs.Master,
@@ -1287,6 +1290,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		isResolverConfigured:      ncp.isResolverConfigured,
 		isWildcardEnabled:         ncp.isWildcardEnabled,
 		ingressControllerReplicas: ncp.ingressControllerReplicas,
+		oidcNativeLocations:       sharedOIDCLocations,
 	})
 
 	// because ncp.mergeableIngs.Master.Ingress is a deepcopy of the original master

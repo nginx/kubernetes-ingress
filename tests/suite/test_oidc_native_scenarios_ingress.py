@@ -442,6 +442,7 @@ class TestOIDCNativeIngressScenarios:
         keycloak_ingress_setup,
         backend_setup,
         crd_ingress_controller,
+        ingress_controller_prerequisites,
     ):
         resources = create_ingress_scenario_resources(kube_apis, test_namespace, keycloak_ingress_setup, 1)
         try:
@@ -458,6 +459,8 @@ class TestOIDCNativeIngressScenarios:
             assert (
                 kube_apis.v1.read_namespaced_secret(secret_name, test_namespace).data["client-secret"] == rotated_secret
             )
+            conf = ingress_conf(kube_apis, ingress_controller_prerequisites, test_namespace, resources["ingresses"][0])
+            assert "rotated-client-secret" in conf
         finally:
             cleanup_ingress_scenario_resources(kube_apis, test_namespace, resources)
 
