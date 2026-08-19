@@ -26,7 +26,7 @@ export KEYCLOAK_HOST=keycloak.${LB_IP}.nip.io
 
 ### Option A: Manual Replacement (Recommended)
 
-In the example manifests, replace `webapp.example.com` with `${WEBAPP_HOST}` and `keycloak.example.com` with `${KEYCLOAK_HOST}`:
+In the example manifests, replace `webapp.example.com` with the value of `${WEBAPP_HOST}` and `keycloak.example.com` with the value of `${KEYCLOAK_HOST}`:
 
 - `keycloak.yaml`
 - `keycloak-ingress.yaml`
@@ -138,4 +138,4 @@ kubectl apply -f webapp-ingress.yaml
 | Session storage | Explicit keyval zones | Managed by the module |
 | Multiple providers per Ingress | No | Yes (per location) |
 | PKCE | Manual toggle | Configurable per policy |
-| Callback URI | `/_codexch` | `/oidc_callback` (default) |
+| Callback URI | `/_codexch` | `/oidc_callback_<provider-name>` (default) |

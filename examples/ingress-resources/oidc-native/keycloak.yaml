@@ -45,7 +45,7 @@ spec:
             - name: KC_PROXY_HEADERS
               value: "xforwarded"
             - name: KC_HOSTNAME
-              value: "https://keycloak.207.175.48.210.nip.io"
+              value: "https://keycloak.example.com"
             - name: KC_HTTPS_CERTIFICATE_FILE
               value: "/etc/x509/https/tls.crt"
             - name: KC_HTTPS_CERTIFICATE_KEY_FILE
