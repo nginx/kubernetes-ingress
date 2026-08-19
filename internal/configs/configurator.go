@@ -275,6 +275,9 @@ func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams 
 		newZones := make(map[string]bool)
 		var newZonesNames []string
 		for _, rule := range ingEx.Ingress.Spec.Rules {
+			if ingEx.ValidHosts != nil && !ingEx.ValidHosts[rule.Host] {
+			    continue
+			}
 			zoneName := normalizeServerZoneName(rule.Host)
 			serverZoneLabels[zoneName] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
 			newZones[zoneName] = true
