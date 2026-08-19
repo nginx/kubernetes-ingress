@@ -58,9 +58,9 @@ release.yml (manual dispatch)
 
 | Workflow | Purpose |
 | --- | --- |
-| `build-artifacts.yml` | Orchestrates GoReleaser binary builds + image matrix |
+| `build-artifacts.yml` | Orchestrates GoReleaser binary builds + image matrix (accepts `pkg-src-plus`, `pkg-src-waf`, `pkg-src-dos`) |
 | `build-oss.yml` | Builds single OSS image variant |
-| `build-plus.yml` | Builds single Plus/NAP image variant |
+| `build-plus.yml` | Builds single Plus/NAP image variant (maps `pkg-src-repo`, `pkg-src-waf`, `pkg-src-dos` to docker build args) |
 | `build-test-image.yml` | Builds Python e2e test image |
 | `setup-smoke.yml` | Sets up and runs smoke tests |
 | `patch-image.yml` | OS-level patches on existing images |

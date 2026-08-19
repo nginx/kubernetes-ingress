@@ -88,8 +88,11 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 | `NGINX_OSS_VERSION` | NGINX OSS version | `build/Dockerfile` |
 | `NAP_MODULES` | App Protect modules | Any of `waf`, `dos`, or `waf,dos` |
 | `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref (set by CI) |
-| `OSS_PACKAGE_REPO` | Repo host for OSS packages | CI inputs (defaults to packages.nginx.org) |
-| `PLUS_PACKAGE_REPO` | Repo host for Plus packages | CI inputs (defaults to pkgs.nginx.com) |
+| `OSS_PACKAGE_REPO` | Repo host for OSS packages | `Makefile` / CI inputs (defaults to packages.nginx.org) |
+| `AGENT_PACKAGE_REPO` | Repo host for NGINX Agent packages | `Makefile` / CI inputs (defaults to packages.nginx.org) |
+| `PLUS_PACKAGE_REPO` | Repo host for Plus packages | `Makefile` / CI inputs (defaults to pkgs.nginx.com) |
+| `WAF_PACKAGE_REPO` | Repo host for F5 NAP WAF packages | `Makefile` / CI inputs (defaults to pkgs.nginx.com) |
+| `DOS_PACKAGE_REPO` | Repo host for F5 NAP DoS packages | `Makefile` / CI inputs (defaults to pkgs.nginx.com) |
 
 Do not hard-code `IC_VERSION` or `NGINX_VERSION` values in this file or in other docs as they change every release. Always reference `.github/data/version.txt` or the Renovate-managed Dockerfile pin.
 
