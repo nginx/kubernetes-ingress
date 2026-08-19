@@ -1,0 +1,3 @@
+controller:
+  enableLatencyMetrics: true
+  latencyMetricsBuckets: "5,ten,25"
