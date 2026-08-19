@@ -1082,7 +1082,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	if redirectURI == "" {
 		redirectURI = fmt.Sprintf("/oidc_callback_%s", providerName)
 	}
-	
+
 	logoutURI := oidcNative.LogoutURI
 	if logoutURI == "" {
 		logoutURI = "/logout"
