@@ -151,7 +151,7 @@ jobs:
       - name: NAP modules
         id: nap_modules
         run: |
-          [[ "${{ inputs.nap-modules }}" == "waf,dos" ]] && modules="waf-dos" || name="${{ inputs.nap-modules }}"
+          [[ "${{ inputs.nap-modules }}" == "waf,dos" ]] && name="waf-dos" || name="${{ inputs.nap-modules }}"
           echo "name=${name}" >> $GITHUB_OUTPUT
           [[ "${{ inputs.nap-modules }}" == "waf,dos" ]] && modules="both" || modules="${{ inputs.nap-modules }}"
           echo "modules=${modules}" >> $GITHUB_OUTPUT
