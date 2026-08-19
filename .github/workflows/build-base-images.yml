@@ -324,7 +324,7 @@ jobs:
           file: build/Dockerfile
           context: "."
           cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.nap_modules.outputs.modules }}
-          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}', matrix.image) || '' }}
+          cache-to: ${{ (github.ref_name == github.event.repository.default_branch || github.event_name == 'schedule') && format('type=gha,mode=max,scope={0}-{1}', matrix.image, steps.nap_modules.outputs.modules) || '' }}
           target: common
           tags: ${{ steps.meta.outputs.tags }}
           platforms: ${{ matrix.platforms }}
