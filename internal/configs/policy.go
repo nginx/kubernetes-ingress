@@ -1084,6 +1084,11 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	if redirectURI == "" {
 		redirectURI = fmt.Sprintf("/oidc_callback_%s", providerName)
 	}
+	
+	logoutURI := oidcNative.LogoutURI
+	if logoutURI == "" {
+		logoutURI = "/logout"
+	}
 
 	cookieName := oidcNative.CookieName
 	if cookieName == "" {
@@ -1136,7 +1141,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		CookieName:            cookieName,
 		ExtraAuthArgs:         oidcNative.ExtraAuthArgs,
 		PKCE:                  oidcNative.PKCE,
-		LogoutURI:             oidcNative.LogoutURI,
+		LogoutURI:             logoutURI,
 		PostLogoutURI:         oidcNative.PostLogoutRedirectURI,
 		FrontChannelLogoutURI: oidcNative.FrontChannelLogoutURI,
 		LogoutTokenHint:       oidcNative.LogoutTokenHint,
