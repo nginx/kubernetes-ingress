@@ -8,14 +8,14 @@ ARG NAP_WAF_VERSION=37.0+5.690
 ARG NAP_WAF_COMMON_VERSION=11.735
 ARG NAP_WAF_PLUGIN_VERSION=6.30
 ARG NAP_WAF_IPI_VERSION=1.59
-ARG NAP_DOS_VERSION=37.0+5.635
+ARG NAP_DOS_VERSION=37.0+5.690
 
 ARG PACKAGE_REPO=pkgs.nginx.com
 ARG OSS_PACKAGE_REPO=packages.nginx.org
+ARG AGENT_PACKAGE_REPO=packages.nginx.org
 ARG PLUS_PACKAGE_REPO=pkgs.nginx.com
-ARG AGENT_REPO=packages.nginx.org
-ARG NAP_WAF_REPO=pkgs.nginx.com
-
+ARG WAF_PACKAGE_REPO=pkgs.nginx.com
+ARG DOS_PACKAGE_REPO=pkgs.nginx.com
 
 ARG AGENT_V3_VERSION=3
 ARG AGENT_V2_VERSION=2
@@ -41,8 +41,9 @@ ARG IC_VERSION
 ARG BUILD_OS
 ARG NGINX_PLUS_VERSION
 ARG PLUS_PACKAGE_REPO
-ARG AGENT_REPO
-ARG NAP_WAF_REPO
+ARG AGENT_PACKAGE_REPO
+ARG WAF_PACKAGE_REPO
+ARG DOS_PACKAGE_REPO
 
 # the following links can be replaced with local files if needed, i.e. ADD --chown=101:0 <local_file> <container_file>
 ADD --link --chown=101:0 https://cs.nginx.com/static/files/90pkgs-nginx 90pkgs-nginx
@@ -67,13 +68,16 @@ RUN --mount=from=busybox:musl,src=/bin/,dst=/bin/ \
 	&& printf "%s\n" "user_agent=k8s-ic-$IC_VERSION${BUILD_OS##ubi*plus}-dnf" | tee -a nginx-plus-*.repo \
 	&& mkdir dos \
 	&& mv app-protect-dos-10.repo nap-dos-13.sources dos/ \
-	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s;%VERSION%;${DOS_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/nap-dos-13.sources \
-	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${DOS_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/app-protect-dos-10.repo \
-	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" *.sources \
+	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s;%VERSION%;${DOS_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${DOS_PACKAGE_REPO};g" -e "s;${DOS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/nap-dos-13.sources \
+	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${DOS_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${DOS_PACKAGE_REPO};g" -e "s;${DOS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/app-protect-dos-10.repo \
+	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" debian-plus-13.sources \
+	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${WAF_PACKAGE_REPO};g" -e "s;${WAF_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nap-waf-13.sources nap-waf-v5-13.sources \
+	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${AGENT_PACKAGE_REPO};g" -e "s;${AGENT_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" debian-agent-13.sources \
 	&& sed -i -e "s/=0/=1/" app-protect-v5.repo \
-	&& sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nginx-plus-10.repo app-protect-10.repo \
-	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${AGENT_REPO};g" nginx-agent.repo \
-	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${NAP_WAF_REPO};g" app-protect-v5.repo \
+	&& sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nginx-plus-10.repo \
+	&& sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${WAF_PACKAGE_REPO};g" -e "s;${WAF_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" app-protect-10.repo \
+	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${AGENT_PACKAGE_REPO};g" nginx-agent.repo \
+	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${WAF_PACKAGE_REPO};g" app-protect-v5.repo \
 	&& mv dos/* . \
 	&& echo HTTP_USER_AGENT="k8s-ic-$IC_VERSION${BUILD_OS##alpine-plus}-apk" > user_agent
 
@@ -119,7 +123,6 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	apk add --no-cache openssl curl ca-certificates libcap libstdc++ libc-utils \
 	&& addgroup -S -g 101 nginx \
 	&& adduser -S -D -H -G nginx -h /var/cache/nginx -s /sbin/nologin -g nginx -u 101 nginx \
-    && curl -L --cert /etc/apk/cert.pem --key /etc/apk/cert.key https://pkgs-test.nginx.com/debug \
     && printf "%s\n" "https://${OSS_PACKAGE_REPO}/nginx/mainline/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
     && printf "%s\n" "https://${OSS_PACKAGE_REPO}/nginx-agent/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
     && apk add --no-cache \
@@ -296,6 +299,7 @@ ARG NAP_WAF_VERSION
 ARG NAP_WAF_IPI_VERSION
 ARG PACKAGE_REPO
 ARG PLUS_PACKAGE_REPO
+ARG WAF_PACKAGE_REPO
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -307,7 +311,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	printf "%s\n" "https://${PLUS_PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& printf "%s\n" "https://${PLUS_PACKAGE_REPO}/app-protect/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
+	&& printf "%s\n" "https://${WAF_PACKAGE_REPO}/app-protect/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& printf "%s\n" "https://pkgs.nginx.com/app-protect-security-updates/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& apk add --no-cache libcap-utils libcurl nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check \
 	&& mkdir -p /usr/ssl \
@@ -331,6 +335,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 FROM alpine-plus-nap-fips-base AS alpine-plus-nap-fips
 ARG AGENT_V2_VERSION
 ARG PLUS_PACKAGE_REPO
+ARG WAF_PACKAGE_REPO
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
@@ -349,6 +354,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 FROM alpine-plus-nap-fips-base AS alpine-plus-nap-fips-agent
 ARG AGENT_V3_VERSION
 ARG PLUS_PACKAGE_REPO
+ARG WAF_PACKAGE_REPO
 
 RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 	--mount=type=secret,id=nginx-repo.key,dst=/etc/apk/cert.key,mode=0644 \
@@ -368,6 +374,7 @@ FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc
 ARG NGINX_PLUS_VERSION
 ARG PLUS_PACKAGE_REPO
 ARG NAP_WAF_VERSION
+ARG WAF_PACKAGE_REPO
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -378,7 +385,7 @@ RUN --mount=type=bind,from=alpine-fips-3.22,target=/tmp/fips/ \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	--mount=type=bind,from=nginx-files,src=tracking.info,target=/tmp/nginx/reporting/tracking.info \
 	printf "%s\n" "https://${PLUS_PACKAGE_REPO}/plus/${NGINX_PLUS_VERSION}/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
-	&& printf "%s\n" "https://${PLUS_PACKAGE_REPO}/app-protect-x-plus/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
+	&& printf "%s\n" "https://${WAF_PACKAGE_REPO}/app-protect-x-plus/alpine/v$(grep -E -o '^[0-9]+\.[0-9]+' /etc/alpine-release)/main" >> /etc/apk/repositories \
 	&& apk add --no-cache libcap-utils libcurl nginx-plus nginx-plus-module-njs nginx-plus-module-otel nginx-plus-module-fips-check \
 	&& mkdir -p /usr/ssl \
 	&& cp -av /tmp/fips/usr/lib/ossl-modules/fips.so /usr/lib/ossl-modules/fips.so \
@@ -508,14 +515,14 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	cp /tmp/app-protect.sources /etc/apt/sources.list.d/app-protect.sources \
 	&& apt-get update \
 	&& apt-get install --no-install-recommends --no-install-suggests -y app-protect=${NAP_WAF_VERSION}* \
-	nginx-plus-module-appprotect=${NAP_WAF_VERSION}* \
-	app-protect-engine=${NAP_WAF_COMMON_VERSION}* \
-	app-protect-common=${NAP_WAF_COMMON_VERSION}* \
-	app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
-	app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
-	app-protect-ip-intelligence=${NAP_WAF_IPI_VERSION}* \
-	app-protect-attack-signatures \
-	app-protect-threat-campaigns \
+        nginx-plus-module-appprotect=${NAP_WAF_VERSION}* \
+        app-protect-engine=${NAP_WAF_COMMON_VERSION}* \
+        app-protect-common=${NAP_WAF_COMMON_VERSION}* \
+        app-protect-compiler=${NAP_WAF_COMMON_VERSION}* \
+        app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
+        app-protect-ip-intelligence=${NAP_WAF_IPI_VERSION}* \
+        app-protect-attack-signatures \
+        app-protect-threat-campaigns \
 	&& rm -f /etc/apt/sources.list.d/app-protect.sources \
 	&& nap-waf.sh; \
 	fi \
@@ -547,7 +554,10 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	--mount=type=bind,from=nginx-files,src=nap-waf-v5-13.sources,target=/etc/apt/sources.list.d/app-protect.sources \
 	--mount=type=bind,from=nginx-files,src=nap-waf.sh,target=/usr/local/bin/nap-waf.sh \
 	apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y app-protect-module-plus=${NAP_WAF_VERSION}* nginx-plus-module-appprotect=${NAP_WAF_VERSION}* app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
+	&& apt-get install --no-install-recommends --no-install-suggests -y \
+      app-protect-module-plus=${NAP_WAF_VERSION}* \
+      nginx-plus-module-appprotect=${NAP_WAF_VERSION}* \
+      app-protect-plugin=${NAP_WAF_PLUGIN_VERSION}* \
 	&& nap-waf.sh
 
 

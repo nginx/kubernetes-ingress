@@ -44,6 +44,16 @@ on:
         required: false
         type: string
         default: "pkgs.nginx.com"
+      pkg-src-waf:
+        description: "Repository for F5 WAF packages"
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
+      pkg-src-dos:
+        description: "Repository for F5 DoS packages"
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
       image-matrix-oss:
         required: true
         type: string
@@ -292,6 +302,8 @@ jobs:
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
       pkg-src-repo: ${{ inputs.pkg-src-plus }}
+      pkg-src-waf: ${{ inputs.pkg-src-waf }}
+      pkg-src-dos: ${{ inputs.pkg-src-dos }}
     permissions:
       contents: read
       id-token: write # gcr login

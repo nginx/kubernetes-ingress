@@ -4,8 +4,11 @@ GIT_TAG = $(shell git describe --exact-match --tags || echo untagged)
 BINARY_NAME = nginx-ingress
 VERSION = $(VER)-SNAPSHOT
 
-OSS_REPO 		      		  ?= "packages.nginx.org" ## The package repo to install nginx oss from
-PLUS_REPO                     ?= "pkgs-test.nginx.com" ## The package repo to install nginx-plus from
+# variables that can be overridden by the user
+OSS_REPO 		      		   ?= "packages.nginx.org" ## The package repo to install nginx oss from
+PLUS_REPO                      ?= "pkgs-test.nginx.com" ## The package repo to install nginx-plus from
+WAF_REPO					   ?= "pkgs-test.nginx.com" ## The package repo to install nginx app protect waf from
+DOS_REPO					   ?= "pkgs-test.nginx.com" ## The package repo to install nginx app protect dos from
 
 # renovate: datasource=docker depName=nginx/nginx
 NGINX_OSS_VERSION             ?= 1.31.3
@@ -20,11 +23,13 @@ NAP_DOS_VERSION               ?= 37.0+5.690
 AGENT_V2_VERSION              ?= 2
 AGENT_V3_VERSION              ?= 3
 
-NGX_CRT ?= nginx-repo.crt
-NGX_KEY ?= nginx-repo.key
+# variables that can be overridden by the user, but are required for plus/staging builds
+NGX_CRT 					  ?= nginx-repo.crt
+NGX_KEY 					  ?= nginx-repo.key
 
-STAGING_ARGS = OSS_REPO=pkgs-test.nginx.com OSS_ARGS="--secret id=$(NGX_CRT),src=$(NGX_CRT) --secret id=$(NGX_KEY),src=$(NGX_KEY)"
-PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=$(NGX_CRT),src=$(NGX_CRT) --secret id=$(NGX_KEY),src=$(NGX_KEY)
+DOCKER_AUTH = "--secret id=$(NGX_CRT),src=$(NGX_CRT) --secret id=$(NGX_KEY),src=$(NGX_KEY)"
+STAGING_ARGS ?= OSS_REPO=pkgs-test.nginx.com OSS_ARGS=$(DOCKER_AUTH) PLUS_REPO=pkgs-test.nginx.com PLUS_ARGS=$(DOCKER_AUTH) WAF_REPO=pkgs-test.nginx.com DOS_REPO=pkgs-test.nginx.com
+PLUS_ARGS ?= --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO) --build-arg WAF_PACKAGE_REPO=$(WAF_REPO) --build-arg DOS_PACKAGE_REPO=$(DOS_REPO) $(DOCKER_AUTH)
 
 # Variables that can be overridden
 UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:8fb7d622f38e0d0f4dba7bfc6228fee7241adf7e1c981f16c532cfbd47eccfc9
@@ -201,7 +206,8 @@ build-goreleaser: ## Build Ingress Controller binary using GoReleaser
 .PHONY: alpine-image
 alpine-image: build ## Build OSS Alpine-based image
 	$(DOCKER_CMD) \
-		$(OSS_ARGS) --build-arg BUILD_OS=alpine \
+		$(OSS_ARGS) \
+		--build-arg BUILD_OS=alpine \
 		--build-arg OSS_PACKAGE_REPO=$(OSS_REPO) \
 		--build-arg NGINX_OSS_VERSION=$(NGINX_OSS_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
@@ -241,7 +247,10 @@ ubi-image-staging: build ## Create OSS UBI-based image from staging repo
 ###### NIC + NGINX PLUS Images ######
 .PHONY: alpine-image-plus
 alpine-image-plus: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=alpine-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+	$(DOCKER_CMD) \
+		$(PLUS_ARGS) \
+		--build-arg BUILD_OS=alpine-plus \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: alpine-image-plus-fips
 alpine-image-plus-fips: build ## Create Docker image for Ingress Controller (Alpine with NGINX Plus and FIPS)
@@ -275,7 +284,7 @@ alpine-image-nap-v5-plus-fips-agent: build ## Create Docker image for Ingress Co
 
 .PHONY: debian-image-plus
 debian-image-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus)
-	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+	$(DOCKER_CMD) --no-cache $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: debian-image-nap-plus
 debian-image-nap-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect WAF)
