@@ -457,26 +457,6 @@ func TestValidateTransportServerLoadBalancingMethod(t *testing.T) {
 			hasError: false,
 		},
 		{
-			method:   "least_time connect",
-			isPlus:   false,
-			hasError: false,
-		},
-		{
-			method:   "least_time first_byte",
-			isPlus:   false,
-			hasError: false,
-		},
-		{
-			method:   "least_time last_byte",
-			isPlus:   false,
-			hasError: false,
-		},
-		{
-			method:   "least_time last_byte inflight",
-			isPlus:   false,
-			hasError: false,
-		},
-		{
 			method:   "random two least_time",
 			isPlus:   false,
 			hasError: true,

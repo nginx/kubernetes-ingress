@@ -856,8 +856,10 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectEnabled:    false,
 			appProtectDosEnabled: false,
 
-			expectedErrors: nil,
-			msg:            "valid nginx.org/lb-method annotation least_time header for nginx normal",
+			expectedErrors: []string{
+				`annotations.nginx.org/lb-method: Invalid value: "least_time header": invalid load balancing method: "least_time header"`,
+			},
+			msg: "invalid nginx.org/lb-method annotation, nginx plus only",
 		},
 		{
 			annotations: map[string]string{
