@@ -2056,6 +2056,9 @@ func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithoutCustomDefaultHTTPAnd
 			t.Errorf("want %q in generated config", want)
 		}
 	}
+	if strings.Contains(mainConf, "status_zone") {
+		t.Errorf("status_zone directive should not be present in default server config, got: %s", mainConf)
+	}
 	snaps.MatchSnapshot(t, buf.String())
 }
 
@@ -4039,6 +4042,34 @@ func TestExecuteTemplate_ForIngressWithAddHeaderInherit(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressWithDisableForwardedHeaders(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgForwardedHeaderDisabled)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	notWantDirectives := []string{
+		"proxy_set_header X-Forwarded-For",
+		"proxy_set_header X-Forwarded-Host",
+		"proxy_set_header X-Forwarded-Port",
+		"proxy_set_header X-Forwarded-Proto",
+	}
+
+	rendered := buf.String()
+	for _, notWant := range notWantDirectives {
+		if strings.Contains(rendered, notWant) {
+			t.Errorf("not want %q in generated config", notWant)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 var (
 	// Ingress Config example without added annotations
 	ingressCfg = IngressNginxConfig{
@@ -4415,6 +4446,44 @@ var (
 				AppProtectDosName:            "testdos",
 				AppProtectDosAccessLogDst:    "/var/log/dos",
 				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	ingressCfgForwardedHeaderDisabled = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                    "/tea",
+						Upstream:                testUpstream,
+						ProxyConnectTimeout:     "10s",
+						DisableForwardedHeaders: true,
+						ProxyReadTimeout:        "10s",
+						ProxySendTimeout:        "10s",
+						ClientMaxBodySize:       "2m",
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+						},
+						ProxyPass: "http://test",
+					},
+				},
 			},
 		},
 		Upstreams: []Upstream{testUpstream},
@@ -7332,5 +7401,102 @@ func newIngressConfigWithEgressMTLS(grpc bool) IngressNginxConfig {
 			},
 		},
 		Upstreams: []Upstream{upstream},
+	}
+}
+
+// newIngressConfigWithExternalAuth builds an Ingress config with an ExternalAuth
+// policy at server or location scope, optionally including an OAuth2 signin URL.
+func newIngressConfigWithExternalAuth(scope string, signinURL string) IngressNginxConfig {
+	auth := &version2.ExternalAuth{
+		URI: &version2.AuthURI{
+			Service:      "oauth2-proxy",
+			Upstream:     "ext_auth_default_oauth2-proxy",
+			Path:         "/oauth2/auth",
+			InternalPath: "/_external_auth/oauth2/auth",
+		},
+	}
+	if signinURL != "" {
+		auth.SigninURL = signinURL
+		auth.SigninRedirectBasePath = "/oauth2"
+	}
+
+	server := Server{
+		Name:         "cafe.example.com",
+		ServerTokens: "off",
+		StatusZone:   "cafe.example.com",
+		Locations: []Location{
+			{
+				Path:      "/tea",
+				Upstream:  testUpstream,
+				ProxyPass: "http://test",
+			},
+		},
+	}
+	switch scope {
+	case "server":
+		server.ExternalAuth = auth
+	case "location":
+		server.Locations[0].ExternalAuth = auth
+	}
+
+	return IngressNginxConfig{
+		Servers:   []Server{server},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "external-auth-policy",
+			},
+		},
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
+	t.Parallel()
+
+	const signinURL = "/oauth2/start?rd=$scheme://$host$request_uri"
+	want := fmt.Sprintf(`error_page 401 = "%s";`, signinURL)
+
+	cases := []struct {
+		name    string
+		scope   string
+		signin  string
+		wantHit bool
+		newTmpl func(*testing.T) *template.Template
+	}{
+		{name: "nginx/server", scope: "server", signin: signinURL, wantHit: true, newTmpl: newNGINXIngressTmpl},
+		{name: "nginx/location", scope: "location", signin: signinURL, wantHit: true, newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus/server", scope: "server", signin: signinURL, wantHit: true, newTmpl: newNGINXPlusIngressTmpl},
+		{name: "nginx-plus/location", scope: "location", signin: signinURL, wantHit: true, newTmpl: newNGINXPlusIngressTmpl},
+		// Guards that ExternalAuth without SigninURL still emits `auth_request` but no `error_page 401`.
+		{name: "nginx/server/no-signin", scope: "server", signin: "", wantHit: false, newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus/location/no-signin", scope: "location", signin: "", wantHit: false, newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tmpl := tc.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, newIngressConfigWithExternalAuth(tc.scope, tc.signin)); err != nil {
+				t.Fatal(err)
+			}
+			got := buf.String()
+
+			if !strings.Contains(got, "auth_request /_external_auth/oauth2/auth;") {
+				t.Errorf("want auth_request directive in rendered config\n---\n%s", got)
+			}
+
+			hasErrorPage := strings.Contains(got, want)
+			switch {
+			case tc.wantHit && !hasErrorPage:
+				t.Errorf("want %q in rendered config\n---\n%s", want, got)
+			case !tc.wantHit && strings.Contains(got, "error_page 401"):
+				t.Errorf("did not want error_page 401 when SigninURL is empty\n---\n%s", got)
+			}
+
+			snaps.MatchSnapshot(t, got)
+		})
 	}
 }

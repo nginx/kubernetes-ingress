@@ -76,34 +76,29 @@ jobs:
       id-token: write # for OIDC login
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/heads/${{ inputs.branch }}
           path: kic
 
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
-        with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
-
       - name: Get secrets from vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
         with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
           secret-names: "docker-username, docker-password, nginx-bot-helm-app-client-id, nginx-bot-helm-app-private-key"
           env-names: "DOCKER_USERNAME, DOCKER_PASSWORD, APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: DockerHub Login
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
@@ -111,7 +106,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
+          version: v3.21.4 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Package
         id: package
@@ -169,7 +164,7 @@ jobs:
         if: ${{ inputs.nginx_helm_repo }}
 
       - name: Checkout Repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: nginxinc/helm-charts
           fetch-depth: 1
