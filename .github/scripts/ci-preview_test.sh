@@ -102,7 +102,7 @@ assert_scenario_flags stable-only \
   "run_tests=false docker_build=false run_unit_tests=false run_e2e=false tag_stable=false promote=false"
 
 assert_scenario_flags forked \
-  "run_tests=true docker_build=true run_unit_tests=true run_e2e=false tag_stable=false promote=false"
+  "run_tests=true docker_build=true run_unit_tests=true run_e2e=true tag_stable=false promote=false"
 
 assert_scenario_flags forked-docs \
   "run_tests=false docker_build=false run_unit_tests=false run_e2e=false tag_stable=false promote=false"

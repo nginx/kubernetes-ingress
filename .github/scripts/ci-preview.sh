@@ -365,12 +365,13 @@ row() {
     "$colour" "$marker" "$C_OFF" "$job" "$C_DIM" "$reason" "$C_OFF"
 }
 
-# helper: e2e-authenticated jobs share a gate.
+# helper: the e2e job group (tag-target, package-tests, helm-tests,
+# setup-matrix, smoke-tests-*) shares a single gate. Forks run these too
+# (against the image built locally in-runner); only tag-stable additionally
+# excludes forks (see the tag-stable reason logic below).
 e2e_auth() {
   if [ "$RUN_E2E" = "true" ]; then
     echo "true|run_e2e=true"
-  elif [ "$FORKED_ARG" = "true" ]; then
-    echo "false|run_e2e=false (forked, no GCR auth)"
   else
     echo "false|run_e2e=false"
   fi
