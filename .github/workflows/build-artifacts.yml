@@ -19,7 +19,11 @@ on:
         required: true
         type: boolean
       force:
-        description: Always build artifacts
+        description: >-
+          Force a full rebuild of every docker image in the matrix, bypassing
+          the registry-probe fast path in build-oss/build-plus. Callers that
+          need guaranteed-fresh artifacts (release, image-promotion) set this
+          to true; regular CI leaves it false so unchanged images are reused.
         type: boolean
         default: false
       ic-version:
@@ -90,9 +94,9 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-        if: ${{ inputs.force && steps.binary-cache.outputs.cache-hit != 'true' }}
 
       - name: Setup netrc
+        if: ${{ inputs.authenticated }}
         run: |
           cat <<EOF > $HOME/.netrc
           machine azr.artifactory.f5net.com
@@ -100,7 +104,6 @@ jobs:
               password ${{ secrets.ARTIFACTORY_TOKEN }}
           EOF
           chmod 600 $HOME/.netrc
-        if: ${{ steps.binary-cache.outputs.cache-hit != 'true' && (inputs.force || inputs.authenticated == 'true') }}
 
       - name: Build binaries
         uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
@@ -112,20 +115,17 @@ jobs:
           GOPATH: ${{ inputs.go-path }}
           GOPROXY: ${{ inputs.go-proxy }}
           GORELEASER_CURRENT_TAG: "v${{ inputs.ic-version }}"
-        if: ${{ inputs.force && steps.binary-cache.outputs.cache-hit != 'true' }}
 
       - name: Extract NGINX Ingress Controller binary info
         id: nic_binaries
         run: |
           echo "json=$(.github/scripts/binary-json.sh ${{ github.workspace }}/dist ${{ github.event.repository.name }} "nginx-ingress")" >> $GITHUB_OUTPUT
-        if: ${{ inputs.force }}
 
       - name: Store Artifacts in Cache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
-        if: ${{ inputs.force && steps.binary-cache.outputs.cache-hit != 'true' }}
 
       - name: Cleanup netrc
         run: rm -f $HOME/.netrc
