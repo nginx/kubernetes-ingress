@@ -18,7 +18,7 @@ PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=ngi
 UBI10_PACKAGES_IMAGE ?= ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:8fb7d622f38e0d0f4dba7bfc6228fee7241adf7e1c981f16c532cfbd47eccfc9
 
 # renovate: datasource=github-releases depName=dominikh/go-tools
-STATICCHECK_VERSION ?= 2026.1
+STATICCHECK_VERSION ?= 2026.2
 
 # renovate: datasource=github-releases depName=golang/vuln
 GOVULNCHECK_VERSION ?= v1.1.4
@@ -39,7 +39,7 @@ PLATFORM                      ?= linux/amd64 ## The platform(s) for dependency i
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION         ?= v2.12.2 ## The version of golangci-lint to use
+GOLANGCI_LINT_VERSION         ?= v2.13.1 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
 GOIMPORTS_VERSION             ?= v0.49.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
