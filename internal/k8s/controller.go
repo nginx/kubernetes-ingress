@@ -76,6 +76,8 @@ const (
 	ingressClassKey = "kubernetes.io/ingress.class"
 	// IngressControllerName holds Ingress Controller name
 	IngressControllerName = "nginx.org/ingress-controller"
+	// EventReporterName
+	EventReporterName = "nginx-ingress-controller"
 
 	typeKeyword                                     = "type"
 	helmReleaseType                                 = "helm.sh/release.v1"
@@ -2571,7 +2573,8 @@ func (lbc *LoadBalancerController) updateVirtualServersStatusFromEvents() error 
 			var timestamp time.Time
 			var latestEvent api_v1.Event
 			for _, event := range events.Items {
-				if event.CreationTimestamp.After(timestamp) {
+				if event.CreationTimestamp.After(timestamp) && event.ReportingController == EventReporterName {
+					timestamp = event.CreationTimestamp.Time
 					latestEvent = event
 				}
 			}
@@ -2615,7 +2618,8 @@ func (lbc *LoadBalancerController) updateVirtualServerRoutesStatusFromEvents() e
 			var timestamp time.Time
 			var latestEvent api_v1.Event
 			for _, event := range events.Items {
-				if event.CreationTimestamp.After(timestamp) {
+				if event.CreationTimestamp.After(timestamp) && event.ReportingController == EventReporterName {
+					timestamp = event.CreationTimestamp.Time
 					latestEvent = event
 				}
 			}
