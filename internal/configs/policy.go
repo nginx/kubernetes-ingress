@@ -94,12 +94,12 @@ type policyOptions struct {
 	defaultCABundle string
 	replicas        int
 	oidcPolicyName  string
-	// plmEnabled routes apPolicy/apLogConf references to PLM-fetched bundles.
-	plmEnabled bool
 	// oidcConfig holds the already-built OIDC config from the first route or spec that defined
 	// this OIDC policy. It is reused by addOIDCConfig() when the same policy name is encountered
 	// on subsequent routes.
 	oidcConfig *version2.OIDC
+	// plmEnabled routes apPolicy/apLogConf references to PLM-fetched bundles.
+	plmEnabled bool
 }
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {

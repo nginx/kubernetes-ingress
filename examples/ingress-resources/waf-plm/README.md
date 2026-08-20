@@ -8,10 +8,6 @@ PLM owns the `APPolicy` and `APLogConf` lifecycle and publishes the compiled bun
 SeaweedFS. NGINX Ingress Controller (NIC) watches the referenced resources and fetches a
 bundle once its `status.bundle.state` becomes `ready`.
 
-For VirtualServer equivalents, see [custom-resources/waf-plm](../../custom-resources/waf-plm/).
-For sourcing bundles from NGINX Instance Manager or NGINX One Console instead, see
-[waf-management-plane](../waf-management-plane/).
-
 ## Prerequisites
 
 1. Install the F5 WAF Policy Controller (PLM). PLM installs and owns the
@@ -21,7 +17,7 @@ For sourcing bundles from NGINX Instance Manager or NGINX One Console instead, s
 1. Confirm the CRDs are installed and served at `v1`:
 
     ```console
-    kubectl describe crd appolicies.appprotect.f5.com aplogconfs.appprotect.f5.com
+    kubectl describe crd appolicies.appprotect.f5.com aplogconfs.appprotect.f5.com apsignatures.appprotect.f5.com apusersigs.appprotect.f5.com 
     ```
 
 ## Step 1 - Create the PLM Policy and Log Configuration
@@ -121,9 +117,7 @@ For an installation without TLS, use the HTTP endpoint on port `8333` and leave
 `caSecret` and `clientSSLSecret` empty. The endpoint scheme must match how PLM was
 installed: a plaintext `http://` request sent to the TLS port fails.
 
-Because PLM owns the App Protect CRDs, install NIC with `--skip-crds` so it does not
-overwrite them, and create the rest of the CRDs before installation otherwise the NIC pod
-won't become ready.
+Apply the CRDs before installing NIC using `kubectl apply -f ../../../deploy/crds.yaml`. Pass `--skip-crds` when using `helm install`
 
 If `controller.watchNamespace` is restricted, include the namespace holding the
 `APPolicy` and `APLogConf` resources so NIC can watch their status. If
