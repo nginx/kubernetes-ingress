@@ -18,14 +18,14 @@ Steps:
 1. Save the address of Keycloak and the web application into shell variables:
 
     ```shell
-    KEYCLOAK_HOST=${KEYCLOAK_HOST:-keycloak.example.com}
-    WEBAPP_HOST=${WEBAPP_HOST:-webapp.example.com}
+    KEYCLOAK_ADDRESS=keycloak.example.com
+    WEBAPP_ADDRESS=webapp.example.com
     ```
 
 2. Retrieve the access token and store it into a shell variable:
 
     ```shell
-    TOKEN=`curl -sS -k --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" "https://${KEYCLOAK_HOST}/realms/master/protocol/openid-connect/token" | jq -r .access_token`
+    TOKEN=`curl -sS -k --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" "https://${KEYCLOAK_ADDRESS}/realms/master/protocol/openid-connect/token" | jq -r .access_token`
     ```
 
    Ensure the request was successful and the token is stored in the shell variable by running:
@@ -40,7 +40,7 @@ Steps:
 3. Create the user `nginx-user`:
 
     ```shell
-    curl -sS -k -X POST -d '{ "username": "nginx-user", "enabled": true, "credentials":[{"type": "password", "value": "test", "temporary": false}]}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_HOST}/admin/realms/master/users
+    curl -sS -k -X POST -d '{ "username": "nginx-user", "enabled": true, "credentials":[{"type": "password", "value": "test", "temporary": false}]}' -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/admin/realms/master/users
     ```
 
 4. Create the client `nginx-plus`:
@@ -48,7 +48,7 @@ Steps:
     - If you are not using PKCE, use the following command to create an OIDC client that does not use PKCE:
 
         ```shell
-        SECRET=`curl -sS -k -X POST -d "{ \"clientId\": \"nginx-plus\", \"redirectUris\": [\"https://${WEBAPP_HOST}/*\"], \"attributes\": {\"post.logout.redirect.uris\": \"https://${WEBAPP_HOST}/*\"}}" -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_HOST}/realms/master/clients-registrations/default | jq -r .secret`
+        SECRET=`curl -sS -k -X POST -d "{ \"clientId\": \"nginx-plus\", \"redirectUris\": [\"https://${WEBAPP_ADDRESS}/*\"], \"attributes\": {\"post.logout.redirect.uris\": \"https://${WEBAPP_ADDRESS}/*\"}}" -H "Content-Type:application/json" -H "Authorization: bearer ${TOKEN}" https://${KEYCLOAK_ADDRESS}/realms/master/clients-registrations/default | jq -r .secret`
         ```
 
         If everything went well, you should have the secret stored in $SECRET. To double-check, run:
@@ -68,13 +68,13 @@ Steps:
             \"directAccessGrantsEnabled\": false,
             \"publicClient\": true,
             \"redirectUris\": [
-                \"https://${WEBAPP_HOST}/*\"
+                \"https://${WEBAPP_ADDRESS}/*\"
             ],
             \"attributes\": {
                 \"pkce.code.challenge.method\":\"S256\",
-                \"post.logout.redirect.uris\": \"https://${WEBAPP_HOST}/*\"
+                \"post.logout.redirect.uris\": \"https://${WEBAPP_ADDRESS}/*\"
             },
             \"protocol\": \"openid-connect\"
         }" \
-        https://${KEYCLOAK_HOST}/admin/realms/master/clients
+        https://${KEYCLOAK_ADDRESS}/admin/realms/master/clients
         ```
