@@ -13,7 +13,6 @@ metadata:
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -45,7 +44,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -59,7 +57,6 @@ metadata:
     app.kubernetes.io/instance: custom-resources
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -154,7 +151,6 @@ rules:
   - ingresses/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -175,7 +171,6 @@ roleRef:
   kind: ClusterRole
   name: custom-resources-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -236,7 +231,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -258,7 +252,6 @@ subjects:
 - kind: ServiceAccount
   name: custom-resources-nginx-ingress
   namespace: custom-resources
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -289,7 +282,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -408,7 +400,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -423,8 +414,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -454,7 +443,6 @@ metadata:
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -486,7 +474,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -500,7 +487,6 @@ metadata:
     app.kubernetes.io/instance: daemonset
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -616,7 +602,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -637,7 +622,6 @@ roleRef:
   kind: ClusterRole
   name: daemonset-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -698,7 +682,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -720,7 +703,6 @@ subjects:
 - kind: ServiceAccount
   name: daemonset-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -751,7 +733,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-daemonset.yaml
 apiVersion: apps/v1
@@ -876,7 +857,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -891,8 +871,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -922,7 +900,6 @@ metadata:
     app.kubernetes.io/instance: daemonset-readonly
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -954,7 +931,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -968,7 +944,6 @@ metadata:
     app.kubernetes.io/instance: daemonset-readonly
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -1084,7 +1059,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -1105,7 +1079,6 @@ roleRef:
   kind: ClusterRole
   name: daemonset-readonly-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -1166,7 +1139,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -1188,7 +1160,6 @@ subjects:
 - kind: ServiceAccount
   name: daemonset-readonly-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -1219,7 +1190,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset-readonly
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-daemonset.yaml
 apiVersion: apps/v1
@@ -1386,7 +1356,6 @@ spec:
         volumeMounts:
         - mountPath: /mnt/etc
           name: nginx-etc
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -1401,8 +1370,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -1432,7 +1399,6 @@ metadata:
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -1464,7 +1430,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -1478,7 +1443,6 @@ metadata:
     app.kubernetes.io/instance: default
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -1594,7 +1558,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -1615,7 +1578,6 @@ roleRef:
   kind: ClusterRole
   name: default-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -1676,7 +1638,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -1698,7 +1659,6 @@ subjects:
 - kind: ServiceAccount
   name: default-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -1729,7 +1689,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -1854,7 +1813,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -1869,8 +1827,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -1900,7 +1856,6 @@ metadata:
     app.kubernetes.io/instance: deployment-hpa
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -1932,7 +1887,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -1946,7 +1900,6 @@ metadata:
     app.kubernetes.io/instance: deployment-hpa
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -2062,7 +2015,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -2083,7 +2035,6 @@ roleRef:
   kind: ClusterRole
   name: deployment-hpa-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -2144,7 +2095,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -2166,7 +2116,6 @@ subjects:
 - kind: ServiceAccount
   name: deployment-hpa-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -2197,7 +2146,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: deployment-hpa
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -2321,7 +2269,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-hpa.yaml
 apiVersion: autoscaling/v2
@@ -2355,7 +2302,6 @@ spec:
         target:
           type: Utilization
           averageUtilization: 50
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -2370,8 +2316,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -2401,7 +2345,6 @@ metadata:
     app.kubernetes.io/instance: deployment-hpa-no-create
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -2433,7 +2376,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -2447,7 +2389,6 @@ metadata:
     app.kubernetes.io/instance: deployment-hpa-no-create
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -2563,7 +2504,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -2584,7 +2524,6 @@ roleRef:
   kind: ClusterRole
   name: deployment-hpa-no-create-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -2645,7 +2584,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -2667,7 +2605,6 @@ subjects:
 - kind: ServiceAccount
   name: deployment-hpa-no-create-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -2698,7 +2635,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: deployment-hpa-no-create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -2822,7 +2758,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -2837,8 +2772,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -2868,7 +2801,6 @@ metadata:
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -2900,7 +2832,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -2914,7 +2845,6 @@ metadata:
     app.kubernetes.io/instance: global-configuration
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -3030,7 +2960,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -3051,7 +2980,6 @@ roleRef:
   kind: ClusterRole
   name: global-configuration-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -3112,7 +3040,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -3134,7 +3061,6 @@ subjects:
 - kind: ServiceAccount
   name: global-configuration-nginx-ingress
   namespace: gc
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -3165,7 +3091,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -3291,7 +3216,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3306,8 +3230,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-globalconfiguration.yaml
 apiVersion: k8s.nginx.org/v1
@@ -3329,7 +3251,6 @@ spec:
   - name: dns-tcp
     port: 5353
     protocol: TCP
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -3359,7 +3280,6 @@ metadata:
     app.kubernetes.io/instance: global-config-custom-name
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -3391,7 +3311,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -3405,7 +3324,6 @@ metadata:
     app.kubernetes.io/instance: global-config-custom-name
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -3521,7 +3439,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -3542,7 +3459,6 @@ roleRef:
   kind: ClusterRole
   name: global-config-custom-name-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -3603,7 +3519,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -3625,7 +3540,6 @@ subjects:
 - kind: ServiceAccount
   name: global-config-custom-name-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -3656,7 +3570,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-config-custom-name
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -3782,7 +3695,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -3797,8 +3709,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-globalconfiguration.yaml
 apiVersion: k8s.nginx.org/v1
@@ -3817,7 +3727,6 @@ spec:
   - name: dns-udp
     port: 5353
     protocol: UDP
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -3847,7 +3756,6 @@ metadata:
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -3879,7 +3787,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -3893,7 +3800,6 @@ metadata:
     app.kubernetes.io/instance: ingress-class
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -4009,7 +3915,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -4030,7 +3935,6 @@ roleRef:
   kind: ClusterRole
   name: ingress-class-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -4091,7 +3995,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -4113,7 +4016,6 @@ subjects:
 - kind: ServiceAccount
   name: ingress-class-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -4144,7 +4046,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -4269,7 +4170,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -4286,8 +4186,6 @@ metadata:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -4317,7 +4215,6 @@ metadata:
     app.kubernetes.io/instance: list-configs
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -4349,7 +4246,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -4363,7 +4259,6 @@ metadata:
     app.kubernetes.io/instance: list-configs
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -4479,7 +4374,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -4500,7 +4394,6 @@ roleRef:
   kind: ClusterRole
   name: list-configs-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -4561,7 +4454,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -4583,7 +4475,6 @@ subjects:
 - kind: ServiceAccount
   name: list-configs-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -4634,7 +4525,6 @@ spec:
   externalIPs:
     - 203.0.113.1
     - 203.0.113.2
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -4765,7 +4655,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -4780,8 +4669,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -4811,7 +4698,6 @@ metadata:
     app.kubernetes.io/instance: loadbalancerclass
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -4843,7 +4729,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -4857,7 +4742,6 @@ metadata:
     app.kubernetes.io/instance: loadbalancerclass
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -4973,7 +4857,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -4994,7 +4877,6 @@ roleRef:
   kind: ClusterRole
   name: loadbalancerclass-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -5055,7 +4937,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -5077,7 +4958,6 @@ subjects:
 - kind: ServiceAccount
   name: loadbalancerclass-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -5109,7 +4989,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -5234,7 +5113,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -5249,8 +5127,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -5280,7 +5156,6 @@ metadata:
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -5312,7 +5187,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -5326,7 +5200,6 @@ metadata:
     app.kubernetes.io/instance: namespace
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -5442,7 +5315,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -5463,7 +5335,6 @@ roleRef:
   kind: ClusterRole
   name: namespace-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -5524,7 +5395,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -5546,7 +5416,6 @@ subjects:
 - kind: ServiceAccount
   name: namespace-nginx-ingress
   namespace: nginx-ingress
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -5577,7 +5446,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -5702,7 +5570,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -5717,8 +5584,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -5748,7 +5613,6 @@ metadata:
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -5780,7 +5644,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -5794,7 +5657,6 @@ metadata:
     app.kubernetes.io/instance: plus
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -5910,7 +5772,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -5931,7 +5792,6 @@ roleRef:
   kind: ClusterRole
   name: plus-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -5992,7 +5852,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -6014,7 +5873,6 @@ subjects:
 - kind: ServiceAccount
   name: plus-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -6045,7 +5903,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -6170,7 +6027,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -6185,8 +6041,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -6216,7 +6070,6 @@ metadata:
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -6248,7 +6101,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -6262,7 +6114,6 @@ metadata:
     app.kubernetes.io/instance: plus-debug
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -6378,7 +6229,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -6399,7 +6249,6 @@ roleRef:
   kind: ClusterRole
   name: plus-debug-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -6460,7 +6309,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -6482,7 +6330,6 @@ subjects:
 - kind: ServiceAccount
   name: plus-debug-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -6513,7 +6360,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -6648,7 +6494,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -6663,8 +6508,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -6694,7 +6537,6 @@ metadata:
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -6736,7 +6578,6 @@ data:
   resolver-addresses: "example.com"
   resolver-ipv6: "false"
   resolver-valid: "15s"
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -6750,7 +6591,6 @@ metadata:
     app.kubernetes.io/instance: plus-mgmt
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -6866,7 +6706,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -6887,7 +6726,6 @@ roleRef:
   kind: ClusterRole
   name: plus-mgmt-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -6948,7 +6786,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -6970,7 +6807,6 @@ subjects:
 - kind: ServiceAccount
   name: plus-mgmt-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -7001,7 +6837,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -7136,7 +6971,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -7151,8 +6985,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -7182,7 +7014,6 @@ metadata:
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -7215,7 +7046,6 @@ metadata:
 data:
   license-token-secret-name: license-token
   usage-report-endpoint: "11.22.33.44"
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -7229,7 +7059,6 @@ metadata:
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -7345,7 +7174,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -7366,7 +7194,6 @@ roleRef:
   kind: ClusterRole
   name: plus-mgmt-custom-endpoint-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -7427,7 +7254,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -7449,7 +7275,6 @@ subjects:
 - kind: ServiceAccount
   name: plus-mgmt-custom-endpoint-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -7480,7 +7305,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -7605,7 +7429,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -7620,8 +7443,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -7651,7 +7472,6 @@ metadata:
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -7684,7 +7504,6 @@ metadata:
 data:
   license-token-secret-name: license-token
   usage-report-proxy-host: "44.55.66.77:88"
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -7698,7 +7517,6 @@ metadata:
     app.kubernetes.io/instance: plus-mgmt-proxy-host
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -7814,7 +7632,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -7835,7 +7652,6 @@ roleRef:
   kind: ClusterRole
   name: plus-mgmt-proxy-host-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -7896,7 +7712,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -7918,7 +7733,6 @@ subjects:
 - kind: ServiceAccount
   name: plus-mgmt-proxy-host-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -7949,7 +7763,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -8074,7 +7887,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8089,8 +7901,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -8120,7 +7930,6 @@ metadata:
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -8153,7 +7962,6 @@ metadata:
 data:
   license-token-secret-name: license-token
   usage-report-proxy-host: "44.55.66.77:88"
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -8167,7 +7975,6 @@ metadata:
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -8283,7 +8090,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -8304,7 +8110,6 @@ roleRef:
   kind: ClusterRole
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -8365,7 +8170,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -8387,7 +8191,6 @@ subjects:
 - kind: ServiceAccount
   name: plus-mgmt-proxy-host-auth-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -8418,7 +8221,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -8553,7 +8355,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -8568,8 +8369,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -8599,7 +8398,6 @@ metadata:
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -8676,7 +8474,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -8690,7 +8487,6 @@ metadata:
     app.kubernetes.io/instance: plus-agent
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -8806,7 +8602,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -8827,7 +8622,6 @@ roleRef:
   kind: ClusterRole
   name: plus-agent-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -8888,7 +8682,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -8910,7 +8703,6 @@ subjects:
 - kind: ServiceAccount
   name: plus-agent-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -8941,7 +8733,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -9081,7 +8872,6 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -9096,8 +8886,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -9127,7 +8915,6 @@ metadata:
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -9204,7 +8991,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -9218,7 +9004,6 @@ metadata:
     app.kubernetes.io/instance: plus-agent-all
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -9334,7 +9119,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -9355,7 +9139,6 @@ roleRef:
   kind: ClusterRole
   name: plus-agent-all-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -9416,7 +9199,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -9438,7 +9220,6 @@ subjects:
 - kind: ServiceAccount
   name: plus-agent-all-nginx-ingress
   namespace: custom
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -9469,7 +9250,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -9609,7 +9389,6 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -9624,8 +9403,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -9655,7 +9432,6 @@ metadata:
     app.kubernetes.io/instance: startupstatus
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -9687,7 +9463,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -9701,7 +9476,6 @@ metadata:
     app.kubernetes.io/instance: startupstatus
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -9817,7 +9591,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -9838,7 +9611,6 @@ roleRef:
   kind: ClusterRole
   name: startupstatus-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -9899,7 +9671,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -9921,7 +9692,6 @@ subjects:
 - kind: ServiceAccount
   name: startupstatus-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -9952,7 +9722,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: startupstatus
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-deployment.yaml
 apiVersion: apps/v1
@@ -10088,7 +9857,6 @@ spec:
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -10103,8 +9871,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -10134,7 +9900,6 @@ metadata:
     app.kubernetes.io/instance: statefulset
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -10166,7 +9931,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -10180,7 +9944,6 @@ metadata:
     app.kubernetes.io/instance: statefulset
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -10296,7 +10059,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -10317,7 +10079,6 @@ roleRef:
   kind: ClusterRole
   name: statefulset-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -10378,7 +10139,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -10400,7 +10160,6 @@ subjects:
 - kind: ServiceAccount
   name: statefulset-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -10431,7 +10190,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-statefulset.yaml
 apiVersion: apps/v1
@@ -10573,7 +10331,6 @@ spec:
       resources:
         requests:
           storage: "256Mi"
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -10588,8 +10345,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -10619,7 +10374,6 @@ metadata:
     app.kubernetes.io/instance: statefulset-config
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -10651,7 +10405,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -10665,7 +10418,6 @@ metadata:
     app.kubernetes.io/instance: statefulset-config
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -10781,7 +10533,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -10802,7 +10553,6 @@ roleRef:
   kind: ClusterRole
   name: statefulset-config-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -10863,7 +10613,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -10885,7 +10634,6 @@ subjects:
 - kind: ServiceAccount
   name: statefulset-config-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -10916,7 +10664,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-config
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-statefulset.yaml
 apiVersion: apps/v1
@@ -11059,7 +10806,6 @@ spec:
       resources:
         requests:
           storage: "2Gi"
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -11074,8 +10820,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -11105,7 +10849,6 @@ metadata:
     app.kubernetes.io/instance: statefulset-no-storageclass
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -11137,7 +10880,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -11151,7 +10893,6 @@ metadata:
     app.kubernetes.io/instance: statefulset-no-storageclass
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -11267,7 +11008,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -11288,7 +11028,6 @@ roleRef:
   kind: ClusterRole
   name: statefulset-no-storageclass-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -11349,7 +11088,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -11371,7 +11109,6 @@ subjects:
 - kind: ServiceAccount
   name: statefulset-no-storageclass-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -11402,7 +11139,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-no-storageclass
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-statefulset.yaml
 apiVersion: apps/v1
@@ -11544,7 +11280,6 @@ spec:
       resources:
         requests:
           storage: "2Gi"
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -11559,8 +11294,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -11590,7 +11323,6 @@ metadata:
     app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
 apiVersion: v1
@@ -11622,7 +11354,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   license-token-secret-name: license-token
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
 apiVersion: v1
@@ -11636,7 +11367,6 @@ metadata:
     app.kubernetes.io/instance: statefulset-readonly
     app.kubernetes.io/version: "2026-lts-r4"
     app.kubernetes.io/managed-by: Helm
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
 kind: ClusterRole
@@ -11752,7 +11482,6 @@ rules:
   - transportservers/status
   verbs:
   - update
-
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrolebinding.yaml
 kind: ClusterRoleBinding
@@ -11773,7 +11502,6 @@ roleRef:
   kind: ClusterRole
   name: statefulset-readonly-nginx-ingress
   apiGroup: rbac.authorization.k8s.io
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-role.yaml
 kind: Role
@@ -11834,7 +11562,6 @@ rules:
   - leases
   verbs:
   - create
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-rolebinding.yaml
 kind: RoleBinding
@@ -11856,7 +11583,6 @@ subjects:
 - kind: ServiceAccount
   name: statefulset-readonly-nginx-ingress
   namespace: default
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-service.yaml
 apiVersion: v1
@@ -11887,7 +11613,6 @@ spec:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-readonly
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-statefulset.yaml
 apiVersion: apps/v1
@@ -12066,7 +11791,6 @@ spec:
       resources:
         requests:
           storage: "256Mi"
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -12081,8 +11805,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-
-
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
