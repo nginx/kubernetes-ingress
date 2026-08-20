@@ -1,0 +1,7 @@
+controller:
+  nginxplus: true
+  appprotect:
+    enable: true
+    plmStorage:
+      url: https://f5-waf-seaweed-filer.plm.svc.cluster.local:8333
+      credentialsSecret: plm/seaweedfs-auth

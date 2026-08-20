@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -248,28 +247,26 @@ func TestAddWAFPolicyRefs(t *testing.T) {
 	}
 }
 
-func TestAddWAFPolicyRefs_PLMRejectsRawReferences(t *testing.T) {
+// apPolicy/apLogConf references resolve to PLM bundles rather than in-pod AP resources,
+// so addWAFPolicyRefs must accept them and collect nothing.
+func TestAddWAFPolicyRefs_PLMAcceptsAPRefs(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		waf     *conf_v1.WAF
-		wantErr string
+		name string
+		waf  *conf_v1.WAF
 	}{
 		{
-			name:    "apPolicy",
-			waf:     &conf_v1.WAF{ApPolicy: "raw-policy"},
-			wantErr: "apPolicy",
+			name: "apPolicy",
+			waf:  &conf_v1.WAF{ApPolicy: "raw-policy"},
 		},
 		{
-			name:    "deprecated security log apLogConf",
-			waf:     &conf_v1.WAF{SecurityLog: &conf_v1.SecurityLog{ApLogConf: "raw-log"}},
-			wantErr: "securityLog.apLogConf",
+			name: "deprecated security log apLogConf",
+			waf:  &conf_v1.WAF{SecurityLog: &conf_v1.SecurityLog{ApLogConf: "raw-log"}},
 		},
 		{
-			name:    "security logs apLogConf",
-			waf:     &conf_v1.WAF{SecurityLogs: []*conf_v1.SecurityLog{{ApLogConf: "raw-log"}}},
-			wantErr: "securityLogs.apLogConf",
+			name: "security logs apLogConf",
+			waf:  &conf_v1.WAF{SecurityLogs: []*conf_v1.SecurityLog{{ApLogConf: "raw-log"}}},
 		},
 	}
 
@@ -282,11 +279,167 @@ func TestAddWAFPolicyRefs_PLMRejectsRawReferences(t *testing.T) {
 				Spec:       conf_v1.PolicySpec{WAF: tc.waf},
 			}}
 
-			err := lbc.addWAFPolicyRefs(map[string]*unstructured.Unstructured{}, map[string]*unstructured.Unstructured{}, policies)
-			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-				t.Errorf("addWAFPolicyRefs() error = %v, want error containing %q", err, tc.wantErr)
+			apPolRefs := map[string]*unstructured.Unstructured{}
+			logConfRefs := map[string]*unstructured.Unstructured{}
+			if err := lbc.addWAFPolicyRefs(apPolRefs, logConfRefs, policies); err != nil {
+				t.Errorf("addWAFPolicyRefs() unexpected error = %v", err)
+			}
+			if len(apPolRefs) != 0 || len(logConfRefs) != 0 {
+				t.Errorf("addWAFPolicyRefs() collected refs %v / %v, want none", apPolRefs, logConfRefs)
 			}
 		})
+	}
+}
+
+func TestEffectivePLMPolicyRef(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		plmEnabled    bool
+		waf           *conf_v1.WAF
+		wantOK        bool
+		wantName      string
+		wantNamespace string
+	}{
+		{
+			name:       "plm off leaves apPolicy unresolved",
+			plmEnabled: false,
+			waf:        &conf_v1.WAF{ApPolicy: "default/dataguard-alarm"},
+			wantOK:     false,
+		},
+		{
+			name:          "qualified apPolicy keeps its namespace",
+			plmEnabled:    true,
+			waf:           &conf_v1.WAF{ApPolicy: "plm-ns/dataguard-alarm"},
+			wantOK:        true,
+			wantName:      "dataguard-alarm",
+			wantNamespace: "plm-ns",
+		},
+		{
+			name:          "bare apPolicy defaults to the policy namespace",
+			plmEnabled:    true,
+			waf:           &conf_v1.WAF{ApPolicy: "dataguard-alarm"},
+			wantOK:        true,
+			wantName:      "dataguard-alarm",
+			wantNamespace: "default",
+		},
+		{
+			name:       "no apPolicy set",
+			plmEnabled: true,
+			waf:        &conf_v1.WAF{},
+			wantOK:     false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lbc := &LoadBalancerController{plmEnabled: tc.plmEnabled}
+			pol := &conf_v1.Policy{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"},
+				Spec:       conf_v1.PolicySpec{WAF: tc.waf},
+			}
+
+			ns, name, ok := lbc.effectivePLMPolicyRef(pol)
+			if ok != tc.wantOK {
+				t.Fatalf("effectivePLMPolicyRef() ok = %v, want %v", ok, tc.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if name != tc.wantName {
+				t.Errorf("Name = %q, want %q", name, tc.wantName)
+			}
+			if ns != tc.wantNamespace {
+				t.Errorf("Namespace = %q, want %q", ns, tc.wantNamespace)
+			}
+		})
+	}
+}
+
+func TestEffectivePLMLogRef(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		plmEnabled    bool
+		securityLog   *conf_v1.SecurityLog
+		wantOK        bool
+		wantName      string
+		wantNamespace string
+	}{
+		{
+			name:        "nil security log",
+			plmEnabled:  true,
+			securityLog: nil,
+			wantOK:      false,
+		},
+		{
+			name:        "plm off leaves apLogConf unresolved",
+			plmEnabled:  false,
+			securityLog: &conf_v1.SecurityLog{ApLogConf: "default/logconf"},
+			wantOK:      false,
+		},
+		{
+			name:          "bare apLogConf defaults to the policy namespace",
+			plmEnabled:    true,
+			securityLog:   &conf_v1.SecurityLog{ApLogConf: "logconf"},
+			wantOK:        true,
+			wantName:      "logconf",
+			wantNamespace: "default",
+		},
+		{
+			name:          "qualified apLogConf keeps its namespace",
+			plmEnabled:    true,
+			securityLog:   &conf_v1.SecurityLog{ApLogConf: "plm-ns/logconf"},
+			wantOK:        true,
+			wantName:      "logconf",
+			wantNamespace: "plm-ns",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			lbc := &LoadBalancerController{plmEnabled: tc.plmEnabled}
+
+			ns, name, ok := lbc.effectivePLMLogRef(tc.securityLog, "default")
+			if ok != tc.wantOK {
+				t.Fatalf("effectivePLMLogRef() ok = %v, want %v", ok, tc.wantOK)
+			}
+			if !ok {
+				return
+			}
+			if name != tc.wantName {
+				t.Errorf("Name = %q, want %q", name, tc.wantName)
+			}
+			if ns != tc.wantNamespace {
+				t.Errorf("Namespace = %q, want %q", ns, tc.wantNamespace)
+			}
+		})
+	}
+}
+
+// An apPolicy reference must re-enqueue its Policy on APPolicy status changes, otherwise
+// PLM bundle updates would never reach a policy still using that field.
+func TestGetPLMPoliciesForAppProtectPolicy_APPolicyRef(t *testing.T) {
+	t.Parallel()
+
+	apPolicyPol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"},
+		Spec:       conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApPolicy: "dataguard-alarm"}},
+	}
+	policies := []*conf_v1.Policy{apPolicyPol}
+
+	lbcOn := &LoadBalancerController{plmEnabled: true}
+	if got := lbcOn.getPLMPoliciesForAppProtectPolicy(policies, "default/dataguard-alarm"); len(got) != 1 {
+		t.Errorf("with PLM enabled got %d policies, want 1", len(got))
+	}
+
+	lbcOff := &LoadBalancerController{plmEnabled: false}
+	if got := lbcOff.getPLMPoliciesForAppProtectPolicy(policies, "default/dataguard-alarm"); got != nil {
+		t.Errorf("with PLM disabled got %v, want nil", got)
 	}
 }
 
@@ -316,9 +469,8 @@ func TestResolvePLMBundleStatus_ReadsInformerStore(t *testing.T) {
 		},
 	}
 	pol := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"}}
-	bs := &conf_v1.BundleSource{Name: "compiled-policy", Namespace: "plm"}
 
-	got := lbc.resolvePLMBundleStatus(pol, bs, wafbundle.PolicyBundle)
+	got := lbc.resolvePLMBundleStatus(pol, "plm", "compiled-policy", wafbundle.PolicyBundle)
 	if got == nil {
 		t.Fatal("resolvePLMBundleStatus() = nil, want ready bundle status")
 	}
@@ -515,36 +667,29 @@ func TestGetWAFPoliciesForAppProtectLogConf(t *testing.T) {
 func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
 	t.Parallel()
 
-	// PLM source with an explicit namespace on the ref.
+	// PLM source with an explicit namespace on the apPolicy ref.
 	plmExplicitNs := &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
 		Spec: conf_v1.PolicySpec{
 			WAF: &conf_v1.WAF{
-				Enable: true,
-				ApBundleSource: &conf_v1.BundleSource{
-					Type:      conf_v1.BundleSourceTypePLM,
-					Name:      "ap-pol",
-					Namespace: "plm-policies",
-				},
+				Enable:   true,
+				ApPolicy: "plm-policies/ap-pol",
 			},
 		},
 	}
 
-	// PLM source without a namespace on the ref; defaults to the Policy's own namespace.
+	// PLM source without a namespace; defaults to the Policy's own namespace.
 	plmDefaultNs := &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
 		Spec: conf_v1.PolicySpec{
 			WAF: &conf_v1.WAF{
-				Enable: true,
-				ApBundleSource: &conf_v1.BundleSource{
-					Type: conf_v1.BundleSourceTypePLM,
-					Name: "ap-pol",
-				},
+				Enable:   true,
+				ApPolicy: "ap-pol",
 			},
 		},
 	}
 
-	// HTTPS source must never match a PLM key.
+	// HTTPS apBundleSource must never match a PLM key.
 	httpsSource := &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
 		Spec: conf_v1.PolicySpec{
@@ -587,8 +732,9 @@ func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
 			msg:  "no PLM source references this key",
 		},
 	}
+	lbc := &LoadBalancerController{plmEnabled: true}
 	for _, test := range tests {
-		got := getPLMPoliciesForAppProtectPolicy(policies, test.key)
+		got := lbc.getPLMPoliciesForAppProtectPolicy(policies, test.key)
 		if diff := cmp.Diff(test.want, got); diff != "" {
 			t.Errorf("getPLMPoliciesForAppProtectPolicy() %v (-want +got):\n%s", test.msg, diff)
 		}
@@ -598,7 +744,7 @@ func TestGetPLMPoliciesForAppProtectPolicy(t *testing.T) {
 func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 	t.Parallel()
 
-	// PLM log source with explicit namespace.
+	// PLM log source with explicit namespace on the apLogConf ref.
 	plmLogExplicitNs := &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{Namespace: "apps"},
 		Spec: conf_v1.PolicySpec{
@@ -606,12 +752,8 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 				Enable: true,
 				SecurityLogs: []*conf_v1.SecurityLog{
 					{
-						Enable: true,
-						ApLogBundleSource: &conf_v1.BundleSource{
-							Type:      conf_v1.BundleSourceTypePLM,
-							Name:      "log-conf",
-							Namespace: "plm-policies",
-						},
+						Enable:    true,
+						ApLogConf: "plm-policies/log-conf",
 					},
 				},
 			},
@@ -626,11 +768,8 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 				Enable: true,
 				SecurityLogs: []*conf_v1.SecurityLog{
 					{
-						Enable: true,
-						ApLogBundleSource: &conf_v1.BundleSource{
-							Type: conf_v1.BundleSourceTypePLM,
-							Name: "log-conf",
-						},
+						Enable:    true,
+						ApLogConf: "log-conf",
 					},
 				},
 			},
@@ -680,8 +819,9 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 			msg:  "no PLM log source references this key",
 		},
 	}
+	lbc := &LoadBalancerController{plmEnabled: true}
 	for _, test := range tests {
-		got := getPLMPoliciesForAppProtectLogConf(policies, test.key)
+		got := lbc.getPLMPoliciesForAppProtectLogConf(policies, test.key)
 		if diff := cmp.Diff(test.want, got); diff != "" {
 			t.Errorf("getPLMPoliciesForAppProtectLogConf() %v (-want +got):\n%s", test.msg, diff)
 		}
@@ -691,12 +831,26 @@ func TestGetPLMPoliciesForAppProtectLogConf(t *testing.T) {
 func TestGetPoliciesUsingPLMStorage(t *testing.T) {
 	t.Parallel()
 
-	plmPolicy := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypePLM}}}}
-	plmLog := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{SecurityLogs: []*conf_v1.SecurityLog{{ApLogBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypePLM}}}}}}
-	nimPolicy := &conf_v1.Policy{Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypeNIM}}}}
-	noWAF := &conf_v1.Policy{}
+	plmPolicy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "plm-policy"},
+		Spec:       conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApPolicy: "dataguard-alarm"}},
+	}
+	plmLog := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "plm-log"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{SecurityLogs: []*conf_v1.SecurityLog{{ApLogConf: "logconf"}}},
+		},
+	}
+	nimPolicy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "nim-policy"},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{Type: conf_v1.BundleSourceTypeNIM}},
+		},
+	}
+	noWAF := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "no-waf"}}
 
-	got := getPoliciesUsingPLMStorage([]*conf_v1.Policy{plmPolicy, plmLog, nimPolicy, noWAF})
+	lbc := &LoadBalancerController{plmEnabled: true}
+	got := lbc.getPoliciesUsingPLMStorage([]*conf_v1.Policy{plmPolicy, plmLog, nimPolicy, noWAF})
 	want := []*conf_v1.Policy{plmPolicy, plmLog}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("getPoliciesUsingPLMStorage() (-want +got):\n%s", diff)
@@ -725,13 +879,12 @@ func TestPolicyNeedsPLMBundleFetch(t *testing.T) {
 	dir := t.TempDir()
 	pol := &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"},
-		Spec: conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApBundleSource: &conf_v1.BundleSource{
-			Type: conf_v1.BundleSourceTypePLM, Name: "compiled-policy", Namespace: "plm",
-		}}},
+		Spec:       conf_v1.PolicySpec{WAF: &conf_v1.WAF{ApPolicy: "plm/compiled-policy"}},
 	}
 	lbc := &LoadBalancerController{
 		Logger:        nl.LoggerFromContext(context.Background()),
 		wafBundlePath: dir,
+		plmEnabled:    true,
 		namespacedInformers: map[string]*namespacedInformer{
 			"": {appProtectPolicyLister: store},
 		},

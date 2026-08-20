@@ -48,7 +48,10 @@ const (
 	LogProfileBundle
 )
 
-// SourceType mirrors conf_v1.BundleSourceType without importing it here.
+// SourceType is the internal discriminator used by the fetcher to dispatch requests.
+// The HTTPS/NIM/N1C values mirror conf_v1.BundleSourceType. PLM has no public CRD
+// counterpart; it is set at request-build time when NIC resolves an
+// apPolicy/apLogConf reference under -plm-storage-url.
 type SourceType string
 
 const (
@@ -59,6 +62,7 @@ const (
 	// SourceTypeN1C fetches bundles from NGINX One Console.
 	SourceTypeN1C SourceType = "N1C"
 	// SourceTypePLM fetches bundles from the SeaweedFS S3-compatible object store.
+	// Internal only — not surfaced on the BundleSource CRD.
 	SourceTypePLM SourceType = "PLM"
 )
 
