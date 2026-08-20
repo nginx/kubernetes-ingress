@@ -88,40 +88,30 @@ jobs:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+      - name: Setup NIC secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-        if: ${{ inputs.authenticated }}
-
-      - name: Get secrets from NIC vault
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
-        with:
-          client-id: ${{ secrets.AZURE_NIC_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_NIC_VAULT_TENANT_ID }}
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
           secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
           env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
         if: ${{ inputs.authenticated }}
 
-      - name: Get secrets from Common vault
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+      - name: Setup Common secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "docker-username, docker-password, nginx-pkg-certificate, nginx-pkg-key"
-          env-names: "DOCKER_USERNAME, DOCKER_PASSWORD, CERT, KEY"
+          secret-names: "nginx-pkg-certificate, nginx-pkg-key, docker-username, docker-password"
+          env-names: "PLUS_CERT, PLUS_KEY, DOCKER_USERNAME, DOCKER_PASSWORD"
         if: ${{ inputs.authenticated }}
 
-      - name: Setup secrets
-        id: secrets
+      - name: Write secrets
         run: |
-          echo "Setting secrets for job"
-          echo "${{ env.CERT }}" > nginx-repo.crt
-          echo "${{ env.KEY }}" > nginx-repo.key
+          echo "$PLUS_CERT" > nginx-repo.crt
+          echo "$PLUS_KEY" > nginx-repo.key
         if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
@@ -221,7 +211,6 @@ jobs:
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key
-            ${{ inputs.nap-modules != '' && contains(inputs.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Debug values
@@ -267,7 +256,6 @@ jobs:
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key
-            ${{ contains(inputs.image, 'ubi') && 'rhel_license=rhel_license' || '' }}
         if: ${{  steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Make directory for security scan results
@@ -291,5 +279,5 @@ jobs:
 
       - name: Clean up secrets
         run: |
-          rm -f nginx-repo.crt nginx-repo.key rhel_license
+          rm -f nginx-repo.crt nginx-repo.key
         if: always()

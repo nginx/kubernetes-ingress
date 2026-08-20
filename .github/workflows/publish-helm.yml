@@ -81,16 +81,11 @@ jobs:
           ref: refs/heads/${{ inputs.branch }}
           path: kic
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
-
       - name: Get secrets from vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
         with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
           secret-names: "docker-username, docker-password, nginx-bot-helm-app-client-id, nginx-bot-helm-app-private-key"
           env-names: "DOCKER_USERNAME, DOCKER_PASSWORD, APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
@@ -111,7 +106,7 @@ jobs:
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
         with:
-          version: v3.21.3 # renovate: datasource=github-releases depName=helm/helm
+          version: v3.21.4 # renovate: datasource=github-releases depName=helm/helm
 
       - name: Package
         id: package
