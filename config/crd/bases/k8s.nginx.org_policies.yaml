@@ -934,12 +934,15 @@ spec:
                         description: URL is the full bundle URL for HTTPS type, or
                           the API base URL for NIM/N1C. Must use https://.
                         maxLength: 2083
-                        pattern: ^(https://.*)?$
+                        minLength: 1
+                        pattern: ^https://
                         type: string
                       verifyChecksum:
                         description: VerifyChecksum enables SHA-256 verification of
                           the downloaded bundle. HTTPS type only.
                         type: boolean
+                    required:
+                    - url
                     type: object
                   apPolicy:
                     description: The App Protect WAF policy of the WAF. Accepts an
@@ -1028,12 +1031,15 @@ spec:
                             description: URL is the full bundle URL for HTTPS type,
                               or the API base URL for NIM/N1C. Must use https://.
                             maxLength: 2083
-                            pattern: ^(https://.*)?$
+                            minLength: 1
+                            pattern: ^https://
                             type: string
                           verifyChecksum:
                             description: VerifyChecksum enables SHA-256 verification
                               of the downloaded bundle. HTTPS type only.
                             type: boolean
+                        required:
+                        - url
                         type: object
                       apLogConf:
                         description: The App Protect WAF log conf resource. Accepts
@@ -1129,12 +1135,15 @@ spec:
                               description: URL is the full bundle URL for HTTPS type,
                                 or the API base URL for NIM/N1C. Must use https://.
                               maxLength: 2083
-                              pattern: ^(https://.*)?$
+                              minLength: 1
+                              pattern: ^https://
                               type: string
                             verifyChecksum:
                               description: VerifyChecksum enables SHA-256 verification
                                 of the downloaded bundle. HTTPS type only.
                               type: boolean
+                          required:
+                          - url
                           type: object
                         apLogConf:
                           description: The App Protect WAF log conf resource. Accepts

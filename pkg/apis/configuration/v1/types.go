@@ -1039,10 +1039,11 @@ type BundleSource struct {
 	Type BundleSourceType `json:"type,omitempty"`
 
 	// URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=2083
-	// +kubebuilder:validation:Pattern=`^(https://.*)?$`
-	// +optional
-	URL string `json:"url,omitempty"`
+	// +kubebuilder:validation:Pattern=`^https://`
+	URL string `json:"url"`
 
 	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
 	// For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
