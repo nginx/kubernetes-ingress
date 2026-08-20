@@ -113,9 +113,6 @@ server {
 	set $resource_name "{{$.Ingress.Name}}";
 	set $resource_namespace "{{$.Ingress.Namespace}}";
 	set $service "-";
-	{{- else if ne $server.StatusZone "_" }}
-
-	status_zone {{$server.StatusZone}};
 	{{- end}}
 
 	{{- with $server.EgressMTLS }}
