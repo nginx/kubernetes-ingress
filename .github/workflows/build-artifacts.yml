@@ -68,6 +68,9 @@ jobs:
     name: Build Binaries
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
+    concurrency:
+      group: binary-cache-${{ github.ref }}-${{ inputs.go-md5 }}
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
@@ -78,6 +81,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch }}
+
+      - name: Fetch Cached Binary Artifacts
+        id: binary-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ github.workspace }}/dist
+          key: nginx-ingress-${{ inputs.go-md5 }}
+        if: ${{ inputs.force }}
 
       - name: Setup Golang Environment
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -202,6 +213,9 @@ jobs:
   build-docker:
     name: Build Docker OSS
     needs: [binaries]
+    concurrency:
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-oss ) }}
@@ -231,6 +245,9 @@ jobs:
   build-docker-plus:
     name: Build Docker Plus
     needs: [binaries]
+    concurrency:
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-plus ) }}
@@ -259,6 +276,9 @@ jobs:
   build-docker-nap:
     name: Build Docker NAP
     needs: [binaries]
+    concurrency:
+      group: buildkit-cache-${{ github.ref }}-${{ matrix.image }}-${{ matrix.nap_modules == 'waf,dos' && 'waf-dos' || matrix.nap_modules }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-nap ) }}
