@@ -6,6 +6,7 @@
 .github/actions/certify-openshift-image/action.yml
 .github/config/config-oss-*
 .github/config/config-plus-*
+.github/config/config-prep-*
 .github/data/matrix-regression.json
 .github/ISSUE_TEMPLATE/*
 .github/scripts/create-release-tarballs.sh
@@ -42,6 +43,8 @@
 .github/workflows/publish-helm.yml
 .github/workflows/regression.yml
 .github/workflows/release-pr.yml
+.github/workflows/release-prep.yml
+.github/workflows/release-publish.yml
 .github/workflows/release.yml
 .github/workflows/retag-images.yml
 .github/workflows/scorecards.yml

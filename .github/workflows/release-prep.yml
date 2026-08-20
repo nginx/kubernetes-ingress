@@ -46,6 +46,12 @@ defaults:
   run:
     shell: bash
 
+# Never cancel a release in flight -- a half-copied registry or a pushed tag
+# without assets is worse than waiting for the previous run to finish.
+concurrency:
+  group: ${{ inputs.release_branch }}-release-prep
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
@@ -129,11 +135,13 @@ jobs:
       pull-requests: write # for scout report
       checks: write # for setting status on commit
 
+  # Stage the freshly built images in the NGINX test management registry so the
+  # publish stage has a single, immutable source to copy from.
   push-prep-images:
     name: Push Prepped Images to Test Registry
     runs-on: ubuntu-24.04-amd64
     needs: [variables, build-artifacts]
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)))
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'push-prep-images'))
     permissions:
       contents: read
       id-token: write
@@ -242,6 +250,7 @@ jobs:
           path: ${{ github.workspace }}/tarballs
           key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
 
+  # Upload packages, sboms & checksums to release storage
   azure-upload:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload'))
     name: Upload packages to Azure
@@ -309,7 +318,15 @@ jobs:
     name: Create Tag on release branch in NIC repo
     runs-on: ubuntu-24.04
     needs: [build-artifacts, push-prep-images, azure-upload]
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)))
+    # !cancelled() makes this job run even when a dependency failed, so every
+    # dependency result has to be asserted explicitly or a tag would be pushed
+    # for a failed prep run.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress'
+      && !cancelled()
+      && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run))
+      && (needs.push-prep-images.result == 'success' || needs.push-prep-images.result == 'skipped')
+      && (needs.azure-upload.result == 'success' || needs.azure-upload.result == 'skipped')
     permissions:
       contents: write
     steps:
@@ -340,3 +357,42 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Attach packages, sboms & checksums to the GitHub release draft created by
+  # update-release-draft.yml. release-publish.yml only flips the draft to
+  # published, so the assets have to be in place before publishing runs.
+  release-assets:
+    name: Attach assets to GitHub release draft
+    runs-on: ubuntu-24.04-amd64
+    needs: [variables, binaries, tag]
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress'
+      && !cancelled()
+      && !failure()
+      && !contains(inputs.skip_step, 'release-assets')
+    permissions:
+      contents: write # to upload release assets
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Fetch Cached Tarball Artifacts
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
+          path: ${{ github.workspace }}/tarballs
+          fail-on-cache-miss: true
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # clobber overwrites existing assets of the same name
+        run: |
+          if ! ${{ inputs.dry_run }}; then
+            gh release upload --clobber v${{ inputs.nic_version }} \
+              $(find ./tarballs -type f)
+          else
+            echo "Skipping adding binaries to Github Release, DRY_RUN"
+          fi

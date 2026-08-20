@@ -57,10 +57,16 @@ declare -a NAP_WAFV5_TAG_POSTFIX_LIST=("" "-ubi" "-alpine-fips")
 declare -a NAP_DOS_TAG_POSTFIX_LIST=("" "-ubi")
 declare -a NAP_WAF_DOS_TAG_POSTFIX_LIST=("" "-ubi")
 
-CONFIG_PATH=${CONFIG_PATH:-~/.nic-release/config}
+DEFAULT_CONFIG_PATH=~/.nic-release/config
+CONFIG_PATH=${CONFIG_PATH:-${DEFAULT_CONFIG_PATH}}
 if [ -f "$CONFIG_PATH" ]; then
     # shellcheck source=/dev/null
     . "$CONFIG_PATH"
+elif [ "$CONFIG_PATH" != "$DEFAULT_CONFIG_PATH" ]; then
+    # An explicitly requested config that is missing means the caller would
+    # silently publish the wrong image set, so fail instead.
+    echo "ERROR: CONFIG_PATH '${CONFIG_PATH}' was set but does not exist." >&2
+    exit 1
 fi
 
 SOURCE_OPTS=${SOURCE_OPTS:-""}

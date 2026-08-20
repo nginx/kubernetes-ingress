@@ -25,13 +25,27 @@ image-promotion.yml (post-merge)
   -> Trivy + DockerScout security scans
   -> publishes edge Helm charts
 
-release.yml (manual dispatch)
-  -> oss-release.yml
-  -> plus-release.yml
-  -> publish-helm.yml
-  -> certify-ubi-image.yml
-  -> marketplace pushes (AWS, Azure, GCP)
+release.yml (manual dispatch, mode: prep | publish | all)
+  -> release-prep.yml            (mode: prep / all)
+       -> build-artifacts.yml    (reusable)
+       -> pushes prepped images to docker-mgmt-test.nginx.com
+       -> tarballs -> Azure blob storage
+       -> creates the vX.Y.Z tag
+       -> attaches assets to the GitHub release draft
+  -> release-publish.yml         (mode: publish / all, needs prep)
+       -> oss-release.yml        (source_registry: docker-mgmt-test.nginx.com)
+       -> plus-release.yml       (source_registry: docker-mgmt-test.nginx.com)
+       -> publish-helm.yml
+       -> certify-ubi-image.yml
+       -> triggers nginx-ingress-helm-operator sync
+       -> publishes the GitHub release draft
+       -> marketplace pushes (AWS, Azure, GCP)
 ```
+
+The two stages are independently dispatchable, so a failed publish can be
+retried without rebuilding. `release-prep.yml` stages every image in
+`docker-mgmt-test.nginx.com`; `release-publish.yml` only ever copies from
+there, never from the dev registry.
 
 ---
 
@@ -43,16 +57,21 @@ release.yml (manual dispatch)
 | `lint-format.yml` | PR to `main`, merge_group | goimports, gofumpt, golangci-lint, actionlint |
 | `regression.yml` | Daily cron (03:00 UTC), manual | Multi-K8s-version regression |
 | `image-promotion.yml` | Push to `main`/`release-*` | Post-merge image tagging + scanning |
-| `release.yml` | Manual dispatch | Full release orchestrator |
+| `release.yml` | Manual dispatch | Release orchestrator; `mode` input selects `prep`, `publish` or `all` |
 | `build-base-images.yml` | Weekday cron (04:30 UTC) | Rebuilds all base images |
 
 ### Release Sub-Workflows (called by `release.yml`)
 
 | Workflow | Purpose |
 | --- | --- |
-| `oss-release.yml` | OSS image release |
-| `plus-release.yml` | Plus/NAP image release |
+| `release-prep.yml` | Stage 1: build artifacts, stage images in the test registry, upload tarballs, tag, attach release assets |
+| `release-publish.yml` | Stage 2: copy staged images to public registries, publish Helm chart and GitHub release |
+| `oss-release.yml` | OSS image release (called by `release-publish.yml`) |
+| `plus-release.yml` | Plus/NAP image release (called by `release-publish.yml`) |
 | `publish-helm.yml` | Helm chart publishing to registry |
+
+`release-prep.yml` and `release-publish.yml` also accept `workflow_dispatch`, so
+either stage can be run on its own.
 
 ### Reusable Build Workflows (called via `workflow_call`)
 
@@ -122,3 +141,6 @@ Retrieved from Azure Key Vault via OIDC -- not stored as GitHub secrets directly
 - NAP variants are `linux/amd64` only -- do not add `arm64` to NAP matrices
 - Renovate manages tool versions via `# renovate:` comments -- do not update manually
 - `image-promotion.yml` runs on merge to `main`, not on PR -- don't expect images from PRs
+- Release-only workflows and `.github/config/config-*` files must be listed in `.github/scripts/exclude_ci_files.txt`, otherwise they feed `get_actions_md5()` and invalidate `stable_tag`, forcing a full image rebuild
+- `.github/config/config-*` files are shared between `release-publish.yml`, `image-promotion.yml`, `regression.yml` and `update-docker-images.yml`. Never add a `SOURCE_*_IMAGE_PREFIX` override to one -- the other callers read from the dev registry and would break. Override `TARGET_*` only
+- A job whose `if` contains `always()`, `!cancelled()` or `failure()` runs **even when a `needs` dependency failed**. Such jobs must assert every dependency explicitly (`needs.<job>.result == 'success'`), which is why the release jobs list results one by one

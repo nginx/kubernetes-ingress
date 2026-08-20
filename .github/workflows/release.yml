@@ -74,8 +74,16 @@ jobs:
       checks: write
 
   publish:
-    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.mode == 'publish' || inputs.mode == 'all') && !contains(inputs.skip_step, 'publish')
+    # !cancelled() is required for needs.prep.result to be evaluated at all when
+    # prep fails; the 'skipped' arm covers mode: publish and skip_step: prep.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress'
+      && !cancelled()
+      && (inputs.mode == 'publish' || inputs.mode == 'all')
+      && !contains(inputs.skip_step, 'publish')
+      && (needs.prep.result == 'success' || needs.prep.result == 'skipped')
     name: Release Publishing
+    needs: [prep]
     uses: ./.github/workflows/release-publish.yml
     with:
       nic_version: ${{ inputs.nic_version }}

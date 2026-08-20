@@ -1,0 +1,16 @@
+export TARGET_REGISTRY=docker-mgmt-test.nginx.com
+## Image prefixes are deliberately left at their defaults so that the prepped
+## images in docker-mgmt-test mirror the dev/release GCR layout. The publish
+## stage reads them back using the same defaults, so any prefix override here
+## must be matched by a SOURCE_* override in every publish config.
+declare -a OSS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine")
+declare -a PLUS_TAG_POSTFIX_LIST=("" "-ubi" "-alpine" "-alpine-fips")
+declare -a NAP_WAF_TAG_POSTFIX_LIST=("" "-ubi" "-alpine-fips" "-agent" "-ubi-agent" "-alpine-fips-agent")
+declare -a NAP_WAFV5_TAG_POSTFIX_LIST=("" "-ubi" "-alpine-fips" "-agent" "-ubi-agent" "-alpine-fips-agent")
+declare -a NAP_DOS_TAG_POSTFIX_LIST=("" "-ubi")
+declare -a NAP_WAF_DOS_TAG_POSTFIX_LIST=("" "-ubi" "-agent" "-ubi-agent")
+export PUBLISH_OSS=true
+export PUBLISH_PLUS=true
+export PUBLISH_WAF=true
+export PUBLISH_DOS=true
+export PUBLISH_WAF_DOS=true
