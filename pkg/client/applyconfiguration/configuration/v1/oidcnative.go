@@ -41,7 +41,7 @@ type OIDCNativeApplyConfiguration struct {
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure).
 	SSLVerify *bool `json:"sslVerify,omitempty"`
-	// Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. Defaults to the hostname parsed from `issuer`.
+	// Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. If omitted, NGINX dynamically resolves SNI and Host header from the endpoint URLs.
 	SSLName *string `json:"sslName,omitempty"`
 	// Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1.
 	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`

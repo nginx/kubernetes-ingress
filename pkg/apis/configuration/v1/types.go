@@ -1173,7 +1173,7 @@ type OIDCNative struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=true
 	SSLVerify *bool `json:"sslVerify,omitempty"`
-	// Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. Defaults to the hostname parsed from `issuer`.
+	// Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. If omitted, NGINX dynamically resolves SNI and Host header from the endpoint URLs.
 	// +kubebuilder:validation:Optional
 	SSLName string `json:"sslName,omitempty"`
 	// Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1.

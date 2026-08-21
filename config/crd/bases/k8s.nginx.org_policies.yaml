@@ -852,8 +852,8 @@ spec:
                     type: string
                   sslName:
                     description: Overrides the TLS SNI name and Host header used when
-                      connecting to the OpenID Provider. Defaults to the hostname
-                      parsed from `issuer`.
+                      connecting to the OpenID Provider. If omitted, NGINX dynamically
+                      resolves SNI and Host header from the endpoint URLs.
                     type: string
                   sslVerify:
                     default: true

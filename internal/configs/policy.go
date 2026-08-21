@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -966,18 +965,6 @@ func resolveOIDCNativeTrustedCert(
 	return trustedCertPath, trustedCrlPath, true
 }
 
-func deriveOIDCNativeSSLName(sslName, issuer string) string {
-	if sslName != "" {
-		return sslName
-	}
-	if u, err := url.Parse(issuer); err == nil && u.Host != "" {
-		if h, _, splitErr := net.SplitHostPort(u.Host); splitErr == nil {
-			return h
-		}
-		return u.Host
-	}
-	return ""
-}
 
 func validateAndRegisterOIDCNativeLocations(
 	polKey string,
@@ -1100,7 +1087,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	sync := policyOpts.zoneSync
 	proxyLocation := fmt.Sprintf("/_oidc_idp_%s", providerName)
 
-	sslName := deriveOIDCNativeSSLName(oidcNative.SSLName, oidcNative.Issuer)
+	sslName := oidcNative.SSLName
 
 	sslVerify := true
 	if oidcNative.SSLVerify != nil {
