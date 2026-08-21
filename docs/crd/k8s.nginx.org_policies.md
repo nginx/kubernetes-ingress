@@ -139,7 +139,7 @@ The `.spec` object supports the following fields:
 | `oidcNative.redirectURI` | `string` | Allows overriding the default redirect URI. The module defaults to /oidc_callback. |
 | `oidcNative.scope` | `string` | List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid". |
 | `oidcNative.sessionTimeout` | `string` | Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h. |
-| `oidcNative.sslName` | `string` | Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. Defaults to the hostname parsed from `issuer`. |
+| `oidcNative.sslName` | `string` | Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. If omitted, NGINX dynamically resolves SNI and Host header from the endpoint URLs. |
 | `oidcNative.sslVerify` | `boolean` | Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure). |
 | `oidcNative.sslVerifyDepth` | `integer` | Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1. |
 | `oidcNative.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt. |
