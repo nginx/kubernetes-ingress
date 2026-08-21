@@ -769,6 +769,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
+		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
 	}, allWarnings
 }
 
@@ -1416,6 +1417,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
+		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
 	}, warnings
 }
 

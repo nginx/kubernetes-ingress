@@ -1361,6 +1361,142 @@ func TestExecuteVirtualServerTemplateWithCachePolicyOSS(t *testing.T) {
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_DisablesWAFOnInternalLocationsWhenAppProtectLoaded(t *testing.T) {
+	t.Parallel()
+
+	baseCfg := VirtualServerConfig{
+		Upstreams: []Upstream{
+			{Name: "upstream1", Servers: []UpstreamServer{{Address: "10.0.0.20:8001"}}},
+		},
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{Path: "/", ProxyPass: "http://upstream1", ServiceName: "svc"},
+				{
+					Path:        "/_external_auth/authsvc",
+					Internal:    true,
+					ProxyPass:   "http://vs_default_ext_auth_authsvc/verify",
+					ServiceName: "authsvc",
+				},
+			},
+			JWTAuthList: map[string]*JWTAuth{
+				"tenant1": {Key: "tenant1", JwksURI: JwksURI{JwksHost: "idp.example.com", JwksPath: "/keys"}},
+			},
+			APIKeyEnabled: true,
+			APIKey:        &APIKey{MapName: "apikey_map", Header: []string{"X-API-Key"}},
+		},
+	}
+
+	t.Run("module not loaded emits no override", func(t *testing.T) {
+		t.Parallel()
+		cfg := baseCfg
+		executor := newTmplExecutorNGINXPlus(t)
+		got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+		if err != nil {
+			t.Fatalf("Failed to execute template: %v", err)
+		}
+		if bytes.Contains(got, []byte("app_protect_enable off;")) {
+			t.Errorf("expected no app_protect_enable off; when AppProtectLoadModule is false, got:\n%s", got)
+		}
+	})
+
+	t.Run("module loaded disables WAF on every internal location", func(t *testing.T) {
+		t.Parallel()
+		cfg := baseCfg
+		cfg.AppProtectLoadModule = true
+		executor := newTmplExecutorNGINXPlus(t)
+		got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+		if err != nil {
+			t.Fatalf("Failed to execute template: %v", err)
+		}
+
+		wantContext := []string{
+			"location /_external_auth/authsvc",
+			"location = /_jwks_uri_server_tenant1",
+			"location = /_validate_apikey_njs",
+		}
+		for _, marker := range wantContext {
+			idx := bytes.Index(got, []byte(marker))
+			if idx < 0 {
+				t.Fatalf("marker %q missing from rendered template", marker)
+			}
+			// Look for app_protect_enable off; within the next 400 bytes (single location body).
+			end := idx + 400
+			if end > len(got) {
+				end = len(got)
+			}
+			if !bytes.Contains(got[idx:end], []byte("app_protect_enable off;")) {
+				t.Errorf("missing app_protect_enable off; inside %q\nrendered slice:\n%s", marker, got[idx:end])
+			}
+		}
+		snaps.MatchSnapshot(t, string(got))
+	})
+}
+
+func TestExecuteOIDCTemplate_DisablesWAFOnInternalLocationsWhenAppProtectLoaded(t *testing.T) {
+	t.Parallel()
+
+	base := OIDC{
+		AuthEndpoint:       "https://idp.example.com/auth",
+		TokenEndpoint:      "https://idp.example.com/token",
+		JwksURI:            "https://idp.example.com/keys",
+		EndSessionEndpoint: "https://idp.example.com/logout",
+		ClientID:           "nic-oidc",
+		ClientSecret:       "secret",
+		Scope:              "openid",
+		RedirectURI:        "/_codexch",
+		ZoneSyncLeeway:     200,
+		PolicyName:         "default/oidc-policy",
+	}
+
+	internalLocations := []string{
+		"location = /_jwks_uri",
+		"location = /_token",
+		"location = /_refresh",
+		"location = /_token_validation",
+	}
+
+	t.Run("module not loaded emits no override", func(t *testing.T) {
+		t.Parallel()
+		cfg := base
+		executor := newTmplExecutorNGINXPlus(t)
+		got, err := executor.ExecuteOIDCTemplate(&cfg)
+		if err != nil {
+			t.Fatalf("Failed to execute OIDC template: %v", err)
+		}
+		if bytes.Contains(got, []byte("app_protect_enable off;")) {
+			t.Errorf("expected no app_protect_enable off; when AppProtectLoadModule is false, got:\n%s", got)
+		}
+	})
+
+	t.Run("module loaded disables WAF on every internal OIDC location", func(t *testing.T) {
+		t.Parallel()
+		cfg := base
+		cfg.AppProtectLoadModule = true
+		executor := newTmplExecutorNGINXPlus(t)
+		got, err := executor.ExecuteOIDCTemplate(&cfg)
+		if err != nil {
+			t.Fatalf("Failed to execute OIDC template: %v", err)
+		}
+
+		for _, marker := range internalLocations {
+			idx := bytes.Index(got, []byte(marker))
+			if idx < 0 {
+				t.Fatalf("marker %q missing from rendered oidc template", marker)
+			}
+			end := idx + 400
+			if end > len(got) {
+				end = len(got)
+			}
+			if !bytes.Contains(got[idx:end], []byte("app_protect_enable off;")) {
+				t.Errorf("missing app_protect_enable off; inside %q\nrendered slice:\n%s", marker, got[idx:end])
+			}
+		}
+		snaps.MatchSnapshot(t, string(got))
+	})
+}
+
 func vsConfig() VirtualServerConfig {
 	return VirtualServerConfig{
 		LimitReqZones: []LimitReqZone{

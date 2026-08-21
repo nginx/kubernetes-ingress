@@ -3397,6 +3397,74 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXPlus_DisablesWAFOnInternalLocations/module_loaded_disables_WAF_on_internal_locations - 1]
+# configuration for default/ing
+upstream test-upstream {
+    zone test-upstream 256k;
+    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name example.com;
+
+    status_zone example.com;
+    set $resource_type "ingress";
+    set $resource_name "ing";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location / {
+        set $service "svc";
+        status_zone "svc";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass ;
+        
+    }
+    
+    location /_external_auth/authsvc {
+        set $service "authsvc";
+        internal;
+        app_protect_enable off;
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://ext-auth-authsvc/verify;
+        
+    }
+    
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXRewriteTarget/case_insensitive_regex_rewrite - 1]
 # configuration for default/cafe-ingress
 

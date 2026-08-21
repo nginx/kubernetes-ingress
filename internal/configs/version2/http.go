@@ -29,6 +29,10 @@ type VirtualServerConfig struct {
 	Upstreams               []Upstream
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
+	// templates can safely emit app_protect_enable off; in internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive
@@ -163,6 +167,10 @@ type OIDC struct {
 	VerifyDepth           int
 	CAFile                string
 	PolicyName            string
+	// AppProtectLoadModule mirrors the controller's --enable-app-protect flag so
+	// oidc.tmpl can emit app_protect_enable off; on its internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // APIKey holds API key configuration.

@@ -316,6 +316,9 @@ server {
 		{{- end}}
 		{{- if $location.Internal}}
 		internal;
+		{{- if $.AppProtectLoadModule}}
+		app_protect_enable off;
+		{{- end}}
 		{{- end}}
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
