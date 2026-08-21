@@ -750,15 +750,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		servers = append(servers, server)
 	}
 
-	var keepalive string
-	if cfgParams.Keepalive > 0 {
-		keepalive = fmt.Sprint(cfgParams.Keepalive)
-	}
-
 	return version1.IngressNginxConfig{
 		Upstreams:   upstreamMapToSlice(upstreams),
 		Servers:     servers,
-		Keepalive:   keepalive,
 		CORSHeaders: policyCfg.CORSHeaders,
 		Ingress: version1.Ingress{
 			Name:        ncp.ingEx.Ingress.Name,
@@ -1150,6 +1144,9 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 	ups.LBMethod = cfg.LBMethod
 	ups.UpstreamZoneSize = cfg.UpstreamZoneSize
 	ups.StickyCookie = stickyCookie
+	if cfg.Keepalive > 0 {
+		ups.Keepalive = fmt.Sprint(cfg.Keepalive)
+	}
 	return ups, warning
 }
 
@@ -1221,7 +1218,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	healthChecks := make(map[string]version1.HealthCheck)
 	var limitReqZones []version1.LimitReqZone
 	var maps []version2.Map
-	var keepalive string
 
 	// replace master with a deepcopy because we will modify it
 	originalMaster := ncp.mergeableIngs.Master.Ingress
@@ -1264,10 +1260,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	upstreams = append(upstreams, masterNginxCfg.Upstreams...)
 	maps = append(maps, masterNginxCfg.Maps...)
-
-	if masterNginxCfg.Keepalive != "" {
-		keepalive = masterNginxCfg.Keepalive
-	}
 
 	minions := ncp.mergeableIngs.Minions
 	grpcOnly := true
@@ -1410,7 +1402,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	return version1.IngressNginxConfig{
 		Servers:                 []version1.Server{masterServer},
 		Upstreams:               upstreams,
-		Keepalive:               keepalive,
 		Ingress:                 masterNginxCfg.Ingress,
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
