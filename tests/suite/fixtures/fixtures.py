@@ -363,7 +363,7 @@ def cli_arguments(request) -> {}:
     return result
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="session")
 def crds(kube_apis, request) -> None:
     """
     Create an Ingress Controller with CRD enabled.
