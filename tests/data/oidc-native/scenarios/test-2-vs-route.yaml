@@ -1,0 +1,28 @@
+# Test 2: OIDCNative policy applied to a single VS route (location-level).
+#
+# Verify:
+#   - `run-test.sh 2 check` shows auth_oidc inside `location /` only, not at
+#     the server level.
+#   - Browse https://${WEBAPP_HOST}/        -> redirect to Keycloak.
+#   - Browse https://${WEBAPP_HOST}/public  -> 200 straight from webapp.
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      policies:
+        - name: oidcnative-policy
+      action:
+        pass: webapp
+    - path: /public
+      action:
+        pass: webapp
