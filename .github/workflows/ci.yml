@@ -385,6 +385,8 @@ jobs:
       go-proxy: ${{ needs.checks.outputs.go_proxy }}
       pkg-src-oss: "pkgs-test.nginx.com"
       pkg-src-plus: "pkgs-test.nginx.com"
+      pkg-src-waf: "pkgs-test.nginx.com"
+      pkg-src-dos: "pkgs-test.nginx.com"
       image-matrix-oss: ${{ needs.checks.outputs.image_matrix_oss }}
       image-matrix-plus: ${{ needs.checks.outputs.image_matrix_plus }}
       image-matrix-nap: ${{ needs.checks.outputs.image_matrix_nap }}

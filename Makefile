@@ -18,7 +18,7 @@ NAP_WAF_VERSION               ?= 37.0+5.690
 NAP_WAF_COMMON_VERSION        ?= 11.735
 NAP_WAF_PLUGIN_VERSION        ?= 6.30
 NAP_WAF_IPI_VERSION           ?= 1.59
-NAP_DOS_VERSION               ?= 37.0+5.690
+NAP_DOS_VERSION               ?= 37+4.9.6
 
 AGENT_V2_VERSION              ?= 2
 AGENT_V3_VERSION              ?= 3
@@ -27,8 +27,11 @@ AGENT_V3_VERSION              ?= 3
 NGX_CRT 					  ?= nginx-repo.crt
 NGX_KEY 					  ?= nginx-repo.key
 
-DOCKER_AUTH = "--secret id=$(NGX_CRT),src=$(NGX_CRT) --secret id=$(NGX_KEY),src=$(NGX_KEY)"
-STAGING_ARGS ?= OSS_REPO=pkgs-test.nginx.com OSS_ARGS=$(DOCKER_AUTH) PLUS_REPO=pkgs-test.nginx.com PLUS_ARGS=$(DOCKER_AUTH) WAF_REPO=pkgs-test.nginx.com DOS_REPO=pkgs-test.nginx.com
+DOCKER_AUTH = --secret id=$(NGX_CRT),src=$(NGX_CRT) --secret id=$(NGX_KEY),src=$(NGX_KEY)
+OSS_ARGS ?=
+# NOTE: OSS_ARGS is quoted here so the recursive $(MAKE) invocation receives it as a single
+# argument; DOCKER_AUTH itself must stay unquoted so it word-splits into separate docker flags.
+STAGING_ARGS ?= OSS_REPO=pkgs-test.nginx.com "OSS_ARGS=$(DOCKER_AUTH)" PLUS_REPO=pkgs-test.nginx.com WAF_REPO=pkgs-test.nginx.com DOS_REPO=pkgs-test.nginx.com
 PLUS_ARGS ?= --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --build-arg PLUS_PACKAGE_REPO=$(PLUS_REPO) --build-arg WAF_PACKAGE_REPO=$(WAF_REPO) --build-arg DOS_PACKAGE_REPO=$(DOS_REPO) $(DOCKER_AUTH)
 
 # Variables that can be overridden
@@ -214,7 +217,7 @@ alpine-image: build ## Build OSS Alpine-based image
 
 .PHONY: alpine-image-staging
 alpine-image-staging: build ## Build OSS Alpine-based image from staging repo
-	if [[ ! -f $(NGX_CRT) ]] || [[ ! -f $(NGX_KEY) ]]; then echo "Cert and key required for packages in staging."; exit 1; fi
+	if [ ! -f "$(NGX_CRT)" ] || [ ! -f "$(NGX_KEY)" ]; then echo "Cert and key required for packages in staging."; exit 1; fi
 	$(MAKE) alpine-image $(STAGING_ARGS)
 
 .PHONY: debian-image
@@ -227,7 +230,7 @@ debian-image: build ## Build OSS Debian-based image
 
 .PHONY: debian-image-staging
 debian-image-staging: build ## Build OSS Debian-based image from staging repo
-	if [[ ! -f $(NGX_CRT) ]] || [[ ! -f $(NGX_KEY) ]]; then echo "Cert and key required for packages in staging."; exit 1; fi
+	if [ ! -f "$(NGX_CRT)" ] || [ ! -f "$(NGX_KEY)" ]; then echo "Cert and key required for packages in staging."; exit 1; fi
 	$(MAKE) debian-image $(STAGING_ARGS)
 
 .PHONY: ubi-image
@@ -241,7 +244,7 @@ ubi-image: build ## Create OSS UBI-based image
 
 .PHONY: ubi-image-staging
 ubi-image-staging: build ## Create OSS UBI-based image from staging repo
-	if [[ ! -f $(NGX_CRT) ]] || [[ ! -f $(NGX_KEY) ]]; then echo "Cert and key required for packages in staging."; exit 1; fi
+	if [ ! -f "$(NGX_CRT)" ] || [ ! -f "$(NGX_KEY)" ]; then echo "Cert and key required for packages in staging."; exit 1; fi
 	$(MAKE) ubi-image $(STAGING_ARGS)
 
 ###### NIC + NGINX PLUS Images ######
@@ -284,7 +287,7 @@ alpine-image-nap-v5-plus-fips-agent: build ## Create Docker image for Ingress Co
 
 .PHONY: debian-image-plus
 debian-image-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus)
-	$(DOCKER_CMD) --no-cache $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: debian-image-nap-plus
 debian-image-nap-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect WAF)
@@ -322,6 +325,7 @@ debian-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Control
 .PHONY: debian-image-dos-plus
 debian-image-dos-plus: build ## Create Docker image for Ingress Controller (Debian with NGINX Plus and NGINX App Protect DoS)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=debian-plus-nap-agent --build-arg NAP_MODULES=dos \
+		--build-arg NAP_DOS_VERSION=$(NAP_DOS_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: debian-image-nap-dos-plus
@@ -332,6 +336,7 @@ debian-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (
 		--build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
 		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) \
 		--build-arg NAP_WAF_IPI_VERSION=$(NAP_WAF_IPI_VERSION) \
+		--build-arg NAP_DOS_VERSION=$(NAP_DOS_VERSION) \
 		--build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION)
 
 .PHONY: debian-image-nap-dos-plus-agent
@@ -342,6 +347,7 @@ debian-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Contro
 		--build-arg NAP_WAF_PLUGIN_VERSION=$(NAP_WAF_PLUGIN_VERSION) \
 		--build-arg NAP_WAF_COMMON_VERSION=$(NAP_WAF_COMMON_VERSION) \
 		--build-arg NAP_WAF_IPI_VERSION=$(NAP_WAF_IPI_VERSION) \
+		--build-arg NAP_DOS_VERSION=$(NAP_DOS_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi-image-plus
@@ -382,7 +388,8 @@ ubi-image-nap-v5-plus-agent: build ## Create Docker image for Ingress Controller
 .PHONY: ubi-image-dos-plus
 ubi-image-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus and NGINX App Protect DoS)
 	$(DOCKER_CMD) $(PLUS_ARGS) --build-arg BUILD_OS=ubi-10-plus-nap-agent \
-		--build-arg NAP_MODULES=dos --build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
+		--build-arg NAP_MODULES=dos --build-arg NAP_DOS_VERSION=$(NAP_DOS_VERSION) \
+		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION)
 
 .PHONY: ubi-image-nap-dos-plus
 ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI with NGINX Plus, NGINX App Protect WAF and DoS)
@@ -391,6 +398,7 @@ ubi-image-nap-dos-plus: build ## Create Docker image for Ingress Controller (UBI
 		--build-arg NAP_MODULES=waf,dos \
 		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
 		--build-arg NAP_WAF_IPI_VERSION=$(NAP_WAF_IPI_VERSION) \
+		--build-arg NAP_DOS_VERSION=$(NAP_DOS_VERSION) \
 		--build-arg AGENT_V2_VERSION=$(AGENT_V2_VERSION) \
 		--build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 
@@ -401,6 +409,7 @@ ubi-image-nap-dos-plus-agent: build ## Create Docker image for Ingress Controlle
 		--build-arg NAP_MODULES=waf,dos \
 		--build-arg NAP_WAF_VERSION=$(NAP_WAF_VERSION) \
 		--build-arg NAP_WAF_IPI_VERSION=$(NAP_WAF_IPI_VERSION) \
+		--build-arg NAP_DOS_VERSION=$(NAP_DOS_VERSION) \
 		--build-arg AGENT_V3_VERSION=$(AGENT_V3_VERSION) \
 		--build-arg UBI10_PACKAGES_IMAGE=$(UBI10_PACKAGES_IMAGE)
 

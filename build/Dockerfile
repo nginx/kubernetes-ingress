@@ -8,9 +8,8 @@ ARG NAP_WAF_VERSION=37.0+5.690
 ARG NAP_WAF_COMMON_VERSION=11.735
 ARG NAP_WAF_PLUGIN_VERSION=6.30
 ARG NAP_WAF_IPI_VERSION=1.59
-ARG NAP_DOS_VERSION=37.0+5.690
+ARG NAP_DOS_VERSION=37+4.9.6
 
-ARG PACKAGE_REPO=pkgs.nginx.com
 ARG OSS_PACKAGE_REPO=packages.nginx.org
 ARG AGENT_PACKAGE_REPO=packages.nginx.org
 ARG PLUS_PACKAGE_REPO=pkgs.nginx.com
@@ -297,7 +296,6 @@ FROM alpine:3.22@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_WAF_IPI_VERSION
-ARG PACKAGE_REPO
 ARG PLUS_PACKAGE_REPO
 ARG WAF_PACKAGE_REPO
 
@@ -501,6 +499,7 @@ ARG NAP_WAF_VERSION
 ARG NAP_WAF_COMMON_VERSION
 ARG NAP_WAF_PLUGIN_VERSION
 ARG NAP_WAF_IPI_VERSION
+ARG NAP_DOS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -529,7 +528,9 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	&& if [ -z "${NAP_MODULES##*dos*}" ]; then \
 	cp /tmp/app-protect-dos.sources /etc/apt/sources.list.d/app-protect-dos.sources \
 	&& apt-get update \
-	&& apt-get install --no-install-recommends --no-install-suggests -y app-protect-dos \
+	&& apt-get install --no-install-recommends --no-install-suggests -y \
+        app-protect-dos=${NAP_DOS_VERSION}* \
+        nginx-plus-module-appprotectdos=${NAP_DOS_VERSION}* \
 	&& rm -f /etc/apt/sources.list.d/app-protect-dos.sources \
 	&& nap-dos.sh; \
 	fi \
@@ -673,6 +674,7 @@ ARG NAP_MODULES
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_WAF_IPI_VERSION
+ARG NAP_DOS_VERSION
 
 ENV NGINX_VERSION=${NGINX_PLUS_VERSION}
 
@@ -706,7 +708,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	fi \
 	&& if [ -z "${NAP_MODULES##*dos*}" ]; then \
         cp /tmp/app-protect-dos-10.repo /etc/yum.repos.d/app-protect-dos-10.repo \
-        && microdnf --nodocs install -y app-protect-dos \
+        && microdnf --nodocs install -y app-protect-dos-${NAP_DOS_VERSION}* \
         && rm -f /etc/yum.repos.d/app-protect-dos-10.repo \
         && nap-dos.sh; \
 	fi \

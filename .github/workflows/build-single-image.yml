@@ -28,7 +28,7 @@ on:
         type: choice
         options:
           - packages.nginx.org
-          - pkgs-test.nginx.org
+          - pkgs-test.nginx.com
       plus_repo:
         description: 'Repo to source NGINX Plus packages from'
         required: true
