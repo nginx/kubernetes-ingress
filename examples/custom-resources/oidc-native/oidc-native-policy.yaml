@@ -1,0 +1,13 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidcnative-policy
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus
+    clientSecret: oidcnative-secret
+    configURL: https://keycloak.default.svc.cluster.local/realms/master/.well-known/openid-configuration
+    scope: openid
+    sslVerify: true
+    postLogoutRedirectURI: /_logout
