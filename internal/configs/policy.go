@@ -965,7 +965,6 @@ func resolveOIDCNativeTrustedCert(
 	return trustedCertPath, trustedCrlPath, true
 }
 
-
 func validateAndRegisterOIDCNativeLocations(
 	polKey string,
 	providerName string,
