@@ -48,8 +48,13 @@ defaults:
 
 # Never cancel a release in flight -- a half-copied registry or a pushed tag
 # without assets is worse than waiting for the previous run to finish.
+#
+# Deliberately shared with release-publish.yml: both stages are directly
+# dispatchable, and a publish run must not copy a version while prep is still
+# writing it to the staging registry. release.yml must NOT join this group --
+# as the calling workflow it would hold the group and deadlock its own children.
 concurrency:
-  group: ${{ inputs.release_branch }}-release-prep
+  group: ${{ inputs.release_branch }}-release
   cancel-in-progress: false
 
 permissions:
@@ -207,7 +212,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev" "docker-mgmt-test.nginx.com"
+          .github/scripts/copy-images.sh "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
 
   binaries:
     name: Process Binaries
@@ -317,16 +322,19 @@ jobs:
   tag:
     name: Create Tag on release branch in NIC repo
     runs-on: ubuntu-24.04
-    needs: [build-artifacts, push-prep-images, azure-upload]
+    needs: [build-artifacts, binaries, push-prep-images, azure-upload]
     # !cancelled() makes this job run even when a dependency failed, so every
     # dependency result has to be asserted explicitly or a tag would be pushed
-    # for a failed prep run.
+    # for a failed prep run. binaries must be asserted directly: azure-upload is
+    # merely 'skipped' when binaries fails, which would otherwise be accepted.
     if: >-
-      github.repository == 'nginx/kubernetes-ingress'
-      && !cancelled()
-      && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run))
-      && (needs.push-prep-images.result == 'success' || needs.push-prep-images.result == 'skipped')
-      && (needs.azure-upload.result == 'success' || needs.azure-upload.result == 'skipped')
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) &&
+      needs.binaries.result == 'success' &&
+      (needs.push-prep-images.result == 'success' || needs.push-prep-images.result == 'skipped') &&
+      (needs.azure-upload.result == 'success' || needs.azure-upload.result == 'skipped')
+      )
     permissions:
       contents: write
     steps:
@@ -366,10 +374,11 @@ jobs:
     runs-on: ubuntu-24.04-amd64
     needs: [variables, binaries, tag]
     if: >-
-      github.repository == 'nginx/kubernetes-ingress'
-      && !cancelled()
-      && !failure()
-      && !contains(inputs.skip_step, 'release-assets')
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      !failure() &&
+      !contains(inputs.skip_step, 'release-assets')
+      )
     permissions:
       contents: write # to upload release assets
     steps:

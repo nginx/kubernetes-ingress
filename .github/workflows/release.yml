@@ -9,7 +9,7 @@ on:
         required: true
         type: string
       mode:
-        description: "Release mode (prep, publish, or all)"
+        description: "Which release stages to run. Use this to select stages -- skip_step is job-level only."
         type: choice
         options:
           - all
@@ -41,7 +41,7 @@ on:
         type: boolean
         default: false
       skip_step:
-        description: "Comma separated list of jobs to skip"
+        description: "Comma separated list of individual jobs to skip. Use mode to skip a whole stage."
         type: string
         required: false
 
@@ -54,7 +54,11 @@ permissions:
 
 jobs:
   prep:
-    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.mode == 'prep' || inputs.mode == 'all') && !contains(inputs.skip_step, 'prep')
+    # Stage selection is driven solely by mode. skip_step is forwarded to the
+    # child workflow for job-level skips and is deliberately not consulted here:
+    # contains() is a substring match, so 'push-prep-images' would also match
+    # 'prep' and silently skip the entire stage.
+    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.mode == 'prep' || inputs.mode == 'all')
     name: Release Creation & Prep
     uses: ./.github/workflows/release-prep.yml
     with:
@@ -75,13 +79,15 @@ jobs:
 
   publish:
     # !cancelled() is required for needs.prep.result to be evaluated at all when
-    # prep fails; the 'skipped' arm covers mode: publish and skip_step: prep.
+    # prep fails; the 'skipped' arm covers mode: publish. As above, skip_step is
+    # not consulted for stage selection because 'publish-helm-chart' would
+    # substring-match 'publish' and skip every publish job.
     if: >-
-      github.repository == 'nginx/kubernetes-ingress'
-      && !cancelled()
-      && (inputs.mode == 'publish' || inputs.mode == 'all')
-      && !contains(inputs.skip_step, 'publish')
-      && (needs.prep.result == 'success' || needs.prep.result == 'skipped')
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      (inputs.mode == 'publish' || inputs.mode == 'all') &&
+      (needs.prep.result == 'success' || needs.prep.result == 'skipped')
+      )
     name: Release Publishing
     needs: [prep]
     uses: ./.github/workflows/release-publish.yml

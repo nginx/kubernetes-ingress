@@ -20,8 +20,11 @@ SOURCE_TAG=${SOURCE_TAG:-stable}
 TARGET_TAG=${TARGET_TAG:-edge}
 ADDITIONAL_TAG=${ADDITIONAL_TAG:-""}
 
-SOURCE_REGISTRY=${1:-${SOURCE_REGISTRY:-"gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"}}
-TARGET_REGISTRY=${2:-${TARGET_REGISTRY:-"gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release"}}
+# Captured here but resolved after the config file is sourced -- config files
+# `export TARGET_REGISTRY`, which would otherwise silently override an explicit
+# positional argument. Precedence is: CLI arg > config file > environment > default.
+ARG_SOURCE_REGISTRY=${1:-""}
+ARG_TARGET_REGISTRY=${2:-""}
 
 REGISTRY_USERNAME=${REGISTRY_USERNAME:-""}
 REGISTRY_PASSWORD=${REGISTRY_PASSWORD:-""}
@@ -68,6 +71,10 @@ elif [ "$CONFIG_PATH" != "$DEFAULT_CONFIG_PATH" ]; then
     echo "ERROR: CONFIG_PATH '${CONFIG_PATH}' was set but does not exist." >&2
     exit 1
 fi
+
+# Resolved after sourcing the config so an explicit positional argument wins.
+SOURCE_REGISTRY=${ARG_SOURCE_REGISTRY:-${SOURCE_REGISTRY:-"gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"}}
+TARGET_REGISTRY=${ARG_TARGET_REGISTRY:-${TARGET_REGISTRY:-"gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/release"}}
 
 SOURCE_OPTS=${SOURCE_OPTS:-""}
 if [[ $SOURCE_REGISTRY =~ mgmt ]] || [[ $SOURCE_REGISTRY =~ private ]] ; then

@@ -91,31 +91,22 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -164,34 +155,22 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-          AWS_ROLE_PUBLIC_ECR=$(az keyvault secret show --name aws-public-role --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$AWS_ROLE_PUBLIC_ECR"
-          echo "AWS_ROLE_PUBLIC_ECR=$AWS_ROLE_PUBLIC_ECR" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa, aws-public-role"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT, AWS_ROLE_PUBLIC_ECR"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -204,7 +183,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           aws-region: us-east-1
-          role-to-assume: ${{ steps.secrets.outputs.AWS_ROLE_PUBLIC_ECR }}
+          role-to-assume: ${{ env.AWS_ROLE_PUBLIC_ECR }}
 
       - name: Login to Public ECR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -251,49 +230,31 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+      - name: Setup NIC secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-
-      - name: Azure login Common Vault
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+      - name: Setup Common secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
-
-      - name: Setup secrets Common Vault
-        id: secrets-common
-        run: |
-          echo "Setting secrets for job"
-          DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$DOCKER_USERNAME"
-          echo "DOCKER_USERNAME=$DOCKER_USERNAME" >> $GITHUB_OUTPUT
-          DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$DOCKER_PASSWORD"
-          echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "docker-username, docker-password"
+          env-names: "DOCKER_USERNAME, DOCKER_PASSWORD"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -305,8 +266,8 @@ jobs:
       - name: DockerHub Login
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
-          password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
 
       - name: Get Id Token for Source Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
@@ -348,39 +309,22 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-          QUAY_CREDS=$(az keyvault secret show --name quay-creds --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$QUAY_CREDS"
-          QUAY_USERNAME=$(echo $QUAY_CREDS | jq -r '.username')
-          echo "::add-mask::$QUAY_USERNAME"
-          echo "QUAY_USERNAME=$QUAY_USERNAME" >> $GITHUB_OUTPUT
-          QUAY_ROBOT_TOKEN=$(echo $QUAY_CREDS | jq -r '.token')
-          echo "::add-mask::$QUAY_ROBOT_TOKEN"
-          echo "QUAY_ROBOT_TOKEN=$QUAY_ROBOT_TOKEN" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa, quay-username, quay-robot-token"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT, QUAY_USERNAME, QUAY_ROBOT_TOKEN"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -393,8 +337,8 @@ jobs:
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: quay.io
-          username: ${{ steps.secrets.outputs.QUAY_USERNAME }}
-          password: ${{ steps.secrets.outputs.QUAY_ROBOT_TOKEN }}
+          username: ${{ env.QUAY_USERNAME }}
+          password: ${{ env.QUAY_ROBOT_TOKEN }}
 
       - name: Get Id Token for Source Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
@@ -437,31 +381,22 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0

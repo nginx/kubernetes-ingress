@@ -240,16 +240,20 @@
       ]
     },
     {
-      "groupName": "Go dev tooling",
+      "groupName": "Go toolchain",
       "matchPackageNames": [
+        "go",
+        "golang",
         "dominikh/go-tools",
         "golang/vuln",
         "golangci/golangci-lint",
         "mvdan.cc/gofumpt"
       ],
       "matchDatasources": [
+        "docker",
         "github-releases",
-        "go"
+        "go",
+        "golang-version"
       ],
       "addLabels": [
         "go",
@@ -403,7 +407,6 @@
   "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
-    "release-5.5",
     "release-2026-lts"
   ],
   "commitBodyTable": true,
