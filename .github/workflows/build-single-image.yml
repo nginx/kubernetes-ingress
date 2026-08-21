@@ -21,8 +21,16 @@ on:
         required: false
         type: string
         default: main
+      oss_repo:
+        description: "Repo to source NGINX OSS packages from"
+        required: true
+        default: "packages.nginx.org"
+        type: choice
+        options:
+          - packages.nginx.org
+          - pkgs-test.nginx.com
       plus_repo:
-        description: 'Plus repo to install from'
+        description: 'Repo to source NGINX Plus packages from'
         required: true
         default: 'pkgs.nginx.com'
         type: choice
@@ -136,6 +144,7 @@ jobs:
           REGISTRY: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev
           PREFIX: ${{ inputs.prefix }}
           TAG: ${{ inputs.tag }}
+          OSS_REPO: ${{ inputs.oss_repo }}
           PLUS_REPO: ${{ inputs.plus_repo }}
           TARGET: goreleaser
 

@@ -43,6 +43,11 @@ on:
         required: false
         type: boolean
         default: true
+      pkg-src-repo:
+        description: The source repository for the package
+        required: false
+        type: string
+        default: "packages.nginx.org"
 
 defaults:
   run:
@@ -87,8 +92,14 @@ jobs:
           client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
           tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "docker-username, docker-password"
-          env-names: "DOCKER_USERNAME, DOCKER_PASSWORD"
+          secret-names: "nginx-pkg-certificate, nginx-pkg-key, docker-username, docker-password"
+          env-names: "PLUS_CERT, PLUS_KEY, DOCKER_USERNAME, DOCKER_PASSWORD"
+        if: ${{ inputs.authenticated }}
+
+      - name: Write secrets
+        run: |
+          echo "$PLUS_CERT" > nginx-repo.crt
+          echo "$PLUS_KEY" > nginx-repo.key
         if: ${{ inputs.authenticated }}
 
       - name: Authenticate to Google Cloud
@@ -176,8 +187,12 @@ jobs:
           push: true
           no-cache: true
           build-args: |
+            OSS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+          secret-files: |
+            ${{ inputs.authenticated && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ inputs.authenticated && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Debug values
@@ -214,9 +229,13 @@ jobs:
           sbom: ${{ inputs.authenticated }}
           provenance: false
           build-args: |
+            OSS_PACKAGE_REPO=${{ inputs.authenticated && inputs.pkg-src-repo || 'packages.nginx.org' }}
             BUILD_OS=${{ inputs.image }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+          secret-files: |
+            ${{ inputs.authenticated && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ inputs.authenticated && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Make directory for security scan results
@@ -237,3 +256,8 @@ jobs:
           summary: true
         continue-on-error: true
         if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
+
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key
+        if: always()
