@@ -2,3 +2,4 @@
 
 - [Architecture](./architecture.md)
 - [Debugging](./debugging.md)
+- [Profiling](./profiling.md)
