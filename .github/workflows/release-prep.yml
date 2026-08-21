@@ -156,31 +156,22 @@ jobs:
         with:
           ref: ${{ inputs.release_branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -277,25 +268,14 @@ jobs:
           path: ${{ github.workspace }}/tarballs
           fail-on-cache-miss: true
 
-      - name: Azure login for secrets
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          AZURE_STORAGE=$(az keyvault secret show --name azure-storage --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$AZURE_STORAGE"
-          AZURE_STORAGE_ACCOUNT=$(echo $AZURE_STORAGE | jq -r '.account')
-          echo "::add-mask::$AZURE_STORAGE_ACCOUNT"
-          echo "AZURE_STORAGE_ACCOUNT=$AZURE_STORAGE_ACCOUNT" >> $GITHUB_OUTPUT
-          AZURE_BUCKET_NAME=$(echo $AZURE_STORAGE | jq -r '.bucket')
-          echo "::add-mask::$AZURE_BUCKET_NAME"
-          echo "AZURE_BUCKET_NAME=$AZURE_BUCKET_NAME" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "azure-storage-account, azure-storage-bucket"
+          env-names: "AZURE_STORAGE_ACCOUNT, AZURE_BUCKET_NAME"
 
       - name: Azure login for upload
         uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
@@ -311,8 +291,8 @@ jobs:
             for i in $(find tarballs -type f); do
               echo -n "Uploading ${i} to kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/} ... "
               if ${{ ! inputs.dry_run}}; then
-                az storage blob upload --auth-mode=login -f "$i" -c ${{ steps.secrets.outputs.AZURE_BUCKET_NAME }} \
-                  --account-name ${{ steps.secrets.outputs.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/}
+                az storage blob upload --auth-mode=login -f "$i" -c ${{ env.AZURE_BUCKET_NAME }} \
+                  --account-name ${{ env.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/}
                 echo "done"
               else
                 echo "skipped, dry_run."
