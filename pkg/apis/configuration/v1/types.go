@@ -176,6 +176,8 @@ type Upstream struct {
 	SessionCookie *SessionCookie `json:"sessionCookie"`
 	// Enables using the Cluster IP and port of the service instead of the default behavior of using the IP and port of the pods. When this field is enabled, the fields that configure NGINX behavior related to multiple upstream servers (like lb-method and next-upstream) will have no effect, as NGINX Ingress Controller will configure NGINX with only one upstream server that will match the service Cluster IP.
 	UseClusterIP bool `json:"use-cluster-ip"`
+	// Enables topology-aware routing that honors EndpointSlice hints populated by the service's spec.trafficDistribution. When true, requests prefer endpoints on the same node as the Ingress Controller, then the same zone, falling back to all endpoints. Defaults to false, in which case all endpoints are used and hints are ignored. Cannot be used with use-cluster-ip.
+	UseTrafficDistribution bool `json:"use-traffic-distribution"`
 	// Allows proxying requests with NTLM Authentication. In order for NTLM authentication to work, it is necessary to enable keepalive connections to upstream servers using the keepalive field. Note: this feature is supported only in NGINX Plus.
 	NTLM bool `json:"ntlm"`
 	// The type of the upstream. Supported values are http and grpc. The default is http. For gRPC, it is necessary to enable HTTP/2 in the ConfigMap and configure TLS termination in the VirtualServer.

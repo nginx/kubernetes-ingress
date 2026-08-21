@@ -1250,6 +1250,14 @@ spec:
                         Ingress Controller will configure NGINX with only one upstream
                         server that will match the service Cluster IP.
                       type: boolean
+                    use-traffic-distribution:
+                      description: Enables topology-aware routing that honors EndpointSlice
+                        hints populated by the service's spec.trafficDistribution.
+                        When true, requests prefer endpoints on the same node as the
+                        Ingress Controller, then the same zone, falling back to all
+                        endpoints. Defaults to false, in which case all endpoints
+                        are used and hints are ignored. Cannot be used with use-cluster-ip.
+                      type: boolean
                   type: object
                 type: array
             type: object
