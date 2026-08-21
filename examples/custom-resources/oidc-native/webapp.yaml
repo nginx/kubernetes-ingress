@@ -51,6 +51,6 @@ data:
       location / {
         default_type text/plain;
         expires -1;
-        return 200 'Server address: $server_addr:$server_port\nServer name: $hostname\nDate: $time_local\nURI: $request_uri\nRequest ID: $request_id\nUser: $http_username\nOIDC Subject: $http_x_oidc_sub\n';
+        return 200 'Server address: $server_addr:$server_port\nServer name: $hostname\nDate: $time_local\nURI: $request_uri\nRequest ID: $request_id\nUser: $http_username\n';
       }
     }
