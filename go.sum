@@ -323,8 +323,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/nginx/nginx-plus-go-client/v3 v3.0.2 h1:MhEfGY5u1+pGAw76dAKK4Rcp6X68/GHFYIvQytpzI8A=
 github.com/nginx/nginx-plus-go-client/v3 v3.0.2/go.mod h1:nuDxMBO4xrJHZ60rwDZGW04JNZyWI8bp1WLFt4U9Hhw=
-github.com/nginx/nginx-prometheus-exporter v1.5.1 h1:44jvKTJ4S0SydKbXw7H9V5VjcGdM3tdOPDd4em86GZQ=
-github.com/nginx/nginx-prometheus-exporter v1.5.1/go.mod h1:5b+M6fx4v6UQsihjrN/UeBBR2DabEsfgTjhqG/Xt12w=
+github.com/nginx/nginx-prometheus-exporter v1.5.3 h1:jyVHCkDlbu2fZyChXPyebGcMRupxu5YKj7+PTEMppEI=
+github.com/nginx/nginx-prometheus-exporter v1.5.3/go.mod h1:4M5ZmmcsiFhXGHsc7d5adwxt5Ak1lWMKo4H55V9Ruak=
 github.com/nginx/telemetry-exporter v0.1.5 h1:niCAHMii9a74UW3GuqpBt/n1/FIAKrZtTxtEH0MGSiU=
 github.com/nginx/telemetry-exporter v0.1.5/go.mod h1:O42B/CP5u5eNKNGd0OKKLoeUVkHPLwgrWcCRRX0KFgY=
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
