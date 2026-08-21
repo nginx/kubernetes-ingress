@@ -1245,6 +1245,10 @@ func validateOriginFormat(origin string) error {
 		return validateWildcardOriginHost(origin, host)
 	}
 
+	if err := validateOriginPort(parsedOrigin.Port(), origin); err != nil {
+		return err
+	}
+
 	return validateExactOriginHost(host)
 }
 
@@ -1292,15 +1296,30 @@ func validateWildcardOriginHost(origin, host string) error {
 		if port == "" {
 			return fmt.Errorf("port cannot be empty when colon is present (invalid: %s)", origin)
 		}
-		// Validate port is numeric and in valid range
-		if _, err := strconv.Atoi(port); err != nil {
-			return fmt.Errorf("port must be numeric (invalid: %s)", origin)
+		if err := validateOriginPort(port, origin); err != nil {
+			return err
 		}
 	}
 
 	// Validate domain part using Kubernetes DNS validation
 	if errs := validation.IsDNS1123Subdomain(domainPart); len(errs) > 0 {
 		return fmt.Errorf("wildcard subdomain is not a valid DNS name: %s (invalid: %s)", strings.Join(errs, ", "), origin)
+	}
+
+	return nil
+}
+
+func validateOriginPort(port, origin string) error {
+	if port == "" {
+		return nil
+	}
+
+	portNum, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("port must be numeric (invalid: %s)", origin)
+	}
+	if portNum < 1 || portNum > 65535 {
+		return fmt.Errorf("port must be in the range 1-65535 (invalid: %s)", origin)
 	}
 
 	return nil
