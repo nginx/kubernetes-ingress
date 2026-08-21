@@ -384,6 +384,10 @@ func (lbc *LoadBalancerController) logBundleExpected(sl *conf_v1.SecurityLog, po
 func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	polKey := pol.Namespace + "/" + pol.Name
 
+	// Reconcile the poller on every return path so non-PLM sources with
+	// EnablePolling=true still retry after a failed initial fetch.
+	defer lbc.reconcileBundlePoller(pol, polKey)
+
 	if !lbc.syncPolicyBundle(pol, polKey) {
 		return
 	}
@@ -393,14 +397,14 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 			return
 		}
 	}
+}
 
+// reconcileBundlePoller sets up the background poller for pol's bundle sources.
+func (lbc *LoadBalancerController) reconcileBundlePoller(pol *conf_v1.Policy, polKey string) {
 	var policyAuth *wafbundle.BundleAuth
 	if bs := pol.Spec.WAF.ApBundleSource; bs != nil {
-		var err error
-		policyAuth, err = lbc.resolveWAFBundleAuth(bs, pol.Namespace)
-		if err != nil {
-			// Auth failure already surfaced in syncPolicyBundle; skip poller.
-			policyAuth = nil
+		if a, err := lbc.resolveWAFBundleAuth(bs, pol.Namespace); err == nil {
+			policyAuth = a
 		}
 	}
 
