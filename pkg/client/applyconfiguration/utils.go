@@ -112,6 +112,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationconfigurationv1.MatchApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("OIDC"):
 		return &applyconfigurationconfigurationv1.OIDCApplyConfiguration{}
+	case configurationv1.SchemeGroupVersion.WithKind("OIDCNative"):
+		return &applyconfigurationconfigurationv1.OIDCNativeApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("Policy"):
 		return &applyconfigurationconfigurationv1.PolicyApplyConfiguration{}
 	case configurationv1.SchemeGroupVersion.WithKind("PolicyReference"):

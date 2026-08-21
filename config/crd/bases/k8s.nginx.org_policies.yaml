@@ -750,6 +750,142 @@ spec:
                 x-kubernetes-validations:
                 - message: trustedCertSecret can be set only if sslVerify is true
                   rule: (self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))
+              oidcNative:
+                description: The OpenID Connect policy configures NGINX to authenticate
+                  client requests by validating a JWT token against an OAuth2/OIDC
+                  token provider, such as Auth0 or Keycloak. NGINX Plus native.
+                properties:
+                  clientID:
+                    description: The client ID provided by your OpenID Connect provider.
+                    type: string
+                  clientSecret:
+                    description: The name of the Kubernetes secret that stores the
+                      client secret provided by your OpenID Connect provider. It must
+                      be in the same namespace as the Policy resource. The secret
+                      must be of the type nginx.org/oidc, and the secret under the
+                      key client-secret, otherwise the secret will be rejected as
+                      invalid.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                  configURL:
+                    description: ConfigURL is the URL of the OpenID Provider Configuration
+                      Information. If not set, defaults to <issuer>/.well-known/openid-configuration
+                      as per the OpenID Connect Discovery specification.
+                    type: string
+                  cookieName:
+                    description: Sets the name of the session cookie. The module defaults
+                      to NGX_OIDC_SESSION.
+                    type: string
+                  extraAuthArgs:
+                    description: Sets additional query arguments for the authentication
+                      request URL, for example "display=page&prompt=login".
+                    type: string
+                  frontChannelLogoutURI:
+                    description: Defines the URI path for triggering OIDC front-channel
+                      logout. When set, the IdP calls this URI in a hidden iframe
+                      when the user logs out globally, allowing NGINX to terminate
+                      the local session.
+                    pattern: ^/[^\s{};\\$\x60]*$
+                    type: string
+                  issuer:
+                    description: Sets the Issuer Identifier URL of the OpenID Provider;
+                      required directive. The URL must exactly match the value of
+                      “issuer” in the OpenID Provider metadata and requires the “https”
+                      scheme.
+                    pattern: ^https://([^/\s]+)(/.*)?$
+                    type: string
+                  logoutTokenHint:
+                    default: false
+                    description: Adds the id_token_hint argument to the Provider's
+                      Logout Endpoint when redirecting user during logout. Required
+                      by some providers.
+                    type: boolean
+                  logoutURI:
+                    default: /logout
+                    description: Defines the URI path for initiating session logout.
+                      Upon session termination, the user is redirected to the Provider's
+                      logout endpoint or the post logout page.
+                    pattern: ^/[^\s{};\\$\x60]*$
+                    type: string
+                  pkce:
+                    description: Explicitly enables or disables PKCE. By default,
+                      PKCE is automatically enabled based on OpenID Provider metadata.
+                    enum:
+                    - "on"
+                    - "off"
+                    type: string
+                  postLogoutRedirectURI:
+                    description: Defines the path where the user is redirected after
+                      logout. Must be a path on the same host — absolute URLs are
+                      not supported. When set, NIC also auto-generates an unauthenticated
+                      location at this path serving a plain-text confirmation response.
+                      If multiple OIDCNative providers on the same host set the same
+                      path, only one auto-generated location is rendered; providers
+                      whose other generated locations (redirectURI, or the internal
+                      IdP proxy location) collide are rejected instead.
+                    pattern: ^/[^\s{};\\$\x60]*$
+                    type: string
+                  proxyBufferSize:
+                    default: 32k
+                    description: Buffer size used when proxying requests to the OpenID
+                      Provider. Applies to `proxy_buffer_size` and each buffer in
+                      `proxy_buffers`. Default is `32k`.
+                    pattern: ^[0-9]+[kKmM]?$
+                    type: string
+                  redirectURI:
+                    description: Allows overriding the default redirect URI. The module
+                      defaults to /oidc_callback.
+                    pattern: ^/[^\s{};\\$\x60]*$
+                    type: string
+                  scope:
+                    description: 'List of OpenID Connect scopes, space-separated.
+                      The scope openid is always required. Example: "openid profile
+                      email". The module defaults to "openid".'
+                    type: string
+                    x-kubernetes-validations:
+                    - message: scope must contain 'openid' as a token
+                      rule: self == '' || self.matches('(^|[ +])openid([ +]|$)')
+                  sessionTimeout:
+                    description: Sets a timeout after which the session is deleted,
+                      unless it was refreshed. The module defaults to 8h.
+                    pattern: ^[0-9]+(s|m|h|d)?$
+                    type: string
+                  sslName:
+                    description: Overrides the TLS SNI name and Host header used when
+                      connecting to the OpenID Provider. If omitted, NGINX dynamically
+                      resolves SNI and Host header from the endpoint URLs.
+                    type: string
+                  sslVerify:
+                    default: true
+                    description: Enables verification of the OpenID Provider's TLS
+                      certificate. Default is true. Set to false to skip verification
+                      (dev/test only, insecure).
+                    type: boolean
+                  sslVerifyDepth:
+                    default: 1
+                    description: Sets the verification depth in the OpenID Provider
+                      TLS certificate chain. Default is 1.
+                    minimum: 0
+                    type: integer
+                  trustedCertSecret:
+                    description: The name of the Kubernetes secret that stores the
+                      trusted CA certificate for verifying the OpenID Provider's TLS
+                      certificate. Must be of type nginx.org/ca with the certificate
+                      stored under key ca.crt.
+                    pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                    type: string
+                  userInfoEnable:
+                    default: false
+                    description: Enables downloading of the UserInfo data and makes
+                      UserInfo claims available via the $oidc_claim_name variables.
+                    type: boolean
+                required:
+                - clientID
+                - issuer
+                type: object
+                x-kubernetes-validations:
+                - message: trustedCertSecret can be set only if sslVerify is true
+                  rule: (self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))
               rateLimit:
                 description: The rate limit policy controls the rate of processing
                   requests per a defined key.

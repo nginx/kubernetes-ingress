@@ -4610,6 +4610,134 @@ server {
 
 ---
 
+[TestVirtualServerForNginxPlusWithOIDCNative - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    server 10.0.0.20:8001 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+keyval_zone zone=oidc_sessions_oidc_default_my_provider_default_cafe:10m timeout=4h sync;
+oidc_provider oidc_default_my_provider_default_cafe {
+    issuer https://accounts.google.com;
+    client_id my-client-id;
+    client_secret "my-resolved-secret";
+    config_url https://accounts.google.com/.well-known/openid-configuration;
+    scope openid profile;
+    redirect_uri /callback;
+    logout_uri /logout;
+    post_logout_uri /logged_out;
+    frontchannel_logout_uri /frontchannel_logout;
+    cookie_name MY_SESSION;
+    extra_auth_args "prompt=login";
+    pkce on;
+    logout_token_hint on;
+    session_store oidc_sessions_oidc_default_my_provider_default_cafe;
+    session_timeout 4h;
+    ssl_crl /etc/nginx/secrets/default-google-ca-secret-ca.crl;
+    ssl_trusted_certificate /etc/nginx/secrets/default-google-ca-secret;
+    userinfo on;
+    proxy_location /_oidc_idp_oidc_default_my_provider_default_cafe;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone cafe.example.com;
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+    auth_oidc oidc_default_my_provider_default_cafe;
+
+    server_tokens "";
+
+    
+    location = /callback {
+        auth_oidc oidc_default_my_provider_default_cafe;
+    }
+    location = /logged_out {
+        auth_oidc off;
+        default_type text/plain;
+        return 200 "You have been logged out.\n";
+    }
+    location = /_oidc_idp_oidc_default_my_provider_default_cafe {
+        auth_oidc off;
+        client_max_body_size 0;
+        proxy_pass $oidc_idp_request_uri;
+        proxy_ssl_server_name on;
+        proxy_ssl_name accounts.google.com;
+        proxy_set_header Host accounts.google.com;
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 3;
+        proxy_ssl_trusted_certificate /etc/nginx/secrets/default-google-ca-secret;
+        proxy_buffers 8 16k;
+        proxy_buffer_size 16k;
+        proxy_busy_buffers_size 16k;
+        subrequest_output_buffer_size 64k;
+    }
+
+    
+    location / {
+        set $service "";
+        status_zone "";
+
+        
+        auth_oidc oidc_default_my_provider_default_cafe;
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location /public {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxPlusWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {

@@ -537,6 +537,18 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 			cfg: PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
 			msg: "use WAF(plus only) policy",
 		},
+		{
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					OIDCNative: &v1.OIDCNative{
+						Issuer:   "https://accounts.google.com",
+						ClientID: "my-client-id",
+					},
+				},
+			},
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: true},
+			msg: "use OIDCNative (plus only)",
+		},
 	}
 	for _, test := range tests {
 		err := ValidatePolicy(test.policy, test.cfg)
@@ -2025,6 +2037,242 @@ func TestValidateAPIKeyPolicy_FailsOnInvalidInput(t *testing.T) {
 		if len(allErrs) == 0 {
 			t.Errorf("validateAPIKey() returned no errors for invalid input for the case of %v", test.msg)
 		}
+	}
+}
+
+func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		oidcNative *v1.OIDCNative
+		msg        string
+	}{
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+			},
+			msg: "minimal valid config",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client-id",
+				ClientSecret:          "my-oidc-secret",
+				Scope:                 "openid+profile+email",
+				RedirectURI:           "/oidc_callback",
+				LogoutURI:             "/logout",
+				PostLogoutRedirectURI: "/logged_out",
+				FrontChannelLogoutURI: "/frontchannel_logout",
+				UserInfoEnable:        true,
+			},
+			msg: "full config with all optional fields",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://login.microsoftonline.com/tenant-id",
+				ClientID:     "azure-client",
+				ClientSecret: "azure-secret",
+				Scope:        "openid+offline_access",
+			},
+			msg: "azure provider with offline_access scope",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://keycloak.example.com/realms/master",
+				ClientID: "keycloak-client",
+			},
+			msg: "keycloak provider with path in issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+				Scope:    "profile openid email",
+			},
+			msg: "space separated scope tokens",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateOIDCNative(test.oidcNative, field.NewPath("oidcNative"))
+			if len(allErrs) != 0 {
+				t.Errorf("validateOIDCNative() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		oidcNative *v1.OIDCNative
+		fieldPath  string
+		msg        string
+	}{
+		{
+			oidcNative: &v1.OIDCNative{ClientID: "my-client"},
+			fieldPath:  "oidcNative.issuer",
+			msg:        "missing required issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com"},
+			fieldPath:  "oidcNative.clientID",
+			msg:        "missing required clientID",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "not-a-url",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "invalid issuer URL",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "$invalid$chars",
+			},
+			fieldPath: "oidcNative.clientID",
+			msg:       "invalid chars in clientID",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com/;malicious{ return 500; }",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "dangerous chars in issuer path",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://x/y;malicious;",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "dangerous chars in configURL",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "openid; injection",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "dangerous chars in scope",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "SID; return 500",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "dangerous chars in cookieName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:        "https://accounts.google.com",
+				ClientID:      "my-client",
+				ExtraAuthArgs: `x"; malicious;`,
+			},
+			fieldPath: "oidcNative.extraAuthArgs",
+			msg:       "dangerous chars in extraAuthArgs",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "evil.example.com;\ninject",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "dangerous chars in sslName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", RedirectURI: "/$callback"},
+			fieldPath:  "oidcNative.redirectURI",
+			msg:        "dangerous chars in redirect URI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", LogoutURI: "/`logout"},
+			fieldPath:  "oidcNative.logoutURI",
+			msg:        "dangerous chars in logout URI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", PostLogoutRedirectURI: "/$logout"},
+			fieldPath:  "oidcNative.postLogoutRedirectURI",
+			msg:        "dangerous chars in post logout URI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", FrontChannelLogoutURI: "/`frontchannel"},
+			fieldPath:  "oidcNative.frontChannelLogoutURI",
+			msg:        "dangerous chars in front channel logout URI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", Scope: "notopenid"},
+			fieldPath:  "oidcNative.scope",
+			msg:        "openid must be a complete scope token",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", SSLVerify: new(bool), TrustedCertSecret: "my-ca"},
+			fieldPath:  "oidcNative.trustedCertSecret",
+			msg:        "trustedCertSecret set when sslVerify is false",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com?query=1", ClientID: "my-client"},
+			fieldPath:  "oidcNative.issuer",
+			msg:        "issuer contains query parameter",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateOIDCNative(test.oidcNative, field.NewPath("oidcNative"))
+			if len(allErrs) == 0 {
+				t.Errorf("validateOIDCNative() returned no errors for invalid input for the case of %v", test.msg)
+			} else if allErrs[0].Field != test.fieldPath {
+				t.Errorf("validateOIDCNative() returned error on wrong field for the case of %v, want %v, got %v", test.msg, test.fieldPath, allErrs[0].Field)
+			}
+			t.Log(allErrs)
+		})
+	}
+}
+
+func TestValidatePolicy_OIDCNative_GateChecks(t *testing.T) {
+	t.Parallel()
+	validOIDCNative := &v1.OIDCNative{
+		Issuer:   "https://accounts.google.com",
+		ClientID: "my-client-id",
+	}
+	tests := []struct {
+		cfg PolicyValidationConfig
+		msg string
+	}{
+		{
+			cfg: PolicyValidationConfig{IsPlus: false, EnableOIDC: true},
+			msg: "rejected when not Plus",
+		},
+		{
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: false},
+			msg: "rejected when OIDC not enabled",
+		},
+		{
+			cfg: PolicyValidationConfig{IsPlus: false, EnableOIDC: false},
+			msg: "rejected when neither Plus nor OIDC enabled",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			policy := &v1.Policy{Spec: v1.PolicySpec{OIDCNative: validOIDCNative}}
+			err := ValidatePolicy(policy, test.cfg)
+			if err == nil {
+				t.Errorf("ValidatePolicy() should have returned error for the case of %v", test.msg)
+			}
+		})
 	}
 }
 
