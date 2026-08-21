@@ -1,4 +1,72 @@
 
+[TestHelmNICTemplate/additionalServices - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-additional-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress-dns
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.7.0
+    app.kubernetes.io/instance: shared-controller
+    app.kubernetes.io/name: custom-nginx-ingress
+    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  clusterIP: 10.96.0.53
+  type: ClusterIP
+  ports:
+    - name: dns-udp
+      port: 53
+      protocol: UDP
+      targetPort: 5353
+  selector:
+    app.kubernetes.io/instance: shared-controller
+    app.kubernetes.io/name: custom-nginx-ingress
+  externalIPs:
+    - 192.0.2.53
+/-/-/-/
+# Source: nginx-ingress/templates/controller-additional-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress-redis
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.7.0
+    app.kubernetes.io/instance: shared-controller
+    app.kubernetes.io/name: custom-nginx-ingress
+    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/traffic: redis
+  annotations:
+    example.com/exposure: database
+spec:
+  externalTrafficPolicy: Local
+  allocateLoadBalancerNodePorts: false
+  loadBalancerIP: 10.0.0.11
+  loadBalancerClass: example.com/internal
+  loadBalancerSourceRanges:
+    - 10.0.0.0/8
+  type: LoadBalancer
+  ipFamilyPolicy: SingleStack
+  ipFamilies:
+    - IPv4
+  ports:
+    - name: redis
+      port: 6379
+      protocol: TCP
+      targetPort: 6379
+  selector:
+    app.kubernetes.io/instance: shared-controller
+    app.kubernetes.io/name: custom-nginx-ingress
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 1800
+---
+
 [TestHelmNICTemplate/allowEmptyIngressHost - 1]
 /-/-/-/
 # Source: nginx-ingress/templates/controller-serviceaccount.yaml

@@ -1,0 +1,41 @@
+controller:
+  selectorLabels:
+    app.kubernetes.io/name: custom-nginx-ingress
+    app.kubernetes.io/instance: shared-controller
+  service:
+    create: false
+    additionalServices:
+      nginx-ingress-redis:
+        type: LoadBalancer
+        annotations:
+          example.com/exposure: database
+        extraLabels:
+          app.kubernetes.io/traffic: redis
+        loadBalancerIP: 10.0.0.11
+        loadBalancerClass: example.com/internal
+        externalTrafficPolicy: Local
+        allocateLoadBalancerNodePorts: false
+        loadBalancerSourceRanges:
+          - 10.0.0.0/8
+        ipFamilyPolicy: SingleStack
+        ipFamilies:
+          - IPv4
+        ports:
+          - name: redis
+            port: 6379
+            targetPort: 6379
+            protocol: TCP
+        sessionAffinity:
+          enable: true
+          type: ClientIP
+          timeoutSeconds: 1800
+      nginx-ingress-dns:
+        type: ClusterIP
+        clusterIP: 10.96.0.53
+        externalIPs:
+          - 192.0.2.53
+        ports:
+          - name: dns-udp
+            port: 53
+            targetPort: 5353
+            protocol: UDP
