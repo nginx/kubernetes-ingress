@@ -7061,6 +7061,430 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressForNGINXUpstreamVhost(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name             string
+		ingressCfg       IngressNginxConfig
+		description      string
+		wantDirectives   []string
+		unwantDirectives []string
+	}{
+		{
+			name: "upstream_vhost_set",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:         "cafe.example.com",
+						ServerTokens: "off",
+						Locations: []Location{
+							{
+								Path:          "/coffee",
+								UpstreamVhost: "example.internal",
+								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/upstream-vhost": "example.internal",
+					},
+				},
+			},
+			description: "Should generate proxy_set_header Host with the annotation value when nginx.org/upstream-vhost is set",
+			wantDirectives: []string{
+				"proxy_set_header Host example.internal;",
+			},
+			unwantDirectives: []string{
+				"proxy_set_header Host $host;",
+			},
+		},
+		{
+			name: "upstream_vhost_not_set",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:         "cafe.example.com",
+						ServerTokens: "off",
+						Locations: []Location{
+							{
+								Path:      "/coffee",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+				},
+			},
+			description: "Should default proxy_set_header Host to $host when nginx.org/upstream-vhost is not set",
+			wantDirectives: []string{
+				"proxy_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			err := tmpl.Execute(buf, tt.ingressCfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			ingConf := buf.String()
+
+			for _, want := range tt.wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			for _, unwant := range tt.unwantDirectives {
+				if strings.Contains(ingConf, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhost(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+
+	tests := []struct {
+		name             string
+		ingressCfg       IngressNginxConfig
+		description      string
+		wantDirectives   []string
+		unwantDirectives []string
+	}{
+		{
+			name: "upstream_vhost_set",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:         "cafe.example.com",
+						ServerTokens: "off",
+						Locations: []Location{
+							{
+								Path:          "/coffee",
+								UpstreamVhost: "example.internal",
+								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/upstream-vhost": "example.internal",
+					},
+				},
+			},
+			description: "Should generate proxy_set_header Host with the annotation value when nginx.org/upstream-vhost is set",
+			wantDirectives: []string{
+				"proxy_set_header Host example.internal;",
+			},
+			unwantDirectives: []string{
+				"proxy_set_header Host $host;",
+			},
+		},
+		{
+			name: "upstream_vhost_not_set",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:         "cafe.example.com",
+						ServerTokens: "off",
+						Locations: []Location{
+							{
+								Path:      "/coffee",
+								Upstream:  testUpstream,
+								ProxyPass: "http://test",
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+				},
+			},
+			description: "Should default proxy_set_header Host to $host when nginx.org/upstream-vhost is not set",
+			wantDirectives: []string{
+				"proxy_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			err := tmpl.Execute(buf, tt.ingressCfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			ingConf := buf.String()
+
+			for _, want := range tt.wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			for _, unwant := range tt.unwantDirectives {
+				if strings.Contains(ingConf, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXUpstreamVhostGRPC(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name             string
+		ingressCfg       IngressNginxConfig
+		description      string
+		wantDirectives   []string
+		unwantDirectives []string
+	}{
+		{
+			name: "upstream_vhost_set_grpc",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:             "cafe.example.com",
+						ServerTokens:     "off",
+						HTTP2:            true,
+						HasGRPCLocations: true,
+						Locations: []Location{
+							{
+								Path:          "/coffee",
+								UpstreamVhost: "example.internal",
+								Upstream:      testUpstream,
+								ProxyPass:     "grpc://test",
+								GRPC:          true,
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/upstream-vhost": "example.internal",
+					},
+				},
+			},
+			description: "Should generate grpc_set_header Host with the annotation value when nginx.org/upstream-vhost is set on a GRPC location",
+			wantDirectives: []string{
+				"grpc_set_header Host example.internal;",
+			},
+			unwantDirectives: []string{
+				"grpc_set_header Host $host;",
+			},
+		},
+		{
+			name: "upstream_vhost_not_set_grpc",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:             "cafe.example.com",
+						ServerTokens:     "off",
+						HTTP2:            true,
+						HasGRPCLocations: true,
+						Locations: []Location{
+							{
+								Path:      "/coffee",
+								Upstream:  testUpstream,
+								ProxyPass: "grpc://test",
+								GRPC:      true,
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+				},
+			},
+			description: "Should default grpc_set_header Host to $host when nginx.org/upstream-vhost is not set on a GRPC location",
+			wantDirectives: []string{
+				"grpc_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			err := tmpl.Execute(buf, tt.ingressCfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			ingConf := buf.String()
+
+			for _, want := range tt.wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			for _, unwant := range tt.unwantDirectives {
+				if strings.Contains(ingConf, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhostGRPC(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+
+	tests := []struct {
+		name             string
+		ingressCfg       IngressNginxConfig
+		description      string
+		wantDirectives   []string
+		unwantDirectives []string
+	}{
+		{
+			name: "upstream_vhost_set_grpc",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:             "cafe.example.com",
+						ServerTokens:     "off",
+						HTTP2:            true,
+						HasGRPCLocations: true,
+						Locations: []Location{
+							{
+								Path:          "/coffee",
+								UpstreamVhost: "example.internal",
+								Upstream:      testUpstream,
+								ProxyPass:     "grpc://test",
+								GRPC:          true,
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/upstream-vhost": "example.internal",
+					},
+				},
+			},
+			description: "Should generate grpc_set_header Host with the annotation value when nginx.org/upstream-vhost is set on a GRPC location",
+			wantDirectives: []string{
+				"grpc_set_header Host example.internal;",
+			},
+			unwantDirectives: []string{
+				"grpc_set_header Host $host;",
+			},
+		},
+		{
+			name: "upstream_vhost_not_set_grpc",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:             "cafe.example.com",
+						ServerTokens:     "off",
+						HTTP2:            true,
+						HasGRPCLocations: true,
+						Locations: []Location{
+							{
+								Path:      "/coffee",
+								Upstream:  testUpstream,
+								ProxyPass: "grpc://test",
+								GRPC:      true,
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+				},
+			},
+			description: "Should default grpc_set_header Host to $host when nginx.org/upstream-vhost is not set on a GRPC location",
+			wantDirectives: []string{
+				"grpc_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			err := tmpl.Execute(buf, tt.ingressCfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			ingConf := buf.String()
+
+			for _, want := range tt.wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			for _, unwant := range tt.unwantDirectives {
+				if strings.Contains(ingConf, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled(t *testing.T) {
 	t.Parallel()
 
