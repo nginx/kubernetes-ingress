@@ -58,18 +58,13 @@ with open(f"{script_dir}/../data/modules/data.json") as file:
             regex = systems[image["system"]]["regex"]
             cmd = systems[image["system"]]["cmd"]
             tag = f"{args.tag}{image['tag_suffix']}"
+            full_tag = f"{image['image']}:{tag}"
+            logger.debug(f"Pulling image {full_tag} for platform {platform}")
             try:
-                i = client.images.get(f"{image['image']}:{tag}")
-                ## check if the image is for the correct platform
-                if platform != i.attrs["Os"]:
-                    raise docker.errors.ImageNotFound(
-                        f"Image {image['image']}:{tag} is not for platform {platform}, found {i.attrs['Os']}"
-                    )
-            except docker.errors.ImageNotFound:
-                ## pull the image
-                logger.debug(f"Pulling image {image['image']}:{tag} for platform {platform}")
-                i = client.images.pull(repository=image_name, tag=tag, platform=platform)
-                logger.debug(f"Image {i.id} pulled successfully")
+                client.api.pull(repository=image_name, tag=tag, platform=platform)
+                logger.debug(f"Image {full_tag} for platform {platform} pulled successfully")
+            except Exception as e:
+                logger.debug(f"Pull attempt error: {e}")
             for package in image["packages"]:
                 command = f"{cmd} {package['name']}"
                 output = ""

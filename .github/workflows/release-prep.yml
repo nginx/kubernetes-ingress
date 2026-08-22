@@ -1,0 +1,387 @@
+name: Release Prep (Creation)
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Prep Release NIC ${{ inputs.nic_version }} from ${{ inputs.release_branch }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      nic_version:
+        description: "Version to prep"
+        required: true
+        type: string
+      source_tag:
+        description: "Source tag to release"
+        required: false
+        type: string
+      release_branch:
+        description: "Branch to release from"
+        required: true
+        type: string
+      dry_run:
+        description: "Dry Run?"
+        type: boolean
+        default: false
+      skip_step:
+        description: "Comma separated list of jobs to skip"
+        type: string
+        required: false
+  workflow_call:
+    inputs:
+      nic_version:
+        required: true
+        type: string
+      source_tag:
+        required: false
+        type: string
+      release_branch:
+        required: true
+        type: string
+      dry_run:
+        type: boolean
+        default: false
+      skip_step:
+        type: string
+        required: false
+
+defaults:
+  run:
+    shell: bash
+
+# Never cancel a release in flight -- a half-copied registry or a pushed tag
+# without assets is worse than waiting for the previous run to finish.
+#
+# Deliberately shared with release-publish.yml: both stages are directly
+# dispatchable, and a publish run must not copy a version while prep is still
+# writing it to the staging registry. release.yml must NOT join this group --
+# as the calling workflow it would hold the group and deadlock its own children.
+concurrency:
+  group: ${{ inputs.release_branch }}-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  variables:
+    name: Set Variables
+    if: github.repository == 'nginx/kubernetes-ingress'
+    runs-on: ubuntu-24.04-amd64
+    permissions:
+      contents: read
+    outputs:
+      source_tag: ${{ steps.vars.outputs.stable_tag }}
+      short_tag: ${{ steps.vars.outputs.short_tag }}
+      go_path: ${{ steps.vars.outputs.go_path }}
+      go_proxy: ${{ steps.vars.outputs.go_proxy }}
+      go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
+      docker_md5: ${{ steps.vars.outputs.docker_md5 }}
+      image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
+      image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
+      image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
+      date: ${{ steps.vars.outputs.date }}
+      k8s_version: ${{ steps.vars.outputs.k8s_version }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.release_branch }}
+
+      - name: Output Variables
+        id: vars
+        run: |
+          if [ -n "${{ inputs.source_tag }}" ]; then
+            echo "stable_tag=${{ inputs.source_tag }}" >> $GITHUB_OUTPUT
+          else
+            ./.github/scripts/variables.sh stable_tag >> $GITHUB_OUTPUT
+          fi
+          tag=${{ inputs.nic_version }}
+          echo "short_tag=${tag%.*}" >> $GITHUB_OUTPUT
+          echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
+          echo "go_proxy=${{ secrets.ARTIFACTORY_ENDPOINT }}" >> $GITHUB_OUTPUT
+          echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
+          echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
+          echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
+          ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
+          date=$(date "+%Y%m%d")
+          echo "date=${date}" >> $GITHUB_OUTPUT
+          k8s_version=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | cut -d '?' -f 2 | tr -d ' =')
+          echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+  build-artifacts:
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && !failure() && !inputs.dry_run && !contains(inputs.skip_step, 'build-artifacts'))
+    name: Build Artifacts
+    needs: [variables]
+    uses: ./.github/workflows/build-artifacts.yml
+    with:
+      force: true
+      authenticated: true
+      ic-version: ${{ inputs.nic_version }}
+      go-path: ${{ needs.variables.outputs.go_path }}
+      go-proxy: ${{ needs.variables.outputs.go_proxy }}
+      image-matrix-oss: ${{ needs.variables.outputs.image_matrix_oss }}
+      image-matrix-plus: ${{ needs.variables.outputs.image_matrix_plus }}
+      image-matrix-nap: ${{ needs.variables.outputs.image_matrix_nap }}
+      branch: ${{ inputs.release_branch }}
+      tag: ${{ needs.variables.outputs.source_tag }}
+      go-md5: ${{ needs.variables.outputs.go_code_md5 }}
+      docker-md5: ${{ needs.variables.outputs.docker_md5 }}
+      runner: "ubuntu-24.04-amd64"
+      write-to-cache: true
+      read-from-cache: false
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+      id-token: write
+      packages: write
+      pull-requests: write # for scout report
+      checks: write # for setting status on commit
+
+  # Stage the freshly built images in the NGINX test management registry so the
+  # publish stage has a single, immutable source to copy from.
+  push-prep-images:
+    name: Push Prepped Images to Test Registry
+    runs-on: ubuntu-24.04-amd64
+    needs: [variables, build-artifacts]
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'push-prep-images'))
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Setup secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
+
+      - name: Authenticate to Google Cloud
+        id: gcr-auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          token_format: access_token
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
+
+      - name: Login to GCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: gcr.io
+          username: oauth2accesstoken
+          password: ${{ steps.gcr-auth.outputs.access_token }}
+
+      - name: Get Id Token for Test Registry
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Login to NGINX Test Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: docker-mgmt-test.nginx.com
+          username: ${{ steps.idtoken.outputs.id_token }}
+          password: ${{ github.actor }}
+
+      - name: Push Prepped Images to docker-mgmt-test.nginx.com
+        run: |
+          export CONFIG_PATH=.github/config/config-prep-nginx-test
+          export SOURCE_TAG=${{ needs.variables.outputs.source_tag }}
+          export TARGET_TAG=${{ inputs.nic_version }}
+          if ${{ inputs.dry_run }}; then
+            export DRY_RUN=true
+          fi
+          .github/scripts/copy-images.sh "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
+
+  binaries:
+    name: Process Binaries
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)))
+    runs-on: ubuntu-24.04-amd64
+    needs: [variables, build-artifacts]
+    permissions:
+      contents: read
+      id-token: write # for cosign to sign artifacts
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Fetch Binary Artifacts from Cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/dist
+          key: nginx-ingress-${{ needs.variables.outputs.go_code_md5 }}
+
+      - name: Download Syft
+        id: syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v3.1.3'
+
+      - name: Create Tarballs
+        run: |
+          ./.github/scripts/create-release-tarballs.sh dist ${{ inputs.nic_version }}
+        env:
+          SYFT_BIN: ${{ steps.syft.outputs.cmd }}
+
+      - name: Store Tarball Artifacts in Cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ github.workspace }}/tarballs
+          key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
+
+  # Upload packages, sboms & checksums to release storage
+  azure-upload:
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload'))
+    name: Upload packages to Azure
+    runs-on: ubuntu-24.04-amd64
+    needs: [variables, binaries]
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Fetch Cached Tarball Artifacts
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
+          path: ${{ github.workspace }}/tarballs
+          fail-on-cache-miss: true
+
+      - name: Setup secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "azure-storage-account, azure-storage-bucket"
+          env-names: "AZURE_STORAGE_ACCOUNT, AZURE_BUCKET_NAME"
+
+      - name: Azure login for upload
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Azure Upload Release Packages
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
+        with:
+          inlineScript: |
+            for i in $(find tarballs -type f); do
+              echo -n "Uploading ${i} to kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/} ... "
+              if ${{ ! inputs.dry_run}}; then
+                az storage blob upload --auth-mode=login -f "$i" -c ${{ env.AZURE_BUCKET_NAME }} \
+                  --account-name ${{ env.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/}
+                echo "done"
+              else
+                echo "skipped, dry_run."
+              fi
+            done
+
+  tag:
+    name: Create Tag on release branch in NIC repo
+    runs-on: ubuntu-24.04
+    needs: [build-artifacts, binaries, push-prep-images, azure-upload]
+    # !cancelled() makes this job run even when a dependency failed, so every
+    # dependency result has to be asserted explicitly or a tag would be pushed
+    # for a failed prep run. binaries must be asserted directly: azure-upload is
+    # merely 'skipped' when binaries fails, which would otherwise be accepted.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) &&
+      needs.binaries.result == 'success' &&
+      (needs.push-prep-images.result == 'success' || needs.push-prep-images.result == 'skipped') &&
+      (needs.azure-upload.result == 'success' || needs.azure-upload.result == 'skipped')
+      )
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout NIC repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+          fetch-depth: 0
+
+      - name: Create new release Tag
+        run: |
+          git config --global user.email "kubernetes@nginx.com"
+          git config --global user.name "NGINX Kubernetes Team"
+          branch="${{ inputs.release_branch }}"
+          tag="v${{ inputs.nic_version }}"
+          if ! git rev-parse --verify "refs/tags/${tag}"; then
+            echo "Adding tag ${tag}."
+            git tag -a "${tag}" -m "Version ${tag#v*}"
+            echo "Pushing to tag ${tag} to branch ${branch}"
+            if ! ${{ inputs.dry_run }}; then
+              git push origin "${tag}"
+            else
+              echo "DRY RUN not making any changes"
+              git push --dry-run origin "${tag}"
+            fi
+          else
+            echo "Warning: Tag ${tag} already exists.  Not making any changes"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Attach packages, sboms & checksums to the GitHub release draft created by
+  # update-release-draft.yml. release-publish.yml only flips the draft to
+  # published, so the assets have to be in place before publishing runs.
+  release-assets:
+    name: Attach assets to GitHub release draft
+    runs-on: ubuntu-24.04-amd64
+    needs: [variables, binaries, tag]
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      !failure() &&
+      !contains(inputs.skip_step, 'release-assets')
+      )
+    permissions:
+      contents: write # to upload release assets
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Fetch Cached Tarball Artifacts
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
+          path: ${{ github.workspace }}/tarballs
+          fail-on-cache-miss: true
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # clobber overwrites existing assets of the same name
+        run: |
+          if ! ${{ inputs.dry_run }}; then
+            gh release upload --clobber v${{ inputs.nic_version }} \
+              $(find ./tarballs -type f)
+          else
+            echo "Skipping adding binaries to Github Release, DRY_RUN"
+          fi

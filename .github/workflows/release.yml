@@ -8,6 +8,14 @@ on:
         description: "Version to release"
         required: true
         type: string
+      mode:
+        description: "Which release stages to run. Use this to select stages -- skip_step is job-level only."
+        type: choice
+        options:
+          - all
+          - prep
+          - publish
+        default: "all"
       source_tag:
         description: "Source tag to release"
         required: false
@@ -33,8 +41,7 @@ on:
         type: boolean
         default: false
       skip_step:
-        description: "Comma separated list of jobs to skip"
-        # publish-helm-chart,build-artifacts,operator,release-oss,release-plus,certify-openshift-images,aws-marketplace,azure-marketplace,gcp-marketplace,azure-upload,github-release,release-image-notification
+        description: "Comma separated list of individual jobs to skip. Use mode to skip a whole stage."
         type: string
         required: false
 
@@ -46,734 +53,57 @@ permissions:
   contents: read
 
 jobs:
-  variables:
-    name: Set Variables
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04-amd64
-    permissions:
-      contents: read
-    outputs:
-      source_tag: ${{ steps.vars.outputs.stable_tag }}
-      short_tag: ${{ steps.vars.outputs.short_tag }}
-      go_path: ${{ steps.vars.outputs.go_path }}
-      go_proxy: ${{ steps.vars.outputs.go_proxy }}
-      go_code_md5: ${{ steps.vars.outputs.go_code_md5 }}
-      docker_md5: ${{ steps.vars.outputs.docker_md5 }}
-      image_matrix_oss: ${{ steps.vars.outputs.image_matrix_oss }}
-      image_matrix_plus: ${{ steps.vars.outputs.image_matrix_plus }}
-      image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
-      date: ${{ steps.vars.outputs.date }}
-      k8s_version: ${{ steps.vars.outputs.k8s_version }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.release_branch }}
-
-      - name: Output Variables
-        id: vars
-        run: |
-          if [ -n "${{ inputs.source_tag }}" ]; then
-            echo "stable_tag=${{ inputs.source_tag }}" >> $GITHUB_OUTPUT
-          else
-            ./.github/scripts/variables.sh stable_tag >> $GITHUB_OUTPUT
-          fi
-          tag=${{ inputs.nic_version }}
-          echo "short_tag=${tag%.*}" >> $GITHUB_OUTPUT
-          echo "go_path=$(go env GOPATH)" >> $GITHUB_OUTPUT
-          echo "go_proxy=${{ secrets.ARTIFACTORY_ENDPOINT }}" >> $GITHUB_OUTPUT
-          echo "image_matrix_oss=$(cat .github/data/matrix-images-oss.json | jq -c)" >> $GITHUB_OUTPUT
-          echo "image_matrix_plus=$(cat .github/data/matrix-images-plus.json | jq -c)" >> $GITHUB_OUTPUT
-          echo "image_matrix_nap=$(cat .github/data/matrix-images-nap.json | jq -c)" >> $GITHUB_OUTPUT
-          ./.github/scripts/variables.sh docker_md5 >> $GITHUB_OUTPUT
-          ./.github/scripts/variables.sh go_code_md5 >> $GITHUB_OUTPUT
-          date=$(date "+%Y%m%d")
-          echo "date=${date}" >> $GITHUB_OUTPUT
-          k8s_version=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | cut -d '?' -f 2 | tr -d ' =')
-          echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
-          cat $GITHUB_OUTPUT
-
-  build-artifacts:
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && !failure() && !inputs.dry_run && !contains(inputs.skip_step, 'build-artifacts'))
-    name: Build Artifacts
-    needs: [variables]
-    uses: ./.github/workflows/build-artifacts.yml
+  prep:
+    # Stage selection is driven solely by mode. skip_step is forwarded to the
+    # child workflow for job-level skips and is deliberately not consulted here:
+    # contains() is a substring match, so 'push-prep-images' would also match
+    # 'prep' and silently skip the entire stage.
+    if: github.repository == 'nginx/kubernetes-ingress' && (inputs.mode == 'prep' || inputs.mode == 'all')
+    name: Release Creation & Prep
+    uses: ./.github/workflows/release-prep.yml
     with:
-      force: true
-      authenticated: true
-      ic-version: ${{ inputs.nic_version }}
-      go-path: ${{ needs.variables.outputs.go_path }}
-      go-proxy: ${{ needs.variables.outputs.go_proxy }}
-      image-matrix-oss: ${{ needs.variables.outputs.image_matrix_oss }}
-      image-matrix-plus: ${{ needs.variables.outputs.image_matrix_plus }}
-      image-matrix-nap: ${{ needs.variables.outputs.image_matrix_nap }}
-      branch: ${{ inputs.release_branch }}
-      tag: ${{ needs.variables.outputs.source_tag }}
-      go-md5: ${{ needs.variables.outputs.go_code_md5 }}
-      docker-md5: ${{ needs.variables.outputs.docker_md5 }}
-      runner: "ubuntu-24.04-amd64"
-      write-to-cache: true
-      read-from-cache: false
+      nic_version: ${{ inputs.nic_version }}
+      source_tag: ${{ inputs.source_tag }}
+      release_branch: ${{ inputs.release_branch }}
+      dry_run: ${{ inputs.dry_run }}
+      skip_step: ${{ inputs.skip_step }}
     secrets: inherit
     permissions:
-      contents: read
+      contents: write
       actions: read
       security-events: write
       id-token: write
       packages: write
-      pull-requests: write # for scout report
-      checks: write # for setting status on commit
+      pull-requests: write
+      checks: write
 
-  tag:
-    name: Create Tag on release branch in NIC repo
-    runs-on: ubuntu-24.04
-    needs: [build-artifacts]
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)))
+  publish:
+    # !cancelled() is required for needs.prep.result to be evaluated at all when
+    # prep fails; the 'skipped' arm covers mode: publish. As above, skip_step is
+    # not consulted for stage selection because 'publish-helm-chart' would
+    # substring-match 'publish' and skip every publish job.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      (inputs.mode == 'publish' || inputs.mode == 'all') &&
+      (needs.prep.result == 'success' || needs.prep.result == 'skipped')
+      )
+    name: Release Publishing
+    needs: [prep]
+    uses: ./.github/workflows/release-publish.yml
+    with:
+      nic_version: ${{ inputs.nic_version }}
+      chart_version: ${{ inputs.chart_version }}
+      cnab_version: ${{ inputs.cnab_version }}
+      operator_version: ${{ inputs.operator_version }}
+      release_branch: ${{ inputs.release_branch }}
+      source_registry: "docker-mgmt-test.nginx.com"
+      dry_run: ${{ inputs.dry_run }}
+      skip_step: ${{ inputs.skip_step }}
+    secrets: inherit
     permissions:
       contents: write
-    steps:
-      - name: Checkout NIC repo
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.release_branch }}
-          fetch-depth: 0
-
-      - name: Create new release Tag
-        run: |
-          git config --global user.email "kubernetes@nginx.com"
-          git config --global user.name "NGINX Kubernetes Team"
-          branch="${{ inputs.release_branch }}"
-          tag="v${{ inputs.nic_version }}"
-          if ! git rev-parse --verify "refs/tags/${tag}"; then
-            echo "Adding tag ${tag}."
-            git tag -a "${tag}" -m "Version ${tag#v*}"
-            echo "Pushing to tag ${tag} to branch ${branch}"
-            if ! ${{ inputs.dry_run }}; then
-              git push origin "${tag}"
-            else
-              echo "DRY RUN not making any changes"
-              git push --dry-run origin "${tag}"
-            fi
-          else
-            echo "Warning: Tag ${tag} already exists.  Not making any changes"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  release-oss:
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-oss'))
-    name: Release Docker OSS
-    needs: [variables, build-artifacts]
-    uses: ./.github/workflows/oss-release.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        tag:
-          - "${{ inputs.nic_version }}"
-          - "${{ needs.variables.outputs.short_tag }}"
-          - "${{ inputs.nic_version }}-${{ needs.variables.outputs.date }}"
-          - "latest"
-    with:
-      gcr_release_registry: true
-      ecr_public_registry: true
-      dockerhub_public_registry: true
-      quay_public_registry: true
-      github_public_registry: true
-      source_tag: ${{ needs.variables.outputs.source_tag }}
-      target_tag: ${{ matrix.tag }}
-      branch: ${{ inputs.release_branch }}
-      dry_run: ${{ inputs.dry_run }}
-    permissions:
-      contents: read
+      issues: write
+      actions: read
       id-token: write
       packages: write
-    secrets: inherit
-
-  release-plus-gcr-nginx:
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'release-plus'))
-    name: Release Docker Plus
-    needs: [variables, build-artifacts]
-    uses: ./.github/workflows/plus-release.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        tag:
-          - "${{ inputs.nic_version }}"
-          - "${{ needs.variables.outputs.short_tag }}"
-          - "${{ inputs.nic_version }}-${{ needs.variables.outputs.date }}"
-          - "latest"
-    with:
-      gcr_release_registry: true
-      nginx_registry: true
-      gcr_mktpl_registry: false
-      ecr_mktpl_registry: false
-      az_mktpl_registry: false
-      source_tag: ${{ needs.variables.outputs.source_tag }}
-      target_tag: ${{ inputs.nic_version }}
-      branch: ${{ inputs.release_branch }}
-      dry_run: ${{ inputs.dry_run }}
-    permissions:
-      contents: read
-      id-token: write
-    secrets: inherit
-
-  ## Disable GCP Marketplace step for now until a decision is made on how to handle GCP Marketplace with licensing
-  # release-plus-gcr-mktpl:
-  #   if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-plus') }}
-  #   name: Release Docker Plus
-  #   needs: [variables]
-  #   uses: ./.github/workflows/plus-release.yml
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       tag:
-  #         - "${{ inputs.nic_version }}"
-  #         - "${{ needs.variables.outputs.short_tag }}"
-  #         - "${{ inputs.nic_version }}-${{ needs.variables.outputs.date }}"
-  #   with:
-  #     gcr_release_registry: false
-  #     nginx_registry: false
-  #     gcr_mktpl_registry: true
-  #     ecr_mktpl_registry: false
-  #     az_mktpl_registry: false
-  #     source_tag: ${{ needs.variables.outputs.source_tag }}
-  #     target_tag: ${{ inputs.nic_version }}
-  #     branch: ${{ inputs.release_branch }}
-  #     dry_run: ${{ inputs.dry_run }}
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   secrets: inherit
-
-  ## Disable AWS Marketplace step for now until a decision is made on how to handle AWS Marketplace with licensing
-  # release-plus-aws-mktpl:
-  #   if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-plus') }}
-  #   name: Release Docker Plus
-  #   needs: [variables]
-  #   uses: ./.github/workflows/plus-release.yml
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       tag:
-  #         - "${{ inputs.nic_version }}"
-  #         - "${{ inputs.nic_version }}-${{ needs.variables.outputs.date }}"
-  #   with:
-  #     gcr_release_registry: false
-  #     nginx_registry: false
-  #     gcr_mktpl_registry: false
-  #     ecr_mktpl_registry: true
-  #     az_mktpl_registry: false
-  #     source_tag: ${{ needs.variables.outputs.source_tag }}
-  #     target_tag: ${{ inputs.nic_version }}
-  #     branch: ${{ inputs.release_branch }}
-  #     dry_run: ${{ inputs.dry_run }}
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   secrets: inherit
-
-  ## Disable Azure Marketplace step for now until a decision is made on how to handle Azure Marketplace with licensing
-  # release-plus-azure-mktpl:
-  #   if: ${{ ! cancelled() && ! failure() && ! contains(inputs.skip_step, 'release-plus') }}
-  #   name: Release Docker Plus
-  #   needs: [variables]
-  #   uses: ./.github/workflows/plus-release.yml
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       tag:
-  #         - "${{ inputs.nic_version }}"
-  #         - "${{ inputs.nic_version }}-${{ needs.variables.outputs.date }}"
-  #   with:
-  #     gcr_release_registry: false
-  #     nginx_registry: false
-  #     gcr_mktpl_registry: false
-  #     ecr_mktpl_registry: false
-  #     az_mktpl_registry: true
-  #     source_tag: ${{ needs.variables.outputs.source_tag }}
-  #     target_tag: ${{ inputs.nic_version }}
-  #     branch: ${{ inputs.release_branch }}
-  #     dry_run: ${{ inputs.dry_run }}
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   secrets: inherit
-
-  publish-helm-chart:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'publish-helm-chart'))
-    name: Publish Helm Chart
-    uses: ./.github/workflows/publish-helm.yml
-    with:
-      branch: ${{ inputs.release_branch }}
-      ic_version: ${{ inputs.nic_version }}
-      chart_version: ${{ inputs.chart_version }}
-      nginx_helm_repo: true # disable automatic repo update until nginx-bot issue is resolved, manually update repo
-      runner: "ubuntu-24.04-amd64"
-    permissions:
-      contents: write # for pushing to Helm Charts repository
-      packages: write # for helm to push to GHCR
-      id-token: write
-    secrets: inherit
-
-  certify-openshift-images:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images'))
-    name: Certify OpenShift UBI images
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      id-token: write
-    needs: [release-oss]
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.release_branch }}
-
-      - name: Setup secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-        with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "nic-pyxis-token, nic-pyxis-certification-pid"
-          env-names: "PYXIS_TOKEN, PYXIS_CERTIFICATION_PROJECT_ID"
-
-      - name: Certify UBI OSS images in quay
-        uses: ./.github/actions/certify-openshift-image
-        continue-on-error: true
-        with:
-          image: quay.io/nginx/nginx-ingress:${{ inputs.nic_version }}-ubi
-          project_id: ${{ env.PYXIS_CERTIFICATION_PROJECT_ID }}
-          pyxis_token: ${{ env.PYXIS_TOKEN }}
-          preflight_version: 1.19.2 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
-
-  operator:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart'))
-    name: Trigger PR for Operator
-    runs-on: ubuntu-24.04
-    needs: [variables,publish-helm-chart]
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Get secrets from vault
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
-        with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-          secret-names: "nginx-bot-nic-trigger-remote-workflow-app-client-id, nginx-bot-nic-trigger-remote-workflow-app-private-key"
-          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
-
-      - name: Decode GitHub App private key
-        id: app_key
-        run: |
-          set +x
-          # Mask the raw base64 value
-          echo "::add-mask::$APP_PRIVATE_KEY_B64"
-          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
-          # Mask every line of the decoded PEM key individually
-          while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-              echo "::add-mask::$line"
-            fi
-          done <<< "$private_key"
-          delimiter="GHEOF_$(openssl rand -hex 12)"
-          {
-            echo "private_key<<$delimiter"
-            echo "$private_key"
-            echo "$delimiter"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Generate GitHub App token
-        id: app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ env.APP_CLIENT_ID }}
-          private-key: ${{ steps.app_key.outputs.private_key }}
-          owner: ${{ github.repository_owner }}
-          repositories: nginx-ingress-helm-operator
-
-      - name: Trigger Operator sync
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          github-token: ${{ steps.app_token.outputs.token }}
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: 'nginx-ingress-helm-operator',
-              workflow_id: 'sync-chart.yml',
-              ref: 'main',
-              inputs: {
-                chart_version: '${{ inputs.chart_version }}',
-                operator_version: '${{ inputs.operator_version }}',
-                k8s_version: '${{ needs.variables.outputs.k8s_version }}',
-                dry_run: '${{ inputs.dry_run }}'
-              },
-            })
-
-  ## Disable GCP Marketplace step for now until a decision is made on how to handle GCP Marketplace with licensing
-  # gcp-marketplace:
-  #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'gcp-marketplace') }}
-  #   name: Trigger PR for GCP Marketplace
-  #   runs-on: ubuntu-24.04
-  #   needs: [publish-helm-chart,release-plus-gcr-mktpl]
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   steps:
-  #     - name: Get secrets from vault
-  #       uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
-  #       with:
-  #         client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-  #         tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-  #         vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-  #         secret-names: "nginx-bot-nic-trigger-remote-workflow-app-client-id, nginx-bot-nic-trigger-remote-workflow-app-private-key"
-  #         env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
-
-  #     - name: Decode GitHub App private key
-  #       id: app_key
-  #       run: |
-  #         set +x
-  #         # Mask the raw base64 value
-  #         echo "::add-mask::$APP_PRIVATE_KEY_B64"
-  #         private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
-  #         # Mask every line of the decoded PEM key individually
-  #         while IFS= read -r line; do
-  #           if [[ -n "$line" ]]; then
-  #             echo "::add-mask::$line"
-  #           fi
-  #         done <<< "$private_key"
-  #         delimiter="GHEOF_$(openssl rand -hex 12)"
-  #         {
-  #           echo "private_key<<$delimiter"
-  #           echo "$private_key"
-  #           echo "$delimiter"
-  #         } >> "$GITHUB_OUTPUT"
-
-  #     - name: Generate GitHub App token
-  #       id: app_token
-  #       uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-  #       with:
-  #         client-id: ${{ env.APP_CLIENT_ID }}
-  #         private-key: ${{ steps.app_key.outputs.private_key }}
-  #         owner: ${{ github.repository_owner }}
-  #         repositories: kubernetes-ingress-gcp
-
-  #     - name: Trigger GCP Marketplace sync
-  #       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-  #       with:
-  #         github-token: ${{ steps.app_token.outputs.token }}
-  #         script: |
-  #           await github.rest.actions.createWorkflowDispatch({
-  #             owner: context.repo.owner,
-  #             repo: 'kubernetes-ingress-gcp',
-  #             workflow_id: 'sync-chart.yml',
-  #             ref: 'main',
-  #             inputs: {
-  #               chart_version: '${{ inputs.chart_version }}'
-  #             },
-  #           })
-
-  ## Disable Azure Marketplace step for now until a decision is made on how to handle Azure Marketplace with licensing
-  # azure-marketplace:
-  #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'azure-marketplace') }}
-  #   name: Trigger CNAB Build for Azure Marketplace
-  #   runs-on: ubuntu-24.04
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   needs: [publish-helm-chart,release-plus-azure-mktpl]
-  #   steps:
-  #     - name: Get secrets from vault
-  #       uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
-  #       with:
-  #         client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-  #         tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-  #         vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
-  #         secret-names: "nginx-bot-nic-trigger-remote-workflow-app-client-id, nginx-bot-nic-trigger-remote-workflow-app-private-key"
-  #         env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
-
-  #     - name: Decode GitHub App private key
-  #       id: app_key
-  #       run: |
-  #         set +x
-  #         # Mask the raw base64 value
-  #         echo "::add-mask::$APP_PRIVATE_KEY_B64"
-  #         private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
-  #         # Mask every line of the decoded PEM key individually
-  #         while IFS= read -r line; do
-  #           if [[ -n "$line" ]]; then
-  #             echo "::add-mask::$line"
-  #           fi
-  #         done <<< "$private_key"
-  #         delimiter="GHEOF_$(openssl rand -hex 12)"
-  #         {
-  #           echo "private_key<<$delimiter"
-  #           echo "$private_key"
-  #           echo "$delimiter"
-  #         } >> "$GITHUB_OUTPUT"
-
-  #     - name: Generate GitHub App token
-  #       id: app_token
-  #       uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-  #       with:
-  #         client-id: ${{ env.APP_CLIENT_ID }}
-  #         private-key: ${{ steps.app_key.outputs.private_key }}
-  #         owner: ${{ github.repository_owner }}
-  #         repositories: kubernetes-ingress-azure
-
-  #     - name: Trigger Azure Marketplace CNAB build
-  #       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-  #       with:
-  #         github-token: ${{ steps.app_token.outputs.token }}
-  #         script: |
-  #           await github.rest.actions.createWorkflowDispatch({
-  #             owner: context.repo.owner,
-  #             repo: 'kubernetes-ingress-azure',
-  #             workflow_id: 'build-cnab.yml',
-  #             ref: 'main',
-  #             inputs: {
-  #               chart_version: '${{ inputs.chart_version }}',
-  #               ic_version: '${{ inputs.nic_version }}',
-  #               cnab_version: '${{ inputs.cnab_version }}'
-  #             },
-  #           })
-
-  ## Disable AWS Marketplace step for now until a decision is made on how to handle AWS Marketplace with licensing
-  # aws-marketplace:
-  #   if: ${{ ! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'aws-marketplace') }}
-  #   name: Publish to AWS Marketplace
-  #   runs-on: ubuntu-24.04
-  #   needs: [release-plus-aws-mktpl]
-  #   permissions:
-  #     contents: read
-  #     id-token: write
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       include:
-  #         - image: 709825985650.dkr.ecr.us-east-1.amazonaws.com/nginx/nginx-plus-ingress:${{ inputs.nic_version }}-mktpl
-  #           product_id: AWS_PRODUCT_ID
-  #         - image: 709825985650.dkr.ecr.us-east-1.amazonaws.com/nginx/nginx-plus-ingress-nap:${{ inputs.nic_version }}-mktpl
-  #           product_id: AWS_NAP_WAF_PRODUCT_ID
-  #         - image: 709825985650.dkr.ecr.us-east-1.amazonaws.com/nginx/nginx-plus-ingress-dos:${{ inputs.nic_version }}-mktpl
-  #           product_id: AWS_NAP_DOS_PRODUCT_ID
-  #         - image: 709825985650.dkr.ecr.us-east-1.amazonaws.com/nginx/nginx-plus-ingress-dos-nap:${{ inputs.nic_version }}-mktpl
-  #           product_id: AWS_NAP_WAF_DOS_PRODUCT_ID
-  #   steps:
-  #     - name: Checkout Repository
-  #       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-  #       with:
-  #         ref: ${{ inputs.release_branch }}
-
-  #     - name: Setup secrets
-  #       uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-  #       with:
-  #         client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-  #         tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-  #         vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-  #         secret-names: "aws-mktpl-role"
-  #         env-names: "AWS_ROLE_MARKETPLACE"
-
-  #     - name: Configure AWS Credentials
-  #       uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
-  #       with:
-  #         aws-region: us-east-1
-  #         role-to-assume: ${{ env.AWS_ROLE_MARKETPLACE }}
-
-  #     - name: Publish to AWS Marketplace
-  #       uses: nginx/aws-marketplace-publish@accf7b4c725796b744f2ee27acc2488d76f63d32 # v1.0.8
-  #       continue-on-error: true
-  #       with:
-  #         version: ${{ inputs.nic_version }}
-  #         product-id: ${{ secrets[matrix.product_id] }}
-  #         registry: ${{ matrix.image }}
-  #         release-notes: https://github.com/nginx/kubernetes-ingress/releases/tag/v${{ inputs.nic_version }}
-  #         description: |
-  #           Best-in-class traffic management solution for services in Amazon EKS.
-  #           This is the official implementation of NGINX Ingress Controller (based on NGINX Plus) from NGINX.
-  #         usage-instructions: |
-  #           This container requires Kubernetes and can be deployed to EKS.
-  #           Review the installation instructions https://docs.nginx.com/nginx-ingress-controller/install and utilize the deployment resources available https://github.com/nginx/kubernetes-ingress/tree/v${{ inputs.nic_version }}/deployments
-  #           Use this image instead of building your own.
-
-  binaries:
-    name: Process Binaries
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04-amd64
-    needs: [variables, build-artifacts]
-    permissions:
-      contents: read
-      id-token: write # for cosign to sign artifacts
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.release_branch }}
-
-      - name: Fetch Binary Artifacts from Cache
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ github.workspace }}/dist
-          key: nginx-ingress-${{ needs.variables.outputs.go_code_md5 }}
-
-      - name: Download Syft
-        id: syft
-        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-        with:
-          cosign-release: 'v3.1.3'
-
-      - name: Create Tarballs
-        run: |
-          ./.github/scripts/create-release-tarballs.sh dist ${{ inputs.nic_version }}
-        env:
-          SYFT_BIN: ${{ steps.syft.outputs.cmd }}
-
-      - name: Store Tarball Artifacts in Cache
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ github.workspace }}/tarballs
-          key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
-
-  # Upload packages, sboms & checksums to release storage
-  azure-upload:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload'))
-    name: Upload packages to Azure
-    runs-on: ubuntu-24.04-amd64
-    needs: [variables, binaries]
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.release_branch }}
-
-      - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
-          path: ${{ github.workspace }}/tarballs
-          fail-on-cache-miss: true
-
-      - name: Setup secrets
-        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
-        with:
-          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
-          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
-          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
-          secret-names: "azure-storage-account, azure-storage-bucket"
-          env-names: "AZURE_STORAGE_ACCOUNT, AZURE_BUCKET_NAME"
-
-      - name: Azure login for upload
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Azure Upload Release Packages
-        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
-        with:
-          inlineScript: |
-            for i in $(find tarballs -type f); do
-              echo -n "Uploading ${i} to kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/} ... "
-              if ${{ ! inputs.dry_run}}; then
-                az storage blob upload --auth-mode=login -f "$i" -c ${{ env.AZURE_BUCKET_NAME }} \
-                  --account-name ${{ env.AZURE_STORAGE_ACCOUNT }} --overwrite -n kubernetes-ingress/v${{ inputs.nic_version }}/${i##*/}
-                echo "done"
-              else
-                echo "skipped, dry_run."
-              fi
-            done
-
-  github-release:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! contains(inputs.skip_step, 'github-release'))
-    name: Publish release to GitHub
-    runs-on: ubuntu-24.04-amd64
-    needs: [variables, binaries, release-oss, release-plus-gcr-nginx]
-    permissions:
-      contents: write # to modify the release
-      issues: write # to close milestone
-      actions: read # for slack notification
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.release_branch }}
-
-      - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
-          path: ${{ github.workspace }}/tarballs
-          fail-on-cache-miss: true
-
-      - name: Upload Release Assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # clobber overwrites existing assets of the same name
-        run: |
-          if ! ${{ inputs.dry_run }}; then
-            gh release upload --clobber v${{ inputs.nic_version }} \
-              $(find ./tarballs -type f)
-          else
-            echo "Skipping adding binaries to Github Release, DRY_RUN"
-          fi
-
-      - name: Close Release Milestone
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          milestone_number=$(gh api \
-            -H "Accept: application/vnd.github.v3+json" \
-            /repos/${{ github.repository }}/milestones \
-            | jq --arg version "v${{ inputs.nic_version }}" -r \
-            '.[] | select(.title == $version) | .number')
-          if [ -n "${milestone_number}" ]; then
-            if ! ${{ inputs.dry_run }}; then
-              gh api --method PATCH -H "Accept: application/vnd.github.v3+json" \
-                /repos/${{ github.repository }}/milestones/${milestone_number} \
-                -f "title=v${{ inputs.nic_version }}" \
-                -f "state=closed";
-            else
-              echo "Skipping closing Github Release milestone, DRY_RUN"
-            fi
-          else
-            echo "Github Milestone not available, closed already."
-          fi
-
-      - name: Get Github release id
-        id: release-id
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          release_id=$(gh api \
-            -H "Accept: application/vnd.github.v3+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${{ github.repository }}/releases \
-            | jq --arg version "v${{ inputs.nic_version }}" -r \
-            '.[] | select(.name == $version) | .id')
-          echo "release_id=${release_id}" >> $GITHUB_OUTPUT
-
-      - name: Publish Github Release
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const {RELEASE_ID} = process.env
-            const release = (await github.rest.repos.updateRelease({
-              owner: context.payload.repository.owner.login,
-              repo: context.payload.repository.name,
-              release_id: `${RELEASE_ID}`,
-              draft: false,
-            }))
-            console.log(`Release published: ${release.data.html_url}`)
-        env:
-          RELEASE_ID: ${{ steps.release-id.outputs.release_id }}
-        if: ${{ ! inputs.dry_run }}
