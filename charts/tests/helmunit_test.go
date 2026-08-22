@@ -221,6 +221,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "list-configs",
 			namespace:   "default",
 		},
+		"commonLabels": {
+			valuesFile:  "testdata/common-labels.yaml",
+			releaseName: "common-labels",
+			namespace:   "default",
+		},
 		"allowEmptyIngressHost": {
 			valuesFile:  "testdata/allow-empty-ingress-host.yaml",
 			releaseName: "allow-empty-ingress-host",
