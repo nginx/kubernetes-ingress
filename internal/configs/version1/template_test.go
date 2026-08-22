@@ -2560,6 +2560,7 @@ func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 		"header X-Custom-Header \"custom-value\";",
 		"otel_service_name nginx-ingress-controller:nginx;",
 		"otel_trace on;",
+		"otel_trace_context inject;",
 	}
 
 	mainConf := buf.String()
@@ -2567,6 +2568,32 @@ func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 		if !strings.Contains(mainConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXWithOtelTraceContextOnly(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithOTelTraceContextOnly)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	mainConf := buf.String()
+	if !strings.Contains(mainConf, "load_module modules/ngx_otel_module.so;") {
+		t.Errorf("want load_module directive in generated config")
+	}
+	if !strings.Contains(mainConf, "otel_trace_context propagate;") {
+		t.Errorf("want otel_trace_context directive in generated config")
+	}
+	if strings.Contains(mainConf, "otel_exporter {") {
+		t.Errorf("did not want otel_exporter block in generated config when no endpoint is set")
 	}
 	snaps.MatchSnapshot(t, buf.String())
 }
@@ -5343,6 +5370,12 @@ var (
 		MainOtelExporterHeaderName:  "X-Custom-Header",
 		MainOtelExporterHeaderValue: "custom-value",
 		MainOtelServiceName:         "nginx-ingress-controller:nginx",
+		MainOtelTraceContext:        "inject",
+	}
+
+	mainCfgWithOTelTraceContextOnly = MainConfig{
+		MainOtelLoadModule:   true,
+		MainOtelTraceContext: "propagate",
 	}
 
 	mainCfgWithOIDCTimeoutDefault = MainConfig{
