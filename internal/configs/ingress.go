@@ -560,8 +560,20 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name])
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
-			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
-				ssl, isGRPCService, proxySSLName, path.PathType, path.Backend.Service.Name, rewriteTarget, upstreamVhost)
+			loc := createLocation(locationParams{
+				path:          pathOrDefault(path.Path),
+				pathType:      path.PathType,
+				upstream:      upstreams[upsName],
+				cfg:           &cfgParams,
+				serviceName:   path.Backend.Service.Name,
+				websocket:     wsServices[path.Backend.Service.Name],
+				rewrite:       rewrites[path.Backend.Service.Name],
+				rewriteTarget: rewriteTarget,
+				upstreamVhost: upstreamVhost,
+				ssl:           ssl,
+				grpc:          isGRPCService,
+				proxySSLName:  proxySSLName,
+			})
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Minion egress mTLS is rendered per location to match VirtualServer route policy behavior.
 				loc.EgressMTLS = policyCfg.EgressMTLS
@@ -684,8 +696,20 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
 			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name])
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
-			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				ssl, grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, new(networking.PathTypePrefix), ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, rewriteTarget, upstreamVhost)
+			loc := createLocation(locationParams{
+				path:          pathOrDefault("/"),
+				pathType:      new(networking.PathTypePrefix),
+				upstream:      upstreams[upsName],
+				cfg:           &cfgParams,
+				serviceName:   ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name,
+				websocket:     wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
+				rewrite:       rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
+				rewriteTarget: rewriteTarget,
+				upstreamVhost: upstreamVhost,
+				ssl:           ssl,
+				grpc:          grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
+				proxySSLName:  proxySSLName,
+			})
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Keep default-backend locations aligned with other minion locations for egress mTLS overrides.
 				loc.EgressMTLS = policyCfg.EgressMTLS
@@ -1058,35 +1082,51 @@ func generateIngressPath(path string, pathType *networking.PathType) string {
 	return path
 }
 
-func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, proxySSLName string, pathType *networking.PathType, serviceName string, rewriteTarget string, upstreamVhost string) version1.Location {
+type locationParams struct {
+	path          string
+	pathType      *networking.PathType
+	upstream      version1.Upstream
+	cfg           *ConfigParams
+	serviceName   string
+	websocket     bool
+	rewrite       string
+	rewriteTarget string
+	upstreamVhost string
+	ssl           bool
+	grpc          bool
+	proxySSLName  string
+}
+
+func createLocation(p locationParams) version1.Location {
+	cfg := p.cfg
 	loc := version1.Location{
-		Path:                     generateIngressPath(path, pathType),
-		Upstream:                 upstream,
-		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(ssl), upstream.Name),
+		Path:                     generateIngressPath(p.path, p.pathType),
+		Upstream:                 p.upstream,
+		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(p.ssl), p.upstream.Name),
 		ProxyConnectTimeout:      cfg.ProxyConnectTimeout,
 		ProxyReadTimeout:         cfg.ProxyReadTimeout,
 		ProxySendTimeout:         cfg.ProxySendTimeout,
 		ProxySetHeaders:          cfg.ProxySetHeaders,
 		ClientMaxBodySize:        cfg.ClientMaxBodySize,
 		ClientBodyBufferSize:     cfg.ClientBodyBufferSize,
-		Websocket:                websocket,
-		Rewrite:                  rewrite,
-		RewriteTarget:            rewriteTarget,
-		UpstreamVhost:            upstreamVhost,
-		SSL:                      ssl,
-		GRPC:                     grpc,
+		Websocket:                p.websocket,
+		Rewrite:                  p.rewrite,
+		RewriteTarget:            p.rewriteTarget,
+		UpstreamVhost:            p.upstreamVhost,
+		SSL:                      p.ssl,
+		GRPC:                     p.grpc,
 		ProxyBuffering:           cfg.ProxyBuffering,
 		ProxyBuffers:             cfg.ProxyBuffers,
 		ProxyBufferSize:          cfg.ProxyBufferSize,
 		ProxyBusyBuffersSize:     cfg.ProxyBusyBuffersSize,
 		ProxyMaxTempFileSize:     cfg.ProxyMaxTempFileSize,
 		DisableForwardedHeaders:  cfg.DisableForwardedHeaders,
-		ProxySSLName:             proxySSLName,
+		ProxySSLName:             p.proxySSLName,
 		ProxyNextUpstream:        cfg.ProxyNextUpstream,
 		ProxyNextUpstreamTimeout: cfg.ProxyNextUpstreamTimeout,
 		ProxyNextUpstreamTries:   cfg.ProxyNextUpstreamTries,
 		LocationSnippets:         cfg.LocationSnippets,
-		ServiceName:              serviceName,
+		ServiceName:              p.serviceName,
 	}
 
 	return loc
