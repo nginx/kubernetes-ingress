@@ -114,6 +114,10 @@ test: ## Run GoLang tests
 test-update-snaps:
 	UPDATE_SNAPS=always go test -tags=aws,helmunit -shuffle=on ./...
 
+.PHONY: test-crd
+test-crd: ## Run CRD (OpenAPI + CEL) admission tests against an envtest-managed kube-apiserver
+	go test -tags=envtest -timeout=180s ./pkg/apis/configuration/validation/crd/...
+
 cover: ## Generate coverage report
 	go test -tags=aws,helmunit -shuffle=on -race -coverprofile=coverage.txt -covermode=atomic ./...
 
