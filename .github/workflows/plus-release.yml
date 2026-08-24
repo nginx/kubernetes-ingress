@@ -124,11 +124,17 @@ jobs:
             let id_token = await core.getIDToken()
             core.setOutput('id_token', id_token)
 
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          registry: ${{ inputs.source_registry }}
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
           password: ${{ github.actor }}
 
@@ -203,11 +209,17 @@ jobs:
             let id_token = await core.getIDToken()
             core.setOutput('id_token', id_token)
 
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          registry: ${{ inputs.source_registry }}
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
           password: ${{ github.actor }}
 
@@ -268,11 +280,17 @@ jobs:
             let id_token = await core.getIDToken()
             core.setOutput('id_token', id_token)
 
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          registry: ${{ inputs.source_registry }}
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
           password: ${{ github.actor }}
 
@@ -345,11 +363,17 @@ jobs:
             let id_token = await core.getIDToken()
             core.setOutput('id_token', id_token)
 
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          registry: ${{ inputs.source_registry }}
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
           password: ${{ github.actor }}
 
@@ -420,11 +444,17 @@ jobs:
             let id_token = await core.getIDToken()
             core.setOutput('id_token', id_token)
 
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
       - name: Login to Source Management Registry
         if: contains(inputs.source_registry, 'docker-mgmt')
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          registry: ${{ inputs.source_registry }}
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
           username: ${{ steps.idtoken-source.outputs.id_token }}
           password: ${{ github.actor }}
 

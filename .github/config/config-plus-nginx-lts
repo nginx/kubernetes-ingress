@@ -1,4 +1,4 @@
-export TARGET_REGISTRY=docker-mgmt-test.nginx.com
+export TARGET_REGISTRY=docker-mgmt.nginx.com
 declare -a PLUS_TAG_POSTFIX_LIST=("")
 export PUBLISH_OSS=false
 export PUBLISH_WAF=false

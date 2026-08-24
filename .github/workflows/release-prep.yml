@@ -63,8 +63,8 @@ permissions:
 jobs:
   variables:
     name: Set Variables
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04-amd64
+    if: github.repository == 'nginx/kubernetes-ingress-internal'
+    runs-on: aw-ubuntu-24.04-amd64
     permissions:
       contents: read
     outputs:
@@ -144,7 +144,7 @@ jobs:
   # publish stage has a single, immutable source to copy from.
   push-prep-images:
     name: Push Prepped Images to Test Registry
-    runs-on: ubuntu-24.04-amd64
+    runs-on: aw-ubuntu-24.04-amd64
     needs: [variables, build-artifacts]
     if: github.repository == 'nginx/kubernetes-ingress-internal' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'push-prep-images'))
     permissions:
@@ -203,7 +203,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
+          .github/scripts/copy-images.sh "docker-mgmt-test.nginx.com"
 
   binaries:
     name: Process Binaries

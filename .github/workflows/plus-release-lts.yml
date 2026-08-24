@@ -9,6 +9,10 @@ on:
       gcr_release_registry:
         required: true
         type: boolean
+      source_registry:
+        required: false
+        type: string
+        default: "gcr.io"
       source_tag:
         required: true
         type: string
@@ -30,6 +34,10 @@ on:
       gcr_release_registry:
         required: true
         type: boolean
+      source_registry:
+        required: false
+        type: string
+        default: "gcr.io/"
       source_tag:
         required: true
         type: string
@@ -143,6 +151,20 @@ jobs:
           script: |
             let id_token = await core.getIDToken()
             core.setOutput('id_token', id_token)
+
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
+          username: ${{ steps.idtoken.outputs.id_token }}
+          password: ${{ github.actor }}
 
       - name: Login to NGINX Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
