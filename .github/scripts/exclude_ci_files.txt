@@ -45,7 +45,6 @@
 .github/workflows/release-pr.yml
 .github/workflows/release-prep.yml
 .github/workflows/release-publish.yml
-.github/workflows/release.yml
 .github/workflows/retag-images.yml
 .github/workflows/scorecards.yml
 .github/workflows/single-image-regression.yml

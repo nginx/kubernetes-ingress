@@ -110,7 +110,7 @@ jobs:
           cat $GITHUB_OUTPUT
 
   build-artifacts:
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && !failure() && !inputs.dry_run && !contains(inputs.skip_step, 'build-artifacts'))
+    if: github.repository == 'nginx/kubernetes-ingress-internal' && (!cancelled() && !failure() && !inputs.dry_run && !contains(inputs.skip_step, 'build-artifacts'))
     name: Build Artifacts
     needs: [variables]
     uses: ./.github/workflows/build-artifacts.yml
@@ -127,7 +127,7 @@ jobs:
       tag: ${{ needs.variables.outputs.source_tag }}
       go-md5: ${{ needs.variables.outputs.go_code_md5 }}
       docker-md5: ${{ needs.variables.outputs.docker_md5 }}
-      runner: "ubuntu-24.04-amd64"
+      runner: "aw-ubuntu-24.04-amd64"
       write-to-cache: true
       read-from-cache: false
     secrets: inherit
@@ -146,7 +146,7 @@ jobs:
     name: Push Prepped Images to Test Registry
     runs-on: ubuntu-24.04-amd64
     needs: [variables, build-artifacts]
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'push-prep-images'))
+    if: github.repository == 'nginx/kubernetes-ingress-internal' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'push-prep-images'))
     permissions:
       contents: read
       id-token: write
@@ -207,8 +207,8 @@ jobs:
 
   binaries:
     name: Process Binaries
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)))
-    runs-on: ubuntu-24.04-amd64
+    if: github.repository == 'nginx/kubernetes-ingress-internal' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)))
+    runs-on: aw-ubuntu-24.04-amd64
     needs: [variables, build-artifacts]
     permissions:
       contents: read
@@ -248,9 +248,9 @@ jobs:
 
   # Upload packages, sboms & checksums to release storage
   azure-upload:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload'))
-    name: Upload packages to Azure
-    runs-on: ubuntu-24.04-amd64
+    if: github.repository == 'nginx/kubernetes-ingress-internal' && (! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload'))
+    name: Upload binaries to Azure
+    runs-on: ubuntu-24.04
     needs: [variables, binaries]
     permissions:
       id-token: write
@@ -298,90 +298,3 @@ jobs:
                 echo "skipped, dry_run."
               fi
             done
-
-  tag:
-    name: Create Tag on release branch in NIC repo
-    runs-on: ubuntu-24.04
-    needs: [build-artifacts, binaries, push-prep-images, azure-upload]
-    # !cancelled() makes this job run even when a dependency failed, so every
-    # dependency result has to be asserted explicitly or a tag would be pushed
-    # for a failed prep run. binaries must be asserted directly: azure-upload is
-    # merely 'skipped' when binaries fails, which would otherwise be accepted.
-    if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
-      !cancelled() &&
-      (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) &&
-      needs.binaries.result == 'success' &&
-      (needs.push-prep-images.result == 'success' || needs.push-prep-images.result == 'skipped') &&
-      (needs.azure-upload.result == 'success' || needs.azure-upload.result == 'skipped')
-      )
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout NIC repo
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.release_branch }}
-          fetch-depth: 0
-
-      - name: Create new release Tag
-        run: |
-          git config --global user.email "kubernetes@nginx.com"
-          git config --global user.name "NGINX Kubernetes Team"
-          branch="${{ inputs.release_branch }}"
-          tag="v${{ inputs.nic_version }}"
-          if ! git rev-parse --verify "refs/tags/${tag}"; then
-            echo "Adding tag ${tag}."
-            git tag -a "${tag}" -m "Version ${tag#v*}"
-            echo "Pushing to tag ${tag} to branch ${branch}"
-            if ! ${{ inputs.dry_run }}; then
-              git push origin "${tag}"
-            else
-              echo "DRY RUN not making any changes"
-              git push --dry-run origin "${tag}"
-            fi
-          else
-            echo "Warning: Tag ${tag} already exists.  Not making any changes"
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Attach packages, sboms & checksums to the GitHub release draft created by
-  # update-release-draft.yml. release-publish.yml only flips the draft to
-  # published, so the assets have to be in place before publishing runs.
-  release-assets:
-    name: Attach assets to GitHub release draft
-    runs-on: ubuntu-24.04-amd64
-    needs: [variables, binaries, tag]
-    if: >-
-      github.repository == 'nginx/kubernetes-ingress' && (
-      !cancelled() &&
-      !failure() &&
-      !contains(inputs.skip_step, 'release-assets')
-      )
-    permissions:
-      contents: write # to upload release assets
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.release_branch }}
-
-      - name: Fetch Cached Tarball Artifacts
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          key: nginx-ingress-release-${{ needs.variables.outputs.go_code_md5 }}
-          path: ${{ github.workspace }}/tarballs
-          fail-on-cache-miss: true
-
-      - name: Upload Release Assets
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # clobber overwrites existing assets of the same name
-        run: |
-          if ! ${{ inputs.dry_run }}; then
-            gh release upload --clobber v${{ inputs.nic_version }} \
-              $(find ./tarballs -type f)
-          else
-            echo "Skipping adding binaries to Github Release, DRY_RUN"
-          fi

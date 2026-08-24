@@ -12,10 +12,6 @@ on:
         description: "Helm Chart version to release (defaults to HELM_CHART_VERSION in .github/data/version.txt)"
         required: false
         type: string
-      cnab_version:
-        description: "CNAB version for Azure Marketplace"
-        required: false
-        type: string
       operator_version:
         description: "Operator version to set"
         required: false
@@ -35,33 +31,6 @@ on:
         default: false
       skip_step:
         description: "Comma separated list of jobs to skip"
-        type: string
-        required: false
-  workflow_call:
-    inputs:
-      nic_version:
-        required: true
-        type: string
-      chart_version:
-        required: false
-        type: string
-      cnab_version:
-        required: false
-        type: string
-      operator_version:
-        required: false
-        type: string
-      release_branch:
-        required: true
-        type: string
-      source_registry:
-        required: false
-        type: string
-        default: "docker-mgmt-test.nginx.com"
-      dry_run:
-        type: boolean
-        default: false
-      skip_step:
         type: string
         required: false
 
@@ -313,11 +282,116 @@ jobs:
     steps:
       - run: echo "All prerequisites met"
 
+  tag:
+    name: Create Tag on release branch in NIC repo
+    runs-on: ubuntu-24.04
+    needs: [release-gate]
+    # !cancelled() makes this job run even when a dependency failed, so every
+    # dependency result has to be asserted explicitly or a tag would be pushed
+    # for a failed prep run. binaries must be asserted directly: azure-upload is
+    # merely 'skipped' when binaries fails, which would otherwise be accepted.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      (inputs.dry_run))
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout NIC repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+          fetch-depth: 0
+
+      - name: Create new release Tag
+        run: |
+          git config --global user.email "kubernetes@nginx.com"
+          git config --global user.name "NGINX Kubernetes Team"
+          branch="${{ inputs.release_branch }}"
+          tag="v${{ inputs.nic_version }}"
+          if ! git rev-parse --verify "refs/tags/${tag}"; then
+            echo "Adding tag ${tag}."
+            git tag -a "${tag}" -m "Version ${tag#v*}"
+            echo "Pushing to tag ${tag} to branch ${branch}"
+            if ! ${{ inputs.dry_run }}; then
+              git push origin "${tag}"
+            else
+              echo "DRY RUN not making any changes"
+              git push --dry-run origin "${tag}"
+            fi
+          else
+            echo "Warning: Tag ${tag} already exists.  Not making any changes"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-assets:
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure())
+    name: Upload binaries GitHub Release
+    runs-on: ubuntu-24.04-amd64
+    needs: [variables]
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Setup secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "azure-storage-account, azure-storage-bucket"
+          env-names: "AZURE_STORAGE_ACCOUNT, AZURE_BUCKET_NAME"
+
+      - name: Azure login
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Azure Download Signed Binaries
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
+        with:
+          inlineScript: |
+            echo -n "Downloading assets for v${{ inputs.nic_version }}... "
+
+            if ! ${{ inputs.dry_run }}; then
+              mkdir -p "download"
+              az storage blob download-batch --auth-mode=login \
+                -d download \
+                -s ${{ env.AZURE_BUCKET_NAME }} \
+                --account-name ${{ env.AZURE_STORAGE_ACCOUNT }} \
+                --pattern "kubernetes-ingress/v${{ inputs.nic_version }}/*" \
+                --overwrite
+              echo "done"
+            else
+              echo "skipped, dry_run."
+            fi
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # clobber overwrites existing assets of the same name
+        run: |
+          if ! ${{ inputs.dry_run }}; then
+            gh release upload --clobber v${{ inputs.nic_version }} \
+              $(find download/kubernetes-ingress/v${{ inputs.nic_version }} -type f)
+          else
+            echo "Skipping adding binaries to Github Release, DRY_RUN"
+          fi
+
+
   github-release:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && needs.release-gate.result == 'success' && ! contains(inputs.skip_step, 'github-release'))
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! contains(inputs.skip_step, 'github-release'))
     name: Publish release to GitHub
     runs-on: ubuntu-24.04-amd64
-    needs: [variables, release-gate]
+    needs: [tag, release-assets]
     permissions:
       contents: write # to modify the release
       issues: write # to close milestone
