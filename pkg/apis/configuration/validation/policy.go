@@ -489,6 +489,12 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 	if oidcNative.Scope != "" {
 		allErrs = append(allErrs, validateOIDCNativeScope(oidcNative.Scope, fieldPath.Child("scope"))...)
 	}
+	if oidcNative.ClientSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+	if oidcNative.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+	}
 
 	// Defense in depth for fields rendered verbatim into NGINX directives.
 	// The CRD-level Patterns catch most bad input, but block nginx-injection
