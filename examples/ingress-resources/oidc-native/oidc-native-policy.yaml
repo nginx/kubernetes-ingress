@@ -8,7 +8,6 @@ spec:
     clientID: nginx-plus
     clientSecret: oidcnative-secret
     configURL: https://keycloak.default.svc.cluster.local/realms/master/.well-known/openid-configuration
-    scope: openid profile email
-    sslVerify: false
-    sslName: keycloak.default.svc.cluster.local
+    scope: openid
+    sslVerify: true
     postLogoutRedirectURI: /_logout
