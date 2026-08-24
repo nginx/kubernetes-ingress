@@ -19,11 +19,12 @@ In this example, we deploy a web application, load-balance it via a VirtualServe
 
 ## Step 1 - Deploy TLS Secrets
 
-Create the TLS secrets used for TLS termination of the web application and Keycloak:
+Create the TLS secrets used for TLS termination of the web application and Keycloak, as well as the trusted CA secret used for verifying Keycloak's TLS certificate:
 
 ```shell
 kubectl apply -f tls-secret.yaml
 kubectl apply -f keycloak-tls-secret.yaml
+kubectl apply -f keycloak-ca-secret.yaml
 ```
 
 ## Step 2 - Deploy Resolver ConfigMap
@@ -44,7 +45,7 @@ kubectl apply -f virtual-server-idp.yaml
 kubectl apply -f webapp.yaml
 ```
 
-The shipped TLS secrets are self-signed, so your browser will show a certificate warning when visiting either page - accept it once per hostname. Backchannel communication (NGINX ↔ Keycloak) is handled via `sslVerify: false` in the policy.
+The shipped TLS secrets are self-signed, so your browser will show a certificate warning when visiting either page - accept it once per hostname. Backchannel communication (NGINX ↔ Keycloak) is verified via the trusted CA certificate in `keycloak-ca-secret.yaml` (`sslVerify: true` in the policy).
 
 ## Step 4 - Configure Keycloak
 
