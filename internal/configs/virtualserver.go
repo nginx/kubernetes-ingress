@@ -39,7 +39,7 @@ const (
 	// the session store keyval zone when zone-sync is enabled and the user
 	// hasn't set sessionTimeout on the policy. NGINX Plus requires `timeout=`
 	// whenever `sync` is on.
-	oidcNativeSessionSyncDefaultTimeout = "1h"
+	oidcNativeSessionSyncDefaultTimeout = "8h"
 )
 
 var grpcConflictingErrors = map[int]bool{
