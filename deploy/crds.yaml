@@ -1040,11 +1040,12 @@ spec:
                       Mutually exclusive with ApPolicy and ApBundle.
                     properties:
                       enablePolling:
+                        default: false
                         description: |-
                           EnablePolling enables background polling to automatically detect and fetch
-                          updated bundles at the configured PollInterval. When false, the bundle is
-                          fetched once on policy creation or update; subsequent updates require
-                          modifying the Policy resource to trigger a new fetch.
+                          updated bundles at the configured PollInterval. Defaults to false. When
+                          false, the bundle is fetched once on policy creation or update; subsequent
+                          updates require modifying the Policy resource to trigger a new fetch.
                         type: boolean
                       insecureSkipVerify:
                         description: |-
@@ -1052,13 +1053,13 @@ spec:
                           Not recommended for production use.
                         type: boolean
                       name:
-                        description: Name is the policy/logconf name on the management
-                          plane. Required for NIM and N1C; forbidden for HTTPS.
+                        description: Name is the policy name on the management plane.
+                          Required for NIM and N1C; forbidden for HTTPS.
                         maxLength: 63
                         type: string
                       namespace:
                         description: Namespace is the namespace/tenant on the management
-                          plane. Required for N1C only.
+                          plane. Required for N1C; forbidden otherwise.
                         maxLength: 63
                         type: string
                       pollInterval:
@@ -1112,7 +1113,6 @@ spec:
                           the downloaded bundle. HTTPS type only.
                         type: boolean
                     required:
-                    - enablePolling
                     - url
                     type: object
                   apPolicy:
@@ -1137,11 +1137,12 @@ spec:
                           Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
                         properties:
                           enablePolling:
+                            default: false
                             description: |-
                               EnablePolling enables background polling to automatically detect and fetch
-                              updated bundles at the configured PollInterval. When false, the bundle is
-                              fetched once on policy creation or update; subsequent updates require
-                              modifying the Policy resource to trigger a new fetch.
+                              updated bundles at the configured PollInterval. Defaults to false. When
+                              false, the bundle is fetched once on policy creation or update; subsequent
+                              updates require modifying the Policy resource to trigger a new fetch.
                             type: boolean
                           insecureSkipVerify:
                             description: |-
@@ -1149,13 +1150,13 @@ spec:
                               Not recommended for production use.
                             type: boolean
                           name:
-                            description: Name is the policy/logconf name on the management
+                            description: Name is the policy name on the management
                               plane. Required for NIM and N1C; forbidden for HTTPS.
                             maxLength: 63
                             type: string
                           namespace:
                             description: Namespace is the namespace/tenant on the
-                              management plane. Required for N1C only.
+                              management plane. Required for N1C; forbidden otherwise.
                             maxLength: 63
                             type: string
                           pollInterval:
@@ -1209,7 +1210,6 @@ spec:
                               of the downloaded bundle. HTTPS type only.
                             type: boolean
                         required:
-                        - enablePolling
                         - url
                         type: object
                       apLogConf:
@@ -1241,11 +1241,12 @@ spec:
                             Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
                           properties:
                             enablePolling:
+                              default: false
                               description: |-
                                 EnablePolling enables background polling to automatically detect and fetch
-                                updated bundles at the configured PollInterval. When false, the bundle is
-                                fetched once on policy creation or update; subsequent updates require
-                                modifying the Policy resource to trigger a new fetch.
+                                updated bundles at the configured PollInterval. Defaults to false. When
+                                false, the bundle is fetched once on policy creation or update; subsequent
+                                updates require modifying the Policy resource to trigger a new fetch.
                               type: boolean
                             insecureSkipVerify:
                               description: |-
@@ -1253,14 +1254,13 @@ spec:
                                 Not recommended for production use.
                               type: boolean
                             name:
-                              description: Name is the policy/logconf name on the
-                                management plane. Required for NIM and N1C; forbidden
-                                for HTTPS.
+                              description: Name is the policy name on the management
+                                plane. Required for NIM and N1C; forbidden for HTTPS.
                               maxLength: 63
                               type: string
                             namespace:
                               description: Namespace is the namespace/tenant on the
-                                management plane. Required for N1C only.
+                                management plane. Required for N1C; forbidden otherwise.
                               maxLength: 63
                               type: string
                             pollInterval:
@@ -1314,7 +1314,6 @@ spec:
                                 of the downloaded bundle. HTTPS type only.
                               type: boolean
                           required:
-                          - enablePolling
                           - url
                           type: object
                         apLogConf:

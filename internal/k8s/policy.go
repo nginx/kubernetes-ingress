@@ -12,11 +12,13 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
 	"github.com/nginx/kubernetes-ingress/internal/helpers"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	api_v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -115,7 +117,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 				state := conf_v1.StateValid
 				reason := "AddedOrUpdated"
 				statusMsg := msg
-				if hasBundleSource(pol) && !lbc.bundleFilesReady(pol) {
+				if lbc.hasBundleSource(pol) && !lbc.bundleFilesReady(pol) {
 					state = conf_v1.StateWarning
 					reason = "BundlePending"
 					statusMsg = fmt.Sprintf("Policy %v/%v: WAF bundle fetch pending", pol.Namespace, pol.Name)
@@ -141,7 +143,7 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	if lbc.bundlePollerMgr != nil {
 		if polExists && lbc.HasCorrectIngressClass(obj) {
 			pol := obj.(*conf_v1.Policy)
-			if pol.Spec.WAF != nil && hasBundleSource(pol) {
+			if pol.Spec.WAF != nil && lbc.hasBundleSource(pol) {
 				lbc.syncWAFBundleSource(pol)
 			} else {
 				lbc.bundlePollerMgr.StopPoller(key)
@@ -268,17 +270,54 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 	// Note: updating the status of a policy based on a reload is not needed.
 }
 
+// parseAPRef splits a "namespace/name" App Protect reference. The namespace
+// defaults to polNamespace when the reference is unqualified.
+func parseAPRef(ref, polNamespace string) (namespace, name string) {
+	if parsedNs, parsedName, err := helpers.ParseNamespaceName(ref); err == nil {
+		return parsedNs, parsedName
+	}
+	return polNamespace, ref
+}
+
+// effectivePLMPolicyRef returns the (namespace, name) that NIC should fetch as a PLM
+// policy bundle, or ok=false when the Policy has no PLM-eligible reference. Under
+// -plm-storage-url an apPolicy reference is fetched as a PLM bundle; apBundleSource
+// remains the HTTPS/NIM/N1C path.
+func (lbc *LoadBalancerController) effectivePLMPolicyRef(pol *conf_v1.Policy) (namespace, name string, ok bool) {
+	if !lbc.plmEnabled || pol.Spec.WAF == nil || pol.Spec.WAF.ApPolicy == "" {
+		return "", "", false
+	}
+	ns, n := parseAPRef(pol.Spec.WAF.ApPolicy, pol.Namespace)
+	return ns, n, true
+}
+
+// effectivePLMLogRef is the securityLogs counterpart of effectivePLMPolicyRef.
+func (lbc *LoadBalancerController) effectivePLMLogRef(sl *conf_v1.SecurityLog, polNamespace string) (namespace, name string, ok bool) {
+	if !lbc.plmEnabled || sl == nil || sl.ApLogConf == "" {
+		return "", "", false
+	}
+	ns, n := parseAPRef(sl.ApLogConf, polNamespace)
+	return ns, n, true
+}
+
 // hasBundleSource reports whether a Policy has any bundle source fields that require
-// fetching: either a top-level apBundleSource or any securityLogs entry with an apLogBundleSource.
-func hasBundleSource(pol *conf_v1.Policy) bool {
+// fetching: either a top-level apBundleSource or any securityLogs entry with an
+// apLogBundleSource. Under PLM, apPolicy/apLogConf references also require fetching.
+func (lbc *LoadBalancerController) hasBundleSource(pol *conf_v1.Policy) bool {
 	if pol.Spec.WAF == nil {
 		return false
 	}
 	if pol.Spec.WAF.ApBundleSource != nil {
 		return true
 	}
+	if _, _, ok := lbc.effectivePLMPolicyRef(pol); ok {
+		return true
+	}
 	for _, sl := range pol.Spec.WAF.SecurityLogs {
 		if sl != nil && sl.ApLogBundleSource != nil {
+			return true
+		}
+		if _, _, ok := lbc.effectivePLMLogRef(sl, pol.Namespace); ok {
 			return true
 		}
 	}
@@ -293,7 +332,7 @@ func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
 	if pol.Spec.WAF == nil || lbc.wafBundlePath == "" {
 		return true
 	}
-	if pol.Spec.WAF.ApBundleSource != nil {
+	if lbc.policyBundleExpected(pol) {
 		path := filepath.Join(lbc.wafBundlePath,
 			wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
 		if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -301,7 +340,7 @@ func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
 		}
 	}
 	for idx, sl := range pol.Spec.WAF.SecurityLogs {
-		if sl == nil || sl.ApLogBundleSource == nil {
+		if !lbc.logBundleExpected(sl, pol.Namespace) {
 			continue
 		}
 		path := filepath.Join(lbc.wafBundlePath,
@@ -313,63 +352,63 @@ func (lbc *LoadBalancerController) bundleFilesReady(pol *conf_v1.Policy) bool {
 	return true
 }
 
+// policyBundleExpected reports whether syncWAFBundleSource will fetch a policy bundle
+// for pol. Mirrors the branch selection in syncWAFBundleSource so that bundleFilesReady
+// only demands a file when one is actually being produced.
+func (lbc *LoadBalancerController) policyBundleExpected(pol *conf_v1.Policy) bool {
+	if pol.Spec.WAF == nil {
+		return false
+	}
+	if pol.Spec.WAF.ApBundleSource != nil {
+		return true
+	}
+	_, _, ok := lbc.effectivePLMPolicyRef(pol)
+	return ok
+}
+
+// logBundleExpected is the securityLogs counterpart of policyBundleExpected.
+func (lbc *LoadBalancerController) logBundleExpected(sl *conf_v1.SecurityLog, polNamespace string) bool {
+	if sl == nil {
+		return false
+	}
+	if sl.ApLogBundleSource != nil {
+		return true
+	}
+	_, _, ok := lbc.effectivePLMLogRef(sl, polNamespace)
+	return ok
+}
+
 // syncWAFBundleSource performs initial bundle fetches (if files are absent on disk)
 // and reconciles the background poller for the given WAF policy.
 // Initial fetches are performed asynchronously to avoid blocking the sync queue.
 func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	polKey := pol.Namespace + "/" + pol.Name
-	l := lbc.Logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
-	bs := pol.Spec.WAF.ApBundleSource
 
-	var auth *wafbundle.BundleAuth
-	if bs != nil {
-		var err error
-		auth, err = lbc.resolveWAFBundleAuth(bs, pol.Namespace)
-		if err != nil {
-			msg := fmt.Sprintf("WAF bundle secret resolution failed: %v", err)
-			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
-			if lbc.reportCustomResourceStatusEnabled() {
-				if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
-					nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
-				}
-			}
-			return
-		}
+	// Reconcile the poller on every return path so non-PLM sources with
+	// EnablePolling=true still retry after a failed initial fetch.
+	defer lbc.reconcileBundlePoller(pol, polKey)
 
-		policyFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy")
-		policyPath := filepath.Join(lbc.wafBundlePath, policyFilename)
-		if _, statErr := os.Stat(policyPath); os.IsNotExist(statErr) {
-			lbc.fetchBundleAsync(pol, bs, auth, policyPath, wafbundle.PolicyBundle)
-			// Return early; re-sync will occur when fetch completes.
-			return
-		}
+	if !lbc.syncPolicyBundle(pol, polKey) {
+		return
 	}
 
 	for idx, sl := range pol.Spec.WAF.SecurityLogs {
-		if sl == nil || sl.ApLogBundleSource == nil {
-			continue
-		}
-		logAuth, logErr := lbc.resolveWAFBundleAuth(sl.ApLogBundleSource, pol.Namespace)
-		if logErr != nil {
-			msg := fmt.Sprintf("WAF log profile bundle: invalid or missing secret: %v", logErr)
-			lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
-			if lbc.reportCustomResourceStatusEnabled() {
-				if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
-					nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
-				}
-			}
-			continue
-		}
-		logFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx))
-		logPath := filepath.Join(lbc.wafBundlePath, logFilename)
-		if _, statErr := os.Stat(logPath); os.IsNotExist(statErr) {
-			lbc.fetchBundleAsync(pol, sl.ApLogBundleSource, logAuth, logPath, wafbundle.LogProfileBundle)
-			// Return early; re-sync will occur when fetch completes.
+		if !lbc.syncLogBundle(pol, polKey, sl, idx) {
 			return
 		}
 	}
+}
 
-	sources := lbc.buildPollSources(pol, auth)
+// reconcileBundlePoller sets up the background poller for pol's bundle sources.
+func (lbc *LoadBalancerController) reconcileBundlePoller(pol *conf_v1.Policy, polKey string) {
+	var policyAuth *wafbundle.BundleAuth
+	if bs := pol.Spec.WAF.ApBundleSource; bs != nil {
+		if a, err := lbc.resolveWAFBundleAuth(bs, pol.Namespace); err == nil {
+			policyAuth = a
+		}
+	}
+
+	sources := lbc.buildPollSources(pol, policyAuth)
 	if len(sources) > 0 {
 		lbc.bundlePollerMgr.ReconcilePoller(polKey, sources)
 	} else {
@@ -377,9 +416,250 @@ func (lbc *LoadBalancerController) syncWAFBundleSource(pol *conf_v1.Policy) {
 	}
 }
 
-// fetchBundleAsync launches performInitialFetch in a background goroutine.
-// After fetch completes, re-enqueues the policy to trigger poller reconciliation.
-// This keeps the sync queue unblocked during long-running fetches.
+// syncPolicyBundle handles the top-level policy bundle for pol. It returns true when
+// processing may continue (bundle up-to-date or no bundle to fetch) and false when an
+// async fetch has been kicked off or a fatal error was recorded — in either case the
+// caller must not proceed with the securityLogs loop or poller reconciliation.
+func (lbc *LoadBalancerController) syncPolicyBundle(pol *conf_v1.Policy, polKey string) bool {
+	// PLM policy bundle: reference by APPolicy CR, cluster-wide credentials.
+	if ns, name, ok := lbc.effectivePLMPolicyRef(pol); ok {
+		status := lbc.resolvePLMBundleStatus(pol, ns, name, wafbundle.PolicyBundle)
+		if status == nil {
+			return false
+		}
+		policyPath := filepath.Join(lbc.wafBundlePath,
+			wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
+		if !lbc.bundleNeedsFetch(policyPath, status) {
+			return true
+		}
+		req := plmFetchRequest(ns, name, wafbundle.PolicyBundle, status)
+		lbc.fetchBundleAsyncRaw(pol, req, policyPath, wafbundle.PolicyBundle)
+		return false
+	}
+
+	// HTTPS/NIM/N1C policy bundle via apBundleSource.
+	bs := pol.Spec.WAF.ApBundleSource
+	if bs == nil {
+		return true
+	}
+	auth, err := lbc.resolveWAFBundleAuth(bs, pol.Namespace)
+	if err != nil {
+		msg := fmt.Sprintf("WAF bundle secret resolution failed: %v", err)
+		lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
+		if lbc.reportCustomResourceStatusEnabled() {
+			if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
+				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+			}
+		}
+		return false
+	}
+	policyPath := filepath.Join(lbc.wafBundlePath,
+		wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
+	if !lbc.bundleNeedsFetch(policyPath, nil) {
+		return true
+	}
+	lbc.fetchBundleAsync(pol, bs, auth, policyPath, wafbundle.PolicyBundle)
+	return false
+}
+
+// syncLogBundle handles one securityLogs entry. Same true/false semantics as syncPolicyBundle.
+func (lbc *LoadBalancerController) syncLogBundle(pol *conf_v1.Policy, polKey string, sl *conf_v1.SecurityLog, idx int) bool {
+	logFilename := wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", idx))
+	logPath := filepath.Join(lbc.wafBundlePath, logFilename)
+
+	if ns, name, ok := lbc.effectivePLMLogRef(sl, pol.Namespace); ok {
+		status := lbc.resolvePLMBundleStatus(pol, ns, name, wafbundle.LogProfileBundle)
+		if status == nil {
+			return true // continue to next log entry; warning already recorded
+		}
+		if !lbc.bundleNeedsFetch(logPath, status) {
+			return true
+		}
+		req := plmFetchRequest(ns, name, wafbundle.LogProfileBundle, status)
+		lbc.fetchBundleAsyncRaw(pol, req, logPath, wafbundle.LogProfileBundle)
+		return false
+	}
+
+	if sl == nil || sl.ApLogBundleSource == nil {
+		return true
+	}
+	logAuth, logErr := lbc.resolveWAFBundleAuth(sl.ApLogBundleSource, pol.Namespace)
+	if logErr != nil {
+		msg := fmt.Sprintf("WAF log profile bundle: invalid or missing secret: %v", logErr)
+		lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonInvalidConfiguration, msg)
+		if lbc.reportCustomResourceStatusEnabled() {
+			if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonInvalidConfiguration, msg); updateErr != nil {
+				nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+			}
+		}
+		return true // continue: mirrors previous non-PLM behavior
+	}
+	if !lbc.bundleNeedsFetch(logPath, nil) {
+		return true
+	}
+	lbc.fetchBundleAsync(pol, sl.ApLogBundleSource, logAuth, logPath, wafbundle.LogProfileBundle)
+	return false
+}
+
+// plmFetchRequest constructs a wafbundle.Request for a PLM bundle. Location and
+// checksum come from the referenced APPolicy/APLogConf's .status.bundle; the S3 config
+// (endpoint, credentials, TLS) is resolved by PLMAwareFetcher at fetch time.
+func plmFetchRequest(ns, name string, kind wafbundle.BundleType, status *wafbundle.BundleStatus) wafbundle.Request {
+	return wafbundle.Request{
+		Type:             wafbundle.SourceTypePLM,
+		BundleKind:       kind,
+		URL:              status.Location,
+		Name:             name,
+		Namespace:        ns,
+		ExpectedChecksum: status.SHA256,
+	}
+}
+
+// resolvePLMBundleStatus reads the referenced APPolicy/APLogConf CR's .status.bundle.
+// It returns a non-nil, Ready BundleStatus on success, or nil after recording a Warning
+// event + policy status when the CR is missing, malformed, or its bundle is not yet ready.
+// A nil return means "do not fetch now"; the next APPolicy status change re-enqueues the policy.
+func (lbc *LoadBalancerController) resolvePLMBundleStatus(pol *conf_v1.Policy, ns, name string, kind wafbundle.BundleType) *wafbundle.BundleStatus {
+	polKey := pol.Namespace + "/" + pol.Name
+
+	if ns == "" {
+		ns = pol.Namespace
+	}
+	refKey := ns + "/" + name
+
+	gvkKind := appprotect.PolicyGVK.Kind
+	if kind == wafbundle.LogProfileBundle {
+		gvkKind = appprotect.LogConfGVK.Kind
+	}
+
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: namespace %q is not watched", ns))
+		return nil
+	}
+
+	var store cache.Store
+	if kind == wafbundle.LogProfileBundle {
+		store = nsi.appProtectLogConfLister
+	} else {
+		store = nsi.appProtectPolicyLister
+	}
+	if store == nil {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s informer is unavailable", gvkKind))
+		return nil
+	}
+
+	obj, exists, err := store.GetByKey(refKey)
+	if err != nil {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: cannot read %s %q: %v", gvkKind, refKey, err))
+		return nil
+	}
+	if !exists {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s %q not found", gvkKind, refKey))
+		return nil
+	}
+
+	apResource, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s %q has unexpected type %T", gvkKind, refKey, obj))
+		return nil
+	}
+
+	var status *wafbundle.BundleStatus
+	if kind == wafbundle.LogProfileBundle {
+		parsed, parseErr := wafbundle.ParseAPLogConfStatus(apResource)
+		if parseErr != nil {
+			lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: cannot read %s %q status: %v", gvkKind, refKey, parseErr))
+			return nil
+		}
+		status = parsed.Bundle
+	} else {
+		parsed, parseErr := wafbundle.ParseAPPolicyStatus(apResource)
+		if parseErr != nil {
+			lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: cannot read %s %q status: %v", gvkKind, refKey, parseErr))
+			return nil
+		}
+		status = parsed.Bundle
+	}
+
+	if !status.IsReady() {
+		state := "pending"
+		if status != nil && status.State != "" {
+			state = status.State
+		}
+		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s %q bundle state is %q, not ready", gvkKind, refKey, state))
+		return nil
+	}
+
+	nl.Debugf(lbc.Logger, "Resolved PLM bundle for policy %s from %s %q: location=%s sha256=%s",
+		polKey, gvkKind, refKey, status.Location, status.SHA256)
+	return status
+}
+
+// recordPLMPending records a Warning event and (when enabled) a StateWarning policy status
+// for a PLM bundle that is not yet available. It does not fail the controller.
+func (lbc *LoadBalancerController) recordPLMPending(pol *conf_v1.Policy, msg string) {
+	polKey := pol.Namespace + "/" + pol.Name
+	nl.Debugf(lbc.Logger, "PLM bundle pending for policy %s: %s", polKey, msg)
+	lbc.recorder.Event(pol, api_v1.EventTypeWarning, nl.EventReasonBundleFetchFailed, msg)
+	if lbc.reportCustomResourceStatusEnabled() {
+		if updateErr := lbc.statusUpdater.UpdatePolicyStatus(pol, conf_v1.StateWarning, nl.EventReasonBundleFetchFailed, msg); updateErr != nil {
+			nl.Errorf(lbc.Logger, "Failed to update policy %s status: %v", polKey, updateErr)
+		}
+	}
+}
+
+// bundleNeedsFetch reports whether the bundle at path must be (re-)fetched. A missing
+// file always needs a fetch. For PLM (plmStatus non-nil), a fetch is also needed when the
+// on-disk bundle's SHA-256 differs from the checksum PLM published, so recompiled policies
+// are picked up event-driven. For non-PLM sources the initial fetch is triggered only when
+// the file is absent (updates are handled by the poller).
+func (lbc *LoadBalancerController) bundleNeedsFetch(path string, plmStatus *wafbundle.BundleStatus) bool {
+	if plmStatus == nil {
+		_, err := os.Stat(path)
+		return os.IsNotExist(err)
+	}
+	// PLM: compare the on-disk bundle against the checksum PLM published.
+	data, err := os.ReadFile(path) // #nosec G304, path is controller-constructed (bundle destination dir + generated filename
+	if err != nil {
+		return true // missing or unreadable — re-fetch
+	}
+	return !strings.EqualFold(wafbundle.ComputeChecksum(data), plmStatus.SHA256)
+}
+
+// policyNeedsPLMBundleFetch reports whether any PLM policy or log bundle for
+// pol is missing or differs from the checksum published by its referenced AP resource.
+func (lbc *LoadBalancerController) policyNeedsPLMBundleFetch(pol *conf_v1.Policy) bool {
+	if pol.Spec.WAF == nil || lbc.wafBundlePath == "" {
+		return false
+	}
+
+	if ns, name, ok := lbc.effectivePLMPolicyRef(pol); ok {
+		status := lbc.resolvePLMBundleStatus(pol, ns, name, wafbundle.PolicyBundle)
+		path := filepath.Join(lbc.wafBundlePath, wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, "policy"))
+		if status != nil && lbc.bundleNeedsFetch(path, status) {
+			return true
+		}
+	}
+
+	for index, securityLog := range pol.Spec.WAF.SecurityLogs {
+		ns, name, ok := lbc.effectivePLMLogRef(securityLog, pol.Namespace)
+		if !ok {
+			continue
+		}
+		status := lbc.resolvePLMBundleStatus(pol, ns, name, wafbundle.LogProfileBundle)
+		path := filepath.Join(lbc.wafBundlePath, wafbundle.FetchedBundleFilename(pol.Namespace, pol.Name, fmt.Sprintf("log_%d", index)))
+		if status != nil && lbc.bundleNeedsFetch(path, status) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// fetchBundleAsync launches performInitialFetch for an apBundleSource in a background
+// goroutine. It re-enqueues the policy only when the fetch succeeds; non-PLM sources
+// retry through their configured poller interval. PLM fetches use fetchBundleAsyncRaw.
 func (lbc *LoadBalancerController) fetchBundleAsync(
 	pol *conf_v1.Policy,
 	bs *conf_v1.BundleSource,
@@ -387,29 +667,54 @@ func (lbc *LoadBalancerController) fetchBundleAsync(
 	path string,
 	kind wafbundle.BundleType,
 ) {
-	go func() {
-		lbc.performInitialFetch(pol, bs, auth, path, kind)
-		lbc.AddSyncQueue(pol)
-	}()
-}
-
-// performInitialFetch synchronously fetches a single bundle and writes it to destPath.
-// On failure it sets a Warning status; the poller will retry on the next interval.
-func (lbc *LoadBalancerController) performInitialFetch(
-	pol *conf_v1.Policy,
-	bs *conf_v1.BundleSource,
-	auth *wafbundle.BundleAuth,
-	destPath string,
-	kind wafbundle.BundleType,
-) {
-	polKey := pol.Namespace + "/" + pol.Name
-	l := lbc.Logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
 	req := lbc.buildFetchRequest(bs, auth, kind)
-
 	timeout := wafbundle.DefaultTimeout
 	if bs.Timeout != nil && bs.Timeout.Duration > 0 {
 		timeout = bs.Timeout.Duration
 	}
+	lbc.fetchBundleAsyncRawWithTimeout(pol, req, path, kind, timeout)
+}
+
+// fetchBundleAsyncRaw launches an async fetch from an already-constructed Request
+// (used for PLM, where the request is built from AP CR status rather than a BundleSource).
+func (lbc *LoadBalancerController) fetchBundleAsyncRaw(
+	pol *conf_v1.Policy,
+	req wafbundle.Request,
+	path string,
+	kind wafbundle.BundleType,
+) {
+	lbc.fetchBundleAsyncRawWithTimeout(pol, req, path, kind, wafbundle.DefaultTimeout)
+}
+
+func (lbc *LoadBalancerController) fetchBundleAsyncRawWithTimeout(
+	pol *conf_v1.Policy,
+	req wafbundle.Request,
+	path string,
+	kind wafbundle.BundleType,
+	timeout time.Duration,
+) {
+	go func() {
+		if lbc.performInitialFetch(pol, req, path, kind, timeout) {
+			lbc.AddSyncQueue(pol)
+		}
+	}()
+}
+
+// performInitialFetch synchronously fetches a single bundle and writes it to destPath.
+// It reports whether the policy should be re-enqueued: true when the bundle was
+// written (or was unchanged), false when the fetch/write failed. On failure it
+// records a Warning status; PLM retries are triggered by AP resource status or
+// configured storage Secret updates, while non-PLM retries use the poller.
+func (lbc *LoadBalancerController) performInitialFetch(
+	pol *conf_v1.Policy,
+	req wafbundle.Request,
+	destPath string,
+	kind wafbundle.BundleType,
+	timeout time.Duration,
+) bool {
+	polKey := pol.Namespace + "/" + pol.Name
+	l := lbc.Logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -430,10 +735,10 @@ func (lbc *LoadBalancerController) performInitialFetch(
 				nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 			}
 		}
-		return
+		return false
 	}
 	if result.Unchanged {
-		return
+		return true
 	}
 	if err := wafbundle.WriteAtomicBundle(destPath, result.Data); err != nil {
 		msg := "WAF bundle not active: failed to write bundle to disk"
@@ -444,7 +749,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 				nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 			}
 		}
-		return
+		return false
 	}
 
 	// Update status to Valid after successful bundle write.
@@ -453,6 +758,7 @@ func (lbc *LoadBalancerController) performInitialFetch(
 			nl.Errorf(l, "Failed to update policy %s status: %v", polKey, updateErr)
 		}
 	}
+	return true
 }
 
 // handleBundleRefreshFailure surfaces refresh-path fetch failures as policy warnings.
@@ -501,6 +807,10 @@ func (lbc *LoadBalancerController) handleBundleRefreshFailure(polKey string, fet
 }
 
 // buildPollSources constructs the PollSource slice for a policy's bundle sources.
+// buildPollSources constructs the PollSource slice for a policy's bundle sources.
+// PLM sources are not represented here — PLM updates are event-driven via the
+// APPolicy/APLogConf status watch, not polled — and the CRD only exposes
+// apBundleSource for HTTPS/NIM/N1C, so no PLM entries can appear.
 func (lbc *LoadBalancerController) buildPollSources(pol *conf_v1.Policy, policyAuth *wafbundle.BundleAuth) []wafbundle.PollSource {
 	var sources []wafbundle.PollSource
 
@@ -534,6 +844,8 @@ func (lbc *LoadBalancerController) buildPollSources(pol *conf_v1.Policy, policyA
 }
 
 // buildFetchRequest constructs a wafbundle.Request from a BundleSource and resolved auth.
+// Used for HTTPS/NIM/N1C sources; PLM requests are constructed by plmFetchRequest at the
+// point where AP CR status is resolved.
 func (lbc *LoadBalancerController) buildFetchRequest(bs *conf_v1.BundleSource, auth *wafbundle.BundleAuth, kind wafbundle.BundleType) wafbundle.Request {
 	srcType := wafbundle.SourceTypeHTTPS
 	switch bs.Type {

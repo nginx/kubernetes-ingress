@@ -25,46 +25,101 @@ const (
 	invalidTimestampErrorMsg = "invalid timestamp"
 )
 
+// APIGroup is the API group of the App Protect CRDs.
+const APIGroup = "appprotect.f5.com"
+
+// APIVersion identifies the version of the appprotect.f5.com CRDs NIC watches.
+// Values: APIVersionV1beta1 (default, legacy) and APIVersionV1 (introduced by
+// the WAF Policy Controller / PLM).
+type APIVersion string
+
+const (
+	// APIVersionV1beta1 is the legacy version of the appprotect.f5.com CRDs
+	// shipped with NIC's Helm chart.
+	APIVersionV1beta1 APIVersion = "v1beta1"
+	// APIVersionV1 is the version of the appprotect.f5.com CRDs installed by
+	// the WAF Policy Controller (PLM) chart.
+	APIVersionV1 APIVersion = "v1"
+)
+
 var (
-	// PolicyGVR is the group version resource of the appprotect policy
+	// PolicyGVR is the group version resource of the appprotect policy.
+	// The Version field is mutated once at startup by SetAPIVersion.
 	PolicyGVR = schema.GroupVersionResource{
-		Group:    "appprotect.f5.com",
-		Version:  "v1beta1",
+		Group:    APIGroup,
+		Version:  string(APIVersionV1beta1),
 		Resource: "appolicies",
 	}
-	// PolicyGVK is the group version kind of the appprotect policy
+	// PolicyGVK is the group version kind of the appprotect policy.
+	// The Version field is mutated once at startup by SetAPIVersion.
 	PolicyGVK = schema.GroupVersionKind{
-		Group:   "appprotect.f5.com",
-		Version: "v1beta1",
+		Group:   APIGroup,
+		Version: string(APIVersionV1beta1),
 		Kind:    "APPolicy",
 	}
 
-	// LogConfGVR is the group version resource of the appprotect policy
+	// LogConfGVR is the group version resource of the appprotect log
+	// configuration. The Version field is mutated once at startup by
+	// SetAPIVersion.
 	LogConfGVR = schema.GroupVersionResource{
-		Group:    "appprotect.f5.com",
-		Version:  "v1beta1",
+		Group:    APIGroup,
+		Version:  string(APIVersionV1beta1),
 		Resource: "aplogconfs",
 	}
-	// LogConfGVK is the group version kind of the appprotect policy
+	// LogConfGVK is the group version kind of the appprotect log
+	// configuration. The Version field is mutated once at startup by
+	// SetAPIVersion.
 	LogConfGVK = schema.GroupVersionKind{
-		Group:   "appprotect.f5.com",
-		Version: "v1beta1",
+		Group:   APIGroup,
+		Version: string(APIVersionV1beta1),
 		Kind:    "APLogConf",
 	}
 
-	// UserSigGVR is the group version resource of the appprotect policy
+	// UserSigGVR is the group version resource of the appprotect user
+	// signature. The Version field is mutated once at startup by
+	// SetAPIVersion.
 	UserSigGVR = schema.GroupVersionResource{
-		Group:    "appprotect.f5.com",
-		Version:  "v1beta1",
+		Group:    APIGroup,
+		Version:  string(APIVersionV1beta1),
 		Resource: "apusersigs",
 	}
-	// UserSigGVK is the group version kind of the appprotect policy
+	// UserSigGVK is the group version kind of the appprotect user
+	// signature. The Version field is mutated once at startup by
+	// SetAPIVersion.
 	UserSigGVK = schema.GroupVersionKind{
-		Group:   "appprotect.f5.com",
-		Version: "v1beta1",
+		Group:   APIGroup,
+		Version: string(APIVersionV1beta1),
 		Kind:    "APUserSig",
 	}
 )
+
+// SelectAPIVersion returns the appprotect.f5.com CRD version NIC should
+// watch, based on whether the operator has opted in to the WAF Policy
+// Controller (PLM) integration.
+func SelectAPIVersion(plmEnabled bool) APIVersion {
+	if plmEnabled {
+		return APIVersionV1
+	}
+	return APIVersionV1beta1
+}
+
+// SetAPIVersion switches the package-level PolicyGVR / LogConfGVR /
+// UserSigGVR (and matching GVK values) to point at the given version.
+func SetAPIVersion(version APIVersion) error {
+	switch version {
+	case APIVersionV1, APIVersionV1beta1:
+	default:
+		return fmt.Errorf("unsupported %s API version %q", APIGroup, version)
+	}
+	v := string(version)
+	PolicyGVR.Version = v
+	PolicyGVK.Version = v
+	LogConfGVR.Version = v
+	LogConfGVK.Version = v
+	UserSigGVR.Version = v
+	UserSigGVK.Version = v
+	return nil
+}
 
 // UserSigChange holds resources that are affected by changes in UserSigs
 type UserSigChange struct {

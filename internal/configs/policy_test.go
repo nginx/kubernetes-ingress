@@ -5176,9 +5176,48 @@ func TestAddWafConfig(t *testing.T) {
 
 	for _, test := range tests {
 		polCfg := newPoliciesConfig(&fakeBV)
-		result := polCfg.addWAFConfig(context.Background(), test.wafInput, test.polKey, test.polNamespace, test.apResources)
+		result := polCfg.addWAFConfig(context.Background(), test.wafInput, test.polKey, test.polNamespace, test.apResources, false)
 		if diff := cmp.Diff(test.expected.warnings, result.warnings); diff != "" {
 			t.Errorf("policiesCfg.addWAFConfig() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 		}
+	}
+}
+
+// Under PLM an apPolicy/apLogConf resolves to the fetched bundle path instead of an
+// in-pod compiled AP resource. apResources is intentionally empty to prove resolution
+// does not depend on the in-pod compilation lookup.
+func TestAddWafConfigPLMResolvesAPRefs(t *testing.T) {
+	t.Parallel()
+
+	waf := &conf_v1.WAF{
+		Enable:   true,
+		ApPolicy: "default/dataguard-alarm",
+		SecurityLogs: []*conf_v1.SecurityLog{
+			{ApLogConf: "default/logconf", LogDest: "syslog:server=syslog-svc:514"},
+		},
+	}
+	apResources := &appProtectPolicyResources{
+		Policies: map[string]string{},
+		LogConfs: map[string]string{},
+	}
+
+	polCfg := newPoliciesConfig(&fakeBV)
+	result := polCfg.addWAFConfig(context.Background(), waf, "default/waf-policy", "default", apResources, true)
+
+	if result.isError {
+		t.Errorf("addWAFConfig() isError = true, want false; warnings: %v", result.warnings)
+	}
+	if len(result.warnings) != 0 {
+		t.Errorf("addWAFConfig() unexpected warnings: %v", result.warnings)
+	}
+	if polCfg.WAF.ApPolicy != "" {
+		t.Errorf("ApPolicy = %q, want empty under PLM", polCfg.WAF.ApPolicy)
+	}
+	if want := "/fake/bundle/path/fetched_default_waf-policy_policy.tgz"; polCfg.WAF.ApBundle != want {
+		t.Errorf("ApBundle = %q, want %q", polCfg.WAF.ApBundle, want)
+	}
+	wantLog := []string{"/fake/bundle/path/fetched_default_waf-policy_log_0.tgz syslog:server=syslog-svc:514"}
+	if diff := cmp.Diff(wantLog, polCfg.WAF.ApLogConf); diff != "" {
+		t.Errorf("ApLogConf mismatch (-want +got):\n%s", diff)
 	}
 }

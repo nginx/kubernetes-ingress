@@ -98,6 +98,8 @@ type policyOptions struct {
 	// this OIDC policy. It is reused by addOIDCConfig() when the same policy name is encountered
 	// on subsequent routes.
 	oidcConfig *version2.OIDC
+	// plmEnabled routes apPolicy/apLogConf references to PLM-fetched bundles.
+	plmEnabled bool
 }
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
@@ -823,6 +825,7 @@ func (p *policiesCfg) addWAFConfig(
 	polKey string,
 	polNamespace string,
 	apResources *appProtectPolicyResources,
+	plmEnabled bool,
 ) *validationResults {
 	l := nl.LoggerFromContext(ctx)
 	res := newValidationResults()
@@ -837,7 +840,11 @@ func (p *policiesCfg) addWAFConfig(
 		p.WAF = &version2.WAF{Enable: "off"}
 	}
 
-	if waf.ApPolicy != "" {
+	// Under PLM, apPolicy names a PLM-compiled APPolicy whose bundle is fetched to
+	// disk, so it resolves through the bundle path rather than apResources.
+	usePLMPolicyBundle := plmEnabled && waf.ApPolicy != ""
+
+	if waf.ApPolicy != "" && !plmEnabled {
 		apPolKey := waf.ApPolicy
 		if !nsutils.HasNamespace(apPolKey) {
 			apPolKey = fmt.Sprintf("%v/%v", polNamespace, apPolKey)
@@ -861,7 +868,7 @@ func (p *policiesCfg) addWAFConfig(
 		p.WAF.ApBundle = bundlePath
 	}
 
-	if waf.ApBundleSource != nil {
+	if waf.ApBundleSource != nil || usePLMPolicyBundle {
 		// Bundle was written to disk by syncPolicy() before config generation runs.
 		ns, name, _ := helpers.ParseNamespaceName(polKey)
 		filename := wafbundle.FetchedBundleFilename(ns, name, "policy")
@@ -885,7 +892,9 @@ func (p *policiesCfg) addWAFConfig(
 		for idx, loco := range waf.SecurityLogs {
 			logDest := generateString(loco.LogDest, defaultLogOutput)
 
-			if loco.ApLogConf != "" {
+			usePLMLogBundle := plmEnabled && loco.ApLogConf != ""
+
+			if loco.ApLogConf != "" && !plmEnabled {
 				logConfKey := loco.ApLogConf
 				if !nsutils.HasNamespace(logConfKey) {
 					logConfKey = fmt.Sprintf("%v/%v", polNamespace, logConfKey)
@@ -908,7 +917,7 @@ func (p *policiesCfg) addWAFConfig(
 				}
 			}
 
-			if loco.ApLogBundleSource != nil {
+			if loco.ApLogBundleSource != nil || usePLMLogBundle {
 				ns, name, _ := helpers.ParseNamespaceName(polKey)
 				filename := wafbundle.FetchedBundleFilename(ns, name, fmt.Sprintf("log_%d", idx))
 				logBundle, err := p.BundleValidator.validate(filename)
@@ -1278,7 +1287,7 @@ func generatePolicies(
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:
-				res = config.addWAFConfig(ctx, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
+				res = config.addWAFConfig(ctx, pol.Spec.WAF, key, polNamespace, policyOpts.apResources, policyOpts.plmEnabled)
 			case pol.Spec.Cache != nil:
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails)
 			case pol.Spec.CORS != nil:
