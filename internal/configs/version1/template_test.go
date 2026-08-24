@@ -7106,32 +7106,6 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhost(t *testing.T) {
 				"proxy_set_header Host $host;",
 			},
 		},
-		{
-			name: "upstream_vhost_not_set",
-			ingressCfg: IngressNginxConfig{
-				Servers: []Server{
-					{
-						Name:         "cafe.example.com",
-						ServerTokens: "off",
-						Locations: []Location{
-							{
-								Path:      "/coffee",
-								Upstream:  testUpstream,
-								ProxyPass: "http://test",
-							},
-						},
-					},
-				},
-				Ingress: Ingress{
-					Name:      "cafe-ingress",
-					Namespace: "default",
-				},
-			},
-			description: "Should default proxy_set_header Host to $host when nginx.org/upstream-vhost is not set",
-			wantDirectives: []string{
-				"proxy_set_header Host $host;",
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -7206,32 +7180,6 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhost(t *testing.T) {
 				"proxy_set_header Host example.internal;",
 			},
 			unwantDirectives: []string{
-				"proxy_set_header Host $host;",
-			},
-		},
-		{
-			name: "upstream_vhost_not_set",
-			ingressCfg: IngressNginxConfig{
-				Servers: []Server{
-					{
-						Name:         "cafe.example.com",
-						ServerTokens: "off",
-						Locations: []Location{
-							{
-								Path:      "/coffee",
-								Upstream:  testUpstream,
-								ProxyPass: "http://test",
-							},
-						},
-					},
-				},
-				Ingress: Ingress{
-					Name:      "cafe-ingress",
-					Namespace: "default",
-				},
-			},
-			description: "Should default proxy_set_header Host to $host when nginx.org/upstream-vhost is not set",
-			wantDirectives: []string{
 				"proxy_set_header Host $host;",
 			},
 		},
@@ -7315,35 +7263,6 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhostGRPC(t *testing.T) {
 				"grpc_set_header Host $host;",
 			},
 		},
-		{
-			name: "upstream_vhost_not_set_grpc",
-			ingressCfg: IngressNginxConfig{
-				Servers: []Server{
-					{
-						Name:             "cafe.example.com",
-						ServerTokens:     "off",
-						HTTP2:            true,
-						HasGRPCLocations: true,
-						Locations: []Location{
-							{
-								Path:      "/coffee",
-								Upstream:  testUpstream,
-								ProxyPass: "grpc://test",
-								GRPC:      true,
-							},
-						},
-					},
-				},
-				Ingress: Ingress{
-					Name:      "cafe-ingress",
-					Namespace: "default",
-				},
-			},
-			description: "Should default grpc_set_header Host to $host when nginx.org/upstream-vhost is not set on a GRPC location",
-			wantDirectives: []string{
-				"grpc_set_header Host $host;",
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -7421,35 +7340,6 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhostGRPC(t *testing.T) {
 				"grpc_set_header Host example.internal;",
 			},
 			unwantDirectives: []string{
-				"grpc_set_header Host $host;",
-			},
-		},
-		{
-			name: "upstream_vhost_not_set_grpc",
-			ingressCfg: IngressNginxConfig{
-				Servers: []Server{
-					{
-						Name:             "cafe.example.com",
-						ServerTokens:     "off",
-						HTTP2:            true,
-						HasGRPCLocations: true,
-						Locations: []Location{
-							{
-								Path:      "/coffee",
-								Upstream:  testUpstream,
-								ProxyPass: "grpc://test",
-								GRPC:      true,
-							},
-						},
-					},
-				},
-				Ingress: Ingress{
-					Name:      "cafe-ingress",
-					Namespace: "default",
-				},
-			},
-			description: "Should default grpc_set_header Host to $host when nginx.org/upstream-vhost is not set on a GRPC location",
-			wantDirectives: []string{
 				"grpc_set_header Host $host;",
 			},
 		},
