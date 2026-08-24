@@ -582,6 +582,7 @@ server {
     {{- end }}
     {{- if $p.ProxyLocation }}
     location = {{ $p.ProxyLocation }} {
+        internal;
         auth_oidc off;
         client_max_body_size 0;
         proxy_pass $oidc_idp_request_uri;

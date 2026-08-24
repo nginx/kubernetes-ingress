@@ -4665,6 +4665,7 @@ server {
         return 200 "You have been logged out.\n";
     }
     location = /_oidc_idp_oidc_default_my_provider_default_cafe {
+        internal;
         auth_oidc off;
         client_max_body_size 0;
         proxy_pass $oidc_idp_request_uri;
