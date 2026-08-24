@@ -5,7 +5,7 @@
 apiVersion: k8s.nginx.org/v1
 kind: Policy
 metadata:
-  name: test19-policy
+  name: test13-policy
 spec:
   oidcNative:
     issuer: https://keycloak.example.com/realms/master
@@ -18,7 +18,7 @@ kind: Ingress
 metadata:
   name: webapp
   annotations:
-    nginx.com/policies: "test19-policy"
+    nginx.com/policies: "test13-policy"
 spec:
   ingressClassName: nginx
   tls:
