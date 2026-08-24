@@ -7,6 +7,7 @@ spec:
     issuer: https://keycloak.example.com/realms/master
     clientID: nginx-plus
     clientSecret: oidcnative-secret
+    trustedCertSecret: keycloak-ca-secret
     configURL: https://keycloak.default.svc.cluster.local/realms/master/.well-known/openid-configuration
     scope: openid
     sslVerify: true
