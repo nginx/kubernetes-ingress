@@ -1026,8 +1026,12 @@ const (
 //   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 //   - N1C: pull a named managed policy from NGINX One Console via its API.
 //
-// Type-specific field requirements (name required for NIM/N1C, namespace
-// required for N1C) are enforced by the controller's Go validation layer.
+// Type-specific field requirements (url required; name required for NIM/N1C;
+// namespace required for N1C) are enforced by the controller's Go validation layer.
+//
+// To reference bundles compiled by the F5 WAF Policy Controller (PLM), use the
+// apPolicy and apLogConf fields on the parent WAF resource. NIC resolves those
+// references as PLM bundles when the -plm-storage-url flag is set.
 type BundleSource struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
 	// +kubebuilder:default=HTTPS
@@ -1056,22 +1060,23 @@ type BundleSource struct {
 	// +optional
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
-	// Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
 	Name string `json:"name,omitempty"`
 
-	// Namespace is the namespace/tenant on the management plane. Required for N1C only.
+	// Namespace is the namespace/tenant on the management plane. Required for N1C; forbidden otherwise.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 
 	// EnablePolling enables background polling to automatically detect and fetch
-	// updated bundles at the configured PollInterval. When false, the bundle is
-	// fetched once on policy creation or update; subsequent updates require
-	// modifying the Policy resource to trigger a new fetch.
-	// +kubebuilder:validation:Required
-	EnablePolling bool `json:"enablePolling"`
+	// updated bundles at the configured PollInterval. Defaults to false. When
+	// false, the bundle is fetched once on policy creation or update; subsequent
+	// updates require modifying the Policy resource to trigger a new fetch.
+	// +kubebuilder:default:=false
+	// +optional
+	EnablePolling bool `json:"enablePolling,omitempty"`
 
 	// PollInterval is how often to re-fetch the bundle when enablePolling is true.
 	// Minimum 1m. Default 5m. Ignored when enablePolling is false.

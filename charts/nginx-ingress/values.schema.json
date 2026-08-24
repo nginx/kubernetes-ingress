@@ -291,6 +291,38 @@
                 "trace"
               ]
             },
+            "plmStorage": {
+              "type": "object",
+              "default": {},
+              "title": "Configuration for fetching bundles compiled by F5 WAF Policy Controller",
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "default": "",
+                  "title": "SeaweedFS S3 endpoint; an empty value disables PLM support"
+                },
+                "credentialsSecret": {
+                  "type": "string",
+                  "default": "",
+                  "title": "namespace/name Secret containing the SeaweedFS admin secret"
+                },
+                "caSecret": {
+                  "type": "string",
+                  "default": "",
+                  "title": "Optional namespace/name Secret containing ca.crt for SeaweedFS TLS verification"
+                },
+                "clientSSLSecret": {
+                  "type": "string",
+                  "default": "",
+                  "title": "Optional namespace/name Secret containing tls.crt and tls.key for SeaweedFS mTLS"
+                },
+                "insecureSkipVerify": {
+                  "type": "boolean",
+                  "default": false,
+                  "title": "Disable SeaweedFS TLS verification; for development and testing only"
+                }
+              }
+            },
             "volumes": {
               "type": "array",
               "default": [

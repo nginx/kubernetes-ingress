@@ -633,7 +633,10 @@ func validateBundleSourceType(bs *v1.BundleSource, srcType v1.BundleSourceType, 
 		}
 	default:
 		allErrs = append(allErrs, field.NotSupported(fieldPath.Child("type"), srcType,
-			[]string{string(v1.BundleSourceTypeHTTPS), string(v1.BundleSourceTypeNIM), string(v1.BundleSourceTypeN1C)}))
+			[]string{
+				string(v1.BundleSourceTypeHTTPS), string(v1.BundleSourceTypeNIM),
+				string(v1.BundleSourceTypeN1C),
+			}))
 		return allErrs, true
 	}
 

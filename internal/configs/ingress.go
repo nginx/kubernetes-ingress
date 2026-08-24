@@ -345,6 +345,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				defaultCABundle: ncp.staticParams.DefaultCABundle,
 				replicas:        ncp.ingressControllerReplicas,
 				oidcPolicyName:  "",
+				plmEnabled:      ncp.staticParams.PLMEnabled,
 			},
 			bundleValidator,
 		)
