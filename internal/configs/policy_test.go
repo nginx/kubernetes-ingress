@@ -5683,6 +5683,7 @@ func TestAddWafConfigPLMResolvesAPRefs(t *testing.T) {
 		t.Errorf("ApLogConf mismatch (-want +got):\n%s", diff)
 	}
 }
+
 func TestOIDCNativeDefaultCAAndLocations(t *testing.T) {
 	t.Parallel()
 	ownerDetails := policyOwnerDetails{
