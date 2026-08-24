@@ -68,13 +68,13 @@ RUN --mount=from=busybox:musl,src=/bin/,dst=/bin/ \
 	&& mkdir dos \
 	&& mv app-protect-dos-10.repo nap-dos-13.sources dos/ \
 	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s;%VERSION%;${DOS_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${DOS_PACKAGE_REPO};g" -e "s;${DOS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/nap-dos-13.sources \
-	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${DOS_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${DOS_PACKAGE_REPO};g" -e "s;${DOS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/app-protect-dos-10.repo \
+	&& DOS_PLUS_VERSION=${NGINX_PLUS_VERSION%%.*} sed -i -e "s/=0/=1/" -e "1,8s;/rhel;/${DOS_PLUS_VERSION}/rhel;" -e "1,8s;/centos;/${DOS_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${DOS_PACKAGE_REPO};g" -e "s;${DOS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" dos/app-protect-dos-10.repo \
 	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" debian-plus-13.sources \
 	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${WAF_PACKAGE_REPO};g" -e "s;${WAF_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nap-waf-13.sources nap-waf-v5-13.sources \
 	&& sed -i -e "s;%VERSION%;${NGINX_PLUS_VERSION};g" -e "s;pkgs.nginx.com;${AGENT_PACKAGE_REPO};g" -e "s;${AGENT_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" debian-agent-13.sources \
 	&& sed -i -e "s/=0/=1/" app-protect-v5.repo \
-	&& sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nginx-plus-10.repo \
-	&& sed -i -e "s/=0/=1/" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${WAF_PACKAGE_REPO};g" -e "s;${WAF_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" app-protect-10.repo \
+	&& sed -i -e "s/=0/=1/" -e "1,8s;/rhel;/${NGINX_PLUS_VERSION}/rhel;" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${PLUS_PACKAGE_REPO};g" -e "s;${PLUS_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" nginx-plus-10.repo \
+	&& sed -i -e "s/=0/=1/" -e "1,8s;/rhel;/${NGINX_PLUS_VERSION}/rhel;" -e "1,8s;/centos;/${NGINX_PLUS_VERSION}/centos;" -e "s;pkgs.nginx.com;${WAF_PACKAGE_REPO};g" -e "s;${WAF_PACKAGE_REPO}/app-protect-security-updates;pkgs.nginx.com/app-protect-security-updates;g" app-protect-10.repo \
 	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${AGENT_PACKAGE_REPO};g" nginx-agent.repo \
 	&& sed -i -e "s/=0/=1/" -e "s;pkgs.nginx.com;${WAF_PACKAGE_REPO};g" app-protect-v5.repo \
 	&& mv dos/* . \
