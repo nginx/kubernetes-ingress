@@ -253,7 +253,6 @@ jobs:
     permissions:
       contents: write # to modify the release
       issues: write # to close milestone
-      actions: read # for slack notification
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
