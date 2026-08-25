@@ -49,6 +49,7 @@ jobs:
 
       - name: Publish images
         run: |
+          cat ~/.docker/config.json
           export CONFIG_PATH=.github/config/config-plus-nginx-lts-test
           export SOURCE_REGISTRY=docker-mgmt.nginx.com
           export SOURCE_TAG=5.5.4
