@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eox pipefail
+set -eo pipefail
 
 # shellcheck disable=SC2155
 export ROOTDIR=$(git rev-parse --show-toplevel || echo ".")
