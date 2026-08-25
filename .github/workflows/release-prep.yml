@@ -62,6 +62,7 @@ jobs:
       image_matrix_nap: ${{ steps.vars.outputs.image_matrix_nap }}
       date: ${{ steps.vars.outputs.date }}
       k8s_version: ${{ steps.vars.outputs.k8s_version }}
+      chart_version: ${{ steps.vars.outputs.chart_version }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -90,6 +91,8 @@ jobs:
           echo "date=${date}" >> $GITHUB_OUTPUT
           k8s_version=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | cut -d '?' -f 2 | tr -d ' =')
           echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
+          source .github/data/version.txt
+          echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
 
   build-artifacts:
@@ -187,6 +190,23 @@ jobs:
             export DRY_RUN=true
           fi
           .github/scripts/copy-images.sh
+
+  stage-helm-chart:
+    name: Build & Stage Helm Chart
+    if: github.repository == 'nginx/kubernetes-ingress-internal' && (!cancelled() && (needs.push-prep-images.result == 'success' || needs.push-prep-images.result == 'skipped') && !contains(inputs.skip_step, 'stage-helm-chart'))
+    needs: [variables, push-prep-images]
+    permissions:
+      contents: read
+      id-token: write # for getting ID token to login to docker-mgmt-test.nginx.com
+    uses: ./.github/workflows/publish-helm.yml
+    with:
+      branch: ${{ inputs.release_branch }}
+      ic_version: ${{ inputs.nic_version }}
+      chart_version: ${{ needs.variables.outputs.chart_version }}
+      nginx_helm_repo: false
+      runner: "aw-ubuntu-24.04-amd64"
+      oci_registries: "oci://docker-mgmt-test.nginx.com/nginx-ic/helm"
+    secrets: inherit
 
   binaries:
     name: Process Binaries
