@@ -57,7 +57,6 @@ there, never from the dev registry.
 | `lint-format.yml` | PR to `main`, merge_group | goimports, gofumpt, golangci-lint, actionlint |
 | `regression.yml` | Daily cron (03:00 UTC), manual | Multi-K8s-version regression |
 | `image-promotion.yml` | Push to `main`/`release-*` | Post-merge image tagging + scanning |
-| `release.yml` | Manual dispatch | Release orchestrator; `mode` input selects `prep`, `publish` or `all` |
 | `build-base-images.yml` | Weekday cron (04:30 UTC) | Rebuilds all base images |
 
 ### Release Sub-Workflows (called by `release.yml` / LTS releases)
