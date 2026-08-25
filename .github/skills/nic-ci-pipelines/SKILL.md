@@ -60,18 +60,20 @@ there, never from the dev registry.
 | `release.yml` | Manual dispatch | Release orchestrator; `mode` input selects `prep`, `publish` or `all` |
 | `build-base-images.yml` | Weekday cron (04:30 UTC) | Rebuilds all base images |
 
-### Release Sub-Workflows (called by `release.yml`)
+### Release Sub-Workflows (called by `release.yml` / LTS releases)
 
 | Workflow | Purpose |
 | --- | --- |
 | `release-prep.yml` | Stage 1: build artifacts, stage images in the test registry, upload tarballs, tag, attach release assets |
 | `release-publish.yml` | Stage 2: copy staged images to public registries, publish Helm chart and GitHub release |
+| `release-prep-lts.yml` | LTS Stage 1: build LTS Plus images and binaries, stage in test registry, upload tarballs |
+| `release-publish-lts.yml` | LTS Stage 2: copy staged LTS images to public registries, publish LTS Helm chart and GitHub release |
 | `oss-release.yml` | OSS image release (called by `release-publish.yml`) |
 | `plus-release.yml` | Plus/NAP image release (called by `release-publish.yml`) |
+| `plus-release-lts.yml` | LTS Plus image release (called by `release-publish-lts.yml` and `update-docker-images.yml`) |
 | `publish-helm.yml` | Helm chart publishing to registry |
 
-`release-prep.yml` and `release-publish.yml` also accept `workflow_dispatch`, so
-either stage can be run on its own.
+`release-prep.yml`, `release-publish.yml`, `release-prep-lts.yml`, and `release-publish-lts.yml` also accept `workflow_dispatch`, so either stage can be run on its own.
 
 ### Reusable Build Workflows (called via `workflow_call`)
 

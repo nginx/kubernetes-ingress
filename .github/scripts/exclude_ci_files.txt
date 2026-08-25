@@ -40,11 +40,14 @@
 .github/workflows/oss-release.yml
 .github/workflows/patch-image.yml
 .github/workflows/plus-release.yml
+.github/workflows/plus-release-lts.yml
 .github/workflows/publish-helm.yml
 .github/workflows/regression.yml
 .github/workflows/release-pr.yml
 .github/workflows/release-prep.yml
+.github/workflows/release-prep-lts.yml
 .github/workflows/release-publish.yml
+.github/workflows/release-publish-lts.yml
 .github/workflows/retag-images.yml
 .github/workflows/scorecards.yml
 .github/workflows/single-image-regression.yml

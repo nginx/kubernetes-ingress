@@ -24,23 +24,6 @@ on:
         description: "Comma separated list of jobs to skip"
         type: string
         required: false
-  workflow_call:
-    inputs:
-      nic_version:
-        required: true
-        type: string
-      source_tag:
-        required: false
-        type: string
-      release_branch:
-        required: true
-        type: string
-      dry_run:
-        type: boolean
-        default: false
-      skip_step:
-        type: string
-        required: false
 
 defaults:
   run:
@@ -203,7 +186,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh "docker-mgmt-test.nginx.com"
+          .github/scripts/copy-images.sh
 
   binaries:
     name: Process Binaries
@@ -250,7 +233,7 @@ jobs:
   azure-upload:
     if: github.repository == 'nginx/kubernetes-ingress-internal' && (! cancelled() && ! failure() && ! contains(inputs.skip_step, 'azure-upload'))
     name: Upload binaries to Azure
-    runs-on: ubuntu-24.04
+    runs-on: aw-ubuntu-24.04-amd64
     needs: [variables, binaries]
     permissions:
       id-token: write
