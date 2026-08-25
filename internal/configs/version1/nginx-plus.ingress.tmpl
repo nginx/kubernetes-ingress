@@ -424,7 +424,7 @@ server {
 		grpc_connect_timeout {{$location.ProxyConnectTimeout}};
 		grpc_read_timeout {{$location.ProxyReadTimeout}};
 		grpc_send_timeout {{$location.ProxySendTimeout}};
-		grpc_set_header Host $host;
+		grpc_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else}}$host{{end}};
 		grpc_set_header X-Real-IP $remote_addr;
 		{{- if not $location.DisableForwardedHeaders }}
 		grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -484,7 +484,7 @@ server {
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
 		{{- end}}
-		proxy_set_header Host $host;
+		proxy_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else}}$host{{end}};
 		proxy_set_header X-Real-IP $remote_addr;
 		{{- if not $location.DisableForwardedHeaders }}
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
