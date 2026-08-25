@@ -12,7 +12,7 @@ on:
       source_registry:
         required: false
         type: string
-        default: "gcr.io"
+        default: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
       source_tag:
         required: true
         type: string
@@ -37,7 +37,7 @@ on:
       source_registry:
         required: false
         type: string
-        default: "gcr.io/"
+        default: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
       source_tag:
         required: true
         type: string
@@ -128,6 +128,7 @@ jobs:
           vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
           secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
           env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
@@ -136,6 +137,7 @@ jobs:
           token_format: access_token
           workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
           service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -143,6 +145,7 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Get Id Token
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -159,7 +162,8 @@ jobs:
           echo "hostname=$hostname" >> $GITHUB_OUTPUT
 
       - name: Login to Source Management Registry
-        if: contains(inputs.source_registry, 'docker-mgmt')
+        if: contains(inputs.source_registry, 'docker-mgmt-test')
+        id: docker-mgmt-test-auth
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ${{ steps.registry-hostname.outputs.hostname }}
@@ -167,6 +171,7 @@ jobs:
           password: ${{ github.actor }}
 
       - name: Login to NGINX Registry
+        id: docker-mgmt-auth
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: docker-mgmt.nginx.com
@@ -178,6 +183,8 @@ jobs:
           export CONFIG_PATH=.github/config/config-plus-nginx-lts
           export SOURCE_TAG=${{ inputs.source_tag }}
           export TARGET_TAG=${{ inputs.target_tag }}
+          export SOURCE_OPTS="--src-registry-token ${{ steps.docker-mgmt-test-auth.outputs.access_token }}"
+          export TARGET_OPTS="--dest-registry-token ${{ steps.docker-mgmt-auth.outputs.access_token }}"
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
