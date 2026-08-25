@@ -28,7 +28,7 @@ We value community input and would love to see you at the next community call. A
 
 **Passcode:** `982193`
 
-**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Monday.
+**When**: 16:00 GMT / [Convert to your timezone](https://dateful.com/convert/gmt?t=16), every other Friday
 
 | **Community Call Dates** |
 | ------------------------ |
