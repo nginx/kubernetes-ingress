@@ -2410,10 +2410,10 @@ server {
 # configuration for default/cafe-ingress
 keyval_zone zone=oidc_sessions_oidc_default_oidc_native_policy_default_cafe_ingress:10m;
 oidc_provider oidc_default_oidc_native_policy_default_cafe_ingress {
-    issuer https://keycloak.example.com/realms/master;
-    client_id client-id;
-    redirect_uri /oidc_callback_oidc_default_oidc_native_policy_default_cafe_ingress;
-    cookie_name NGX_OIDC_oidc_default_oidc_native_policy_default_cafe_ingress;
+    issuer "https://keycloak.example.com/realms/master";
+    client_id "client-id";
+    redirect_uri "/oidc_callback_oidc_default_oidc_native_policy_default_cafe_ingress";
+    cookie_name "NGX_OIDC_oidc_default_oidc_native_policy_default_cafe_ingress";
     session_store oidc_sessions_oidc_default_oidc_native_policy_default_cafe_ingress;
     proxy_location /_oidc_idp_oidc_default_oidc_native_policy_default_cafe_ingress;
 }
@@ -2449,8 +2449,8 @@ server {
         client_max_body_size 0;
         proxy_pass $oidc_idp_request_uri;
         proxy_ssl_server_name on;
-        proxy_ssl_name keycloak.example.com;
-        proxy_set_header Host keycloak.example.com;
+        proxy_ssl_name "keycloak.example.com";
+        proxy_set_header Host "keycloak.example.com";
         proxy_ssl_verify on;
         proxy_ssl_verify_depth 1;
         proxy_buffers 8 32k;
