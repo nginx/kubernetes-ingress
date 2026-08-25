@@ -31,27 +31,12 @@ jobs:
             let id_token = await core.getIDToken()
             core.setOutput('id_token', id_token)
 
-      - name: Login to Test Management Registry
-        id: docker-mgmt-test-auth
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: docker-mgmt-test.nginx.com
-          username: ${{ steps.idtoken.outputs.id_token }}
-          password: ${{ github.actor }}
-
-      - name: Login to NGINX Registry
-        id: docker-mgmt-auth
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: docker-mgmt.nginx.com
-          username: ${{ steps.idtoken.outputs.id_token }}
-          password: ${{ github.actor }}
-
       - name: Publish images
         run: |
-          cat ~/.docker/config.json
           export CONFIG_PATH=.github/config/config-plus-nginx-lts-test
           export SOURCE_REGISTRY=docker-mgmt.nginx.com
           export SOURCE_TAG=5.5.4
           export TARGET_TAG=5.5.4
+          export SOURCE_OPTS="--src-creds ${{ steps.idtoken.outputs.id_token }}:${{ github.actor }}"
+          export TARGET_OPTS="--dest-creds ${{ steps.idtoken.outputs.id_token }}:${{ github.actor }}"
           .github/scripts/copy-images.sh
