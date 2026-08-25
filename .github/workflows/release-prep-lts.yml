@@ -45,8 +45,8 @@ permissions:
 jobs:
   variables:
     name: Set Variables
-    if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04-amd64
+    if: github.repository == 'nginx/kubernetes-ingress-internal'
+    runs-on: aw-ubuntu-24.04-amd64
     permissions:
       contents: read
     outputs:
@@ -127,7 +127,7 @@ jobs:
     name: Push Prepped Images to Test Registry
     runs-on: aw-ubuntu-24.04-amd64
     needs: [variables, build-artifacts]
-    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'push-prep-images'))
+    if: github.repository == 'nginx/kubernetes-ingress-internal' && (!cancelled() && (needs.build-artifacts.result == 'success' || (needs.build-artifacts.result == 'skipped' && inputs.dry_run)) && !contains(inputs.skip_step, 'push-prep-images'))
     permissions:
       contents: read
       id-token: write

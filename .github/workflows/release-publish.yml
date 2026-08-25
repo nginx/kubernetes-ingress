@@ -329,7 +329,7 @@ jobs:
   release-assets:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure())
     name: Upload binaries GitHub Release
-    runs-on: ubuntu-24.04-amd64
+    runs-on: ubuntu-24.04
     needs: [variables]
     permissions:
       id-token: write
@@ -391,7 +391,7 @@ jobs:
   github-release:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! contains(inputs.skip_step, 'github-release'))
     name: Publish release to GitHub
-    runs-on: ubuntu-24.04-amd64
+    runs-on: ubuntu-24.04
     needs: [tag, release-assets]
     permissions:
       contents: write # to modify the release
@@ -403,9 +403,6 @@ jobs:
         with:
           ref: ${{ inputs.release_branch }}
 
-      # Runs before any side effect: a missing draft has to abort the job before
-      # the milestone is closed, otherwise the run goes green having published
-      # nothing. release-prep.yml is what creates and populates the draft.
       - name: Get Github release id
         id: release-id
         env:

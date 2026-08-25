@@ -25,21 +25,20 @@ image-promotion.yml (post-merge)
   -> Trivy + DockerScout security scans
   -> publishes edge Helm charts
 
-release.yml (manual dispatch, mode: prep | publish | all)
-  -> release-prep.yml            (mode: prep / all)
-       -> build-artifacts.yml    (reusable)
-       -> pushes prepped images to docker-mgmt-test.nginx.com
-       -> tarballs -> Azure blob storage
-       -> creates the vX.Y.Z tag
-       -> attaches assets to the GitHub release draft
-  -> release-publish.yml         (mode: publish / all, needs prep)
-       -> oss-release.yml        (source_registry: docker-mgmt-test.nginx.com)
-       -> plus-release.yml       (source_registry: docker-mgmt-test.nginx.com)
-       -> publish-helm.yml
-       -> certify-ubi-image.yml
-       -> triggers nginx-ingress-helm-operator sync
-       -> publishes the GitHub release draft
-       -> marketplace pushes (AWS, Azure, GCP)
+release-prep.yml (dispatchable)
+      -> build-artifacts.yml    (reusable)
+      -> pushes prepped images to docker-mgmt-test.nginx.com
+      -> tarballs -> Azure blob storage
+      -> creates the vX.Y.Z tag
+      -> attaches assets to the GitHub release draft
+release-publish.yml (dispatchable)
+      -> oss-release.yml        (source_registry: docker-mgmt-test.nginx.com)
+      -> plus-release.yml       (source_registry: docker-mgmt-test.nginx.com)
+      -> publish-helm.yml
+      -> certify-ubi-image.yml
+      -> triggers nginx-ingress-helm-operator sync
+      -> publishes the GitHub release draft
+      -> marketplace pushes (AWS, Azure, GCP)
 ```
 
 The two stages are independently dispatchable, so a failed publish can be

@@ -126,8 +126,15 @@ jobs:
       - name: Get Registry Hostname
         id: registry-hostname
         run: |
-          hostname=$(echo "${{ inputs.oci_registries }}" | sed 's|oci://||' | awk -F/ '{print $1}')
-          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+          # Extract the hostname from the OCI registry URL
+          IFS=',' read -ra REGISTRIES <<< "${{ inputs.oci_registries }}"
+          for registry in "${REGISTRIES[@]}"; do
+            if [[ "$registry" == oci://docker-mgmt* ]]; then
+              hostname=$(echo "$registry" | sed 's|oci://||' | awk -F/ '{print $1}')
+              echo "hostname=$hostname" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
         if: contains(inputs.oci_registries, 'docker-mgmt')
 
       - name: Login to Helm Staging Registry

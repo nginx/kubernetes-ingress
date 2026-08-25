@@ -187,7 +187,7 @@ jobs:
   release-assets:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure())
     name: Upload binaries GitHub Release
-    runs-on: ubuntu-24.04-amd64
+    runs-on: ubuntu-24.04
     needs: [variables]
     permissions:
       id-token: write
@@ -248,7 +248,7 @@ jobs:
   github-release:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! contains(inputs.skip_step, 'github-release'))
     name: Publish release to GitHub
-    runs-on: ubuntu-24.04-amd64
+    runs-on: ubuntu-24.04
     needs: [tag, release-assets]
     permissions:
       contents: write # to modify the release
