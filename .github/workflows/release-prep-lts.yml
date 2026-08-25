@@ -188,7 +188,18 @@ jobs:
 
   stage-helm-chart:
     name: Build & Stage Helm Chart
-    if: github.repository == 'nginx/kubernetes-ingress-internal' && (!cancelled() && (needs.push-prep-images.result == 'success' || needs.push-prep-images.result == 'skipped') && !contains(inputs.skip_step, 'stage-helm-chart'))
+    # !cancelled() drops the implicit success() gate, so both dependencies are
+    # asserted here. A 'skipped' push-prep-images is only acceptable when the
+    # operator asked for that skip -- an unqualified skip would also cover the
+    # case where build-artifacts failed and left the push job skipped.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress-internal' && (
+      !cancelled() &&
+      needs.variables.result == 'success' &&
+      (needs.push-prep-images.result == 'success' ||
+      (needs.push-prep-images.result == 'skipped' && contains(inputs.skip_step, 'push-prep-images'))) &&
+      !contains(inputs.skip_step, 'stage-helm-chart')
+      )
     needs: [variables, push-prep-images]
     permissions:
       contents: read

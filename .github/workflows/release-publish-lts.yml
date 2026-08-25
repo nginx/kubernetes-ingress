@@ -191,7 +191,7 @@ jobs:
     needs: [variables]
     permissions:
       id-token: write
-      contents: read
+      contents: write # to modify the release
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -246,7 +246,20 @@ jobs:
           fi
 
   github-release:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! contains(inputs.skip_step, 'github-release'))
+    # !cancelled() suppresses the implicit success() gate that `needs` would
+    # otherwise apply, so both dependency results have to be asserted here.
+    # Without them a failed tag push or asset upload would still flip the draft
+    # to public, publishing a release with no git tag or no binaries. 'success'
+    # is the only valid state for either: neither job honours skip_step, and
+    # both still report success under dry_run. Asserting != 'failure' would not
+    # be enough -- tag is left 'skipped' when release-gate fails.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      !contains(inputs.skip_step, 'github-release') &&
+      needs.tag.result == 'success' &&
+      needs.release-assets.result == 'success'
+      )
     name: Publish release to GitHub
     runs-on: ubuntu-24.04
     needs: [tag, release-assets]
@@ -261,7 +274,8 @@ jobs:
 
       # Runs before any side effect: a missing draft has to abort the job before
       # the milestone is closed, otherwise the run goes green having published
-      # nothing. release-prep-lts.yml is what creates and populates the draft.
+      # nothing. update-release-draft.yml is what creates and populates the
+      # draft -- neither release stage does.
       - name: Get Github release id
         id: release-id
         env:
@@ -277,7 +291,7 @@ jobs:
             if ${{ inputs.dry_run }}; then
               echo "::warning::No Github release found for ${{ inputs.lts_version }}; continuing, DRY_RUN"
             else
-              echo "::error::No Github release found for ${{ inputs.lts_version }}. Run the prep stage first."
+              echo "::error::No Github release found for ${{ inputs.lts_version }}. Run update-release-draft.yml to create the draft first."
               exit 1
             fi
           fi

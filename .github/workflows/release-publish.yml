@@ -43,8 +43,7 @@ defaults:
 #
 # Deliberately shared with release-prep.yml: both stages are directly
 # dispatchable, and a publish run must not copy a version while prep is still
-# writing it to the staging registry. release.yml must NOT join this group --
-# as the calling workflow it would hold the group and deadlock its own children.
+# writing it to the staging registry.
 concurrency:
   group: ${{ inputs.release_branch }}-release
   cancel-in-progress: false
@@ -141,7 +140,7 @@ jobs:
       az_mktpl_registry: false
       source_registry: ${{ inputs.source_registry }}
       source_tag: ${{ inputs.nic_version }}
-      target_tag: ${{ inputs.nic_version }}
+      target_tag: ${{ matrix.tag }}
       branch: ${{ inputs.release_branch }}
       dry_run: ${{ inputs.dry_run }}
     permissions:
@@ -196,7 +195,7 @@ jobs:
           image: quay.io/nginx/nginx-ingress:${{ inputs.nic_version }}-ubi
           project_id: ${{ env.PYXIS_CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ env.PYXIS_TOKEN }}
-          preflight_version: 1.19.2 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
+          preflight_version: 1.21.0 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
 
   operator:
     # operator_version has no sensible default, so skip rather than dispatch the
@@ -286,10 +285,10 @@ jobs:
     name: Create Tag on release branch in NIC repo
     runs-on: ubuntu-24.04
     needs: [release-gate]
-    # !cancelled() makes this job run even when a dependency failed, so every
+    # !cancelled() makes this job run even when a dependency failed, so the
     # dependency result has to be asserted explicitly or a tag would be pushed
-    # for a failed prep run. binaries must be asserted directly: azure-upload is
-    # merely 'skipped' when binaries fails, which would otherwise be accepted.
+    # for a run whose artifacts never published. release-gate is the aggregate
+    # that already asserts every primary artifact, so asserting it is enough.
     if: >-
       github.repository == 'nginx/kubernetes-ingress' && (
       !cancelled() &&
@@ -389,7 +388,20 @@ jobs:
 
 
   github-release:
-    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! contains(inputs.skip_step, 'github-release'))
+    # !cancelled() suppresses the implicit success() gate that `needs` would
+    # otherwise apply, so both dependency results have to be asserted here.
+    # Without them a failed tag push or asset upload would still flip the draft
+    # to public, publishing a release with no git tag or no binaries. 'success'
+    # is the only valid state for either: neither job honours skip_step, and
+    # both still report success under dry_run. Asserting != 'failure' would not
+    # be enough -- tag is left 'skipped' when release-gate fails.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      !contains(inputs.skip_step, 'github-release') &&
+      needs.tag.result == 'success' &&
+      needs.release-assets.result == 'success'
+      )
     name: Publish release to GitHub
     runs-on: ubuntu-24.04
     needs: [tag, release-assets]
@@ -418,7 +430,7 @@ jobs:
             if ${{ inputs.dry_run }}; then
               echo "::warning::No Github release found for v${{ inputs.nic_version }}; continuing, DRY_RUN"
             else
-              echo "::error::No Github release found for v${{ inputs.nic_version }}. Run the prep stage first."
+              echo "::error::No Github release found for v${{ inputs.nic_version }}. Run update-release-draft.yml to create the draft first."
               exit 1
             fi
           fi
