@@ -1064,7 +1064,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 	}
 
 	_, polName := ParseResourceReference(polKey, polNamespace)
-	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s", polNamespace, polName, ownerDetails.parentNamespace, ownerDetails.parentName))
+	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s_%s", polNamespace, polName, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.parentType))
 
 	redirectURI := oidcNative.RedirectURI
 	if redirectURI == "" {
