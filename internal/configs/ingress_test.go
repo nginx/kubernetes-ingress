@@ -1288,7 +1288,7 @@ func TestGenerateNginxCfgForOIDCNative(t *testing.T) {
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 	expected := createExpectedConfigForCafeIngressEx(isPlus)
 
-	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress"
+	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress_ing"
 	expected.OIDCProviders = []version2.OIDCProvider{
 		{
 			Name:            providerName,
@@ -3136,7 +3136,7 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithOIDCNative(t *testing.T)
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
 	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
 
-	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress_master"
+	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress_master_ing"
 	expected.OIDCProviders = []version2.OIDCProvider{
 		{
 			Name:            providerName,

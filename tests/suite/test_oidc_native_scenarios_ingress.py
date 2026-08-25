@@ -309,8 +309,8 @@ class TestOIDCNativeIngressScenarios:
             master_name = resources["ingresses"][0]
             conf = ingress_conf(kube_apis, ingress_controller_prerequisites, test_namespace, master_name)
             assert conf.count("oidc_provider ") == 2, "expected two oidc_provider blocks"
-            assert "client_id nginx-plus;" in conf
-            assert "client_id nginx-plus-2;" in conf
+            assert 'client_id "nginx-plus";' in conf
+            assert 'client_id "nginx-plus-2";' in conf
         finally:
             cleanup_ingress_scenario_resources(kube_apis, test_namespace, resources)
 
@@ -334,8 +334,8 @@ class TestOIDCNativeIngressScenarios:
                 ingress_conf(kube_apis, ingress_controller_prerequisites, test_namespace, name)
                 for name in resources["ingresses"]
             ]
-            assert any("client_id nginx-plus;" in c for c in confs)
-            assert any("client_id nginx-plus-2;" in c for c in confs)
+            assert any('client_id "nginx-plus";' in c for c in confs)
+            assert any('client_id "nginx-plus-2";' in c for c in confs)
         finally:
             cleanup_ingress_scenario_resources(kube_apis, test_namespace, resources)
 
