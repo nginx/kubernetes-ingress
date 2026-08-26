@@ -60,7 +60,11 @@ ADD --link --chown=101:0 https://raw.githubusercontent.com/nginx/k8s-common/main
 
 RUN --mount=from=busybox:musl,src=/bin/,dst=/bin/ \
     printf "%s\n" "Acquire::https::pkgs.nginx.com::User-Agent k8s-ic-$IC_VERSION${BUILD_OS##debian-plus}-apt;" >> 90pkgs-nginx \
-	&& if ! grep -q "${PLUS_PACKAGE_REPO}" 90pkgs-nginx ; then cat 90pkgs-nginx | sed -e "s/pkgs.nginx.com/${PLUS_PACKAGE_REPO}/g" >> 90pkgs-nginx; fi \
+    && for i in ${PLUS_PACKAGE_REPO} ${WAF_PACKAGE_REPO} ${DOS_PACKAGE_REPO}; do \
+            if ! grep -q "${i}" 90pkgs-nginx; then \
+              cat 90pkgs-nginx | sed -e "s/pkgs.nginx.com/${i}/g" >> 90pkgs-nginx; \
+            fi; \
+       done \
 	&& printf "%s\n" "user_agent=k8s-ic-$IC_VERSION${BUILD_OS##ubi*plus}-dnf" | tee -a nginx-plus-*.repo \
 	&& mkdir dos \
 	&& mv app-protect-dos-10.repo nap-dos-13.sources dos/ \
