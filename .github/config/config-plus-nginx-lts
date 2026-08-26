@@ -5,10 +5,3 @@ export PUBLISH_WAF=false
 export PUBLISH_DOS=false
 export PUBLISH_WAF_DOS=false
 export TARGET_PLUS_IMAGE_PREFIX=nginx-ic/lts/nginx-plus-ingress
-# LTS prep stages into docker-mgmt-test under the lts/ prefix (see
-# config-plus-nginx-lts-test), so when copying from a docker-mgmt registry the
-# source prefix has to match. Without this the copy would fall back to the
-# default nginx-ic/nginx-plus-ingress and fail to find the staged image.
-if [[ "${ARG_SOURCE_REGISTRY}" =~ docker-mgmt ]] || [[ "${SOURCE_REGISTRY}" =~ docker-mgmt ]]; then
-    export SOURCE_PLUS_IMAGE_PREFIX=nginx-ic/lts/nginx-plus-ingress
-fi
