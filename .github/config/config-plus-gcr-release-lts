@@ -5,3 +5,6 @@ export PUBLISH_WAF=false
 export PUBLISH_DOS=false
 export PUBLISH_WAF_DOS=false
 export TARGET_PLUS_IMAGE_PREFIX=nginx-ic/lts/nginx-plus-ingress
+if [[ "${ARG_SOURCE_REGISTRY}" =~ docker-mgmt ]] || [[ "${SOURCE_REGISTRY}" =~ docker-mgmt ]]; then
+    export SOURCE_PLUS_IMAGE_PREFIX=nginx-ic/lts/nginx-plus-ingress
+fi

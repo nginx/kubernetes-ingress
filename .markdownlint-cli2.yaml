@@ -20,6 +20,7 @@ ignores:
   - "vendor/**" # Ignore vendor folder
   - "**/venv/**"
   - ".local/**"
+  - ".opencode/**"
 
 # Fix any fixable errors
 fix: true

@@ -1,0 +1,469 @@
+name: Release Publish
+run-name: ${{ inputs.dry_run && '[DRY RUN] ' || '' }}Publish Release NIC ${{ inputs.nic_version }} from ${{ inputs.release_branch }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      nic_version:
+        description: "Version to publish"
+        required: true
+        type: string
+      chart_version:
+        description: "Helm Chart version to release (defaults to HELM_CHART_VERSION in .github/data/version.txt)"
+        required: false
+        type: string
+      operator_version:
+        description: "Operator version to set"
+        required: false
+        type: string
+      release_branch:
+        description: "Branch to release from"
+        required: true
+        type: string
+      source_registry:
+        description: "Source registry containing prepped release images"
+        required: false
+        type: string
+        default: "docker-mgmt-test.nginx.com"
+      dry_run:
+        description: "Dry Run?"
+        type: boolean
+        default: false
+      skip_step:
+        description: "Comma separated list of jobs to skip"
+        type: string
+        required: false
+
+defaults:
+  run:
+    shell: bash
+
+# Never cancel a release in flight -- a partially published set of registries is
+# worse than waiting for the previous run to finish.
+#
+# Deliberately shared with release-prep.yml: both stages are directly
+# dispatchable, and a publish run must not copy a version while prep is still
+# writing it to the staging registry.
+concurrency:
+  group: ${{ inputs.release_branch }}-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  variables:
+    name: Set Variables
+    if: github.repository == 'nginx/kubernetes-ingress'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      short_tag: ${{ steps.vars.outputs.short_tag }}
+      chart_version: ${{ steps.vars.outputs.chart_version }}
+      date: ${{ steps.vars.outputs.date }}
+      k8s_version: ${{ steps.vars.outputs.k8s_version }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.release_branch }}
+
+      - name: Output Variables
+        id: vars
+        run: |
+          tag=${{ inputs.nic_version }}
+          echo "short_tag=${tag%.*}" >> $GITHUB_OUTPUT
+          # Fall back to the repo's chart version so this workflow can be
+          # dispatched on its own without restating what version.txt already knows.
+          if [ -n "${{ inputs.chart_version }}" ]; then
+            echo "chart_version=${{ inputs.chart_version }}" >> $GITHUB_OUTPUT
+          else
+            source .github/data/version.txt
+            echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
+          fi
+          date=$(date "+%Y%m%d")
+          echo "date=${date}" >> $GITHUB_OUTPUT
+          k8s_version=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | cut -d '?' -f 2 | tr -d ' =')
+          echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+
+  release-oss:
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && needs.variables.result == 'success' && !contains(inputs.skip_step, 'release-oss'))
+    name: Release Docker OSS
+    needs: [variables]
+    uses: ./.github/workflows/oss-release.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        tag:
+          - "${{ inputs.nic_version }}"
+          - "${{ needs.variables.outputs.short_tag }}"
+          - "${{ inputs.nic_version }}-${{ needs.variables.outputs.date }}"
+          - "latest"
+    with:
+      gcr_release_registry: true
+      ecr_public_registry: true
+      dockerhub_public_registry: true
+      quay_public_registry: true
+      github_public_registry: true
+      source_registry: ${{ inputs.source_registry }}
+      source_tag: ${{ inputs.nic_version }}
+      target_tag: ${{ matrix.tag }}
+      branch: ${{ inputs.release_branch }}
+      dry_run: ${{ inputs.dry_run }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    secrets: inherit
+
+  release-plus-gcr-nginx:
+    if: github.repository == 'nginx/kubernetes-ingress' && (!cancelled() && needs.variables.result == 'success' && !contains(inputs.skip_step, 'release-plus'))
+    name: Release Docker Plus
+    needs: [variables]
+    uses: ./.github/workflows/plus-release.yml
+    with:
+      gcr_release_registry: true
+      nginx_registry: true
+      gcr_mktpl_registry: false
+      ecr_mktpl_registry: false
+      az_mktpl_registry: false
+      source_registry: ${{ inputs.source_registry }}
+      source_tag: ${{ inputs.nic_version }}
+      target_tag: ${{ inputs.nic_version }}
+      branch: ${{ inputs.release_branch }}
+      dry_run: ${{ inputs.dry_run }}
+    permissions:
+      contents: read
+      id-token: write
+    secrets: inherit
+
+  publish-helm-chart:
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'publish-helm-chart'))
+    name: Publish Helm Chart
+    needs: [variables]
+    uses: ./.github/workflows/publish-helm.yml
+    with:
+      branch: ${{ inputs.release_branch }}
+      ic_version: ${{ inputs.nic_version }}
+      chart_version: ${{ needs.variables.outputs.chart_version }}
+      nginx_helm_repo: true # disable automatic repo update until nginx-bot issue is resolved, manually update repo
+      runner: "ubuntu-24.04-amd64"
+    permissions:
+      contents: write # for pushing to Helm Charts repository
+      packages: write # for helm to push to GHCR
+      id-token: write
+    secrets: inherit
+
+  certify-openshift-images:
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && ! contains(inputs.skip_step, 'certify-openshift-images'))
+    name: Certify OpenShift UBI images
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    needs: [release-oss]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Setup secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "nic-pyxis-token, nic-pyxis-certification-pid"
+          env-names: "PYXIS_TOKEN, PYXIS_CERTIFICATION_PROJECT_ID"
+
+      - name: Certify UBI OSS images in quay
+        uses: ./.github/actions/certify-openshift-image
+        continue-on-error: true
+        with:
+          image: quay.io/nginx/nginx-ingress:${{ inputs.nic_version }}-ubi
+          project_id: ${{ env.PYXIS_CERTIFICATION_PROJECT_ID }}
+          pyxis_token: ${{ env.PYXIS_TOKEN }}
+          preflight_version: 1.21.0 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
+
+  operator:
+    # operator_version has no sensible default, so skip rather than dispatch the
+    # remote sync workflow with an empty version when running publish on its own.
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure() && ! inputs.dry_run && inputs.operator_version != '' && ! contains(inputs.skip_step, 'operator') && !contains(inputs.skip_step, 'publish-helm-chart'))
+    name: Trigger PR for Operator
+    runs-on: ubuntu-24.04
+    needs: [variables, publish-helm-chart]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Get secrets from vault
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
+        with:
+          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-bot-nic-trigger-remote-workflow-app-client-id, nginx-bot-nic-trigger-remote-workflow-app-private-key"
+          env-names: "APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+
+      - name: Decode GitHub App private key
+        id: app_key
+        run: |
+          set +x
+          echo "::add-mask::$APP_PRIVATE_KEY_B64"
+          private_key=$(printf '%s' "$APP_PRIVATE_KEY_B64" | base64 -d)
+          while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+              echo "::add-mask::$line"
+            fi
+          done <<< "$private_key"
+          delimiter="GHEOF_$(openssl rand -hex 12)"
+          {
+            echo "private_key<<$delimiter"
+            echo "$private_key"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate GitHub App token
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ env.APP_CLIENT_ID }}
+          private-key: ${{ steps.app_key.outputs.private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: nginx-ingress-helm-operator
+
+      - name: Trigger Operator sync
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.app_token.outputs.token }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: 'nginx-ingress-helm-operator',
+              workflow_id: 'sync-chart.yml',
+              ref: 'main',
+              inputs: {
+                chart_version: '${{ needs.variables.outputs.chart_version }}',
+                operator_version: '${{ inputs.operator_version }}',
+                k8s_version: '${{ needs.variables.outputs.k8s_version }}',
+                dry_run: '${{ inputs.dry_run }}'
+              },
+            })
+
+  # Every primary artifact has to be published before the GitHub release is made
+  # public. github-release does not depend on publish-helm-chart directly, so a
+  # Helm failure would be invisible to !failure() there -- this gate makes each
+  # prerequisite explicit instead. publish-helm-chart must tolerate 'skipped'
+  # because its own `if` excludes dry_run and honours skip_step.
+  release-gate:
+    name: All prerequisites met
+    runs-on: ubuntu-24.04
+    needs: [release-oss, release-plus-gcr-nginx, publish-helm-chart]
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      (needs.release-oss.result == 'success' || contains(inputs.skip_step, 'release-oss')) &&
+      (needs.release-plus-gcr-nginx.result == 'success' || contains(inputs.skip_step, 'release-plus')) &&
+      (needs.publish-helm-chart.result == 'success' || needs.publish-helm-chart.result == 'skipped')
+      )
+    steps:
+      - run: echo "All prerequisites met"
+
+  tag:
+    name: Create Tag on release branch in NIC repo
+    runs-on: ubuntu-24.04
+    needs: [release-gate]
+    # !cancelled() makes this job run even when a dependency failed, so the
+    # dependency result has to be asserted explicitly or a tag would be pushed
+    # for a run whose artifacts never published. release-gate is the aggregate
+    # that already asserts every primary artifact, so asserting it is enough.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      (needs.release-gate.result == 'success' || inputs.dry_run)
+      )
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout NIC repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+          fetch-depth: 0
+
+      - name: Create new release Tag
+        run: |
+          git config --global user.email "kubernetes@nginx.com"
+          git config --global user.name "NGINX Kubernetes Team"
+          branch="${{ inputs.release_branch }}"
+          tag="v${{ inputs.nic_version }}"
+          if ! git rev-parse --verify "refs/tags/${tag}"; then
+            echo "Adding tag ${tag}."
+            git tag -a "${tag}" -m "Version ${tag#v*}"
+            echo "Pushing to tag ${tag} to branch ${branch}"
+            if ! ${{ inputs.dry_run }}; then
+              git push origin "${tag}"
+            else
+              echo "DRY RUN not making any changes"
+              git push --dry-run origin "${tag}"
+            fi
+          else
+            echo "Warning: Tag ${tag} already exists.  Not making any changes"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-assets:
+    if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure())
+    name: Upload binaries GitHub Release
+    runs-on: ubuntu-24.04
+    needs: [variables]
+    permissions:
+      id-token: write
+      contents: write # to modify the release
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Setup secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "azure-storage-account, azure-storage-bucket"
+          env-names: "AZURE_STORAGE_ACCOUNT, AZURE_BUCKET_NAME"
+
+      - name: Azure login
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Azure Download Signed Binaries
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
+        with:
+          inlineScript: |
+            echo -n "Downloading assets for v${{ inputs.nic_version }}... "
+
+            if ! ${{ inputs.dry_run }}; then
+              mkdir -p "download"
+              az storage blob download-batch --auth-mode=login \
+                -d download \
+                -s ${{ env.AZURE_BUCKET_NAME }} \
+                --account-name ${{ env.AZURE_STORAGE_ACCOUNT }} \
+                --pattern "kubernetes-ingress/v${{ inputs.nic_version }}/*" \
+                --overwrite
+              echo "done"
+            else
+              echo "skipped, dry_run."
+            fi
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # clobber overwrites existing assets of the same name
+        run: |
+          if ! ${{ inputs.dry_run }}; then
+            gh release upload --clobber v${{ inputs.nic_version }} \
+              $(find download/kubernetes-ingress/v${{ inputs.nic_version }} -type f)
+          else
+            echo "Skipping adding binaries to Github Release, DRY_RUN"
+          fi
+
+
+  github-release:
+    # !cancelled() suppresses the implicit success() gate that `needs` would
+    # otherwise apply, so both dependency results have to be asserted here.
+    # Without them a failed tag push or asset upload would still flip the draft
+    # to public, publishing a release with no git tag or no binaries. 'success'
+    # is the only valid state for either: neither job honours skip_step, and
+    # both still report success under dry_run. Asserting != 'failure' would not
+    # be enough -- tag is left 'skipped' when release-gate fails.
+    if: >-
+      github.repository == 'nginx/kubernetes-ingress' && (
+      !cancelled() &&
+      !contains(inputs.skip_step, 'github-release') &&
+      needs.tag.result == 'success' &&
+      needs.release-assets.result == 'success'
+      )
+    name: Publish release to GitHub
+    runs-on: ubuntu-24.04
+    needs: [tag, release-assets]
+    permissions:
+      contents: write # to modify the release
+      issues: write # to close milestone
+      actions: read # for slack notification
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
+
+      - name: Get Github release id
+        id: release-id
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_id=$(gh api \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/${{ github.repository }}/releases \
+            | jq --arg version "v${{ inputs.nic_version }}" -r \
+            '.[] | select(.name == $version) | .id')
+          if [ -z "${release_id}" ] || [ "${release_id}" = "null" ]; then
+            if ${{ inputs.dry_run }}; then
+              echo "::warning::No Github release found for v${{ inputs.nic_version }}; continuing, DRY_RUN"
+            else
+              echo "::error::No Github release found for v${{ inputs.nic_version }}. Run update-release-draft.yml to create the draft first."
+              exit 1
+            fi
+          fi
+          echo "release_id=${release_id}" >> $GITHUB_OUTPUT
+
+      - name: Close Release Milestone
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          milestone_number=$(gh api \
+            -H "Accept: application/vnd.github.v3+json" \
+            /repos/${{ github.repository }}/milestones \
+            | jq --arg version "v${{ inputs.nic_version }}" -r \
+            '.[] | select(.title == $version) | .number')
+          if [ -n "${milestone_number}" ]; then
+            if ! ${{ inputs.dry_run }}; then
+              gh api --method PATCH -H "Accept: application/vnd.github.v3+json" \
+                /repos/${{ github.repository }}/milestones/${milestone_number} \
+                -f "title=v${{ inputs.nic_version }}" \
+                -f "state=closed";
+            else
+              echo "Skipping closing Github Release milestone, DRY_RUN"
+            fi
+          else
+            echo "Github Milestone not available, closed already."
+          fi
+
+      # No guard on RELEASE_ID here -- the lookup step above already failed the
+      # job if it was missing, so a green run means the release was published.
+      - name: Publish Github Release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const {RELEASE_ID} = process.env
+            const release = await github.rest.repos.updateRelease({
+              owner: context.payload.repository.owner.login,
+              repo: context.payload.repository.name,
+              release_id: `${RELEASE_ID}`,
+              draft: false,
+            })
+            console.log(`Release published: ${release.data.html_url}`)
+        env:
+          RELEASE_ID: ${{ steps.release-id.outputs.release_id }}
+        if: ${{ ! inputs.dry_run }}
