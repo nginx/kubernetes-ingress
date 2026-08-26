@@ -944,8 +944,8 @@ spec:
                       as per the OpenID Connect Discovery specification.
                     type: string
                   cookieName:
-                    description: Sets the name of the session cookie. The module defaults
-                      to NGX_OIDC_SESSION.
+                    description: Sets the name of the session cookie. Defaults to
+                      NGX_OIDC_<providerName>.
                     type: string
                   extraAuthArgs:
                     description: Sets additional query arguments for the authentication
@@ -974,8 +974,8 @@ spec:
                   logoutURI:
                     default: /logout
                     description: Defines the URI path for initiating session logout.
-                      Upon session termination, the user is redirected to the Provider's
-                      logout endpoint or the post logout page.
+                      Upon session termination, the user is redirected to the post
+                      logout page.
                     pattern: ^/[^\s{};\\$\x60]*$
                     type: string
                   pkce:
@@ -1004,21 +1004,21 @@ spec:
                     pattern: ^[0-9]+[kKmM]?$
                     type: string
                   redirectURI:
-                    description: Allows overriding the default redirect URI. The module
-                      defaults to /oidc_callback.
+                    description: Allows overriding the default redirect URI. Defaults
+                      to /oidc_callback_<providerName>.
                     pattern: ^/[^\s{};\\$\x60]*$
                     type: string
                   scope:
                     description: 'List of OpenID Connect scopes, space-separated.
                       The scope openid is always required. Example: "openid profile
-                      email". The module defaults to "openid".'
+                      email". Default is "openid".'
                     type: string
                     x-kubernetes-validations:
                     - message: scope must contain 'openid' as a token
                       rule: self == '' || self.matches('(^|[ +])openid([ +]|$)')
                   sessionTimeout:
                     description: Sets a timeout after which the session is deleted,
-                      unless it was refreshed. The module defaults to 8h.
+                      unless it was refreshed. Default is 8h.
                     pattern: ^[0-9]+(s|m|h|d)?$
                     type: string
                   sslName:

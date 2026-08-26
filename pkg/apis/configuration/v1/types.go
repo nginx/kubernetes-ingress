@@ -1122,15 +1122,15 @@ type OIDCNative struct {
 	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	// +kubebuilder:validation:Optional
 	ConfigURL string `json:"configURL,omitempty"`
-	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid".
+	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". Default is "openid".
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:XValidation:rule="self == '' || self.matches('(^|[ +])openid([ +]|$)')",message="scope must contain 'openid' as a token"
 	Scope string `json:"scope,omitempty"`
-	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
+	// Allows overriding the default redirect URI. Defaults to /oidc_callback_<providerName>.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60]*$`
 	RedirectURI string `json:"redirectURI,omitempty"`
-	// Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION.
+	// Sets the name of the session cookie. Defaults to NGX_OIDC_<providerName>.
 	// +kubebuilder:validation:Optional
 	CookieName string `json:"cookieName,omitempty"`
 	// Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login".
@@ -1140,7 +1140,7 @@ type OIDCNative struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum=on;off
 	PKCE string `json:"pkce,omitempty"`
-	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page.
+	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the post logout page.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60]*$`
 	// +kubebuilder:default="/logout"
@@ -1157,7 +1157,7 @@ type OIDCNative struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:default=false
 	LogoutTokenHint bool `json:"logoutTokenHint,omitempty"`
-	// Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h.
+	// Sets a timeout after which the session is deleted, unless it was refreshed. Default is 8h.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^[0-9]+(s|m|h|d)?$`
 	SessionTimeout string `json:"sessionTimeout,omitempty"`

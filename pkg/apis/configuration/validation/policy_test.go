@@ -2091,6 +2091,23 @@ func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
 			},
 			msg: "space separated scope tokens",
 		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+				PKCE:     "on",
+			},
+			msg: "pkce on",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client-id",
+				PKCE:         "off",
+				ClientSecret: "my-oidc-secret",
+			},
+			msg: "pkce off wiith client secret",
+		},
 	}
 
 	for _, test := range tests {
@@ -2139,21 +2156,58 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 		},
 		{
 			oidcNative: &v1.OIDCNative{
-				Issuer:   "https://accounts.google.com/;malicious{ return 500; }",
+				Issuer:   "https://accounts.google.com?query=1",
 				ClientID: "my-client",
 			},
 			fieldPath: "oidcNative.issuer",
-			msg:       "dangerous chars in issuer path",
+			msg:       "issuer contains query parameter",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com#frag",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "issuer contains fragment",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "not-a-url",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL missing scheme",
 		},
 		{
 			oidcNative: &v1.OIDCNative{
 				Issuer:    "https://accounts.google.com",
 				ClientID:  "my-client",
-				ConfigURL: "https://x/y;malicious;",
+				ConfigURL: "https://idp.example.com",
 			},
 			fieldPath: "oidcNative.configURL",
-			msg:       "dangerous chars in configURL",
+			msg:       "configURL missing path",
 		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://IDP.Example.COM/.well-known/openid-configuration",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL host is not a valid DNS name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://idp.example.com:99999/.well-known/openid-configuration",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL has an invalid port",
+		},
+
 		{
 			oidcNative: &v1.OIDCNative{
 				Issuer:   "https://accounts.google.com",
@@ -2165,6 +2219,54 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 		},
 		{
 			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "notopenid",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "openid must be a complete scope token",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "openid;}server{listen 9999;}",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "scope injection through unquoted multi-arg directive",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client",
+				ClientSecret: "Invalid_Name",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret is not a valid k8s secret name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:            "https://accounts.google.com",
+				ClientID:          "my-client",
+				ClientSecret:      "my-oidc-secret",
+				TrustedCertSecret: "Bad_Name",
+			},
+			fieldPath: "oidcNative.trustedCertSecret",
+			msg:       "trustedCertSecret is not a valid k8s secret name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:            "https://accounts.google.com",
+				ClientID:          "my-client",
+				SSLVerify:         new(bool),
+				TrustedCertSecret: "my-ca",
+			},
+			fieldPath: "oidcNative.trustedCertSecret",
+			msg:       "trustedCertSecret set when sslVerify is false",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
 				Issuer:     "https://accounts.google.com",
 				ClientID:   "my-client",
 				CookieName: "SID; return 500",
@@ -2172,6 +2274,25 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 			fieldPath: "oidcNative.cookieName",
 			msg:       "dangerous chars in cookieName",
 		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "my-cookie",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "hyphen is not allowed in cookieName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "oidc session",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "whitespace is not allowed in cookieName",
+		},
+
 		{
 			oidcNative: &v1.OIDCNative{
 				Issuer:        "https://accounts.google.com",
@@ -2183,6 +2304,16 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 		},
 		{
 			oidcNative: &v1.OIDCNative{
+				Issuer:        "https://accounts.google.com",
+				ClientID:      "my-client",
+				ExtraAuthArgs: "prompt=%zz",
+			},
+			fieldPath: "oidcNative.extraAuthArgs",
+			msg:       "invalid percent-escape in extraAuthArgs",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
 				Issuer:   "https://accounts.google.com",
 				ClientID: "my-client",
 				SSLName:  "evil.example.com;\ninject",
@@ -2191,39 +2322,78 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 			msg:       "dangerous chars in sslName",
 		},
 		{
-			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", RedirectURI: "/$callback"},
-			fieldPath:  "oidcNative.redirectURI",
-			msg:        "dangerous chars in redirect URI",
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "Keycloak.Example.COM",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "uppercase is not a valid DNS name in sslName",
 		},
 		{
-			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", LogoutURI: "/`logout"},
-			fieldPath:  "oidcNative.logoutURI",
-			msg:        "dangerous chars in logout URI",
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "keycloak.example.com:443",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "port is not allowed in sslName",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:      "https://accounts.google.com",
+				ClientID:    "my-client",
+				RedirectURI: "/../../etc/passwd",
+			},
+			fieldPath: "oidcNative.redirectURI",
+			msg:       "path-traversal in redirectURI",
 		},
 		{
-			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", PostLogoutRedirectURI: "/$logout"},
-			fieldPath:  "oidcNative.postLogoutRedirectURI",
-			msg:        "dangerous chars in post logout URI",
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				LogoutURI: "//attacker.example.com/logout",
+			},
+			fieldPath: "oidcNative.logoutURI",
+			msg:       "protocol-relative logoutURI",
 		},
 		{
-			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", FrontChannelLogoutURI: "/`frontchannel"},
-			fieldPath:  "oidcNative.frontChannelLogoutURI",
-			msg:        "dangerous chars in front channel logout URI",
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client",
+				PostLogoutRedirectURI: "//evil.com",
+			},
+			fieldPath: "oidcNative.postLogoutRedirectURI",
+			msg:       "protocol-relative postLogoutRedirectURI is an open redirect",
 		},
 		{
-			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", Scope: "notopenid"},
-			fieldPath:  "oidcNative.scope",
-			msg:        "openid must be a complete scope token",
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client",
+				FrontChannelLogoutURI: "/a/../../b",
+			},
+			fieldPath: "oidcNative.frontChannelLogoutURI",
+			msg:       "path traversal in frontChannelLogoutURI",
 		},
 		{
-			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com", ClientID: "my-client", SSLVerify: new(bool), TrustedCertSecret: "my-ca"},
-			fieldPath:  "oidcNative.trustedCertSecret",
-			msg:        "trustedCertSecret set when sslVerify is false",
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client",
+				PKCE:         "on",
+				ClientSecret: "my-oidc-secret",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret cannot be used when pkce is on",
 		},
 		{
-			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com?query=1", ClientID: "my-client"},
-			fieldPath:  "oidcNative.issuer",
-			msg:        "issuer contains query parameter",
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				PKCE:     "off",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret is required when pkce is off",
 		},
 	}
 

@@ -15,17 +15,17 @@ type OIDCNativeApplyConfiguration struct {
 	ClientSecret *string `json:"clientSecret,omitempty"`
 	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	ConfigURL *string `json:"configURL,omitempty"`
-	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". The module defaults to "openid".
+	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". Default is "openid".
 	Scope *string `json:"scope,omitempty"`
-	// Allows overriding the default redirect URI. The module defaults to /oidc_callback.
+	// Allows overriding the default redirect URI. Defaults to /oidc_callback_<providerName>.
 	RedirectURI *string `json:"redirectURI,omitempty"`
-	// Sets the name of the session cookie. The module defaults to NGX_OIDC_SESSION.
+	// Sets the name of the session cookie. Defaults to NGX_OIDC_<providerName>.
 	CookieName *string `json:"cookieName,omitempty"`
 	// Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login".
 	ExtraAuthArgs *string `json:"extraAuthArgs,omitempty"`
 	// Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata.
 	PKCE *string `json:"pkce,omitempty"`
-	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the Provider's logout endpoint or the post logout page.
+	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the post logout page.
 	LogoutURI *string `json:"logoutURI,omitempty"`
 	// Defines the path where the user is redirected after logout. Must be a path on the same host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response. If multiple OIDCNative providers on the same host set the same path, only one auto-generated location is rendered; providers whose other generated locations (redirectURI, or the internal IdP proxy location) collide are rejected instead.
 	PostLogoutRedirectURI *string `json:"postLogoutRedirectURI,omitempty"`
@@ -33,7 +33,7 @@ type OIDCNativeApplyConfiguration struct {
 	FrontChannelLogoutURI *string `json:"frontChannelLogoutURI,omitempty"`
 	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
 	LogoutTokenHint *bool `json:"logoutTokenHint,omitempty"`
-	// Sets a timeout after which the session is deleted, unless it was refreshed. The module defaults to 8h.
+	// Sets a timeout after which the session is deleted, unless it was refreshed. Default is 8h.
 	SessionTimeout *string `json:"sessionTimeout,omitempty"`
 	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables.
 	UserInfoEnable *bool `json:"userInfoEnable,omitempty"`
