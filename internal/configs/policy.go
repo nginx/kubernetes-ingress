@@ -138,6 +138,7 @@ const (
 	oidcNativeRoleCallback   = "callback"
 	oidcNativeRoleProxy      = "proxy"
 	oidcNativeRolePostLogout = "post-logout"
+	oidcNativeRoleLogout     = "logout"
 	// oidcNJSRoleReserved marks the seven fixed internal locations the NJS
 	// OIDC module always renders (independent of any policy field) whenever
 	// spec.oidc is used anywhere in a VirtualServer/VirtualServerRoute set --
@@ -1071,11 +1072,6 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		redirectURI = fmt.Sprintf("/oidc_callback_%s", providerName)
 	}
 
-	logoutURI := oidcNative.LogoutURI
-	if logoutURI == "" {
-		logoutURI = "/logout"
-	}
-
 	cookieName := oidcNative.CookieName
 	if cookieName == "" {
 		cookieName = fmt.Sprintf("NGX_OIDC_%s", providerName)
@@ -1127,7 +1123,7 @@ func (p *policiesCfg) addOIDCNativeConfig(
 		CookieName:            cookieName,
 		ExtraAuthArgs:         oidcNative.ExtraAuthArgs,
 		PKCE:                  oidcNative.PKCE,
-		LogoutURI:             logoutURI,
+		LogoutURI:             oidcNative.LogoutURI,
 		PostLogoutURI:         oidcNative.PostLogoutRedirectURI,
 		FrontChannelLogoutURI: oidcNative.FrontChannelLogoutURI,
 		LogoutTokenHint:       oidcNative.LogoutTokenHint,

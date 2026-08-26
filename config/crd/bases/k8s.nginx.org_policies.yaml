@@ -801,7 +801,6 @@ spec:
                       by some providers.
                     type: boolean
                   logoutURI:
-                    default: /logout
                     description: Defines the URI path for initiating session logout.
                       Upon session termination, the user is redirected to the post
                       logout page.

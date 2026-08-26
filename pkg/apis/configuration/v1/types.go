@@ -1143,7 +1143,6 @@ type OIDCNative struct {
 	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the post logout page.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60]*$`
-	// +kubebuilder:default="/logout"
 	LogoutURI string `json:"logoutURI,omitempty"`
 	// Defines the path where the user is redirected after logout. Must be a path on the same host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response. If multiple OIDCNative providers on the same host set the same path, only one auto-generated location is rendered; providers whose other generated locations (redirectURI, or the internal IdP proxy location) collide are rejected instead.
 	// +kubebuilder:validation:Optional
