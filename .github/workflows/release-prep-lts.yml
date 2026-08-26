@@ -104,6 +104,7 @@ jobs:
       image-matrix-oss: '{"include":[]}'
       image-matrix-plus: ${{ needs.variables.outputs.image_matrix_plus }}
       image-matrix-nap: '{"include":[]}'
+      pkg-src-plus: ${{ vars.PLUS_REPO }}
       branch: ${{ inputs.release_branch }}
       tag: ${{ needs.variables.outputs.source_tag }}
       go-md5: ${{ needs.variables.outputs.go_code_md5 }}

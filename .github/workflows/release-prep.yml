@@ -108,6 +108,10 @@ jobs:
       image-matrix-oss: ${{ needs.variables.outputs.image_matrix_oss }}
       image-matrix-plus: ${{ needs.variables.outputs.image_matrix_plus }}
       image-matrix-nap: ${{ needs.variables.outputs.image_matrix_nap }}
+      pkg-src-oss: ${{ vars.OSS_REPO }}
+      pkg-src-plus: ${{ vars.PLUS_REPO }}
+      pkg-src-waf: ${{ vars.WAF_REPO }}
+      pkg-src-dos: ${{ vars.DOS_REPO }}
       branch: ${{ inputs.release_branch }}
       tag: ${{ needs.variables.outputs.source_tag }}
       go-md5: ${{ needs.variables.outputs.go_code_md5 }}
