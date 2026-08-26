@@ -12,3 +12,4 @@ spec:
     scope: openid
     sslVerify: true
     postLogoutRedirectURI: /_logout
+    logoutURI: /logout
