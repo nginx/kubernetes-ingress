@@ -351,3 +351,35 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 		})
 	}
 }
+
+// TestHelmNICNetworkPolicyLegacyValues renders the chart with legacy values
+// that omit controller.networkPolicy, the state a release ends up in on
+// `helm upgrade --reuse-values` from a version that predates the feature.
+func TestHelmNICNetworkPolicyLegacyValues(t *testing.T) {
+	t.Parallel()
+
+	helmChartPath, err := filepath.Abs("../nginx-ingress")
+	if err != nil {
+		t.Fatal("Failed to open helm chart path ../nginx-ingress")
+	}
+
+	options := &helm.Options{
+		KubectlOptions: k8s.NewKubectlOptions("", "", "default"),
+		ValuesFiles:    []string{"testdata/network-policy-legacy-values.yaml"},
+	}
+
+	// The values.schema.json types networkPolicy as "object" and rejects an
+	// explicit null; the real --reuse-values path skips this check because the
+	// key is simply absent.
+	output, err := helm.RenderTemplateE(t, options, helmChartPath, "network-policy-legacy", make([]string, 0), "--skip-schema-validation")
+	if err != nil {
+		t.Fatalf("helm template must succeed when controller.networkPolicy is absent, got: %v", err)
+	}
+
+	if strings.Contains(output, "kind: NetworkPolicy") {
+		t.Fatalf("expected no NetworkPolicy resource when controller.networkPolicy is absent, rendered output:\n%s", output)
+	}
+	if strings.Contains(output, "controller-networkpolicy.yaml") {
+		t.Fatalf("expected controller-networkpolicy.yaml to render empty, rendered output:\n%s", output)
+	}
+}
