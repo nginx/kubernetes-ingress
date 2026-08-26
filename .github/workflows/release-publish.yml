@@ -124,14 +124,6 @@ jobs:
     name: Release Docker Plus
     needs: [variables]
     uses: ./.github/workflows/plus-release.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        tag:
-          - "${{ inputs.nic_version }}"
-          - "${{ needs.variables.outputs.short_tag }}"
-          - "${{ inputs.nic_version }}-${{ needs.variables.outputs.date }}"
-          - "latest"
     with:
       gcr_release_registry: true
       nginx_registry: true
@@ -140,7 +132,7 @@ jobs:
       az_mktpl_registry: false
       source_registry: ${{ inputs.source_registry }}
       source_tag: ${{ inputs.nic_version }}
-      target_tag: ${{ matrix.tag }}
+      target_tag: ${{ inputs.nic_version }}
       branch: ${{ inputs.release_branch }}
       dry_run: ${{ inputs.dry_run }}
     permissions:
