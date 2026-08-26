@@ -703,7 +703,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 	fi \
 	&& if [ -z "${NAP_MODULES##*dos*}" ]; then \
         cp /tmp/app-protect-dos-10.repo /etc/yum.repos.d/app-protect-dos-10.repo \
-        && microdnf --nodocs install -y app-protect-dos-${NAP_DOS_VERSION}* \
+        && microdnf --nodocs install -y app-protect-dos \
         && rm -f /etc/yum.repos.d/app-protect-dos-10.repo \
         && nap-dos.sh; \
 	fi \
