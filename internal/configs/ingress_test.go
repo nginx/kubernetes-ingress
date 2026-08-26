@@ -1296,7 +1296,7 @@ func TestGenerateNginxCfgForOIDCNative(t *testing.T) {
 			Issuer:          "https://keycloak.example.com/realms/master",
 			ClientID:        "client-id",
 			RedirectURI:     "/oidc_callback_" + providerName,
-			LogoutURI:       "/logout",
+			LogoutURI:       "",
 			CookieName:      "NGX_OIDC_" + providerName,
 			SessionStore:    "oidc_sessions_" + providerName,
 			SSLVerify:       true,
@@ -3144,7 +3144,7 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithOIDCNative(t *testing.T)
 			Issuer:          "https://keycloak.example.com/realms/master",
 			ClientID:        "client-id",
 			RedirectURI:     "/oidc_callback_" + providerName,
-			LogoutURI:       "/logout",
+			LogoutURI:       "",
 			CookieName:      "NGX_OIDC_" + providerName,
 			SessionStore:    "oidc_sessions_" + providerName,
 			SSLVerify:       true,
@@ -3180,6 +3180,57 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithOIDCNative(t *testing.T)
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesDuplicateRedirectURIConflict(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy-1"
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/oidc-native-policy-1": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-native-policy-1",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				OIDCNative: &conf_v1.OIDCNative{
+					Issuer:      "https://keycloak.example.com/realms/master",
+					ClientID:    "client-id-1",
+					RedirectURI: "/oidc_callback",
+				},
+			},
+		},
+	}
+	mergeableIngresses.Minions[1].Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy-2"
+	mergeableIngresses.Minions[1].Policies = map[string]*conf_v1.Policy{
+		"default/oidc-native-policy-2": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-native-policy-2",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				OIDCNative: &conf_v1.OIDCNative{
+					Issuer:      "https://keycloak.example.com/realms/master",
+					ClientID:    "client-id-2",
+					RedirectURI: "/oidc_callback",
+				},
+			},
+		},
+	}
+
+	isPlus := true
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	_, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		mergeableIngs: mergeableIngresses,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if len(warnings) == 0 {
+		t.Fatal("expected warning about conflicting redirectURI across minions, got none")
 	}
 }
 

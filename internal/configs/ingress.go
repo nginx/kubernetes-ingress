@@ -348,6 +348,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			ownerDetails.parentNamespace = ncp.mergeableIngs.Master.Ingress.Namespace
 			pathContext = minionContext
 		}
+		oidcNativeLocations := ncp.oidcNativeLocations
+		if oidcNativeLocations == nil {
+			oidcNativeLocations = make(map[string]oidcNativeLocationOwner)
+		}
 		policyCfg, warnings = generatePolicies(
 			ncp.BaseCfgParams.Context,
 			ownerDetails,
@@ -364,7 +368,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				replicas:            ncp.ingressControllerReplicas,
 				oidcPolicyName:      "",
 				plmEnabled:          ncp.staticParams.PLMEnabled,
-				oidcNativeLocations: make(map[string]oidcNativeLocationOwner),
+				oidcNativeLocations: oidcNativeLocations,
 			},
 			bundleValidator,
 		)
@@ -1411,6 +1415,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 			isResolverConfigured:      ncp.isResolverConfigured,
 			isWildcardEnabled:         ncp.isWildcardEnabled,
 			ingressControllerReplicas: ncp.ingressControllerReplicas,
+			oidcNativeLocations:       sharedOIDCLocations,
 		})
 		warnings.Add(minionWarnings)
 
