@@ -117,6 +117,7 @@ jobs:
           build-args: |
             BUILD_OS=${{ matrix.image }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
+            OSS_PACKAGE_REPO=${{ vars.OSS_REPO }}
 
   build-plus:
     name: Build Plus base images
@@ -206,6 +207,7 @@ jobs:
           build-args: |
             BUILD_OS=${{ matrix.image }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
+            PLUS_PACKAGE_REPO=${{ vars.PLUS_REPO }}
           secret-files: |
             nginx-repo.crt=nginx-repo.crt
             nginx-repo.key=nginx-repo.key
@@ -305,6 +307,9 @@ jobs:
           build-args: |
             BUILD_OS=${{ matrix.image }}
             IC_VERSION=${{ needs.checks.outputs.ic_version }}
+            PLUS_PACKAGE_REPO=${{ vars.PLUS_REPO }}
+            WAF_PACKAGE_REPO=${{ vars.WAF_REPO }}
+            DOS_PACKAGE_REPO=${{ vars.DOS_REPO }}
             NAP_MODULES=${{ matrix.nap_modules }}
           secret-files: |
             nginx-repo.crt=nginx-repo.crt

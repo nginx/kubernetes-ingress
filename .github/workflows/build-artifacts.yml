@@ -254,7 +254,7 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
-      pkg-src-repo: ${{ inputs.pkg-src-oss }}
+      pkg-src-oss: ${{ inputs.pkg-src-oss }}
     permissions:
       contents: read
       actions: read
@@ -288,7 +288,9 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
-      pkg-src-repo: ${{ inputs.pkg-src-plus }}
+      pkg-src-plus: ${{ inputs.pkg-src-plus }}
+      pkg-src-waf: ${{ inputs.pkg-src-waf }}
+      pkg-src-dos: ${{ inputs.pkg-src-dos }}
     permissions:
       contents: read
       id-token: write
@@ -321,7 +323,7 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
-      pkg-src-repo: ${{ inputs.pkg-src-plus }}
+      pkg-src-plus: ${{ inputs.pkg-src-plus }}
       pkg-src-waf: ${{ inputs.pkg-src-waf }}
       pkg-src-dos: ${{ inputs.pkg-src-dos }}
     permissions:

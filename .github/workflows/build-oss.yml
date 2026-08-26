@@ -43,7 +43,7 @@ on:
         required: false
         type: boolean
         default: true
-      pkg-src-repo:
+      pkg-src-oss:
         description: The source repository for the package
         required: false
         type: string
@@ -100,7 +100,7 @@ jobs:
         run: |
           echo "$PLUS_CERT" > nginx-repo.crt
           echo "$PLUS_KEY" > nginx-repo.key
-        if: ${{ inputs.authenticated }}
+        if: ${{ inputs.pkg-src-oss != 'packages.nginx.org' }}
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -187,12 +187,12 @@ jobs:
           push: true
           no-cache: true
           build-args: |
-            OSS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
+            OSS_PACKAGE_REPO=${{ inputs.pkg-src-oss }}
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
           secret-files: |
-            ${{ inputs.authenticated && 'nginx-repo.crt=nginx-repo.crt' || '' }}
-            ${{ inputs.authenticated && 'nginx-repo.key=nginx-repo.key' || '' }}
+            ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Debug values
@@ -229,13 +229,13 @@ jobs:
           sbom: ${{ inputs.authenticated }}
           provenance: false
           build-args: |
-            OSS_PACKAGE_REPO=${{ inputs.authenticated && inputs.pkg-src-repo || 'packages.nginx.org' }}
+            OSS_PACKAGE_REPO=${{ inputs.pkg-src-oss }}
             BUILD_OS=${{ inputs.image }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
           secret-files: |
-            ${{ inputs.authenticated && 'nginx-repo.crt=nginx-repo.crt' || '' }}
-            ${{ inputs.authenticated && 'nginx-repo.key=nginx-repo.key' || '' }}
+            ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Make directory for security scan results

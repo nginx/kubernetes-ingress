@@ -49,7 +49,7 @@ on:
         required: false
         type: boolean
         default: true
-      pkg-src-repo:
+      pkg-src-plus:
         description: The source repository for the package
         required: false
         type: string
@@ -203,9 +203,9 @@ jobs:
           no-cache: true
           build-args: |
             BUILD_OS=${{ inputs.image }}
-            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo && inputs.pkg-src-repo || 'pkgs.nginx.com' }}
-            WAF_PACKAGE_REPO=${{ inputs.pkg-src-waf && inputs.pkg-src-waf || 'pkgs.nginx.com' }}
-            DOS_PACKAGE_REPO=${{ inputs.pkg-src-dos && inputs.pkg-src-dos || 'pkgs.nginx.com' }}
+            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-plus }}
+            WAF_PACKAGE_REPO=${{ inputs.pkg-src-waf }}
+            DOS_PACKAGE_REPO=${{ inputs.pkg-src-dos }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}
           secret-files: |
@@ -248,7 +248,9 @@ jobs:
           provenance: false
           build-args: |
             BUILD_OS=${{ inputs.image }}
-            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-repo }}
+            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-plus }}
+            WAF_PACKAGE_REPO=${{ inputs.pkg-src-waf }}
+            DOS_PACKAGE_REPO=${{ inputs.pkg-src-dos }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image ) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}

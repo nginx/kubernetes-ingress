@@ -185,6 +185,10 @@ jobs:
       runner: "ubuntu-24.04-amd64"
       write-to-cache: true
       read-from-cache: false
+      pkg-src-oss: ${{ vars.OSS_REPO }}
+      pkg-src-plus: ${{ vars.PLUS_REPO }}
+      pkg-src-waf: ${{ vars.WAF_REPO }}
+      pkg-src-dos: ${{ vars.DOS_REPO }}
     secrets: inherit
     permissions:
       contents: read
