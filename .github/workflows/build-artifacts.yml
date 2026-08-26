@@ -82,7 +82,6 @@ permissions:
 jobs:
   binaries:
     name: Build Binaries
-    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     concurrency:
       group: binary-cache-${{ github.ref }}-${{ inputs.go-md5 }}
@@ -239,7 +238,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-oss ) }}
-    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-oss.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -272,7 +270,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-plus ) }}
-    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -306,7 +303,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-nap ) }}
-    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
