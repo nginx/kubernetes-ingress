@@ -498,6 +498,9 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 	}
 
 	if oidcNative.ConfigURL != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.ConfigURL) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("configURL"), oidcNative.ConfigURL, "must not include whitespace, quotes, or dangerous characters"))
+		}
 		allErrs = append(allErrs, validateURL(oidcNative.ConfigURL, fieldPath.Child("configURL"))...)
 	}
 
@@ -515,6 +518,19 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 
 	allErrs = append(allErrs, validateSSLName(oidcNative.SSLName, fieldPath.Child("sslName"))...)
 
+	if oidcNative.SessionTimeout != "" {
+		allErrs = append(allErrs, validateTime(oidcNative.SessionTimeout, fieldPath.Child("sessionTimeout"))...)
+		if len(oidcNative.SessionTimeout) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sessionTimeout"), oidcNative.SessionTimeout, "sessionTimeout value is too large"))
+		}
+	}
+	if oidcNative.ProxyBufferSize != "" {
+		allErrs = append(allErrs, validateSize(oidcNative.ProxyBufferSize, fieldPath.Child("proxyBufferSize"))...)
+		if len(oidcNative.ProxyBufferSize) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("proxyBufferSize"), oidcNative.ProxyBufferSize, "proxyBufferSize value is too large"))
+		}
+	}
+
 	switch oidcNative.PKCE {
 	case "on":
 		allErrs = append(allErrs, validatePKCE(true, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
@@ -529,18 +545,30 @@ func validateOIDCNativeURIs(oidcNative *v1.OIDCNative, fieldPath *field.Path) fi
 	allErrs := field.ErrorList{}
 
 	if oidcNative.RedirectURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.RedirectURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("redirectURI"), oidcNative.RedirectURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
 		allErrs = append(allErrs, validatePath(oidcNative.RedirectURI, fieldPath.Child("redirectURI"))...)
 	}
 
 	if oidcNative.LogoutURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.LogoutURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("logoutURI"), oidcNative.LogoutURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
 		allErrs = append(allErrs, validatePath(oidcNative.LogoutURI, fieldPath.Child("logoutURI"))...)
 	}
 
 	if oidcNative.PostLogoutRedirectURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.PostLogoutRedirectURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("postLogoutRedirectURI"), oidcNative.PostLogoutRedirectURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
 		allErrs = append(allErrs, validatePath(oidcNative.PostLogoutRedirectURI, fieldPath.Child("postLogoutRedirectURI"))...)
 	}
 
 	if oidcNative.FrontChannelLogoutURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.FrontChannelLogoutURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("frontChannelLogoutURI"), oidcNative.FrontChannelLogoutURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
 		allErrs = append(allErrs, validatePath(oidcNative.FrontChannelLogoutURI, fieldPath.Child("frontChannelLogoutURI"))...)
 	}
 
@@ -1102,6 +1130,9 @@ func validatePKCE(PKCEEnable bool, clientSecret string,
 // but does not require a path (unlike validateURL). Per the OpenID Connect spec, the issuer
 // identifier is a URL using the https scheme with no query or fragment components.
 func validateIssuerURL(issuer string, fieldPath *field.Path) field.ErrorList {
+	if ContainsWhitespaceOrQuotes(issuer) {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "must not include whitespace, quotes, or dangerous characters")}
+	}
 	u, err := url.Parse(issuer)
 	if err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, issuer, err.Error())}
@@ -1634,6 +1665,16 @@ func ContainsDangerousChars(value string) bool {
 		}
 	}
 	return false
+}
+
+// ContainsWhitespace checks if a string contains any whitespace character (space, tab, newline, carriage return, etc.)
+func ContainsWhitespace(value string) bool {
+	return strings.IndexFunc(value, unicode.IsSpace) != -1
+}
+
+// ContainsWhitespaceOrQuotes checks if a string contains whitespace, quotes, backslashes, or dangerous NGINX injection characters
+func ContainsWhitespaceOrQuotes(value string) bool {
+	return ContainsWhitespace(value) || ContainsDangerousChars(value) || strings.ContainsAny(value, "\"'\\")
 }
 
 func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, enableSnippets bool) field.ErrorList {

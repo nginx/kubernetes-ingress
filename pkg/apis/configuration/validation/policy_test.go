@@ -2063,6 +2063,8 @@ func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
 				LogoutURI:             "/logout",
 				PostLogoutRedirectURI: "/logged_out",
 				FrontChannelLogoutURI: "/frontchannel_logout",
+				SessionTimeout:        "8h",
+				ProxyBufferSize:       "32k",
 				UserInfoEnable:        true,
 			},
 			msg: "full config with all optional fields",
@@ -2394,6 +2396,50 @@ func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
 			},
 			fieldPath: "oidcNative.clientSecret",
 			msg:       "clientSecret is required when pkce is off",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://idp.example.com/realms/master\"",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "quote in issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://idp.example.com/realms/master",
+				ClientID:  "my-client",
+				ConfigURL: "https://idp.example.com/realms/master/.well-known/openid-configuration\"",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "quote in configURL",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:      "https://idp.example.com/realms/master",
+				ClientID:    "my-client",
+				RedirectURI: "/oidc_callback\"",
+			},
+			fieldPath: "oidcNative.redirectURI",
+			msg:       "quote in redirectURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:         "https://idp.example.com/realms/master",
+				ClientID:       "my-client",
+				SessionTimeout: "999999999999999999999999h",
+			},
+			fieldPath: "oidcNative.sessionTimeout",
+			msg:       "overflow in sessionTimeout",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:          "https://idp.example.com/realms/master",
+				ClientID:        "my-client",
+				ProxyBufferSize: "999999999999999999999999k",
+			},
+			fieldPath: "oidcNative.proxyBufferSize",
+			msg:       "overflow in proxyBufferSize",
 		},
 	}
 
@@ -4860,5 +4906,53 @@ func TestValidateLogConf_ThreeWayMutualExclusivity(t *testing.T) {
 	errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), true)
 	if len(errs) == 0 {
 		t.Error("expected error when both apLogConf and apLogBundleSource are set")
+	}
+}
+
+func TestContainsWhitespace(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"hello", false},
+		{"https://example.com/path", false},
+		{"hello world", true},
+		{"hello\tworld", true},
+		{"hello\nworld", true},
+		{"hello\rworld", true},
+		{"", false},
+	}
+	for _, tc := range tests {
+		if got := ContainsWhitespace(tc.input); got != tc.want {
+			t.Errorf("ContainsWhitespace(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestContainsWhitespaceOrQuotes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"https://accounts.google.com", false},
+		{"https://idp.example.com/realms/master", false},
+		{"https://idp.example.com/realms/master\"", true},
+		{"https://idp.example.com/realms/master'", true},
+		{"https://idp.example.com/realms/master\\", true},
+		{"https://idp.example.com/realms/master\t", true},
+		{"https://idp.example.com/realms/master\n", true},
+		{"https://idp.example.com/realms/master\r", true},
+		{"https://idp.example.com/realms/master;inject", true},
+		{"https://idp.example.com/realms/${eval}", true},
+		{"https://idp.example.com/{block}", true},
+		{"https://idp.example.com/`cmd`", true},
+		{"", false},
+	}
+	for _, tc := range tests {
+		if got := ContainsWhitespaceOrQuotes(tc.input); got != tc.want {
+			t.Errorf("ContainsWhitespaceOrQuotes(%q) = %v, want %v", tc.input, got, tc.want)
+		}
 	}
 }
