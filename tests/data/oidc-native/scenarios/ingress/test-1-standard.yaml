@@ -1,0 +1,35 @@
+# Test 1: OIDCNative policy applied via Ingress annotation (server-level).
+#
+# Verify:
+#   - NGINX config shows one oidc_provider block and auth_oidc at server level.
+#   - Both / and /public redirect to Keycloak.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp
+  annotations:
+    nginx.com/policies: "oidcnative-policy"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - webapp.example.com
+      secretName: tls-secret
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
+          - path: /public
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80

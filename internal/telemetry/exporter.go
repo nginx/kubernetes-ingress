@@ -156,4 +156,6 @@ type NICResourceCounts struct {
 	WAFLogBundleSourceTypes []string
 	// HSTSPolicies is the number of HSTS policies managed by NGINX Ingress Controller
 	HSTSPolicies int64
+	// OIDCNativePolicies is the number of OIDC Native policies managed by NGINX Ingress Controller
+	OIDCNativePolicies int64
 }
