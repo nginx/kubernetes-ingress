@@ -478,24 +478,12 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 
 	allErrs := field.ErrorList{}
 
-	if oidcNative.SSLVerify != nil && !*oidcNative.SSLVerify && oidcNative.TrustedCertSecret != "" {
-		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("trustedCertSecret"),
-			"trustedCertSecret can be set only if sslVerify is true"))
-	}
-
-	// Issuer hostname/port validation goes beyond the CRD pattern (which only checks https:// + host).
 	allErrs = append(allErrs, validateIssuerURL(oidcNative.Issuer, fieldPath.Child("issuer"))...)
-	// ClientID char validation (rejects $, unescaped \, etc.) — not expressible in a simple CRD pattern.
 	allErrs = append(allErrs, validateClientID(oidcNative.ClientID, fieldPath.Child("clientID"))...)
 	if oidcNative.Scope != "" {
 		allErrs = append(allErrs, validateOIDCNativeScope(oidcNative.Scope, fieldPath.Child("scope"))...)
 	}
-	if oidcNative.ClientSecret != "" {
-		allErrs = append(allErrs, validateSecretName(oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
-	}
-	if oidcNative.TrustedCertSecret != "" {
-		allErrs = append(allErrs, validateSecretName(oidcNative.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
-	}
+	allErrs = append(allErrs, validateOIDCNativeSecrets(oidcNative, fieldPath)...)
 
 	if oidcNative.ConfigURL != "" {
 		if ContainsWhitespaceOrQuotes(oidcNative.ConfigURL) {
@@ -517,7 +505,35 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 	}
 
 	allErrs = append(allErrs, validateSSLName(oidcNative.SSLName, fieldPath.Child("sslName"))...)
+	allErrs = append(allErrs, validateOIDCNativeLimits(oidcNative, fieldPath)...)
 
+	switch oidcNative.PKCE {
+	case "on":
+		allErrs = append(allErrs, validatePKCE(true, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	case "off":
+		allErrs = append(allErrs, validatePKCE(false, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+
+	return allErrs
+}
+
+func validateOIDCNativeSecrets(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if oidcNative.SSLVerify != nil && !*oidcNative.SSLVerify && oidcNative.TrustedCertSecret != "" {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("trustedCertSecret"),
+			"trustedCertSecret can be set only if sslVerify is true"))
+	}
+	if oidcNative.ClientSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+	if oidcNative.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+	}
+	return allErrs
+}
+
+func validateOIDCNativeLimits(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
 	if oidcNative.SessionTimeout != "" {
 		allErrs = append(allErrs, validateTime(oidcNative.SessionTimeout, fieldPath.Child("sessionTimeout"))...)
 		if len(oidcNative.SessionTimeout) > 10 {
@@ -530,14 +546,6 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("proxyBufferSize"), oidcNative.ProxyBufferSize, "proxyBufferSize value is too large"))
 		}
 	}
-
-	switch oidcNative.PKCE {
-	case "on":
-		allErrs = append(allErrs, validatePKCE(true, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
-	case "off":
-		allErrs = append(allErrs, validatePKCE(false, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
-	}
-
 	return allErrs
 }
 
