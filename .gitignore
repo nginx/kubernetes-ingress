@@ -86,6 +86,7 @@ examples/custom-resources/jwks/tls-secret.yaml
 examples/custom-resources/oidc-fclo/tls-secret.yaml
 examples/custom-resources/oidc/tls-secret.yaml
 examples/custom-resources/oidc-native/tls-secret.yaml
+examples/ingress-resources/oidc-native/tls-secret.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/cafe-secret.yaml
 examples/custom-resources/tls-passthrough/app-tls-secret.yaml
 examples/custom-resources/transport-server-sni/cafe-secret.yaml
@@ -203,10 +204,13 @@ examples/custom-resources/oidc/keycloak-ca-secret.yaml
 examples/custom-resources/oidc/keycloak-ca-secret-crl.yaml
 examples/custom-resources/oidc-native/keycloak-ca-secret.yaml
 examples/custom-resources/oidc-native/keycloak-ca-secret-crl.yaml
+examples/ingress-resources/oidc-native/keycloak-ca-secret.yaml
+examples/ingress-resources/oidc-native/keycloak-ca-secret-crl.yaml
 tests/data/oidc/keycloak-ca-secret.yaml
 tests/data/oidc/keycloak-ca-secret-crl.yaml
 examples/custom-resources/oidc/keycloak-tls-secret.yaml
 examples/custom-resources/oidc-native/keycloak-tls-secret.yaml
+examples/ingress-resources/oidc-native/keycloak-tls-secret.yaml
 tests/data/oidc/keycloak-tls-secret.yaml
 common-secrets/external-auth-ca-secret.yaml
 common-secrets/external-auth-server-tls-secret.yaml
