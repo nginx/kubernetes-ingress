@@ -520,7 +520,6 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 		}
 	}
 
-
 	switch oidcNative.PKCE {
 	case "on":
 		allErrs = append(allErrs, validatePKCE(true, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
