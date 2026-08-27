@@ -24,7 +24,7 @@ on:
         type: boolean
         default: false
       skip_step:
-        description: "list of jobs to skip, comma-separated (e.g. build-artifacts,push-prep-images,stage-helm-chart,binaries,azure-upload)"
+        description: "list of jobs to skip, comma-separated (e.g. build-artifacts,push-prep-images,stage-helm-chart,azure-upload)"
         type: string
         required: false
 
@@ -231,6 +231,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_branch }}
 
       - name: Fetch Binary Artifacts from Cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
