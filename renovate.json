@@ -407,6 +407,7 @@
   "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
+    "release-5.6",
     "release-2026-lts"
   ],
   "commitBodyTable": true,
