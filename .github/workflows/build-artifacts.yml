@@ -34,6 +34,26 @@ on:
       go-path:
         required: true
         type: string
+      pkg-src-oss:
+        description: "Repository for NGINX OSS packages"
+        required: false
+        type: string
+        default: "packages.nginx.org"
+      pkg-src-plus:
+        description: "Repository for NGINX Plus packages"
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
+      pkg-src-waf:
+        description: "Repository for F5 WAF packages"
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
+      pkg-src-dos:
+        description: "Repository for F5 DoS packages"
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
       image-matrix-oss:
         required: true
         type: string
@@ -62,7 +82,6 @@ permissions:
 jobs:
   binaries:
     name: Build Binaries
-    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     concurrency:
       group: binary-cache-${{ github.ref }}-${{ inputs.go-md5 }}
@@ -80,7 +99,7 @@ jobs:
 
       - name: Fetch Cached Binary Artifacts
         id: binary-cache
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
@@ -219,7 +238,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-oss ) }}
-    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-oss.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -234,6 +252,7 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
+      pkg-src-oss: ${{ inputs.pkg-src-oss }}
     permissions:
       contents: read
       actions: read
@@ -251,7 +270,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-plus ) }}
-    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -267,6 +285,9 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
+      pkg-src-plus: ${{ inputs.pkg-src-plus }}
+      pkg-src-waf: ${{ inputs.pkg-src-waf }}
+      pkg-src-dos: ${{ inputs.pkg-src-dos }}
     permissions:
       contents: read
       id-token: write
@@ -282,7 +303,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON( inputs.image-matrix-nap ) }}
-    if: github.repository == 'nginx/kubernetes-ingress'
     uses: ./.github/workflows/build-plus.yml
     with:
       platforms: ${{ matrix.platforms }}
@@ -299,6 +319,9 @@ jobs:
       runner: ${{ inputs.runner }}
       write-to-cache: ${{ inputs.write-to-cache }}
       read-from-cache: ${{ inputs.read-from-cache }}
+      pkg-src-plus: ${{ inputs.pkg-src-plus }}
+      pkg-src-waf: ${{ inputs.pkg-src-waf }}
+      pkg-src-dos: ${{ inputs.pkg-src-dos }}
     permissions:
       contents: read
       id-token: write # gcr login

@@ -38,6 +38,9 @@ const PathRegexAnnotation = "nginx.org/path-regex"
 // RewriteTargetAnnotation is the annotation where the regex-based rewrite target is specified.
 const RewriteTargetAnnotation = "nginx.org/rewrite-target"
 
+// UpstreamVhostAnnotation is the annotation where the Host header value sent to the upstream is specified.
+const UpstreamVhostAnnotation = "nginx.org/upstream-vhost"
+
 // SSLCiphersAnnotation is the annotation where SSL ciphers are specified.
 const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
 
@@ -168,6 +171,7 @@ var minionInheritanceList = map[string]bool{
 	"nginx.org/limit-req-log-level":      true,
 	"nginx.org/limit-req-reject-code":    true,
 	"nginx.org/limit-req-scale":          true,
+	UpstreamVhostAnnotation:              true,
 }
 
 var validPathRegex = map[string]bool{
@@ -734,6 +738,15 @@ func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) 
 	}
 
 	if value, exists := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; exists {
+		return value, warnings
+	}
+	return "", warnings
+}
+
+func getUpstreamVhost(ingEx *IngressEx) (string, Warnings) {
+	warnings := newWarnings()
+
+	if value, exists := ingEx.Ingress.Annotations[UpstreamVhostAnnotation]; exists {
 		return value, warnings
 	}
 	return "", warnings

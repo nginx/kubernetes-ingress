@@ -475,6 +475,20 @@ func TestFilterIngressPolicyRefs(t *testing.T) {
 			warningSubstr: "WAF policy default/waf-policy is not supported in annotation nginx.org/policies",
 		},
 		{
+			name:            "filters oidc_native policy from nginx org policies",
+			annotationValue: "oidc-native-policy",
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-native-policy", Namespace: "default"},
+					Spec:       conf_v1.PolicySpec{OIDCNative: &conf_v1.OIDCNative{ClientID: "test"}},
+				},
+			},
+			policyRefs:    []conf_v1.PolicyReference{{Name: "oidc-native-policy"}},
+			expectedRefs:  nil,
+			expectError:   true,
+			warningSubstr: "OIDCNative policy default/oidc-native-policy is not supported in annotation nginx.org/policies",
+		},
+		{
 			name:            "keeps non plus policy from nginx org policies",
 			annotationValue: "cors-policy",
 			policies: map[string]*conf_v1.Policy{
@@ -1248,6 +1262,74 @@ func TestGenerateNginxCfgWithWildcardTLSSecret(t *testing.T) {
 	}
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfg returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForOIDCNative(t *testing.T) {
+	t.Parallel()
+	cafeIngressEx := createCafeIngressEx()
+	cafeIngressEx.Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy"
+	cafeIngressEx.Policies = map[string]*conf_v1.Policy{
+		"default/oidc-native-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-native-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				OIDCNative: &conf_v1.OIDCNative{
+					Issuer:   "https://keycloak.example.com/realms/master",
+					ClientID: "client-id",
+				},
+			},
+		},
+	}
+
+	isPlus := true
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	expected := createExpectedConfigForCafeIngressEx(isPlus)
+
+	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress_ing"
+	expected.OIDCProviders = []version2.OIDCProvider{
+		{
+			Name:            providerName,
+			PolicyKey:       "default/oidc-native-policy",
+			Issuer:          "https://keycloak.example.com/realms/master",
+			ClientID:        "client-id",
+			RedirectURI:     "/oidc_callback_" + providerName,
+			LogoutURI:       "",
+			CookieName:      "NGX_OIDC_" + providerName,
+			SessionStore:    "oidc_sessions_" + providerName,
+			SSLVerify:       true,
+			SSLName:         "",
+			SSLVerifyDepth:  1,
+			ProxyLocation:   "/_oidc_idp_" + providerName,
+			ProxyBufferSize: "32k",
+		},
+	}
+	expected.KeyValZones = []version2.KeyValZone{
+		{
+			Name: "oidc_sessions_" + providerName,
+			Size: "10m",
+		},
+	}
+	expected.Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy"
+
+	for i := range expected.Servers {
+		expected.Servers[i].OIDCProviderName = providerName
+	}
+
+	result, warnings := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &cafeIngressEx,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfg() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfg() returned warnings: %v", warnings)
 	}
 }
 
@@ -2053,6 +2135,227 @@ func TestGenerateNginxCfgForMergeableIngressesCustomHTTPErrors_MinionWithoutMast
 	}
 }
 
+func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MasterAnnotation(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[UpstreamVhostAnnotation] = "master.example.com"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+	if len(result.Servers) != 1 {
+		t.Fatalf("expected 1 server, got %d", len(result.Servers))
+	}
+
+	sawCoffee, sawTea := false, false
+	for _, loc := range result.Servers[0].Locations {
+		switch loc.Path {
+		case "/coffee":
+			sawCoffee = true
+			if loc.UpstreamVhost != "master.example.com" {
+				t.Errorf("coffee Location.UpstreamVhost = %q, want inherited %q", loc.UpstreamVhost, "master.example.com")
+			}
+		case "/tea":
+			sawTea = true
+			if loc.UpstreamVhost != "master.example.com" {
+				t.Errorf("tea Location.UpstreamVhost = %q, want inherited %q", loc.UpstreamVhost, "master.example.com")
+			}
+		}
+	}
+	if !sawCoffee || !sawTea {
+		t.Fatalf("expected /coffee and /tea locations, saw coffee=%v tea=%v", sawCoffee, sawTea)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOverride(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[UpstreamVhostAnnotation] = "master.example.com"
+
+	var coffee *IngressEx
+	for _, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			coffee = m
+			break
+		}
+	}
+	if coffee == nil {
+		t.Fatal("coffee minion not found in test fixture")
+	}
+	coffee.Ingress.Annotations[UpstreamVhostAnnotation] = "coffee.example.com"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+
+	sawCoffee, sawTea := false, false
+	for _, loc := range result.Servers[0].Locations {
+		switch loc.Path {
+		case "/coffee":
+			sawCoffee = true
+			if loc.UpstreamVhost != "coffee.example.com" {
+				t.Errorf("coffee Location.UpstreamVhost = %q, want minion override %q", loc.UpstreamVhost, "coffee.example.com")
+			}
+		case "/tea":
+			sawTea = true
+			if loc.UpstreamVhost != "master.example.com" {
+				t.Errorf("tea Location.UpstreamVhost = %q, want inherited %q", loc.UpstreamVhost, "master.example.com")
+			}
+		}
+	}
+	if !sawCoffee || !sawTea {
+		t.Fatalf("expected /coffee and /tea locations, saw coffee=%v tea=%v", sawCoffee, sawTea)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesUpstreamVhost_MinionOnly(t *testing.T) {
+	t.Parallel()
+
+	mergeableIngresses := createMergeableCafeIngress()
+
+	var coffee *IngressEx
+	for _, m := range mergeableIngresses.Minions {
+		if strings.Contains(m.Ingress.Name, "coffee") {
+			coffee = m
+			break
+		}
+	}
+	if coffee == nil {
+		t.Fatal("coffee minion not found in test fixture")
+	}
+	coffee.Ingress.Annotations[UpstreamVhostAnnotation] = "coffee.example.com"
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		isPlus:        false,
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if len(warnings) != 0 {
+		t.Errorf("unexpected warnings: %v", warnings)
+	}
+
+	sawCoffee, sawTea := false, false
+	for _, loc := range result.Servers[0].Locations {
+		switch loc.Path {
+		case "/coffee":
+			sawCoffee = true
+			if loc.UpstreamVhost != "coffee.example.com" {
+				t.Errorf("coffee Location.UpstreamVhost = %q, want %q", loc.UpstreamVhost, "coffee.example.com")
+			}
+		case "/tea":
+			sawTea = true
+			if loc.UpstreamVhost != "" {
+				t.Errorf("tea Location.UpstreamVhost = %q, want empty (no annotation on master or tea minion)", loc.UpstreamVhost)
+			}
+		}
+	}
+	if !sawCoffee || !sawTea {
+		t.Fatalf("expected /coffee and /tea locations, saw coffee=%v tea=%v", sawCoffee, sawTea)
+	}
+}
+
+func TestGenerateNginxCfgForHostInProxySetHeadersWarning(t *testing.T) {
+	t.Parallel()
+
+	cafeIngressEx := createCafeIngressEx()
+	expectedWarning := fmt.Sprintf("Host in '%s' creates a duplicate 'proxy_set_header Host' directive; remove it and use '%s' to set the upstream Host.", ProxySetHeadersAnnotation, UpstreamVhostAnnotation)
+
+	tests := []struct {
+		annotations      map[string]string
+		expectedWarnings Warnings
+		msg              string
+	}{
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "Host: example.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "Host with value generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "Host",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "bare Host generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "host: example.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "lowercase host generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "HOST: example.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "uppercase HOST generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "X-Forwarded-ABC,Host: example.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "Host mixed with other headers generates warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "Host: a.internal,Host: b.internal",
+			},
+			expectedWarnings: Warnings{cafeIngressEx.Ingress: {expectedWarning}},
+			msg:              "multiple Host entries generate a single warning",
+		},
+		{
+			annotations: map[string]string{
+				ProxySetHeadersAnnotation: "X-Forwarded-ABC",
+			},
+			expectedWarnings: Warnings{},
+			msg:              "no Host header does not generate warning",
+		},
+		{
+			annotations:      map[string]string{},
+			expectedWarnings: Warnings{},
+			msg:              "no proxy-set-headers annotation",
+		},
+	}
+
+	for _, test := range tests {
+		cafeIngressEx.Ingress.Annotations = test.annotations
+		configParams := NewDefaultConfigParams(context.Background(), false)
+
+		_, warnings := generateNginxCfg(NginxCfgParams{
+			staticParams:  &StaticConfigParams{},
+			ingEx:         &cafeIngressEx,
+			BaseCfgParams: configParams,
+			isPlus:        false,
+		})
+
+		if !reflect.DeepEqual(test.expectedWarnings, warnings) {
+			t.Errorf("generateNginxCfg() returned %v but expected %v for the case of %s", warnings, test.expectedWarnings, test.msg)
+		}
+	}
+}
+
 func createCafeIngressEx() IngressEx {
 	cafeIngress := networking.Ingress{
 		ObjectMeta: meta_v1.ObjectMeta{
@@ -2807,6 +3110,127 @@ func TestGenerateNginxCfgForMergeableIngressesMinionWithMissingOrInvalidPolicy(t
 				t.Fatalf("expected warning containing %q, got %v", expectedWarning, resultWarnings)
 			}
 		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesMinionWithOIDCNative(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy"
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/oidc-native-policy": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-native-policy",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				OIDCNative: &conf_v1.OIDCNative{
+					Issuer:   "https://keycloak.example.com/realms/master",
+					ClientID: "client-id",
+				},
+			},
+		},
+	}
+
+	isPlus := true
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+	expected := createExpectedConfigForMergeableCafeIngress(isPlus)
+
+	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress_master_ing"
+	expected.OIDCProviders = []version2.OIDCProvider{
+		{
+			Name:            providerName,
+			PolicyKey:       "default/oidc-native-policy",
+			Issuer:          "https://keycloak.example.com/realms/master",
+			ClientID:        "client-id",
+			RedirectURI:     "/oidc_callback_" + providerName,
+			LogoutURI:       "",
+			CookieName:      "NGX_OIDC_" + providerName,
+			SessionStore:    "oidc_sessions_" + providerName,
+			SSLVerify:       true,
+			SSLName:         "",
+			SSLVerifyDepth:  1,
+			ProxyLocation:   "/_oidc_idp_" + providerName,
+			ProxyBufferSize: "32k",
+		},
+	}
+	expected.KeyValZones = []version2.KeyValZone{
+		{
+			Name: "oidc_sessions_" + providerName,
+			Size: "10m",
+		},
+	}
+
+	for i, loc := range expected.Servers[0].Locations {
+		if loc.Path == "/coffee" {
+			expected.Servers[0].Locations[i].OIDCProviderName = providerName
+			expected.Servers[0].Locations[i].MinionIngress.Annotations["nginx.com/policies"] = "oidc-native-policy"
+		}
+	}
+
+	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		mergeableIngs: mergeableIngresses,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned unexpected result (-want +got):\n%s", diff)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesDuplicateRedirectURIConflict(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy-1"
+	mergeableIngresses.Minions[0].Policies = map[string]*conf_v1.Policy{
+		"default/oidc-native-policy-1": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-native-policy-1",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				OIDCNative: &conf_v1.OIDCNative{
+					Issuer:      "https://keycloak.example.com/realms/master",
+					ClientID:    "client-id-1",
+					RedirectURI: "/oidc_callback",
+				},
+			},
+		},
+	}
+	mergeableIngresses.Minions[1].Ingress.Annotations["nginx.com/policies"] = "oidc-native-policy-2"
+	mergeableIngresses.Minions[1].Policies = map[string]*conf_v1.Policy{
+		"default/oidc-native-policy-2": {
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-native-policy-2",
+				Namespace: "default",
+			},
+			Spec: conf_v1.PolicySpec{
+				OIDCNative: &conf_v1.OIDCNative{
+					Issuer:      "https://keycloak.example.com/realms/master",
+					ClientID:    "client-id-2",
+					RedirectURI: "/oidc_callback",
+				},
+			},
+		},
+	}
+
+	isPlus := true
+	configParams := NewDefaultConfigParams(context.Background(), isPlus)
+
+	_, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		mergeableIngs: mergeableIngresses,
+		isPlus:        isPlus,
+		BaseCfgParams: configParams,
+	})
+
+	if len(warnings) == 0 {
+		t.Fatal("expected warning about conflicting redirectURI across minions, got none")
 	}
 }
 

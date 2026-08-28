@@ -146,6 +146,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "appprotect-wafv5-resources",
 			namespace:   "appprotect-wafv5",
 		},
+		"appProtectWAFPLM": {
+			valuesFile:  "testdata/app-protect-waf-plm.yaml",
+			releaseName: "appprotect-waf-plm",
+			namespace:   "appprotect-waf-plm",
+		},
 		"appProtectDOS": {
 			valuesFile:  "testdata/app-protect-dos.yaml",
 			releaseName: "appprotect-dos",
@@ -281,6 +286,36 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			namespace:         "default",
 			expectedErrorMsgs: []string{"globalConfiguration.customName namespace and name parts cannot be empty (e.g., \"my-namespace/my-global-config\")"},
 		},
+		"appProtectWAFPLMWithoutV5": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-v5.yaml",
+			releaseName:       "appprotect-waf-plm-without-v5",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.appprotect.v5=true"},
+		},
+		"appProtectWAFPLMWithoutPlus": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-plus.yaml",
+			releaseName:       "appprotect-waf-plm-without-plus",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.nginxplus=true"},
+		},
+		"appProtectWAFPLMWithoutAppProtect": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-appprotect.yaml",
+			releaseName:       "appprotect-waf-plm-without-appprotect",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.appprotect.enable=true"},
+		},
+		"appProtectWAFPLMWithoutCredentials": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-credentials.yaml",
+			releaseName:       "appprotect-waf-plm-without-credentials",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.credentialsSecret must be set when controller.appprotect.plmStorage.url is set"},
+		},
+		"appProtectWAFPLMWithoutURL": {
+			valuesFile:        "testdata/app-protect-waf-plm-without-url.yaml",
+			releaseName:       "appprotect-waf-plm-without-url",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"controller.appprotect.plmStorage auxiliary values require controller.appprotect.plmStorage.url"},
+		},
 	}
 
 	// Path to the helm chart we will test
@@ -314,5 +349,37 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 
 			t.Logf("Expected failure occurred: %s", err.Error())
 		})
+	}
+}
+
+// TestHelmNICNetworkPolicyLegacyValues renders the chart with legacy values
+// that omit controller.networkPolicy, the state a release ends up in on
+// `helm upgrade --reuse-values` from a version that predates the feature.
+func TestHelmNICNetworkPolicyLegacyValues(t *testing.T) {
+	t.Parallel()
+
+	helmChartPath, err := filepath.Abs("../nginx-ingress")
+	if err != nil {
+		t.Fatal("Failed to open helm chart path ../nginx-ingress")
+	}
+
+	options := &helm.Options{
+		KubectlOptions: k8s.NewKubectlOptions("", "", "default"),
+		ValuesFiles:    []string{"testdata/network-policy-legacy-values.yaml"},
+	}
+
+	// The values.schema.json types networkPolicy as "object" and rejects an
+	// explicit null; the real --reuse-values path skips this check because the
+	// key is simply absent.
+	output, err := helm.RenderTemplateE(t, options, helmChartPath, "network-policy-legacy", make([]string, 0), "--skip-schema-validation")
+	if err != nil {
+		t.Fatalf("helm template must succeed when controller.networkPolicy is absent, got: %v", err)
+	}
+
+	if strings.Contains(output, "kind: NetworkPolicy") {
+		t.Fatalf("expected no NetworkPolicy resource when controller.networkPolicy is absent, rendered output:\n%s", output)
+	}
+	if strings.Contains(output, "controller-networkpolicy.yaml") {
+		t.Fatalf("expected controller-networkpolicy.yaml to render empty, rendered output:\n%s", output)
 	}
 }

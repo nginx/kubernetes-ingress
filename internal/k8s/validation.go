@@ -71,6 +71,7 @@ const (
 	grpcServicesAnnotation                = "nginx.org/grpc-services"
 	rewritesAnnotation                    = "nginx.org/rewrites"
 	rewriteTargetAnnotation               = "nginx.org/rewrite-target"
+	upstreamVhostAnnotation               = configs.UpstreamVhostAnnotation
 	stickyCookieServicesAnnotation        = configs.StickyCookieServicesAnnotation
 	stickyCookieServicesAnnotationPlus    = configs.StickyCookieServicesAnnotationPlus
 	pathRegexAnnotation                   = "nginx.org/path-regex"
@@ -382,6 +383,10 @@ var (
 			validateRequiredAnnotation,
 			validateRewriteTargetAnnotation,
 		},
+		upstreamVhostAnnotation: {
+			validateRequiredAnnotation,
+			validateUpstreamVhostAnnotation,
+		},
 		stickyCookieServicesAnnotation: {
 			validateRequiredAnnotation,
 			validateStickyServiceListAnnotation,
@@ -631,6 +636,16 @@ func validateJWTLoginURLAnnotation(context *annotationValidationContext) field.E
 }
 
 func validateJWTKey(context *annotationValidationContext) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	for _, msg := range validation.IsDNS1123Subdomain(context.value) {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, msg))
+	}
+
+	return allErrs
+}
+
+func validateUpstreamVhostAnnotation(context *annotationValidationContext) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	for _, msg := range validation.IsDNS1123Subdomain(context.value) {

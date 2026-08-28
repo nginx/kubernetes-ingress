@@ -126,6 +126,25 @@ func policyFields() []policyFieldValidator {
 			},
 		},
 		{
+			name:  "oidcNative",
+			isSet: func(s *v1.PolicySpec) bool { return s.OIDCNative != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				var errs field.ErrorList
+				if !cfg.EnableOIDC {
+					errs = append(errs, field.Forbidden(p.Child("oidcNative"),
+						"OIDC must be enabled via cli argument -enable-oidc to use OIDCNative policy"))
+				}
+				if !cfg.IsPlus {
+					errs = append(errs, field.Forbidden(p.Child("oidcNative"), "OIDCNative is only supported in NGINX Plus"))
+					return errs, true
+				}
+				return errs, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateOIDCNative(s.OIDCNative, p.Child("oidcNative"))
+			},
+		},
+		{
 			name:  "apiKey",
 			isSet: func(s *v1.PolicySpec) bool { return s.APIKey != nil },
 			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
@@ -199,7 +218,7 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	if fieldCount != 1 {
 		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
 		if cfg.IsPlus {
-			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
+			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `oidcNative`, `waf`")
 		}
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
 	}
@@ -443,6 +462,162 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 	return append(allErrs, validateClientID(oidc.ClientID, fieldPath.Child("clientID"))...)
 }
 
+func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	// Each field gets the validator appropriate to its type — URL, path,
+	// hostname, cookie name, query string, secret name. The kubebuilder
+	// markers on OIDCNative complement these checks rather than replace
+	// them; sessionTimeout, proxyBufferSize, sslVerifyDepth and the
+	// pkce/clientSecret combination is checked below
+
+	if oidcNative.Issuer == "" {
+		return field.ErrorList{field.Required(fieldPath.Child("issuer"), "")}
+	}
+	if oidcNative.ClientID == "" {
+		return field.ErrorList{field.Required(fieldPath.Child("clientID"), "")}
+	}
+
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validateIssuerURL(oidcNative.Issuer, fieldPath.Child("issuer"))...)
+	allErrs = append(allErrs, validateClientID(oidcNative.ClientID, fieldPath.Child("clientID"))...)
+	if oidcNative.Scope != "" {
+		allErrs = append(allErrs, validateOIDCNativeScope(oidcNative.Scope, fieldPath.Child("scope"))...)
+	}
+	allErrs = append(allErrs, validateOIDCNativeSecrets(oidcNative, fieldPath)...)
+
+	if oidcNative.ConfigURL != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.ConfigURL) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("configURL"), oidcNative.ConfigURL, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validateURL(oidcNative.ConfigURL, fieldPath.Child("configURL"))...)
+	}
+
+	allErrs = append(allErrs, validateOIDCNativeURIs(oidcNative, fieldPath)...)
+
+	if oidcNative.CookieName != "" {
+		for _, msg := range isCookieName(oidcNative.CookieName) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cookieName"), oidcNative.CookieName, msg))
+		}
+	}
+
+	if oidcNative.ExtraAuthArgs != "" {
+		allErrs = append(allErrs, validateQueryString(oidcNative.ExtraAuthArgs, fieldPath.Child("extraAuthArgs"))...)
+	}
+
+	allErrs = append(allErrs, validateSSLName(oidcNative.SSLName, fieldPath.Child("sslName"))...)
+	allErrs = append(allErrs, validateOIDCNativeLimits(oidcNative, fieldPath)...)
+
+	if oidcNative.SessionTimeout != "" {
+		allErrs = append(allErrs, validateTime(oidcNative.SessionTimeout, fieldPath.Child("sessionTimeout"))...)
+		if len(oidcNative.SessionTimeout) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sessionTimeout"), oidcNative.SessionTimeout, "sessionTimeout value is too large"))
+		}
+	}
+	if oidcNative.ProxyBufferSize != "" {
+		allErrs = append(allErrs, validateSize(oidcNative.ProxyBufferSize, fieldPath.Child("proxyBufferSize"))...)
+		if len(oidcNative.ProxyBufferSize) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("proxyBufferSize"), oidcNative.ProxyBufferSize, "proxyBufferSize value is too large"))
+		}
+	}
+
+	switch oidcNative.PKCE {
+	case "on":
+		allErrs = append(allErrs, validatePKCE(true, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	case "off":
+		allErrs = append(allErrs, validatePKCE(false, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+
+	return allErrs
+}
+
+func validateOIDCNativeSecrets(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if oidcNative.SSLVerify != nil && !*oidcNative.SSLVerify && oidcNative.TrustedCertSecret != "" {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("trustedCertSecret"),
+			"trustedCertSecret can be set only if sslVerify is true"))
+	}
+	if oidcNative.ClientSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+	if oidcNative.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+	}
+	return allErrs
+}
+
+func validateOIDCNativeLimits(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if oidcNative.SessionTimeout != "" {
+		allErrs = append(allErrs, validateTime(oidcNative.SessionTimeout, fieldPath.Child("sessionTimeout"))...)
+		if len(oidcNative.SessionTimeout) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sessionTimeout"), oidcNative.SessionTimeout, "sessionTimeout value is too large"))
+		}
+	}
+	if oidcNative.ProxyBufferSize != "" {
+		allErrs = append(allErrs, validateSize(oidcNative.ProxyBufferSize, fieldPath.Child("proxyBufferSize"))...)
+		if len(oidcNative.ProxyBufferSize) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("proxyBufferSize"), oidcNative.ProxyBufferSize, "proxyBufferSize value is too large"))
+		}
+	}
+	return allErrs
+}
+
+func validateOIDCNativeURIs(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if oidcNative.RedirectURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.RedirectURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("redirectURI"), oidcNative.RedirectURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validatePath(oidcNative.RedirectURI, fieldPath.Child("redirectURI"))...)
+	}
+
+	if oidcNative.LogoutURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.LogoutURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("logoutURI"), oidcNative.LogoutURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validatePath(oidcNative.LogoutURI, fieldPath.Child("logoutURI"))...)
+	}
+
+	if oidcNative.PostLogoutRedirectURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.PostLogoutRedirectURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("postLogoutRedirectURI"), oidcNative.PostLogoutRedirectURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validatePath(oidcNative.PostLogoutRedirectURI, fieldPath.Child("postLogoutRedirectURI"))...)
+	}
+
+	if oidcNative.FrontChannelLogoutURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.FrontChannelLogoutURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("frontChannelLogoutURI"), oidcNative.FrontChannelLogoutURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validatePath(oidcNative.FrontChannelLogoutURI, fieldPath.Child("frontChannelLogoutURI"))...)
+	}
+
+	return allErrs
+}
+
+func validateOIDCNativeScope(scope string, fieldPath *field.Path) field.ErrorList {
+	tokens := strings.FieldsFunc(scope, func(r rune) bool { return r == '+' || unicode.IsSpace(r) })
+	hasOpenID := false
+	for _, token := range tokens {
+		if token == "openid" {
+			hasOpenID = true
+		}
+		for _, r := range token {
+			if !unicode.Is(validOIDCScopeRanges, r) {
+				return field.ErrorList{field.Invalid(fieldPath, scope, fmt.Sprintf("not allowed character %q in scope %s", r, scope))}
+			}
+			if strings.ContainsRune(";{}$`#", r) {
+				return field.ErrorList{field.Invalid(fieldPath, scope, fmt.Sprintf("character %q is not allowed in scope %s", r, scope))}
+			}
+		}
+	}
+	if !hasOpenID {
+		return field.ErrorList{field.Required(fieldPath, "openid is required as a scope token")}
+	}
+	return nil
+}
+
 func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -633,7 +808,10 @@ func validateBundleSourceType(bs *v1.BundleSource, srcType v1.BundleSourceType, 
 		}
 	default:
 		allErrs = append(allErrs, field.NotSupported(fieldPath.Child("type"), srcType,
-			[]string{string(v1.BundleSourceTypeHTTPS), string(v1.BundleSourceTypeNIM), string(v1.BundleSourceTypeN1C)}))
+			[]string{
+				string(v1.BundleSourceTypeHTTPS), string(v1.BundleSourceTypeNIM),
+				string(v1.BundleSourceTypeN1C),
+			}))
 		return allErrs, true
 	}
 
@@ -967,6 +1145,39 @@ func validatePKCE(PKCEEnable bool, clientSecret string,
 	}
 
 	return nil
+}
+
+// validateIssuerURL validates an OIDC issuer URL, which requires https scheme and a hostname
+// but does not require a path (unlike validateURL). Per the OpenID Connect spec, the issuer
+// identifier is a URL using the https scheme with no query or fragment components.
+func validateIssuerURL(issuer string, fieldPath *field.Path) field.ErrorList {
+	if ContainsWhitespaceOrQuotes(issuer) {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "must not include whitespace, quotes, or dangerous characters")}
+	}
+	u, err := url.Parse(issuer)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, err.Error())}
+	}
+	if u.Scheme != "https" {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "scheme must be https")}
+	}
+	if u.Host == "" {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "hostname required")}
+	}
+	if u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "must not include userinfo, query, or fragment")}
+	}
+
+	host, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		host = u.Host
+	}
+
+	allErrs := validateSSLName(host, fieldPath)
+	if port != "" {
+		allErrs = append(allErrs, validatePortNumber(port, fieldPath)...)
+	}
+	return allErrs
 }
 
 func validateURL(name string, fieldPath *field.Path) field.ErrorList {
@@ -1475,6 +1686,16 @@ func ContainsDangerousChars(value string) bool {
 		}
 	}
 	return false
+}
+
+// ContainsWhitespace checks if a string contains any whitespace character (space, tab, newline, carriage return, etc.)
+func ContainsWhitespace(value string) bool {
+	return strings.IndexFunc(value, unicode.IsSpace) != -1
+}
+
+// ContainsWhitespaceOrQuotes checks if a string contains whitespace, quotes, backslashes, or dangerous NGINX injection characters
+func ContainsWhitespaceOrQuotes(value string) bool {
+	return ContainsWhitespace(value) || ContainsDangerousChars(value) || strings.ContainsAny(value, "\"'\\")
 }
 
 func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, enableSnippets bool) field.ErrorList {

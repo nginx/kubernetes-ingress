@@ -52,6 +52,7 @@ markers = [
     "ingresses_jwt",
     "ingresses_smoke",
     "multi_ns",
+    "native_oidc",
     "oidc",
     "otel",
     "policies",

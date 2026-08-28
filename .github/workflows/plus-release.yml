@@ -18,6 +18,10 @@ on:
       az_mktpl_registry:
         required: true
         type: boolean
+      source_registry:
+        required: false
+        type: string
+        default: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
       source_tag:
         required: true
         type: string
@@ -48,6 +52,10 @@ on:
       az_mktpl_registry:
         required: true
         type: boolean
+      source_registry:
+        required: false
+        type: string
+        default: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev"
       source_tag:
         required: true
         type: string
@@ -83,31 +91,22 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -115,6 +114,29 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
+
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
 
       - name: Publish Plus images
         run: |
@@ -124,7 +146,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-to-nginx-registry:
     name: Push Plus images to the NGINX Registry
@@ -139,31 +161,24 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -171,6 +186,7 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Get Id Token
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -187,6 +203,29 @@ jobs:
           username: ${{ steps.idtoken.outputs.id_token }}
           password: ${{ github.actor }}
 
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
+
       - name: Publish images
         run: |
           export CONFIG_PATH=.github/config/config-plus-nginx
@@ -195,7 +234,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-plus-to-gcr-marketplace-registry:
     name: Push Plus images to the GCR Marketplace Registry
@@ -210,45 +249,54 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-          GCR_MKPL_WORKLOAD_ID=$(az keyvault secret show --name gcr-mkpl-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_MKPL_WORKLOAD_ID"
-          echo "GCR_MKPL_WORKLOAD_ID=$GCR_MKPL_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_MKPL_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-mkpl-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_MKPL_SERVICE_ACCOUNT"
-          echo "GCR_MKPL_SERVICE_ACCOUNT=$GCR_MKPL_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa, gcr-mkpl-workload-identity, kic-pipeline-gcr-mkpl-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT, GCR_MKPL_WORKLOAD_ID, GCR_MKPL_SERVICE_ACCOUNT"
 
       - name: Authenticate to Google Cloud
         id: gcr-priv-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Authenticate to Google Cloud Marketplace
         id: gcr-mktpl-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_MKPL_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_MKPL_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_MKPL_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_MKPL_SERVICE_ACCOUNT }}
+
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
 
       - name: Publish Plus images
         run: |
@@ -260,7 +308,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-plus-to-ecr-marketplace-registry:
     name: Push Plus images to the AWS Marketplace Registry
@@ -275,34 +323,23 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-          AWS_ROLE_MARKETPLACE=$(az keyvault secret show --name aws-mktpl-role --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$AWS_ROLE_MARKETPLACE"
-          echo "AWS_ROLE_MARKETPLACE=$AWS_ROLE_MARKETPLACE" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa, gcr-mkpl-workload-identity, kic-pipeline-gcr-mkpl-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT, GCR_MKPL_WORKLOAD_ID, GCR_MKPL_SERVICE_ACCOUNT"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -310,17 +347,41 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           aws-region: us-east-1
-          role-to-assume: ${{ steps.secrets.outputs.AWS_ROLE_MARKETPLACE }}
+          role-to-assume: ${{ env.AWS_ROLE_MARKETPLACE }}
 
       - name: Login to ECR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: 709825985650.dkr.ecr.us-east-1.amazonaws.com
+
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
 
       - name: Publish images
         run: |
@@ -330,7 +391,7 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-plus-to-azure-marketplace-registry:
     name: Push Plus images to the Azure Marketplace Registry
@@ -345,31 +406,23 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
 
-      - name: Azure login
-        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
-        with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
-
       - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
+        with:
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
       - name: Authenticate to Google Cloud
         id: gcr-auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Login to GCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -377,6 +430,7 @@ jobs:
           registry: gcr.io
           username: oauth2accesstoken
           password: ${{ steps.gcr-auth.outputs.access_token }}
+        if: contains(inputs.source_registry, 'gcr.io')
 
       - name: Azure login
         uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
@@ -389,6 +443,29 @@ jobs:
         run: |
           az acr login --name nginxmktpl
 
+      - name: Get Id Token for Source Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          hostname=$(echo "${{ inputs.source_registry }}" | awk -F/ '{print $1}')
+          echo "hostname=$hostname" >> $GITHUB_OUTPUT
+
+      - name: Login to Source Management Registry
+        if: contains(inputs.source_registry, 'docker-mgmt')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
+
       - name: Publish images
         run: |
           export CONFIG_PATH=.github/config/config-plus-azure
@@ -397,4 +474,4 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
-          .github/scripts/copy-images.sh
+          .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
