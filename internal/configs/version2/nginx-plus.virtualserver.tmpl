@@ -35,7 +35,7 @@ upstream {{ $u.Name }} {
 {{ end }}
 
 {{- range $kvz := .KeyValZones }}
-keyval_zone zone={{ $kvz.Name }}:{{ $kvz.Size}} state={{ $kvz.State }};
+keyval_zone zone={{ $kvz.Name }}:{{ $kvz.Size}}{{ if $kvz.State }} state={{ $kvz.State }}{{ end }}{{ if $kvz.Timeout }} timeout={{ $kvz.Timeout }}{{ end }}{{ if $kvz.Sync }} sync{{ end }};
 {{- end }}
 
 {{- range $kv := .KeyVals }}
@@ -72,6 +72,62 @@ limit_req_zone {{ $z.Key }} zone={{ $z.ZoneName }}:{{ $z.ZoneSize }} rate={{ $z.
 
 {{- range $c := .CacheZones }}
 proxy_cache_path {{ $c.Path }}{{ if $c.Levels }} levels={{ $c.Levels }}{{ end }} keys_zone={{ $c.Name }}:{{ $c.Size }}{{ if $c.Inactive }} inactive={{ $c.Inactive }}{{ end }}{{ if $c.MaxSize }} max_size={{ $c.MaxSize }}{{ end }}{{ if $c.MinFree }} min_free={{ $c.MinFree }}{{ end }}{{ if $c.ManagerFiles }} manager_files={{ $c.ManagerFiles }}{{ end }}{{ if $c.ManagerSleep }} manager_sleep={{ $c.ManagerSleep }}{{ end }}{{ if $c.ManagerThreshold }} manager_threshold={{ $c.ManagerThreshold }}{{ end }}{{ if not $c.UseTempPath }} use_temp_path=off{{ end }};
+{{- end }}
+
+{{- range $p := .OIDCProviders }}
+oidc_provider {{ $p.Name }} {
+    issuer "{{ $p.Issuer }}";
+    client_id "{{ $p.ClientID }}";
+    {{- if $p.ClientSecret }}
+    client_secret {{ printf "%q" $p.ClientSecret }};
+    {{- end }}
+    {{- if $p.ConfigURL }}
+    config_url "{{ $p.ConfigURL }}";
+    {{- end }}
+    {{- if $p.Scope }}
+    scope {{ $p.Scope }};
+    {{- end }}
+    {{- if $p.RedirectURI }}
+    redirect_uri "{{ $p.RedirectURI }}";
+    {{- end }}
+    {{- if $p.LogoutURI }}
+    logout_uri "{{ $p.LogoutURI }}";
+    {{- end }}
+    {{- if $p.PostLogoutURI }}
+    post_logout_uri "{{ $p.PostLogoutURI }}";
+    {{- end }}
+    {{- if $p.FrontChannelLogoutURI }}
+    frontchannel_logout_uri "{{ $p.FrontChannelLogoutURI }}";
+    {{- end }}
+    {{- if $p.CookieName }}
+    cookie_name "{{ $p.CookieName }}";
+    {{- end }}
+    {{- if $p.ExtraAuthArgs }}
+    extra_auth_args {{ printf "%q" $p.ExtraAuthArgs }};
+    {{- end }}
+    {{- if $p.PKCE }}
+    pkce {{ $p.PKCE }};
+    {{- end }}
+    {{- if $p.LogoutTokenHint }}
+    logout_token_hint on;
+    {{- end }}
+    session_store {{ $p.SessionStore }};
+    {{- if $p.SessionTimeout }}
+    session_timeout {{ $p.SessionTimeout }};
+    {{- end }}
+    {{- if $p.SSLCrl }}
+    ssl_crl {{ $p.SSLCrl }};
+    {{- end }}
+    {{- if $p.SSLTrustedCert }}
+    ssl_trusted_certificate {{ $p.SSLTrustedCert }};
+    {{- end }}
+    {{- if $p.UserInfoEnable }}
+    userinfo on;
+    {{- end }}
+    {{- if $p.ProxyLocation }}
+    proxy_location {{ $p.ProxyLocation }};
+    {{- end }}
+}
 {{- end }}
 
 {{- range $m := .StatusMatches }}
@@ -161,6 +217,10 @@ server {
     set $oidc_client_secret "{{ $oidc.ClientSecret }}";
     {{- end }}
 
+    {{- if $s.OIDCProviderName }}
+    auth_oidc {{ $s.OIDCProviderName }};
+    {{- end }}
+
     {{- with $ssl := $s.SSL }}
         {{- if $s.TLSPassthrough }}
     listen unix:/var/lib/nginx/passthrough-https.sock proxy_protocol;
@@ -175,20 +235,10 @@ server {
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
-        {{- else if $.SpiffeCerts }}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
        {{- else }}
     ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
     ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- end }}
-    {{- else }}
-      {{- if $.SpiffeCerts }}
-    listen 443 ssl;
-    {{if not $s.DisableIPV6}}listen [::]:443 ssl;{{end}}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-      {{- end }}
     {{- end }}
 
     {{- with $s.IngressMTLS }}
@@ -372,12 +422,27 @@ server {
     proxy_ssl_name {{ .SSLName }};
     {{- end }}
 
+    {{- if $s.HSTS }}
+    set $hsts_header_val "";
+    proxy_hide_header Strict-Transport-Security;
+    {{- if $s.HSTS.BehindProxy}}
+    if ($http_x_forwarded_proto = 'https') {
+    {{- else}}
+    if ($https = on) {
+    {{- end}}
+        set $hsts_header_val "max-age={{$s.HSTS.MaxAge}}{{if $s.HSTS.IncludeSubDomains}}; includeSubDomains{{end}}{{if $s.HSTS.Preload}}; preload{{end}}";
+    }
+
+    add_header Strict-Transport-Security "$hsts_header_val" always;
+    {{- end}}
+
     {{- if $s.ExternalAuth }}
     auth_request {{ $s.ExternalAuth.URI.InternalPath }};
     {{- end }}
 
     {{- range $e := $s.ErrorPages }}
-    error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
+    error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
     {{- end }}
 
     {{- with $s.APIKey}}
@@ -502,6 +567,45 @@ server {
     }
     {{ end }}
 
+    {{- range $p := $.OIDCProviders }}
+    {{- if $p.RedirectURI }}
+    location = {{ $p.RedirectURI }} {
+        auth_oidc {{ $p.Name }};
+    }
+    {{- end }}
+    {{- with $pl := $p.PostLogoutLocation }}
+    location = {{ $pl.Path }} {
+        auth_oidc off;
+        default_type {{ $pl.DefaultType }};
+        return {{ $pl.Return.Code }} {{ printf "%q" $pl.Return.Text }};
+    }
+    {{- end }}
+    {{- if $p.ProxyLocation }}
+    location = {{ $p.ProxyLocation }} {
+        internal;
+        auth_oidc off;
+        client_max_body_size 0;
+        proxy_pass $oidc_idp_request_uri;
+        proxy_ssl_server_name on;
+        {{- if $p.SSLName }}
+        proxy_ssl_name "{{ $p.SSLName }}";
+        proxy_set_header Host "{{ $p.SSLName }}";
+        {{- end }}
+        proxy_ssl_verify {{ if $p.SSLVerify }}on{{ else }}off{{ end }};
+        {{- if $p.SSLVerify }}
+        proxy_ssl_verify_depth {{ $p.SSLVerifyDepth }};
+        {{- end }}
+        {{- if $p.ProxyTrustedCertPath }}
+        proxy_ssl_trusted_certificate {{ $p.ProxyTrustedCertPath }};
+        {{- end }}
+        proxy_buffers 8 {{ $p.ProxyBufferSize }};
+        proxy_buffer_size {{ $p.ProxyBufferSize }};
+        proxy_busy_buffers_size {{ $p.ProxyBufferSize }};
+        subrequest_output_buffer_size 64k;
+    }
+    {{- end }}
+    {{- end }}
+
     {{ range $l := $s.Locations }}
     location {{ $l.Path }} {
         set $service "{{ $l.ServiceName }}";
@@ -594,8 +698,8 @@ server {
         {{ $proxyOrGRPC }}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_name {{ .SSLName }};
         {{- end }}
-
         {{- if $l.OIDC }}
+        auth_oidc off;
         auth_jwt "" token=$session_jwt;
         error_page 401 = @do_oidc_flow;
         auth_jwt_key_request /_jwks_uri;
@@ -605,6 +709,9 @@ server {
             {{- end }}
         {{- end }}
 
+        {{- if $l.OIDCProviderName }}
+        auth_oidc {{ $l.OIDCProviderName }};
+        {{- end }}
 
         {{- with $l.APIKey}}
         set $apikey_auth_local_map  "{{ .MapName }}";
@@ -694,7 +801,8 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+        {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
+        error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}
@@ -752,7 +860,7 @@ server {
         {{- if not ($custom_headers | hasCIKey "X-Real-IP") }}
         {{ $proxyOrGRPC }}_set_header X-Real-IP $remote_addr;
         {{- end }}
-
+        {{- if not $l.DisableForwardedHeaders }}
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-For") }}
         {{ $proxyOrGRPC }}_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         {{- end }}
@@ -767,6 +875,7 @@ server {
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Proto") }}
         {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }};
+        {{- end }}
         {{- end }}
 
         {{- range $h := $l.ProxySetHeaders }}
@@ -799,15 +908,18 @@ server {
         }
         {{- end }}
 
-            {{- if $.SpiffeClientCerts }}
-        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        {{ $proxyOrGRPC }}_ssl_server_name on;
-        {{ $proxyOrGRPC }}_ssl_verify on;
-        {{ $proxyOrGRPC }}_ssl_verify_depth 25;
-        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
-            {{- end }}
+        {{- if $l.HSTS}}
+        set $hsts_header_val "";
+        proxy_hide_header Strict-Transport-Security;
+        {{- if $l.HSTS.BehindProxy}}
+        if ($http_x_forwarded_proto = 'https') {
+        {{- else}}
+        if ($https = on) {
+        {{- end}}
+            set $hsts_header_val "max-age={{$l.HSTS.MaxAge}}{{if $l.HSTS.IncludeSubDomains}}; includeSubDomains{{end}}{{if $l.HSTS.Preload}}; preload{{end}}";
+        }
+        add_header Strict-Transport-Security "$hsts_header_val" always;
+        {{- end}}
 
         {{- with $l.Cache }}
         proxy_cache {{ $l.Cache.ZoneName }};

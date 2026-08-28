@@ -472,6 +472,91 @@ func TestRemoveDuplicateAuthJWTClaimSets(t *testing.T) {
 	}
 }
 
+func TestRemoveDuplicateOIDCProviders(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg       string
+		providers []version2.OIDCProvider
+		expected  []version2.OIDCProvider
+	}{
+		{
+			msg: "no duplicates",
+			providers: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+			expected: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+		},
+		{
+			msg: "same provider name is deduplicated",
+			providers: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+			expected: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+		},
+		{
+			msg: "distinct providers sharing a post-logout path keep only the first location",
+			providers: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+			},
+			expected: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: nil,
+				},
+			},
+		},
+		{
+			msg: "distinct providers with distinct post-logout paths both keep their location",
+			providers: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout1"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout2"},
+				},
+			},
+			expected: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout1"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout2"},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		result := removeDuplicateOIDCProviders(test.providers)
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("removeDuplicateOIDCProviders() '%s' mismatch (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}
+
 func TestHasDuplicateMapDefaults(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -1375,6 +1460,51 @@ func TestGenerateLocationForRedirect(t *testing.T) {
 		if !reflect.DeepEqual(result, test.expected) {
 			t.Errorf("generateLocationForReturn() returned \n%+v but expected \n%+v for the case of %s",
 				result, test.expected, test.msg)
+		}
+	}
+}
+
+func TestGenerateLocationForReturnRegexPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		path         string
+		expectedPath string
+		msg          string
+	}{
+		{path: "~/api", expectedPath: `~ "/api"`, msg: "regex path is quoted"},
+		{path: "~ /api", expectedPath: `~ "/api"`, msg: "regex path with space is normalized and quoted"},
+		{path: "~*/img", expectedPath: `~* "/img"`, msg: "case-insensitive regex path is quoted"},
+		{path: "/prefix", expectedPath: "/prefix", msg: "prefix path is unchanged"},
+	}
+	snippets := []string{}
+	actionReturn := &conf_v1.ActionReturn{Body: "ok"}
+
+	for _, test := range tests {
+		location, _ := generateLocationForReturn(test.path, snippets, actionReturn, 1)
+		if location.Path != test.expectedPath {
+			t.Errorf("generateLocationForReturn() path = %q, want %q (%s)", location.Path, test.expectedPath, test.msg)
+		}
+	}
+}
+
+func TestGenerateLocationForRedirectRegexPath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		path         string
+		expectedPath string
+		msg          string
+	}{
+		{path: "~/api", expectedPath: `~ "/api"`, msg: "regex path is quoted"},
+		{path: "~ /api", expectedPath: `~ "/api"`, msg: "regex path with space is normalized and quoted"},
+		{path: "~*/img", expectedPath: `~* "/img"`, msg: "case-insensitive regex path is quoted"},
+		{path: "/prefix", expectedPath: "/prefix", msg: "prefix path is unchanged"},
+	}
+	redirect := &conf_v1.ActionRedirect{URL: "http://nginx.org"}
+
+	for _, test := range tests {
+		result := generateLocationForRedirect(test.path, []string{}, redirect)
+		if result.Path != test.expectedPath {
+			t.Errorf("generateLocationForRedirect() path = %q, want %q (%s)", result.Path, test.expectedPath, test.msg)
 		}
 	}
 }
@@ -2688,7 +2818,15 @@ func TestGeneratePath(t *testing.T) {
 		},
 		{
 			path:     "=/exact/match",
-			expected: "=/exact/match",
+			expected: "= /exact/match",
+		},
+		{
+			path:     "= /exact/match",
+			expected: "= /exact/match",
+		},
+		{
+			path:     "=\t/exact/match",
+			expected: "= /exact/match",
 		},
 		{
 			path:     `~ *\\.jpg`,
@@ -2709,6 +2847,18 @@ func TestGeneratePath(t *testing.T) {
 		{
 			path:     "^~  /images",
 			expected: "^~ /images",
+		},
+		{
+			path:     "~\t/api",
+			expected: `~ "/api"`,
+		},
+		{
+			path:     "~*\t\t/bar",
+			expected: `~* "/bar"`,
+		},
+		{
+			path:     "^~\t/static",
+			expected: "^~ /static",
 		},
 	}
 
@@ -2990,10 +3140,8 @@ func TestGenerateProxySSLName(t *testing.T) {
 func TestIsTLSEnabled(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		upstream   conf_v1.Upstream
-		spiffeCert bool
-		nsmEgress  bool
-		expected   bool
+		upstream conf_v1.Upstream
+		expected bool
 	}{
 		{
 			upstream: conf_v1.Upstream{
@@ -3001,17 +3149,7 @@ func TestIsTLSEnabled(t *testing.T) {
 					Enable: false,
 				},
 			},
-			spiffeCert: false,
-			expected:   false,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: false,
-				},
-			},
-			spiffeCert: true,
-			expected:   true,
+			expected: false,
 		},
 		{
 			upstream: conf_v1.Upstream{
@@ -3019,34 +3157,14 @@ func TestIsTLSEnabled(t *testing.T) {
 					Enable: true,
 				},
 			},
-			spiffeCert: true,
-			expected:   true,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: true,
-				},
-			},
-			spiffeCert: false,
-			expected:   true,
-		},
-		{
-			upstream: conf_v1.Upstream{
-				TLS: conf_v1.UpstreamTLS{
-					Enable: true,
-				},
-			},
-			nsmEgress:  true,
-			spiffeCert: false,
-			expected:   false,
+			expected: true,
 		},
 	}
 
 	for _, test := range tests {
-		result := isTLSEnabled(test.upstream, test.spiffeCert, test.nsmEgress)
+		result := isTLSEnabled(test.upstream)
 		if result != test.expected {
-			t.Errorf("isTLSEnabled(%v, %v) returned %v but expected %v", test.upstream, test.spiffeCert, result, test.expected)
+			t.Errorf("isTLSEnabled(%v) returned %v but expected %v", test.upstream, result, test.expected)
 		}
 	}
 }
@@ -3722,6 +3840,124 @@ func TestGetExAuthServicePort(t *testing.T) {
 			got := vsc.getExAuthServicePort(tc.cfg, vsEx)
 			if got != tc.expected {
 				t.Errorf("getExAuthServicePort() = %d, want %d", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestAddHSTSToLocationsWithAddHeaders(t *testing.T) {
+	t.Parallel()
+	hsts := &version2.HSTS{MaxAge: 2592000}
+	tests := []struct {
+		name      string
+		hsts      *version2.HSTS
+		locations []version2.Location
+		expected  []version2.Location
+	}{
+		{
+			name: "nil HSTS — no locations modified",
+			hsts: nil,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}},
+			},
+		},
+		{
+			name: "location with AddHeaders — HSTS set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, HSTS: hsts},
+			},
+		},
+		{
+			name: "location without AddHeaders — HSTS not set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/"},
+			},
+			expected: []version2.Location{
+				{Path: "/"},
+			},
+		},
+		{
+			name: "mixed locations — only those with AddHeaders get HSTS",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/tea", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}},
+				{Path: "/coffee"},
+			},
+			expected: []version2.Location{
+				{Path: "/tea", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, HSTS: hsts},
+				{Path: "/coffee"},
+			},
+		},
+		{
+			name: "location with AddHeaderInherit set to 'on' - HSTS not set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOn},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOn},
+			},
+		},
+		{
+			name: "location with AddHeaderInherit set to 'merge' - HSTS not set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritMerge},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritMerge},
+			},
+		},
+		{
+			name: "location with AddHeaderInherit set to 'off' - HSTS set",
+			hsts: hsts,
+			locations: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOff},
+			},
+			expected: []version2.Location{
+				{Path: "/", AddHeaders: []version2.AddHeader{
+					{Header: version2.Header{Name: "X-Foo", Value: "bar"}},
+				}, AddHeaderInherit: addHeaderInheritOff, HSTS: hsts},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			addHSTSToLocationsWithAddHeaders(test.hsts, test.locations)
+			if !reflect.DeepEqual(test.locations, test.expected) {
+				t.Errorf("addHSTSToLocationsWithAddHeaders() returned\n%+v\nbut expected\n%+v",
+					test.locations, test.expected)
 			}
 		})
 	}

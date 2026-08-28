@@ -65,11 +65,6 @@ Pod labels
 */}}
 {{- define "nginx-ingress.podLabels" -}}
 {{- include "nginx-ingress.selectorLabels" . }}
-{{- if .Values.nginxServiceMesh.enable }}
-nsm.nginx.com/enable-ingress: "true"
-nsm.nginx.com/enable-egress: "{{ .Values.nginxServiceMesh.enableEgress }}"
-nsm.nginx.com/{{ .Values.controller.kind }}: {{ include "nginx-ingress.controller.fullname" . }}
-{{- end }}
 {{- if and .Values.nginxAgent.enable (eq (.Values.nginxAgent.customConfigMap | default "") "") }}
 agent-configuration-revision-hash: {{ include "nginx-ingress.agentConfiguration" . | sha1sum | trunc 8 | quote }}
 {{- end }}
@@ -254,7 +249,28 @@ Create the global configuration custom namespace from the globalConfiguration.cu
 {{/*
 Build the args for the service binary.
 */}}
+{{- define "nginx-ingress.appprotect.plmStorage.validate" -}}
+{{- $plm := default (dict) .Values.controller.appprotect.plmStorage -}}
+{{- if $plm.url }}
+{{- if not .Values.controller.nginxplus }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.nginxplus=true" }}
+{{- end }}
+{{- if not .Values.controller.appprotect.enable }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.appprotect.enable=true" }}
+{{- end }}
+{{- if not .Values.controller.appprotect.v5 }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.appprotect.v5=true" }}
+{{- end }}
+{{- if not $plm.credentialsSecret }}
+{{- fail "controller.appprotect.plmStorage.credentialsSecret must be set when controller.appprotect.plmStorage.url is set" }}
+{{- end }}
+{{- else if or $plm.credentialsSecret $plm.caSecret $plm.clientSSLSecret $plm.insecureSkipVerify }}
+{{- fail "controller.appprotect.plmStorage auxiliary values require controller.appprotect.plmStorage.url" }}
+{{- end }}
+{{- end }}
+
 {{- define "nginx-ingress.args" -}}
+{{- include "nginx-ingress.appprotect.plmStorage.validate" . -}}
 {{- if and .Values.controller.debug .Values.controller.debug.enable }}
 - --listen=:2345
 - --headless=true
@@ -278,6 +294,18 @@ Build the args for the service binary.
 {{ end }}
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.v5 }}
 - -app-protect-enforcer-address="{{ .Values.controller.appprotect.enforcer.host | default "127.0.0.1" }}:{{ .Values.controller.appprotect.enforcer.port | default 50000 }}"
+{{- end }}
+{{- $plm := default (dict) .Values.controller.appprotect.plmStorage -}}
+{{- if $plm.url }}
+- {{ printf "-plm-storage-url=%s" $plm.url | quote }}
+- {{ printf "-plm-storage-credentials-secret=%s" $plm.credentialsSecret | quote }}
+{{- if $plm.caSecret }}
+- {{ printf "-plm-storage-ca-secret=%s" $plm.caSecret | quote }}
+{{- end }}
+{{- if $plm.clientSSLSecret }}
+- {{ printf "-plm-storage-client-ssl-secret=%s" $plm.clientSSLSecret | quote }}
+{{- end }}
+- -plm-storage-insecure-skip-verify={{ $plm.insecureSkipVerify }}
 {{- end }}
 - -enable-app-protect-dos={{ .Values.controller.appprotectdos.enable }}
 {{- if .Values.controller.appprotectdos.enable }}
@@ -424,14 +452,15 @@ List of volumes for controller.
 - name: agent-conf
   configMap:
     name: {{ include "nginx-ingress.agentConfigName" . }}
+- name: agent-etc
+  emptyDir: {}
 {{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 - name: dataplane-key
   secret:
     secretName: {{ .Values.nginxAgent.dataplaneKeySecretName }}
-{{- else }}
+{{- end }}
 - name: agent-dynamic
   emptyDir: {}
-{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   projected:
@@ -490,16 +519,18 @@ volumeMounts:
 {{ toYaml .Values.controller.volumeMounts }}
 {{- end }}
 {{- if .Values.nginxAgent.enable }}
+- name: agent-etc
+  mountPath: /etc/nginx-agent
+  # needed for agent otel collector config
 - name: agent-conf
   mountPath: /etc/nginx-agent/nginx-agent.conf
   subPath: nginx-agent.conf
 {{- if ne .Values.nginxAgent.dataplaneKeySecretName "" }}
 - name: dataplane-key
   mountPath: /etc/nginx-agent/secrets
-{{- else }}
+{{- end }}
 - name: agent-dynamic
   mountPath: /var/lib/nginx-agent
-{{- end }}
 {{- if and .Values.nginxAgent.instanceManager.tls (or (ne (.Values.nginxAgent.instanceManager.tls.secret | default "") "") (ne (.Values.nginxAgent.instanceManager.tls.caSecret | default "") "")) }}
 - name: nginx-agent-tls
   mountPath: /etc/ssl/nms
@@ -516,6 +547,10 @@ volumeMounts:
 {{- if .Values.controller.appprotect.enforcer.securityContext }}
   securityContext:
 {{ toYaml .Values.controller.appprotect.enforcer.securityContext | nindent 6 }}
+{{- end }}
+{{- if .Values.controller.appprotect.enforcer.resources }}
+  resources:
+{{ toYaml .Values.controller.appprotect.enforcer.resources | nindent 6 }}
 {{- end }}
   env:
     - name: ENFORCER_PORT
@@ -535,6 +570,10 @@ volumeMounts:
 {{- if .Values.controller.appprotect.configManager.securityContext }}
   securityContext:
 {{ toYaml .Values.controller.appprotect.configManager.securityContext | nindent 6 }}
+{{- end }}
+{{- if .Values.controller.appprotect.configManager.resources }}
+  resources:
+{{ toYaml .Values.controller.appprotect.configManager.resources | nindent 6 }}
 {{- end }}
   volumeMounts:
     - name: app-protect-bd-config
@@ -569,12 +608,18 @@ log:
 allowed_directories:
   - /etc/nginx
   - /usr/lib/nginx/modules
+{{- if .Values.controller.appprotect.enable }}
+  - /etc/app_protect
+{{- end }}
 
 features:
   - certificates
   - connection
   - metrics
   - file-watcher
+{{- if .Values.controller.appprotect.enable }}
+  - logs-nap
+{{- end }}
 
 ## command server settings
 command:

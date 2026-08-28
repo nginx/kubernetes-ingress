@@ -43,6 +43,11 @@ on:
         required: false
         type: boolean
         default: true
+      pkg-src-oss:
+        description: The source repository for the package
+        required: false
+        type: string
+        default: "packages.nginx.org"
 
 defaults:
   run:
@@ -65,61 +70,48 @@ jobs:
       image_digest: ${{ steps.build-push.outputs.digest }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
-      - name: Azure login
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+      - name: Setup NIC secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: ${{ secrets.AZURE_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_VAULT_SUBSCRIPTION_ID }}
+          client-id: "${{ secrets.AZURE_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.NIC_KEYVAULT_NAME }}
+          secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
+          env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
         if: ${{ inputs.authenticated }}
 
-      - name: Setup secrets
-        id: secrets
-        run: |
-          echo "Setting secrets for job"
-          GCR_WORKLOAD_ID=$(az keyvault secret show --name gcr-workload-identity --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_WORKLOAD_ID"
-          echo "GCR_WORKLOAD_ID=$GCR_WORKLOAD_ID" >> $GITHUB_OUTPUT
-          GCR_SERVICE_ACCOUNT=$(az keyvault secret show --name kic-pipeline-gcr-sa --vault-name ${{ secrets.NIC_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$GCR_SERVICE_ACCOUNT"
-          echo "GCR_SERVICE_ACCOUNT=$GCR_SERVICE_ACCOUNT" >> $GITHUB_OUTPUT
-
-      - name: Azure login Common Vault
-        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+      - name: Setup Common secrets
+        uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
-          client-id: ${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_COMMON_VAULT_SUBSCRIPTION_ID }}
+          client-id: "${{ secrets.AZURE_COMMON_VAULT_CLIENT_ID }}"
+          tenant-id: "${{ secrets.AZURE_COMMON_VAULT_TENANT_ID }}"
+          vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
+          secret-names: "nginx-pkg-certificate, nginx-pkg-key, docker-username, docker-password"
+          env-names: "PLUS_CERT, PLUS_KEY, DOCKER_USERNAME, DOCKER_PASSWORD"
         if: ${{ inputs.authenticated }}
 
-      - name: Setup secrets Common Vault
-        id: secrets-common
+      - name: Write secrets
         run: |
-          echo "Setting secrets for job"
-          DOCKER_USERNAME=$(az keyvault secret show --name docker-username --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$DOCKER_USERNAME"
-          echo "DOCKER_USERNAME=$DOCKER_USERNAME" >> $GITHUB_OUTPUT
-          DOCKER_PASSWORD=$(az keyvault secret show --name docker-password --vault-name ${{ secrets.COMMON_KEYVAULT_NAME }} --query value -o tsv)
-          echo "::add-mask::$DOCKER_PASSWORD"
-          echo "DOCKER_PASSWORD=$DOCKER_PASSWORD" >> $GITHUB_OUTPUT
-        if: ${{ inputs.authenticated }}
+          echo "$PLUS_CERT" > nginx-repo.crt
+          echo "$PLUS_KEY" > nginx-repo.key
+        if: ${{ inputs.pkg-src-oss != 'packages.nginx.org' }}
 
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           token_format: access_token
-          workload_identity_provider: ${{ steps.secrets.outputs.GCR_WORKLOAD_ID }}
-          service_account: ${{ steps.secrets.outputs.GCR_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCR_WORKLOAD_ID }}
+          service_account: ${{ env.GCR_SERVICE_ACCOUNT }}
         if: ${{ inputs.authenticated }}
 
       - name: Login to GCR
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: gcr.io
           username: oauth2accesstoken
@@ -127,15 +119,15 @@ jobs:
         if: ${{ inputs.authenticated }}
 
       - name: DockerHub Login
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
-          username: ${{ steps.secrets-common.outputs.DOCKER_USERNAME }}
-          password: ${{ steps.secrets-common.outputs.DOCKER_PASSWORD }}
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
         if: ${{ inputs.authenticated }}
 
       - name: Docker meta
         id: meta
-        uses: docker/metadata-action@030e881283bb7a6894de51c315a6bfe6a94e05cf # v6.0.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           context: workflow
           images: |
@@ -172,17 +164,17 @@ jobs:
         if: ${{ inputs.authenticated && ! inputs.full-build }}
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
         with:
           platforms: arm64
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Base Container
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: ./.github/actions/build-push-retry
         with:
           file: build/Dockerfile
           context: "."
@@ -194,8 +186,12 @@ jobs:
           push: true
           no-cache: true
           build-args: |
+            OSS_PACKAGE_REPO=${{ inputs.pkg-src-oss }}
             BUILD_OS=${{ inputs.image }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+          secret-files: |
+            ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ inputs.authenticated && steps.images_exist.outputs.base_exists != 'true' }}
 
       - name: Debug values
@@ -206,7 +202,7 @@ jobs:
           echo "full-build: ${{ inputs.full-build }}"
 
       - name: Fetch Cached Artifacts
-        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ inputs.go-md5 }}
@@ -214,7 +210,7 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Docker image
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: ./.github/actions/build-push-retry
         id: build-push
         with:
           file: build/Dockerfile
@@ -232,9 +228,13 @@ jobs:
           sbom: ${{ inputs.authenticated }}
           provenance: false
           build-args: |
+            OSS_PACKAGE_REPO=${{ inputs.pkg-src-oss }}
             BUILD_OS=${{ inputs.image }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
+          secret-files: |
+            ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.crt=nginx-repo.crt' || '' }}
+            ${{ inputs.pkg-src-oss != 'packages.nginx.org' && 'nginx-repo.key=nginx-repo.key' || '' }}
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Make directory for security scan results
@@ -244,7 +244,7 @@ jobs:
 
       - name: Run Docker Scout vulnerability scanner
         id: docker-scout
-        uses: docker/scout-action@8910519cee8ac046f3ee99686b0dc6654d5ba1a7 # v1.20.3
+        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
         with:
           command: cves
           image: ${{ steps.meta.outputs.tags }}
@@ -253,4 +253,10 @@ jobs:
           write-comment: false
           github-token: ${{ secrets.GITHUB_TOKEN }} # to be able to write the comment
           summary: true
+        continue-on-error: true
         if: ${{ inputs.authenticated && steps.build-push.conclusion == 'success' }}
+
+      - name: Clean up secrets
+        run: |
+          rm -f nginx-repo.crt nginx-repo.key
+        if: always()

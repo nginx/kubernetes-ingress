@@ -31,6 +31,7 @@ type ConfigParams struct {
 	LocationSnippets                       []string
 	MainAccessLog                          string
 	MainAddHeaders                         []version2.AddHeader
+	DisableForwardedHeaders                bool
 	MainErrorLogLevel                      string
 	MainHTTPSnippets                       []string
 	MainKeepaliveRequests                  int64
@@ -90,6 +91,9 @@ type ConfigParams struct {
 	ProxyNextUpstream                      string
 	ProxyNextUpstreamTimeout               string
 	ProxyNextUpstreamTries                 *uint64
+	ProxyRedirectFrom                      string
+	ProxyRedirectTo                        string
+	CustomHTTPErrors                       []int
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
 	ResolverAddresses                      []string
@@ -134,8 +138,6 @@ type ConfigParams struct {
 	Ports    []int
 	SSLPorts []int
 
-	SpiffeServerCerts bool
-
 	LimitReqRate       string
 	LimitReqKey        string
 	LimitReqZoneSize   string
@@ -162,13 +164,10 @@ type StaticConfigParams struct {
 	TLSPassthrough                 bool
 	TLSPassthroughPort             int
 	EnableSnippets                 bool
-	NginxServiceMesh               bool
-	EnableInternalRoutes           bool
 	MainAppProtectLoadModule       bool
 	MainAppProtectV5LoadModule     bool
 	MainAppProtectDosLoadModule    bool
 	MainAppProtectV5EnforcerAddr   string
-	InternalRouteServerName        string
 	EnableLatencyMetrics           bool
 	EnableOIDC                     bool
 	SSLRejectHandshake             bool
@@ -180,6 +179,10 @@ type StaticConfigParams struct {
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
 	DefaultCABundle                string
+	// PLMEnabled reports whether WAF bundles are sourced from the F5 WAF Policy
+	// Controller. When true, apPolicy/apLogConf references resolve to PLM bundles
+	// instead of in-pod compiled App Protect resources.
+	PLMEnabled bool
 }
 
 // GlobalConfigParams holds global configuration parameters. For now, it only holds listeners.
@@ -285,6 +288,7 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		MainKeepaliveRequests:         1000,
 		VariablesHashBucketSize:       256,
 		VariablesHashMaxSize:          1024,
+		DisableForwardedHeaders:       false,
 		LimitReqKey:                   "${binary_remote_addr}",
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",

@@ -59,26 +59,97 @@ hack/                           update-codegen.sh, verify-codegen.sh
 
 ---
 
+## Architectural Layers
+
+Each layer has a strict ownership boundary. Identify the correct layer before placing any change.
+
+| Layer | Package(s) | Owns |
+| --- | --- | --- |
+| Data model | `pkg/apis/configuration/v1/` | CRD struct definitions, generated DeepCopy |
+| Validation | `pkg/apis/configuration/validation/`, `internal/k8s/validation.go` | CRD field validation (kubebuilder markers), Ingress annotation validation |
+| Controller | `internal/k8s/` | Event handling, in-memory state, secret resolution, sync handlers, status updates |
+| Config generation | `internal/configs/`, `version1/`, `version2/` | Extended resource → NGINX config struct → template render → file write |
+| Process management | `internal/nginx/` | NGINX process lifecycle, reload, rollback |
+
+**Layer crossing rules — violations cause architectural drift:**
+
+- Config generation (`internal/configs/`) must NOT call the k8s API or access `SecretStore` directly — it receives pre-resolved `SecretReference{Path}` via extended resources.
+- Controller (`internal/k8s/`) must NOT generate NGINX config text or render templates.
+- Data model (`types.go`) must NOT import `internal/configs` or `internal/k8s`.
+- Validation layer must NOT trigger NGINX reloads or update k8s status.
+
+---
+
 ## Resource Processing Pipeline
 
 ```text
 kubectl apply -f resource.yaml
   -> K8s API Server persists resource
   -> Informer detects Add/Update/Delete event
-  -> Event handler (internal/k8s/) enqueues task onto syncQueue
-  -> Controller dispatches: syncPolicy / syncVirtualServer / syncIngress
-  -> Validation: pkg/apis/configuration/validation/ (CRD fields)
-                 internal/k8s/validation.go (Ingress annotations)
-  -> Find affected resources: configuration.FindResourcesForPolicy()
-  -> Build extended resources (VirtualServerEx, IngressEx)
-  -> Configurator generates NGINX config:
-       generatePolicies() -> add*Config() methods -> policiesCfg
-       GenerateVirtualServerConfig() -> version2.VirtualServerConfig
-       generateNginxCfg() -> version1.IngressNginxConfig
+      [handlers.go: createXxxHandlers(); IsSupportedSecretType() gates secret events]
+  -> Event handler enqueues task onto syncQueue
+      [controller.go: AddSyncQueue()]
+  -> Controller dispatches task
+      [controller.go: sync() -> syncVirtualServer() / syncIngress() / syncSecret() / syncPolicy() / ...]
+  -> Build / update in-memory state, returning []ResourceChange
+      [configuration.go: AddOrUpdateVirtualServer() / AddOrUpdateIngress()]
+      Validation (CRD fields):          pkg/apis/configuration/validation/
+      Validation (Ingress annotations): internal/k8s/validation.go
+  -> Find affected resources (fans out when a secret or policy changes)
+      [configuration.go: FindResourcesForSecret() / FindResourcesForPolicy()]
+  -> Resolve secret references  <-- controller layer resolves; configurator only consumes paths
+      [controller.go: createVirtualServerEx() / createIngressEx() -> secretStore.GetSecret()]
+      [secrets/store.go: GetSecret() lazily writes valid secret to filesystem via SecretFileManager]
+  -> Build extended resources
+      [controller.go: createVirtualServerEx()   -> VirtualServerEx]
+                     [createIngressEx()          -> IngressEx]
+                     [createTransportServerEx()  -> TransportServerEx]
+  -> Configurator generates NGINX config  [internal/configs/configurator.go: AddOrUpdateVirtualServer()]
+      HTTP path:   GenerateVirtualServerConfig() [virtualserver.go]    -> version2.VirtualServerConfig
+                   generateNginxCfg()            [ingress.go]          -> version1.IngressNginxConfig
+      Stream path: generateTransportServerConfig(...) [transportserver.go] -> *version2.TransportServerConfig
+      Policies:    generatePolicies() -> add*Config() -> policiesCfg   [policy.go]
+      OSS vs Plus: Configurator.isPlus flag; Plus-only policies = OIDC, WAF
+                   Template level: nginx.virtualserver.tmpl vs nginx-plus.virtualserver.tmpl
   -> Template executor renders NGINX config text
-  -> NginxManager writes file + reloads NGINX
-  -> Update resource status + emit events
+      [version1.TemplateExecutor / version2.TemplateExecutorV2;
+       TransportServer uses ExecuteTransportServerTemplate(...)]
+  -> NginxManager writes files + reloads NGINX
+      [internal/nginx/: Manager.CreateConfig() + Manager.Reload()]
+  -> Update resource status + emit Kubernetes events  [happens AFTER reload returns]
+      [controller.go: updateVirtualServerStatusAndEvents() / updateIngressStatusAndEvents()]
+      [k8s/status.go: statusUpdater.UpdateVirtualServerStatus()]
+      Startup optimisation: status updates deferred to pendingVSStatus slices during !isNginxReady;
+      flushed in background via flushPendingStatusesAsync() after first reload.
 ```
+
+---
+
+## Secret Store
+
+The secret store (`internal/k8s/secrets/`) sits entirely in the controller layer and uses a two-phase model to avoid writing unreferenced files to the NGINX filesystem.
+
+**Phase 1 — in-memory validation** (`SecretStore.AddOrUpdateSecret()`):
+Validates the secret via `ValidateSecret()` and stores `SecretReference{Secret, Error}` in memory. Does **not** write to disk unless a filesystem path already exists for that secret.
+
+**Phase 2 — lazy filesystem write** (`SecretStore.GetSecret()`):
+On first reference during `createVirtualServerEx()` / `createIngressEx()`, materializes supported secrets under `/etc/nginx/secrets/` via `SecretFileManager` (implemented by `Configurator`). Filenames are derived from `<namespace>-<secretName>` rather than a literal path. Some secret types create multiple files (for example, CA secrets), while OIDC and API key secrets are not written to disk, so their `Path` is empty. Returns `SecretReference{Path, Error}`.
+
+**Supported secret types** (`internal/k8s/secrets/validation.go`):
+
+| Constant | Kubernetes type | Used for |
+| --- | --- | --- |
+| — | `kubernetes.io/tls` | TLS server certs |
+| `SecretTypeCA` | `nginx.org/ca` | CA cert (mTLS / upstream trust) |
+| `SecretTypeJWK` | `nginx.org/jwk` | JWT validation keys |
+| `SecretTypeOIDC` | `nginx.org/oidc` | OIDC client secret |
+| `SecretTypeHtpasswd` | `nginx.org/htpasswd` | HTTP Basic auth |
+| `SecretTypeAPIKey` | `nginx.org/apikey` | API key auth |
+| `SecretTypeLicense` | `nginx.com/license` | NGINX Plus license |
+
+**Special secrets** (defaultServer TLS, wildcard TLS, license, mgmt client cert, mgmt trusted CA): handled by `handleSpecialSecretUpdate()` in the controller, which triggers an NGINX reload directly — independent of any resource re-sync.
+
+**Key invariant**: The controller resolves secrets before they reach config generation. `VirtualServerEx.SecretRefs` / `IngressEx.SecretRefs` carry `map[string]*secrets.SecretReference`, and `internal/configs/` may consume the pre-resolved data on those references, including `.Path`, `.Secret.Type`, and `.Secret.Data`. Do not add `SecretStore.GetSecret()` calls or any direct Kubernetes API access inside `internal/configs/`.
 
 ---
 

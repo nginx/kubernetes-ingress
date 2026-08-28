@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
@@ -31,6 +32,14 @@ const (
 	splitClientsKeyValZoneSize                      = "100k"
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 	defaultLogOutput                                = "syslog:server=localhost:514"
+	// oidcNativeSessionZoneSize is the shared memory allocated to each
+	// auto-generated OIDCNative session store keyval zone.
+	oidcNativeSessionZoneSize = "10m"
+	// oidcNativeSessionSyncDefaultTimeout is the fallback timeout applied to
+	// the session store keyval zone when zone-sync is enabled and the user
+	// hasn't set sessionTimeout on the policy. NGINX Plus requires `timeout=`
+	// whenever `sync` is on.
+	oidcNativeSessionSyncDefaultTimeout = "8h"
 )
 
 var grpcConflictingErrors = map[int]bool{
@@ -298,8 +307,6 @@ type virtualServerConfigurator struct {
 	isTLSPassthrough           bool
 	enableSnippets             bool
 	warnings                   Warnings
-	spiffeCerts                bool
-	enableInternalRoutes       bool
 	isIPV6Disabled             bool
 	DynamicSSLReloadEnabled    bool
 	StaticSSLPath              string
@@ -307,6 +314,7 @@ type virtualServerConfigurator struct {
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
+	plmEnabled                 bool
 }
 
 func (vsc *virtualServerConfigurator) addWarningf(obj runtime.Object, msgFmt string, args ...interface{}) {
@@ -343,14 +351,13 @@ func newVirtualServerConfigurator(
 		isTLSPassthrough:           staticParams.TLSPassthrough,
 		enableSnippets:             staticParams.EnableSnippets,
 		warnings:                   make(map[runtime.Object][]string),
-		spiffeCerts:                staticParams.NginxServiceMesh,
-		enableInternalRoutes:       staticParams.EnableInternalRoutes,
 		isIPV6Disabled:             staticParams.DisableIPV6,
 		DynamicSSLReloadEnabled:    staticParams.DynamicSSLReload,
 		StaticSSLPath:              staticParams.StaticSSLPath,
 		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
+		plmEnabled:                 staticParams.PLMEnabled,
 	}
 }
 
@@ -425,12 +432,14 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
-		tls:             sslConfig != nil,
-		zoneSync:        vsEx.ZoneSync,
-		secretRefs:      vsEx.SecretRefs,
-		apResources:     apResources,
-		defaultCABundle: vsc.CABundlePath,
-		replicas:        vsc.IngressControllerReplicas,
+		tls:                 sslConfig != nil,
+		zoneSync:            vsEx.ZoneSync,
+		secretRefs:          vsEx.SecretRefs,
+		apResources:         apResources,
+		defaultCABundle:     vsc.CABundlePath,
+		replicas:            vsc.IngressControllerReplicas,
+		plmEnabled:          vsc.plmEnabled,
+		oidcNativeLocations: make(map[string]oidcNativeLocationOwner),
 	}
 
 	ownerDetails := policyOwnerDetails{
@@ -477,13 +486,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	dosCfg := generateDosCfg(dosResources[""])
 
-	// enabledInternalRoutes controls if a virtual server is configured as an internal route.
-	enabledInternalRoutes := vsEx.VirtualServer.Spec.InternalRoute
-	if vsEx.VirtualServer.Spec.InternalRoute && !vsc.enableInternalRoutes {
-		vsc.addWarningf(vsEx.VirtualServer, "Internal Route cannot be configured for virtual server %s. Internal Routes can be enabled by setting the enable-internal-routes flag", vsEx.VirtualServer.Name)
-		enabledInternalRoutes = false
-	}
-
 	// crUpstreams maps an UpstreamName to its conf_v1.Upstream as they are generated
 	// necessary for generateLocation to know what Upstream each Location references
 	crUpstreams := make(map[string]conf_v1.Upstream)
@@ -495,9 +497,13 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	var limitReqZones []version2.LimitReqZone
 	var authJWTClaimSets []version2.AuthJWTClaimSet
 	var cacheZones []version2.CacheZone
+	var oidcProviders []version2.OIDCProvider
 
 	limitReqZones = append(limitReqZones, policiesCfg.RateLimit.Zones...)
 	authJWTClaimSets = append(authJWTClaimSets, policiesCfg.RateLimit.AuthJWTClaimSets...)
+	if policiesCfg.OIDCProvider != nil {
+		oidcProviders = append(oidcProviders, *policiesCfg.OIDCProvider)
+	}
 
 	// Add cache zone from global policy if present
 	addCacheZone(&cacheZones, policiesCfg.Cache)
@@ -712,7 +718,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			policyOpts.oidcConfig = routePoliciesCfg.OIDC
 			// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
 			policiesCfg.OIDC = routePoliciesCfg.OIDC
-		} else if specHasOIDC {
+		} else if specHasOIDC && routePoliciesCfg.OIDCProvider == nil {
 			// Inherit the spec-level OIDC to routes that don't define their own.
 			// Using the specHasOIDC boolean (set before the loop) avoids reading the potentially
 			// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
@@ -799,8 +805,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		}
 
 		limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
-
 		authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+		if routePoliciesCfg.OIDCProvider != nil {
+			oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
+		}
 
 		// Add cache zone from route policy if present
 		addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -945,7 +953,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				policyOpts.oidcConfig = routePoliciesCfg.OIDC
 				// Keep policiesCfg.OIDC up to date so Server.OIDC is populated for server-block helper generation.
 				policiesCfg.OIDC = routePoliciesCfg.OIDC
-			} else if specHasOIDC {
+			} else if specHasOIDC && routePoliciesCfg.OIDCProvider == nil {
 				// Inherit the spec-level OIDC to subroutes that don't define their own.
 				// Using the specHasOIDC boolean (set before the route loop) avoids reading the potentially
 				// mutated policiesCfg.OIDC, which would otherwise cause a route-level OIDC to leak
@@ -1031,8 +1039,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			}
 
 			limitReqZones = append(limitReqZones, routePoliciesCfg.RateLimit.Zones...)
-
 			authJWTClaimSets = append(authJWTClaimSets, routePoliciesCfg.RateLimit.AuthJWTClaimSets...)
+			if routePoliciesCfg.OIDCProvider != nil {
+				oidcProviders = append(oidcProviders, *routePoliciesCfg.OIDCProvider)
+			}
 
 			// Add cache zone from subroute policy if present
 			addCacheZone(&cacheZones, routePoliciesCfg.Cache)
@@ -1121,13 +1131,31 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		return upstreams[i].Name < upstreams[j].Name
 	})
 
+	// Generate keyval zones for OIDC Native session stores.
+	dedupedOIDCProviders := removeDuplicateOIDCProviders(oidcProviders)
+	for _, p := range dedupedOIDCProviders {
+		if p.SessionStore != "" {
+			timeout := p.SessionTimeout
+			if p.Sync && timeout == "" {
+				timeout = oidcNativeSessionSyncDefaultTimeout
+			}
+			keyValZones = append(keyValZones, version2.KeyValZone{
+				Name:    p.SessionStore,
+				Size:    oidcNativeSessionZoneSize,
+				Sync:    p.Sync,
+				Timeout: timeout,
+			})
+		}
+	}
+	addHSTSToLocationsWithAddHeaders(policiesCfg.HSTS, locations)
+
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
-		SplitClients:     splitClients,
 		Maps:             removeDuplicateMaps(maps),
 		StatusMatches:    statusMatches,
 		LimitReqZones:    removeDuplicateLimitReqZones(limitReqZones),
 		AuthJWTClaimSets: removeDuplicateAuthJWTClaimSets(authJWTClaimSets),
+		OIDCProviders:    dedupedOIDCProviders,
 		CacheZones:       cacheZones,
 		HTTPSnippets:     httpSnippets,
 		Server: version2.Server{
@@ -1171,21 +1199,22 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			APIKey:                    policiesCfg.APIKey.Key,
 			APIKeyEnabled:             policiesCfg.APIKey.Enabled,
 			OIDC:                      policiesCfg.OIDC,
+			OIDCProviderName:          getOIDCProviderName(policiesCfg),
 			WAF:                       policiesCfg.WAF,
 			Dos:                       dosCfg,
 			Cache:                     policiesCfg.Cache,
+			HSTS:                      policiesCfg.HSTS,
 			PoliciesErrorReturn:       policiesCfg.ErrorReturn,
 			VSNamespace:               vsEx.VirtualServer.Namespace,
 			VSName:                    vsEx.VirtualServer.Name,
 			DisableIPV6:               vsc.isIPV6Disabled,
 			NGINXDebugLevel:           vsc.cfgParams.MainErrorLogLevel,
 		},
-		SpiffeCerts:             enabledInternalRoutes,
-		SpiffeClientCerts:       vsc.spiffeCerts && !enabledInternalRoutes,
 		DynamicSSLReloadEnabled: vsc.DynamicSSLReloadEnabled,
 		StaticSSLPath:           vsc.StaticSSLPath,
 		KeyValZones:             keyValZones,
 		KeyVals:                 keyVals,
+		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
 	}
 
@@ -1284,7 +1313,7 @@ func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
 			{
 				Name:         cfg.ExternalAuth.SigninURL,
 				Codes:        "401",
-				ResponseCode: 0,
+				ResponseCode: version2.ErrorPageResponseCodeInherit,
 			},
 		}
 	}
@@ -1322,7 +1351,7 @@ func generateUpstreams(
 	_, isExternalNameSvc := vsEx.ExternalNameSvcs[GenerateExternalNameSvcKey(ownerNamespace, u.Service)]
 	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
 	upstreams = append(upstreams, ups)
-	u.TLS.Enable = isTLSEnabled(u, vsc.spiffeCerts, vsEx.VirtualServer.Spec.InternalRoute)
+	u.TLS.Enable = isTLSEnabled(u)
 	crUpstreams[upstreamName] = u
 
 	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
@@ -1408,6 +1437,41 @@ func removeDuplicateLimitReqZones(rlz []version2.LimitReqZone) []version2.LimitR
 	return result
 }
 
+func removeDuplicateOIDCProviders(providers []version2.OIDCProvider) []version2.OIDCProvider {
+	if len(providers) == 0 {
+		return nil
+	}
+	encountered := make(map[string]bool)
+	encounteredPostLogoutPath := make(map[string]bool)
+	var result []version2.OIDCProvider
+
+	for _, v := range providers {
+		if encountered[v.Name] {
+			continue
+		}
+		encountered[v.Name] = true
+
+		// Post-logout locations carry no provider identity (a static "you
+		// have been logged out" page), so multiple providers may share a
+		// path. addOIDCNativeConfig() already drops PostLogoutLocation on
+		// all but the first provider that claims a given path; this is a
+		// defensive second pass so the template can never emit two
+		// identical `location` blocks regardless of how providers reach
+		// this aggregation point.
+		if v.PostLogoutLocation != nil {
+			if encounteredPostLogoutPath[v.PostLogoutLocation.Path] {
+				v.PostLogoutLocation = nil
+			} else {
+				encounteredPostLogoutPath[v.PostLogoutLocation.Path] = true
+			}
+		}
+
+		result = append(result, v)
+	}
+
+	return result
+}
+
 func removeDuplicateMaps(maps []version2.Map) []version2.Map {
 	if len(maps) == 0 {
 		return nil
@@ -1452,6 +1516,13 @@ func hasDuplicateMapDefaults(m *version2.Map) bool {
 	return count > 1
 }
 
+func getOIDCProviderName(cfg policiesCfg) string {
+	if cfg.OIDCProvider != nil {
+		return cfg.OIDCProvider.Name
+	}
+	return ""
+}
+
 func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.Allow = cfg.Allow
 	location.Deny = cfg.Deny
@@ -1461,7 +1532,9 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.ExternalAuth = cfg.ExternalAuth
 	location.BasicAuth = cfg.BasicAuth
 	location.EgressMTLS = cfg.EgressMTLS
-	if cfg.OIDC != nil {
+	if cfg.OIDCProvider != nil {
+		location.OIDCProviderName = cfg.OIDCProvider.Name
+	} else if cfg.OIDC != nil {
 		location.OIDC = true
 	}
 	location.WAF = cfg.WAF
@@ -1473,7 +1546,7 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
 			Name:         cfg.ExternalAuth.SigninURL,
 			Codes:        "401",
-			ResponseCode: 0,
+			ResponseCode: version2.ErrorPageResponseCodeInherit,
 		})
 		location.ProxyInterceptErrors = true
 	}
@@ -1500,6 +1573,19 @@ func addDosConfigToLocations(dosCfg *version2.Dos, locations []version2.Location
 func addAddHeaderInheritToLocations(addHeaderInherit string, locations []version2.Location) {
 	for i := range locations {
 		locations[i].AddHeaderInherit = addHeaderInherit
+	}
+}
+
+func addHSTSToLocationsWithAddHeaders(hsts *version2.HSTS, locations []version2.Location) {
+	if hsts == nil {
+		return
+	}
+	for i := range locations {
+		if len(locations[i].AddHeaders) > 0 &&
+			locations[i].AddHeaderInherit != addHeaderInheritOn &&
+			locations[i].AddHeaderInherit != addHeaderInheritMerge {
+			locations[i].HSTS = hsts
+		}
 	}
 }
 
@@ -1863,14 +1949,18 @@ func generateBool(s *bool, defaultS bool) bool {
 func generatePath(path string) string {
 	// Format the longest prefix match with a space between the modifier and the path
 	if strings.HasPrefix(path, "^~") {
-		return fmt.Sprintf(`^~ %v`, strings.TrimLeft(strings.TrimPrefix(path, "^~"), " "))
+		return fmt.Sprintf(`^~ %v`, strings.TrimLeftFunc(strings.TrimPrefix(path, "^~"), unicode.IsSpace))
 	}
 	// Wrap the regular expression (if present) inside double quotes (") to avoid NGINX parsing errors
 	if strings.HasPrefix(path, "~*") {
-		return fmt.Sprintf(`~* "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~*"), " "))
+		return fmt.Sprintf(`~* "%v"`, strings.TrimLeftFunc(strings.TrimPrefix(path, "~*"), unicode.IsSpace))
 	}
 	if strings.HasPrefix(path, "~") {
-		return fmt.Sprintf(`~ "%v"`, strings.TrimPrefix(strings.TrimPrefix(path, "~"), " "))
+		return fmt.Sprintf(`~ "%v"`, strings.TrimLeftFunc(strings.TrimPrefix(path, "~"), unicode.IsSpace))
+	}
+	// Format the exact match with a space between the modifier and the path
+	if strings.HasPrefix(path, "=") {
+		return fmt.Sprintf(`= %v`, strings.TrimLeftFunc(strings.TrimPrefix(path, "="), unicode.IsSpace))
 	}
 
 	return path
@@ -2035,6 +2125,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ServiceName:              serviceName,
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
+		DisableForwardedHeaders:  cfgParams.DisableForwardedHeaders,
 		VSRNamespace:             vsrNamespace,
 		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, upstreamName),
 	}
@@ -2055,7 +2146,7 @@ func generateLocationForRedirect(
 	}
 
 	return version2.Location{
-		Path:                 path,
+		Path:                 generatePath(path),
 		Snippets:             locationSnippets,
 		ProxyInterceptErrors: true,
 		InternalProxyPass:    fmt.Sprintf("http://%s", nginx418Server),
@@ -2093,7 +2184,7 @@ func generateLocationForReturn(path string, locationSnippets []string, actionRet
 	retLocName := fmt.Sprintf("@return_%d", retLocIndex)
 
 	return version2.Location{
-			Path:                 path,
+			Path:                 generatePath(path),
 			Snippets:             locationSnippets,
 			ProxyInterceptErrors: true,
 			InternalProxyPass:    fmt.Sprintf("http://%s", nginx418Server),
@@ -2844,16 +2935,10 @@ func generateProxySSLName(svcName, ns string) string {
 	return fmt.Sprintf("%s.%s.svc", svcName, ns)
 }
 
-// isTLSEnabled checks whether TLS is enabled for the given upstream, taking into account the configuration
-// of the NGINX Service Mesh and the presence of SPIFFE certificates.
-func isTLSEnabled(upstream conf_v1.Upstream, hasSpiffeCerts, isInternalRoute bool) bool {
-	if isInternalRoute {
-		// Internal routes in the NGINX Service Mesh do not require TLS.
-		return false
-	}
-
-	// TLS is enabled if explicitly configured for the upstream or if SPIFFE certificates are present.
-	return upstream.TLS.Enable || hasSpiffeCerts
+// isTLSEnabled checks whether TLS is enabled for the given upstream.
+func isTLSEnabled(upstream conf_v1.Upstream) bool {
+	// TLS is enabled if explicitly configured for the upstream.
+	return upstream.TLS.Enable
 }
 
 func isGRPC(protocolType string) bool {

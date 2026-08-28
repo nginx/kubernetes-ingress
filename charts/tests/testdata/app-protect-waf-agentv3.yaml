@@ -1,0 +1,9 @@
+controller:
+  nginxplus: true
+  appprotect:
+    enable: true
+nginxAgent:
+  enable: true
+  dataplaneKeySecretName: "dataplane-key"
+  endpointHost: "agent.connect.nginx.com"
+  endpointPort: 443

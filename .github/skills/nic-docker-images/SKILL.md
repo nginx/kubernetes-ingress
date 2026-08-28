@@ -29,8 +29,7 @@ TARGET stages (final image)     <- local, container, goreleaser, debug, download
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Debian | yes | yes | yes | yes | yes | yes | - | - | - |
 | Alpine | yes | yes | - | - | - | - | yes | yes | yes |
-| UBI 9 | yes | yes | yes | yes | yes | yes | - | - | - |
-| UBI 8 | - | - | yes | yes | - | - | - | - | - |
+| UBI 10 | yes | yes | yes | yes | yes | yes | - | - | - |
 
 **Architecture**: `amd64` + `arm64` for OSS and Plus. NAP variants are `amd64` only.
 
@@ -50,18 +49,16 @@ All targets call `docker build --platform linux/$(ARCH) --target $(TARGET) -f bu
 | `alpine-image-plus-fips` | `alpine-plus-fips` | - |
 | `alpine-image-nap-plus-fips` | `alpine-plus-nap-fips` | `waf` |
 | `alpine-image-nap-v5-plus-fips` | `alpine-plus-nap-v5-fips` | `waf` |
-| `ubi-image-plus` | `ubi-9-plus` | - |
+| `ubi-image-plus` | `ubi-10-plus` | - |
 | `debian-image-nap-plus` | `debian-plus-nap` | `waf` |
 | `debian-image-nap-v5-plus` | `debian-plus-nap-v5` | `waf` |
 | `debian-image-dos-plus` | `debian-plus-nap` | `dos` |
 | `debian-image-nap-dos-plus` | `debian-plus-nap` | `waf,dos` |
-| `ubi-image-nap-plus` | `ubi-9-plus-nap` | `waf` |
-| `ubi-image-nap-v5-plus` | `ubi-9-plus-nap-v5` | `waf` |
-| `ubi-image-dos-plus` | `ubi-9-plus-nap` | `dos` |
-| `ubi-image-nap-dos-plus` | `ubi-9-plus-nap` | `waf,dos` |
-| `ubi8-image-nap-plus` | `ubi-8-plus-nap` | `waf` |
-| `ubi8-image-nap-v5-plus` | `ubi-8-plus-nap-v5` | `waf` |
-| `all-images` | Builds 18 variants (excludes `ubi8-image-nap-plus`) | - |
+| `ubi-image-nap-plus` | `ubi-10-plus-nap` | `waf` |
+| `ubi-image-nap-v5-plus` | `ubi-10-plus-nap-v5` | `waf` |
+| `ubi-image-dos-plus` | `ubi-10-plus-nap` | `dos` |
+| `ubi-image-nap-dos-plus` | `ubi-10-plus-nap` | `waf,dos` |
+| `all-images` | Builds 18 variants | - |
 | `push` | `docker push` to `PREFIX:TAG` | - |
 | `patch-os` | OS patches existing image | - |
 
@@ -83,13 +80,21 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 
 ## Key Build Args
 
-| Arg | Purpose | Example |
+| Arg | Purpose | Source of truth |
 | --- | --- | --- |
-| `BUILD_OS` | Base image stage | `debian`, `alpine-plus`, `ubi-9-plus-nap` |
-| `IC_VERSION` | Ingress controller version | `5.5.0` |
-| `NGINX_PLUS_VERSION` | NGINX Plus version | `R36` |
-| `NAP_MODULES` | App Protect modules | `waf`, `dos`, `waf,dos` |
-| `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref |
+| `BUILD_OS` | Base image stage | `Makefile` targets + Dockerfile stages |
+| `IC_VERSION` | Ingress controller version | `.github/data/version.txt` |
+| `NGINX_PLUS_VERSION` | NGINX Plus version | `build/Dockerfile` |
+| `NGINX_OSS_VERSION` | NGINX OSS version | `build/Dockerfile` |
+| `NAP_MODULES` | App Protect modules | Any of `waf`, `dos`, or `waf,dos` |
+| `PREBUILT_BASE_IMG` | Base for prebuilt targets | GCR image ref (set by CI) |
+| `OSS_PACKAGE_REPO` | Repo host for OSS packages | `Makefile` / CI inputs (defaults to packages.nginx.org) |
+| `AGENT_PACKAGE_REPO` | Repo host for NGINX Agent packages | `Makefile` / CI inputs (defaults to packages.nginx.org) |
+| `PLUS_PACKAGE_REPO` | Repo host for Plus packages | `Makefile` / CI inputs (defaults to pkgs.nginx.com) |
+| `WAF_PACKAGE_REPO` | Repo host for F5 NAP WAF packages | `Makefile` / CI inputs (defaults to pkgs.nginx.com) |
+| `DOS_PACKAGE_REPO` | Repo host for F5 NAP DoS packages | `Makefile` / CI inputs (defaults to pkgs.nginx.com) |
+
+Do not hard-code `IC_VERSION` or `NGINX_VERSION` values in this file or in other docs as they change every release. Always reference `.github/data/version.txt` or the Renovate-managed Dockerfile pin.
 
 ---
 
@@ -111,6 +116,7 @@ Plus images receive `$(PLUS_ARGS)`: `--secret id=nginx-repo.crt --secret id=ngin
 - All images run as **UID 101** (nginx user), with `setcap cap_net_bind_service` for ports 80/443
 - Docker BuildKit always enabled: uses `--mount=type=bind`, `--mount=type=secret`, `--mount=type=cache`
 - Plus credentials use `--secret` mounts, **never** `COPY` into layers
+- OSS builds use optional `--secret` mounts (`required=false`) for `nginx-repo.crt`/`nginx-repo.key` to authenticate against non-default repo hosts like `pkgs-test.nginx.com` when running authenticated CI builds.
 - Fixed upstream base images use **pinned `@sha256:` digests** for reproducibility; some stages intentionally use build-arg/tag-selected bases (for example `BUILD_OS` or download/prebuilt images)
 - All images include `nginx-module-otel` (OpenTelemetry) and `nginx-agent` (usage reporting)
 - Plus images add `njs` and `fips-check` modules

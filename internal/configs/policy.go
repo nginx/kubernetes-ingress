@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
+	"github.com/nginx/kubernetes-ingress/internal/helpers"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
@@ -23,6 +25,11 @@ import (
 // DefaultSigninRedirectBasePath is the default base path for the NGINX location
 // that handles sign-in redirect requests (e.g. oauth2-proxy expects /oauth2).
 const DefaultSigninRedirectBasePath = "/oauth2"
+
+// oidcNativePostLogoutMessage is the plain-text response body served by the
+// auto-generated post-logout location when an OIDCNative policy sets
+// PostLogoutRedirectURI.
+const oidcNativePostLogoutMessage = "You have been logged out.\n"
 
 // rateLimit hold the configuration for the ratelimiting Policy
 type rateLimit struct {
@@ -65,11 +72,13 @@ type policiesCfg struct {
 	IngressMTLS     *version2.IngressMTLS
 	EgressMTLS      *version2.EgressMTLS
 	OIDC            *version2.OIDC
+	OIDCProvider    *version2.OIDCProvider
 	APIKey          apiKeyAuth
 	WAF             *version2.WAF
 	Cache           *version2.Cache
 	CORSHeaders     []version2.AddHeader
 	CORSMap         *version2.Map
+	HSTS            *version2.HSTS
 	ErrorReturn     *version2.Return
 	BundleValidator bundleValidator
 }
@@ -95,7 +104,58 @@ type policyOptions struct {
 	// this OIDC policy. It is reused by addOIDCConfig() when the same policy name is encountered
 	// on subsequent routes.
 	oidcConfig *version2.OIDC
+	// plmEnabled routes apPolicy/apLogConf references to PLM-fetched bundles.
+	plmEnabled bool
+	// oidcNativeLocations maps generated exact-match location paths to the
+	// owner and role that first claimed them. It is shared by both OIDC
+	// implementations: addOIDCNativeConfig() registers each provider's
+	// callback/proxy/post-logout locations, and addOIDCConfig() registers the
+	// NJS OIDC module's fixed internal locations plus its callback. This
+	// prevents either implementation from silently rendering two `location`
+	// blocks with the same path (which nginx -t rejects outright) when NJS
+	// and native OIDC are used on different routes of the same VS. Post-logout
+	// locations claimed by two different OIDCNative providers are exempt --
+	// see oidcNativeLocationOwner and oidcNJSRoleReserved.
+	oidcNativeLocations map[string]oidcNativeLocationOwner
 }
+
+// oidcNativeLocationOwner identifies which OIDCNative provider and role
+// (callback, proxy, post-logout) generated a given location path.
+type oidcNativeLocationOwner struct {
+	provider string
+	role     string
+}
+
+func (o oidcNativeLocationOwner) String() string {
+	return fmt.Sprintf("%s:%s", o.provider, o.role)
+}
+
+// Roles used to key oidcNativeLocations. callback and proxy locations carry
+// provider identity (auth_oidc <provider>, per-provider SNI/TLS) and can never
+// be shared; post-logout locations are identity-free and may be deduplicated
+// -- but only between two OIDCNative providers (see oidcNJSRoleReserved).
+const (
+	oidcNativeRoleCallback   = "callback"
+	oidcNativeRoleProxy      = "proxy"
+	oidcNativeRolePostLogout = "post-logout"
+	oidcNativeRoleLogout     = "logout"
+	// oidcNJSRoleReserved marks the seven fixed internal locations the NJS
+	// OIDC module always renders (independent of any policy field) whenever
+	// spec.oidc is used anywhere in a VirtualServer/VirtualServerRoute set --
+	// /_jwks_uri, /_token, /_refresh, /_token_validation, /logout,
+	// /front_channel_logout, and the static /_logout fallback page. Because
+	// each has module-specific behavior (js_content handlers, auth_jwt, or a
+	// fixed confirmation string), a collision here is always an error, even
+	// against OIDCNative's otherwise-mergeable post-logout role: the two
+	// implementations have no way to reconcile which body/handler wins.
+	oidcNJSRoleReserved = "njs-reserved"
+	// oidcNJSOwner is the constant owner name used for every location the
+	// NJS OIDC module registers. Only one NJS OIDC policy is allowed per
+	// VS/VSR set (see the "Multiple oidc policies" check in addOIDCConfig()),
+	// so there is no per-policy identity to track, unlike OIDCNative
+	// providers.
+	oidcNJSOwner = "njs"
+)
 
 func newPoliciesConfig(bv bundleValidator) *policiesCfg {
 	return &policiesCfg{
@@ -116,7 +176,8 @@ func IsPolicySupportedOnIngress(pol *conf_v1.Policy) bool {
 		pol.Spec.ExternalAuth != nil ||
 		pol.Spec.IngressMTLS != nil ||
 		pol.Spec.EgressMTLS != nil ||
-		pol.Spec.WAF != nil
+		pol.Spec.WAF != nil ||
+		pol.Spec.OIDCNative != nil
 }
 
 func (p *policiesCfg) addAccessControlConfig(accessControl *conf_v1.AccessControl) *validationResults {
@@ -300,7 +361,15 @@ func (p *policiesCfg) addExternalAuthConfig(
 		return res
 	}
 
-	upstreamName := fmt.Sprintf("%s_exauth_%s_%s", ownerDetails.parentType, polNamespace, polName)
+	var upstreamName string
+	if ownerDetails.parentType == "ing" {
+		upstreamName = fmt.Sprintf("ing_%s_%s_exauth_%s_%s",
+			ownerDetails.parentNamespace, ownerDetails.parentName,
+			polNamespace, polName)
+	} else {
+		upstreamName = fmt.Sprintf("%s_exauth_%s_%s",
+			ownerDetails.parentType, polNamespace, polName)
+	}
 	internalPath := fmt.Sprintf("/_external_auth%s", externalAuth.AuthURI)
 
 	p.ExternalAuth = &version2.ExternalAuth{
@@ -627,6 +696,15 @@ func (p *policiesCfg) addOIDCConfig(
 		return res
 	}
 
+	if p.OIDCProvider != nil {
+		res.addWarningf(
+			"OIDC (NJS) policy %s conflicts with OIDCNative policy in the same context. Only one OIDC implementation can be used per context",
+			polKey,
+		)
+		res.isError = true
+		return res
+	}
+
 	var policy *version2.OIDC
 	if policyOpts.oidcPolicyName != "" {
 		if policyOpts.oidcPolicyName != polKey {
@@ -681,6 +759,49 @@ func (p *policiesCfg) addOIDCConfig(
 		if postLogoutRedirectURI == "" {
 			postLogoutRedirectURI = "/_logout"
 		}
+
+		// Register every exact-match location oidc.tmpl renders in the
+		// shared per-VS registry (see oidcNativeLocations), so an OIDCNative
+		// provider on a different route of the same VS can't silently claim
+		// one of these paths and produce a duplicate `location` block that
+		// nginx -t would reject. redirectURI is the only one of these that's
+		// user-configurable; the rest are fixed, unconditional locations in
+		// oidc.tmpl regardless of any policy field -- including /_logout,
+		// which is the static fallback page and is rendered even when
+		// postLogoutRedirectURI is customized to a different path.
+		njsLocations := []string{
+			redirectURI,
+			"/_jwks_uri",
+			"/_token",
+			"/_refresh",
+			"/_token_validation",
+			"/logout",
+			"/front_channel_logout",
+			"/_logout",
+		}
+		for _, path := range njsLocations {
+			owner := oidcNativeLocationOwner{provider: oidcNJSOwner, role: oidcNJSRoleReserved}
+			if path == redirectURI {
+				owner.role = oidcNativeRoleCallback
+			}
+			existing, exists := policyOpts.oidcNativeLocations[path]
+			if exists && existing != owner {
+				res.addWarningf("OIDC policy %s uses generated location %s, which conflicts with %s", polKey, path, existing)
+				res.isError = true
+				return res
+			}
+		}
+		for _, path := range njsLocations {
+			if policyOpts.oidcNativeLocations == nil {
+				continue
+			}
+			owner := oidcNativeLocationOwner{provider: oidcNJSOwner, role: oidcNJSRoleReserved}
+			if path == redirectURI {
+				owner.role = oidcNativeRoleCallback
+			}
+			policyOpts.oidcNativeLocations[path] = owner
+		}
+
 		scope := oidc.Scope
 		if scope == "" {
 			scope = "openid"
@@ -754,6 +875,277 @@ func (p *policiesCfg) addOIDCConfig(
 	return res
 }
 
+func resolveOIDCNativeClientSecret(
+	oidcNative *conf_v1.OIDCNative,
+	polKey string,
+	polNamespace string,
+	secretRefs map[string]*secrets.SecretReference,
+	res *validationResults,
+) (string, bool) {
+	if oidcNative.ClientSecret == "" {
+		return "", true
+	}
+	secretKey := fmt.Sprintf("%v/%v", polNamespace, oidcNative.ClientSecret)
+	secretRef, ok := secretRefs[secretKey]
+	if !ok {
+		res.addWarningf("OIDCNative policy %s references a missing secret %s", polKey, secretKey)
+		res.isError = true
+		return "", false
+	}
+
+	var secretType api_v1.SecretType
+	if secretRef.Secret != nil {
+		secretType = secretRef.Secret.Type
+	}
+	if secretType != "" && secretType != secrets.SecretTypeOIDC {
+		res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, secretKey, secretType, secrets.SecretTypeOIDC)
+		res.isError = true
+		return "", false
+	}
+	if secretRef.Error != nil {
+		res.addWarningf("OIDCNative policy %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
+		res.isError = true
+		return "", false
+	}
+	if secretRef.Secret == nil {
+		res.addWarningf("OIDCNative policy %s references an invalid secret %s: secret doesn't exist", polKey, secretKey)
+		res.isError = true
+		return "", false
+	}
+
+	clientSecretBytes, ok := secretRef.Secret.Data[ClientSecretKey]
+	if !ok {
+		res.addWarningf("OIDCNative policy %s references a secret %s missing '%s' key", polKey, secretKey, ClientSecretKey)
+		res.isError = true
+		return "", false
+	}
+
+	return string(clientSecretBytes), true
+}
+
+func resolveOIDCNativeTrustedCert(
+	oidcNative *conf_v1.OIDCNative,
+	polKey string,
+	polNamespace string,
+	policyOpts policyOptions,
+	res *validationResults,
+) (string, string, bool) {
+	trustedCertPath := policyOpts.defaultCABundle
+	trustedCrlPath := ""
+	if oidcNative.TrustedCertSecret == "" {
+		return trustedCertPath, trustedCrlPath, true
+	}
+
+	trustedCertKey := fmt.Sprintf("%s/%s", polNamespace, oidcNative.TrustedCertSecret)
+	trustedCertRef, ok := policyOpts.secretRefs[trustedCertKey]
+	if !ok {
+		res.addWarningf("OIDCNative policy %s references a missing trusted cert secret %s", polKey, trustedCertKey)
+		res.isError = true
+		return "", "", false
+	}
+	var secretType api_v1.SecretType
+	if trustedCertRef.Secret != nil {
+		secretType = trustedCertRef.Secret.Type
+	}
+	if secretType != "" && secretType != secrets.SecretTypeCA {
+		res.addWarningf("OIDCNative policy %s references a secret %s of a wrong type '%s', must be '%s'", polKey, trustedCertKey, secretType, secrets.SecretTypeCA)
+		res.isError = true
+		return "", "", false
+	}
+	if trustedCertRef.Error != nil {
+		res.addWarningf("OIDCNative policy %s references an invalid trusted cert secret %s: %v", polKey, trustedCertKey, trustedCertRef.Error)
+		res.isError = true
+		return "", "", false
+	}
+	caFields := strings.Fields(trustedCertRef.Path)
+	if len(caFields) > 0 {
+		trustedCertPath = caFields[0]
+	}
+	if len(caFields) > 1 {
+		trustedCrlPath = caFields[1]
+	}
+	return trustedCertPath, trustedCrlPath, true
+}
+
+func validateAndRegisterOIDCNativeLocations(
+	polKey string,
+	providerName string,
+	redirectURI string,
+	postLogoutURI string,
+	proxyLocation string,
+	policyOpts policyOptions,
+	res *validationResults,
+) (*version2.AuthOIDCReturnLocation, bool) {
+	var postLogoutLoc *version2.AuthOIDCReturnLocation
+	if postLogoutURI != "" {
+		postLogoutLoc = &version2.AuthOIDCReturnLocation{
+			Path:        postLogoutURI,
+			DefaultType: "text/plain",
+			Return: version2.Return{
+				Code: 200,
+				Text: oidcNativePostLogoutMessage,
+			},
+		}
+	}
+
+	locations := []struct {
+		path string
+		role string
+	}{
+		{path: redirectURI, role: oidcNativeRoleCallback},
+		{path: postLogoutURI, role: oidcNativeRolePostLogout},
+		{path: proxyLocation, role: oidcNativeRoleProxy},
+	}
+	for _, location := range locations {
+		if location.path == "" {
+			continue
+		}
+		owner := oidcNativeLocationOwner{provider: providerName, role: location.role}
+		existing, exists := policyOpts.oidcNativeLocations[location.path]
+		if !exists || existing == owner {
+			continue
+		}
+		if location.role == oidcNativeRolePostLogout && existing.role == oidcNativeRolePostLogout {
+			postLogoutLoc = nil
+			continue
+		}
+		res.addWarningf("OIDCNative policy %s uses generated location %s, which conflicts with %s", polKey, location.path, existing)
+		res.isError = true
+		return nil, false
+	}
+	for _, location := range locations {
+		if location.path == "" || policyOpts.oidcNativeLocations == nil {
+			continue
+		}
+		if location.role == oidcNativeRolePostLogout && postLogoutLoc == nil {
+			continue
+		}
+		policyOpts.oidcNativeLocations[location.path] = oidcNativeLocationOwner{provider: providerName, role: location.role}
+	}
+
+	return postLogoutLoc, true
+}
+
+func (p *policiesCfg) addOIDCNativeConfig(
+	oidcNative *conf_v1.OIDCNative,
+	polKey string,
+	polNamespace string,
+	ownerDetails policyOwnerDetails,
+	policyOpts policyOptions,
+) *validationResults {
+	secretRefs := policyOpts.secretRefs
+	res := newValidationResults()
+
+	if p.OIDCProvider != nil {
+		res.addWarningf(
+			"Multiple oidcNative policies in the same context is not valid. OIDCNative policy %s will be ignored",
+			polKey,
+		)
+		return res
+	}
+
+	if p.OIDC != nil {
+		res.addWarningf(
+			"OIDCNative policy %s conflicts with OIDC (NJS) policy in the same context. Only one OIDC implementation can be used per context",
+			polKey,
+		)
+		res.isError = true
+		return res
+	}
+
+	// Resolve client secret if specified.
+	clientSecret, ok := resolveOIDCNativeClientSecret(oidcNative, polKey, polNamespace, secretRefs, res)
+	if !ok {
+		return res
+	}
+
+	// Resolve trusted CA cert (and optional CRL) if specified.
+	trustedCertPath, trustedCrlPath, ok := resolveOIDCNativeTrustedCert(oidcNative, polKey, polNamespace, policyOpts, res)
+	if !ok {
+		return res
+	}
+
+	_, polName := ParseResourceReference(polKey, polNamespace)
+	providerName := rfc1123ToSnake(fmt.Sprintf("oidc_%s_%s_%s_%s_%s", polNamespace, polName, ownerDetails.parentNamespace, ownerDetails.parentName, ownerDetails.parentType))
+
+	redirectURI := oidcNative.RedirectURI
+	if redirectURI == "" {
+		redirectURI = fmt.Sprintf("/oidc_callback_%s", providerName)
+	}
+
+	cookieName := oidcNative.CookieName
+	if cookieName == "" {
+		cookieName = fmt.Sprintf("NGX_OIDC_%s", providerName)
+	}
+
+	scope := strings.ReplaceAll(oidcNative.Scope, "+", " ")
+	sessionStore := fmt.Sprintf("oidc_sessions_%s", providerName)
+	sync := policyOpts.zoneSync
+	proxyLocation := fmt.Sprintf("/_oidc_idp_%s", providerName)
+
+	sslName := oidcNative.SSLName
+
+	sslVerify := true
+	if oidcNative.SSLVerify != nil {
+		sslVerify = *oidcNative.SSLVerify
+	}
+	sslVerifyDepth := 1
+	if oidcNative.SSLVerifyDepth != nil {
+		sslVerifyDepth = *oidcNative.SSLVerifyDepth
+	}
+	proxyBufferSize := oidcNative.ProxyBufferSize
+	if proxyBufferSize == "" {
+		proxyBufferSize = "32k"
+	}
+
+	proxyTrustedCertPath := ""
+	sslTrustedCert := ""
+	if sslVerify {
+		sslTrustedCert = trustedCertPath
+		if trustedCertPath != "" {
+			proxyTrustedCertPath = trustedCertPath
+		}
+	}
+
+	postLogoutLoc, ok := validateAndRegisterOIDCNativeLocations(polKey, providerName, redirectURI, oidcNative.PostLogoutRedirectURI, proxyLocation, policyOpts, res)
+	if !ok {
+		return res
+	}
+
+	p.OIDCProvider = &version2.OIDCProvider{
+		Name:                  providerName,
+		PolicyKey:             polKey,
+		Issuer:                oidcNative.Issuer,
+		ClientID:              oidcNative.ClientID,
+		ClientSecret:          clientSecret,
+		ConfigURL:             oidcNative.ConfigURL,
+		Scope:                 scope,
+		RedirectURI:           redirectURI,
+		CookieName:            cookieName,
+		ExtraAuthArgs:         oidcNative.ExtraAuthArgs,
+		PKCE:                  oidcNative.PKCE,
+		LogoutURI:             oidcNative.LogoutURI,
+		PostLogoutURI:         oidcNative.PostLogoutRedirectURI,
+		FrontChannelLogoutURI: oidcNative.FrontChannelLogoutURI,
+		LogoutTokenHint:       oidcNative.LogoutTokenHint,
+		SessionStore:          sessionStore,
+		SessionTimeout:        oidcNative.SessionTimeout,
+		Sync:                  sync,
+		UserInfoEnable:        oidcNative.UserInfoEnable,
+		SSLTrustedCert:        sslTrustedCert,
+		SSLCrl:                trustedCrlPath,
+		SSLVerify:             sslVerify,
+		SSLName:               sslName,
+		SSLVerifyDepth:        sslVerifyDepth,
+		ProxyLocation:         proxyLocation,
+		ProxyBufferSize:       proxyBufferSize,
+		ProxyTrustedCertPath:  proxyTrustedCertPath,
+		PostLogoutLocation:    postLogoutLoc,
+	}
+
+	return res
+}
+
 func (p *policiesCfg) addAPIKeyConfig(
 	apiKey *conf_v1.APIKey,
 	polKey string,
@@ -812,6 +1204,7 @@ func (p *policiesCfg) addWAFConfig(
 	polKey string,
 	polNamespace string,
 	apResources *appProtectPolicyResources,
+	plmEnabled bool,
 ) *validationResults {
 	l := nl.LoggerFromContext(ctx)
 	res := newValidationResults()
@@ -826,7 +1219,11 @@ func (p *policiesCfg) addWAFConfig(
 		p.WAF = &version2.WAF{Enable: "off"}
 	}
 
-	if waf.ApPolicy != "" {
+	// Under PLM, apPolicy names a PLM-compiled APPolicy whose bundle is fetched to
+	// disk, so it resolves through the bundle path rather than apResources.
+	usePLMPolicyBundle := plmEnabled && waf.ApPolicy != ""
+
+	if waf.ApPolicy != "" && !plmEnabled {
 		apPolKey := waf.ApPolicy
 		if !nsutils.HasNamespace(apPolKey) {
 			apPolKey = fmt.Sprintf("%v/%v", polNamespace, apPolKey)
@@ -850,6 +1247,19 @@ func (p *policiesCfg) addWAFConfig(
 		p.WAF.ApBundle = bundlePath
 	}
 
+	if waf.ApBundleSource != nil || usePLMPolicyBundle {
+		// Bundle was written to disk by syncPolicy() before config generation runs.
+		ns, name, _ := helpers.ParseNamespaceName(polKey)
+		filename := wafbundle.FetchedBundleFilename(ns, name, "policy")
+		bundlePath, err := p.BundleValidator.validate(filename)
+		if err != nil {
+			res.addWarningf("WAF policy %s: bundle not yet available (%s) — WAF inactive until bundle is fetched", polKey, filename)
+			res.isError = true
+		} else {
+			p.WAF.ApBundle = bundlePath
+		}
+	}
+
 	if waf.SecurityLog != nil && waf.SecurityLogs == nil {
 		nl.Debug(l, "the field securityLog is deprecated and will be removed in future releases. Use field securityLogs instead")
 		waf.SecurityLogs = append(waf.SecurityLogs, waf.SecurityLog)
@@ -858,10 +1268,12 @@ func (p *policiesCfg) addWAFConfig(
 	if waf.SecurityLogs != nil {
 		p.WAF.ApSecurityLogEnable = true
 		p.WAF.ApLogConf = []string{}
-		for _, loco := range waf.SecurityLogs {
+		for idx, loco := range waf.SecurityLogs {
 			logDest := generateString(loco.LogDest, defaultLogOutput)
 
-			if loco.ApLogConf != "" {
+			usePLMLogBundle := plmEnabled && loco.ApLogConf != ""
+
+			if loco.ApLogConf != "" && !plmEnabled {
 				logConfKey := loco.ApLogConf
 				if !nsutils.HasNamespace(logConfKey) {
 					logConfKey = fmt.Sprintf("%v/%v", polNamespace, logConfKey)
@@ -878,6 +1290,18 @@ func (p *policiesCfg) addWAFConfig(
 				logBundle, err := p.BundleValidator.validate(loco.ApLogBundle)
 				if err != nil {
 					res.addWarningf("WAF policy %s references an invalid or non-existing log config bundle %s", polKey, logBundle)
+					res.isError = true
+				} else {
+					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
+				}
+			}
+
+			if loco.ApLogBundleSource != nil || usePLMLogBundle {
+				ns, name, _ := helpers.ParseNamespaceName(polKey)
+				filename := wafbundle.FetchedBundleFilename(ns, name, fmt.Sprintf("log_%d", idx))
+				logBundle, err := p.BundleValidator.validate(filename)
+				if err != nil {
+					res.addWarningf("WAF policy %s: log bundle %d not yet available (%s) — log profile inactive", polKey, idx, filename)
 					res.isError = true
 				} else {
 					p.WAF.ApLogConf = append(p.WAF.ApLogConf, fmt.Sprintf("%s %s", logBundle, logDest))
@@ -1132,6 +1556,47 @@ func (p *policiesCfg) addCORSConfig(
 	return res
 }
 
+func (p *policiesCfg) addHSTSConfig(
+	hsts *conf_v1.HSTS,
+	polKey string,
+	context string,
+	tls bool,
+) *validationResults {
+	res := newValidationResults()
+
+	if context != specContext {
+		res.addWarningf("HSTS policy %s is not allowed in the %v context", polKey, context)
+		res.isError = true
+		return res
+	}
+
+	if !tls && !hsts.BehindProxy {
+		res.addWarningf("TLS must be enabled for HSTS policy %s", polKey)
+		res.isError = true
+		return res
+	}
+
+	if p.HSTS != nil {
+		res.addWarningf("Multiple HSTS policies in the same context are not valid. HSTS policy %s will be ignored", polKey)
+		return res
+	}
+
+	if hsts.MaxAge == nil {
+		res.addWarningf("HSTS policy %s is missing required field maxAge", polKey)
+		res.isError = true
+		return res
+	}
+
+	p.HSTS = &version2.HSTS{
+		MaxAge:            *hsts.MaxAge,
+		IncludeSubDomains: hsts.IncludeSubDomains,
+		BehindProxy:       hsts.BehindProxy,
+		Preload:           hsts.Preload,
+	}
+
+	return res
+}
+
 // nolint:gocyclo
 func generatePolicies(
 	ctx context.Context,
@@ -1198,14 +1663,18 @@ func generatePolicies(
 				res = config.addEgressMTLSConfig(pol.Spec.EgressMTLS, key, polNamespace, policyOpts.secretRefs)
 			case pol.Spec.OIDC != nil:
 				res = config.addOIDCConfig(pol.Spec.OIDC, key, polNamespace, policyOpts)
+			case pol.Spec.OIDCNative != nil:
+				res = config.addOIDCNativeConfig(pol.Spec.OIDCNative, key, polNamespace, ownerDetails, policyOpts)
 			case pol.Spec.APIKey != nil:
 				res = config.addAPIKeyConfig(pol.Spec.APIKey, key, polNamespace, ownerDetails, policyOpts.secretRefs)
 			case pol.Spec.WAF != nil:
-				res = config.addWAFConfig(ctx, pol.Spec.WAF, key, polNamespace, policyOpts.apResources)
+				res = config.addWAFConfig(ctx, pol.Spec.WAF, key, polNamespace, policyOpts.apResources, policyOpts.plmEnabled)
 			case pol.Spec.Cache != nil:
 				res = config.addCacheConfig(pol.Spec.Cache, key, ownerDetails)
 			case pol.Spec.CORS != nil:
 				res = config.addCORSConfig(pol.Spec.CORS, key, ownerDetails)
+			case pol.Spec.HSTS != nil:
+				res = config.addHSTSConfig(pol.Spec.HSTS, key, pathContext, policyOpts.tls)
 			default:
 				res = newValidationResults()
 			}

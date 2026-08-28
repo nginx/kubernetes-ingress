@@ -515,6 +515,317 @@ func TestExecuteTemplate_ForIngressWithServerLevelAddHeaders(t *testing.T) {
 	}
 }
 
+// TestExecuteTemplate_ForIngressWithCustomHTTPErrors verifies that the
+// nginx.org/custom-http-errors annotation on a standard Ingress renders at
+// server context (proxy_intercept_errors + error_page inside the server {}
+// block, applying to all locations via NGINX inheritance) and that the
+// shared @custom_default_backend named location is emitted once per server.
+func TestExecuteTemplate_ForIngressWithCustomHTTPErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404, 500, 502},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
+					Locations: []Location{{
+						Path:      "/coffee",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			if !strings.Contains(out, "proxy_intercept_errors on;") {
+				t.Errorf("want 'proxy_intercept_errors on;' in output")
+			}
+			if !strings.Contains(out, "error_page 404 500 502 @custom_default_backend;") {
+				t.Errorf("want combined error_page directive in output")
+			}
+			if !strings.Contains(out, "location @custom_default_backend {") {
+				t.Errorf("want @custom_default_backend named location in output")
+			}
+			if !strings.Contains(out, "proxy_pass http://default-cafe-ingress--error-pages-svc-80;") {
+				t.Errorf("want handler proxy_pass to default-backend upstream in output")
+			}
+			if !strings.Contains(out, "proxy_intercept_errors off;") {
+				t.Errorf("want handler-location 'proxy_intercept_errors off;' to prevent recursion")
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForIngressWithCustomHTTPErrors_NoHandler verifies that
+// when the annotation is present but the server has no @custom_default_backend
+// (e.g. the Ingress has no spec.defaultBackend), server-level
+// proxy_intercept_errors on; is still emitted (NGINX serves its built-in
+// error pages for the codes) but no error_page directive and no handler
+// location are emitted.
+func TestExecuteTemplate_ForIngressWithCustomHTTPErrors_NoHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:                 "cafe.example.com",
+					ServerTokens:         "off",
+					StatusZone:           "cafe.example.com",
+					CustomHTTPErrorCodes: []int{404, 500},
+					// CustomHTTPErrorBackend intentionally empty — no default backend, so
+					// the handler location and server-level error_page must not render.
+					Locations: []Location{{
+						Path:      "/coffee",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			if !strings.Contains(out, "proxy_intercept_errors on;") {
+				t.Errorf("want 'proxy_intercept_errors on;' in output")
+			}
+			if strings.Contains(out, "@custom_default_backend") {
+				t.Errorf("did not expect @custom_default_backend reference when no handler is configured")
+			}
+			if strings.Contains(out, "@custom_default_backend;") {
+				t.Errorf("did not expect error_page routed to handler when no handler is configured")
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForMergeableIngressWithCustomHTTPErrors_MinionOverride
+// verifies the mergeable model: master sets server-level codes; a minion
+// location sets its own codes and NGINX's error_page inheritance rule
+// replaces (not merges) the server-level directive for that specific
+// location. The shared @custom_default_backend handler is emitted once.
+func TestExecuteTemplate_ForMergeableIngressWithCustomHTTPErrors_MinionOverride(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
+					Locations: []Location{
+						{
+							Path:      "/coffee",
+							Upstream:  testUpstream,
+							ProxyPass: "http://test",
+							// Minion inherits server-level 404 via NGINX inheritance —
+							// no location-level codes needed.
+						},
+						{
+							Path:                 "/tea",
+							Upstream:             testUpstream,
+							ProxyPass:            "http://test",
+							CustomHTTPErrorCodes: []int{502, 503},
+							// Minion overrides: this location's error_page block replaces
+							// the server's 404 with 502 503.
+						},
+					},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			// Server-level directive with master's codes.
+			if !strings.Contains(out, "error_page 404 @custom_default_backend;") {
+				t.Errorf("want server-level error_page 404 @custom_default_backend in output")
+			}
+			// Minion-level override with its own codes.
+			if !strings.Contains(out, "error_page 502 503 @custom_default_backend;") {
+				t.Errorf("want minion-level error_page 502 503 @custom_default_backend in output")
+			}
+			// Handler location appears exactly once.
+			if got := strings.Count(out, "location @custom_default_backend {"); got != 1 {
+				t.Errorf("want @custom_default_backend location emitted once, got %d", got)
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+// TestExecuteTemplate_ForIngressWithCustomHTTPErrors_SkipDefaultBackendLocation
+// verifies that the synthesized default-backend location emits
+// proxy_intercept_errors off; to break the intercept loop that would
+// otherwise send its own responses back through @custom_default_backend.
+func TestExecuteTemplate_ForIngressWithCustomHTTPErrors_SkipDefaultBackendLocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:                   "cafe.example.com",
+					ServerTokens:           "off",
+					StatusZone:             "cafe.example.com",
+					CustomHTTPErrorCodes:   []int{404},
+					CustomHTTPErrorBackend: "default-cafe-ingress--error-pages-svc-80",
+					Locations: []Location{{
+						Path:                 "/",
+						Upstream:             testUpstream,
+						ProxyPass:            "http://test",
+						SkipCustomHTTPErrors: true,
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			if !strings.Contains(out, "proxy_intercept_errors off;") {
+				t.Errorf("want 'proxy_intercept_errors off;' inside the synthesized location")
+			}
+			// The location block must not carry an error_page to @custom_default_backend
+			// (that would keep the loop alive despite intercept being off).
+			if strings.Contains(out, "\t\terror_page 404 = @custom_default_backend;") {
+				t.Errorf("did not expect location-level error_page inside the skipped location")
+			}
+		})
+	}
+}
+
+// TestExecuteTemplate_ForIngressWithoutCustomHTTPErrors verifies that when the
+// annotation is absent, neither proxy_intercept_errors nor the handler
+// location are emitted.
+func TestExecuteTemplate_ForIngressWithoutCustomHTTPErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:         "cafe.example.com",
+					ServerTokens: "off",
+					StatusZone:   "cafe.example.com",
+					Locations: []Location{{
+						Path:      "/coffee",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			out := buf.String()
+
+			if strings.Contains(out, "proxy_intercept_errors") {
+				t.Errorf("did not expect proxy_intercept_errors when annotation is absent")
+			}
+			if strings.Contains(out, "@custom_default_backend") {
+				t.Errorf("did not expect @custom_default_backend when annotation is absent")
+			}
+		})
+	}
+}
+
 // TestExecuteTemplate_ForMergeableIngressWithMasterOnlyAddHeaderAnnotation verifies
 // that a master-only nginx.org/add-header annotation emits add_header in the server {}
 // block only. Minion locations carry no location-level add_header for this case;
@@ -937,6 +1248,197 @@ func TestExecuteTemplate_ForIngressForNGINXWithHTTPRedirectCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectOff(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectOff)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect off;") {
+		t.Errorf("want %q in generated config", "proxy_redirect off;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectOff(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectOff)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect off;") {
+		t.Errorf("want %q in generated config", "proxy_redirect off;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectPair(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectPair)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;") {
+		t.Errorf("want %q in generated config", "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectPair(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectPair)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;") {
+		t.Errorf("want %q in generated config", "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectDefault(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectDefault)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if strings.Contains(rendered, "proxy_redirect default;") {
+		t.Errorf("do not want %q in generated config", "proxy_redirect default;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectDefault(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectDefault)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if strings.Contains(rendered, "proxy_redirect default;") {
+		t.Errorf("do not want %q in generated config", "proxy_redirect default;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectMinionOff(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectMinionOff)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	// directive must appear inside the location block, not in the server block
+	if !strings.Contains(rendered, "proxy_redirect off;") {
+		t.Errorf("want %q in generated config", "proxy_redirect off;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectMinionOff(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectMinionOff)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect off;") {
+		t.Errorf("want %q in generated config", "proxy_redirect off;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyRedirectMinionPair(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectMinionPair)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;") {
+		t.Errorf("want %q in generated config", "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;")
+	}
+	snaps.MatchSnapshot(t, rendered)
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyRedirectMinionPair(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgWithProxyRedirectMinionPair)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+	if !strings.Contains(rendered, "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;") {
+		t.Errorf("want %q in generated config", "proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;")
+	}
+	snaps.MatchSnapshot(t, rendered)
 }
 
 func TestExecuteTemplate_ForIngressForNGINXWithServiceBeforeRedirect(t *testing.T) {
@@ -1441,6 +1943,88 @@ func TestExecuteTemplate_ForMainForNGINXPlusTLSPassthroughPortDisabled(t *testin
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressForNGINXPlusWithOIDCNative(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	providerName := "oidc_default_oidc_native_policy_default_cafe_ingress"
+
+	ingressCfg := IngressNginxConfig{
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+		KeyValZones: []version2.KeyValZone{
+			{
+				Name: "oidc_sessions_" + providerName,
+				Size: "10m",
+			},
+		},
+		OIDCProviders: []version2.OIDCProvider{
+			{
+				Name:            providerName,
+				PolicyKey:       "default/oidc-native-policy",
+				Issuer:          "https://keycloak.example.com/realms/master",
+				ClientID:        "client-id",
+				RedirectURI:     "/oidc_callback_" + providerName,
+				CookieName:      "NGX_OIDC_" + providerName,
+				SessionStore:    "oidc_sessions_" + providerName,
+				SSLVerify:       true,
+				SSLName:         "keycloak.example.com",
+				SSLVerifyDepth:  1,
+				ProxyLocation:   "/_oidc_idp_" + providerName,
+				ProxyBufferSize: "32k",
+				PostLogoutLocation: &version2.AuthOIDCReturnLocation{
+					Path:        "/_logout",
+					DefaultType: "text/plain",
+					Return: version2.Return{
+						Code: 200,
+						Text: "You have been logged out.",
+					},
+				},
+			},
+		},
+		Servers: []Server{
+			{
+				Name:             "cafe.example.com",
+				OIDCProviderName: providerName,
+				Locations: []Location{
+					{
+						Path:             "/tea",
+						OIDCProviderName: providerName,
+					},
+				},
+			},
+		},
+	}
+
+	err := tmpl.Execute(buf, ingressCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rendered := buf.String()
+
+	expectedDirectives := []string{
+		"keyval_zone zone=oidc_sessions_" + providerName + ":10m;",
+		"oidc_provider " + providerName + " {",
+		"auth_oidc " + providerName + ";",
+		"location = /oidc_callback_" + providerName + " {",
+		"location = /_logout {",
+		"location = /_oidc_idp_" + providerName + " {",
+	}
+
+	for _, directive := range expectedDirectives {
+		if !strings.Contains(rendered, directive) {
+			t.Errorf("want %q in generated config", directive)
+		}
+	}
+
+	snaps.MatchSnapshot(t, rendered)
+}
+
 func TestExecuteTemplate_ForDefaultServerForNGINXWithCustomDefaultHTTPAndHTTPSListenerPorts(t *testing.T) {
 	t.Parallel()
 
@@ -1553,6 +2137,9 @@ func TestExecuteTemplate_ForDefaultServerForNGINXPlusWithoutCustomDefaultHTTPAnd
 		if !strings.Contains(mainConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
+	}
+	if strings.Contains(mainConf, "status_zone") {
+		t.Errorf("status_zone directive should not be present in default server config, got: %s", mainConf)
 	}
 	snaps.MatchSnapshot(t, buf.String())
 }
@@ -3537,6 +4124,34 @@ func TestExecuteTemplate_ForIngressWithAddHeaderInherit(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressWithDisableForwardedHeaders(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgForwardedHeaderDisabled)
+	t.Log(buf.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	notWantDirectives := []string{
+		"proxy_set_header X-Forwarded-For",
+		"proxy_set_header X-Forwarded-Host",
+		"proxy_set_header X-Forwarded-Port",
+		"proxy_set_header X-Forwarded-Proto",
+	}
+
+	rendered := buf.String()
+	for _, notWant := range notWantDirectives {
+		if strings.Contains(rendered, notWant) {
+			t.Errorf("not want %q in generated config", notWant)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
 var (
 	// Ingress Config example without added annotations
 	ingressCfg = IngressNginxConfig{
@@ -3923,6 +4538,44 @@ var (
 		},
 	}
 
+	ingressCfgForwardedHeaderDisabled = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                    "/tea",
+						Upstream:                testUpstream,
+						ProxyConnectTimeout:     "10s",
+						DisableForwardedHeaders: true,
+						ProxyReadTimeout:        "10s",
+						ProxySendTimeout:        "10s",
+						ClientMaxBodySize:       "2m",
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+						},
+						ProxyPass: "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
 	// Ingress Config example with ssl-redirect and redirect-to-https enabled with custom http-redirect-code
 	ingressCfgWithHTTPRedirectCode = IngressNginxConfig{
 		Servers: []Server{
@@ -3949,6 +4602,153 @@ var (
 					},
 				},
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with proxy_redirect off annotation (standard/master — server context)
+	ingressCfgWithProxyRedirectOff = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "cafe.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "cafe.example.com",
+				ProxyRedirectFrom: "off",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with explicit proxy_redirect from/to pair annotation (standard/master — server context)
+	ingressCfgWithProxyRedirectPair = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "cafe.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "cafe.example.com",
+				ProxyRedirectFrom: "http://cafe.example.com/v1/",
+				ProxyRedirectTo:   "http://cafe.example.com/coffee/",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with proxy_redirect default annotation (standard/master — server context)
+	ingressCfgWithProxyRedirectDefault = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "cafe.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "cafe.example.com",
+				ProxyRedirectFrom: "default",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with proxy_redirect off annotation (minion — location context)
+	ingressCfgWithProxyRedirectMinionOff = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "cafe.example.com",
+				ServerTokens: "off",
+				StatusZone:   "cafe.example.com",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyRedirectFrom:   "off",
+						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example with explicit proxy_redirect pair annotation (minion — location context)
+	ingressCfgWithProxyRedirectMinionPair = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "cafe.example.com",
+				ServerTokens: "off",
+				StatusZone:   "cafe.example.com",
+				Locations: []Location{
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "60s",
+						ProxyReadTimeout:    "60s",
+						ProxySendTimeout:    "60s",
+						ClientMaxBodySize:   "1m",
+						ProxyRedirectFrom:   "http://cafe.example.com/v1/",
+						ProxyRedirectTo:     "http://cafe.example.com/coffee/",
+						ProxyPass:           "http://test",
+					},
+				},
 			},
 		},
 		Upstreams: []Upstream{testUpstream},
@@ -6343,6 +7143,320 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressForNGINXUpstreamVhost(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name             string
+		ingressCfg       IngressNginxConfig
+		description      string
+		wantDirectives   []string
+		unwantDirectives []string
+	}{
+		{
+			name: "upstream_vhost_set",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:         "cafe.example.com",
+						ServerTokens: "off",
+						Locations: []Location{
+							{
+								Path:          "/coffee",
+								UpstreamVhost: "example.internal",
+								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/upstream-vhost": "example.internal",
+					},
+				},
+			},
+			description: "Should generate proxy_set_header Host with the annotation value when nginx.org/upstream-vhost is set",
+			wantDirectives: []string{
+				"proxy_set_header Host example.internal;",
+			},
+			unwantDirectives: []string{
+				"proxy_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			err := tmpl.Execute(buf, tt.ingressCfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			ingConf := buf.String()
+
+			for _, want := range tt.wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			for _, unwant := range tt.unwantDirectives {
+				if strings.Contains(ingConf, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhost(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+
+	tests := []struct {
+		name             string
+		ingressCfg       IngressNginxConfig
+		description      string
+		wantDirectives   []string
+		unwantDirectives []string
+	}{
+		{
+			name: "upstream_vhost_set",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:         "cafe.example.com",
+						ServerTokens: "off",
+						Locations: []Location{
+							{
+								Path:          "/coffee",
+								UpstreamVhost: "example.internal",
+								Upstream:      testUpstream,
+								ProxyPass:     "http://test",
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/upstream-vhost": "example.internal",
+					},
+				},
+			},
+			description: "Should generate proxy_set_header Host with the annotation value when nginx.org/upstream-vhost is set",
+			wantDirectives: []string{
+				"proxy_set_header Host example.internal;",
+			},
+			unwantDirectives: []string{
+				"proxy_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			err := tmpl.Execute(buf, tt.ingressCfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			ingConf := buf.String()
+
+			for _, want := range tt.wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			for _, unwant := range tt.unwantDirectives {
+				if strings.Contains(ingConf, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXUpstreamVhostGRPC(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+
+	tests := []struct {
+		name             string
+		ingressCfg       IngressNginxConfig
+		description      string
+		wantDirectives   []string
+		unwantDirectives []string
+	}{
+		{
+			name: "upstream_vhost_set_grpc",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:             "cafe.example.com",
+						ServerTokens:     "off",
+						HTTP2:            true,
+						HasGRPCLocations: true,
+						Locations: []Location{
+							{
+								Path:          "/coffee",
+								UpstreamVhost: "example.internal",
+								Upstream:      testUpstream,
+								ProxyPass:     "grpc://test",
+								GRPC:          true,
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/upstream-vhost": "example.internal",
+					},
+				},
+			},
+			description: "Should generate grpc_set_header Host with the annotation value when nginx.org/upstream-vhost is set on a GRPC location",
+			wantDirectives: []string{
+				"grpc_set_header Host example.internal;",
+			},
+			unwantDirectives: []string{
+				"grpc_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			err := tmpl.Execute(buf, tt.ingressCfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			ingConf := buf.String()
+
+			for _, want := range tt.wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			for _, unwant := range tt.unwantDirectives {
+				if strings.Contains(ingConf, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhostGRPC(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+
+	tests := []struct {
+		name             string
+		ingressCfg       IngressNginxConfig
+		description      string
+		wantDirectives   []string
+		unwantDirectives []string
+	}{
+		{
+			name: "upstream_vhost_set_grpc",
+			ingressCfg: IngressNginxConfig{
+				Servers: []Server{
+					{
+						Name:             "cafe.example.com",
+						ServerTokens:     "off",
+						HTTP2:            true,
+						HasGRPCLocations: true,
+						Locations: []Location{
+							{
+								Path:          "/coffee",
+								UpstreamVhost: "example.internal",
+								Upstream:      testUpstream,
+								ProxyPass:     "grpc://test",
+								GRPC:          true,
+							},
+						},
+					},
+				},
+				Ingress: Ingress{
+					Name:      "cafe-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.org/upstream-vhost": "example.internal",
+					},
+				},
+			},
+			description: "Should generate grpc_set_header Host with the annotation value when nginx.org/upstream-vhost is set on a GRPC location",
+			wantDirectives: []string{
+				"grpc_set_header Host example.internal;",
+			},
+			unwantDirectives: []string{
+				"grpc_set_header Host $host;",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			buf := &bytes.Buffer{}
+			err := tmpl.Execute(buf, tt.ingressCfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+
+			ingConf := buf.String()
+
+			for _, want := range tt.wantDirectives {
+				if !strings.Contains(ingConf, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			for _, unwant := range tt.unwantDirectives {
+				if strings.Contains(ingConf, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphersDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -6683,5 +7797,102 @@ func newIngressConfigWithEgressMTLS(grpc bool) IngressNginxConfig {
 			},
 		},
 		Upstreams: []Upstream{upstream},
+	}
+}
+
+// newIngressConfigWithExternalAuth builds an Ingress config with an ExternalAuth
+// policy at server or location scope, optionally including an OAuth2 signin URL.
+func newIngressConfigWithExternalAuth(scope string, signinURL string) IngressNginxConfig {
+	auth := &version2.ExternalAuth{
+		URI: &version2.AuthURI{
+			Service:      "oauth2-proxy",
+			Upstream:     "ext_auth_default_oauth2-proxy",
+			Path:         "/oauth2/auth",
+			InternalPath: "/_external_auth/oauth2/auth",
+		},
+	}
+	if signinURL != "" {
+		auth.SigninURL = signinURL
+		auth.SigninRedirectBasePath = "/oauth2"
+	}
+
+	server := Server{
+		Name:         "cafe.example.com",
+		ServerTokens: "off",
+		StatusZone:   "cafe.example.com",
+		Locations: []Location{
+			{
+				Path:      "/tea",
+				Upstream:  testUpstream,
+				ProxyPass: "http://test",
+			},
+		},
+	}
+	switch scope {
+	case "server":
+		server.ExternalAuth = auth
+	case "location":
+		server.Locations[0].ExternalAuth = auth
+	}
+
+	return IngressNginxConfig{
+		Servers:   []Server{server},
+		Upstreams: []Upstream{testUpstream},
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+			Annotations: map[string]string{
+				"nginx.org/policies": "external-auth-policy",
+			},
+		},
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
+	t.Parallel()
+
+	const signinURL = "/oauth2/start?rd=$scheme://$host$request_uri"
+	want := fmt.Sprintf(`error_page 401 = "%s";`, signinURL)
+
+	cases := []struct {
+		name    string
+		scope   string
+		signin  string
+		wantHit bool
+		newTmpl func(*testing.T) *template.Template
+	}{
+		{name: "nginx/server", scope: "server", signin: signinURL, wantHit: true, newTmpl: newNGINXIngressTmpl},
+		{name: "nginx/location", scope: "location", signin: signinURL, wantHit: true, newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus/server", scope: "server", signin: signinURL, wantHit: true, newTmpl: newNGINXPlusIngressTmpl},
+		{name: "nginx-plus/location", scope: "location", signin: signinURL, wantHit: true, newTmpl: newNGINXPlusIngressTmpl},
+		// Guards that ExternalAuth without SigninURL still emits `auth_request` but no `error_page 401`.
+		{name: "nginx/server/no-signin", scope: "server", signin: "", wantHit: false, newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus/location/no-signin", scope: "location", signin: "", wantHit: false, newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tmpl := tc.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, newIngressConfigWithExternalAuth(tc.scope, tc.signin)); err != nil {
+				t.Fatal(err)
+			}
+			got := buf.String()
+
+			if !strings.Contains(got, "auth_request /_external_auth/oauth2/auth;") {
+				t.Errorf("want auth_request directive in rendered config\n---\n%s", got)
+			}
+
+			hasErrorPage := strings.Contains(got, want)
+			switch {
+			case tc.wantHit && !hasErrorPage:
+				t.Errorf("want %q in rendered config\n---\n%s", want, got)
+			case !tc.wantHit && strings.Contains(got, "error_page 401"):
+				t.Errorf("did not want error_page 401 when SigninURL is empty\n---\n%s", got)
+			}
+
+			snaps.MatchSnapshot(t, got)
+		})
 	}
 }

@@ -35,7 +35,8 @@
       "matchDatasources": [
         "pypi"
       ],
-      "groupName": "python dependencies"
+      "groupName": "python dependencies",
+      "minimumReleaseAge": "3 days"
     },
     {
       "addLabels": [
@@ -70,7 +71,8 @@
       "matchManagers": [
         "github-actions"
       ],
-      "groupName": "github actions"
+      "groupName": "github actions",
+      "minimumReleaseAge": "3 days"
     },
     {
       "matchPackageNames": [
@@ -238,16 +240,20 @@
       ]
     },
     {
-      "groupName": "Go dev tooling",
+      "groupName": "Go toolchain",
       "matchPackageNames": [
+        "go",
+        "golang",
         "dominikh/go-tools",
         "golang/vuln",
         "golangci/golangci-lint",
         "mvdan.cc/gofumpt"
       ],
       "matchDatasources": [
+        "docker",
         "github-releases",
-        "go"
+        "go",
+        "golang-version"
       ],
       "addLabels": [
         "go",
@@ -381,6 +387,18 @@
       "matchStrings": [
         "uses: golangci\\/golangci-lint-action@[a-f0-9]+[\\s\\S]*?\\s+version: (?<currentValue>v\\d+\\.\\d+\\.\\d+)"
       ]
+    },
+    {
+      "customType": "regex",
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "nginx",
+      "description": "Update nginx version in Dockerfile stage Base comments",
+      "managerFilePatterns": [
+        "/^build\\/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "# Base:    nginx:(?<currentValue>[\\d.]+)"
+      ]
     }
   ],
   "timezone": "Europe/Dublin",
@@ -389,7 +407,7 @@
   "automergeType": "pr",
   "baseBranchPatterns": [
     "main",
-    "release-5.4"
+    "release-2026-lts"
   ],
   "commitBodyTable": true,
   "configMigration": true,

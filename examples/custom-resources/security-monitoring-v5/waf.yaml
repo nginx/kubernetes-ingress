@@ -1,0 +1,12 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: waf-policy
+spec:
+  waf:
+    enable: true
+    apBundle: "<policy_bundle_name>.tgz"
+    securityLogs:
+    - enable: true
+      apLogBundle: "<log_bundle_name>.tgz"
+      logDest: "syslog:server=syslog-svc.default:514"

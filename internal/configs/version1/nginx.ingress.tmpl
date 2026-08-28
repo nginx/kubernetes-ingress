@@ -35,12 +35,6 @@ limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReq
 
 {{range $server := .Servers}}
 server {
-	{{- if $server.SpiffeCerts}}
-	listen 443 ssl;
-	{{- if not $server.DisableIPV6}}listen [::]:443 ssl;{{end}}
-	ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-	ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-	{{- else}}
 	{{- if not $server.GRPCOnly}}
 	{{- range $port := $server.Ports}}
 	listen {{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
@@ -72,7 +66,6 @@ server {
 	{{- end}}
 	{{- if $server.SSLPreferServerCiphers}}
 	ssl_prefer_server_ciphers on;
-	{{- end}}
 	{{- end}}
 	{{- end}}
 	{{- end}}
@@ -199,7 +192,8 @@ server {
 	auth_request {{ $server.ExternalAuth.URI.InternalPath }};
 	{{- if $server.ExternalAuth.SigninURL }}
 	proxy_intercept_errors on;
-	error_page 401 "{{ $server.ExternalAuth.SigninURL }}";
+	{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
+	error_page 401 = "{{ $server.ExternalAuth.SigninURL }}";
 	{{- end }}
 	{{- end }}
 
@@ -211,6 +205,22 @@ server {
 		return 302 $scheme://$http_host{{ $server.AppRoot }};
 	}
 	{{- end }}
+
+	{{- if $server.ProxyRedirectFrom}}
+	{{- if eq $server.ProxyRedirectFrom "off"}}
+	proxy_redirect off;
+	{{- else if ne $server.ProxyRedirectFrom "default"}}
+	{{- /* "default" is not emitted, The default replacement specified by the default parameter uses the parameters of the location and proxy_pass directives  */}}
+	proxy_redirect {{$server.ProxyRedirectFrom}} {{$server.ProxyRedirectTo}};
+	{{- end}}
+	{{- end}}
+
+	{{- if $server.CustomHTTPErrorCodes}}
+	proxy_intercept_errors on;
+	{{- if $server.CustomHTTPErrorBackend}}
+	error_page{{range $c := $server.CustomHTTPErrorCodes}} {{$c}}{{end}} @custom_default_backend;
+	{{- end}}
+	{{- end}}
 
 	{{- if $server.AccessLogOff}}
 	access_log off;
@@ -245,7 +255,8 @@ server {
 		auth_request {{ $location.ExternalAuth.URI.InternalPath }};
 		{{- if $location.ExternalAuth.SigninURL }}
 		proxy_intercept_errors on;
-		error_page 401 "{{ $location.ExternalAuth.SigninURL }}";
+		{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
+		error_page 401 = "{{ $location.ExternalAuth.SigninURL }}";
 		{{- end }}
 		{{- end }}
 
@@ -315,24 +326,16 @@ server {
 		grpc_connect_timeout {{$location.ProxyConnectTimeout}};
 		grpc_read_timeout {{$location.ProxyReadTimeout}};
 		grpc_send_timeout {{$location.ProxySendTimeout}};
-		grpc_set_header Host $host;
+		grpc_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else}}$host{{end}};
 		grpc_set_header X-Real-IP $remote_addr;
+		{{- if not $location.DisableForwardedHeaders }}
 		grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		grpc_set_header X-Forwarded-Host $host;
 		grpc_set_header X-Forwarded-Port $server_port;
 		grpc_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
-
+		{{- end}}
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
-		{{- end}}
-		{{- if $.SpiffeClientCerts}}
-		grpc_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		grpc_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		grpc_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-		grpc_ssl_server_name on;
-		grpc_ssl_verify on;
-		grpc_ssl_verify_depth 25;
-		grpc_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
 		{{- if $location.SSL}}
 		grpc_pass grpcs://{{$location.Upstream.Name}}{{$location.Rewrite}};
@@ -372,12 +375,14 @@ server {
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
 		{{- end}}
-		proxy_set_header Host $host;
+		proxy_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else}}$host{{end}};
 		proxy_set_header X-Real-IP $remote_addr;
+		{{- if not $location.DisableForwardedHeaders }}
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		proxy_set_header X-Forwarded-Host $host;
 		proxy_set_header X-Forwarded-Port $server_port;
 		proxy_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
+		{{- end}}
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
 		{{- if $location.ProxyBuffers}}
 		proxy_buffers {{$location.ProxyBuffers}};
@@ -391,15 +396,6 @@ server {
 		{{- if $location.ProxyMaxTempFileSize}}
 		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};
 		{{- end}}
-		{{- if $.SpiffeClientCerts}}
-		proxy_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		proxy_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		proxy_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-		proxy_ssl_server_name on;
-		proxy_ssl_verify on;
-		proxy_ssl_verify_depth 25;
-		proxy_ssl_name {{$location.ProxySSLName}};
-		{{- end}}
 		{{- if $location.ProxyNextUpstream}}
 		proxy_next_upstream {{ $location.ProxyNextUpstream }};
 		{{- end }}
@@ -410,6 +406,21 @@ server {
 		proxy_next_upstream_tries {{ $location.ProxyNextUpstreamTries }};
 		{{- end }}
 		proxy_pass {{ $location.ProxyPass }}{{ $location.Rewrite }};
+		{{- if $location.ProxyRedirectFrom}}
+		{{- if or (eq $location.ProxyRedirectFrom "off") (eq $location.ProxyRedirectFrom "default")}}
+		proxy_redirect {{$location.ProxyRedirectFrom}};
+		{{- else}}
+		proxy_redirect {{$location.ProxyRedirectFrom}} {{$location.ProxyRedirectTo}};
+		{{- end}}
+		{{- end}}
+		{{- if $location.SkipCustomHTTPErrors}}
+		proxy_intercept_errors off;
+		{{- else if $location.CustomHTTPErrorCodes}}
+		proxy_intercept_errors on;
+		{{- if $server.CustomHTTPErrorBackend}}
+		error_page{{range $c := $location.CustomHTTPErrorCodes}} {{$c}}{{end}} @custom_default_backend;
+		{{- end}}
+		{{- end}}
 		{{- end}}
 		{{- if $location.ProxySSLVerify }}
 		proxy_ssl_verify on;
@@ -446,6 +457,13 @@ server {
 		{{end}}
 	}
 	{{end -}}
+	{{- if $server.CustomHTTPErrorBackend}}
+	location @custom_default_backend {
+		internal;
+		proxy_intercept_errors off;
+		proxy_pass http://{{$server.CustomHTTPErrorBackend}};
+	}
+	{{- end}}
 	{{- if $server.DefaultServerReturn}}
 	location / {
 		return {{$server.DefaultServerReturn}};

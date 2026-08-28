@@ -44,23 +44,42 @@ repos:
         require_serial: true
         pass_filenames: false
 
+      - id: test-workflow-gating
+        name: test workflow gating script
+        description: Runs unit tests for the workflow repository-gating validator.
+        entry: .github/scripts/validate-workflow-gating_test.sh
+        language: script
+        files: ^\.github/scripts/validate-workflow-gating(_test)?\.sh$
+        pass_filenames: false
+        require_serial: true
+
+      - id: validate-workflow-gating
+        name: validate workflow gating
+        description: Ensures every non-mirror workflow job is gated to the nginx/kubernetes-ingress repository.
+        entry: .github/scripts/validate-workflow-gating.sh
+        language: golang
+        additional_dependencies: ["github.com/mikefarah/yq/v4@v4.53.6"]
+        files: ^\.github/workflows/.*\.ya?ml$
+        pass_filenames: false
+        require_serial: true
+
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.21.2
     hooks:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 8.0.1
+    rev: 9.0.0a3
     hooks:
       - id: isort
 
   - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 26.3.1
+    rev: 26.5.1
     hooks:
       - id: black
 
   - repo: https://github.com/PyCQA/autoflake
-    rev: v2.3.3
+    rev: v2.4.0
     hooks:
       - id: autoflake
         files: tests/.*\.py$
@@ -72,7 +91,7 @@ repos:
           ]
 
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.1
+    rev: 0.38.0
     hooks:
       - id: check-jsonschema
         name: "Check Helm Chart JSON Schema"
@@ -81,9 +100,12 @@ repos:
         args: ["--schemafile", "charts/nginx-ingress/values.schema.json"]
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.22.1
+    rev: v0.23.2
     hooks:
       - id: markdownlint-cli2
+        args: [ "**/*.md", "--fix" ]
+        pass_filenames: false
+        always_run: true
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12

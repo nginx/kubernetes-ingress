@@ -3,8 +3,10 @@ package validation
 import (
 	"strings"
 	"testing"
+	"time"
 
 	v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -534,6 +536,18 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 			},
 			cfg: PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
 			msg: "use WAF(plus only) policy",
+		},
+		{
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					OIDCNative: &v1.OIDCNative{
+						Issuer:   "https://accounts.google.com",
+						ClientID: "my-client-id",
+					},
+				},
+			},
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: true},
+			msg: "use OIDCNative (plus only)",
 		},
 	}
 	for _, test := range tests {
@@ -2026,6 +2040,458 @@ func TestValidateAPIKeyPolicy_FailsOnInvalidInput(t *testing.T) {
 	}
 }
 
+func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		oidcNative *v1.OIDCNative
+		msg        string
+	}{
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+			},
+			msg: "minimal valid config",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client-id",
+				ClientSecret:          "my-oidc-secret",
+				Scope:                 "openid+profile+email",
+				RedirectURI:           "/oidc_callback",
+				LogoutURI:             "/logout",
+				PostLogoutRedirectURI: "/logged_out",
+				FrontChannelLogoutURI: "/frontchannel_logout",
+				SessionTimeout:        "8h",
+				ProxyBufferSize:       "32k",
+				UserInfoEnable:        true,
+			},
+			msg: "full config with all optional fields",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://login.microsoftonline.com/tenant-id",
+				ClientID:     "azure-client",
+				ClientSecret: "azure-secret",
+				Scope:        "openid+offline_access",
+			},
+			msg: "azure provider with offline_access scope",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://keycloak.example.com/realms/master",
+				ClientID: "keycloak-client",
+			},
+			msg: "keycloak provider with path in issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+				Scope:    "profile openid email",
+			},
+			msg: "space separated scope tokens",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+				PKCE:     "on",
+			},
+			msg: "pkce on",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client-id",
+				PKCE:         "off",
+				ClientSecret: "my-oidc-secret",
+			},
+			msg: "pkce off wiith client secret",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateOIDCNative(test.oidcNative, field.NewPath("oidcNative"))
+			if len(allErrs) != 0 {
+				t.Errorf("validateOIDCNative() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		oidcNative *v1.OIDCNative
+		fieldPath  string
+		msg        string
+	}{
+		{
+			oidcNative: &v1.OIDCNative{ClientID: "my-client"},
+			fieldPath:  "oidcNative.issuer",
+			msg:        "missing required issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com"},
+			fieldPath:  "oidcNative.clientID",
+			msg:        "missing required clientID",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "not-a-url",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "invalid issuer URL",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "$invalid$chars",
+			},
+			fieldPath: "oidcNative.clientID",
+			msg:       "invalid chars in clientID",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com?query=1",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "issuer contains query parameter",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com#frag",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "issuer contains fragment",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "not-a-url",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL missing scheme",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://idp.example.com",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL missing path",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://IDP.Example.COM/.well-known/openid-configuration",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL host is not a valid DNS name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://idp.example.com:99999/.well-known/openid-configuration",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL has an invalid port",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "openid; injection",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "dangerous chars in scope",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "notopenid",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "openid must be a complete scope token",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "openid;}server{listen 9999;}",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "scope injection through unquoted multi-arg directive",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client",
+				ClientSecret: "Invalid_Name",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret is not a valid k8s secret name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:            "https://accounts.google.com",
+				ClientID:          "my-client",
+				ClientSecret:      "my-oidc-secret",
+				TrustedCertSecret: "Bad_Name",
+			},
+			fieldPath: "oidcNative.trustedCertSecret",
+			msg:       "trustedCertSecret is not a valid k8s secret name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:            "https://accounts.google.com",
+				ClientID:          "my-client",
+				SSLVerify:         new(bool),
+				TrustedCertSecret: "my-ca",
+			},
+			fieldPath: "oidcNative.trustedCertSecret",
+			msg:       "trustedCertSecret set when sslVerify is false",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "SID; return 500",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "dangerous chars in cookieName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "my-cookie",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "hyphen is not allowed in cookieName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "oidc session",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "whitespace is not allowed in cookieName",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:        "https://accounts.google.com",
+				ClientID:      "my-client",
+				ExtraAuthArgs: `x"; malicious;`,
+			},
+			fieldPath: "oidcNative.extraAuthArgs",
+			msg:       "dangerous chars in extraAuthArgs",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:        "https://accounts.google.com",
+				ClientID:      "my-client",
+				ExtraAuthArgs: "prompt=%zz",
+			},
+			fieldPath: "oidcNative.extraAuthArgs",
+			msg:       "invalid percent-escape in extraAuthArgs",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "evil.example.com;\ninject",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "dangerous chars in sslName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "Keycloak.Example.COM",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "uppercase is not a valid DNS name in sslName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "keycloak.example.com:443",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "port is not allowed in sslName",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:      "https://accounts.google.com",
+				ClientID:    "my-client",
+				RedirectURI: "/../../etc/passwd",
+			},
+			fieldPath: "oidcNative.redirectURI",
+			msg:       "path-traversal in redirectURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				LogoutURI: "//attacker.example.com/logout",
+			},
+			fieldPath: "oidcNative.logoutURI",
+			msg:       "protocol-relative logoutURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client",
+				PostLogoutRedirectURI: "//evil.com",
+			},
+			fieldPath: "oidcNative.postLogoutRedirectURI",
+			msg:       "protocol-relative postLogoutRedirectURI is an open redirect",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client",
+				FrontChannelLogoutURI: "/a/../../b",
+			},
+			fieldPath: "oidcNative.frontChannelLogoutURI",
+			msg:       "path traversal in frontChannelLogoutURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client",
+				PKCE:         "on",
+				ClientSecret: "my-oidc-secret",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret cannot be used when pkce is on",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				PKCE:     "off",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret is required when pkce is off",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://idp.example.com/realms/master\"",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "quote in issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://idp.example.com/realms/master",
+				ClientID:  "my-client",
+				ConfigURL: "https://idp.example.com/realms/master/.well-known/openid-configuration\"",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "quote in configURL",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:      "https://idp.example.com/realms/master",
+				ClientID:    "my-client",
+				RedirectURI: "/oidc_callback\"",
+			},
+			fieldPath: "oidcNative.redirectURI",
+			msg:       "quote in redirectURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:         "https://idp.example.com/realms/master",
+				ClientID:       "my-client",
+				SessionTimeout: "999999999999999999999999h",
+			},
+			fieldPath: "oidcNative.sessionTimeout",
+			msg:       "overflow in sessionTimeout",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:          "https://idp.example.com/realms/master",
+				ClientID:        "my-client",
+				ProxyBufferSize: "999999999999999999999999k",
+			},
+			fieldPath: "oidcNative.proxyBufferSize",
+			msg:       "overflow in proxyBufferSize",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateOIDCNative(test.oidcNative, field.NewPath("oidcNative"))
+			if len(allErrs) == 0 {
+				t.Errorf("validateOIDCNative() returned no errors for invalid input for the case of %v", test.msg)
+			} else if allErrs[0].Field != test.fieldPath {
+				t.Errorf("validateOIDCNative() returned error on wrong field for the case of %v, want %v, got %v", test.msg, test.fieldPath, allErrs[0].Field)
+			}
+			t.Log(allErrs)
+		})
+	}
+}
+
+func TestValidatePolicy_OIDCNative_GateChecks(t *testing.T) {
+	t.Parallel()
+	validOIDCNative := &v1.OIDCNative{
+		Issuer:   "https://accounts.google.com",
+		ClientID: "my-client-id",
+	}
+	tests := []struct {
+		cfg PolicyValidationConfig
+		msg string
+	}{
+		{
+			cfg: PolicyValidationConfig{IsPlus: false, EnableOIDC: true},
+			msg: "rejected when not Plus",
+		},
+		{
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: false},
+			msg: "rejected when OIDC not enabled",
+		},
+		{
+			cfg: PolicyValidationConfig{IsPlus: false, EnableOIDC: false},
+			msg: "rejected when neither Plus nor OIDC enabled",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			policy := &v1.Policy{Spec: v1.PolicySpec{OIDCNative: validOIDCNative}}
+			err := ValidatePolicy(policy, test.cfg)
+			if err == nil {
+				t.Errorf("ValidatePolicy() should have returned error for the case of %v", test.msg)
+			}
+		})
+	}
+}
+
 func TestValidateOIDCScope_ErrorsOnInvalidInput(t *testing.T) {
 	t.Parallel()
 
@@ -3274,6 +3740,63 @@ func TestValidateCORS(t *testing.T) {
 			expectErr: true,
 			errMsg:    "HEAD method should not be explicitly listed",
 		},
+		{
+			name: "Valid allowHeaders wildcard standalone",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"*"},
+			},
+			expectErr: false,
+		},
+		{
+			name: "Valid exposeHeaders wildcard standalone",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"*"},
+			},
+			expectErr: false,
+		},
+		{
+			// "*" covers non-credentialed requests; Authorization must be listed
+			// explicitly for credentialed requests because "*" is treated as a
+			// literal header name in that context (MDN spec).
+			name: "Valid allowHeaders wildcard with explicit Authorization for credentialed requests",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				AllowHeaders:     []string{"*", "Authorization"},
+				AllowCredentials: new(true),
+			},
+			expectErr: false,
+		},
+		{
+			// Same reasoning as allowHeaders: "*" is literal in credentialed context,
+			// so Authorization can be listed explicitly alongside it.
+			name: "Valid exposeHeaders wildcard with explicit Authorization for credentialed requests",
+			cors: &v1.CORS{
+				AllowOrigin:      []string{"https://example.com"},
+				ExposeHeaders:    []string{"*", "Authorization"},
+				AllowCredentials: new(true),
+			},
+			expectErr: false,
+		},
+		{
+			name: "Invalid allowHeaders embedded wildcard",
+			cors: &v1.CORS{
+				AllowOrigin:  []string{"https://example.com"},
+				AllowHeaders: []string{"X-*-Header"},
+			},
+			expectErr: true,
+			errMsg:    "wildcard '*' may only be used as a standalone value",
+		},
+		{
+			name: "Invalid exposeHeaders embedded wildcard",
+			cors: &v1.CORS{
+				AllowOrigin:   []string{"https://example.com"},
+				ExposeHeaders: []string{"X-*-Header"},
+			},
+			expectErr: true,
+			errMsg:    "wildcard '*' may only be used as a standalone value",
+		},
 	}
 
 	for _, test := range tests {
@@ -3354,6 +3877,87 @@ func TestCORSMDNCompliance(t *testing.T) {
 
 			if len(errs) != 0 {
 				t.Errorf("Expected no validation errors for %s, but got: %v", config.description, errs)
+			}
+		})
+	}
+}
+
+func TestValidateHSTS_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		hsts *v1.HSTS
+	}{
+		{
+			name: "valid hsts with maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            new(2592000),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+		},
+		{
+			name: "valid hsts with maxAge value of zero",
+			hsts: &v1.HSTS{
+				MaxAge:            new(0),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("hsts")
+			allErrs := validateHSTS(test.hsts, fieldPath)
+			if len(allErrs) > 0 {
+				t.Errorf("validateHSTS() returned errors %v for valid input for the case of %v", allErrs, test.name)
+			}
+		})
+	}
+}
+
+func TestValidateHSTS_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		hsts     *v1.HSTS
+		errCount int
+	}{
+		{
+			name: "invalid hsts with negative maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            new(-123),
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+			errCount: 1,
+		},
+		{
+			name: "invalid hsts with nil maxAge value",
+			hsts: &v1.HSTS{
+				MaxAge:            nil,
+				IncludeSubDomains: true,
+				BehindProxy:       true,
+			},
+			errCount: 1,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fieldPath := field.NewPath("spec").Child("hsts")
+			allErrs := validateHSTS(test.hsts, fieldPath)
+			if len(allErrs) == 0 {
+				t.Errorf("validateHSTS() returned no errors for invalid input for the case of %v", test.name)
+			} else if test.errCount > 0 && len(allErrs) != test.errCount {
+				t.Errorf("validateHSTS() returned %d errors, expected %d errors for the case of %v. Errors: %v", len(allErrs), test.errCount, test.name, allErrs)
 			}
 		})
 	}
@@ -4047,5 +4651,308 @@ func TestValidateExternalAuth_SSLFields(t *testing.T) {
 				t.Errorf("validateExternalAuth() returned errors %v for case: %v", allErrs, test.msg)
 			}
 		})
+	}
+}
+
+func TestValidateBundleSource_HTTPS_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://bundles.example.com/policy.tgz"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_HTTPS_Name_Forbidden(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://bundles.example.com/p.tgz", Name: "Foo"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for name on HTTPS source")
+	}
+}
+
+func TestValidateBundleSource_N1C_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{
+		Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io",
+		Name: "StrictPolicy", Namespace: "default", Secret: "dataplane-key",
+	}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_N1C_MissingName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io", Namespace: "default"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for missing name on N1C")
+	}
+}
+
+func TestValidateBundleSource_N1C_MissingNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io", Name: "P"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for missing namespace on N1C")
+	}
+}
+
+func TestValidateBundleSource_URL_HTTP_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "http://example.com/p.tgz"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for http:// URL")
+	}
+}
+
+func TestValidateBundleSource_URL_DangerousChars(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p;rm -rf"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for dangerous chars in URL")
+	}
+}
+
+func TestValidateBundleSource_PollInterval_TooShort_WhenPollingEnabled(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 30 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: true, PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) == 0 {
+		t.Error("expected error for pollInterval < 1m when enablePolling is true")
+	}
+}
+
+func TestValidateBundleSource_PollInterval_TooShort_IgnoredWhenPollingDisabled(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 30 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: false, PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("expected no error for short pollInterval when enablePolling is false, got: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_PollInterval_Valid(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 5 * time.Minute}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", EnablePolling: true, PollInterval: &dur}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_NIM_Valid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", Name: "TestPolicy"}
+	if errs := validateBundleSource(bs, field.NewPath("apBundleSource")); len(errs) != 0 {
+		t.Errorf("unexpected errors for valid NIM source: %v", errs)
+	}
+}
+
+func TestValidateWAF_MutualExclusivity_AllThree(t *testing.T) {
+	t.Parallel()
+	waf := &v1.WAF{
+		Enable: true, ApPolicy: "some/policy", ApBundle: "bundle.tgz",
+		ApBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz"},
+	}
+	if errs := validateWAF(waf, field.NewPath("waf")); len(errs) == 0 {
+		t.Error("expected error when all three WAF source fields set")
+	}
+}
+
+func TestValidateWAF_ApBundleSource_N1C_Valid(t *testing.T) {
+	t.Parallel()
+	waf := &v1.WAF{
+		Enable: true,
+		ApBundleSource: &v1.BundleSource{
+			Type: v1.BundleSourceTypeN1C, URL: "https://tenant.console.ves.volterra.io",
+			Name: "Strict", Namespace: "default",
+		},
+	}
+	if errs := validateWAF(waf, field.NewPath("waf")); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateLogConf_ApLogBundleSource_RequiresBundleMode(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	if errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), false); len(errs) == 0 {
+		t.Error("expected error: apLogBundleSource requires bundle mode")
+	}
+}
+
+func TestValidateLogConf_ApLogBundleSource_BundleMode_Valid(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	if errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), true); len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_NIM_MissingName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for missing name on NIM")
+	}
+}
+
+func TestValidateBundleSource_NIM_ForbiddenNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", Name: "TestPolicy", Namespace: "nope"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for namespace on NIM")
+	}
+}
+
+func TestValidateBundleSource_EmptyURL(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: ""}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for empty URL")
+	}
+}
+
+func TestValidateBundleSource_NegativeTimeout(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: -5 * time.Second}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", Timeout: &dur}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for negative timeout")
+	}
+}
+
+func TestValidateBundleSource_ZeroTimeout(t *testing.T) {
+	t.Parallel()
+	dur := metav1.Duration{Duration: 0}
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", Timeout: &dur}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for zero timeout")
+	}
+}
+
+func TestValidateBundleSource_TrustedCertSecretValidated(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", TrustedCertSecret: "INVALID_NAME"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for invalid trustedCertSecret name")
+	}
+}
+
+func TestValidateBundleSource_TrustedCertSecretValid(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/p.tgz", TrustedCertSecret: "my-ca-secret"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) != 0 {
+		t.Errorf("unexpected errors: %v", errs)
+	}
+}
+
+func TestValidateBundleSource_VerifyChecksum_NIM_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", Name: "P", VerifyChecksum: true}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for verifyChecksum on NIM type")
+	}
+}
+
+func TestValidateBundleSource_VerifyChecksum_N1C_Rejected(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://example.com", Name: "P", Namespace: "ns", VerifyChecksum: true}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for verifyChecksum on N1C type")
+	}
+}
+
+func TestValidateBundleSource_DangerousName(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeNIM, URL: "https://nim.example.com", Name: "bad;policy"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for dangerous chars in name")
+	}
+}
+
+func TestValidateBundleSource_DangerousNamespace(t *testing.T) {
+	t.Parallel()
+	bs := &v1.BundleSource{Type: v1.BundleSourceTypeN1C, URL: "https://example.com", Name: "P", Namespace: "ns{bad}"}
+	errs := validateBundleSource(bs, field.NewPath("apBundleSource"))
+	if len(errs) == 0 {
+		t.Error("expected error for dangerous chars in namespace")
+	}
+}
+
+func TestValidateLogConf_ThreeWayMutualExclusivity(t *testing.T) {
+	t.Parallel()
+	logConf := &v1.SecurityLog{
+		ApLogConf:         "some/logconf",
+		ApLogBundleSource: &v1.BundleSource{Type: v1.BundleSourceTypeHTTPS, URL: "https://example.com/log.tgz"},
+		LogDest:           "stderr",
+	}
+	errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), true)
+	if len(errs) == 0 {
+		t.Error("expected error when both apLogConf and apLogBundleSource are set")
+	}
+}
+
+func TestContainsWhitespace(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"hello", false},
+		{"https://example.com/path", false},
+		{"hello world", true},
+		{"hello\tworld", true},
+		{"hello\nworld", true},
+		{"hello\rworld", true},
+		{"", false},
+	}
+	for _, tc := range tests {
+		if got := ContainsWhitespace(tc.input); got != tc.want {
+			t.Errorf("ContainsWhitespace(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestContainsWhitespaceOrQuotes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"https://accounts.google.com", false},
+		{"https://idp.example.com/realms/master", false},
+		{"https://idp.example.com/realms/master\"", true},
+		{"https://idp.example.com/realms/master'", true},
+		{"https://idp.example.com/realms/master\\", true},
+		{"https://idp.example.com/realms/master\t", true},
+		{"https://idp.example.com/realms/master\n", true},
+		{"https://idp.example.com/realms/master\r", true},
+		{"https://idp.example.com/realms/master;inject", true},
+		{"https://idp.example.com/realms/${eval}", true},
+		{"https://idp.example.com/{block}", true},
+		{"https://idp.example.com/`cmd`", true},
+		{"", false},
+	}
+	for _, tc := range tests {
+		if got := ContainsWhitespaceOrQuotes(tc.input); got != tc.want {
+			t.Errorf("ContainsWhitespaceOrQuotes(%q) = %v, want %v", tc.input, got, tc.want)
+		}
 	}
 }

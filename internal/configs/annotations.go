@@ -38,6 +38,9 @@ const PathRegexAnnotation = "nginx.org/path-regex"
 // RewriteTargetAnnotation is the annotation where the regex-based rewrite target is specified.
 const RewriteTargetAnnotation = "nginx.org/rewrite-target"
 
+// UpstreamVhostAnnotation is the annotation where the Host header value sent to the upstream is specified.
+const UpstreamVhostAnnotation = "nginx.org/upstream-vhost"
+
 // SSLCiphersAnnotation is the annotation where SSL ciphers are specified.
 const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
 
@@ -83,9 +86,6 @@ const AppProtectLogConfDstAnnotation = "appprotect.f5.com/app-protect-security-l
 // AppProtectDosProtectedAnnotation is the namespace/name reference of a DosProtectedResource
 const AppProtectDosProtectedAnnotation = "appprotectdos.f5.com/app-protect-dos-resource"
 
-// nginxMeshInternalRoute specifies if the ingress resource is an internal route.
-const nginxMeshInternalRouteAnnotation = "nsm.nginx.com/internal-route"
-
 // StickyCookieServicesAnnotation is the annotation where the sticky cookie configuration is specified.
 const StickyCookieServicesAnnotation = "nginx.org/sticky-cookie-services"
 
@@ -94,6 +94,18 @@ const StickyCookieServicesAnnotationPlus = "nginx.com/sticky-cookie-services"
 
 // AddHeaderInheritAnnotation is the annotation where add_header inheritance behavior is specified.
 const AddHeaderInheritAnnotation = "nginx.org/add-header-inherit"
+
+// ProxyRedirectFromAnnotation is the annotation for the proxy_redirect "from" parameter.
+const ProxyRedirectFromAnnotation = "nginx.org/proxy-redirect-from"
+
+// ProxyRedirectToAnnotation is the annotation for the proxy_redirect "to" parameter.
+const ProxyRedirectToAnnotation = "nginx.org/proxy-redirect-to"
+
+// CustomHTTPErrorsAnnotation is the annotation for enabling custom error handling for a
+// comma-separated list of upstream status codes (and 4xx/5xx range shorthands). When set,
+// NGINX intercepts matching upstream responses (proxy_intercept_errors on) and routes
+// them via error_page to the Ingress's spec.defaultBackend when one is configured.
+const CustomHTTPErrorsAnnotation = "nginx.org/custom-http-errors"
 
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
@@ -159,6 +171,7 @@ var minionInheritanceList = map[string]bool{
 	"nginx.org/limit-req-log-level":      true,
 	"nginx.org/limit-req-reject-code":    true,
 	"nginx.org/limit-req-scale":          true,
+	UpstreamVhostAnnotation:              true,
 }
 
 var validPathRegex = map[string]bool{
@@ -176,7 +189,7 @@ var allowedAnnotationKeys = []string{
 }
 
 // nolint: gocyclo
-func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableInternalRoutes bool, enableDirectiveAutoadjust bool) ConfigParams {
+func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool, hasAppProtect bool, hasAppProtectDos bool, enableDirectiveAutoadjust bool) ConfigParams {
 	l := nl.LoggerFromContext(baseCfgParams.Context)
 	cfgParams := *baseCfgParams
 
@@ -467,6 +480,24 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		cfgParams.ProxyMaxTempFileSize = proxyMaxTempFileSize
 	}
 
+	if proxyRedirectFrom, exists := ingEx.Ingress.Annotations[ProxyRedirectFromAnnotation]; exists {
+		cfgParams.ProxyRedirectFrom = proxyRedirectFrom
+	}
+	if proxyRedirectTo, exists := ingEx.Ingress.Annotations[ProxyRedirectToAnnotation]; exists {
+		cfgParams.ProxyRedirectTo = proxyRedirectTo
+	}
+
+	if val, exists := ingEx.Ingress.Annotations[CustomHTTPErrorsAnnotation]; exists {
+		codes, err := ParseCustomHTTPErrors(val)
+		if err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value %s: got %q: %v",
+				ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(),
+				CustomHTTPErrorsAnnotation, val, err)
+		} else {
+			cfgParams.CustomHTTPErrors = codes
+		}
+	}
+
 	if isPlus {
 		if jwtRealm, exists := ingEx.Ingress.Annotations[JWTRealmAnnotation]; exists {
 			cfgParams.JWTRealm = jwtRealm
@@ -570,15 +601,6 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 	if hasAppProtectDos {
 		if appProtectDosResource, exists := ingEx.Ingress.Annotations["appprotectdos.f5.com/app-protect-dos-resource"]; exists {
 			cfgParams.AppProtectDosResource = appProtectDosResource
-		}
-	}
-	if enableInternalRoutes {
-		if spiffeServerCerts, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, nginxMeshInternalRouteAnnotation, ingEx.Ingress); exists {
-			if err != nil {
-				nl.Error(l, err)
-			} else {
-				cfgParams.SpiffeServerCerts = spiffeServerCerts
-			}
 		}
 	}
 
@@ -716,6 +738,15 @@ func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) 
 	}
 
 	if value, exists := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; exists {
+		return value, warnings
+	}
+	return "", warnings
+}
+
+func getUpstreamVhost(ingEx *IngressEx) (string, Warnings) {
+	warnings := newWarnings()
+
+	if value, exists := ingEx.Ingress.Annotations[UpstreamVhostAnnotation]; exists {
 		return value, warnings
 	}
 	return "", warnings

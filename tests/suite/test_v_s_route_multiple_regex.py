@@ -180,12 +180,10 @@ class TestVSRMultipleRegexPaths:
             ingress_controller_prerequisites.namespace,
         )
 
-        # Return/redirect locations use the raw path without generatePath(),
-        # so regex paths appear without quotes (e.g. ~/api/v1 not ~ "/api/v1").
-        assert "location ~/api/v1" in config, "Expected ~/api/v1 location block"
-        assert "location ~/api/v2" in config, "Expected ~/api/v2 location block"
-        assert "location ~*/images/jpg" in config, "Expected ~*/images/jpg location block"
-        assert "location ~*/images/png" in config, "Expected ~*/images/png location block"
+        assert 'location ~ "/api/v1"' in config, 'Expected ~ "/api/v1" location block'
+        assert 'location ~ "/api/v2"' in config, 'Expected ~ "/api/v2" location block'
+        assert 'location ~* "/images/jpg"' in config, 'Expected ~* "/images/jpg" location block'
+        assert 'location ~* "/images/png"' in config, 'Expected ~* "/images/png" location block'
         assert "location /static" in config, "Expected /static location block (non-VSR direct return route)"
 
     # ------------------------------------------------------------------ #
