@@ -507,6 +507,19 @@ func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.
 	allErrs = append(allErrs, validateSSLName(oidcNative.SSLName, fieldPath.Child("sslName"))...)
 	allErrs = append(allErrs, validateOIDCNativeLimits(oidcNative, fieldPath)...)
 
+	if oidcNative.SessionTimeout != "" {
+		allErrs = append(allErrs, validateTime(oidcNative.SessionTimeout, fieldPath.Child("sessionTimeout"))...)
+		if len(oidcNative.SessionTimeout) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sessionTimeout"), oidcNative.SessionTimeout, "sessionTimeout value is too large"))
+		}
+	}
+	if oidcNative.ProxyBufferSize != "" {
+		allErrs = append(allErrs, validateSize(oidcNative.ProxyBufferSize, fieldPath.Child("proxyBufferSize"))...)
+		if len(oidcNative.ProxyBufferSize) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("proxyBufferSize"), oidcNative.ProxyBufferSize, "proxyBufferSize value is too large"))
+		}
+	}
+
 	switch oidcNative.PKCE {
 	case "on":
 		allErrs = append(allErrs, validatePKCE(true, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)

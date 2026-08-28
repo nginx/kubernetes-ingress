@@ -102,6 +102,7 @@ type NginxCfgParams struct {
 	isResolverConfigured      bool
 	isWildcardEnabled         bool
 	ingressControllerReplicas int
+	oidcNativeLocations       map[string]oidcNativeLocationOwner
 }
 
 type ingressPolicyAnnotationRequirement struct {
@@ -117,6 +118,12 @@ var ingressPoliciesRequiringPlusAnnotation = []ingressPolicyAnnotationRequiremen
 		policyType: "WAF",
 		matches: func(policy *conf_v1.Policy) bool {
 			return policy.Spec.WAF != nil
+		},
+	},
+	{
+		policyType: "OIDCNative",
+		matches: func(policy *conf_v1.Policy) bool {
+			return policy.Spec.OIDCNative != nil
 		},
 	},
 }
@@ -300,6 +307,8 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	var servers []version1.Server
 	var limitReqZones []version1.LimitReqZone
 	var maps []version2.Map
+	var oidcProviders []version2.OIDCProvider
+	var keyValZones []version2.KeyValZone
 
 	// Run generate Policies
 	policyRefs := getIngressPolicyRefs(ncp.ingEx)
@@ -339,6 +348,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			ownerDetails.parentNamespace = ncp.mergeableIngs.Master.Ingress.Namespace
 			pathContext = minionContext
 		}
+		oidcNativeLocations := ncp.oidcNativeLocations
+		if oidcNativeLocations == nil {
+			oidcNativeLocations = make(map[string]oidcNativeLocationOwner)
+		}
 		policyCfg, warnings = generatePolicies(
 			ncp.BaseCfgParams.Context,
 			ownerDetails,
@@ -347,14 +360,15 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			pathContext,
 			"",
 			policyOptions{
-				tls:             ncp.ingEx.Ingress.Spec.TLS != nil,
-				zoneSync:        ncp.BaseCfgParams.ZoneSync.Enable,
-				secretRefs:      ncp.ingEx.SecretRefs,
-				apResources:     policyAppProtectResources,
-				defaultCABundle: ncp.staticParams.DefaultCABundle,
-				replicas:        ncp.ingressControllerReplicas,
-				oidcPolicyName:  "",
-				plmEnabled:      ncp.staticParams.PLMEnabled,
+				tls:                 ncp.ingEx.Ingress.Spec.TLS != nil,
+				zoneSync:            ncp.BaseCfgParams.ZoneSync.Enable,
+				secretRefs:          ncp.ingEx.SecretRefs,
+				apResources:         policyAppProtectResources,
+				defaultCABundle:     ncp.staticParams.DefaultCABundle,
+				replicas:            ncp.ingressControllerReplicas,
+				oidcPolicyName:      "",
+				plmEnabled:          ncp.staticParams.PLMEnabled,
+				oidcNativeLocations: oidcNativeLocations,
 			},
 			bundleValidator,
 		)
@@ -426,6 +440,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			AppRoot:                cfgParams.AppRoot,
 			Allow:                  policyCfg.Allow,
 			Deny:                   policyCfg.Deny,
+			OIDCProviderName:       getOIDCProviderName(policyCfg),
 			WAF:                    policyCfg.WAF,
 			EgressMTLS:             policyCfg.EgressMTLS,
 			PoliciesErrorReturn:    policyCfg.ErrorReturn,
@@ -446,6 +461,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		if ncp.isMinion {
 			// Mergeable minions apply egress mTLS at location scope so minion policies can override the master.
 			server.EgressMTLS = nil
+
+			if policyCfg.OIDCProvider != nil {
+				oidcProviders = append(oidcProviders, *policyCfg.OIDCProvider)
+			}
 		}
 
 		if !isDefaultServer {
@@ -514,6 +533,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 					server.ExternalAuth = exAuth
 					locations = append(locations, authLocs...)
 				}
+			}
+
+			if policyCfg.OIDCProvider != nil {
+				oidcProviders = append(oidcProviders, *policyCfg.OIDCProvider)
 			}
 
 		}
@@ -625,6 +648,10 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 				if policyCfg.WAF != nil {
 					loc.WAF = policyCfg.WAF
+				}
+
+				if policyCfg.OIDCProvider != nil {
+					loc.OIDCProviderName = policyCfg.OIDCProvider.Name
 				}
 
 				if policyCfg.ErrorReturn != nil {
@@ -784,16 +811,35 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		servers = append(servers, server)
 	}
 
+	// Generate keyval zones for OIDC Native session stores.
+	dedupedOIDCProviders := removeDuplicateOIDCProviders(oidcProviders)
+	for _, p := range dedupedOIDCProviders {
+		if p.SessionStore != "" {
+			timeout := p.SessionTimeout
+			if p.Sync && timeout == "" {
+				timeout = oidcNativeSessionSyncDefaultTimeout
+			}
+			keyValZones = append(keyValZones, version2.KeyValZone{
+				Name:    p.SessionStore,
+				Size:    oidcNativeSessionZoneSize,
+				Sync:    p.Sync,
+				Timeout: timeout,
+			})
+		}
+	}
+
 	var keepalive string
 	if cfgParams.Keepalive > 0 {
 		keepalive = fmt.Sprint(cfgParams.Keepalive)
 	}
 
 	return version1.IngressNginxConfig{
-		Upstreams:   upstreamMapToSlice(upstreams),
-		Servers:     servers,
-		Keepalive:   keepalive,
-		CORSHeaders: policyCfg.CORSHeaders,
+		Upstreams:     upstreamMapToSlice(upstreams),
+		Servers:       servers,
+		Keepalive:     keepalive,
+		CORSHeaders:   policyCfg.CORSHeaders,
+		OIDCProviders: dedupedOIDCProviders,
+		KeyValZones:   keyValZones,
 		Ingress: version1.Ingress{
 			Name:        ncp.ingEx.Ingress.Name,
 			Namespace:   ncp.ingEx.Ingress.Namespace,
@@ -1273,6 +1319,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	var limitReqZones []version1.LimitReqZone
 	var maps []version2.Map
 	var keepalive string
+	var oidcProviders []version2.OIDCProvider
 
 	// replace master with a deepcopy because we will modify it
 	originalMaster := ncp.mergeableIngs.Master.Ingress
@@ -1285,6 +1332,8 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	}
 	isMinion := false
 
+	sharedOIDCLocations := make(map[string]oidcNativeLocationOwner)
+
 	masterNginxCfg, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:              ncp.staticParams,
 		ingEx:                     ncp.mergeableIngs.Master,
@@ -1296,6 +1345,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		isResolverConfigured:      ncp.isResolverConfigured,
 		isWildcardEnabled:         ncp.isWildcardEnabled,
 		ingressControllerReplicas: ncp.ingressControllerReplicas,
+		oidcNativeLocations:       sharedOIDCLocations,
 	})
 
 	// because ncp.mergeableIngs.Master.Ingress is a deepcopy of the original master
@@ -1318,6 +1368,10 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	if masterNginxCfg.Keepalive != "" {
 		keepalive = masterNginxCfg.Keepalive
+	}
+
+	if masterNginxCfg.OIDCProviders != nil {
+		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
 	}
 
 	minions := ncp.mergeableIngs.Minions
@@ -1361,6 +1415,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 			isResolverConfigured:      ncp.isResolverConfigured,
 			isWildcardEnabled:         ncp.isWildcardEnabled,
 			ingressControllerReplicas: ncp.ingressControllerReplicas,
+			oidcNativeLocations:       sharedOIDCLocations,
 		})
 		warnings.Add(minionWarnings)
 
@@ -1434,9 +1489,30 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 			masterServer.JWTRedirectLocations = append(masterServer.JWTRedirectLocations, server.JWTRedirectLocations...)
 		}
 
+		if minionNginxCfg.OIDCProviders != nil {
+			oidcProviders = append(oidcProviders, minionNginxCfg.OIDCProviders...)
+		}
+
 		upstreams = append(upstreams, minionNginxCfg.Upstreams...)
 		limitReqZones = append(limitReqZones, minionNginxCfg.LimitReqZones...)
 		maps = append(maps, minionNginxCfg.Maps...)
+	}
+
+	var keyValZones []version2.KeyValZone
+	dedupedOIDCProviders := removeDuplicateOIDCProviders(oidcProviders)
+	for _, p := range dedupedOIDCProviders {
+		if p.SessionStore != "" {
+			timeout := p.SessionTimeout
+			if p.Sync && timeout == "" {
+				timeout = oidcNativeSessionSyncDefaultTimeout
+			}
+			keyValZones = append(keyValZones, version2.KeyValZone{
+				Name:    p.SessionStore,
+				Size:    oidcNativeSessionZoneSize,
+				Sync:    p.Sync,
+				Timeout: timeout,
+			})
+		}
 	}
 
 	masterServer.HealthChecks = healthChecks
@@ -1462,6 +1538,8 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		Servers:                 []version1.Server{masterServer},
 		Upstreams:               upstreams,
 		Keepalive:               keepalive,
+		OIDCProviders:           dedupedOIDCProviders,
+		KeyValZones:             keyValZones,
 		Ingress:                 masterNginxCfg.Ingress,
 		DynamicSSLReloadEnabled: ncp.staticParams.DynamicSSLReload,
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,

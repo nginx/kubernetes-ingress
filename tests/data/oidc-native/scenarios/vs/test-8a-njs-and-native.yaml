@@ -1,0 +1,71 @@
+# Test 8a: NJS OIDC on spec, Native on route (same VS).
+#
+# Prerequisites: an `oidc-njs-secret` of type nginx.org/oidc must exist with
+# the client secret for the NJS-side client. Register the NJS callback
+# (/_codexch) as a valid redirect URI in Keycloak too.
+#
+# Note: the native policy on /native intentionally does NOT set
+# postLogoutRedirectURI. The NJS OIDC module always renders a static
+# `location = /_logout { ... }` fallback page (oidc.tmpl), regardless of any
+# policy field, whenever spec.oidc is used anywhere on a VS -- so a native
+# provider on the same VS that also claims /_logout (e.g. the shared
+# oidcnative-policy used by the other scenarios, which mirrors
+# oidc-native-policy.yaml) would produce two `location "/_logout"` blocks and
+# fail nginx -t. NIC rejects that combination with a VS Warning rather than
+# writing the broken config; pick a distinct path (or omit the field, as
+# here) when combining OIDCNative with NJS OIDC on one VS.
+#
+# Verify:
+#   - `run-test.sh 8a check` shows both an oidc_provider block (native) and
+#     the NJS OIDC set directives at the server level.
+#   - Browse https://${WEBAPP_HOST}/         -> NJS OIDC flow (callback /_codexch).
+#   - Browse https://${WEBAPP_HOST}/native   -> native flow (callback /oidc_callback_*).
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidc-njs-policy
+spec:
+  oidc:
+    clientID: nginx-plus
+    clientSecret: oidc-njs-secret
+    authEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/auth
+    tokenEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/token
+    jwksURI: https://keycloak.example.com/realms/master/protocol/openid-connect/certs
+    endSessionEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/logout
+    scope: openid+profile+email
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidcnative-8a-policy
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus
+    clientSecret: oidcnative-secret
+    scope: openid profile
+    sslVerify: false
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidc-njs-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+    - path: /native
+      policies:
+        - name: oidcnative-8a-policy
+      action:
+        pass: webapp
