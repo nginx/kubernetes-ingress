@@ -54,7 +54,7 @@ spec:
     targetPort: {{ .Values.controller.service.httpPort.targetPort }}
     protocol: TCP
     name: {{ .Values.controller.service.httpPort.name }}
-  {{- if or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort") }}
+  {{- if and (or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort")) (not (empty .Values.controller.service.httpPort.nodePort)) }}
     nodePort: {{ .Values.controller.service.httpPort.nodePort }}
   {{- end }}
 {{- end }}
