@@ -13,7 +13,7 @@ import (
 //
 // VirtualServer defines the VirtualServer resource.
 type VirtualServerApplyConfiguration struct {
-	metav1.TypeMetaApplyConfiguration    `json:",inline"`
+	metav1.TypeMetaApplyConfiguration    `json:""`
 	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                                 *VirtualServerSpecApplyConfiguration `json:"spec,omitempty"`
 	// Status contains the current status of the VirtualServer.

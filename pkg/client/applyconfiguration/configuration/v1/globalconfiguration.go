@@ -13,7 +13,7 @@ import (
 //
 // GlobalConfiguration defines the GlobalConfiguration resource.
 type GlobalConfigurationApplyConfiguration struct {
-	metav1.TypeMetaApplyConfiguration    `json:",inline"`
+	metav1.TypeMetaApplyConfiguration    `json:""`
 	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                                 *GlobalConfigurationSpecApplyConfiguration `json:"spec,omitempty"`
 }
