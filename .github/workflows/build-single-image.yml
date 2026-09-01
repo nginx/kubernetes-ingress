@@ -74,7 +74,6 @@ jobs:
           secret-names: "gcr-workload-identity, kic-pipeline-gcr-sa"
           env-names: "GCR_WORKLOAD_ID, GCR_SERVICE_ACCOUNT"
 
-
       - name: Setup Common secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
         with:
