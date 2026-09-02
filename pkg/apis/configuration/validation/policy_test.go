@@ -712,6 +712,238 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 	}
 }
 
+func TestValidatePolicy_PassesOnDirectiveSafePolicyValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		policy *v1.Policy
+		cfg    PolicyValidationConfig
+	}{
+		{
+			name: "rate limit key with variables and escaped quotes",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: `tenant-\"gold\"-${request_uri}`,
+			}}},
+		},
+		{
+			name: "rate limit variable condition with quoted regex syntax",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_method}",
+				Condition: &v1.RateLimitCondition{Variables: &[]v1.VariableCondition{{
+					Name: "$request_method", Match: `~^item-[0-9]{2};premium$`,
+				}}},
+			}}},
+		},
+		{
+			name: "rate limit JWT condition with nested claim",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${jwt_claim_user_details}",
+				Condition: &v1.RateLimitCondition{JWT: &v1.JWTCondition{Claim: "user_details.level", Match: "Gold"}},
+			}}},
+			cfg: PolicyValidationConfig{IsPlus: true},
+		},
+		{
+			name: "cache values with braced and unbraced variables",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "safe", CacheZoneSize: "10m",
+				CacheKey: `${scheme}://$proxy_host$request_uri`,
+				Conditions: &v1.CacheConditions{
+					NoCache: []string{"${cookie_nocache}"},
+					Bypass:  []string{"$arg_skip"},
+				},
+			}}},
+		},
+		{
+			name: "ingress mTLS CRL basename",
+			policy: &v1.Policy{Spec: v1.PolicySpec{IngressMTLS: &v1.IngressMTLS{
+				ClientCertSecret: "mtls-secret", CrlFileName: "default-mtls-secret-ca.crl",
+			}}},
+		},
+		{
+			name: "JWT HTTPS JWKS URI",
+			policy: &v1.Policy{Spec: v1.PolicySpec{JWTAuth: &v1.JWTAuth{
+				Realm: "My API", JwksURI: "https://idp.example.com/.well-known/jwks.json", KeyCache: "1h",
+			}}},
+			cfg: PolicyValidationConfig{IsPlus: true},
+		},
+		{
+			name: "API key query variable suffix",
+			policy: &v1.Policy{Spec: v1.PolicySpec{APIKey: &v1.APIKey{
+				SuppliedIn: &v1.SuppliedIn{Query: []string{"api_key2"}}, ClientSecret: "api-key-secret",
+			}}},
+		},
+		{
+			name: "WAF syslog destination",
+			policy: &v1.Policy{Spec: v1.PolicySpec{WAF: &v1.WAF{
+				Enable: true, SecurityLog: &v1.SecurityLog{Enable: true, LogDest: "syslog:server=logs.example.com:514"},
+			}}},
+			cfg: PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
+		},
+		{
+			name: "egress mTLS cipher and protocols",
+			policy: &v1.Policy{Spec: v1.PolicySpec{EgressMTLS: &v1.EgressMTLS{
+				Ciphers: "DEFAULT:@SECLEVEL=2", Protocols: "TLSv1.2 TLSv1.3",
+			}}},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if err := ValidatePolicy(test.policy, test.cfg); err != nil {
+				t.Errorf("ValidatePolicy() returned error for safe input: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidatePolicy_RejectsDirectiveBreakoutPolicyValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		policy    *v1.Policy
+		cfg       PolicyValidationConfig
+		fieldPath string
+	}{
+		{
+			name: "rate limit key directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_uri}; return 200",
+			}}},
+			fieldPath: "spec.rateLimit.key",
+		},
+		{
+			name: "rate limit JWT claim directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_uri}",
+				Condition: &v1.RateLimitCondition{JWT: &v1.JWTCondition{Claim: "user; return 200", Match: "Gold"}},
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true},
+			fieldPath: "spec.rateLimit.condition.jwt.claim",
+		},
+		{
+			name: "rate limit JWT match directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_uri}",
+				Condition: &v1.RateLimitCondition{JWT: &v1.JWTCondition{Claim: "user.level", Match: "Gold;return"}},
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true},
+			fieldPath: "spec.rateLimit.condition.jwt.match",
+		},
+		{
+			name: "rate limit condition variable source directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_method}",
+				Condition: &v1.RateLimitCondition{Variables: &[]v1.VariableCondition{{Name: "$request_method;return", Match: "GET"}}},
+			}}},
+			fieldPath: "spec.rateLimit.condition.variables[0].name",
+		},
+		{
+			name: "rate limit condition quoted match breakout",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_method}",
+				Condition: &v1.RateLimitCondition{Variables: &[]v1.VariableCondition{{Name: "$request_method", Match: `"; return 200; #`}}},
+			}}},
+			fieldPath: "spec.rateLimit.condition.variables[0].match",
+		},
+		{
+			name: "cache key directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "unsafe", CacheZoneSize: "10m", CacheKey: "${scheme}; return 200",
+			}}},
+			fieldPath: "spec.cache.cacheKey",
+		},
+		{
+			name: "cache key invalid braced variable",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "unsafe", CacheZoneSize: "10m", CacheKey: "${request-uri}",
+			}}},
+			fieldPath: "spec.cache.cacheKey",
+		},
+		{
+			name: "cache no-cache directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "unsafe", CacheZoneSize: "10m",
+				Conditions: &v1.CacheConditions{NoCache: []string{"$cookie_nocache; return 200"}},
+			}}},
+			fieldPath: "spec.cache.conditions.noCache[0]",
+		},
+		{
+			name: "cache bypass line breakout",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "unsafe", CacheZoneSize: "10m",
+				Conditions: &v1.CacheConditions{Bypass: []string{"$arg_skip\nreturn 200"}},
+			}}},
+			fieldPath: "spec.cache.conditions.bypass[0]",
+		},
+		{
+			name: "ingress mTLS CRL traversal",
+			policy: &v1.Policy{Spec: v1.PolicySpec{IngressMTLS: &v1.IngressMTLS{
+				ClientCertSecret: "mtls-secret", CrlFileName: "../../nginx.conf",
+			}}},
+			fieldPath: "spec.ingressMTLS.crlFileName",
+		},
+		{
+			// NGINX would read ca.crl from the quoted form, while path.Join in
+			// addIngressMTLSConfig would look for a file whose name includes the
+			// quotes. The mismatch would surface only as a missing file.
+			name: "ingress mTLS CRL quoted file name",
+			policy: &v1.Policy{Spec: v1.PolicySpec{IngressMTLS: &v1.IngressMTLS{
+				ClientCertSecret: "mtls-secret", CrlFileName: `"ca.crl"`,
+			}}},
+			fieldPath: "spec.ingressMTLS.crlFileName",
+		},
+		{
+			name: "JWT unsupported JWKS scheme",
+			policy: &v1.Policy{Spec: v1.PolicySpec{JWTAuth: &v1.JWTAuth{
+				Realm: "My API", JwksURI: "ftp://idp.example.com/keys", KeyCache: "1h",
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true},
+			fieldPath: "spec.jwt.jwksURI",
+		},
+		{
+			name: "JWT percent-encoded JWKS path directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{JWTAuth: &v1.JWTAuth{
+				Realm: "My API", JwksURI: "https://idp.example.com/keys%3Breturn%20200", KeyCache: "1h",
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true},
+			fieldPath: "spec.jwt.jwksURI",
+		},
+		{
+			name: "API key query variable breakout",
+			policy: &v1.Policy{Spec: v1.PolicySpec{APIKey: &v1.APIKey{
+				SuppliedIn: &v1.SuppliedIn{Query: []string{"api_key}${http_host}"}}, ClientSecret: "api-key-secret",
+			}}},
+			fieldPath: "spec.apiKey.suppliedIn.query[0]",
+		},
+		{
+			name: "WAF log destination comment",
+			policy: &v1.Policy{Spec: v1.PolicySpec{WAF: &v1.WAF{
+				Enable: true, SecurityLog: &v1.SecurityLog{Enable: true, LogDest: "/var/log/app#ignored"},
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
+			fieldPath: "spec.waf.securityLog.logDest",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidatePolicy(test.policy, test.cfg)
+			if err == nil {
+				t.Fatal("ValidatePolicy() returned no error for malicious input")
+			}
+			if !strings.Contains(err.Error(), test.fieldPath) {
+				t.Errorf("ValidatePolicy() error %q does not identify %s", err, test.fieldPath)
+			}
+		})
+	}
+}
+
 func TestValidateAccessControl_PassesOnValidInput(t *testing.T) {
 	t.Parallel()
 	validInput := []*v1.AccessControl{
@@ -964,6 +1196,19 @@ func TestValidateRateLimitKey(t *testing.T) {
 		allErrs := validateRateLimitKey(emptyKey, field.NewPath("key"), false)
 		if len(allErrs) == 0 {
 			t.Errorf("validateRateLimitKey %q returned no errors for an empty key", emptyKey)
+		}
+	})
+
+	t.Run("non-ASCII whitespace directive injection", func(t *testing.T) {
+		t.Parallel()
+		// U+00A0 is not an NGINX token separator, so the single quote after it is
+		// mid-token and inert; NGINX ends the directive at the first ';' and parses
+		// the embedded zone/log_format directives. The scanner must treat only
+		// NGINX's ASCII whitespace as separators and reject this.
+		payload := "${remote_addr}\u00a0' zone=x:10m rate=1r/s;log_format x x;#'"
+		allErrs := validateRateLimitKey(payload, field.NewPath("key"), false)
+		if len(allErrs) == 0 {
+			t.Errorf("validateRateLimitKey returned no errors for injection payload %q", payload)
 		}
 	})
 }
@@ -1526,6 +1771,25 @@ func TestValidateEgressMTLS_PassesOnValidInput(t *testing.T) {
 			},
 			msg: "ssl name",
 		},
+		{
+			eg: &v1.EgressMTLS{
+				Ciphers: "HIGH:!aNULL:!MD5",
+			},
+			msg: "valid ciphers",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Protocols: "TLSv1.2 TLSv1.3",
+			},
+			msg: "valid protocols",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Ciphers:   "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256",
+				Protocols: "TLSv1.3",
+			},
+			msg: "valid ciphers and protocols together",
+		},
 	}
 	for _, test := range tests {
 		allErrs := validateEgressMTLS(test.eg, field.NewPath("egressMTLS"))
@@ -1566,6 +1830,30 @@ func TestValidateEgressMTLS_FailsOnInvalidInput(t *testing.T) {
 				SSLName: "foo.com;",
 			},
 			msg: "invalid name",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Ciphers: "HIGH; return 500;",
+			},
+			msg: "ciphers with semicolon injection",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Ciphers: "HIGH\"\nproxy_pass http://evil;",
+			},
+			msg: "ciphers with quote and newline injection",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Protocols: "TLSv1.2\nproxy_pass http://evil;",
+			},
+			msg: "protocols with newline injection",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Protocols: "TLSv1.2; access_log /tmp/evil;",
+			},
+			msg: "protocols with semicolon injection",
 		},
 	}
 
@@ -2985,6 +3273,100 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 						CacheZoneName:   "purgeoss",
 						CacheZoneSize:   "10m",
 						CachePurgeAllow: []string{"192.168.1.1"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			// cacheZoneName reaches both a proxy_cache_path keys_zone name and a
+			// proxy_cache argument, so a semicolon in it ends those directives.
+			name: "cacheZoneName with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: `z; } location /pwned { return 200 "owned"; } location /x {`,
+						CacheZoneSize: "10m",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cacheZoneName with a path separator",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "../../etc/nginx/zone", CacheZoneSize: "10m"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cacheZoneSize with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "10m; ip_hash;"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "invalid cacheZoneSize",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "ten megabytes"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "levels with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "10m", Levels: "1:2; ip_hash;"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "levels outside the range proxy_cache_path accepts",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "10m", Levels: "1:2:3:4"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "time with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "10m", Time: "10m; ip_hash;"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedMethods with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:  "zone",
+						CacheZoneSize:  "10m",
+						AllowedMethods: []string{"GET; ip_hash;"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedMethods with a method proxy_cache_methods rejects",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:  "zone",
+						CacheZoneSize:  "10m",
+						AllowedMethods: []string{"DELETE"},
 					},
 				},
 			},

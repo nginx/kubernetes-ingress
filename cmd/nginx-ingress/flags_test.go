@@ -107,6 +107,19 @@ func TestValidateLocation(t *testing.T) {
 	}
 }
 
+func TestValidateAppProtectEnforcerAddress(t *testing.T) {
+	t.Parallel()
+
+	if err := validateAppProtectEnforcerAddress("127.0.0.1:50000"); err != nil {
+		t.Fatalf("valid enforcer address was rejected: %v", err)
+	}
+	for _, address := range []string{"127.0.0.1:50000; access_log off", "127.0.0.1:50000 # comment", "127.0.0.1:50000\naccess_log off"} {
+		if err := validateAppProtectEnforcerAddress(address); err == nil {
+			t.Errorf("invalid enforcer address %q was accepted", address)
+		}
+	}
+}
+
 func TestValidateLogLevel(t *testing.T) {
 	badLogLevels := []string{
 		"",

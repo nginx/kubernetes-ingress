@@ -34,8 +34,8 @@ if args.log:
 
 systems = {
     "alpine": {
-        "cmd": "apk list",
-        "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*\\[installed\\]",
+        "cmd": "apk list -I",
+        "regex": "^(.+?)-(\\d+.+?)\\s+(\\w+).*",
     },
     "debian": {
         "cmd": "dpkg -l",

@@ -13,6 +13,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+// headerNameErrMsg is the reason reported for an invalid HTTP header name. Every
+// header-name surface shares it, because they all validate through
+// internal/validation.ValidateHeaderName, which returns the message from
+// k8svalidation.IsHTTPHeaderName verbatim. When the remaining header-name
+// sources are aligned and the wording becomes owned by internal/validation,
+// this constant is the only place these assertions need to change.
+const headerNameErrMsg = `a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`
+
 func TestValidateIngress_WithValidPathRegexValuesForNGINXPlus(t *testing.T) {
 	t.Parallel()
 	tt := []struct {
@@ -738,6 +746,246 @@ func TestValidateIngress(t *testing.T) {
 	}
 }
 
+func TestValidateIngress_DirectiveBreakoutAnnotations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		isPlus      bool
+		wantError   bool
+	}{
+		{
+			name:        "valid JWT token variable",
+			annotations: map[string]string{configs.JWTTokenAnnotation: "$cookie_auth_token"},
+			isPlus:      true,
+		},
+		{
+			name:        "JWT token variable with suffix",
+			annotations: map[string]string{configs.JWTTokenAnnotation: "$cookie_auth_token suffix"},
+			isPlus:      true,
+			wantError:   true,
+		},
+		{
+			name:        "JWT token variable with directive breakout",
+			annotations: map[string]string{configs.JWTTokenAnnotation: "$cookie_auth_token; return 200"},
+			isPlus:      true,
+			wantError:   true,
+		},
+		{
+			// NGINX compiles the auth_jwt token= argument as a complex value,
+			// which accepts the braced form as readily as the plain one.
+			name:        "valid JWT token braced variable",
+			annotations: map[string]string{configs.JWTTokenAnnotation: "${cookie_auth_token}"},
+			isPlus:      true,
+		},
+		{
+			name:        "JWT token braced variable with directive breakout",
+			annotations: map[string]string{configs.JWTTokenAnnotation: "${cookie_auth_token}; return 200"},
+			isPlus:      true,
+			wantError:   true,
+		},
+		{
+			name:        "JWT token unterminated brace",
+			annotations: map[string]string{configs.JWTTokenAnnotation: "${cookie_auth_token"},
+			isPlus:      true,
+			wantError:   true,
+		},
+		{
+			name:        "JWT token braced variable with invalid name",
+			annotations: map[string]string{configs.JWTTokenAnnotation: "${cookie-auth-token}"},
+			isPlus:      true,
+			wantError:   true,
+		},
+		{
+			name:        "JWT token two variables",
+			annotations: map[string]string{configs.JWTTokenAnnotation: "${http_token}$cookie_auth_token"},
+			isPlus:      true,
+			wantError:   true,
+		},
+		{
+			name:        "valid hash with composite variable key",
+			annotations: map[string]string{lbMethodAnnotation: "hash $scheme$request_uri consistent"},
+		},
+		{
+			name:        "hash key with tab",
+			annotations: map[string]string{lbMethodAnnotation: "hash $request_uri\tconsistent"},
+			wantError:   true,
+		},
+		{
+			name:        "hash key with newline breakout",
+			annotations: map[string]string{lbMethodAnnotation: "hash $request_uri\nleast_conn"},
+			wantError:   true,
+		},
+		{
+			name:        "hash key with directive breakout",
+			annotations: map[string]string{lbMethodAnnotation: "hash $request_uri;\nleast_conn"},
+			wantError:   true,
+		},
+		{
+			name: "valid sticky-cookie parameters",
+			annotations: map[string]string{
+				stickyCookieServicesAnnotation: "serviceName=coffee-svc srv_id expires=1h domain=.example.com httponly secure samesite=lax path=/coffee",
+			},
+		},
+		{
+			name: "sticky-cookie parameters with newline breakout",
+			annotations: map[string]string{
+				stickyCookieServicesAnnotation: "serviceName=coffee-svc srv_id expires=1h\nzone injected 1",
+			},
+			wantError: true,
+		},
+		{
+			name: "sticky-cookie parameters with block breakout",
+			annotations: map[string]string{
+				stickyCookieServicesAnnotation: "serviceName=coffee-svc srv_id path=/{",
+			},
+			wantError: true,
+		},
+		{
+			name: "sticky-cookie parameters with comment breakout",
+			annotations: map[string]string{
+				stickyCookieServicesAnnotation: "serviceName=coffee-svc srv_id path=/#comment",
+			},
+			wantError: true,
+		},
+		{
+			name: "valid rewrite URL",
+			annotations: map[string]string{
+				rewritesAnnotation: "serviceName=coffee-svc rewrite=/v1/items/coffee-beans",
+			},
+		},
+		{
+			name: "valid rewrite URL with literal quote",
+			annotations: map[string]string{
+				rewritesAnnotation: `serviceName=coffee-svc rewrite=/v1/"items`,
+			},
+		},
+		{
+			name: "rewrite URL with comment breakout",
+			annotations: map[string]string{
+				rewritesAnnotation: "serviceName=coffee-svc rewrite=/v1/#comment",
+			},
+			wantError: true,
+		},
+		{
+			name: "rewrite URL with backslash breakout",
+			annotations: map[string]string{
+				rewritesAnnotation: `serviceName=coffee-svc rewrite=/v1/\items`,
+			},
+			wantError: true,
+		},
+		{
+			name:        "valid rewrite target with captures and query",
+			annotations: map[string]string{rewriteTargetAnnotation: "/api/$1/$2?source=ingress"},
+		},
+		{
+			name:        "valid rewrite target with literal quote",
+			annotations: map[string]string{rewriteTargetAnnotation: `/api/"quoted`},
+		},
+		{
+			name:        "rewrite target with comment breakout",
+			annotations: map[string]string{rewriteTargetAnnotation: "/api/#comment"},
+			wantError:   true,
+		},
+		{
+			name:        "rewrite target with backslash breakout",
+			annotations: map[string]string{rewriteTargetAnnotation: `/api/\$1`},
+			wantError:   true,
+		},
+		{
+			name: "valid proxy-redirect URL pair",
+			annotations: map[string]string{
+				proxyRedirectFromAnnotation: "http://backend.example.com/v1/",
+				proxyRedirectToAnnotation:   "https://public.example.com/api/",
+			},
+		},
+		{
+			name: "valid proxy-redirect regex with captures",
+			annotations: map[string]string{
+				proxyRedirectFromAnnotation: `~^http://backend\.example\.com/v(\d+)/(.*)`,
+				proxyRedirectToAnnotation:   "https://public.example.com/v$1/$2",
+			},
+		},
+		{
+			name: "valid proxy-redirect source URL with literal quote",
+			annotations: map[string]string{
+				proxyRedirectFromAnnotation: `http://backend.example.com/"quoted`,
+				proxyRedirectToAnnotation:   "https://public.example.com/",
+			},
+		},
+		{
+			name: "proxy-redirect source URL with backslash breakout",
+			annotations: map[string]string{
+				proxyRedirectFromAnnotation: `http://backend.example.com/v1\`,
+				proxyRedirectToAnnotation:   "https://public.example.com/",
+			},
+			wantError: true,
+		},
+		{
+			name: "valid proxy-redirect replacement with literal quote",
+			annotations: map[string]string{
+				proxyRedirectFromAnnotation: "http://backend.example.com/",
+				proxyRedirectToAnnotation:   `https://public.example.com/"quoted`,
+			},
+		},
+		{
+			name: "proxy-redirect replacement with comment breakout",
+			annotations: map[string]string{
+				proxyRedirectFromAnnotation: "http://backend.example.com/",
+				proxyRedirectToAnnotation:   "https://public.example.com/#comment",
+			},
+			wantError: true,
+		},
+		{
+			name: "valid proxy-redirect replacement with escaped literal",
+			annotations: map[string]string{
+				proxyRedirectFromAnnotation: "http://backend.example.com/",
+				proxyRedirectToAnnotation:   `https://public.example.com/\$1`,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			pathType := networking.PathTypePrefix
+			ing := &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{Annotations: test.annotations},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{
+						{
+							Host: "cafe.example.com",
+							IngressRuleValue: networking.IngressRuleValue{
+								HTTP: &networking.HTTPIngressRuleValue{
+									Paths: []networking.HTTPIngressPath{
+										{
+											Path:     "/",
+											PathType: &pathType,
+											Backend: networking.IngressBackend{
+												Service: &networking.IngressServiceBackend{Name: "coffee-svc"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			errs := validateIngress(ing, test.isPlus, false, false, false, false, false)
+			if test.wantError && len(errs) == 0 {
+				t.Fatal("validateIngress() returned no error")
+			}
+			if !test.wantError && len(errs) != 0 {
+				t.Fatalf("validateIngress() returned unexpected errors: %v", errs)
+			}
+		})
+	}
+}
+
 func TestValidateNginxIngressAnnotations(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -846,6 +1094,24 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			expectedErrors: nil,
 			msg:            "valid nginx.org/lb-method annotation, nginx normal",
+		},
+		{
+			annotations: map[string]string{
+				// A quote after a braced variable is not at a token boundary,
+				// so NGINX reads one unquoted token and the semicolon
+				// terminates the hash directive, injecting the rest into the
+				// upstream block.
+				"nginx.org/lb-method": `hash ${a}";ip_hash;#" consistent`,
+			},
+			specServices:         map[string]bool{},
+			isPlus:               false,
+			appProtectEnabled:    false,
+			appProtectDosEnabled: false,
+
+			expectedErrors: []string{
+				`annotations.nginx.org/lb-method: Invalid value: "hash ${a}\";ip_hash;#\" consistent": invalid load balancing method: "hash ${a}\";ip_hash;#\" consistent": must not contain NGINX directive delimiters`,
+			},
+			msg: "invalid nginx.org/lb-method annotation, quote after braced variable",
 		},
 		{
 			annotations: map[string]string{
@@ -1511,7 +1777,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-hide-headers annotation, single-value containing '$'",
 		},
@@ -1526,7 +1792,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-hide-headers: Invalid value: "{header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-hide-headers: Invalid value: "{header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-hide-headers annotation, single-value containing '{'",
 		},
@@ -1541,7 +1807,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-hide-headers annotation, multi-value containing '$'",
 		},
@@ -1556,7 +1822,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header2": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-hide-headers: Invalid value: "$header2": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-hide-headers annotation, multi-value containing '$' after valid header",
 		},
@@ -1611,7 +1877,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-pass-headers annotation, single-value containing '$'",
 		},
@@ -1626,7 +1892,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-pass-headers: Invalid value: "{header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-pass-headers: Invalid value: "{header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-pass-headers annotation, single-value containing '{'",
 		},
@@ -1641,7 +1907,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-pass-headers annotation, multi-value containing '$'",
 		},
@@ -1656,7 +1922,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header2": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-pass-headers: Invalid value: "$header2": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-pass-headers annotation, multi-value containing '$' after valid header",
 		},
@@ -1711,7 +1977,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-set-headers annotation, single-value containing '$'",
 		},
@@ -1726,7 +1992,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "{header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "{header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-set-headers annotation, single-value containing '{'",
 		},
@@ -1741,7 +2007,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header1": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header1": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-set-headers annotation, multi-value containing '$'",
 		},
@@ -1756,7 +2022,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 
 			directiveAutoAdjust: false,
 			expectedErrors: []string{
-				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header2": a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`,
+				`annotations.nginx.org/proxy-set-headers: Invalid value: "$header2": ` + headerNameErrMsg,
 			},
 			msg: "invalid nginx.org/proxy-set-headers annotation, multi-value containing '$' after valid header",
 		},
@@ -2858,7 +3124,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled: false,
 
 			expectedErrors: []string{
-				fmt.Sprintf(`annotations.%s: Invalid value: "cookie_auth_token": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
+				fmt.Sprintf(`annotations.%s: Invalid value: "cookie_auth_token": %s`, configs.JWTTokenAnnotation, jwtTokenValueFmtErrMsg),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, '$' missing", configs.JWTTokenAnnotation),
 		},
@@ -2872,7 +3138,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled: false,
 
 			expectedErrors: []string{
-				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\"": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
+				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\"": %s`, configs.JWTTokenAnnotation, jwtTokenValueFmtErrMsg),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, containing unescaped '\"'", configs.JWTTokenAnnotation),
 		},
@@ -2886,7 +3152,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled: false,
 
 			expectedErrors: []string{
-				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\\": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
+				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\\": %s`, configs.JWTTokenAnnotation, jwtTokenValueFmtErrMsg),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, containing escape characters", configs.JWTTokenAnnotation),
 		},
@@ -2900,7 +3166,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled: false,
 
 			expectedErrors: []string{
-				fmt.Sprintf("annotations.%s: Invalid value: \"%s\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')", configs.JWTTokenAnnotation, "cookie_auth$token"),
+				fmt.Sprintf(`annotations.%s: Invalid value: "cookie_auth$token": %s`, configs.JWTTokenAnnotation, jwtTokenValueFmtErrMsg),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, containing incorrect variable", configs.JWTTokenAnnotation),
 		},
@@ -2914,7 +3180,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled: false,
 
 			expectedErrors: []string{
-				fmt.Sprintf("annotations.%s: Invalid value: \"%s\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')", configs.JWTTokenAnnotation, "$cookie_auth_token$http_token"),
+				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token$http_token": %s`, configs.JWTTokenAnnotation, jwtTokenValueFmtErrMsg),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, containing more than 1 variable", configs.JWTTokenAnnotation),
 		},
@@ -5728,8 +5994,6 @@ func errorListToTypes(list field.ErrorList) []field.ErrorType {
 func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 	t.Parallel()
 
-	headerNameErrMsg := `a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`
-
 	tests := []struct {
 		name           string
 		value          string
@@ -6000,8 +6264,6 @@ func TestValidateProxySetHeaderAnnotation(t *testing.T) {
 
 func TestValidateAddHeaderAnnotation(t *testing.T) {
 	t.Parallel()
-
-	headerNameErrMsg := `a valid HTTP header must consist of alphanumeric characters or '-' (e.g. 'X-Header-Name', regex used for validation is '[-A-Za-z0-9]+')`
 
 	tests := []struct {
 		name           string
@@ -6327,6 +6589,7 @@ func TestValidatePath(t *testing.T) {
 		"/abc;",
 		`/path\`,
 		`/path\n`,
+		"/foo\u0085bar",
 		`/var/run/secrets`,
 		"/{autoindex on; root /var/run/secrets;}location /tea",
 		"/{root}",
@@ -7239,5 +7502,93 @@ func TestValidatePolicyNamesCommaHandling(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestValidateIngress_SSLAnnotations(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		expectError bool
+	}{
+		{
+			name: "valid ssl-ciphers",
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers": "DEFAULT:@SECLEVEL=2,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid ssl-ciphers with quotes and semicolon breakout",
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers": "HIGH:!aNULL\"; access_log /dev/null;",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ing := &networking.Ingress{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tt.annotations,
+				},
+				Spec: networking.IngressSpec{
+					Rules: []networking.IngressRule{
+						{
+							Host: "example.com",
+						},
+					},
+				},
+			}
+			errs := validateIngress(ing, false, false, false, false, false, false)
+			if tt.expectError && len(errs) == 0 {
+				t.Errorf("expected error for annotations %v, got none", tt.annotations)
+			}
+			if !tt.expectError && len(errs) > 0 {
+				t.Errorf("expected no error for annotations %v, got %v", tt.annotations, errs)
+			}
+		})
+	}
+}
+
+// TestValidateLBMethodAnnotationRejectsNonASCIIWhitespaceInjection covers the
+// hash lb-method annotation against a payload that hides a directive injection
+// behind a non-ASCII space. U+00A0 is not an NGINX token separator, so the
+// single quote after it is mid-token and inert and NGINX ends the hash directive
+// at the first ';', parsing the injected ip_hash. The shared directive scanner
+// must treat only NGINX's ASCII whitespace as separators and reject this.
+func TestValidateLBMethodAnnotationRejectsNonASCIIWhitespaceInjection(t *testing.T) {
+	t.Parallel()
+
+	for _, isPlus := range []bool{false, true} {
+		context := &annotationValidationContext{
+			value:     "hash $remote_addr\u00a0';ip_hash;#' consistent",
+			isPlus:    isPlus,
+			fieldPath: field.NewPath("annotations").Child("nginx.org/lb-method"),
+		}
+		if errs := validateLBMethodAnnotation(context); len(errs) == 0 {
+			t.Errorf("validateLBMethodAnnotation(isPlus=%v) accepted a non-ASCII-whitespace injection payload, want an error", isPlus)
+		}
+	}
+}
+
+// TestValidateProxyRedirectFromRegexUsesNGINXUnescaping ensures the proxy-redirect-from
+// regex is validated as NGINX's PCRE engine will see it. proxy_redirect renders
+// the value unquoted, so NGINX collapses \\ to a lone trailing \ before compiling;
+// a pattern that compiles as written must still be rejected when its post-unescape
+// form is an invalid regex, so an accepted annotation cannot fail nginx -t.
+func TestValidateProxyRedirectFromRegexUsesNGINXUnescaping(t *testing.T) {
+	t.Parallel()
+
+	context := &annotationValidationContext{
+		value:     `~^/foo\\`,
+		fieldPath: field.NewPath("annotations").Child("nginx.org/proxy-redirect-from"),
+	}
+	if errs := validateProxyRedirectFromAnnotation(context); len(errs) == 0 {
+		t.Errorf("validateProxyRedirectFromAnnotation(%q) returned no errors; NGINX unescapes it to a lone trailing backslash that PCRE rejects", context.value)
 	}
 }

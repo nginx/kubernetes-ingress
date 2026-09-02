@@ -208,7 +208,8 @@ jobs:
       )
     needs: [variables, push-prep-images]
     permissions:
-      contents: read
+      packages: write # for pushing the staged chart to the helm repo
+      contents: write # for staging helm chart
       id-token: write # for getting ID token to login to docker-mgmt-test.nginx.com
     uses: ./.github/workflows/publish-helm.yml
     with:

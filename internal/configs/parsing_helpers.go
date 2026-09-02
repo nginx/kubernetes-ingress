@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	internalvalidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -151,6 +152,12 @@ func ParseLBMethodForPlus(method string) (string, error) {
 }
 
 func validateHashLBMethod(method string) (string, error) {
+	if err := internalvalidation.ValidateDirectiveValue(method); err != nil {
+		return "", fmt.Errorf("invalid load balancing method: %q: %w", method, err)
+	}
+	if strings.Contains(method, "\t") {
+		return "", fmt.Errorf("invalid load balancing method: %q", method)
+	}
 	keyWords := strings.Split(method, " ")
 
 	if keyWords[0] == "hash" {
@@ -255,6 +262,17 @@ func ParseSize(s string) (string, error) {
 		return s, nil
 	}
 	return "", errors.New("invalid size string")
+}
+
+// ParseHeaderList validates a comma-separated list of HTTP header names and
+// returns the trimmed names. The caller reports the key and the raw value, so
+// only the reason is returned here.
+func ParseHeaderList(s string) ([]string, error) {
+	names, msgs := internalvalidation.ValidateHeaderNameList(s)
+	if len(msgs) != 0 {
+		return nil, errors.New(strings.Join(msgs, "; "))
+	}
+	return names, nil
 }
 
 var rateRegexp = regexp.MustCompile(`^(\d+)(r/s|r/m)$`)

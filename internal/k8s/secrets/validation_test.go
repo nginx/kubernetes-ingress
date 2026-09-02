@@ -377,20 +377,22 @@ func TestValidateTLSSecretFails(t *testing.T) {
 
 func TestValidateOIDCSecret(t *testing.T) {
 	t.Parallel()
-	secret := &v1.Secret{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "oidc-secret",
-			Namespace: "default",
-		},
-		Type: SecretTypeOIDC,
-		Data: map[string][]byte{
-			"client-secret": nil,
-		},
-	}
 
-	err := ValidateOIDCSecret(secret)
-	if err != nil {
-		t.Errorf("ValidateOIDCSecret() returned error %v", err)
+	for _, clientSecret := range []string{"", `pa\"ss`, `path\\secret`} {
+		secret := &v1.Secret{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-secret",
+				Namespace: "default",
+			},
+			Type: SecretTypeOIDC,
+			Data: map[string][]byte{
+				"client-secret": []byte(clientSecret),
+			},
+		}
+
+		if err := ValidateOIDCSecret(secret); err != nil {
+			t.Errorf("ValidateOIDCSecret() returned error for %q: %v", clientSecret, err)
+		}
 	}
 }
 
@@ -448,6 +450,19 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 				},
 			},
 			msg: "Invalid newline in OIDC client secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "oidc-secret",
+					Namespace: "default",
+				},
+				Type: SecretTypeOIDC,
+				Data: map[string][]byte{
+					"client-secret": []byte(`foo"; access_log /dev/null; set $dummy "`),
+				},
+			},
+			msg: "Unescaped quote breakout in OIDC client secret",
 		},
 	}
 

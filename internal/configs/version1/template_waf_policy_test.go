@@ -134,7 +134,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithLocationWAFBundle(t *testing.
 
 	out := buf.String()
 	for _, want := range []string{
-		"location /",
+		`location "/"`,
 		"app_protect_enable on;",
 		"app_protect_policy_file /etc/nginx/waf/bundles/wafv5.tgz;",
 	} {
