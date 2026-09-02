@@ -62,7 +62,7 @@ permissions:
 jobs:
   release-to-gcr-release-registry:
     name: Push images to the GCR Release Registry
-    runs-on: ubuntu-24.04
+    runs-on: 'kic-plus'
     permissions:
       contents: read
       id-token: write
