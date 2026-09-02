@@ -68,7 +68,7 @@ server {
 	ssl_certificate {{ makeSecretPath $server.SSLCertificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	ssl_certificate_key {{ makeSecretPath $server.SSLCertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	{{- if $server.SSLCiphers}}
-	ssl_ciphers {{$server.SSLCiphers}};
+	ssl_ciphers {{ printf "%q" $server.SSLCiphers }};
 	{{- end}}
 	{{- if $server.SSLPreferServerCiphers}}
 	ssl_prefer_server_ciphers on;
@@ -159,7 +159,7 @@ server {
     {{- end }}
 
 	{{- range $location := $server.Locations}}
-	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
+	location {{ makeLocationPath $location $.Ingress.Annotations }} {
 		set $service "{{$location.ServiceName}}";
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
@@ -232,7 +232,7 @@ server {
 		grpc_ssl_server_name on;
 		grpc_ssl_verify on;
 		grpc_ssl_verify_depth 25;
-		grpc_ssl_name {{$location.ProxySSLName}};
+		grpc_ssl_name {{ printf "%q" $location.ProxySSLName }};
 		{{- end}}
 		{{- if $location.SSL}}
 		grpc_pass grpcs://{{$location.Upstream.Name}}{{$location.Rewrite}};
@@ -289,7 +289,7 @@ server {
 		proxy_ssl_server_name on;
 		proxy_ssl_verify on;
 		proxy_ssl_verify_depth 25;
-		proxy_ssl_name {{$location.ProxySSLName}};
+		proxy_ssl_name {{ printf "%q" $location.ProxySSLName }};
 		{{- end}}
 		{{- if $location.ProxyNextUpstream}}
 		proxy_next_upstream {{ $location.ProxyNextUpstream }};

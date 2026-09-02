@@ -40,4 +40,4 @@ for i in ${releases}; do
 done
 
 checksum_file=$(ls "${tarball_dir}"/*_checksums.txt )
-${cosign_binary} sign-blob "${checksum_file}" --output-signature="${checksum_file}.sig" --output-certificate="${checksum_file}.pem" -y
+${cosign_binary} sign-blob "${checksum_file}" --use-signing-config=false --new-bundle-format=false --output-signature="${checksum_file}.sig" --output-certificate="${checksum_file}.pem" -y

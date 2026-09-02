@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/dlclark/regexp2/v2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
@@ -641,6 +642,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		allErrs = append(allErrs, validateBuffer(u.ProxyBuffers, idxPath.Child("buffers"))...)
 		allErrs = append(allErrs, validateSize(u.ProxyBufferSize, idxPath.Child("buffer-size"))...)
 		allErrs = append(allErrs, validateSize(u.ProxyBusyBuffersSize, idxPath.Child("busy-buffers-size"))...)
+		allErrs = append(allErrs, validateSize(u.ClientBodyBufferSize, idxPath.Child("client-body-buffer-size"))...)
 		allErrs = append(allErrs, validateQueue(u.Queue, idxPath.Child("queue"))...)
 		allErrs = append(allErrs, validateSessionCookie(u.SessionCookie, idxPath.Child("sessionCookie"))...)
 		allErrs = append(allErrs, validateUpstreamType(u.Type, idxPath.Child("type"))...)
@@ -1036,7 +1038,10 @@ func (vsv *VirtualServerValidator) validateActionRedirect(redirect *v1.ActionRed
 	return allErrs
 }
 
-var nginxVariableRegexp = regexp.MustCompile(`\$\{([^}]*)\}`)
+var (
+	nginxVariableRegexp     = regexp.MustCompile(`\$\{([^}]*)\}`)
+	nginxVariableNameRegexp = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+)
 
 // captureVariables returns a slice of vars enclosed in ${}. For example "${a} ${b}" would return ["a", "b"].
 func captureVariables(s string) []string {
@@ -1167,7 +1172,8 @@ func validateActionProxyRewritePath(rewritePath string, fieldPath *field.Path) f
 		return nil
 	}
 	allErrs := validateStringNoVariables(rewritePath, fieldPath)
-	return append(allErrs, validatePath(rewritePath, fieldPath)...)
+	allErrs = append(allErrs, validatePath(rewritePath, fieldPath)...)
+	return append(allErrs, validateUnquotedPath(rewritePath, fieldPath)...)
 }
 
 func validateActionProxyRewritePathForRegexp(rewritePath string, fieldPath *field.Path) field.ErrorList {
@@ -1356,23 +1362,48 @@ func validateRoutePath(path string, fieldPath *field.Path) field.ErrorList {
 		allErrs = append(allErrs, validateRegexPath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "/") {
 		allErrs = append(allErrs, validatePath(path, fieldPath)...)
+		allErrs = append(allErrs, validateUnquotedPath(path, fieldPath)...)
 	} else if strings.HasPrefix(path, "=") {
-		allErrs = append(allErrs, validatePath(strings.TrimPrefix(path, "="), fieldPath)...)
+		locationPath := strings.TrimSpace(strings.TrimPrefix(path, "="))
+		allErrs = append(allErrs, validatePath(locationPath, fieldPath)...)
+		allErrs = append(allErrs, validateUnquotedPath(locationPath, fieldPath)...)
 	} else {
 		allErrs = append(allErrs, field.Invalid(fieldPath, path, "must start with /, ~ or ="))
 	}
 	return allErrs
 }
 
+func validateUnquotedPath(path string, fieldPath *field.Path) field.ErrorList {
+	if strings.ContainsAny(path, "#\"`") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "must not include quotes, `#`, or backticks")}
+	}
+	return nil
+}
+
 // validateRegexPath validates correctness of the string representing the path.
 //
 // Internally it uses Perl5 compatible regexp2 package.
 func validateRegexPath(path string, fieldPath *field.Path) field.ErrorList {
-	if _, err := regexp2.Compile(path); err != nil {
+	regex := path
+	for _, modifier := range []string{"~*", "~"} {
+		if strings.HasPrefix(regex, modifier) {
+			regex = strings.TrimSpace(strings.TrimPrefix(regex, modifier))
+			break
+		}
+	}
+	for _, char := range regex {
+		if !unicode.IsPrint(char) {
+			return field.ErrorList{field.Invalid(fieldPath, path, "must not include non-printable characters")}
+		}
+	}
+	if _, err := regexp2.Compile(internalValidation.UnescapeNGINXToken(regex)); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, fmt.Sprintf("must be a valid regular expression: %v", err))}
 	}
-	if err := ValidateEscapedString(path, "*.jpg", "^/images/image_*.png$"); err != nil {
+	if err := ValidateEscapedString(regex, "*.jpg", "^/images/image_*.png$"); err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, path, err.Error())}
+	}
+	if strings.ContainsAny(regex, "\r\n`") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "must not include line breaks or backticks")}
 	}
 	return nil
 }
@@ -1388,9 +1419,30 @@ func validatePath(path string, fieldPath *field.Path) field.ErrorList {
 	if path == "" {
 		return field.ErrorList{field.Required(fieldPath, "")}
 	}
+	if strings.HasPrefix(path, "//") {
+		return field.ErrorList{field.Invalid(fieldPath, path, "protocol-relative URIs not allowed, must not start with '//'")}
+	}
+
+	// Reject any path segment equal to ".." to prevent directory traversal,
+	// including trailing forms like "/.." and "/a/.." (no trailing slash required).
+	// Splitting on both "/" and "\\" also catches Windows-style segments.
+	for _, segment := range strings.FieldsFunc(path, func(r rune) bool {
+		return r == '/' || r == '\\'
+	}) {
+		if segment == ".." {
+			return field.ErrorList{field.Invalid(fieldPath, path, "path traversal not allowed, path must not contain '..' segments")}
+		}
+	}
+
 	if !pathRegexp.MatchString(path) {
 		msg := validation.RegexError(pathErrMsg, pathFmt, "/", "/path", "/path/subpath-123")
 		return field.ErrorList{field.Invalid(fieldPath, path, msg)}
+	}
+	// Go quoting escapes non-printable runes into syntax NGINX does not decode.
+	for _, char := range path {
+		if !unicode.IsPrint(char) {
+			return field.ErrorList{field.Invalid(fieldPath, path, "must not include non-printable characters")}
+		}
 	}
 	return nil
 }
@@ -1409,6 +1461,9 @@ func validateGrpcService(service string, fieldPath *field.Path) field.ErrorList 
 	if !grpcRegexp.MatchString(service) {
 		msg := validation.RegexError(grpcErrMsg, grpcFmt, "GrpcService", "GrpcService.MyService")
 		return field.ErrorList{field.Invalid(fieldPath, service, msg)}
+	}
+	if strings.ContainsAny(service, "#\"'\\`") {
+		return field.ErrorList{field.Invalid(fieldPath, service, "must not include quotes, `#`, backslashes, or backticks")}
 	}
 	return nil
 }

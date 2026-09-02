@@ -149,7 +149,7 @@ class TestVirtualServerUpstreamOptions:
                     },
                 },
                 [
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=strict secure path=/some-valid/path;",
+                    'sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=strict secure "path=/some-valid/path";',
                 ],
             ),
             (
@@ -166,7 +166,7 @@ class TestVirtualServerUpstreamOptions:
                     },
                 },
                 [
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=lax secure path=/some-valid/path;",
+                    'sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=lax secure "path=/some-valid/path";',
                 ],
             ),
             (
@@ -183,7 +183,7 @@ class TestVirtualServerUpstreamOptions:
                     },
                 },
                 [
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=none secure path=/some-valid/path;",
+                    'sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=none secure "path=/some-valid/path";',
                 ],
             ),
         ],
@@ -572,7 +572,7 @@ class TestOptionsSpecificForPlus:
                     "ntlm": True,
                 },
                 [
-                    "health_check uri=/ interval=5s jitter=0s",
+                    'health_check "uri=/" interval=5s jitter=0s',
                     "fails=1 passes=1",
                     "mandatory  persistent",
                     "keepalive_time=60s;",
@@ -605,7 +605,7 @@ class TestOptionsSpecificForPlus:
                     "ntlm": True,
                 },
                 [
-                    "health_check uri=/health  port=8080 interval=15s jitter=3s fails=2 passes=2 match=",
+                    'health_check "uri=/health"  port=8080 interval=15s jitter=3s fails=2 passes=2 match=',
                     "proxy_pass https://vs",
                     "status 200;",
                     "proxy_connect_timeout 35s;",

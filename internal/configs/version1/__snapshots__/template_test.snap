@@ -724,7 +724,7 @@ server {
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
-    location /tea {
+    location "/tea" {
         set $service "";
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
@@ -829,7 +829,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -867,7 +867,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -875,7 +875,7 @@ server {
         return 302 https://test.example.com/login;
     }
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         # location for minion default/tea-minion
@@ -916,7 +916,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -928,7 +928,7 @@ server {
     location ~* "^/(latte|espresso)" {
         set $service "";
         status_zone "";
-        rewrite (?i)^/(latte|espresso) /drinks/$1 break;
+        rewrite "(?i)^/(latte|espresso)" /drinks/$1 break;
         proxy_http_version 1.1;
 
         proxy_connect_timeout ;
@@ -961,7 +961,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -973,7 +973,7 @@ server {
     location ~ "^/(coffee|tea)" {
         set $service "";
         status_zone "";
-        rewrite ^/(coffee|tea) /beverages/$1 break;
+        rewrite "^/(coffee|tea)" /beverages/$1 break;
         proxy_http_version 1.1;
 
         proxy_connect_timeout ;
@@ -1006,7 +1006,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "cafe-menu-ingress";
     set $resource_namespace "default";
@@ -1018,7 +1018,7 @@ server {
     location ~ "^/menu/(hot|cold)/(coffee|tea)" {
         set $service "";
         status_zone "";
-        rewrite ^/menu/(hot|cold)/(coffee|tea) /drinks/$1/$2 break;
+        rewrite "^/menu/(hot|cold)/(coffee|tea)" /drinks/$1/$2 break;
         proxy_http_version 1.1;
 
         proxy_connect_timeout ;
@@ -1051,7 +1051,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1063,7 +1063,7 @@ server {
     location = "/cappuccino" {
         set $service "";
         status_zone "";
-        rewrite /cappuccino /special/cappuccino break;
+        rewrite "/cappuccino" /special/cappuccino break;
         proxy_http_version 1.1;
 
         proxy_connect_timeout ;
@@ -1096,7 +1096,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1105,10 +1105,10 @@ server {
     
 
     
-    location /mocha {
+    location "/mocha" {
         set $service "";
         status_zone "";
-        rewrite /mocha /hot-drinks/mocha break;
+        rewrite "/mocha" /hot-drinks/mocha break;
         proxy_http_version 1.1;
 
         proxy_connect_timeout ;
@@ -1141,7 +1141,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1191,7 +1191,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1200,7 +1200,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -1241,7 +1241,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1250,7 +1250,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -1292,7 +1292,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1330,7 +1330,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -1338,7 +1338,7 @@ server {
         return 302 https://test.example.com/login;
     }
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         # location for minion default/tea-minion
@@ -1387,7 +1387,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1405,7 +1405,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -1413,7 +1413,7 @@ server {
         return 302 https://test.example.com/login;
     }
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         # location for minion default/tea-minion
@@ -1469,7 +1469,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1478,7 +1478,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         # location for minion default/tea-minion
@@ -1522,7 +1522,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1531,7 +1531,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -1573,7 +1573,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1595,7 +1595,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -1651,7 +1651,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1673,7 +1673,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -1729,7 +1729,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1751,7 +1751,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -1759,7 +1759,7 @@ server {
         return 302 https://test.example.com/login;
     }
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         # location for minion default/tea-minion
@@ -1807,7 +1807,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -1829,7 +1829,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -1883,7 +1883,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -1905,7 +1905,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -1913,7 +1913,7 @@ server {
         return 302 https://test.example.com/login;
     }
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -1941,7 +1941,7 @@ server {
         
     }
     
-    location /coffee {
+    location "/coffee" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -1990,7 +1990,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -2012,7 +2012,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -2020,7 +2020,7 @@ server {
         return 302 https://test.example.com/login;
     }
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         # location for minion default/tea-minion
@@ -2051,7 +2051,7 @@ server {
         
     }
     
-    location /coffee {
+    location "/coffee" {
         set $service "";
         status_zone "";
         # location for minion default/coffee-minion
@@ -2098,7 +2098,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "myingress";
     set $resource_namespace "default";
@@ -2107,7 +2107,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -2144,14 +2144,14 @@ server {
 server {
     ssl_certificate ;
     ssl_certificate_key ;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256";
     ssl_prefer_server_ciphers on;
 
     server_tokens "";
 
     server_name test.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -2160,7 +2160,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -2197,7 +2197,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone ;
+    status_zone "";
     set $resource_type "ingress";
     set $resource_name "test-ingress";
     set $resource_namespace "default";
@@ -2206,7 +2206,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -2248,7 +2248,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -2286,7 +2286,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -2294,7 +2294,7 @@ server {
         return 302 https://test.example.com/login;
     }
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         # location for minion default/tea-minion
@@ -2341,7 +2341,7 @@ server {
     set $service "-";
     location ~* "^/(latte|espresso)" {
         set $service "";
-        rewrite (?i)^/(latte|espresso) /drinks/$1 break;
+        rewrite "(?i)^/(latte|espresso)" /drinks/$1 break;
         proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2378,7 +2378,7 @@ server {
     set $service "-";
     location ~ "^/(coffee|tea)" {
         set $service "";
-        rewrite ^/(coffee|tea) /beverages/$1 break;
+        rewrite "^/(coffee|tea)" /beverages/$1 break;
         proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2415,7 +2415,7 @@ server {
     set $service "-";
     location ~ "^/menu/(hot|cold)/(coffee|tea)" {
         set $service "";
-        rewrite ^/menu/(hot|cold)/(coffee|tea) /drinks/$1/$2 break;
+        rewrite "^/menu/(hot|cold)/(coffee|tea)" /drinks/$1/$2 break;
         proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2452,7 +2452,7 @@ server {
     set $service "-";
     location = "/cappuccino" {
         set $service "";
-        rewrite /cappuccino /special/cappuccino break;
+        rewrite "/cappuccino" /special/cappuccino break;
         proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2487,9 +2487,9 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location /mocha {
+    location "/mocha" {
         set $service "";
-        rewrite /mocha /hot-drinks/mocha break;
+        rewrite "/mocha" /hot-drinks/mocha break;
         proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2567,7 +2567,7 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location /tea {
+    location "/tea" {
         set $service "";
         proxy_http_version 1.1;
         proxy_connect_timeout ;
@@ -2610,7 +2610,7 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location /tea {
+    location "/tea" {
         set $service "";
         proxy_http_version 1.1;
         proxy_connect_timeout ;
@@ -2658,7 +2658,7 @@ server {
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
-    location /tea {
+    location "/tea" {
         set $service "";
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
@@ -2711,7 +2711,7 @@ server {
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
-    location /tea {
+    location "/tea" {
         set $service "";
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
@@ -2779,7 +2779,7 @@ server {
     if ($http_x_forwarded_proto = 'http') {
         return 308 https://$host$request_uri;
     }
-    location /tea {
+    location "/tea" {
         set $service "";
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -2821,7 +2821,7 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location /tea {
+    location "/tea" {
         set $service "";
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
@@ -2867,7 +2867,7 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location /tea {
+    location "/tea" {
         set $service "";
         proxy_http_version 1.1;
         proxy_connect_timeout ;
@@ -3045,7 +3045,7 @@ server {
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
-    location /tea {
+    location "/tea" {
         set $service "";
         proxy_http_version 1.1;
         proxy_connect_timeout 10s;
@@ -3068,7 +3068,7 @@ server {
         
     }
     
-    location /coffee {
+    location "/coffee" {
         set $service "";
         proxy_http_version 1.1;
         proxy_connect_timeout 10s;
@@ -3119,7 +3119,7 @@ server {
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
-    location /tea {
+    location "/tea" {
         set $service "";
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
@@ -3145,7 +3145,7 @@ server {
         
     }
     
-    location /coffee {
+    location "/coffee" {
         set $service "";
         # location for minion default/coffee-minion
         set $resource_name "coffee-minion";
@@ -3182,7 +3182,7 @@ server {
 server {
     ssl_certificate ;
     ssl_certificate_key ;
-    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;
+    ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256";
     ssl_prefer_server_ciphers on;
 
     server_tokens ;
@@ -3193,7 +3193,7 @@ server {
     set $resource_name "test-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         proxy_http_version 1.1;
         proxy_connect_timeout ;
@@ -3231,7 +3231,7 @@ server {
     set $resource_name "test-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         proxy_http_version 1.1;
         proxy_connect_timeout ;
@@ -3279,7 +3279,7 @@ server {
     if ($scheme = http) {
         return 301 https://$host:443$request_uri;
     }
-    location /tea {
+    location "/tea" {
         set $service "";
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
@@ -3329,7 +3329,7 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location /tea {
+    location "/tea" {
         set $service "";
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -3383,7 +3383,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3392,7 +3392,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -3448,7 +3448,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3486,7 +3486,7 @@ server {
         proxy_read_timeout 0s;
         proxy_send_timeout 0s;
         proxy_pass ://test;
-        health_check uri= interval=1s fails=1 passes=1;
+        health_check "uri=" interval=1s fails=1 passes=1;
     }
     
     location @login_url-default-cafe-ingress {
@@ -3494,7 +3494,7 @@ server {
         return 302 https://test.example.com/login;
     }
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         # location for minion default/tea-minion
@@ -3546,7 +3546,7 @@ server {
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
     set $service "-";
-    location /tea {
+    location "/tea" {
         set $service "";
         proxy_http_version 1.1;
         proxy_set_header Connection "";
@@ -3584,7 +3584,7 @@ server {
 
     server_name test.example.com;
 
-    status_zone test.example.com;
+    status_zone "test.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress";
     set $resource_namespace "default";
@@ -3593,7 +3593,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "";
         status_zone "";
         proxy_http_version 1.1;
@@ -7680,7 +7680,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7692,7 +7692,7 @@ server {
     }
 
     
-    location /coffee {
+    location "/coffee" {
         set $service "coffee-svc";
         status_zone "coffee-svc";
         # location for minion default/cafe-ingress-coffee-minion
@@ -7716,7 +7716,7 @@ server {
         
     }
     
-    location /tea {
+    location "/tea" {
         set $service "tea-svc";
         status_zone "tea-svc";
         # location for minion default/cafe-ingress-tea-minion
@@ -7768,7 +7768,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7780,7 +7780,7 @@ server {
     }
 
     
-    location /coffee {
+    location "/coffee" {
         set $service "coffee-svc";
         status_zone "coffee-svc";
         # location for minion default/cafe-ingress-coffee-minion
@@ -7804,7 +7804,7 @@ server {
         
     }
     
-    location /tea {
+    location "/tea" {
         set $service "tea-svc";
         status_zone "tea-svc";
         # location for minion default/cafe-ingress-tea-minion
@@ -7856,7 +7856,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -7868,7 +7868,7 @@ server {
     }
 
     
-    location /coffee {
+    location "/coffee" {
         set $service "coffee-svc";
         status_zone "coffee-svc";
         # location for minion default/cafe-ingress-coffee-minion
@@ -7892,7 +7892,7 @@ server {
         
     }
     
-    location /tea {
+    location "/tea" {
         set $service "tea-svc";
         status_zone "tea-svc";
         # location for minion default/cafe-ingress-tea-minion
@@ -7944,7 +7944,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8032,7 +8032,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8182,7 +8182,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -8194,7 +8194,7 @@ server {
     }
 
     
-    location /coffee {
+    location "/coffee" {
         set $service "coffee-svc";
         status_zone "coffee-svc";
         # location for minion default/cafe-ingress-coffee-minion
@@ -8219,7 +8219,7 @@ server {
         
     }
     
-    location /tea {
+    location "/tea" {
         set $service "tea-svc";
         status_zone "tea-svc";
         # location for minion default/cafe-ingress-tea-minion
@@ -8264,7 +8264,7 @@ server {
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
@@ -8287,7 +8287,7 @@ server {
         
     }
     
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
@@ -8330,7 +8330,7 @@ server {
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
@@ -8353,7 +8353,7 @@ server {
         
     }
     
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
@@ -8396,7 +8396,7 @@ server {
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
@@ -8419,7 +8419,7 @@ server {
         
     }
     
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
@@ -8462,7 +8462,7 @@ server {
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
@@ -8485,7 +8485,7 @@ server {
         
     }
     
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
@@ -8528,7 +8528,7 @@ server {
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
@@ -8551,7 +8551,7 @@ server {
         
     }
     
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
@@ -8596,7 +8596,7 @@ server {
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
@@ -8620,7 +8620,7 @@ server {
         
     }
     
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
@@ -8666,7 +8666,7 @@ server {
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
     set $service "-";
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
@@ -8690,7 +8690,7 @@ server {
         
     }
     
-    location / {
+    location "/" {
         set $service "";
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
@@ -9056,7 +9056,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9092,7 +9092,7 @@ server {
         
     }
     
-    location /tea {
+    location "/tea" {
         set $service "tea-svc";
         status_zone "tea-svc";
         # location for minion default/cafe-ingress-tea-minion
@@ -9144,7 +9144,7 @@ server {
 
     server_name cafe.example.com;
 
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "ingress";
     set $resource_name "cafe-ingress-master";
     set $resource_namespace "default";
@@ -9156,7 +9156,7 @@ server {
     }
 
     
-    location /coffee {
+    location "/coffee" {
         set $service "coffee-svc";
         status_zone "coffee-svc";
         # location for minion default/cafe-ingress-coffee-minion

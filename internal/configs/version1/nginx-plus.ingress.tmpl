@@ -69,7 +69,7 @@ server {
 	ssl_certificate {{ makeSecretPath $server.SSLCertificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	ssl_certificate_key {{ makeSecretPath $server.SSLCertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	{{- if $server.SSLCiphers}}
-	ssl_ciphers {{$server.SSLCiphers}};
+	ssl_ciphers {{ printf "%q" $server.SSLCiphers }};
 	{{- end}}
 	{{- if $server.SSLPreferServerCiphers}}
 	ssl_prefer_server_ciphers on;
@@ -105,7 +105,7 @@ server {
 
 	server_name {{$server.Name}};
 
-	status_zone {{$server.StatusZone}};
+	status_zone {{ printf "%q" $server.StatusZone }};
 	set $resource_type "ingress";
 	set $resource_name "{{$.Ingress.Name}}";
 	set $resource_namespace "{{$.Ingress.Namespace}}";
@@ -188,6 +188,13 @@ server {
 
 	{{with $jwt := $server.JWTAuth}}
 	auth_jwt_key_file {{$jwt.Key}};
+	{{- /* .Realm is already escaped for NGINX by validAnnotationValueRegex, which
+	       accepts '\"' but rejects an unescaped '"', so plain quoting is correct
+	       here and printf "%q" would escape the backslashes a second time.
+	       $jwt.Token must stay unquoted: NGINX only strips quotes from the start
+	       of a token, so token="$http_token" would leave the quotes in the
+	       compiled value and the JWT would never be found. See the escaping
+	       contract in internal/validation/nginx.go. */}}
 	auth_jwt "{{.Realm}}"{{if $jwt.Token}} token={{$jwt.Token}}{{end}};
 
 	{{- if $jwt.RedirectLocationName}}
@@ -215,7 +222,7 @@ server {
 		proxy_read_timeout {{$healthCheck.TimeoutSeconds}}s;
 		proxy_send_timeout {{$healthCheck.TimeoutSeconds}}s;
 		proxy_pass {{$healthCheck.Scheme}}://{{$healthCheck.UpstreamName}};
-		health_check {{if $healthCheck.Mandatory}}mandatory {{end}}uri={{$healthCheck.URI}} interval=
+		health_check {{if $healthCheck.Mandatory}}mandatory {{end}}{{ printf "%q" (printf "uri=%s" $healthCheck.URI) }} interval=
 			{{- $healthCheck.Interval}}s fails={{$healthCheck.Fails}} passes={{$healthCheck.Passes}};
 	}
 	{{end -}}
@@ -228,7 +235,7 @@ server {
 	{{end -}}
 
 	{{range $location := $server.Locations}}
-	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
+	location {{ makeLocationPath $location $.Ingress.Annotations }} {
 		set $service "{{$location.ServiceName}}";
 		status_zone "{{ $location.ServiceName }}";
 		{{- with $location.MinionIngress}}
@@ -279,6 +286,8 @@ server {
 
 		{{- with $jwt := $location.JWTAuth}}
 		auth_jwt_key_file {{$jwt.Key}};
+		{{- /* See the note on the server-level auth_jwt above: .Realm is
+		       pre-escaped and $jwt.Token must stay unquoted. */}}
 		auth_jwt "{{.Realm}}"{{if $jwt.Token}} token={{$jwt.Token}}{{end}};
 		{{- end}}
 
@@ -307,7 +316,7 @@ server {
 		grpc_ssl_server_name on;
 		grpc_ssl_verify on;
 		grpc_ssl_verify_depth 25;
-		grpc_ssl_name {{$location.ProxySSLName}};
+		grpc_ssl_name {{ printf "%q" $location.ProxySSLName }};
 		{{- end}}
 		{{- if $location.SSL}}
 		grpc_pass grpcs://{{$location.Upstream.Name}};
@@ -328,6 +337,8 @@ server {
 
 		{{- with $jwt := $location.JWTAuth }}
 		auth_jwt_key_file {{$jwt.Key}};
+		{{- /* See the note on the server-level auth_jwt above: .Realm is
+		       pre-escaped and $jwt.Token must stay unquoted. */}}
 		auth_jwt "{{.Realm}}"{{if $jwt.Token}} token={{$jwt.Token}}{{end}};
 		{{- if $jwt.RedirectLocationName}}
 		error_page 401 {{$jwt.RedirectLocationName}};
@@ -374,7 +385,7 @@ server {
 		proxy_ssl_server_name on;
 		proxy_ssl_verify on;
 		proxy_ssl_verify_depth 25;
-		proxy_ssl_name {{$location.ProxySSLName}};
+		proxy_ssl_name {{ printf "%q" $location.ProxySSLName }};
 		{{- end}}
 		{{- if $location.ProxyNextUpstream}}
 		proxy_next_upstream {{ $location.ProxyNextUpstream }};

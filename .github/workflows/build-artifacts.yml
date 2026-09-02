@@ -43,6 +43,11 @@ on:
       image-matrix-nap:
         required: true
         type: string
+      pkg-src-plus:
+        description: "Repository for NGINX Plus packages"
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
       write-to-cache:
         description: Whether to write built images to cache
         type: boolean
@@ -240,6 +245,7 @@ jobs:
       platforms: ${{ matrix.platforms }}
       image: ${{ matrix.image }}
       target: ${{ matrix.target }}
+      pkg-src-plus: ${{ inputs.pkg-src-plus }}
       go-md5: ${{ inputs.go-md5 }}
       base-image-md5: ${{ inputs.docker-md5 }}
       branch: ${{ inputs.branch }}

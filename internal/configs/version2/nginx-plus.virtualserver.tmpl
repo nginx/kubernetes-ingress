@@ -24,7 +24,7 @@ upstream {{ $u.Name }} {
 
     {{- with $u.SessionCookie }}
         {{- if .Enable }}
-    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} path={{ .Path }}{{ end }};
+    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} {{ printf "%q" (printf "path=%s" .Path) }}{{ end }};
         {{- end }}
     {{- end }}
 
@@ -126,10 +126,10 @@ server {
     {{- if $s.Gunzip }}
     gunzip on;
     {{- end }}
-    {{ makeHTTPListener $s | printf }}
+    {{ makeHTTPListener $s }}
 
     server_name {{ $s.ServerName }};
-    status_zone {{ $s.StatusZone }};
+    status_zone {{ printf "%q" $s.StatusZone }};
     set $resource_type "virtualserver";
     set $resource_name "{{$s.VSName}}";
     set $resource_namespace "{{$s.VSNamespace}}";
@@ -144,9 +144,21 @@ server {
 
     set $oidc_pkce_enable {{ boolToInteger $oidc.PKCEEnable }};
     set $oidc_client_auth_method "client_secret_post";
-    set $oidc_logout_redirect "{{ $oidc.PostLogoutRedirectURI }}";
+    set $oidc_logout_redirect {{ printf "%q" $oidc.PostLogoutRedirectURI }};
     set $oidc_hmac_key "{{ $s.VSName }}";
     set $zone_sync_leeway {{ $oidc.ZoneSyncLeeway }};
+    {{- /* The values below are already escaped for NGINX by the validators that
+           admitted them: validateURL and validateQueryString for the endpoints
+           and extra args, and isValidClientSecretValue for the client secret.
+           Each of those rejects an unescaped '"' and a trailing '\' but accepts
+           '\"', so plain quoting is correct and NGINX performs the unescaping.
+           Do not switch these to printf "%q": Go would escape the backslashes a
+           second time, and a client secret stored as pa\"ss would reach the IdP
+           as pa\"ss instead of pa"ss, failing every login with no error
+           anywhere. $oidc_logout_redirect above is different: validatePath
+           rejects both '"' and '\', so that value carries no NGINX escapes and
+           printf "%q" is correct for it. See the escaping contract documented in
+           internal/validation/nginx.go. */}}
 
     set $oidc_authz_endpoint "{{ $oidc.AuthEndpoint }}";
     set $oidc_authz_extra_args "{{ $oidc.AuthExtraArgs }}";
@@ -164,7 +176,7 @@ server {
     set_real_ip_from unix:;
     real_ip_header proxy_protocol;
         {{- else }}
-    {{ makeHTTPSListener $s | printf }}
+    {{ makeHTTPSListener $s }}
         {{- end }}
         {{- if $ssl.HTTP2 }}
     http2 on;
@@ -299,6 +311,13 @@ server {
     {{- end }}
 
     {{- with $s.JWTAuth }}
+    {{- /* .Realm is already escaped for NGINX by realmFmt, which accepts '\"'
+           but rejects an unescaped '"', so plain quoting is correct here and
+           printf "%q" would escape the backslashes a second time. .Token must
+           stay unquoted: NGINX only strips quotes from the start of a token, so
+           token="$http_token" would leave the quotes in the compiled value and
+           the JWT would never be found. See the escaping contract in
+           internal/validation/nginx.go. */}}
     auth_jwt "{{ .Realm }}"{{ if .Token }} token={{ .Token }}{{ end }};
     {{ if .Secret}}auth_jwt_key_file {{ .Secret }};{{ end }}
     {{- if .JwksURI.JwksHost }}
@@ -316,7 +335,7 @@ server {
         {{- if .JwksSNIEnabled }}
         proxy_ssl_server_name on;
         {{- if .JwksSNIName }}
-        proxy_ssl_name {{ .JwksSNIName }};
+        proxy_ssl_name {{ printf "%q" .JwksSNIName }};
         {{- end }}
         {{- end }}
         {{- if .SSLVerify }}
@@ -363,14 +382,14 @@ server {
     proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
     proxy_ssl_verify_depth {{ .VerifyDepth }};
     proxy_ssl_protocols {{ .Protocols }};
-    proxy_ssl_ciphers {{ .Ciphers }};
+    proxy_ssl_ciphers {{ printf "%q" .Ciphers }};
     proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
     proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-    proxy_ssl_name {{ .SSLName }};
+    proxy_ssl_name {{ printf "%q" .SSLName }};
     {{- end }}
 
     {{- with $s.APIKey}}
-    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
     js_var $apikey_auth_local_map "{{ .MapName}}";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
@@ -435,7 +454,7 @@ server {
     {{- end }}
 
     {{- range $l := $s.InternalRedirectLocations }}
-    location {{ $l.Path }} {
+    location {{ makeLocationPath $l.Path }} {
         rewrite ^ {{ $l.Destination }} last;
     }
     {{- end }}
@@ -454,7 +473,7 @@ server {
             {{- else }}
         proxy_pass {{ $hc.ProxyPass }};
             {{- end }}
-        health_check{{- if $hc.URI }} uri={{ $hc.URI }} {{ end -}}
+        health_check{{- if $hc.URI }} {{ printf "%q" (printf "uri=%s" $hc.URI) }} {{ end -}}
         {{- if $hc.Port }} port={{ $hc.Port }} {{ end -}}
         interval={{ $hc.Interval }} jitter={{ $hc.Jitter }} fails={{ $hc.Fails }} passes={{ $hc.Passes }}
         {{- if $hc.Match }} match={{ $hc.Match }}{{- end -}}
@@ -462,7 +481,7 @@ server {
         {{- if $hc.Persistent }} persistent {{ end -}}
         {{- if not $hc.IsGRPC }} keepalive_time={{ $hc.KeepaliveTime }}{{ end -}}
         {{- if $hc.GRPCPass }} type=grpc{{- if $hc.GRPCStatus }} grpc_status={{ $hc.GRPCStatus }}{{- end -}}
-        {{- if $hc.GRPCService }} grpc_service={{ $hc.GRPCService }}{{- end -}}{{ end -}};
+        {{- if $hc.GRPCService }} {{ printf "%q" (printf "grpc_service=%s" $hc.GRPCService) }}{{- end -}}{{ end -}};
 
     }
     {{- end }}
@@ -492,7 +511,7 @@ server {
     {{ end }}
 
     {{ range $l := $s.Locations }}
-    location {{ $l.Path }} {
+    location {{ makeLocationPath $l.Path }} {
         set $service "{{ $l.ServiceName }}";
         status_zone "{{ $l.ServiceName }}";
         {{- if $l.IsVSR }}
@@ -543,6 +562,8 @@ server {
         {{- end }}
 
         {{- with $l.JWTAuth }}
+        {{- /* See the note on the server-level auth_jwt above: .Realm is
+               pre-escaped and .Token must stay unquoted. */}}
         auth_jwt "{{ .Realm }}"{{ if .Token }} token={{ .Token }}{{ end }};
         {{ if .Secret}}auth_jwt_key_file {{ .Secret }};{{ end }}
         {{- if .JwksURI.JwksHost }}
@@ -569,10 +590,10 @@ server {
         {{ $proxyOrGRPC }}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_verify_depth {{ .VerifyDepth }};
         {{ $proxyOrGRPC }}_ssl_protocols {{ .Protocols }};
-        {{ $proxyOrGRPC }}_ssl_ciphers {{ .Ciphers }};
+        {{ $proxyOrGRPC }}_ssl_ciphers {{ printf "%q" .Ciphers }};
         {{ $proxyOrGRPC }}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-        {{ $proxyOrGRPC }}_ssl_name {{ .SSLName }};
+        {{ $proxyOrGRPC }}_ssl_name {{ printf "%q" .SSLName }};
         {{- end }}
 
         {{- if $l.OIDC }}
@@ -588,13 +609,13 @@ server {
 
         {{- with $l.APIKey}}
         set $apikey_auth_local_map  "{{ .MapName }}";
-        set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
+        set $header_query_value {{ makeHeaderQueryValue $l.APIKey }};
         set $apikey_auth_token $apikey_auth_hash;
         auth_request /_validate_apikey_njs;
         set $apikey_client_name ${{ .MapName }};
         {{- else }}
         {{- with $s.APIKey }}
-        set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+        set $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
         {{- end }}
 
         {{- end }}
@@ -783,7 +804,7 @@ server {
         {{ $proxyOrGRPC }}_ssl_server_name on;
         {{ $proxyOrGRPC }}_ssl_verify on;
         {{ $proxyOrGRPC }}_ssl_verify_depth 25;
-        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
+        {{ $proxyOrGRPC }}_ssl_name {{ printf "%q" $l.ProxySSLName }};
             {{- end }}
 
         {{- with $l.Cache }}

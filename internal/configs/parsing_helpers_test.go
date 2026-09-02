@@ -437,6 +437,13 @@ func TestParseLBMethod(t *testing.T) {
 		"least_time header",
 		"hash123",
 		"hash $request_id conwrongspelling",
+		"hash $request_uri;\nkeepalive\t999",
+		"hash $request_uri # comment",
+		// A quote after a braced variable is not at a token boundary, so NGINX
+		// keeps reading one unquoted token and the semicolon terminates the
+		// hash directive, injecting the rest into the upstream block.
+		`hash ${a}";ip_hash;#" consistent`,
+		`hash ${a}";x" consistent`,
 		"random one",
 		"random two least_time=header",
 		"random two least_time=last_byte",
@@ -487,6 +494,10 @@ func TestParseLBMethodForPlus(t *testing.T) {
 		"",
 		"blabla",
 		"hash123",
+		"hash $request_uri;\nkeepalive\t999",
+		"hash $request_uri # comment",
+		`hash ${a}";ip_hash;#" consistent`,
+		`hash ${a}";x" consistent`,
 		"least_time",
 		"last_byte",
 		"least_time inflight header",

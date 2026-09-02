@@ -40,7 +40,7 @@ def assert_responses_and_server_name(resp_1, resp_2, resp_3):
 
 def assert_locations_in_config(config, paths):
     for path in paths:
-        assert f"location {path}" in config
+        assert f'location "{path}"' in config
 
 
 def assert_locations_not_in_config(config, paths):

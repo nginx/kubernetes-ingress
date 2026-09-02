@@ -170,6 +170,8 @@ func validateOffset(offset string, fieldPath *field.Path) field.ErrorList {
 // http://nginx.org/en/docs/syntax.html
 const sizeErrMsg = "must consist of numeric characters followed by a valid size suffix. 'k|K|m|M"
 
+var sizeValidationRegexp = regexp.MustCompile(`^[ \t]*\d+[kKmM]?[ \t]*$`)
+
 // ValidateSize is a wrapper for validateSize to be used in other packages
 func ValidateSize(size string, fieldPath *field.Path) field.ErrorList {
 	return validateSize(size, fieldPath)
@@ -178,6 +180,10 @@ func ValidateSize(size string, fieldPath *field.Path) field.ErrorList {
 func validateSize(size string, fieldPath *field.Path) field.ErrorList {
 	if size == "" {
 		return nil
+	}
+	if !sizeValidationRegexp.MatchString(size) {
+		msg := validation.RegexError(sizeErrMsg, configs.SizeFmt, "16", "32k", "64M")
+		return field.ErrorList{field.Invalid(fieldPath, size, msg)}
 	}
 
 	if _, err := configs.ParseSize(size); err != nil {

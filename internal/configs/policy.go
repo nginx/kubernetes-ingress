@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"path"
 	"regexp"
 	"strings"
 
@@ -373,7 +374,7 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	if ingressMTLS.CrlFileName != "" {
 		p.IngressMTLS = &version2.IngressMTLS{
 			ClientCert:   caFields[0],
-			ClientCrl:    fmt.Sprintf("%s/%s", DefaultSecretPath, ingressMTLS.CrlFileName),
+			ClientCrl:    path.Join(DefaultSecretPath, path.Base(ingressMTLS.CrlFileName)),
 			VerifyClient: verifyClient,
 			VerifyDepth:  verifyDepth,
 		}

@@ -7,9 +7,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/dlclark/regexp2/v2"
 	"github.com/nginx/kubernetes-ingress/internal/configs"
+	nginxvalidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	ap_validation "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -75,12 +77,18 @@ const (
 	useClusterIPAnnotation                = "nginx.org/use-cluster-ip"
 	httpRedirectCodeAnnotation            = "nginx.org/http-redirect-code"
 	appRootAnnotation                     = "nginx.org/app-root"
+	sslCiphersAnnotation                  = configs.SSLCiphersAnnotation
 )
 
 const (
 	commaDelimiter     = ","
 	annotationValueFmt = `([^"$\\]|\\[^$])*`
-	jwtTokenValueFmt   = "\\$" + annotationValueFmt
+	// jwtTokenValueFmt accepts exactly one NGINX variable, in either the plain
+	// ($name) or braced (${name}) form. NGINX compiles the auth_jwt token=
+	// argument as a complex value, which supports both. Braces must wrap a
+	// complete variable name, so no directive delimiter, quote, whitespace or
+	// second token can appear.
+	jwtTokenValueFmt = `\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})` //nolint:gosec // G101: Potential hardcoded credentials - false positive, this is a regex matching an NGINX variable name
 	// limitReqKeyFmt matches the key argument of limit_req_zone.
 	// Allowed: ${varname} variable references, text, or a combination of both.
 	// Disallowed: ; \ " whitespace (always); { } $ outside of a ${varname} reference.
@@ -89,7 +97,7 @@ const (
 
 const (
 	annotationValueFmtErrMsg = `a valid annotation value must have all '"' escaped and must not contain any '$' or end with an unescaped '\'`
-	jwtTokenValueFmtErrMsg   = `a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\'`
+	jwtTokenValueFmtErrMsg   = `must be exactly one NGINX variable in the form '$name' or '${name}'`
 )
 
 var (
@@ -397,6 +405,10 @@ var (
 			validateCommaSeparatedList,
 			validatePolicyNames,
 		},
+		sslCiphersAnnotation: {
+			validateRequiredAnnotation,
+			validateSSLCiphersAnnotation,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
@@ -557,8 +569,7 @@ func validateJWTRealm(context *annotationValidationContext) field.ErrorList {
 
 func validateJWTTokenAnnotation(context *annotationValidationContext) field.ErrorList {
 	if !validJWTTokenAnnotationValueRegex.MatchString(context.value) {
-		msg := validation.RegexError(jwtTokenValueFmtErrMsg, jwtTokenValueFmt, "$http_token", "$cookie_auth_token")
-		return field.ErrorList{field.Invalid(context.fieldPath, context.value, msg)}
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, jwtTokenValueFmtErrMsg)}
 	}
 	return nil
 }
@@ -573,11 +584,9 @@ func validateLimitReqKeyAnnotation(context *annotationValidationContext) field.E
 
 func validateHTTPHeadersAnnotation(context *annotationValidationContext) field.ErrorList {
 	var allErrs field.ErrorList
-	headers := strings.Split(context.value, commaDelimiter)
 
-	for _, header := range headers {
-		header = strings.TrimSpace(header)
-		for _, msg := range validation.IsHTTPHeaderName(header) {
+	for _, header := range nginxvalidation.SplitHeaderNameList(context.value) {
+		for _, msg := range nginxvalidation.ValidateHeaderName(header) {
 			allErrs = append(allErrs, field.Invalid(context.fieldPath, header, msg))
 		}
 	}
@@ -810,8 +819,17 @@ func validateLBMethodAnnotation(context *annotationValidationContext) field.Erro
 	if context.isPlus {
 		parseFunc = configs.ParseLBMethodForPlus
 	}
-	if _, err := parseFunc(context.value); err != nil {
+	method, err := parseFunc(context.value)
+	if err != nil {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
+	}
+	if strings.HasPrefix(method, "hash ") {
+		if err := nginxvalidation.ValidateDirectiveValue(context.value); err != nil {
+			return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
+		}
+		if strings.Contains(context.value, "\t") {
+			return field.ErrorList{field.Invalid(context.fieldPath, context.value, "hash load balancing method must not contain tabs")}
+		}
 	}
 	return nil
 }
@@ -942,8 +960,17 @@ func validateServiceListAnnotation(context *annotationValidationContext) field.E
 }
 
 func validateStickyServiceListAnnotation(context *annotationValidationContext) field.ErrorList {
-	if _, err := configs.ParseStickyServiceList(context.value); err != nil {
+	services, err := configs.ParseStickyServiceList(context.value)
+	if err != nil {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
+	}
+	for _, parameters := range services {
+		if err := nginxvalidation.ValidateDirectiveValue(parameters); err != nil {
+			return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
+		}
+		if strings.Contains(parameters, "#") {
+			return field.ErrorList{field.Invalid(context.fieldPath, context.value, "sticky-cookie parameters must not contain comments")}
+		}
 	}
 	return nil
 }
@@ -954,9 +981,12 @@ func validateRewriteListAnnotation(context *annotationValidationContext) field.E
 	if err != nil {
 		return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
 	}
-	for rewrite := range rewrites {
-		if _, exists := context.specServices[rewrite]; !exists {
-			unknownServices = append(unknownServices, rewrite)
+	for service, rewrite := range rewrites {
+		if err := nginxvalidation.ValidateDirectiveToken(rewrite); err != nil {
+			return field.ErrorList{field.Invalid(context.fieldPath, context.value, err.Error())}
+		}
+		if _, exists := context.specServices[service]; !exists {
+			unknownServices = append(unknownServices, service)
 		}
 	}
 	if len(unknownServices) > 0 {
@@ -1002,6 +1032,9 @@ func validateRewriteTargetAnnotation(context *annotationValidationContext) field
 		if char <= 32 || char == 127 { // ASCII control characters; 127 is DEL, 32 is space
 			return field.ErrorList{field.Invalid(context.fieldPath, target, "control characters not allowed in rewrite target")}
 		}
+	}
+	if err := nginxvalidation.ValidateDirectiveToken(target); err != nil {
+		return field.ErrorList{field.Invalid(context.fieldPath, target, err.Error())}
 	}
 
 	return nil
@@ -1158,6 +1191,11 @@ func validatePath(path string, pathType *networking.PathType, fieldPath *field.P
 		msg := validation.RegexError(pathErrMsg, pathFmt, "/", "/path", "/path/subpath-123")
 		return field.ErrorList{field.Invalid(fieldPath, path, msg)}
 	}
+	for _, char := range path {
+		if !unicode.IsPrint(char) {
+			return field.ErrorList{field.Invalid(fieldPath, path, "must not include non-printable characters")}
+		}
+	}
 
 	allErrs := validateRegexPath(path, fieldPath)
 	allErrs = append(allErrs, validateCurlyBraces(path, fieldPath)...)
@@ -1288,4 +1326,12 @@ func getSpecServices(ingressSpec networking.IngressSpec) map[string]bool {
 		}
 	}
 	return services
+}
+
+func validateSSLCiphersAnnotation(context *annotationValidationContext) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if !nginxvalidation.SSLCiphersRegex.MatchString(context.value) {
+		allErrs = append(allErrs, field.Invalid(context.fieldPath, context.value, "must be a valid SSL ciphers string containing only letters, numbers, and safe punctuation (:!-@+.)"))
+	}
+	return allErrs
 }

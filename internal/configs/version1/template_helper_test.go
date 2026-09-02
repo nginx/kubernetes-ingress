@@ -51,7 +51,7 @@ func TestMakeLocationPath_WithRegexExactModifier(t *testing.T) {
 func TestMakeLocationPath_WithBogusRegexModifier(t *testing.T) {
 	t.Parallel()
 
-	want := "/coffee"
+	want := `"/coffee"`
 	got := makeLocationPath(
 		&Location{Path: "/coffee"},
 		map[string]string{"nginx.org/path-regex": "bogus"},
@@ -64,7 +64,7 @@ func TestMakeLocationPath_WithBogusRegexModifier(t *testing.T) {
 func TestMakeLocationPath_WithEmptyRegexModifier(t *testing.T) {
 	t.Parallel()
 
-	want := "/coffee"
+	want := `"/coffee"`
 	got := makeLocationPath(
 		&Location{Path: "/coffee"},
 		map[string]string{"nginx.org/path-regex": ""},
@@ -77,7 +77,7 @@ func TestMakeLocationPath_WithEmptyRegexModifier(t *testing.T) {
 func TestMakeLocationPath_WithBogusAnnotationName(t *testing.T) {
 	t.Parallel()
 
-	want := "/coffee"
+	want := `"/coffee"`
 	got := makeLocationPath(
 		&Location{Path: "/coffee"},
 		map[string]string{"nginx.org/bogus-annotation": ""},
@@ -90,7 +90,7 @@ func TestMakeLocationPath_WithBogusAnnotationName(t *testing.T) {
 func TestMakeLocationPath_ForIngressWithoutPathRegex(t *testing.T) {
 	t.Parallel()
 
-	want := "/coffee"
+	want := `"/coffee"`
 	got := makeLocationPath(
 		&Location{Path: "/coffee"},
 		map[string]string{},
@@ -194,7 +194,7 @@ func TestMakeLocationPath_SetOnMinionTakesPrecedenceOverMaster(t *testing.T) {
 func TestMakeLocationPath_PathRegexSetOnMasterDoesNotModifyMinionWithoutPathRegexAnnotation(t *testing.T) {
 	t.Parallel()
 
-	want := "/coffee"
+	want := `"/coffee"`
 	got := makeLocationPath(
 		&Location{
 			Path: "/coffee",
@@ -930,7 +930,7 @@ func TestMakeResolver(t *testing.T) {
 func TestMakeRewritePattern_WithRegexCaseSensitiveModifier(t *testing.T) {
 	t.Parallel()
 
-	want := "^/(hello|hi)"
+	want := `"^/(hello|hi)"`
 	got := makeRewritePattern(
 		&Location{Path: "/(hello|hi)"},
 		map[string]string{"nginx.org/path-regex": "case_sensitive"},
@@ -943,7 +943,7 @@ func TestMakeRewritePattern_WithRegexCaseSensitiveModifier(t *testing.T) {
 func TestMakeRewritePattern_WithRegexCaseInsensitiveModifier(t *testing.T) {
 	t.Parallel()
 
-	want := "(?i)^/(hello|hi)"
+	want := `"(?i)^/(hello|hi)"`
 	got := makeRewritePattern(
 		&Location{Path: "/(hello|hi)"},
 		map[string]string{"nginx.org/path-regex": "case_insensitive"},
@@ -956,7 +956,7 @@ func TestMakeRewritePattern_WithRegexCaseInsensitiveModifier(t *testing.T) {
 func TestMakeRewritePattern_WithRegexExactModifier(t *testing.T) {
 	t.Parallel()
 
-	want := "/coffee"
+	want := `"/coffee"`
 	got := makeRewritePattern(
 		&Location{Path: "/coffee"},
 		map[string]string{"nginx.org/path-regex": "exact"},
@@ -969,7 +969,7 @@ func TestMakeRewritePattern_WithRegexExactModifier(t *testing.T) {
 func TestMakeRewritePattern_WithBogusRegexModifier(t *testing.T) {
 	t.Parallel()
 
-	want := "/(hello|hi)"
+	want := `"/(hello|hi)"`
 	got := makeRewritePattern(
 		&Location{Path: "/(hello|hi)"},
 		map[string]string{"nginx.org/path-regex": "bogus"},
@@ -982,7 +982,7 @@ func TestMakeRewritePattern_WithBogusRegexModifier(t *testing.T) {
 func TestMakeRewritePattern_WithoutRegexModifier(t *testing.T) {
 	t.Parallel()
 
-	want := "/coffee"
+	want := `"/coffee"`
 	got := makeRewritePattern(
 		&Location{Path: "/coffee"},
 		map[string]string{},
@@ -996,7 +996,7 @@ func TestMakeRewritePattern_WithMergableIngress(t *testing.T) {
 	t.Parallel()
 
 	// Test with minion ingress having path-regex annotation
-	want := "^/coffee/[A-Z0-9]{3}"
+	want := `"^/coffee/[A-Z0-9]{3}"`
 	got := makeRewritePattern(
 		&Location{
 			Path: "/coffee/[A-Z0-9]{3}",
@@ -1027,31 +1027,31 @@ func TestMakeRewritePattern_WithComplexPatterns(t *testing.T) {
 			name:      "Simple path with case sensitive regex",
 			path:      "/api/(v1|v2)",
 			pathRegex: "case_sensitive",
-			expected:  "^/api/(v1|v2)",
+			expected:  `"^/api/(v1|v2)"`,
 		},
 		{
 			name:      "Complex regex pattern with case insensitive",
 			path:      "/user/([0-9]+)/(profile|settings)",
 			pathRegex: "case_insensitive",
-			expected:  "(?i)^/user/([0-9]+)/(profile|settings)",
+			expected:  `"(?i)^/user/([0-9]+)/(profile|settings)"`,
 		},
 		{
 			name:      "Exact match pattern",
 			path:      "/health",
 			pathRegex: "exact",
-			expected:  "/health",
+			expected:  `"/health"`,
 		},
 		{
 			name:      "Pattern with special characters",
 			path:      "/api/v1/([a-zA-Z0-9_-]+)/data",
 			pathRegex: "case_sensitive",
-			expected:  "^/api/v1/([a-zA-Z0-9_-]+)/data",
+			expected:  `"^/api/v1/([a-zA-Z0-9_-]+)/data"`,
 		},
 		{
 			name:      "Path with no regex annotation",
 			path:      "/static/assets",
 			pathRegex: "",
-			expected:  "/static/assets",
+			expected:  `"/static/assets"`,
 		},
 	}
 
@@ -1071,6 +1071,170 @@ func TestMakeRewritePattern_WithComplexPatterns(t *testing.T) {
 			)
 			if got != tt.expected {
 				t.Errorf("Test %q: makeRewritePattern() = %q; want %q", tt.name, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestMakeLocationPath_WithPercentEncodedPath covers paths carrying
+// percent-encoded characters. The templates used to pipe this helper's result
+// through `printf`, which calls fmt.Sprintf with the path as the format string,
+// so every '%' was read as the start of a verb: "/tea%20cup%2Fsaucer" rendered
+// as "/tea%!c(MISSING)up%!F(MISSING)saucer". Ingress paths permit '%' and
+// percent-encoding is ordinary in a URI, so the pipeline is gone and the path
+// must now reach the config verbatim.
+func TestMakeLocationPath_WithPercentEncodedPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		path        string
+		annotations map[string]string
+		want        string
+	}{
+		{
+			name: "two percent-encoded characters",
+			path: "/tea%20cup%2Fsaucer",
+			want: `"/tea%20cup%2Fsaucer"`,
+		},
+		{
+			name: "trailing percent",
+			path: "/discount%",
+			want: `"/discount%"`,
+		},
+		{
+			name:        "two percent-encoded characters with case sensitive regex",
+			path:        "/tea%20cup%2Fsaucer",
+			annotations: map[string]string{"nginx.org/path-regex": "case_sensitive"},
+			want:        `~ "^/tea%20cup%2Fsaucer"`,
+		},
+		{
+			name:        "two percent-encoded characters with exact regex",
+			path:        "/tea%20cup%2Fsaucer",
+			annotations: map[string]string{"nginx.org/path-regex": "exact"},
+			want:        `= "/tea%20cup%2Fsaucer"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := makeLocationPath(&Location{Path: test.path}, test.annotations)
+			if got != test.want {
+				t.Errorf("makeLocationPath() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+// TestMakeRewritePattern_WithPercentEncodedPath covers the same hazard for the
+// rewrite pattern helper.
+func TestMakeRewritePattern_WithPercentEncodedPath(t *testing.T) {
+	t.Parallel()
+
+	got := makeRewritePattern(
+		&Location{Path: "/tea%20cup%2Fsaucer"},
+		map[string]string{"nginx.org/path-regex": "case_sensitive"},
+	)
+	want := `"^/tea%20cup%2Fsaucer"`
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q, want %q", got, want)
+	}
+}
+
+// TestMakeLocationPath_EscapesQuotesAndBackslashes covers paths that NGINX would
+// otherwise let break out of the quoted argument. Ingress path validation
+// permits '"' and '\' (pathFmt is /[^\s;]*), and NGINX resolves a backslash
+// escape inside a quoted argument just as it does outside one, so a path ending
+// in a backslash used to escape the generated closing quote and leave the
+// configuration invalid.
+func TestMakeLocationPath_EscapesQuotesAndBackslashes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		path        string
+		annotations map[string]string
+		want        string
+	}{
+		{
+			// Was `"/foo\"`, where the backslash escaped the closing quote.
+			name: "trailing backslash",
+			path: `/foo\`,
+			want: `"/foo\\"`,
+		},
+		{
+			name: "embedded backslash",
+			path: `/foo\bar`,
+			want: `"/foo\\bar"`,
+		},
+		{
+			// Was `"/foo"bar"`, which NGINX rejects with unexpected "b".
+			name: "embedded quote",
+			path: `/foo"bar`,
+			want: `"/foo\"bar"`,
+		},
+		{
+			name:        "trailing backslash with case sensitive regex",
+			path:        `/foo\`,
+			annotations: map[string]string{"nginx.org/path-regex": "case_sensitive"},
+			want:        `~ "^/foo\\"`,
+		},
+		{
+			name:        "embedded quote with case insensitive regex",
+			path:        `/foo"bar`,
+			annotations: map[string]string{"nginx.org/path-regex": "case_insensitive"},
+			want:        `~* "^/foo\"bar"`,
+		},
+		{
+			name:        "trailing backslash with exact regex",
+			path:        `/foo\`,
+			annotations: map[string]string{"nginx.org/path-regex": "exact"},
+			want:        `= "/foo\\"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := makeLocationPath(&Location{Path: test.path}, test.annotations)
+			if got != test.want {
+				t.Errorf("makeLocationPath() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+// TestMakeRewritePattern_EscapesQuotesAndBackslashes covers the same hazard in
+// the rewrite pattern helper, which shares the quoting function.
+func TestMakeRewritePattern_EscapesQuotesAndBackslashes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		path        string
+		annotations map[string]string
+		want        string
+	}{
+		{
+			name: "trailing backslash without regex",
+			path: `/foo\`,
+			want: `"/foo\\"`,
+		},
+		{
+			name:        "embedded quote with case sensitive regex",
+			path:        `/foo"bar`,
+			annotations: map[string]string{"nginx.org/path-regex": "case_sensitive"},
+			want:        `"^/foo\"bar"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := makeRewritePattern(&Location{Path: test.path}, test.annotations)
+			if got != test.want {
+				t.Errorf("makeRewritePattern() = %q, want %q", got, test.want)
 			}
 		})
 	}

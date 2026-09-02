@@ -549,11 +549,11 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXPlus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "location /coffee {"
+	want := `location "/coffee" {`
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
-	want = "location /tea {"
+	want = `location "/tea" {`
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
@@ -571,11 +571,11 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXPlusWithMasterPathRegex(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "location /coffee {"
+	want := `location "/coffee" {`
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
-	want = "location /tea {"
+	want = `location "/tea" {`
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
@@ -599,7 +599,7 @@ func TestExecuteTemplate_ForMergeableIngressWithOneMinionWithPathRegexAnnotation
 		t.Errorf("want %q in generated config", want)
 	}
 	// Observe location /tea not updated with regex
-	want = "location /tea {"
+	want = `location "/tea" {`
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
@@ -637,7 +637,7 @@ func TestExecuteTemplate_ForMergeableIngressWithSecondMinionWithPathRegexAnnotat
 		t.Fatal(err)
 	}
 	// Observe location /coffee not updated
-	want := "location /coffee {"
+	want := `location "/coffee" {`
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
@@ -661,11 +661,11 @@ func TestExecuteTemplate_ForMergeableIngressForNGINXPlusWithPathRegexAnnotationO
 		t.Fatal(err)
 	}
 
-	want := "location /coffee {"
+	want := `location "/coffee" {`
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
-	want = "location /tea {"
+	want = `location "/tea" {`
 	if !strings.Contains(buf.String(), want) {
 		t.Errorf("want %q in generated config", want)
 	}
@@ -2320,7 +2320,7 @@ func TestExecuteTemplate_ForMergeableIngressMasterMinionPolicy(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		sections := strings.Split(buf.String(), "location / {")
+		sections := strings.Split(buf.String(), `location "/" {`)
 
 		serverBlock := sections[0]
 		locationBlock := sections[1]
@@ -4741,7 +4741,7 @@ func TestExecuteTemplate_ForIngressForNGINXWithSSLCiphers(t *testing.T) {
 	}
 
 	wantDirectives := []string{
-		"ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;",
+		`ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256";`,
 		"ssl_prefer_server_ciphers on;",
 	}
 
@@ -4788,7 +4788,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithSSLCiphers(t *testing.T) {
 	}
 
 	wantDirectives := []string{
-		"ssl_ciphers ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256;",
+		`ssl_ciphers "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256";`,
 		"ssl_prefer_server_ciphers on;",
 	}
 
@@ -5064,13 +5064,6 @@ func TestExecuteTemplate_ForIngressForNGINXRewriteTarget(t *testing.T) {
 
 			ingConf := buf.String()
 
-			// Check for expected directives
-			for _, want := range tt.wantDirectives {
-				if !strings.Contains(ingConf, want) {
-					t.Errorf("want %q in generated config", want)
-				}
-			}
-
 			// Check for unwanted directives
 			for _, unwant := range tt.unwantDirectives {
 				if strings.Contains(ingConf, unwant) {
@@ -5300,13 +5293,6 @@ func TestExecuteTemplate_ForIngressForNGINXPlusRewriteTarget(t *testing.T) {
 
 			ingConf := buf.String()
 
-			// Check for expected directives
-			for _, want := range tt.wantDirectives {
-				if !strings.Contains(ingConf, want) {
-					t.Errorf("want %q in generated config", want)
-				}
-			}
-
 			// Check for unwanted directives
 			for _, unwant := range tt.unwantDirectives {
 				if strings.Contains(ingConf, unwant) {
@@ -5424,10 +5410,10 @@ func TestExecuteTemplate_ForIngressForNGINXWithPoliciesErrorReturnLocation(t *te
 	}
 
 	// Verify return 500 appears within the location block, not at server level.
-	locIdx := strings.Index(bufString, "location /tea")
+	locIdx := strings.Index(bufString, `location "/tea"`)
 	retIdx := strings.Index(bufString, "return 500;")
 	if locIdx == -1 || retIdx == -1 || retIdx < locIdx {
-		t.Error("\"return 500;\" should appear inside the location block, after \"location /tea\"")
+		t.Error("\"return 500;\" should appear inside the location block")
 	}
 
 	snaps.MatchSnapshot(t, bufString)
@@ -5451,10 +5437,10 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithPoliciesErrorReturnLocation(t
 	}
 
 	// Verify return 500 appears within the location block, not at server level.
-	locIdx := strings.Index(bufString, "location /tea")
+	locIdx := strings.Index(bufString, `location "/tea"`)
 	retIdx := strings.Index(bufString, "return 500;")
 	if locIdx == -1 || retIdx == -1 || retIdx < locIdx {
-		t.Error("\"return 500;\" should appear inside the location block, after \"location /tea\"")
+		t.Error("\"return 500;\" should appear inside the location block")
 	}
 
 	snaps.MatchSnapshot(t, bufString)

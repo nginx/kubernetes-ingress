@@ -93,6 +93,64 @@ func TestTemplateExecutorUsesOriginalTStemplate(t *testing.T) {
 	t.Logf("\n%s\n", string(tsConfig))
 }
 
+func TestExecuteOIDCTemplateQuotesRedirectPath(t *testing.T) {
+	t.Parallel()
+
+	executor := newTestTemplateExecutor(t)
+	got, err := executor.ExecuteOIDCTemplate(&OIDC{RedirectURI: "/callback\"; return 200; #"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := string(got)
+	for _, want := range []string{
+		`set $redir_location "/callback\"; return 200; #";`,
+		`location = "/callback\"; return 200; #" {`,
+	} {
+		if !strings.Contains(config, want) {
+			t.Errorf("OIDC redirect path was not emitted as one quoted argument; want %q in:\n%s", want, config)
+		}
+	}
+}
+
+// TestExecuteVirtualServerTemplateRendersPreEscapedValuesVerbatim guards the
+// pre-escaped half of the escaping contract documented in
+// internal/validation/nginx.go.
+//
+// The OIDC client secret and the JWT realm are admitted by validators of the
+// form ([^"$\\]|\\[^$])* , which reject an unescaped '"' but accept '\"'. Such a
+// value is already escaped for NGINX, so the templates quote it plainly and let
+// NGINX unescape it. Rendering it with printf "%q" instead would escape the
+// backslashes a second time and change the value NGINX receives: the secret
+// below would reach the identity provider as pa\"ss rather than pa"ss, failing
+// every login while nginx -t still passes. This test fails if either directive
+// is switched to printf "%q".
+func TestExecuteVirtualServerTemplateRendersPreEscapedValuesVerbatim(t *testing.T) {
+	t.Parallel()
+
+	executor := newTestTemplateExecutor(t)
+	cfg := VirtualServerConfig{Server: Server{
+		ServerName: "example.com",
+		VSName:     "default/example",
+		OIDC:       &OIDC{ClientSecret: `pa\"ss`, ClientID: "client", RedirectURI: "/_codexch"},
+		JWTAuth:    &JWTAuth{Realm: `My \"API\"`, Key: "/etc/nginx/secrets/default-jwk", Token: "$http_token"},
+	}}
+
+	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := string(got)
+	for _, want := range []string{
+		`set $oidc_client_secret "pa\"ss";`,
+		`auth_jwt "My \"API\"" token=$http_token;`,
+	} {
+		if !strings.Contains(config, want) {
+			t.Errorf("pre-escaped value was not rendered verbatim; want %q in:\n%s", want, config)
+		}
+	}
+}
+
 func newTestTemplateExecutor(t *testing.T) *TemplateExecutor {
 	t.Helper()
 	te, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl", "oidc.tmpl")

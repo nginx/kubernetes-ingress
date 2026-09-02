@@ -336,6 +336,10 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatalf(l, "Invalid value for health-status-uri: %v", healthStatusURIValidationError)
 	}
 
+	if err := validateAppProtectEnforcerAddress(*appProtectEnforcerAddress); err != nil {
+		nl.Fatalf(l, "Invalid value for app-protect-enforcer-address: %v", err)
+	}
+
 	statusLockNameValidationError := validateResourceName(*leaderElectionLockName)
 	if statusLockNameValidationError != nil {
 		nl.Fatalf(l, "Invalid value for leader-election-lock-name: %v", statusLockNameValidationError)
@@ -510,6 +514,10 @@ func validateCIDRorIP(cidr string) error {
 		return fmt.Errorf("invalid IP address: %v", cidr)
 	}
 	return nil
+}
+
+func validateAppProtectEnforcerAddress(address string) error {
+	return internalValidation.ValidateDirectiveToken(address)
 }
 
 const (

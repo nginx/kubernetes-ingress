@@ -2468,7 +2468,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				fmt.Sprintf(`annotations.%s: Invalid value: "cookie_auth_token": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
+				fmt.Sprintf(`annotations.%s: Invalid value: "cookie_auth_token": must be exactly one NGINX variable in the form '$name' or '${name}'`, configs.JWTTokenAnnotation),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, '$' missing", configs.JWTTokenAnnotation),
 		},
@@ -2482,7 +2482,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\"": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
+				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\"": must be exactly one NGINX variable in the form '$name' or '${name}'`, configs.JWTTokenAnnotation),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, containing unescaped '\"'", configs.JWTTokenAnnotation),
 		},
@@ -2496,7 +2496,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\\": a valid annotation value must start with '$', have all '"' escaped, and must not contain any '$' or end with an unescaped '\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\$([^"$\\]|\\[^$])*')`, configs.JWTTokenAnnotation),
+				fmt.Sprintf(`annotations.%s: Invalid value: "$cookie_auth_token\\": must be exactly one NGINX variable in the form '$name' or '${name}'`, configs.JWTTokenAnnotation),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, containing escape characters", configs.JWTTokenAnnotation),
 		},
@@ -2510,7 +2510,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				fmt.Sprintf("annotations.%s: Invalid value: \"%s\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')", configs.JWTTokenAnnotation, "cookie_auth$token"),
+				fmt.Sprintf("annotations.%s: Invalid value: \"%s\": must be exactly one NGINX variable in the form '$name' or '${name}'", configs.JWTTokenAnnotation, "cookie_auth$token"),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, containing incorrect variable", configs.JWTTokenAnnotation),
 		},
@@ -2524,7 +2524,7 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 			appProtectDosEnabled:  false,
 			internalRoutesEnabled: false,
 			expectedErrors: []string{
-				fmt.Sprintf("annotations.%s: Invalid value: \"%s\": a valid annotation value must start with '$', have all '\"' escaped, and must not contain any '$' or end with an unescaped '\\' (e.g. '$http_token',  or '$cookie_auth_token', regex used for validation is '\\$([^\"$\\\\]|\\\\[^$])*')", configs.JWTTokenAnnotation, "$cookie_auth_token$http_token"),
+				fmt.Sprintf("annotations.%s: Invalid value: \"%s\": must be exactly one NGINX variable in the form '$name' or '${name}'", configs.JWTTokenAnnotation, "$cookie_auth_token$http_token"),
 			},
 			msg: fmt.Sprintf("invalid %s annotation, containing more than 1 variable", configs.JWTTokenAnnotation),
 		},
@@ -4259,6 +4259,46 @@ func TestValidateNginxIngressAnnotations(t *testing.T) {
 		},
 		{
 			annotations: map[string]string{
+				"nginx.org/ssl-ciphers": "HIGH:!aNULL:!MD5",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors:        nil,
+			msg:                   "valid nginx.org/ssl-ciphers annotation",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers": "HIGH:!aNULL; return 200",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				`annotations.nginx.org/ssl-ciphers: Invalid value: "HIGH:!aNULL; return 200": must be a valid SSL ciphers string containing only letters, numbers, and safe punctuation (:!-@+.)`,
+			},
+			msg: "invalid nginx.org/ssl-ciphers annotation, directive delimiter",
+		},
+		{
+			annotations: map[string]string{
+				"nginx.org/ssl-ciphers": "",
+			},
+			specServices:          map[string]bool{},
+			isPlus:                false,
+			appProtectEnabled:     false,
+			appProtectDosEnabled:  false,
+			internalRoutesEnabled: false,
+			expectedErrors: []string{
+				"annotations.nginx.org/ssl-ciphers: Required value",
+			},
+			msg: "invalid nginx.org/ssl-ciphers annotation, empty value",
+		},
+		{
+			annotations: map[string]string{
 				"nginx.org/app-root": "/coffee",
 			},
 			specServices:          map[string]bool{},
@@ -5197,6 +5237,7 @@ func TestValidatePath(t *testing.T) {
 		"/abc;",
 		`/path\`,
 		`/path\n`,
+		"/foo\u0085bar",
 		`/var/run/secrets`,
 		"/{autoindex on; root /var/run/secrets;}location /tea",
 		"/{root}",

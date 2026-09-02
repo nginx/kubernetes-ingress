@@ -5,15 +5,18 @@ on:
   workflow_dispatch:
     inputs:
       lts_version:
-        description: "Version to prep"
+        description: "NIC LTS version to release"
         required: true
         type: string
+      chart_version:
+        description: "Helm Chart version to release"
+        type: string
       source_tag:
-        description: "Source tag to release"
+        description: "Source image tag"
         required: false
         type: string
       release_branch:
-        description: "Branch to release from"
+        description: "Release branch to build from (e.g. release-5.5, release-2026-lts)"
         required: true
         type: string
       dry_run:
@@ -21,7 +24,7 @@ on:
         type: boolean
         default: false
       skip_step:
-        description: "Comma separated list of jobs to skip"
+        description: "list of jobs to skip, comma-separated (e.g. build-artifacts,push-prep-images,stage-helm-chart,azure-upload)"
         type: string
         required: false
 
@@ -86,8 +89,12 @@ jobs:
           echo "date=${date}" >> $GITHUB_OUTPUT
           k8s_version=$(grep "^K8S_CLUSTER_VERSION" tests/Makefile | cut -d '?' -f 2 | tr -d ' =')
           echo "k8s_version=${k8s_version}" >> $GITHUB_OUTPUT
-          source .github/data/version.txt
-          echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
+          if [ -n "${{ inputs.chart_version }}" ]; then
+            echo "chart_version=${{ inputs.chart_version }}" >> $GITHUB_OUTPUT
+          else
+            source .github/data/version.txt
+            echo "chart_version=${HELM_CHART_VERSION}" >> $GITHUB_OUTPUT
+          fi
           cat $GITHUB_OUTPUT
 
   build-artifacts:
@@ -104,6 +111,7 @@ jobs:
       image-matrix-oss: '{"include":[]}'
       image-matrix-plus: ${{ needs.variables.outputs.image_matrix_plus }}
       image-matrix-nap: '{"include":[]}'
+      pkg-src-plus: ${{ vars.PLUS_REPO }}
       branch: ${{ inputs.release_branch }}
       tag: ${{ needs.variables.outputs.source_tag }}
       go-md5: ${{ needs.variables.outputs.go_code_md5 }}
@@ -202,7 +210,8 @@ jobs:
       )
     needs: [variables, push-prep-images]
     permissions:
-      contents: read
+      packages: write # for pushing the staged chart to the helm repo
+      contents: write # for staging helm chart
       id-token: write # for getting ID token to login to docker-mgmt-test.nginx.com
     uses: ./.github/workflows/publish-helm.yml
     with:
@@ -233,6 +242,7 @@ jobs:
         with:
           path: ${{ github.workspace }}/dist
           key: nginx-ingress-${{ needs.variables.outputs.go_code_md5 }}
+          fail-on-cache-miss: true
 
       - name: Download Syft
         id: syft
@@ -289,7 +299,7 @@ jobs:
       - name: Azure login for upload
         uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-id: ${{ secrets.AZURE_UPLOAD_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 

@@ -1949,12 +1949,12 @@ func generateDefaultSplitsConfig(
 	var irl version2.InternalRedirectLocation
 	if weightChangesDynamicReload && len(route.Splits) == 2 {
 		irl = version2.InternalRedirectLocation{
-			Path:        route.Path,
+			Path:        generatePath(route.Path),
 			Destination: VariableNamer.GetNameOfMapForSplitClientIndex(scIndex),
 		}
 	} else {
 		irl = version2.InternalRedirectLocation{
-			Path:        route.Path,
+			Path:        generatePath(route.Path),
 			Destination: VariableNamer.GetNameForSplitClientVariable(scIndex),
 		}
 	}
@@ -2203,7 +2203,7 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 
 	// Generate an InternalRedirectLocation to the location defined by the main map variable
 	irl := version2.InternalRedirectLocation{
-		Path:        route.Path,
+		Path:        generatePath(route.Path),
 		Destination: variable,
 	}
 
