@@ -189,7 +189,7 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure())
     name: Upload binaries GitHub Release
     runs-on: ubuntu-24.04
-    needs: [variables]
+    needs: [variables, tag]
     permissions:
       id-token: write
       contents: write # to modify the release
