@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	internalvalidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -243,6 +244,9 @@ var loadBalancingVariables = map[string]bool{
 var hashMethodRegexp = regexp.MustCompile(`^hash (\S+)(?: consistent)?$`)
 
 func validateHashLoadBalancingMethod(method string, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	if err := internalvalidation.ValidateDirectiveValue(method); err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, method, err.Error())}
+	}
 	matches := hashMethodRegexp.FindStringSubmatch(method)
 	if len(matches) != 2 {
 		msg := fmt.Sprintf("invalid value for load balancing method: %v", method)

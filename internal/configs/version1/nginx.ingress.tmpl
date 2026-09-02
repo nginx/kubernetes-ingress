@@ -62,7 +62,7 @@ server {
 	ssl_certificate {{ makeSecretPath $server.SSLCertificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	ssl_certificate_key {{ makeSecretPath $server.SSLCertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
 	{{- if $server.SSLCiphers}}
-	ssl_ciphers {{$server.SSLCiphers}};
+	ssl_ciphers {{ printf "%q" $server.SSLCiphers }};
 	{{- end}}
 	{{- if $server.SSLPreferServerCiphers}}
 	ssl_prefer_server_ciphers on;
@@ -134,10 +134,10 @@ server {
 	proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
 	proxy_ssl_verify_depth {{ .VerifyDepth }};
 	proxy_ssl_protocols {{ .Protocols }};
-	proxy_ssl_ciphers {{ .Ciphers }};
+	proxy_ssl_ciphers {{ printf "%q" .Ciphers }};
 	proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
 	proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-	proxy_ssl_name {{ .SSLName }};
+	proxy_ssl_name {{ printf "%q" .SSLName }};
 	{{- end }}
 
 	{{- if and $server.HSTS (or $server.SSL $server.HSTSBehindProxy)}}
@@ -162,7 +162,7 @@ server {
 	if ($scheme = http) {
 		set $redirect 1;
 	}
-	if ($request_uri = {{$server.HealthStatusURI}}) {
+	if ($request_uri = {{ printf "%q" $server.HealthStatusURI }}) {
 		set $redirect 0;
 	}
 	if ($redirect = 1) {
@@ -189,11 +189,11 @@ server {
 	{{- end }}
 
 	{{- if $server.ExternalAuth }}
-	auth_request {{ $server.ExternalAuth.URI.InternalPath }};
+	auth_request {{ printf "%q" $server.ExternalAuth.URI.InternalPath }};
 	{{- if $server.ExternalAuth.SigninURL }}
 	proxy_intercept_errors on;
 	{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
-	error_page 401 = "{{ $server.ExternalAuth.SigninURL }}";
+	error_page 401 = {{ printf "%q" $server.ExternalAuth.SigninURL }};
 	{{- end }}
 	{{- end }}
 
@@ -227,14 +227,14 @@ server {
 	{{- end}}
 
 	{{- if $server.HealthStatus}}
-	location = {{$server.HealthStatusURI}} {
+	location = {{ printf "%q" $server.HealthStatusURI }} {
 		default_type text/plain;
 		return 200 "healthy\n";
 	}
 	{{- end}}
 
 	{{- range $location := $server.Locations}}
-	location {{  makeLocationPath $location $.Ingress.Annotations | printf }} {
+	location {{ makeLocationPath $location $.Ingress.Annotations }} {
 		set $service "{{$location.ServiceName}}";
 		{{- if $location.Internal}}
 		internal;
@@ -252,11 +252,11 @@ server {
 		{{- if $location.AuthRequestOff}}
 		auth_request off;
 		{{- else if $location.ExternalAuth }}
-		auth_request {{ $location.ExternalAuth.URI.InternalPath }};
+		auth_request {{ printf "%q" $location.ExternalAuth.URI.InternalPath }};
 		{{- if $location.ExternalAuth.SigninURL }}
 		proxy_intercept_errors on;
 		{{- /* `=` returns the signin URI status code (e.g. 302) instead of forwarding the original 401 to the client. */}}
-		error_page 401 = "{{ $location.ExternalAuth.SigninURL }}";
+		error_page 401 = {{ printf "%q" $location.ExternalAuth.SigninURL }};
 		{{- end }}
 		{{- end }}
 
@@ -291,10 +291,10 @@ server {
 		{{$proxyOrGRPC}}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
 		{{$proxyOrGRPC}}_ssl_verify_depth {{ .VerifyDepth }};
 		{{$proxyOrGRPC}}_ssl_protocols {{ .Protocols }};
-		{{$proxyOrGRPC}}_ssl_ciphers {{ .Ciphers }};
+		{{$proxyOrGRPC}}_ssl_ciphers {{ printf "%q" .Ciphers }};
 		{{$proxyOrGRPC}}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
 		{{$proxyOrGRPC}}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-		{{$proxyOrGRPC}}_ssl_name {{ .SSLName }};
+		{{$proxyOrGRPC}}_ssl_name {{ printf "%q" .SSLName }};
 		{{- end}}
 		{{- if $location.GRPC}}
 		{{- if not $server.GRPCOnly}}
@@ -426,7 +426,7 @@ server {
 		proxy_ssl_verify on;
 		proxy_ssl_verify_depth {{ $location.ProxySSLVerifyDepth }};
 		proxy_ssl_server_name on;
-		proxy_ssl_name {{ $location.ProxySSLName }};
+		proxy_ssl_name {{ printf "%q" $location.ProxySSLName }};
 		{{- end }}
 		{{- if $location.ProxySSLTrustedCertificate }}
 		proxy_ssl_trusted_certificate {{ $location.ProxySSLTrustedCertificate }};

@@ -1224,11 +1224,12 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg policiesCfg, proxyURLUpstreamName string) version2.Location {
 	var svcName string
 	_, svcName = ParseServiceReference(policiesCfg.ExternalAuth.URI.Service, "")
+	proxyPass := fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.SSLEnabled), proxyURLUpstreamName, policiesCfg.ExternalAuth.URI.Path)
 	loc := version2.Location{
-		Path:                    policiesCfg.ExternalAuth.URI.InternalPath,
+		Path:                    fmt.Sprintf("%q", policiesCfg.ExternalAuth.URI.InternalPath),
 		Internal:                true,
 		Snippets:                generateSnippets(true, policiesCfg.ExternalAuth.Snippets, nil),
-		ProxyPass:               fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.SSLEnabled), proxyURLUpstreamName, policiesCfg.ExternalAuth.URI.Path),
+		ProxyPass:               fmt.Sprintf("%q", proxyPass),
 		ProxyPassRequestHeaders: true,
 		ProxyPassRequestBody:    "off",
 		ProxySetHeaders: []version2.Header{
@@ -1279,10 +1280,11 @@ func (vsc *virtualServerConfigurator) getExAuthServicePort(cfg policiesCfg, vsEx
 }
 
 func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policiesCfg policiesCfg, signinUpstreamName string) version2.Location {
+	proxyPass := fmt.Sprintf("%s://%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.SSLEnabled), signinUpstreamName)
 	loc := version2.Location{
-		Path:           policiesCfg.ExternalAuth.SigninRedirectBasePath,
+		Path:           fmt.Sprintf("%q", policiesCfg.ExternalAuth.SigninRedirectBasePath),
 		AuthRequestOff: true,
-		ProxyPass:      fmt.Sprintf("%s://%s", generateProxyPassProtocol(policiesCfg.ExternalAuth.SSLEnabled), signinUpstreamName),
+		ProxyPass:      fmt.Sprintf("%q", proxyPass),
 		ProxySetHeaders: []version2.Header{
 			{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 			{Name: "Host", Value: "$host"},
@@ -1311,7 +1313,7 @@ func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
 		return []version2.ErrorPage{
 			{
-				Name:         cfg.ExternalAuth.SigninURL,
+				Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
 				Codes:        "401",
 				ResponseCode: version2.ErrorPageResponseCodeInherit,
 			},
@@ -1544,7 +1546,7 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
 		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
-			Name:         cfg.ExternalAuth.SigninURL,
+			Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
 			Codes:        "401",
 			ResponseCode: version2.ErrorPageResponseCodeInherit,
 		})
@@ -1556,6 +1558,11 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.AddHeaders = append(location.AddHeaders, cfg.CORSHeaders...)
 		location.CORSEnabled = true
 	}
+}
+
+func escapeForNGINXQuotedString(value string) string {
+	quoted := fmt.Sprintf("%q", value)
+	return quoted[1 : len(quoted)-1]
 }
 
 func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {
@@ -2331,12 +2338,12 @@ func generateDefaultSplitsConfig(
 	var irl version2.InternalRedirectLocation
 	if weightChangesDynamicReload && len(route.Splits) == 2 {
 		irl = version2.InternalRedirectLocation{
-			Path:        route.Path,
+			Path:        generatePath(route.Path),
 			Destination: VariableNamer.GetNameOfMapForSplitClientIndex(scIndex),
 		}
 	} else {
 		irl = version2.InternalRedirectLocation{
-			Path:        route.Path,
+			Path:        generatePath(route.Path),
 			Destination: VariableNamer.GetNameForSplitClientVariable(scIndex),
 		}
 	}
@@ -2585,7 +2592,7 @@ func generateMatchesConfig(route conf_v1.Route, upstreamNamer *upstreamNamer, cr
 
 	// Generate an InternalRedirectLocation to the location defined by the main map variable
 	irl := version2.InternalRedirectLocation{
-		Path:        route.Path,
+		Path:        generatePath(route.Path),
 		Destination: variable,
 	}
 
