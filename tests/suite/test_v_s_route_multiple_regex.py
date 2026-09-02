@@ -90,8 +90,7 @@ def multi_regex_vsr_setup(request, kube_apis, ingress_controller_endpoint, test_
         wait_before_test(2)
     else:
         pytest.fail(
-            f"[multi_regex_vsr_setup] resources did not reach Valid state after 60 s; "
-            f"last statuses={statuses!r}"
+            f"[multi_regex_vsr_setup] resources did not reach Valid state after 60 s; " f"last statuses={statuses!r}"
         )
 
     def fin():
