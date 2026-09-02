@@ -33,14 +33,14 @@ func makeLocationPath(loc *Location, ingressAnnotations map[string]string) strin
 			return makePathWithRegex(loc.Path, regexType)
 		}
 		if isMergeable && ingressType == "minion" && !hasRegex {
-			return loc.Path
+			return quoteLocationPath(loc.Path)
 		}
 	}
 
 	// Case when annotation 'path-regex' set on Ingress (including Master).
 	regexType, ok := ingressAnnotations["nginx.org/path-regex"]
 	if !ok {
-		return loc.Path
+		return quoteLocationPath(loc.Path)
 	}
 	return makePathWithRegex(loc.Path, regexType)
 }
@@ -54,14 +54,27 @@ func makeLocationPath(loc *Location, ingressAnnotations map[string]string) strin
 func makePathWithRegex(path, regexType string) string {
 	switch regexType {
 	case "case_sensitive":
-		return fmt.Sprintf("~ \"^%s\"", path)
+		return fmt.Sprintf("~ %s", quoteLocationPath("^"+path))
 	case "case_insensitive":
-		return fmt.Sprintf("~* \"^%s\"", path)
+		return fmt.Sprintf("~* %s", quoteLocationPath("^"+path))
 	case "exact":
-		return fmt.Sprintf("= \"%s\"", path)
+		return fmt.Sprintf("= %s", quoteLocationPath(path))
 	default:
-		return path
+		return quoteLocationPath(path)
 	}
+}
+
+// quoteLocationPath renders a path as one quoted NGINX argument.
+//
+// The escaping is not optional. Ingress path validation permits '"' and '\'
+// (pathFmt is /[^\s;]*), and NGINX resolves a backslash escape inside a quoted
+// argument just as it does outside one, so wrapping the path in bare quotes lets
+// it break out: a path of /foo\ produces location "/foo\"; where the backslash
+// escapes the closing quote, and NGINX reads on past the semicolon. printf %q
+// doubles the backslash and escapes any quote, so every accepted path stays one
+// argument.
+func quoteLocationPath(path string) string {
+	return fmt.Sprintf("%q", path)
 }
 
 func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6 *bool) string {
@@ -109,19 +122,19 @@ func makeRewritePattern(loc *Location, ingressAnnotations map[string]string) str
 
 	// If no path-regex annotation, return original path
 	if !hasRegex {
-		return originalPath
+		return quoteLocationPath(originalPath)
 	}
 
 	// Generate rewrite pattern based on regex type
 	switch regexType {
 	case "case_sensitive":
-		return fmt.Sprintf("^%s", originalPath)
+		return quoteLocationPath(fmt.Sprintf("^%s", originalPath))
 	case "case_insensitive":
-		return fmt.Sprintf("(?i)^%s", originalPath)
+		return quoteLocationPath(fmt.Sprintf("(?i)^%s", originalPath))
 	case "exact":
-		return originalPath // exact matches don't need anchors in rewrite
+		return quoteLocationPath(originalPath) // exact matches don't need anchors in rewrite
 	default:
-		return originalPath
+		return quoteLocationPath(originalPath)
 	}
 }
 

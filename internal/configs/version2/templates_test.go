@@ -857,8 +857,8 @@ func TestExecuteVirtualServerTemplateWithJWKSWithToken(t *testing.T) {
 		t.Error("want `proxy_ssl_server_name on;` in generated template")
 	}
 
-	if !bytes.Contains(got, []byte("proxy_ssl_name sni.idp.spec.example.com;")) {
-		t.Error("want `proxy_ssl_name sni.idp.spec.example.com;` in generated template")
+	if !bytes.Contains(got, []byte(`proxy_ssl_name "sni.idp.spec.example.com";`)) {
+		t.Error(`want proxy_ssl_name "sni.idp.spec.example.com"; in generated template`)
 	}
 
 	snaps.MatchSnapshot(t, string(got))
@@ -937,7 +937,7 @@ func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.
 		t.Error(err)
 	}
 
-	expectedCustomLocation := "location = /custom-location {"
+	expectedCustomLocation := `location = "/custom-location" {`
 	if !bytes.Contains(got, []byte(expectedCustomLocation)) {
 		t.Errorf("Custom redirectURI should generate location block: %s", expectedCustomLocation)
 	}
@@ -983,6 +983,24 @@ func TestExecuteVirtualServerTemplate_WithOIDCTLSVerify(t *testing.T) {
 	}
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_OIDCClientSecretPreservesEscapes(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := virtualServerCfgWithOIDCAndPKCETurnedOn
+	oidc := *cfg.Server.OIDC
+	cfg.Server.OIDC = &oidc
+	cfg.Server.OIDC.ClientSecret = `pa\"ss`
+
+	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Contains(got, []byte(`set $oidc_client_secret "pa\"ss";`)) {
+		t.Errorf("generated config changed the validated client-secret escape: %s", got)
+	}
 }
 
 func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T) {
@@ -1069,7 +1087,10 @@ func TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel(t *testing.T) {
 	}
 
 	content := string(got)
-	locationIdx := strings.Index(content, "location /")
+	locationIdx := strings.Index(content, `location "/"`)
+	if locationIdx == -1 {
+		t.Fatal("want quoted root location, got none")
+	}
 	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
 	if hstsIdx == -1 {
 		t.Error("want Strict-Transport-Security inside location block, got none")
@@ -1137,7 +1158,10 @@ func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtLocationLevel(t *testing.
 	}
 
 	content := string(got)
-	locationIdx := strings.Index(content, "location /")
+	locationIdx := strings.Index(content, `location "/"`)
+	if locationIdx == -1 {
+		t.Fatal("want quoted root location, got none")
+	}
 	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
 	if hstsIdx == -1 {
 		t.Error("want Strict-Transport-Security inside location block, got none")
@@ -4112,7 +4136,7 @@ func TestVirtualServerForNginxPlusDisablesInheritedOIDCNative(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !regexp.MustCompile(`(?s)location /njs \{.*?auth_oidc off;`).Match(data) {
+	if !regexp.MustCompile(`(?s)location "/njs" \{.*?auth_oidc off;`).Match(data) {
 		t.Error("NJS OIDC locations must disable an inherited native OIDC policy")
 	}
 }

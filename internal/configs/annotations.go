@@ -305,12 +305,20 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
-	if proxyHideHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-hide-headers", ingEx.Ingress, ","); exists {
-		cfgParams.ProxyHideHeaders = proxyHideHeaders
+	if proxyHideHeaders, exists := ingEx.Ingress.Annotations["nginx.org/proxy-hide-headers"]; exists {
+		if parsedProxyHideHeaders, err := ParseHeaderList(proxyHideHeaders); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-hide-headers: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyHideHeaders, err)
+		} else {
+			cfgParams.ProxyHideHeaders = parsedProxyHideHeaders
+		}
 	}
 
-	if proxyPassHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-pass-headers", ingEx.Ingress, ","); exists {
-		cfgParams.ProxyPassHeaders = proxyPassHeaders
+	if proxyPassHeaders, exists := ingEx.Ingress.Annotations["nginx.org/proxy-pass-headers"]; exists {
+		if parsedProxyPassHeaders, err := ParseHeaderList(proxyPassHeaders); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-pass-headers: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyPassHeaders, err)
+		} else {
+			cfgParams.ProxyPassHeaders = parsedProxyPassHeaders
+		}
 	}
 
 	if proxySetHeaders, exists := ingEx.Ingress.Annotations[ProxySetHeadersAnnotation]; exists {
