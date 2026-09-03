@@ -218,21 +218,7 @@ func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6
 // a rewrite pattern that matches the location pattern used.
 // This ensures the rewrite regex matches the same requests as the location.
 func makeRewritePattern(loc *Location, ingressAnnotations map[string]string) string {
-	var regexType string
-	var hasRegex bool
-
-	// Check for path-regex annotation (same logic as makeLocationPath)
-	if loc.MinionIngress != nil {
-		ingressType, isMergeable := loc.MinionIngress.Annotations["nginx.org/mergeable-ingress-type"]
-		regexType, hasRegex = loc.MinionIngress.Annotations["nginx.org/path-regex"]
-		if !isMergeable || ingressType != "minion" || !hasRegex {
-			hasRegex = false
-		}
-	}
-
-	if !hasRegex {
-		regexType, hasRegex = ingressAnnotations["nginx.org/path-regex"]
-	}
+	regexType, hasRegex := getPathRegex(loc, ingressAnnotations)
 
 	// Extract original path from the processed Path field
 	originalPath := extractOriginalPath(loc.Path)
@@ -278,6 +264,10 @@ func extractOriginalPath(processedPath string) string {
 	// Exact match: = "/path"
 	if strings.HasPrefix(processedPath, "= \"") && strings.HasSuffix(processedPath, "\"") {
 		return processedPath[3 : len(processedPath)-1] // Remove = " and "
+	}
+	// Kubernetes Exact paths are stored internally as "= /path".
+	if strings.HasPrefix(processedPath, "= ") {
+		return strings.TrimPrefix(processedPath, "= ")
 	}
 
 	// Plain path: /path (no quotes)
