@@ -3923,6 +3923,42 @@ func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
 	t.Log(string(data))
 }
 
+func TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	}
+	wantLocations := []string{
+		`location "/images/" {`,
+		`location = "/images/logo.jpg" {`,
+		`location ^~ "/images/static/" {`,
+		`location ~ "\.jpg$" {`,
+		`location ~* "\.png$" {`,
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&virtualServerCfgAllPathTypes)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, want := range wantLocations {
+				if !strings.Contains(string(data), want) {
+					t.Errorf("generated config missing %q", want)
+				}
+			}
+		})
+	}
+}
+
 func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
 	data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)

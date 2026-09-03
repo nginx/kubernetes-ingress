@@ -165,6 +165,46 @@ func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressWithKubernetesExactPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := IngressNginxConfig{
+				Servers: []Server{{
+					Name:       "cafe.example.com",
+					StatusZone: "cafe.example.com",
+					Locations: []Location{{
+						Path:      "= /coffee",
+						Upstream:  testUpstream,
+						ProxyPass: "http://test",
+					}},
+				}},
+				Upstreams: []Upstream{testUpstream},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+			}
+
+			buf := &bytes.Buffer{}
+			if err := test.newTmpl(t).Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(buf.String(), `location = "/coffee" {`) {
+				t.Errorf("want Kubernetes exact location in generated config")
+			}
+		})
+	}
+}
+
 func TestExecuteTemplate_ForIngressWithEmptyHostForNGINX(t *testing.T) {
 	t.Parallel()
 

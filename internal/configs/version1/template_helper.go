@@ -33,14 +33,14 @@ func makeLocationPath(loc *Location, ingressAnnotations map[string]string) strin
 			return makePathWithRegex(loc.Path, regexType)
 		}
 		if isMergeable && ingressType == "minion" && !hasRegex {
-			return quoteLocationPath(loc.Path)
+			return quoteIngressLocationPath(loc.Path)
 		}
 	}
 
 	// Case when annotation 'path-regex' set on Ingress (including Master).
 	regexType, ok := ingressAnnotations["nginx.org/path-regex"]
 	if !ok {
-		return quoteLocationPath(loc.Path)
+		return quoteIngressLocationPath(loc.Path)
 	}
 	return makePathWithRegex(loc.Path, regexType)
 }
@@ -75,6 +75,18 @@ func makePathWithRegex(path, regexType string) string {
 // argument.
 func quoteLocationPath(path string) string {
 	return fmt.Sprintf("%q", path)
+}
+
+// quoteIngressLocationPath quotes an Ingress location URI while preserving an
+// exact-match modifier. generateIngressPath represents PathTypeExact as
+// "= /uri", which this function renders as `= "/uri"`.
+func quoteIngressLocationPath(path string) string {
+	const exactMatchPrefix = "= "
+	if strings.HasPrefix(path, exactMatchPrefix) {
+		return "= " + quoteLocationPath(strings.TrimPrefix(path, exactMatchPrefix))
+	}
+
+	return quoteLocationPath(path)
 }
 
 func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6 *bool) string {
