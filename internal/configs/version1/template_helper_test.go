@@ -745,6 +745,47 @@ func TestMakeRewritePattern_WithoutRegexModifier(t *testing.T) {
 	}
 }
 
+func TestMakeRewritePattern_ForIngressExactPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        string
+	}{
+		{
+			name: "without path regex",
+			want: `"/coffee"`,
+		},
+		{
+			name:        "case sensitive path regex",
+			annotations: map[string]string{"nginx.org/path-regex": "case_sensitive"},
+			want:        `"^/coffee"`,
+		},
+		{
+			name:        "case insensitive path regex",
+			annotations: map[string]string{"nginx.org/path-regex": "case_insensitive"},
+			want:        `"(?i)^/coffee"`,
+		},
+		{
+			name:        "exact path regex",
+			annotations: map[string]string{"nginx.org/path-regex": "exact"},
+			want:        `"/coffee"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := makeRewritePattern(&Location{Path: "= /coffee"}, test.annotations)
+			if got != test.want {
+				t.Errorf("makeRewritePattern() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestMakeRewritePattern_WithMergableIngress(t *testing.T) {
 	t.Parallel()
 
@@ -764,6 +805,26 @@ func TestMakeRewritePattern_WithMergableIngress(t *testing.T) {
 	)
 	if got != want {
 		t.Errorf("makeRewritePattern() = %q; want %q", got, want)
+	}
+}
+
+func TestMakeRewritePattern_MinionWithoutPathRegexIgnoresMaster(t *testing.T) {
+	t.Parallel()
+
+	want := `"/coffee"`
+	got := makeRewritePattern(
+		&Location{
+			Path: "/coffee",
+			MinionIngress: &Ingress{
+				Annotations: map[string]string{
+					"nginx.org/mergeable-ingress-type": "minion",
+				},
+			},
+		},
+		map[string]string{"nginx.org/path-regex": "case_insensitive"},
+	)
+	if got != want {
+		t.Errorf("makeRewritePattern() = %q, want %q", got, want)
 	}
 }
 

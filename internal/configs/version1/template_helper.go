@@ -21,18 +21,10 @@ func trim(s string) string {
 // if no path-regex annotation is present in ingressAnnotations
 // or in Location's Ingress.
 //
-// Annotations 'path-regex' are set only on Minions. If set on Master Ingress,
-// they are ignored and have no effect.
+// A mergeable Minion's path-regex annotation takes precedence. A Master
+// annotation does not affect a Minion without its own path-regex annotation.
 func makeLocationPath(loc *Location, ingressAnnotations map[string]string) string {
-	regexType, hasRegex := ingressAnnotations["nginx.org/path-regex"]
-	if loc.MinionIngress != nil {
-		// Case when annotation 'path-regex' set on Location's Minion.
-		ingressType, isMergeable := loc.MinionIngress.Annotations["nginx.org/mergeable-ingress-type"]
-		if isMergeable && ingressType == "minion" {
-			regexType, hasRegex = loc.MinionIngress.Annotations["nginx.org/path-regex"]
-		}
-	}
-
+	regexType, hasRegex := getPathRegex(loc, ingressAnnotations)
 	if hasRegex {
 		return makePathWithRegex(loc.Path, regexType)
 	}
@@ -41,6 +33,19 @@ func makeLocationPath(loc *Location, ingressAnnotations map[string]string) strin
 	}
 
 	return quoteLocationPath(loc.Path)
+}
+
+func getPathRegex(loc *Location, ingressAnnotations map[string]string) (string, bool) {
+	if loc.MinionIngress != nil {
+		ingressType, isMergeable := loc.MinionIngress.Annotations["nginx.org/mergeable-ingress-type"]
+		if isMergeable && ingressType == "minion" {
+			regexType, hasRegex := loc.MinionIngress.Annotations["nginx.org/path-regex"]
+			return regexType, hasRegex
+		}
+	}
+
+	regexType, hasRegex := ingressAnnotations["nginx.org/path-regex"]
+	return regexType, hasRegex
 }
 
 // makePathWithRegex takes a path representing a location and a regexType
@@ -101,21 +106,7 @@ func makeResolver(resolverAddresses []string, resolverValid string, resolverIPV6
 // a rewrite pattern that matches the location pattern used.
 // This ensures the rewrite regex matches the same requests as the location.
 func makeRewritePattern(loc *Location, ingressAnnotations map[string]string) string {
-	var regexType string
-	var hasRegex bool
-
-	// Check for path-regex annotation (same logic as makeLocationPath)
-	if loc.MinionIngress != nil {
-		ingressType, isMergeable := loc.MinionIngress.Annotations["nginx.org/mergeable-ingress-type"]
-		regexType, hasRegex = loc.MinionIngress.Annotations["nginx.org/path-regex"]
-		if !isMergeable || ingressType != "minion" || !hasRegex {
-			hasRegex = false
-		}
-	}
-
-	if !hasRegex {
-		regexType, hasRegex = ingressAnnotations["nginx.org/path-regex"]
-	}
+	regexType, hasRegex := getPathRegex(loc, ingressAnnotations)
 
 	// Extract original path from the processed Path field
 	originalPath := extractOriginalPath(loc.Path)
@@ -161,6 +152,10 @@ func extractOriginalPath(processedPath string) string {
 	// Exact match: = "/path"
 	if strings.HasPrefix(processedPath, "= \"") && strings.HasSuffix(processedPath, "\"") {
 		return processedPath[3 : len(processedPath)-1] // Remove = " and "
+	}
+	// Kubernetes Exact paths are stored internally as "= /path".
+	if strings.HasPrefix(processedPath, "= ") {
+		return strings.TrimPrefix(processedPath, "= ")
 	}
 
 	// Plain path: /path (no quotes)
