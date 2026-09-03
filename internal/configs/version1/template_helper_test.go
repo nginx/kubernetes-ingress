@@ -97,6 +97,43 @@ func TestMakeLocationPath_ForIngressWithoutPathRegex(t *testing.T) {
 	}
 }
 
+func TestMakeLocationPath_ForIngressExactPathWithoutPathRegex(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{
+			name: "prefix path",
+			path: "/coffee",
+			want: `"/coffee"`,
+		},
+		{
+			name: "exact path",
+			path: "= /coffee",
+			want: `= "/coffee"`,
+		},
+		{
+			name: "exact path with trailing backslash",
+			path: `= /coffee\`,
+			want: `= "/coffee\\"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := makeLocationPath(&Location{Path: test.path}, map[string]string{})
+			if got != test.want {
+				t.Errorf("makeLocationPath() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestMakeLocationPath_ForIngressWithPathRegexCaseSensitive(t *testing.T) {
 	t.Parallel()
 
