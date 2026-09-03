@@ -16,14 +16,14 @@ PLUS_ARGS = --build-arg NGINX_PLUS_VERSION=$(NGINX_PLUS_VERSION) --secret id=ngi
 # Variables that can be overridden
 
 # renovate: datasource=github-releases depName=dominikh/go-tools
-STATICCHECK_VERSION ?= 2026.1
+STATICCHECK_VERSION ?= 2026.2
 
 # renovate: datasource=github-releases depName=golang/vuln
 GOVULNCHECK_VERSION ?= v1.1.4
 
 GO_DOCKER_IMAGE_NAME    ?= golang
 # renovate: datasource=docker depName=golang versioning=docker
-GO_DOCKER_IMAGE_VERSION ?= 1.26.6-trixie
+GO_DOCKER_IMAGE_VERSION ?= 1.27.0-trixie
 GO_DOCKER_IMAGE         ?= $(GO_DOCKER_IMAGE_NAME):$(GO_DOCKER_IMAGE_VERSION)
 
 REGISTRY                      ?= ## The registry where the image is located.
@@ -36,7 +36,7 @@ ARCH                          ?= amd64 ## The architecture of the image or binar
 GOOS                          ?= linux ## The OS of the binary. For example linux, darwin
 TELEMETRY_ENDPOINT            ?= oss.edge.df.f5.com:443
 # renovate: datasource=docker depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION         ?= v2.12.2 ## The version of golangci-lint to use
+GOLANGCI_LINT_VERSION         ?= v2.13.1 ## The version of golangci-lint to use
 # renovate: datasource=go depName=golang.org/x/tools
 GOIMPORTS_VERSION             ?= v0.49.0 ## The version of goimports to use
 # renovate: datasource=go depName=mvdan.cc/gofumpt
