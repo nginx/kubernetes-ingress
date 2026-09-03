@@ -173,28 +173,33 @@ func TestExecuteTemplate_ForIngressWithKubernetesExactPath(t *testing.T) {
 		newTmpl      func(t *testing.T) *template.Template
 		annotations  map[string]string
 		wantLocation string
+		wantRewrite  string
 	}{
 		{
 			name:         "nginx exact",
 			newTmpl:      newNGINXIngressTmpl,
 			wantLocation: `location = "/coffee" {`,
+			wantRewrite:  `rewrite "/coffee" /new break;`,
 		},
 		{
 			name:         "nginx-plus exact",
 			newTmpl:      newNGINXPlusIngressTmpl,
 			wantLocation: `location = "/coffee" {`,
+			wantRewrite:  `rewrite "/coffee" /new break;`,
 		},
 		{
 			name:         "nginx case insensitive regex",
 			newTmpl:      newNGINXIngressTmpl,
 			annotations:  map[string]string{"nginx.org/path-regex": "case_insensitive"},
 			wantLocation: `location ~* "^/coffee" {`,
+			wantRewrite:  `rewrite "(?i)^/coffee" /new break;`,
 		},
 		{
 			name:         "nginx-plus case insensitive regex",
 			newTmpl:      newNGINXPlusIngressTmpl,
 			annotations:  map[string]string{"nginx.org/path-regex": "case_insensitive"},
 			wantLocation: `location ~* "^/coffee" {`,
+			wantRewrite:  `rewrite "(?i)^/coffee" /new break;`,
 		},
 	}
 
@@ -207,9 +212,10 @@ func TestExecuteTemplate_ForIngressWithKubernetesExactPath(t *testing.T) {
 					Name:       "cafe.example.com",
 					StatusZone: "cafe.example.com",
 					Locations: []Location{{
-						Path:      "= /coffee",
-						Upstream:  testUpstream,
-						ProxyPass: "http://test",
+						Path:          "= /coffee",
+						Upstream:      testUpstream,
+						ProxyPass:     "http://test",
+						RewriteTarget: "/new",
 					}},
 				}},
 				Upstreams: []Upstream{testUpstream},
@@ -222,6 +228,9 @@ func TestExecuteTemplate_ForIngressWithKubernetesExactPath(t *testing.T) {
 			}
 			if !strings.Contains(buf.String(), test.wantLocation) {
 				t.Errorf("want %q in generated config", test.wantLocation)
+			}
+			if !strings.Contains(buf.String(), test.wantRewrite) {
+				t.Errorf("want %q in generated config", test.wantRewrite)
 			}
 		})
 	}
