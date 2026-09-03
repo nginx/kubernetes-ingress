@@ -51,7 +51,7 @@ jobs:
   variables:
     name: Set Variables
     if: github.repository == 'nginx/kubernetes-ingress'
-    runs-on: ubuntu-24.04
+    runs-on: 'kic-plus'
     permissions:
       contents: read
     outputs:
@@ -122,6 +122,7 @@ jobs:
       nginx_helm_repo: false
       runner: "ubuntu-24.04-amd64"
     permissions:
+      contents: write
       packages: write
       id-token: write
     secrets: inherit
@@ -188,7 +189,7 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress' && (! cancelled() && ! failure())
     name: Upload binaries GitHub Release
     runs-on: ubuntu-24.04
-    needs: [variables]
+    needs: [variables, tag]
     permissions:
       id-token: write
       contents: write # to modify the release

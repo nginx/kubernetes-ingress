@@ -427,6 +427,37 @@ func TestValidateTransportServerLoadBalancingMethod(t *testing.T) {
 			hasError: false,
 		},
 		{
+			method:   "hash ${remote_addr};}",
+			isPlus:   false,
+			hasError: true,
+		},
+		{
+			method:   "hash ${remote_addr}#comment",
+			isPlus:   false,
+			hasError: true,
+		},
+		{
+			// A quote after a braced variable is not at a token boundary, so
+			// NGINX reads one unquoted token and the semicolon terminates the
+			// hash directive, injecting the rest into the upstream block.
+			method:   `hash ${remote_addr}";ip_hash;#" consistent`,
+			isPlus:   false,
+			hasError: true,
+		},
+		{
+			method:   `hash ${remote_addr}";x" consistent`,
+			isPlus:   false,
+			hasError: true,
+		},
+		{
+			// U+00A0 is not an NGINX token separator, so the quote after it is
+			// mid-token and inert; NGINX ends the hash directive at the ';' and
+			// parses the injected ip_hash. The scanner must reject this.
+			method:   "hash ${remote_addr}\u00a0';ip_hash;#' consistent",
+			isPlus:   false,
+			hasError: true,
+		},
+		{
 			method:   "hash ${remote_addr} toomany consistent",
 			isPlus:   false,
 			hasError: true,

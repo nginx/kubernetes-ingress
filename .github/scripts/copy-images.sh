@@ -101,6 +101,9 @@ if [[ $TARGET_REGISTRY =~ f5-7626-networks-public ]] || [[ $TARGET_REGISTRY =~ n
     ARCH_OPTS="--override-os linux --override-arch amd64"
 fi
 
+echo "SOURCE_REGISTRY: ${SOURCE_REGISTRY}"
+echo "TARGET_REGISTRY: ${TARGET_REGISTRY}"
+
 ## Main publish loops
 
 if $PUBLISH_OSS; then

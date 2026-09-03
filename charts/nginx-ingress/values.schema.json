@@ -381,10 +381,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.14.0",
+                      "default": "5.15.0",
                       "title": "The tag of the  App Protect WAF v5 Enforcer image",
                       "examples": [
-                        "5.14.0"
+                        "5.15.0"
                       ]
                     },
                     "digest": {
@@ -420,7 +420,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                      "tag": "5.14.0",
+                      "tag": "5.15.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -458,10 +458,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.14.0",
+                      "default": "5.15.0",
                       "title": "The tag of the  App Protect WAF v5 Config Manager image",
                       "examples": [
-                        "5.14.0"
+                        "5.15.0"
                       ]
                     },
                     "digest": {
@@ -497,7 +497,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                      "tag": "5.14.0",
+                      "tag": "5.15.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -554,10 +554,10 @@
                     },
                     "tag": {
                       "type": "string",
-                      "default": "5.14.0",
+                      "default": "5.15.0",
                       "title": "The tag of the App Protect WAF v5 IP Intelligence image",
                       "examples": [
-                        "5.14.0"
+                        "5.15.0"
                       ]
                     },
                     "digest": {
@@ -593,7 +593,7 @@
                   "examples": [
                     {
                       "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-                      "tag": "5.14.0",
+                      "tag": "5.15.0",
                       "pullPolicy": "IfNotPresent"
                     }
                   ]
@@ -833,10 +833,10 @@
             },
             "tag": {
               "type": "string",
-              "default": "5.5.4",
+              "default": "5.6.0",
               "title": "The tag of the Ingress Controller image",
               "examples": [
-                "5.5.4"
+                "5.6.0"
               ]
             },
             "digest": {
@@ -872,7 +872,7 @@
           "examples": [
             {
               "repository": "nginx/nginx-ingress",
-              "tag": "5.5.4",
+              "tag": "5.6.0",
               "pullPolicy": "IfNotPresent"
             }
           ]
@@ -2196,7 +2196,7 @@
               "port": 50000,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-enforcer",
-                "tag": "5.14.0",
+                "tag": "5.15.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {}
@@ -2204,7 +2204,7 @@
             "configManager": {
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-                "tag": "5.14.0",
+                "tag": "5.15.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -2222,7 +2222,7 @@
               "enable": false,
               "image": {
                 "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-                "tag": "5.14.0",
+                "tag": "5.15.0",
                 "pullPolicy": "IfNotPresent"
               },
               "securityContext": {
@@ -2262,7 +2262,7 @@
           "customPorts": [],
           "image": {
             "repository": "nginx/nginx-ingress",
-            "tag": "5.5.4",
+            "tag": "5.6.0",
             "digest": "",
             "pullPolicy": "IfNotPresent"
           },
@@ -2823,7 +2823,7 @@
             "port": 50000,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-enforcer",
-              "tag": "5.14.0",
+              "tag": "5.15.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {}
@@ -2831,7 +2831,7 @@
           "configManager": {
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-config-mgr",
-              "tag": "5.14.0",
+              "tag": "5.15.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {
@@ -2849,7 +2849,7 @@
             "enable": false,
             "image": {
               "repository": "private-registry.nginx.com/nap/waf-ip-intelligence",
-              "tag": "5.14.0",
+              "tag": "5.15.0",
               "pullPolicy": "IfNotPresent"
             },
             "securityContext": {
@@ -2889,7 +2889,7 @@
         "customPorts": [],
         "image": {
           "repository": "nginx/nginx-ingress",
-          "tag": "5.5.4",
+          "tag": "5.6.0",
           "digest": "",
           "pullPolicy": "IfNotPresent"
         },
