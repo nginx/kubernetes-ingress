@@ -169,11 +169,33 @@ func TestExecuteTemplate_ForIngressWithKubernetesExactPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		newTmpl func(t *testing.T) *template.Template
+		name         string
+		newTmpl      func(t *testing.T) *template.Template
+		annotations  map[string]string
+		wantLocation string
 	}{
-		{name: "nginx", newTmpl: newNGINXIngressTmpl},
-		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+		{
+			name:         "nginx exact",
+			newTmpl:      newNGINXIngressTmpl,
+			wantLocation: `location = "/coffee" {`,
+		},
+		{
+			name:         "nginx-plus exact",
+			newTmpl:      newNGINXPlusIngressTmpl,
+			wantLocation: `location = "/coffee" {`,
+		},
+		{
+			name:         "nginx case insensitive regex",
+			newTmpl:      newNGINXIngressTmpl,
+			annotations:  map[string]string{"nginx.org/path-regex": "case_insensitive"},
+			wantLocation: `location ~* "^/coffee" {`,
+		},
+		{
+			name:         "nginx-plus case insensitive regex",
+			newTmpl:      newNGINXPlusIngressTmpl,
+			annotations:  map[string]string{"nginx.org/path-regex": "case_insensitive"},
+			wantLocation: `location ~* "^/coffee" {`,
+		},
 	}
 
 	for _, test := range tests {
@@ -191,15 +213,15 @@ func TestExecuteTemplate_ForIngressWithKubernetesExactPath(t *testing.T) {
 					}},
 				}},
 				Upstreams: []Upstream{testUpstream},
-				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+				Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default", Annotations: test.annotations},
 			}
 
 			buf := &bytes.Buffer{}
 			if err := test.newTmpl(t).Execute(buf, cfg); err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(buf.String(), `location = "/coffee" {`) {
-				t.Errorf("want Kubernetes exact location in generated config")
+			if !strings.Contains(buf.String(), test.wantLocation) {
+				t.Errorf("want %q in generated config", test.wantLocation)
 			}
 		})
 	}
