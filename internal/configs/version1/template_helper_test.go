@@ -109,12 +109,7 @@ func TestMakeLocationPath_ForIngressExactPathWithoutPathRegex(t *testing.T) {
 		want string
 	}{
 		{
-			name: "prefix path",
-			path: "/coffee",
-			want: `"/coffee"`,
-		},
-		{
-			name: "exact path",
+			name: "exact path with one space",
 			path: "= /coffee",
 			want: `= "/coffee"`,
 		},
@@ -132,6 +127,47 @@ func TestMakeLocationPath_ForIngressExactPathWithoutPathRegex(t *testing.T) {
 			got := makeLocationPath(&Location{Path: test.path}, map[string]string{})
 			if got != test.want {
 				t.Errorf("makeLocationPath() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestMakeLocationPath_ForIngressExactPathWithPathRegex(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		path      string
+		pathRegex string
+		expected  string
+	}{
+		{
+			name:      "case sensitive with one space",
+			path:      "= /coffee",
+			pathRegex: "case_sensitive",
+			expected:  `~ "^/coffee"`,
+		},
+		{
+			name:      "case insensitive with one space",
+			path:      "= /coffee",
+			pathRegex: "case_insensitive",
+			expected:  `~* "^/coffee"`,
+		},
+		{
+			name:      "exact with one space",
+			path:      "= /coffee",
+			pathRegex: "exact",
+			expected:  `= "/coffee"`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := makeLocationPath(&Location{Path: test.path}, map[string]string{"nginx.org/path-regex": test.pathRegex})
+			if got != test.expected {
+				t.Errorf("makeLocationPath() = %q, want %q", got, test.expected)
 			}
 		})
 	}

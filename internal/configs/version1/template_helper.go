@@ -23,28 +23,31 @@ func trim(s string) string {
 // if no path-regex annotation is present in ingressAnnotations
 // or in Location's Ingress.
 //
-// Annotations 'path-regex' are set only on Minions. If set on Master Ingress,
-// they are ignored and have no effect.
+// A mergeable Minion's path-regex annotation takes precedence. A Master
+// annotation does not affect a Minion without its own path-regex annotation.
 func makeLocationPath(loc *Location, ingressAnnotations map[string]string) string {
+	regexType, hasRegex := getPathRegex(loc, ingressAnnotations)
+	if hasRegex {
+		return makePathWithRegex(loc.Path, regexType)
+	}
+	if strings.HasPrefix(loc.Path, "= ") {
+		return "= " + quoteLocationPath(strings.TrimPrefix(loc.Path, "= "))
+	}
+
+	return quoteLocationPath(loc.Path)
+}
+
+func getPathRegex(loc *Location, ingressAnnotations map[string]string) (string, bool) {
 	if loc.MinionIngress != nil {
-		// Case when annotation 'path-regex' set on Location's Minion.
 		ingressType, isMergeable := loc.MinionIngress.Annotations["nginx.org/mergeable-ingress-type"]
-		regexType, hasRegex := loc.MinionIngress.Annotations["nginx.org/path-regex"]
-
-		if isMergeable && ingressType == "minion" && hasRegex {
-			return makePathWithRegex(loc.Path, regexType)
-		}
-		if isMergeable && ingressType == "minion" && !hasRegex {
-			return quoteIngressLocationPath(loc.Path)
+		if isMergeable && ingressType == "minion" {
+			regexType, hasRegex := loc.MinionIngress.Annotations["nginx.org/path-regex"]
+			return regexType, hasRegex
 		}
 	}
 
-	// Case when annotation 'path-regex' set on Ingress (including Master).
-	regexType, ok := ingressAnnotations["nginx.org/path-regex"]
-	if !ok {
-		return quoteIngressLocationPath(loc.Path)
-	}
-	return makePathWithRegex(loc.Path, regexType)
+	regexType, hasRegex := ingressAnnotations["nginx.org/path-regex"]
+	return regexType, hasRegex
 }
 
 // makePathWithRegex takes a path representing a location and a regexType
@@ -54,6 +57,8 @@ func makeLocationPath(loc *Location, ingressAnnotations map[string]string) strin
 //
 // [Location Directive]: https://nginx.org/en/docs/http/ngx_http_core_module.html#location
 func makePathWithRegex(path, regexType string) string {
+	path = strings.TrimPrefix(path, "= ")
+
 	switch regexType {
 	case "case_sensitive":
 		return fmt.Sprintf("~ %s", quoteLocationPath("^"+path))
@@ -71,18 +76,6 @@ func quoteLocationPath(path string) string {
 		return path
 	}
 	return fmt.Sprintf("%q", path)
-}
-
-// quoteIngressLocationPath quotes an Ingress location URI while preserving an
-// exact-match modifier. generateIngressPath represents PathTypeExact as
-// "= /uri", which this function renders as `= "/uri"`.
-func quoteIngressLocationPath(path string) string {
-	const exactMatchPrefix = "= "
-	if strings.HasPrefix(path, exactMatchPrefix) {
-		return "= " + quoteLocationPath(strings.TrimPrefix(path, exactMatchPrefix))
-	}
-
-	return quoteLocationPath(path)
 }
 
 var setHeader = regexp.MustCompile("^[-A-Za-z0-9]+$")
