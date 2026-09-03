@@ -15,7 +15,7 @@ The `.spec` object supports the following fields:
 
 | Field | Type | Description |
 |---|---|---|
-| `host` | `string` | The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. Must be the same as the host of the VirtualServer that references this resource. |
+| `host` | `string` | The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. When set, must be the same as the host of the VirtualServer that references this resource. When omitted (hostless mode), the VirtualServerRoute can be referenced by any VirtualServer regardless of host, enabling the same route configuration to be shared across multiple VirtualServers. |
 | `ingressClassName` | `string` | Specifies which Ingress Controller must handle the VirtualServerRoute resource. Must be the same as the ingressClassName of the VirtualServer that references this resource. |
 | `subroutes` | `array` | A list of subroutes. |
 | `subroutes[].action` | `object` | The default action to perform for a request. |

@@ -5260,3 +5260,93 @@ func TestValidateAddHeaderInherit_InvalidValues(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Hostless VirtualServerRoute validation tests
+// ---------------------------------------------------------------------------
+
+// hostlessVSR builds a minimal valid hostless VSR for use in validation tests.
+func hostlessVSR(host string) *v1.VirtualServerRoute {
+	return &v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "coffee", Namespace: "default"},
+		Spec: v1.VirtualServerRouteSpec{
+			Host: host,
+			Upstreams: []v1.Upstream{
+				{Name: "backend", Service: "svc", Port: 80},
+			},
+			Subroutes: []v1.Route{
+				{Path: "/coffee", Action: &v1.Action{Pass: "backend"}},
+			},
+		},
+	}
+}
+
+// TestValidateVirtualServerRoute_EmptyHost verifies that spec.host="" is now
+// accepted by ValidateVirtualServerRoute (hostless mode).
+func TestValidateVirtualServerRoute_EmptyHost(t *testing.T) {
+	t.Parallel()
+	vsv := &VirtualServerValidator{isPlus: false}
+
+	vsr := hostlessVSR("")
+	if err := vsv.ValidateVirtualServerRoute(vsr); err != nil {
+		t.Errorf("ValidateVirtualServerRoute() rejected hostless VSR: %v", err)
+	}
+}
+
+// TestValidateVirtualServerRouteForVirtualServer_EmptyVSRHost verifies that a
+// hostless VSR (spec.host=="") passes per-VS validation for any VS host.
+func TestValidateVirtualServerRouteForVirtualServer_EmptyVSRHost(t *testing.T) {
+	t.Parallel()
+	vsv := &VirtualServerValidator{isPlus: false}
+
+	vsr := hostlessVSR("")
+	if err := vsv.ValidateVirtualServerRouteForVirtualServer(vsr, "cafe.example.com", []string{"/coffee"}); err != nil {
+		t.Errorf("ValidateVirtualServerRouteForVirtualServer() rejected hostless VSR: %v", err)
+	}
+}
+
+// TestValidateVirtualServerRoute_NonEmptyMismatchedHost verifies that a VSR
+// with spec.host that doesn't match the VS host is still rejected.
+func TestValidateVirtualServerRoute_NonEmptyMismatchedHost(t *testing.T) {
+	t.Parallel()
+	vsv := &VirtualServerValidator{isPlus: false}
+
+	vsr := hostlessVSR("other.example.com")
+	if err := vsv.ValidateVirtualServerRouteForVirtualServer(vsr, "cafe.example.com", []string{"/coffee"}); err == nil {
+		t.Error("ValidateVirtualServerRouteForVirtualServer() should reject mismatched host, but returned nil")
+	}
+}
+
+// TestValidateVirtualServerRoute_WhitespaceHost verifies that a whitespace-only
+// host value is treated as non-empty and rejected by validateHost.
+func TestValidateVirtualServerRoute_WhitespaceHost(t *testing.T) {
+	t.Parallel()
+	vsv := &VirtualServerValidator{isPlus: false}
+
+	for _, h := range []string{" ", "\t", "  "} {
+		vsr := hostlessVSR(h)
+		if err := vsv.ValidateVirtualServerRoute(vsr); err == nil {
+			t.Errorf("ValidateVirtualServerRoute() should reject whitespace-only host %q, but returned nil", h)
+		}
+	}
+}
+
+// TestValidateVirtualServerRoute_DangerousCharsInHost verifies that host values
+// containing characters dangerous to NGINX config are rejected.
+func TestValidateVirtualServerRoute_DangerousCharsInHost(t *testing.T) {
+	t.Parallel()
+	vsv := &VirtualServerValidator{isPlus: false}
+
+	dangerousHosts := []string{
+		"foo;bar.com",
+		"foo{bar}.com",
+		"foo\nbar.com",
+		"foo$bar.com",
+	}
+	for _, h := range dangerousHosts {
+		vsr := hostlessVSR(h)
+		if err := vsv.ValidateVirtualServerRoute(vsr); err == nil {
+			t.Errorf("ValidateVirtualServerRoute() should reject dangerous host %q, but returned nil", h)
+		}
+	}
+}

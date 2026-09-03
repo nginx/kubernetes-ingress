@@ -2270,14 +2270,18 @@ func (cnf *Configurator) getMinionIngressAnnotations(annotationSet map[string]bo
 }
 
 // GetVirtualServerCounts returns the total count of
-// VirtualServer and VirtualServerRoute resources that are handled by the Ingress Controller
+// VirtualServer and VirtualServerRoute resources that are handled by the Ingress Controller.
+// A hostless VirtualServerRoute that is shared across multiple VirtualServers is counted once.
 func (cnf *Configurator) GetVirtualServerCounts() (int, int) {
 	vsCount := len(cnf.virtualServers)
-	vsrCount := 0
+	seen := make(map[string]struct{})
 	for _, vs := range cnf.virtualServers {
-		vsrCount += len(vs.VirtualServerRoutes)
+		for _, vsr := range vs.VirtualServerRoutes {
+			key := vsr.Namespace + "/" + vsr.Name
+			seen[key] = struct{}{}
+		}
 	}
-	return vsCount, vsrCount
+	return vsCount, len(seen)
 }
 
 // GetTransportServerCounts returns the total count of

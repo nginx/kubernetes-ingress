@@ -538,10 +538,16 @@ func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, st
 
 // UpdateVirtualServerRouteStatusWithReferencedBy updates the status of a VirtualServerRoute, including the referencedBy field.
 func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string, referencedBy []*conf_v1.VirtualServer) error {
+	var builder strings.Builder
 	var referencedByString string
 	if len(referencedBy) != 0 {
-		vs := referencedBy[0]
-		referencedByString = fmt.Sprintf("%v/%v", vs.Namespace, vs.Name)
+		for _, vs := range referencedBy {
+			if referencedByString != "" {
+				builder.WriteString(", ")
+			}
+			fmt.Fprintf(&builder, "%v/%v", vs.Namespace, vs.Name)
+		}
+		referencedByString = builder.String()
 	}
 
 	// Get an up-to-date VirtualServerRoute from the Store
@@ -574,7 +580,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 
 	_, err = su.confClient.K8sV1().VirtualServerRoutes(vsrCopy.Namespace).UpdateStatus(context.TODO(), vsrCopy, metav1.UpdateOptions{})
 	if err != nil {
-		nl.Infof(l, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
+		nl.Warnf(su.logger, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
 		return su.retryUpdateVirtualServerRouteStatus(vsrCopy)
 	}
 	return err

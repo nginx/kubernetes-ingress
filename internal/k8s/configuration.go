@@ -403,6 +403,15 @@ type Configuration struct {
 	// Maintained by AddOrUpdateIngress/DeleteIngress; consumed by buildMinionConfigs.
 	minionsByHost map[string]map[string]bool
 
+	// vsrToVSConfigs is a reverse index from VSR key (namespace/name) to every
+	// VirtualServer that currently includes that VSR in its accepted route set.
+	// It is rebuilt on every rebuildHosts() call. The slice is appended in sorted
+	// VS-key order (because buildHostsAndResources iterates virtualServers via
+	// getSortedVirtualServerKeys), so callers always receive a deterministic list.
+	// This replaces the previous O(hosts × VSRs) linear scan for hostless VSRs
+	// and enables GetVirtualServersForVirtualServerRoute.
+	vsrToVSConfigs map[string][]*conf_v1.VirtualServer
+
 	globalConfiguration *conf_v1.GlobalConfiguration
 
 	hostProblems     map[string]ConfigurationProblem
@@ -465,6 +474,7 @@ func NewConfiguration(
 		virtualServerRoutes:          make(map[string]*conf_v1.VirtualServerRoute),
 		transportServers:             make(map[string]*conf_v1.TransportServer),
 		minionsByHost:                make(map[string]map[string]bool),
+		vsrToVSConfigs:               make(map[string][]*conf_v1.VirtualServer),
 		hostProblems:                 make(map[string]ConfigurationProblem),
 		hasCorrectIngressClass:       hasCorrectIngressClass,
 		virtualServerValidator:       virtualServerValidator,
@@ -1215,15 +1225,16 @@ func getResourceKey(meta *metav1.ObjectMeta) string {
 
 // rebuildHosts rebuilds the Configuration and returns the changes to it and the new problems.
 func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem) {
-	newHosts, newResources := c.buildHostsAndResources()
+	newHosts, newResources, newVSRToVSConfigs := c.buildHostsAndResources()
 
 	updateActiveHostsForIngresses(newHosts, newResources)
 
 	removedHosts, updatedHosts, addedHosts := detectChangesInHosts(c.hosts, newHosts)
 	changes := createResourceChangesForHosts(removedHosts, updatedHosts, addedHosts, c.hosts, newHosts)
 
-	// safe to update hosts
+	// safe to update hosts and the VSR reverse index
 	c.hosts = newHosts
+	c.vsrToVSConfigs = newVSRToVSConfigs
 
 	changes = squashResourceChanges(changes)
 
@@ -1240,7 +1251,7 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 
 	c.addProblemsForResourcesWithoutActiveHost(newResources, newProblems)
 	c.addProblemsForOrphanMinions(newProblems)
-	c.addProblemsForOrphanOrIgnoredVsrs(newProblems)
+	c.addProblemsForOrphanOrIgnoredVsrs(newProblems, newVSRToVSConfigs)
 	c.addWarningsForVirtualServersWithMissConfiguredListeners(newResources)
 
 	newOrUpdatedProblems := detectChangesInProblems(newProblems, c.hostProblems)
@@ -1452,42 +1463,69 @@ func (c *Configuration) addProblemsForOrphanMinions(problems map[string]Configur
 	}
 }
 
-func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]ConfigurationProblem) {
+// GetVirtualServersForVirtualServerRoute returns all VirtualServers that currently
+// include the given VSR in their accepted route set. The returned slice is in
+// sorted VS-key order and is safe to read from outside the configuration lock
+// (the caller must hold the read lock or read only from the sync goroutine).
+func (c *Configuration) GetVirtualServersForVirtualServerRoute(vsr *conf_v1.VirtualServerRoute) []*conf_v1.VirtualServer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.vsrToVSConfigs[getResourceKey(&vsr.ObjectMeta)]
+}
+
+// addProblemsForOrphanOrIgnoredVsrs emits ConfigurationProblems for VSRs that
+// are not referenced by any VirtualServer (orphan) or that a VirtualServer
+// declined to include (ignored).  vsrToVSConfigs is the fresh reverse index
+// just built by buildHostsAndResources.
+func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]ConfigurationProblem, vsrToVSConfigs map[string][]*conf_v1.VirtualServer) {
 	for _, key := range getSortedVirtualServerRouteKeys(c.virtualServerRoutes) {
 		vsr := c.virtualServerRoutes[key]
+		vsrKey := getResourceKey(&vsr.ObjectMeta)
+		k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
 
-		r, exists := c.hosts[vsr.Spec.Host]
-		vsConfig, ok := r.(*VirtualServerConfiguration)
+		if vsr.Spec.Host != "" {
+			// Host-based VSR: preserve the original host-lookup logic so that
+			// the "VirtualServer X ignores VirtualServerRoute" diagnostic still
+			// works for the set-host case.
+			r, exists := c.hosts[vsr.Spec.Host]
+			vsConfig, ok := r.(*VirtualServerConfiguration)
 
-		if !exists || !ok {
-			p := ConfigurationProblem{
-				Object:  vsr,
-				IsError: false,
-				Reason:  nl.EventReasonNoVirtualServerFound,
-				Message: "VirtualServer is invalid or doesn't exist",
+			if !exists || !ok {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonNoVirtualServerFound,
+					Message: "VirtualServer is invalid or doesn't exist",
+				}
+				continue
 			}
-			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
-			problems[k] = p
-			continue
-		}
 
-		found := false
-		for _, v := range vsConfig.VirtualServerRoutes {
-			if vsr.Namespace == v.Namespace && vsr.Name == v.Name {
-				found = true
-				break
+			found := false
+			for _, v := range vsConfig.VirtualServerRoutes {
+				if vsr.Namespace == v.Namespace && vsr.Name == v.Name {
+					found = true
+					break
+				}
 			}
-		}
-
-		if !found {
-			p := ConfigurationProblem{
-				Object:  vsr,
-				IsError: false,
-				Reason:  nl.EventReasonIgnored,
-				Message: fmt.Sprintf("VirtualServer %s ignores VirtualServerRoute", getResourceKey(&vsConfig.VirtualServer.ObjectMeta)),
+			if !found {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonIgnored,
+					Message: fmt.Sprintf("VirtualServer %s ignores VirtualServerRoute", getResourceKey(&vsConfig.VirtualServer.ObjectMeta)),
+				}
 			}
-			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
-			problems[k] = p
+		} else {
+			// Hostless VSR: use the O(1) reverse index built in buildHostsAndResources.
+			// A VSR with no accepted VS is an orphan; accepted by ≥1 VS means no problem.
+			if len(vsrToVSConfigs[vsrKey]) == 0 {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonNoVirtualServerFound,
+					Message: "VirtualServer is invalid or doesn't exist",
+				}
+			}
 		}
 	}
 }
@@ -1630,9 +1668,11 @@ func squashResourceChanges(changes []ResourceChange) []ResourceChange {
 	return append(deletes, updates...)
 }
 
-func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource) {
+//nolint:gocyclo // complexity is pre-existing; refactoring planned as a follow-up
+func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource, vsrToVSConfigs map[string][]*conf_v1.VirtualServer) {
 	newHosts = make(map[string]Resource)
 	newResources = make(map[string]Resource)
+	vsrToVSConfigs = make(map[string][]*conf_v1.VirtualServer)
 	var challengesVSR []*conf_v1.VirtualServerRoute
 
 	// Step 1 - Build hosts from Ingress resources
@@ -1698,6 +1738,14 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 
 		newResources[resource.GetKeyWithKind()] = resource
 
+		// Build the VSR→VS reverse index: map every accepted VSR to this VS.
+		// The outer VS loop is sorted (getSortedVirtualServerKeys), so the slice
+		// entries are appended in deterministic order — no explicit sort needed.
+		for _, vsr := range resource.VirtualServerRoutes {
+			vsrKey := getResourceKey(&vsr.ObjectMeta)
+			vsrToVSConfigs[vsrKey] = append(vsrToVSConfigs[vsrKey], vs)
+		}
+
 		holder, exists := newHosts[vs.Spec.Host]
 		if !exists {
 			newHosts[vs.Spec.Host] = resource
@@ -1744,7 +1792,7 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		}
 	}
 
-	return newHosts, newResources
+	return newHosts, newResources, vsrToVSConfigs
 }
 
 func (c *Configuration) isChallengeIngress(ing *networking.Ingress) bool {

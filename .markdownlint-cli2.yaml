@@ -19,6 +19,7 @@ ignores:
   - "docs/**" # Ignore developer docs folder
   - "vendor/**" # Ignore vendor folder
   - "**/.venv/**"
+  - "**/venv/**" # Ignore Python virtualenvs without leading dot (e.g. tests/venv)
   - ".local/**"
   - ".opencode/**"
 

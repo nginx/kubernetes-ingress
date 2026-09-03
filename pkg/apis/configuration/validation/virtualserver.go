@@ -1667,7 +1667,10 @@ func (vsv *VirtualServerValidator) ValidateVirtualServerRouteForVirtualServer(vi
 func (vsv *VirtualServerValidator) validateVirtualServerRouteSpec(spec *v1.VirtualServerRouteSpec, fieldPath *field.Path, virtualServerHost string, vsPaths []string,
 	namespace string,
 ) field.ErrorList {
-	allErrs := validateVirtualServerRouteHost(spec.Host, virtualServerHost, fieldPath.Child("host"))
+	var allErrs field.ErrorList
+	if spec.Host != "" {
+		allErrs = append(allErrs, validateVirtualServerRouteHost(spec.Host, virtualServerHost, fieldPath.Child("host"))...)
+	}
 
 	upstreamErrs, upstreamNames := vsv.validateUpstreams(spec.Upstreams, fieldPath.Child("upstreams"))
 	allErrs = append(allErrs, upstreamErrs...)
