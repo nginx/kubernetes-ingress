@@ -3955,6 +3955,7 @@ func TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs(t *testing.T) {
 					t.Errorf("generated config missing %q", want)
 				}
 			}
+			snaps.MatchSnapshot(t, string(data))
 		})
 	}
 }
