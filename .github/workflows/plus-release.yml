@@ -234,6 +234,9 @@ jobs:
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
+          if [[ "${{ inputs.source_registry }}" == *docker-mgmt* ]]; then
+            export SOURCE_NAP_WAF_DOS_IMAGE_PREFIX="nginx-ic-nap-dos/nginx-plus-ingress"
+          fi
           .github/scripts/copy-images.sh "${{ inputs.source_registry }}"
 
   release-plus-to-gcr-marketplace-registry:
