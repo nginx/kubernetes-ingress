@@ -76,11 +76,14 @@ File: `internal/configs/ingress.go`
 
 ## Step 10: Update snapshot tests
 
-File: `internal/configs/version2/templates_test.go`
+Files: `internal/configs/version2/templates_test.go` (VS/VSR/TS), `internal/configs/version1/template_test.go` (Ingress)
 
-- Add new policy fields to test data structs
-- Run `make test-update-snaps` to regenerate snapshots
-- Verify generated NGINX config in `__snapshots__/`
+1. Add the new policy fields to the fixture structs used by the snapshot tests -- a regeneration with no fixture change produces no diff and leaves the policy untested.
+2. Run `make test-update-snaps`.
+3. `git diff -- '**/__snapshots__/**'` and confirm your directives render in the golden files for every edition the policy supports. Plus-only policies (OIDC, WAF) must appear in the Plus golden files **only**; policies available to both editions must appear in both.
+4. Run `make test` to confirm green, and commit the regenerated golden files with the template change.
+
+If you wired the policy into Ingress (Step 8), version1 snapshots must change too.
 
 ## Step 11: Update the Helm chart (if policy needs CLI flag or ConfigMap entry)
 
@@ -104,6 +107,7 @@ Directory: `tests/suite/`
 - Create test data YAMLs in `tests/data/<feature>/`
 - Create `test_<feature>_policies_vs.py`, `_vsr.py`, `_ingress.py`
 - Use `@pytest.mark.policies` and `@pytest.mark.policies_<feature>` markers
+- Register the new marker in `pyproject.toml` -- pytest runs with `--strict-markers`
 
 ---
 
@@ -111,7 +115,10 @@ Directory: `tests/suite/`
 
 - **Never** skip `make update-codegen` after changing `types.go` -- the build will fail with missing DeepCopy methods
 - **Never** use raw user strings in NGINX config without `containsDangerousChars()` validation
-- Both OSS and Plus templates must be updated -- they are separate files
+- Both OSS and Plus templates must be updated for policies available to both editions -- they are separate files, each with its own snapshot entries. Plus-only policies (OIDC, WAF) belong in the Plus templates only
+- A policy that reaches a template but has no snapshot fixture ships with zero rendered-output coverage
+- `make update-crds` also refreshes `deploy/crds*.yaml` and `docs/crd/`; `charts/nginx-ingress/crds` is a symlink to `config/crd/bases/`
+- If the policy adds telemetry counters, run `make telemetry-schema` -- CI fails on any diff in `internal/telemetry`
 - `policiesCfg` duplicate check must warn and return, not error (exception: `addCORSConfig` has no duplicate check -- it overwrites, since CORS is additive via headers)
 
 ---
