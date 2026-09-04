@@ -395,7 +395,7 @@ jobs:
       github_public_registry: true
       source_tag: ${{ needs.checks.outputs.stable_tag }}
       branch: ${{ needs.checks.outputs.branch }}
-      target_tag: "nightly"
+      target_tags: "nightly"
       dry_run: false
     permissions:
       contents: read
@@ -416,7 +416,7 @@ jobs:
       ecr_mktpl_registry: false
       az_mktpl_registry: false
       source_tag: ${{ needs.checks.outputs.stable_tag }}
-      target_tag: "nightly"
+      target_tags: "nightly"
       branch: ${{ needs.checks.outputs.branch }}
       dry_run: false
     permissions:

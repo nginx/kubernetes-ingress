@@ -245,7 +245,7 @@ jobs:
       quay_public_registry: true
       github_public_registry: true
       source_tag: ${{ needs.checks.outputs.stable_tag }}
-      target_tag: "edge"
+      target_tags: "edge"
       branch: ${{ github.ref_name }}
       dry_run: false
     permissions:
@@ -267,7 +267,7 @@ jobs:
       ecr_mktpl_registry: false
       az_mktpl_registry: false
       source_tag: ${{ needs.checks.outputs.stable_tag }}
-      target_tag: "edge"
+      target_tags: "edge"
       branch: ${{ github.ref_name }}
       dry_run: false
     permissions:

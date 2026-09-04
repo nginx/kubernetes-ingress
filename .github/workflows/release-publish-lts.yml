@@ -90,18 +90,14 @@ jobs:
     name: Release Docker Plus
     needs: [variables]
     uses: ./.github/workflows/plus-release-lts.yml
-    strategy:
-      fail-fast: false
-      matrix:
-        tag:
-          - "${{ inputs.lts_version }}"
-          - "${{ inputs.lts_version }}-${{ needs.variables.outputs.date }}"
     with:
       gcr_release_registry: true
       nginx_registry: true
       source_registry: ${{ inputs.source_registry }}
       source_tag: ${{ inputs.lts_version }}
-      target_tag: ${{ matrix.tag }}
+      target_tags: >-
+        ${{ inputs.lts_version }}
+        ${{ inputs.lts_version }}-${{ needs.variables.outputs.date }}
       branch: ${{ inputs.release_branch }}
       dry_run: ${{ inputs.dry_run }}
     permissions:

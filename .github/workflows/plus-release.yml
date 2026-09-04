@@ -25,7 +25,8 @@ on:
       source_tag:
         required: true
         type: string
-      target_tag:
+      target_tags:
+        description: "Whitespace-separated list of target tags. A single tag is also accepted."
         required: true
         type: string
       branch:
@@ -59,7 +60,8 @@ on:
       source_tag:
         required: true
         type: string
-      target_tag:
+      target_tags:
+        description: "Whitespace-separated list of target tags. A single tag is also accepted."
         required: true
         type: string
       branch:
@@ -142,7 +144,7 @@ jobs:
         run: |
           export CONFIG_PATH=.github/config/config-plus-gcr-release
           export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
+          export TARGET_TAGS="${{ inputs.target_tags }}"
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
@@ -230,7 +232,7 @@ jobs:
         run: |
           export CONFIG_PATH=.github/config/config-plus-nginx
           export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
+          export TARGET_TAGS="${{ inputs.target_tags }}"
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
@@ -302,7 +304,7 @@ jobs:
         run: |
           export CONFIG_PATH=.github/config/config-plus-gcr-public
           export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
+          export TARGET_TAGS="${{ inputs.target_tags }}"
           export SOURCE_OPTS="--src-registry-token ${{ steps.gcr-priv-auth.outputs.access_token }}"
           export TARGET_OPTS="--dest-registry-token ${{ steps.gcr-mktpl-auth.outputs.access_token }}"
           if ${{ inputs.dry_run }}; then
@@ -387,7 +389,7 @@ jobs:
         run: |
           export CONFIG_PATH=.github/config/config-plus-ecr
           export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
+          export TARGET_TAGS="${{ inputs.target_tags }}"
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
@@ -470,7 +472,7 @@ jobs:
         run: |
           export CONFIG_PATH=.github/config/config-plus-azure
           export SOURCE_TAG=${{ inputs.source_tag }}
-          export TARGET_TAG=${{ inputs.target_tag }}
+          export TARGET_TAGS="${{ inputs.target_tags }}"
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
