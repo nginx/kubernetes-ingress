@@ -336,6 +336,7 @@ type MainConfig struct {
 	MainOtelExporterHeaderName         string
 	MainOtelExporterHeaderValue        string
 	MainOtelServiceName                string
+	MainOtelTraceContext               string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool
