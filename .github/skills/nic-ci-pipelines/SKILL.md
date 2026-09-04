@@ -18,7 +18,7 @@ Consequences:
 
 - `release-prep.yml` / `release-prep-lts.yml` are **internal-repo only**. They are the only workflows that build release images. Dispatching them on the public repo is a no-op -- every job skips.
 - `release-publish.yml` / `release-publish-lts.yml` are **public-repo only**. They never run `docker build`; `oss-release.yml` and `plus-release.yml` copy image manifests with `skopeo` from `source_registry` (default `docker-mgmt-test.nginx.com`) to the public targets.
-- The public repo still builds images **for PR/CI testing** (`ci.yml` -> `build-artifacts.yml`, pushing to the GCR dev registry) and for `edge`/`stable` promotion on merge (`image-promotion.yml`). Those are test artifacts, not release artifacts.
+- The public repo still builds images **for PR/CI testing** (`ci.yml` -> `build-artifacts.yml`) and again on merge (`image-promotion.yml` calls `build-artifacts.yml` with `force: true` before tagging `edge`/`stable`). Both push to the GCR dev registry -- they are test artifacts, not release artifacts.
 - A publish failure is retryable on its own -- nothing needs rebuilding because the images already exist in the staging registry.
 
 ```text
@@ -50,6 +50,7 @@ ci.yml (main CI orchestrator)                          [public repo]
   -> smoke / e2e tests
 
 image-promotion.yml (post-merge)                       [public repo]
+  -> build-artifacts.yml (force: true)  <- rebuilds test images before promoting
   -> tags images edge/stable
   -> Trivy + DockerScout security scans
   -> publishes edge Helm charts to GHCR
@@ -108,7 +109,7 @@ Because the stages are decoupled and live in separate repos, a transient failure
 | `single-image-regression.yml` | Manual dispatch | Runs Python e2e tests on a single image variant and K8s version |
 | `build-base-images.yml` | Weekday cron (04:30 UTC), manual, workflow_call | Rebuilds all base images (alpine, debian, ubi) |
 | `build-ubi-dependency.yml` | Push to `main` touching `build/dependencies/Dockerfile.ubi10`, manual | Builds the UBI dependency image published to `ghcr.io/nginx/dependencies/nginx-ubi` |
-| `image-promotion.yml` | Push to `main`/`release-*`, workflow_call | Post-merge image tagging (`edge`/`stable`), security scanning, GHCR edge chart publish |
+| `image-promotion.yml` | Push to `main`/`release-*`, workflow_call | Rebuilds images via `build-artifacts.yml` (`force: true`), tags `edge`/`stable`, runs security scans, publishes GHCR edge chart |
 
 ### Release Workflows
 
@@ -214,16 +215,16 @@ Image variants and test configurations are defined in JSON under `.github/data/`
 
 ### Generated-Artifact Gates
 
-The `verify-codegen` job in `ci.yml` regenerates and fails on any diff. A PR that edits the source without committing the regenerated output will not merge:
+The `verify-codegen` job in `ci.yml` regenerates and then diffs a **specific path** -- it is not a repository-wide check. A PR that edits the source without committing the regenerated output in these paths will not merge:
 
-| Command | Asserted clean |
+| Command | Path diffed |
 | --- | --- |
 | `go mod tidy` | `go.mod`, `go.sum` |
 | `make update-crds` | `config/crd/bases` |
 | `make update-codegen` | `pkg/**` |
 | `make telemetry-schema` | `internal/telemetry` |
 
-Snapshot golden files are not covered by `verify-codegen` -- they fail in `unit-tests` instead.
+Gaps to be aware of: `make update-crds` also rewrites `deploy/crds*.yaml` and `docs/crd/`, but neither path is diffed, so stale bundles merge silently. Snapshot golden files are not covered by `verify-codegen` either -- they fail in `unit-tests` instead.
 
 ---
 

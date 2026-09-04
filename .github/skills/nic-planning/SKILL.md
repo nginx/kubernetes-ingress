@@ -25,7 +25,7 @@ description: 'Task planning and approach strategy for NIC. Use when starting any
 5. **Check invariants** — Review the Key Invariants section in AGENTS.md:
    - Security: `containsDangerousChars()` on user strings reaching NGINX config
    - Codegen: Never edit `zz_generated.deepcopy.go` manually
-   - Templates: Always update BOTH OSS and Plus variants
+   - Templates: Update BOTH OSS and Plus variants for shared directives; Plus-only directives go in the Plus template only
    - CRD fields: Every new field needs kubebuilder markers + validation + template + tests
 6. **Identify test surface** — What tests need adding or updating?
    - Unit tests for validation logic
@@ -41,7 +41,7 @@ For any change, ask:
 
 - [ ] Does it accept new external input? → Add validation with `containsDangerousChars()` or appropriate sanitizer
 - [ ] Does it touch `types.go`? → Run `make update-codegen` then `make update-crds`
-- [ ] Does it add a template directive? → Update BOTH `nginx.ingress.tmpl` AND `nginx-plus.ingress.tmpl` (or v2 equivalents)
+- [ ] Does it add a template directive? → Update BOTH `nginx.ingress.tmpl` AND `nginx-plus.ingress.tmpl` (or v2 equivalents) if the directive is shared; Plus-only directives go in the Plus template alone
 - [ ] Does it add a CRD field? → Add kubebuilder markers, validation, template struct, rendering, tests
 - [ ] Does it touch Helm values? → Update `values.yaml`, `values.schema.json`, and helmunit tests
 - [ ] Does it affect config generation? → Add a snapshot fixture that exercises the change, then run `make test-update-snaps`
@@ -77,7 +77,7 @@ Do not report a task as complete until every applicable box is ticked. These are
 ## Common Planning Mistakes
 
 - Starting implementation before understanding the full scope of affected files
-- Forgetting to update BOTH OSS and Plus templates
+- Forgetting to update BOTH OSS and Plus templates for a shared directive -- or the inverse, leaking a Plus-only directive into the OSS template
 - Changing `types.go` without running codegen
 - Adding a VirtualServer feature without checking if Ingress (v1) also needs it
 - Adding Helm values without updating the JSON schema

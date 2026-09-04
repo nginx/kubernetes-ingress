@@ -56,14 +56,27 @@ This is the single most frequently missed step. Treat it as a hard gate, not an 
    git diff -- '**/__snapshots__/**'
    ```
 
-4. **Read the diff and confirm your directive is present** in both the OSS and Plus golden output. An empty diff after a `.tmpl` change means no fixture exercises the new branch -- go back to step 1.
+4. **Read the diff and confirm your directive is present** in the golden output for every edition that supports it. An empty diff after a `.tmpl` change means no fixture exercises the new branch -- go back to step 1.
 5. Run `make test` to confirm the suite is green against the regenerated files.
 6. Commit the `__snapshots__` changes in the same commit as the template change.
+
+### Edition parity -- OSS vs Plus
+
+OSS and Plus templates are separate files with separate golden entries, so decide up front which editions the feature targets:
+
+| Feature | Expected snapshot diff |
+| --- | --- |
+| Supported by both editions | Both the OSS **and** Plus golden files change |
+| Plus-only (health checks, OIDC, WAF, `zone_sync`, NGINX Plus API) | **Only** the Plus golden file changes -- the directive must never appear in OSS output |
+| OSS-only | Only the OSS golden file changes |
+
+A one-sided diff is a bug only when the feature is supposed to be shared. Never add a Plus-only directive to an OSS snapshot to "fix" a one-sided diff -- that means the directive leaked into the OSS template and NGINX OSS will fail to start.
 
 ### Self-check before declaring done
 
 - [ ] Every `.tmpl` I edited has at least one snapshot case that renders the new directive.
-- [ ] Both the OSS and Plus golden files changed (or I can explain why only one did).
+- [ ] The golden files changed for exactly the editions the feature supports -- both for shared features, Plus-only for Plus features.
+- [ ] No Plus-only directive appears in an OSS golden file.
 - [ ] `git diff` on `__snapshots__` is non-empty and reviewed line by line.
 - [ ] `make test` passes without `UPDATE_SNAPS`.
 - [ ] The regenerated golden files are staged for commit.
@@ -157,7 +170,7 @@ Location: `tests/suite/`
 
 ### Markers must be registered
 
-pytest runs with `--strict-markers` (`pyproject.toml`, `[tool.pytest.ini_options] addopts`). Any new `@pytest.mark.<name>` must be added to the `markers` list in [pyproject.toml](pyproject.toml) or the whole suite errors out. If the marker should run in CI, also add it to the relevant smoke matrix in `.github/data/matrix-smoke-*.json`.
+pytest runs with `--strict-markers` (`pyproject.toml`, `[tool.pytest.ini_options] addopts`). Any new `@pytest.mark.<name>` must be added to the `markers` list in `pyproject.toml` at the repository root or the whole suite errors out. If the marker should run in CI, also add it to the relevant smoke matrix in `.github/data/matrix-smoke-*.json`.
 
 ### Test Class Pattern
 
@@ -210,15 +223,17 @@ Store YAML manifests in `tests/data/<feature>/`.
 
 ## Generated Artifacts Verified by CI
 
-`ci.yml` fails the build on any diff after regeneration. Run the matching target and commit the result:
+The `verify-codegen` job in `ci.yml` re-runs each generator and diffs a **specific path**. Run the matching target and commit the result:
 
-| You changed | Run | CI asserts no diff in |
+| You changed | Run | Path CI diffs |
 | --- | --- | --- |
 | `pkg/apis/**/types.go` | `make update-codegen` | `pkg/**` |
-| `pkg/apis/**` kubebuilder markers | `make update-crds` | `config/crd/bases` (also refreshes `deploy/crds*.yaml` and `docs/crd/`) |
+| `pkg/apis/**` kubebuilder markers | `make update-crds` | `config/crd/bases` only |
 | Telemetry `Data` / `NICResourceCounts` in `internal/telemetry/exporter.go` | `make telemetry-schema` | `internal/telemetry` |
 | Any import / dependency | `go mod tidy` | `go.mod`, `go.sum` |
-| Any `.tmpl` or template struct | `make test-update-snaps` | snapshot tests fail in `unit-tests` |
+| Any `.tmpl` or template struct | `make test-update-snaps` | not checked by `verify-codegen` -- fails in `unit-tests` instead |
+
+**The checks are path-scoped, not repository-wide.** `make update-crds` also rewrites `deploy/crds*.yaml` and `docs/crd/`, but CI never diffs those paths -- forgetting to commit them produces a green build and stale published CRD bundles. Verify them yourself with `git status` after regenerating.
 
 `charts/nginx-ingress/crds` is a **symlink** to `config/crd/bases/` -- never edit it directly.
 
@@ -231,6 +246,6 @@ Store YAML manifests in `tests/data/<feature>/`.
 - **Never** run raw `go test` -- use `make test` which includes required build tags (`aws`, `helmunit`)
 - Snapshot golden files are in `__snapshots__/` directories -- commit the regenerated files with the change that caused them
 - `TestMain` with `snaps.Clean(m, snaps.CleanOpts{Sort: true})` is **per package**, not per file -- adding a second one to the same package breaks the build
-- OSS and Plus templates are separate files, so they have separate snapshot entries -- a one-sided diff usually means you forgot the sibling template
+- OSS and Plus templates are separate files, so they have separate snapshot entries -- a one-sided diff means you forgot the sibling template, **unless** the feature is Plus-only, in which case only the Plus golden file must change
 - New pytest markers must be registered in `pyproject.toml` -- `--strict-markers` is enabled
 - Python tests use `indirect=True` parametrize for IC + VS setup -- do not remove this

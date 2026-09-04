@@ -17,11 +17,11 @@ Annotations apply ONLY to Ingress objects, never to VirtualServer or VirtualServ
 6. Add the NGINX directive in `internal/configs/version1/nginx.ingress.tmpl` and `internal/configs/version1/nginx-plus.ingress.tmpl`
 7. Add validation in `internal/k8s/validation.go` annotation validation chains
 8. Add tests in `annotations_test.go` and `ingress_test.go`
-9. **Add a snapshot case** in `internal/configs/version1/template_test.go` whose fixture sets the new `ConfigParams` field, then run `make test-update-snaps` and confirm the directive appears in both the OSS and Plus golden files under `internal/configs/version1/__snapshots__/`
+9. **Add a snapshot case** in `internal/configs/version1/template_test.go` whose fixture sets the new `ConfigParams` field, then run `make test-update-snaps` and confirm the directive appears in `internal/configs/version1/__snapshots__/` for every edition the annotation supports -- both OSS and Plus for shared directives, Plus golden files only for Plus-only ones
 
 ### Gotchas
 
-- **Never** forget both OSS and Plus templates -- they are separate files
+- **Never** forget both OSS and Plus templates -- they are separate files. The exception is a Plus-only directive, which belongs in the Plus template only
 - Use `containsDangerousChars()` for any user-provided string that ends up in NGINX config
 - `parseAnnotations()` silently ignores unknown annotations -- add the constant first
 - An unchanged `__snapshots__` diff after a `.tmpl` edit means no fixture exercises the new branch -- the annotation is untested
@@ -36,7 +36,7 @@ Annotations apply ONLY to Ingress objects, never to VirtualServer or VirtualServ
 4. Add to the version2 template struct in `internal/configs/version2/http.go`
 5. Wire in `internal/configs/virtualserver.go` (`GenerateVirtualServerConfig` or helper)
 6. Add template rendering in `nginx.virtualserver.tmpl` / `nginx-plus.virtualserver.tmpl`
-7. **Add a snapshot case** in `internal/configs/version2/templates_test.go` that populates the new field in the fixture, then run `make test-update-snaps` and verify the directive appears in both OSS and Plus golden files under `internal/configs/version2/__snapshots__/`
+7. **Add a snapshot case** in `internal/configs/version2/templates_test.go` that populates the new field in the fixture, then run `make test-update-snaps` and verify the directive appears in `internal/configs/version2/__snapshots__/` for every edition the field supports -- both OSS and Plus for shared directives, Plus golden files only for Plus-only ones
 8. Check whether Ingress (v1) needs the same capability as an annotation
 
 ### JSON Tag Conventions

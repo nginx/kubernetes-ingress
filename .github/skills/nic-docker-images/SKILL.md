@@ -46,9 +46,10 @@ Supporting images built outside this Dockerfile:
 ### Agent v2 vs v3 -- easy to miss
 
 - OSS and plain Plus images ship **nginx-agent v3 only** (`AGENT_V3_VERSION`).
-- Every NAP variant exists **twice**: the unsuffixed stage pins `AGENT_V2_VERSION`, and the `-agent` suffixed stage pins `AGENT_V3_VERSION`. For example `debian-plus-nap` (agent v2) and `debian-plus-nap-agent` (agent v3).
-- Both halves of the pair are in `.github/data/matrix-images-nap.json` and in `make all-images`. Adding a NAP stage without its `-agent` twin leaves half the matrix broken.
-- Python e2e tests distinguish them with the `agentv2` / `agentv3` pytest markers.
+- NAP WAF stages exist **in pairs**: the unsuffixed stage pins `AGENT_V2_VERSION`, the `-agent` suffixed stage pins `AGENT_V3_VERSION`. For example `debian-plus-nap` (agent v2) and `debian-plus-nap-agent` (agent v3).
+- `.github/data/matrix-images-nap.json` builds both halves of each pair against all three `nap_modules` values, so CI covers DoS-only on agent v2 and v3.
+- The **local Makefile targets do not mirror the matrix exactly.** The DoS-only targets `debian-image-dos-plus` and `ubi-image-dos-plus` build the `-agent` (v3) stages and have no agent-v2 twin. Read the target body before assuming a naming pattern.
+- Python e2e tests distinguish the two agents with the `agentv2` / `agentv3` pytest markers.
 
 ---
 
@@ -73,14 +74,14 @@ All targets call `$(DOCKER_CMD)` = `docker build --platform linux/$(ARCH) --targ
 | `debian-image-nap-plus-agent` | `debian-plus-nap-agent` | `waf` | v3 |
 | `debian-image-nap-v5-plus` | `debian-plus-nap-v5` | `waf` | v2 |
 | `debian-image-nap-v5-plus-agent` | `debian-plus-nap-v5-agent` | `waf` | v3 |
-| `debian-image-dos-plus` | `debian-plus-nap` | `dos` | v2 |
+| `debian-image-dos-plus` | `debian-plus-nap-agent` | `dos` | v3 |
 | `debian-image-nap-dos-plus` | `debian-plus-nap` | `waf,dos` | v2 |
 | `debian-image-nap-dos-plus-agent` | `debian-plus-nap-agent` | `waf,dos` | v3 |
 | `ubi-image-nap-plus` | `ubi-10-plus-nap` | `waf` | v2 |
 | `ubi-image-nap-plus-agent` | `ubi-10-plus-nap-agent` | `waf` | v3 |
 | `ubi-image-nap-v5-plus` | `ubi-10-plus-nap-v5` | `waf` | v2 |
 | `ubi-image-nap-v5-plus-agent` | `ubi-10-plus-nap-v5-agent` | `waf` | v3 |
-| `ubi-image-dos-plus` | `ubi-10-plus-nap` | `dos` | v2 |
+| `ubi-image-dos-plus` | `ubi-10-plus-nap-agent` | `dos` | v3 |
 | `ubi-image-nap-dos-plus` | `ubi-10-plus-nap` | `waf,dos` | v2 |
 | `ubi-image-nap-dos-plus-agent` | `ubi-10-plus-nap-agent` | `waf,dos` | v3 |
 
@@ -167,7 +168,7 @@ Package repo definitions (`*.repo`, `*.sources`, `90pkgs-nginx`) are likewise fe
 - **Never** store Plus credentials in image layers -- always use `--secret` mounts
 - **Never** add `arm64` to NAP image matrices -- NAP is `amd64` only
 - **Always** use `BUILD_OS` to select variants, not separate Dockerfiles
-- **Always add or change NAP stages in pairs.** A new `foo-nap` stage needs a matching `foo-nap-agent` stage, a Makefile target, an entry in `make all-images`, and both entries in `.github/data/matrix-images-nap.json`
+- **Add or change NAP WAF stages in pairs.** A new `foo-nap` stage needs a matching `foo-nap-agent` stage, a Makefile target, an entry in `make all-images`, and both entries in `.github/data/matrix-images-nap.json`. The DoS-only Makefile targets are the documented exception -- they build the `-agent` stages only
 - The `common` stage unifies all variants -- changes there affect every image
 - `common.sh` detects Plus via `BUILD_OS` containing "plus" and creates OIDC directories
 - `patch-os.sh` lives in `nginx/k8s-common`, not `build/scripts/` -- editing it here is impossible
