@@ -22,6 +22,54 @@ Note: Helm tests use the `//go:build helmunit` build tag -- they are only compil
 
 ---
 
+## Snapshot Tests -- MANDATORY workflow
+
+This is the single most frequently missed step. Treat it as a hard gate, not an optional cleanup.
+
+### The three snapshot packages
+
+| Package | Golden files | Covers |
+| --- | --- | --- |
+| `internal/configs/version1` | `internal/configs/version1/__snapshots__/` | Ingress templates (`nginx.tmpl`, `nginx.ingress.tmpl`, and Plus variants) |
+| `internal/configs/version2` | `internal/configs/version2/__snapshots__/` | VirtualServer / VSR / TransportServer templates (OSS + Plus) |
+| `charts/tests` | `charts/tests/__snapshots__/` | Rendered Helm manifests (terratest, `helmunit` build tag) |
+
+### Trigger table -- if you touched this, snapshots are in scope
+
+| Change | Snapshot action required |
+| --- | --- |
+| Any `*.tmpl` file | Regenerate **and** add a case that exercises the new directive |
+| Template struct field (`version1/config.go`, `version2/http.go`, `version2/stream.go`) | Add the field to the fixture used by the snapshot test, then regenerate |
+| Config generation (`internal/configs/*.go`) that changes rendered output | Regenerate; confirm the diff matches the intended output |
+| `charts/nginx-ingress/templates/**`, `values.yaml`, `_helpers.tpl` | Add `charts/tests/testdata/<feature>.yaml` + a `helmunit_test.go` case, then regenerate |
+| Deleting or renaming a snapshot test | Regenerate -- `snaps.Clean` prunes the obsolete entry from the golden file |
+
+### Required sequence
+
+1. **Add or extend a test case first.** Regenerating alone only re-records existing fixtures. If no fixture sets your new field, the golden file will never contain your directive and the feature ships untested.
+2. Run `make test-update-snaps`.
+3. Inspect what actually changed:
+
+   ```bash
+   git status --short internal/configs/version1/__snapshots__ \
+     internal/configs/version2/__snapshots__ charts/tests/__snapshots__
+   git diff -- '**/__snapshots__/**'
+   ```
+
+4. **Read the diff and confirm your directive is present** in both the OSS and Plus golden output. An empty diff after a `.tmpl` change means no fixture exercises the new branch -- go back to step 1.
+5. Run `make test` to confirm the suite is green against the regenerated files.
+6. Commit the `__snapshots__` changes in the same commit as the template change.
+
+### Self-check before declaring done
+
+- [ ] Every `.tmpl` I edited has at least one snapshot case that renders the new directive.
+- [ ] Both the OSS and Plus golden files changed (or I can explain why only one did).
+- [ ] `git diff` on `__snapshots__` is non-empty and reviewed line by line.
+- [ ] `make test` passes without `UPDATE_SNAPS`.
+- [ ] The regenerated golden files are staged for commit.
+
+---
+
 ## Go Unit Tests
 
 ### Table-Driven Tests (primary pattern)
@@ -61,9 +109,9 @@ Two conventions are in use -- both are acceptable:
 - `TestValidate<Thing>Fails` (invalid input)
 - `TestGenerate<Feature>`
 
-### Snapshot Tests (template output)
+### Snapshot Test Mechanics
 
-Every test file that uses `snaps.MatchSnapshot` must have a `TestMain` that cleans up stale snapshots:
+Every **package** that uses `snaps.MatchSnapshot` needs exactly one `TestMain` that prunes stale snapshots. It lives in a single file per package (`version1/template_test.go`, `version2/templates_test.go`, `charts/tests/helmunit_test.go`) -- do not add a second one when you create a new test file in an existing package:
 
 ```go
 func TestMain(m *testing.M) {
@@ -106,6 +154,10 @@ Add a test values file in `charts/tests/testdata/<feature>.yaml` and a correspon
 ## Python Integration Tests
 
 Location: `tests/suite/`
+
+### Markers must be registered
+
+pytest runs with `--strict-markers` (`pyproject.toml`, `[tool.pytest.ini_options] addopts`). Any new `@pytest.mark.<name>` must be added to the `markers` list in [pyproject.toml](pyproject.toml) or the whole suite errors out. If the marker should run in CI, also add it to the relevant smoke matrix in `.github/data/matrix-smoke-*.json`.
 
 ### Test Class Pattern
 
@@ -156,10 +208,29 @@ Store YAML manifests in `tests/data/<feature>/`.
 
 ---
 
+## Generated Artifacts Verified by CI
+
+`ci.yml` fails the build on any diff after regeneration. Run the matching target and commit the result:
+
+| You changed | Run | CI asserts no diff in |
+| --- | --- | --- |
+| `pkg/apis/**/types.go` | `make update-codegen` | `pkg/**` |
+| `pkg/apis/**` kubebuilder markers | `make update-crds` | `config/crd/bases` (also refreshes `deploy/crds*.yaml` and `docs/crd/`) |
+| Telemetry `Data` / `NICResourceCounts` in `internal/telemetry/exporter.go` | `make telemetry-schema` | `internal/telemetry` |
+| Any import / dependency | `go mod tidy` | `go.mod`, `go.sum` |
+| Any `.tmpl` or template struct | `make test-update-snaps` | snapshot tests fail in `unit-tests` |
+
+`charts/nginx-ingress/crds` is a **symlink** to `config/crd/bases/` -- never edit it directly.
+
+---
+
 ## Gotchas
 
 - **Always** run `make test-update-snaps` after changing any `.tmpl` file -- snapshot tests will fail otherwise
-- **Never** run raw `go test` -- use `make test` which includes required build tags
-- Snapshot golden files are in `__snapshots__/` directories -- commit the regenerated files
-- Every snapshot test file requires a `TestMain` with `snaps.Clean(m, snaps.CleanOpts{Sort: true})` -- omitting it causes stale snapshots to accumulate
+- **Regenerating is not the same as testing.** If no fixture sets your new field, the golden file will not change and the feature has zero coverage. Add the test case first
+- **Never** run raw `go test` -- use `make test` which includes required build tags (`aws`, `helmunit`)
+- Snapshot golden files are in `__snapshots__/` directories -- commit the regenerated files with the change that caused them
+- `TestMain` with `snaps.Clean(m, snaps.CleanOpts{Sort: true})` is **per package**, not per file -- adding a second one to the same package breaks the build
+- OSS and Plus templates are separate files, so they have separate snapshot entries -- a one-sided diff usually means you forgot the sibling template
+- New pytest markers must be registered in `pyproject.toml` -- `--strict-markers` is enabled
 - Python tests use `indirect=True` parametrize for IC + VS setup -- do not remove this

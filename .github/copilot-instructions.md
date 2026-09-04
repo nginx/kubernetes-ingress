@@ -38,10 +38,14 @@ Use the codebase as the authoritative reference for patterns and style. Plan bef
 | `make format` | goimports + gofumpt |
 | `make build` | Build `nginx-ingress` binary |
 | `make update-codegen` | Regenerate DeepCopy + typed clients |
-| `make update-crds` | Regenerate CRD YAML from kubebuilder markers |
+| `make update-crds` | Regenerate CRD YAML, `deploy/crds*.yaml` bundles, and `docs/crd/` |
+| `make telemetry-schema` | Regenerate telemetry attributes + Avro schema |
 
 Always use `make test` over raw `go test`. Run `make test-update-snaps` when template output changes.
 After changing `types.go`, always run `make update-codegen` then `make update-crds`.
+
+CI (`verify-codegen` in `ci.yml`) re-runs the generators and fails on any diff, so commit the regenerated output:
+`go mod tidy` -> `go.mod`/`go.sum`, `make update-crds` -> `config/crd/bases`, `make update-codegen` -> `pkg/**`, `make telemetry-schema` -> `internal/telemetry`.
 
 ---
 
@@ -82,10 +86,14 @@ After changing `types.go`, always run `make update-codegen` then `make update-cr
 ## Key Invariants
 
 - **NGINX config security**: Run `containsDangerousChars()` on every user-provided string that reaches NGINX config (dangerous: `;`, `{`, `}`, `\n`, `\r`, `$`, backtick). Use `ValidateEscapedString()` for escape validation.
-- **Codegen**: Never edit `zz_generated.deepcopy.go` manually. After changing `types.go`, always run `make update-codegen` then `make update-crds`.
-- **Templates**: OSS and Plus template variants are separate files -- always update both. When adding a VirtualServer (v2) feature, check whether Ingress (v1) also needs it.
+- **Codegen**: Never edit `zz_generated.deepcopy.go`, `pkg/client/**`, `config/crd/bases/**`, or `internal/telemetry/*_generated.go` manually. After changing `types.go`, always run `make update-codegen` then `make update-crds`. `charts/nginx-ingress/crds` is a symlink to `config/crd/bases/`.
+- **Snapshots**: Any `.tmpl` or template-struct change requires a fixture that renders the new directive **plus** `make test-update-snaps`. An empty `__snapshots__` diff after a template edit is a silent failure, not a pass -- it means nothing exercises the new branch.
+- **Templates**: OSS and Plus template variants are separate files -- always update both. When adding a VirtualServer (v2) feature, check whether Ingress (v1) also needs it. Plus-only directives must never appear in an OSS template.
+- **NGINX semantics**: Verify directive syntax, context and availability against <https://nginx.org/en/docs/> before adding it to a template. A wrong-context directive only fails at reload time.
 - **Credentials**: Plus credentials use `--secret` mounts in Docker builds, never `COPY`. CI secrets via Azure Key Vault OIDC, never GitHub repository secrets.
-- **New CRD fields**: Every new field requires kubebuilder markers, validation, template struct, template rendering, and tests.
+- **New CRD fields**: Every new field requires kubebuilder markers, validation, template struct, template rendering, snapshot fixture, and tests.
+- **Python tests**: pytest runs with `--strict-markers` -- register every new marker in `pyproject.toml`.
+- **CI repo split**: Release images and binaries are built in `nginx/kubernetes-ingress-internal` (`release-prep*.yml`). The public repo only copies staged images to public registries, publishes the Helm chart, opens the operator PR, and publishes the GitHub release (`release-publish*.yml`). Never add a build step to a publish-stage workflow.
 
 ---
 
@@ -99,4 +107,5 @@ Absolute minimum reviewer discipline:
 
 - Comment only at >80% confidence.
 - Be concise, actionable, and file+line specific.
+- Verify NGINX directive semantics against <https://nginx.org/en/docs/> and NIC behaviour against <https://docs.nginx.com/nginx-ingress-controller/> before flagging or approving config-generation changes; cite the page you used.
 - Never post secrets, tokens, or license contents in review output.

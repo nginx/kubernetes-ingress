@@ -80,6 +80,26 @@ Each layer has a strict ownership boundary. Identify the correct layer before pl
 
 ---
 
+## Generated Artifacts — never hand-edit
+
+Every entry below is produced by a command and verified by CI. Change the source, run the command, commit the output.
+
+| Artifact | Source | Command |
+| --- | --- | --- |
+| `pkg/apis/**/zz_generated.deepcopy.go`, `pkg/client/**` | `pkg/apis/**/types.go` | `make update-codegen` |
+| `config/crd/bases/*.yaml` | kubebuilder markers in `pkg/apis/**` | `make update-crds` |
+| `deploy/crds.yaml`, `deploy/crds-nap-*.yaml` | `config/crd/**` via kustomize | `make update-crds` |
+| `docs/crd/*.md` | `config/crd/bases` via `hack/generate-crd-docs.go` | `make update-crds` (runs `update-crd-docs`) |
+| `charts/nginx-ingress/crds` | **symlink** to `config/crd/bases/` | nothing — never edit |
+| `internal/telemetry/*_generated.go`, `data.avdl` | `Data` / `NICResourceCounts` in `internal/telemetry/exporter.go` | `make telemetry-schema` |
+| `internal/configs/version1/__snapshots__/**` | `version1/*.tmpl` + fixtures in `template_test.go` | `make test-update-snaps` |
+| `internal/configs/version2/__snapshots__/**` | `version2/*.tmpl` + fixtures in `templates_test.go` | `make test-update-snaps` |
+| `charts/tests/__snapshots__/**` | chart templates + `charts/tests/testdata/*.yaml` | `make test-update-snaps` |
+
+Snapshot files differ from the others: regenerating them only re-records the *existing* fixtures. A template change with no matching fixture produces an empty diff and zero coverage — see `nic-testing` for the required sequence.
+
+---
+
 ## Resource Processing Pipeline
 
 ```text
