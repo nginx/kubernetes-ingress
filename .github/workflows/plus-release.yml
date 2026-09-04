@@ -143,6 +143,9 @@ jobs:
           export CONFIG_PATH=.github/config/config-plus-gcr-release
           export SOURCE_TAG=${{ inputs.source_tag }}
           export TARGET_TAG=${{ inputs.target_tag }}
+          if [[ "${{ inputs.source_registry }}" == *docker-mgmt* ]]; then
+            export SOURCE_NAP_WAF_DOS_IMAGE_PREFIX="nginx-ic-nap-dos/nginx-plus-ingress"
+          fi
           if ${{ inputs.dry_run }}; then
             export DRY_RUN=true
           fi
