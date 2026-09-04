@@ -18,11 +18,39 @@ import (
 )
 
 // TransportServerInformer provides access to a shared informer and lister for
-// TransportServers.
+// TransportServers. Prefer using the type-safe variant (see [TypedTransportServerInformer]).
 type TransportServerInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() configurationv1.TransportServerLister
 }
+
+// TypedTransportServerInformer provides access to a shared informer and lister for
+// TransportServers, including the type-safe TypedInformer variant.
+// It is a superset of TransportServerInformer.
+type TypedTransportServerInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() TransportServerIndexInformer
+	Lister() configurationv1.TransportServerLister
+}
+
+// TransportServerIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type TransportServerIndexInformer cache.TypedSharedIndexInformer[*apisconfigurationv1.TransportServer]
+
+// TransportServerHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for TransportServer.
+type TransportServerHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apisconfigurationv1.TransportServer]
+
+// TransportServerDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for TransportServer.
+type TransportServerDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apisconfigurationv1.TransportServer]
+
+// TransportServerFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for TransportServer.
+type TransportServerFilteringHandler = cache.TypedFilteringResourceEventHandler[*apisconfigurationv1.TransportServer]
+
+// TransportServerIndexers is a specialization of [cache.TypedIndexers] for TransportServer.
+type TransportServerIndexers = cache.TypedIndexers[*apisconfigurationv1.TransportServer]
+
+// DeletedTransportServer is a specialization of [cache.DeletedObject] for TransportServer.
+type DeletedTransportServer = cache.DeletedObject[*apisconfigurationv1.TransportServer]
 
 type transportServerInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -33,25 +61,49 @@ type transportServerInformer struct {
 // NewTransportServerInformer constructs a new informer for TransportServer type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedTransportServerInformer]).
 func NewTransportServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewTransportServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedTransportServerInformer constructs a new informer for TransportServer type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedTransportServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers TransportServerIndexers) TransportServerIndexInformer {
+	return NewTypedTransportServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredTransportServerInformer constructs a new informer for TransportServer type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredTransportServerInformer]).
 func NewFilteredTransportServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewTransportServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedTransportServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredTransportServerInformer constructs a new informer for TransportServer type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredTransportServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers TransportServerIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) TransportServerIndexInformer {
+	return NewTypedTransportServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewTransportServerInformerWithOptions constructs a new informer for TransportServer type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedTransportServerInformerWithOptions]).
 func NewTransportServerInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedTransportServerInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedTransportServerInformerWithOptions constructs a new informer for TransportServer type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedTransportServerInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) TransportServerIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "transportservers"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.TransportServer](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -84,17 +136,57 @@ func NewTransportServerInformerWithOptions(client versioned.Interface, namespace
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *transportServerInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewTransportServerInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedTransportServerInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *transportServerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apisconfigurationv1.TransportServer{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *transportServerInformer) TypedInformer() TransportServerIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.TransportServer](f.factory.InformerFor(&apisconfigurationv1.TransportServer{}, f.defaultInformer))
 }
 
 func (f *transportServerInformer) Lister() configurationv1.TransportServerLister {
 	return configurationv1.NewTransportServerLister(f.Informer().GetIndexer())
+}
+
+// ToTypedTransportServerInformer converts an untyped informer into a TypedTransportServerInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *TransportServer. If that is not the case, calling type-safe methods of the returned
+// TypedTransportServerInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedTransportServerInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedTransportServerInformer(informer TransportServerInformer) TypedTransportServerInformer {
+	if informer, ok := informer.(TypedTransportServerInformer); ok {
+		return informer
+	}
+	return &transportServerTypedInformerAdapter{informer}
+}
+
+type transportServerTypedInformerAdapter struct {
+	TransportServerInformer
+}
+
+func (a *transportServerTypedInformerAdapter) TypedInformer() TransportServerIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.TransportServer](a.Informer())
+}
+
+// ToTransportServerIndexInformer converts an untyped informer into a TransportServerIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *TransportServer. If that is not the case, calling type-safe methods of the returned
+// TransportServerIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a TransportServerIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTransportServerIndexInformer(informer cache.SharedIndexInformer) TransportServerIndexInformer {
+	if informer, ok := informer.(TransportServerIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.TransportServer](informer)
 }
