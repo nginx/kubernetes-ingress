@@ -227,6 +227,7 @@ func TestExecuteTemplate_ForIngressWithKubernetesExactPath(t *testing.T) {
 			if !strings.Contains(buf.String(), test.wantRewrite) {
 				t.Errorf("want %q in generated config", test.wantRewrite)
 			}
+			snaps.MatchSnapshot(t, buf.String())
 		})
 	}
 }
