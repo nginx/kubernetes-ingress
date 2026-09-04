@@ -1,7 +1,7 @@
 apiVersion: v2
 name: nginx-ingress
-version: 2026.0.4
-appVersion: 2026-lts-r5
+version: 2026.0.5
+appVersion: 2026-lts-r6
 kubeVersion: ">= 1.25.0-0"
 type: application
 description: NGINX Ingress Controller
