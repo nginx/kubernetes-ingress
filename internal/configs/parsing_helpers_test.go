@@ -391,6 +391,10 @@ func TestParseLBMethod(t *testing.T) {
 		{"random", "random"},
 		{"random two", "random two"},
 		{"random two least_conn", "random two least_conn"},
+		{"least_time header", "least_time header"},
+		{"least_time last_byte", "least_time last_byte"},
+		{"least_time header inflight", "least_time header inflight"},
+		{"least_time last_byte inflight", "least_time last_byte inflight"},
 		{"hash $request_id", "hash $request_id"},
 		{"hash $request_id consistent", "hash $request_id consistent"},
 	}
@@ -398,7 +402,6 @@ func TestParseLBMethod(t *testing.T) {
 	invalidInput := []string{
 		"",
 		"blabla",
-		"least_time header",
 		"hash123",
 		"hash $request_id conwrongspelling",
 		"hash $request_uri;\nkeepalive\t999",

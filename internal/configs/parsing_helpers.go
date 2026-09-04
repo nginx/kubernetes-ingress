@@ -110,11 +110,15 @@ func ParseLBMethod(method string) (string, error) {
 }
 
 var nginxLBValidInput = map[string]bool{
-	"least_conn":            true,
-	"ip_hash":               true,
-	"random":                true,
-	"random two":            true,
-	"random two least_conn": true,
+	"least_conn":                    true,
+	"ip_hash":                       true,
+	"random":                        true,
+	"random two":                    true,
+	"random two least_conn":         true,
+	"least_time header":             true,
+	"least_time last_byte":          true,
+	"least_time header inflight":    true,
+	"least_time last_byte inflight": true,
 }
 
 var nginxPlusLBValidInput = map[string]bool{
