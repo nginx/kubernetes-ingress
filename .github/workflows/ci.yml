@@ -426,7 +426,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
         with:
           platforms: arm64
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
@@ -575,7 +575,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
@@ -686,7 +686,7 @@ jobs:
           echo "matrix_nap=$(cat .github/data/matrix-smoke-nap.json | jq -c --arg latest "${{ needs.checks.outputs.k8s_latest }}" '.k8s += [$latest]')" >> $GITHUB_OUTPUT
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Setup secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
