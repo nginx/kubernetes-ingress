@@ -26,7 +26,7 @@ This skill defines **how** to review a NIC PR: the workflow, guardrails, dimensi
 
 ## Verify before flagging
 
-Before writing a Blocking or Non-blocking comment, you must confirm the claim against actual code or config. Speculation is not review. If you cannot verify, downgrade to a Question or skip.
+Before writing any comment, you must confirm the claim against actual code or config. Speculation is not review. If you cannot verify it, do not write it.
 
 | If the comment claims... | You must first... |
 | --- | --- |
@@ -40,13 +40,13 @@ Before writing a Blocking or Non-blocking comment, you must confirm the claim ag
 | "This directive is allowed in this context" | Check the directive's `Context:` line in the nginx docs. `http`, `server`, `location`, `stream`, `upstream` are not interchangeable, and a wrong-context directive fails `nginx -t` at reload, not at build time. |
 | "This is not how NIC exposes this feature" | Check <https://docs.nginx.com/nginx-ingress-controller/> and the existing annotation / CRD field for the same capability before claiming a new API is redundant or misnamed. |
 
-If verification is impractical (e.g. requires running the CI), phrase the finding as a **Question**, not a Blocking or Non-blocking bullet.
+If verification is impractical (e.g. it requires running the CI), drop the finding. Do not file it with a hedge.
 
 ## Verify against upstream NGINX before reviewing config behaviour
 
 NIC generates NGINX configuration. A review that reasons about NGINX semantics from memory is unreliable -- directive contexts, defaults, and Plus-vs-OSS availability change between versions. Consult the authoritative source, then comment.
 
-| Question | Authoritative source |
+| What you need to know | Authoritative source |
 | --- | --- |
 | Does this directive exist? What is its context, syntax and default? | <https://nginx.org/en/docs/dirindex.html> |
 | What do these variables resolve to? | <https://nginx.org/en/docs/varindex.html> |
@@ -60,18 +60,18 @@ Rules for using these sources:
 
 - **Check before you flag, and check before you approve.** A generated directive that is syntactically valid but in the wrong context still breaks the reload -- that is a Blocking finding, and it is only findable by reading the docs.
 - When a finding rests on upstream behaviour, **cite the source** in the bullet so the author can verify it in one click.
-- If the docs and the diff disagree, prefer the docs -- but raise it as a Question if the PR description explains a deliberate deviation.
+- If the docs and the diff disagree, prefer the docs -- unless the PR description explains a deliberate deviation, in which case drop it.
 - Do not cite a doc page you did not read. Fabricated citations are worse than no citation.
 - Plus-only directives must appear only in `nginx-plus.*.tmpl`. If one leaks into the OSS template, NGINX OSS fails to start -- always Blocking.
 
 ## Confidence downgrades
 
-Move a finding down the severity ladder when any of these apply:
+Downgrade or drop a finding when any of these apply:
 
-- The bug depends on a code path you have not read end-to-end -> Question.
-- The behaviour depends on external tool internals (BuildKit cache, Docker registry retry, Kubernetes API server ordering) -> Question, unless you can cite the docs.
+- The bug depends on a code path you have not read end-to-end -> drop.
+- The behaviour depends on external tool internals (BuildKit cache, Docker registry retry, Kubernetes API server ordering) -> drop, unless you can cite the docs.
 - The "vulnerability" requires an attacker who already controls the repo / workflow file -> Non-blocking hygiene note at most.
-- The finding is "this could be better" without a concrete failure mode -> drop it.
+- The finding is "this could be better" without a concrete failure mode -> drop.
 
 ## Review workflow
 
@@ -87,13 +87,60 @@ Move a finding down the severity ladder when any of these apply:
 
 ## Severity ladder
 
-| Severity | Use when |
-| --- | --- |
-| **Blocking** | Verified defect with a named failure mode: security hole, broken reload, missing layer in a multi-layer change, missing regenerated artifact, behaviour change with no test, Plus-only directive in an OSS template |
-| **Non-blocking** | Verified but low-impact: naming that hurts clarity, missing negative test on a non-security path, duplication that will drift |
-| **Question** | Behaviour you could not verify end-to-end, or a deliberate-looking deviation you want the author to confirm |
+Two severities, nothing else. No "nit", "minor", "praise", "FYI", "possibly blocking". No overall verdict such as "approve" or "request changes" -- the findings are the review.
 
-Anything that does not fit one of these three is not a review comment. Drop it.
+| Severity | Test it must pass |
+| --- | --- |
+| **Blocking** | Verified, and you can name the trigger, the failure, and the blast radius in one sentence. Coverage gaps are blocking too. |
+| **Non-blocking** | Verified, but the worst case is confusing code or future maintenance |
+
+Unverified -> do not write it. There is no third bucket for hunches.
+
+**Verified** means one of: a call site you read, command output (`make test`, `nginx -t`, `git diff`), or a doc page you opened. Reading the diff is not verification.
+
+Blocking means something breaks for someone: NGINX fails to reload, a credential lands in an image layer, a generated artifact ships stale, a sanitisation guard is missing, or no test proves the new behaviour works. This applies equally to Go code, templates, the chart and workflow files -- a mutable action tag on a job holding `id-token: write` is as blocking as a Plus-only directive in an OSS template.
+
+Non-blocking means the code works today but will cost someone time later: an error that drops its cause, a workflow condition that re-derives a value already exported as a job output, a missing negative test on a non-security path.
+
+### Fixed verdicts
+
+These recur in NIC. The verdict is settled -- do not re-litigate it per PR.
+
+| Situation | Verdict |
+| --- | --- |
+| Plus-only directive reachable from an OSS template | Blocking -- NGINX OSS refuses to start |
+| `.tmpl` edited, `__snapshots__` unchanged | Blocking -- no fixture exercises the new branch |
+| `.tmpl` edited, snapshots regenerated, but no fixture field added | Blocking -- same defect, hidden by a reformat-only diff |
+| Shared directive added to only one of the OSS/Plus template pair | Blocking -- edition drift |
+| Plus-only directive added to the Plus template only, OSS snapshot unchanged | **Not a finding** -- this is correct |
+| `types.go` changed without regenerated `pkg/**` or `config/crd/bases` | Blocking -- cite it even though `verify-codegen` also fails; you save a CI round-trip |
+| `types.go` changed without regenerated `deploy/crds*.yaml` or `docs/crd/` | Blocking -- **CI never diffs these**, so stale bundles ship silently |
+| Telemetry `Data`/`NICResourceCounts` changed without `make telemetry-schema` | Blocking -- `verify-codegen` fails |
+| New pytest marker missing from `pyproject.toml` | Blocking -- `--strict-markers` fails the entire suite, not just the new test |
+| `values.yaml` value's **type or shape changed** without updating `values.schema.json` | Blocking -- schema validation rejects the render and `helm install` fails |
+| **New** `values.yaml` key absent from `values.schema.json` | Non-blocking -- the root schema has no `additionalProperties: false`, so it installs but gets no validation. Blocking only under `hostPort`/`containerPort`, which do set it |
+| Plus credentials via `COPY` instead of `--secret` | Blocking -- credential persists in the image layer |
+| GitHub Action pinned to a tag or branch instead of a SHA | Blocking -- supply chain |
+| New workflow job missing its `github.repository` gate | Blocking -- `validate-workflow-gating.sh` fails and the job would run on forks |
+| `docker build` step added to a publish-stage workflow | Blocking -- violates the internal/public repo split |
+| User-controlled string reaching NGINX config with no `containsDangerousChars()`/`ValidateEscapedString()` guard | Blocking -- injection |
+| Security or validation path changed with no negative test | Blocking |
+| Error not wrapped with `%w` | Non-blocking -- **unless** a caller uses `errors.Is`/`errors.As` on it, then Blocking |
+| `//nolint:gosec` without a same-line justification | Non-blocking |
+| Missing negative test on a non-security path | Non-blocking |
+| Naming or duplication | Non-blocking, and only with a named drift scenario. Otherwise drop |
+| Formatting, import order, `golangci-lint`-enforced style | Drop -- tooling owns it |
+| Contents of a generated file look wrong | Drop -- comment on the source that generated it |
+| "This could be better" with no failure mode | Drop |
+| Behaviour you could not trace to a call site | Drop |
+| Deviation that looks deliberate but is explained nowhere | Drop |
+
+### Tie-breaks
+
+- Two rows disagree -> the **higher** severity wins.
+- One defect is one bullet, even if it spans four lines.
+- Never soften because the PR is large, urgent, or authored by a maintainer.
+- More than five findings -> say so in one Summary line and list only the Blocking ones.
 
 ## Completeness gate
 
@@ -106,14 +153,14 @@ Before producing output, confirm you have checked each row that the diff touches
 | One of `nginx.*.tmpl` / `nginx-plus.*.tmpl` | The sibling template updated, unless the directive is Plus-only -- then confirm it appears in the Plus template only |
 | `pkg/apis/**/types.go` | Regenerated `pkg/**` (`make update-codegen`) and `config/crd/bases` (`make update-crds`). `deploy/crds*.yaml` and `docs/crd/` are regenerated by the same target but are **not** diffed by CI -- check them by hand |
 | Telemetry `Data` / `NICResourceCounts` | Regenerated `internal/telemetry/*_generated.go` and `data.avdl` (`make telemetry-schema`) |
-| `charts/nginx-ingress/values.yaml` | Matching `values.schema.json` entry, testdata file, helmunit case, `charts/tests/__snapshots__` diff |
+| `charts/nginx-ingress/values.yaml` | Matching `values.schema.json` entry, testdata file, helmunit case, `charts/tests/__snapshots__` diff. A **changed type/shape** without a schema update is Blocking; a **new key** absent from the schema is Non-blocking |
 | Chart workload templates | All three of deployment / daemonset / statefulset, where the helper is shared |
 | New `@pytest.mark.<name>` | Marker registered in `pyproject.toml` (`--strict-markers` is on) |
 | Imports / dependencies | `go.mod` and `go.sum` tidy |
 | `.github/workflows/**` | Correct `github.repository` gate for the stage (internal repo builds, public repo publishes), pinned action SHAs, matrix JSON in sync |
 | A new user-controlled string reaching NGINX config | A `containsDangerousChars()` / `ValidateEscapedString()` guard **and** a negative test |
 
-If a row is unmet, that is a Blocking finding -- cite the missing artifact by path.
+An unmet row is Blocking unless the Fixed verdicts table above assigns it a lower severity. Cite the missing artifact by path.
 
 ## Change type classification
 
@@ -176,7 +223,7 @@ Walk these in order. Each dimension names the concerns to keep in mind; **load t
 ### Build, chart, CI
 
 - Docker: load `nic-docker-images`. Highest-severity findings are credential leaks (`--secret` mount vs `COPY`) and unpinned bases.
-- Helm: load `nic-add-feature`. Highest-severity finding is `values.yaml` changed without a matching `values.schema.json` update.
+- Helm: load `nic-add-feature`. A `values.yaml` type/shape change without a matching `values.schema.json` update breaks `helm install`; a new key missing from the schema only loses validation coverage. Treat them at the severities in the Fixed verdicts table.
 - CI: load `nic-ci-pipelines`. Highest-severity findings are unpinned Actions, repository-secret usage instead of the OIDC / Key Vault flow, and a wrong `github.repository` gate -- release *builds* belong to `nginx/kubernetes-ingress-internal`, release *publishing* to the public repo. A `docker build` step added to a publish-stage workflow is blocking.
 
 ### Docs and Markdown
@@ -205,7 +252,7 @@ These are failure modes reviewers repeatedly hit. Skip the comment when you noti
 - **Tooling-gap claims without reading the config.** ("Renovate won't update this", "golangci-lint doesn't cover that.") Read the config first, or omit the claim.
 - **"Might break" without a call site.** If you cannot name a caller that hits the path, do not file it as Blocking.
 - **Security theatre on internal inputs.** Shell injection warnings for values that come from the same repo's workflow files are hygiene at best, not vulnerabilities.
-- **Speculating on library internals.** "BuildKit might corrupt the cache", "the client-go informer might miss the event" -- if you cannot cite the docs or source, it is a Question, not a finding.
+- **Speculating on library internals.** "BuildKit might corrupt the cache", "the client-go informer might miss the event" -- if you cannot cite the docs or source, drop it.
 - **Duplicated / overlapping suggestions.** Merge related bullets into one; do not repeat the same fix on three lines of the same file.
 - **Correcting yourself mid-review.** If you notice a finding is wrong while writing it, delete it. Do not ship "*(self-correction: not blocking)*" bullets.
 - **Restating docs / obvious intent.** If the diff has a comment or PR description that explains the choice, do not challenge it without new information.
@@ -219,19 +266,15 @@ Structure the review as follows. Omit any empty section.
 ```markdown
 ### Summary
 
-One or two sentences: what the PR does and the overall verdict (approve / request changes / comment).
+One or two sentences: what the PR does and whether anything blocks merge.
 
 ### Blocking
 
-- [file/path.go:LN](file/path.go#LN) -- Reason. Suggested fix in one line.
+- [file/path.go:LN](file/path.go#LN) -- Trigger, failure, blast radius. Suggested fix in one line.
 
 ### Non-blocking
 
 - [file/path.go:LN](file/path.go#LN) -- Suggestion, one line.
-
-### Questions
-
-- [file/path.go:LN](file/path.go#LN) -- Question that needs an answer before merge.
 ```
 
 Rules:
