@@ -5001,3 +5001,67 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 		})
 	}
 }
+
+// TestHaltIfVSConfigInvalid_NoLockReentry guards against a self-deadlock in the
+// weight-change dynamic-reload path. haltIfVSConfigInvalid and
+// haltIfVSRConfigInvalid hold Configuration.lock.Lock() across a call to
+// updateVirtualServerStatusAndEvents. That helper looks up the referencedBy
+// list via Configuration.GetVirtualServersForVirtualServerRoute, which takes
+// the same lock for reading. sync.RWMutex is not reentrant, so any accessor
+// that acquires the lock while the halt path holds it will deadlock.
+//
+// If a future refactor reintroduces lock reentry from the status helper, this
+// test will fail with a 3s timeout instead of hanging CI. Only the VS variant
+// is exercised because the VSR variant additionally calls createVirtualServerEx,
+// which needs a heavier fixture; the deadlock cause is identical.
+func TestHaltIfVSConfigInvalid_NoLockReentry(t *testing.T) {
+	t.Parallel()
+
+	cfg := createTestConfiguration()
+
+	vsr := createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := createTestVirtualServerWithRoutes("cafe", "cafe.example.com", []conf_v1.Route{
+		{Path: "/coffee", Route: "coffee"},
+	})
+
+	// isNginxReady=false routes status writes to the pending slice, avoiding
+	// the need for a live statusUpdater backend. The deadlock (if present)
+	// fires before that branch — inside GetVirtualServersForVirtualServerRoute.
+	lbc := &LoadBalancerController{
+		configuration:             cfg,
+		areCustomResourcesEnabled: true,
+		recorder:                  record.NewFakeRecorder(100),
+		Logger:                    nl.LoggerFromContext(context.Background()),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		lbc.haltIfVSConfigInvalid(vs)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatalf("haltIfVSConfigInvalid deadlocked: did not return within 3s (likely lock reentry via updateVirtualServerStatusAndEvents)")
+	}
+
+	// Sanity: the write path must have completed and enqueued the VS + VSR
+	// status updates on the pending slices. If it hadn't, the return would
+	// have taken a different (unexpected) branch and the deadlock test would
+	// be silently vacuous.
+	if got := len(lbc.pendingStatusVSes); got != 1 {
+		t.Errorf("pendingStatusVSes: expected 1, got %d", got)
+	}
+	if got := len(lbc.pendingStatusVSRs); got != 1 {
+		t.Errorf("pendingStatusVSRs: expected 1, got %d", got)
+	}
+	if len(lbc.pendingStatusVSRs) == 1 {
+		refs := lbc.pendingStatusVSRs[0].referencedBy
+		if len(refs) != 1 || refs[0].Name != "cafe" {
+			t.Errorf("pendingStatusVSRs[0].referencedBy: expected [cafe], got %v", refs)
+		}
+	}
+}
