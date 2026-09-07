@@ -542,7 +542,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 	var referencedByString string
 	if len(referencedBy) != 0 {
 		for _, vs := range referencedBy {
-			if referencedByString != "" {
+			if builder.Len() > 0 {
 				builder.WriteString(", ")
 			}
 			fmt.Fprintf(&builder, "%v/%v", vs.Namespace, vs.Name)
