@@ -536,19 +536,30 @@ func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, st
 	return false
 }
 
+// formatReferencedBy renders a comma-separated "namespace/name" list of the
+// VirtualServers that currently reference a VirtualServerRoute. The order of
+// the returned string matches the input slice order; callers are expected to
+// pass an already-sorted slice.
+func formatReferencedBy(referencedBy []*conf_v1.VirtualServer) string {
+	if len(referencedBy) == 0 {
+		return ""
+	}
+	var builder strings.Builder
+	for _, vs := range referencedBy {
+		if vs == nil {
+			continue
+		}
+		if builder.Len() > 0 {
+			builder.WriteString(", ")
+		}
+		fmt.Fprintf(&builder, "%v/%v", vs.Namespace, vs.Name)
+	}
+	return builder.String()
+}
+
 // UpdateVirtualServerRouteStatusWithReferencedBy updates the status of a VirtualServerRoute, including the referencedBy field.
 func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string, referencedBy []*conf_v1.VirtualServer) error {
-	var builder strings.Builder
-	var referencedByString string
-	if len(referencedBy) != 0 {
-		for _, vs := range referencedBy {
-			if builder.Len() > 0 {
-				builder.WriteString(", ")
-			}
-			fmt.Fprintf(&builder, "%v/%v", vs.Namespace, vs.Name)
-		}
-		referencedByString = builder.String()
-	}
+	referencedByString := formatReferencedBy(referencedBy)
 
 	// Get an up-to-date VirtualServerRoute from the Store
 	var vsrLatest interface{}

@@ -946,3 +946,80 @@ func TestHasPolicyStatusChanged(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatReferencedBy(t *testing.T) {
+	t.Parallel()
+
+	vs := func(ns, name string) *conf_v1.VirtualServer {
+		return &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Namespace: ns, Name: name},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		input    []*conf_v1.VirtualServer
+		expected string
+	}{
+		{
+			name:     "nil slice",
+			input:    nil,
+			expected: "",
+		},
+		{
+			name:     "empty slice",
+			input:    []*conf_v1.VirtualServer{},
+			expected: "",
+		},
+		{
+			name:     "single VS",
+			input:    []*conf_v1.VirtualServer{vs("default", "cafe")},
+			expected: "default/cafe",
+		},
+		{
+			name: "two VSes",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				vs("default", "cafe2"),
+			},
+			expected: "default/cafe, default/cafe2",
+		},
+		{
+			name: "three VSes preserves input order",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				vs("default", "cafe2"),
+				vs("default", "cafe3"),
+			},
+			expected: "default/cafe, default/cafe2, default/cafe3",
+		},
+		{
+			name: "VSes across namespaces",
+			input: []*conf_v1.VirtualServer{
+				vs("ns-a", "cafe"),
+				vs("ns-b", "cafe"),
+			},
+			expected: "ns-a/cafe, ns-b/cafe",
+		},
+		{
+			name: "nil entries are skipped",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				nil,
+				vs("default", "cafe2"),
+			},
+			expected: "default/cafe, default/cafe2",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := formatReferencedBy(tc.input)
+			if got != tc.expected {
+				t.Errorf("formatReferencedBy() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
