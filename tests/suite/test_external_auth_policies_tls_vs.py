@@ -11,13 +11,13 @@ from suite.utils.external_auth_utils import (
     ext_auth_pol_tls_disabled_src,
     ext_auth_pol_tls_full_multi_src,
     ext_auth_pol_tls_full_src,
+    ext_auth_pol_tls_missing_ca_crt_src,
     ext_auth_pol_tls_no_trusted_cert_src,
     ext_auth_pol_tls_nonexistent_ca_src,
     ext_auth_pol_tls_signin_src,
     ext_auth_pol_tls_verify_no_ssl_src,
-    ext_auth_pol_tls_wrong_ca_type_src,
     ext_auth_tls_backend_src,
-    ext_auth_tls_wrong_ca_src,
+    ext_auth_tls_missing_ca_crt_src,
     invalid_credentials,
     valid_auth_headers,
     valid_credentials,
@@ -354,8 +354,8 @@ class TestExternalAuthPoliciesTLS:
 
         assert resp.status_code == 500
 
-    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_tls_wrong_ca_type_src], True)], indirect=True)
-    def test_tls_wrong_ca_secret_type(
+    @pytest.mark.parametrize("ext_auth_setup", [([ext_auth_pol_tls_missing_ca_crt_src], True)], indirect=True)
+    def test_tls_ca_secret_missing_ca_crt(
         self,
         kube_apis,
         crd_ingress_controller,
@@ -365,12 +365,13 @@ class TestExternalAuthPoliciesTLS:
         ext_auth_restore_vs,
     ):
         """
-        Test that referencing a trustedCertSecret with wrong type (kubernetes.io/tls
-        instead of nginx.org/ca) results in VS Warning state and HTTP 500 responses.
-        Controller path: policy.go:334-337 (wrong secret type).
+        Test that referencing a trustedCertSecret whose Secret has no ca.crt key
+        results in VS Warning state and HTTP 500 responses. The Secret here is a
+        TLS pair, so the reference is rejected on the missing key regardless of
+        its type.
         """
-        print("Create wrong-type CA secret")
-        wrong_secret = create_secret_from_yaml(kube_apis.v1, test_namespace, ext_auth_tls_wrong_ca_src)
+        print("Create CA secret with no ca.crt key")
+        secret_missing_ca_crt = create_secret_from_yaml(kube_apis.v1, test_namespace, ext_auth_tls_missing_ca_crt_src)
 
         _, _ = ext_auth_setup
         headers = build_ext_auth_headers(virtual_server_setup.vs_host, valid_credentials)
@@ -385,7 +386,7 @@ class TestExternalAuthPoliciesTLS:
         resp = requests.get(virtual_server_setup.backend_1_url, headers=headers)
         print(f"Status: {resp.status_code}")
 
-        delete_secret(kube_apis.v1, wrong_secret, test_namespace)
+        delete_secret(kube_apis.v1, secret_missing_ca_crt, test_namespace)
 
         assert resp.status_code == 500
 

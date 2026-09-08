@@ -45,13 +45,13 @@ ext_auth_pol_custom_port_src = f"{TEST_DATA}/external-auth/policies/external-aut
 ext_auth_tls_backend_src = f"{TEST_DATA}/external-auth/backend/external-auth-backend-tls.yaml"
 ext_auth_tls_server_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-server-tls-secret.yaml"
 ext_auth_tls_ca_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-ca-secret.yaml"
-ext_auth_tls_wrong_ca_src = f"{TEST_DATA}/external-auth/backend/wrong-type-ca-secret.yaml"
+ext_auth_tls_missing_ca_crt_src = f"{TEST_DATA}/external-auth/backend/missing-ca-crt-secret.yaml"
 
 # TLS policies
 ext_auth_pol_tls_basic_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-basic.yaml"
 ext_auth_pol_tls_full_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-full.yaml"
 ext_auth_pol_tls_nonexistent_ca_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-nonexistent-ca.yaml"
-ext_auth_pol_tls_wrong_ca_type_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-wrong-ca-type.yaml"
+ext_auth_pol_tls_missing_ca_crt_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-missing-ca-crt.yaml"
 ext_auth_pol_tls_bad_sni_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-bad-sni.yaml"
 ext_auth_pol_tls_cross_ns_ca_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-cross-ns-ca.yaml"
 ext_auth_pol_tls_no_trusted_cert_src = (
