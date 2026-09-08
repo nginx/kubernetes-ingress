@@ -143,9 +143,9 @@ common-secrets/tls-secret-us.yaml
 tests/data/tls/tls-secret.yaml
 tests/data/virtual-server-tls/tls-secret.yaml
 tests/data/prometheus/secret.yaml
-common-secrets/tls-secret-invalid-type-some.yaml
+common-secrets/tls-secret-invalid-data-tls.yaml
 tests/data/tls/invalid-tls-secret.yaml
-common-secrets/tls-secret-invalid-type-broken.yaml
+common-secrets/tls-secret-invalid-data-wildcard.yaml
 tests/data/wildcard-tls-secret/invalid-wildcard-tls-secret.yaml
 common-secrets/wildcard-tls-secret.yaml
 tests/data/wildcard-tls-secret/wildcard-tls-secret.yaml
@@ -165,7 +165,7 @@ common-secrets/tls-secret-test.yaml
 tests/data/service-insight/secret.yaml
 common-secrets/service-insight-secret.yaml
 examples/custom-resources/service-insight/service-insight-secret.yaml
-common-secrets/invalid-tls-secret-sometype.yaml
+common-secrets/invalid-tls-secret-vs.yaml
 tests/data/virtual-server-tls/invalid-tls-secret.yaml
 common-secrets/cafe-secret.yaml
 tests/data/transport-server-with-host/cafe-secret.yaml
