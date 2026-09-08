@@ -2106,6 +2106,7 @@ func (lbc *LoadBalancerController) syncVirtualServerWeightUpdate(t task) {
 		return
 	}
 
+	// Checked on curVs (not prevVs): prevVs != nil already implies last apply succeeded.
 	if curVs.Status.State == conf_v1.StateInvalid {
 		lbc.AddSyncQueue(curVs)
 		return
@@ -2167,6 +2168,7 @@ func (lbc *LoadBalancerController) syncVirtualServerRouteWeightUpdate(t task) {
 		return
 	}
 
+	// Checked on curVsr (not prevVsr): prevVsr != nil already implies last apply succeeded.
 	if curVsr.Status.State == conf_v1.StateInvalid {
 		lbc.AddSyncQueue(curVsr)
 		return
@@ -2216,42 +2218,7 @@ func isWeightOnlyVSRDiff(prev, cur *conf_v1.VirtualServerRoute) bool {
 // returns one WeightUpdate per changed 2-way split. Caller must ensure prev
 // and cur have identical route/match/split structure (see isWeightOnlyVSDiff).
 func computeVSWeightUpdates(prev, cur *conf_v1.VirtualServer) []configs.WeightUpdate {
-	var updates []configs.WeightUpdate
-	var splitClientsIndex int
-	variableNamer := configs.NewVSVariableNamer(cur)
-
-	for i, routeNew := range cur.Spec.Routes {
-		routeOld := prev.Spec.Routes[i]
-		for j, matchNew := range routeNew.Matches {
-			matchOld := routeOld.Matches[j]
-			if len(matchNew.Splits) == 2 {
-				if matchNew.Splits[0].Weight != matchOld.Splits[0].Weight || matchNew.Splits[1].Weight != matchOld.Splits[1].Weight {
-					updates = append(updates, configs.WeightUpdate{
-						Zone:  variableNamer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
-						Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
-						Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, matchNew.Splits[0].Weight, matchNew.Splits[1].Weight),
-					})
-				}
-				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
-			} else if len(matchNew.Splits) > 0 {
-				splitClientsIndex++
-			}
-		}
-		if len(routeNew.Splits) == 2 {
-			if routeNew.Splits[0].Weight != routeOld.Splits[0].Weight || routeNew.Splits[1].Weight != routeOld.Splits[1].Weight {
-				updates = append(updates, configs.WeightUpdate{
-					Zone:  variableNamer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
-					Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
-					Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
-				})
-				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
-			}
-			splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
-		} else if len(routeNew.Splits) > 0 {
-			splitClientsIndex++
-		}
-	}
-	return updates
+	return appendRouteWeightUpdates(nil, prev.Spec.Routes, cur.Spec.Routes, configs.NewVSVariableNamer(cur), 0)
 }
 
 // computeVSRWeightUpdates walks matching subroutes/matches in prev and cur and
@@ -2259,20 +2226,24 @@ func computeVSWeightUpdates(prev, cur *conf_v1.VirtualServer) []configs.WeightUp
 // splitClientsIndex offset into the enclosing VS keyval namespace and must
 // come from getStartingSplitClientsIndex for the same vsEx/vsr pair.
 func computeVSRWeightUpdates(vsEx *configs.VirtualServerEx, prev, cur *conf_v1.VirtualServerRoute, startingIndex int) []configs.WeightUpdate {
-	var updates []configs.WeightUpdate
-	splitClientsIndex := startingIndex
-	variableNamer := configs.NewVSVariableNamer(vsEx.VirtualServer)
+	return appendRouteWeightUpdates(nil, prev.Spec.Subroutes, cur.Spec.Subroutes, configs.NewVSVariableNamer(vsEx.VirtualServer), startingIndex)
+}
 
-	for i, routeNew := range cur.Spec.Subroutes {
-		routeOld := prev.Spec.Subroutes[i]
+// appendRouteWeightUpdates walks paired route slices and appends one
+// WeightUpdate per changed 2-way split, advancing splitClientsIndex exactly as
+// the VS config generator does. Callers must ensure prevRoutes and curRoutes
+// have identical route/match/split structure.
+func appendRouteWeightUpdates(updates []configs.WeightUpdate, prevRoutes, curRoutes []conf_v1.Route, namer *configs.VariableNamer, splitClientsIndex int) []configs.WeightUpdate {
+	for i, routeNew := range curRoutes {
+		routeOld := prevRoutes[i]
 		for j, matchNew := range routeNew.Matches {
 			matchOld := routeOld.Matches[j]
 			if len(matchNew.Splits) == 2 {
 				if matchNew.Splits[0].Weight != matchOld.Splits[0].Weight || matchNew.Splits[1].Weight != matchOld.Splits[1].Weight {
 					updates = append(updates, configs.WeightUpdate{
-						Zone:  variableNamer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
-						Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
-						Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, matchNew.Splits[0].Weight, matchNew.Splits[1].Weight),
+						Zone:  namer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
+						Key:   namer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
+						Value: namer.GetNameOfKeyOfMapForWeights(splitClientsIndex, matchNew.Splits[0].Weight, matchNew.Splits[1].Weight),
 					})
 				}
 				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
@@ -2283,10 +2254,11 @@ func computeVSRWeightUpdates(vsEx *configs.VirtualServerEx, prev, cur *conf_v1.V
 		if len(routeNew.Splits) == 2 {
 			if routeNew.Splits[0].Weight != routeOld.Splits[0].Weight || routeNew.Splits[1].Weight != routeOld.Splits[1].Weight {
 				updates = append(updates, configs.WeightUpdate{
-					Zone:  variableNamer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
-					Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
-					Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
+					Zone:  namer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
+					Key:   namer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
+					Value: namer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
 				})
+				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
 			}
 			splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
 		} else if len(routeNew.Splits) > 0 {
