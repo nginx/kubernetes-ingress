@@ -391,6 +391,10 @@ func TestParseLBMethod(t *testing.T) {
 		{"random", "random"},
 		{"random two", "random two"},
 		{"random two least_conn", "random two least_conn"},
+		{"least_time header", "least_time header"},
+		{"least_time last_byte", "least_time last_byte"},
+		{"least_time header inflight", "least_time header inflight"},
+		{"least_time last_byte inflight", "least_time last_byte inflight"},
 		{"hash $request_id", "hash $request_id"},
 		{"hash $request_id consistent", "hash $request_id consistent"},
 	}
@@ -398,9 +402,15 @@ func TestParseLBMethod(t *testing.T) {
 	invalidInput := []string{
 		"",
 		"blabla",
-		"least_time header",
 		"hash123",
 		"hash $request_id conwrongspelling",
+		"hash $request_uri;\nkeepalive\t999",
+		"hash $request_uri # comment",
+		// A quote after a braced variable is not at a token boundary, so NGINX
+		// keeps reading one unquoted token and the semicolon terminates the
+		// hash directive, injecting the rest into the upstream block.
+		`hash ${a}";ip_hash;#" consistent`,
+		`hash ${a}";x" consistent`,
 		"random one",
 		"random two least_time=header",
 		"random two least_time=last_byte",
@@ -451,6 +461,10 @@ func TestParseLBMethodForPlus(t *testing.T) {
 		"",
 		"blabla",
 		"hash123",
+		"hash $request_uri;\nkeepalive\t999",
+		"hash $request_uri # comment",
+		`hash ${a}";ip_hash;#" consistent`,
+		`hash ${a}";x" consistent`,
 		"least_time",
 		"last_byte",
 		"least_time inflight header",

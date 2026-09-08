@@ -15,7 +15,7 @@ Load and follow the **`nic-code-review`** skill at [`.github/skills/nic-code-rev
 3. Classify the change using the **Change type classification** table in the skill and load any referenced sub-skills.
 4. Walk the applicable **dimension checklists** in the skill (Security -> Correctness -> Architecture -> Tests -> layer-specific).
 5. Verify each finding by reading the actual file, not just the hunk. Never fabricate line numbers or symbol names.
-6. Produce the review in the **Output format** defined in the skill (Summary / Blocking / Non-blocking / Questions).
+6. Produce the review in the **Output format** defined in the skill (Summary / Blocking / Non-blocking).
 
 ## Constraints
 

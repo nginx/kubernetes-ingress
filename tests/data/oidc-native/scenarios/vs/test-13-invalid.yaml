@@ -1,0 +1,73 @@
+# Test 13: Invalid policies -- each should be rejected by the API server at
+# admission time.
+#
+# Run:
+#   kubectl apply -f test-13-invalid.yaml
+#
+# Expected: kubectl reports one error per policy citing the failing CRD marker
+# (missing required field, bad enum, bad pattern). No policies get created.
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test13-no-issuer
+spec:
+  oidcNative:
+    clientID: some-client
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test13-no-clientid
+spec:
+  oidcNative:
+    issuer: https://accounts.google.com
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test13-http-issuer
+spec:
+  oidcNative:
+    issuer: http://accounts.google.com
+    clientID: some-client
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test13-bad-scope
+spec:
+  oidcNative:
+    issuer: https://accounts.google.com
+    clientID: some-client
+    scope: "profile email"
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test13-bad-redirect
+spec:
+  oidcNative:
+    issuer: https://accounts.google.com
+    clientID: some-client
+    redirectURI: "http://evil.com/callback"
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test13-bad-pkce
+spec:
+  oidcNative:
+    issuer: https://accounts.google.com
+    clientID: some-client
+    pkce: "enabled"
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: test13-bad-frontchannel
+spec:
+  oidcNative:
+    issuer: https://accounts.google.com
+    clientID: some-client
+    frontChannelLogoutURI: "https://example.com/frontchannel_logout"

@@ -84,7 +84,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-enforcer
 
         ## The tag of the App Protect WAF v5 Enforcer image.
-        tag: "5.14.0"
+        tag: "5.15.0"
         ## The digest of the App Protect WAF v5 Enforcer image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -108,7 +108,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-config-mgr
 
         ## The tag of the App Protect WAF v5 Configuration Manager image.
-        tag: "5.14.0"
+        tag: "5.15.0"
         ## The digest of the App Protect WAF v5 Configuration Manager image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -131,6 +131,21 @@ controller:
       #    cpu: 500m
       #    memory: 512Mi
 
+    ## Configuration for fetching bundles compiled by F5 WAF Policy Controller (PLM).
+    ## Requires nginxplus=true, appprotect.enable=true, and appprotect.v5=true.
+    ## Secret references must use the namespace/name format.
+    plmStorage:
+      ## SeaweedFS S3 endpoint. Leave empty to disable PLM support.
+      url: ""
+      ## Secret containing the SeaweedFS admin secret under seaweedfs_admin_secret, namespace/name format.
+      credentialsSecret: ""
+      ## Optional Secret containing ca.crt for SeaweedFS TLS verification, namespace/name format.
+      caSecret: ""
+      ## Optional Secret containing tls.crt and tls.key for SeaweedFS mTLS, namespace/name format.
+      clientSSLSecret: ""
+      ## Disable SeaweedFS TLS verification. For development and testing only.
+      insecureSkipVerify: false
+
     ## Configuration for App Protect WAF v5 IP Intelligence
     ipIntelligence:
       enable: false
@@ -139,7 +154,7 @@ controller:
         repository: private-registry.nginx.com/nap/waf-ip-intelligence
 
         ## The tag of the App Protect WAF v5 IP Intelligence image.
-        tag: "5.14.0"
+        tag: "5.15.0"
         ## The digest of the App Protect WAF v5 IP Intelligence image.
         ## If digest is specified it has precedence over tag and will be used instead
         # digest: "sha256:CHANGEME"
@@ -218,7 +233,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.5.4"
+    # tag: "5.6.0"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"

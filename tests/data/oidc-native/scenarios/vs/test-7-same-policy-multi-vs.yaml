@@ -1,0 +1,49 @@
+# Test 7: Two VirtualServers sharing the same OIDCNative policy.
+#
+# Prerequisites: same as Test 6 (app1/app2 nip.io hostnames registered in
+# Keycloak).
+#
+# Verify:
+#   - `run-test.sh 7 check` shows two oidc_provider blocks. Names include the
+#     VS name so they are still globally unique even though the source policy
+#     is the same.
+#   - Browse https://app1.${LB_IP}.nip.io/ and https://app2.${LB_IP}.nip.io/;
+#     signing in on one does NOT log you into the other (separate session
+#     stores per provider).
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: app1
+spec:
+  host: app1.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: app2
+spec:
+  host: app2.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

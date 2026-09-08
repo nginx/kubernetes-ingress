@@ -800,6 +800,9 @@ type PolicySpec struct {
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak.
 	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
 	OIDC *OIDC `json:"oidc"`
+	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native.
+	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
+	OIDCNative *OIDCNative `json:"oidcNative"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAF `json:"waf"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
@@ -1026,8 +1029,12 @@ const (
 //   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 //   - N1C: pull a named managed policy from NGINX One Console via its API.
 //
-// Type-specific field requirements (name required for NIM/N1C, namespace
-// required for N1C) are enforced by the controller's Go validation layer.
+// Type-specific field requirements (url required; name required for NIM/N1C;
+// namespace required for N1C) are enforced by the controller's Go validation layer.
+//
+// To reference bundles compiled by the F5 WAF Policy Controller (PLM), use the
+// apPolicy and apLogConf fields on the parent WAF resource. NIC resolves those
+// references as PLM bundles when the -plm-storage-url flag is set.
 type BundleSource struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
 	// +kubebuilder:default=HTTPS
@@ -1056,22 +1063,23 @@ type BundleSource struct {
 	// +optional
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
-	// Name is the policy/logconf name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
 	Name string `json:"name,omitempty"`
 
-	// Namespace is the namespace/tenant on the management plane. Required for N1C only.
+	// Namespace is the namespace/tenant on the management plane. Required for N1C; forbidden otherwise.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 
 	// EnablePolling enables background polling to automatically detect and fetch
-	// updated bundles at the configured PollInterval. When false, the bundle is
-	// fetched once on policy creation or update; subsequent updates require
-	// modifying the Policy resource to trigger a new fetch.
-	// +kubebuilder:validation:Required
-	EnablePolling bool `json:"enablePolling"`
+	// updated bundles at the configured PollInterval. Defaults to false. When
+	// false, the bundle is fetched once on policy creation or update; subsequent
+	// updates require modifying the Policy resource to trigger a new fetch.
+	// +kubebuilder:default:=false
+	// +optional
+	EnablePolling bool `json:"enablePolling,omitempty"`
 
 	// PollInterval is how often to re-fetch the bundle when enablePolling is true.
 	// Minimum 1m. Default 5m. Ignored when enablePolling is false.
@@ -1096,6 +1104,90 @@ type BundleSource struct {
 	// VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only.
 	// +optional
 	VerifyChecksum bool `json:"verifyChecksum,omitempty"`
+}
+
+// The OIDCNative policy configures NGINX Plus as a relying party for OpenID Connect authentication using the native ngx_http_oidc_module.
+type OIDCNative struct {
+	// Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme.
+	// +kubebuilder:validation:Pattern=`^https://[^/\s"'\x60$;\\]+(/[^\s"'\x60$;\\]*)?$`
+	// +kubebuilder:validation:Required
+	Issuer string `json:"issuer"`
+	// The client ID provided by your OpenID Connect provider.
+	// +kubebuilder:validation:Required
+	ClientID string `json:"clientID"`
+	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	ClientSecret string `json:"clientSecret,omitempty"` //nolint:gosec // G117: references a K8s secret name, not a credential
+	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^https?://[^/\s"'\x60$;\\]+/[^\s"'\x60$;\\]*$`
+	ConfigURL string `json:"configURL,omitempty"`
+	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". Default is "openid".
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self == '' || self.matches('(^|[ +])openid([ +]|$)')",message="scope must contain 'openid' as a token"
+	Scope string `json:"scope,omitempty"`
+	// Allows overriding the default redirect URI. Defaults to /oidc_callback_<providerName>.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60"']*$`
+	RedirectURI string `json:"redirectURI,omitempty"`
+	// Sets the name of the session cookie. Defaults to NGX_OIDC_<providerName>.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[_A-Za-z0-9]+$`
+	CookieName string `json:"cookieName,omitempty"`
+	// Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login".
+	// +kubebuilder:validation:Optional
+	ExtraAuthArgs string `json:"extraAuthArgs,omitempty"`
+	// Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=on;off
+	PKCE string `json:"pkce,omitempty"`
+	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the post logout page.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60"']*$`
+	LogoutURI string `json:"logoutURI,omitempty"`
+	// Defines the path where the user is redirected after logout. Must be a path on the same host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response. If multiple OIDCNative providers on the same host set the same path, only one auto-generated location is rendered; providers whose other generated locations (redirectURI, or the internal IdP proxy location) collide are rejected instead.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60"']*$`
+	PostLogoutRedirectURI string `json:"postLogoutRedirectURI,omitempty"`
+	// Defines the URI path for triggering OIDC front-channel logout. When set, the IdP calls this URI in a hidden iframe when the user logs out globally, allowing NGINX to terminate the local session.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60"']*$`
+	FrontChannelLogoutURI string `json:"frontChannelLogoutURI,omitempty"`
+	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	LogoutTokenHint bool `json:"logoutTokenHint,omitempty"`
+	// Sets a timeout after which the session is deleted, unless it was refreshed. Default is 8h.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]{1,8}(s|m|h|d)?$`
+	SessionTimeout string `json:"sessionTimeout,omitempty"`
+	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	UserInfoEnable bool `json:"userInfoEnable,omitempty"`
+	// The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
+	// Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure).
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	SSLVerify *bool `json:"sslVerify,omitempty"`
+	// Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. If omitted, NGINX dynamically resolves SNI and Host header from the endpoint URLs.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	SSLName string `json:"sslName,omitempty"`
+	// Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default=1
+	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+	// Buffer size used when proxying requests to the OpenID Provider. Applies to `proxy_buffer_size` and each buffer in `proxy_buffers`. Default is `32k`.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]{1,8}[kKmM]?$`
+	// +kubebuilder:default="32k"
+	ProxyBufferSize string `json:"proxyBufferSize,omitempty"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.

@@ -249,7 +249,28 @@ Create the global configuration custom namespace from the globalConfiguration.cu
 {{/*
 Build the args for the service binary.
 */}}
+{{- define "nginx-ingress.appprotect.plmStorage.validate" -}}
+{{- $plm := default (dict) .Values.controller.appprotect.plmStorage -}}
+{{- if $plm.url }}
+{{- if not .Values.controller.nginxplus }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.nginxplus=true" }}
+{{- end }}
+{{- if not .Values.controller.appprotect.enable }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.appprotect.enable=true" }}
+{{- end }}
+{{- if not .Values.controller.appprotect.v5 }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.appprotect.v5=true" }}
+{{- end }}
+{{- if not $plm.credentialsSecret }}
+{{- fail "controller.appprotect.plmStorage.credentialsSecret must be set when controller.appprotect.plmStorage.url is set" }}
+{{- end }}
+{{- else if or $plm.credentialsSecret $plm.caSecret $plm.clientSSLSecret $plm.insecureSkipVerify }}
+{{- fail "controller.appprotect.plmStorage auxiliary values require controller.appprotect.plmStorage.url" }}
+{{- end }}
+{{- end }}
+
 {{- define "nginx-ingress.args" -}}
+{{- include "nginx-ingress.appprotect.plmStorage.validate" . -}}
 {{- if and .Values.controller.debug .Values.controller.debug.enable }}
 - --listen=:2345
 - --headless=true
@@ -273,6 +294,18 @@ Build the args for the service binary.
 {{ end }}
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.v5 }}
 - -app-protect-enforcer-address="{{ .Values.controller.appprotect.enforcer.host | default "127.0.0.1" }}:{{ .Values.controller.appprotect.enforcer.port | default 50000 }}"
+{{- end }}
+{{- $plm := default (dict) .Values.controller.appprotect.plmStorage -}}
+{{- if $plm.url }}
+- {{ printf "-plm-storage-url=%s" $plm.url | quote }}
+- {{ printf "-plm-storage-credentials-secret=%s" $plm.credentialsSecret | quote }}
+{{- if $plm.caSecret }}
+- {{ printf "-plm-storage-ca-secret=%s" $plm.caSecret | quote }}
+{{- end }}
+{{- if $plm.clientSSLSecret }}
+- {{ printf "-plm-storage-client-ssl-secret=%s" $plm.clientSSLSecret | quote }}
+{{- end }}
+- -plm-storage-insecure-skip-verify={{ $plm.insecureSkipVerify }}
 {{- end }}
 - -enable-app-protect-dos={{ .Values.controller.appprotectdos.enable }}
 {{- if .Values.controller.appprotectdos.enable }}

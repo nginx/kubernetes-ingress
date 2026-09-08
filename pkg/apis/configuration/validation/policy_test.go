@@ -537,6 +537,18 @@ func TestValidatePolicy_PassesOnValidInput(t *testing.T) {
 			cfg: PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
 			msg: "use WAF(plus only) policy",
 		},
+		{
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					OIDCNative: &v1.OIDCNative{
+						Issuer:   "https://accounts.google.com",
+						ClientID: "my-client-id",
+					},
+				},
+			},
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: true},
+			msg: "use OIDCNative (plus only)",
+		},
 	}
 	for _, test := range tests {
 		err := ValidatePolicy(test.policy, test.cfg)
@@ -697,6 +709,238 @@ func TestValidatePolicy_FailsOnInvalidInput(t *testing.T) {
 		if err == nil {
 			t.Errorf("ValidatePolicy() returned no error for invalid input")
 		}
+	}
+}
+
+func TestValidatePolicy_PassesOnDirectiveSafePolicyValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		policy *v1.Policy
+		cfg    PolicyValidationConfig
+	}{
+		{
+			name: "rate limit key with variables and escaped quotes",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: `tenant-\"gold\"-${request_uri}`,
+			}}},
+		},
+		{
+			name: "rate limit variable condition with quoted regex syntax",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_method}",
+				Condition: &v1.RateLimitCondition{Variables: &[]v1.VariableCondition{{
+					Name: "$request_method", Match: `~^item-[0-9]{2};premium$`,
+				}}},
+			}}},
+		},
+		{
+			name: "rate limit JWT condition with nested claim",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${jwt_claim_user_details}",
+				Condition: &v1.RateLimitCondition{JWT: &v1.JWTCondition{Claim: "user_details.level", Match: "Gold"}},
+			}}},
+			cfg: PolicyValidationConfig{IsPlus: true},
+		},
+		{
+			name: "cache values with braced and unbraced variables",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "safe", CacheZoneSize: "10m",
+				CacheKey: `${scheme}://$proxy_host$request_uri`,
+				Conditions: &v1.CacheConditions{
+					NoCache: []string{"${cookie_nocache}"},
+					Bypass:  []string{"$arg_skip"},
+				},
+			}}},
+		},
+		{
+			name: "ingress mTLS CRL basename",
+			policy: &v1.Policy{Spec: v1.PolicySpec{IngressMTLS: &v1.IngressMTLS{
+				ClientCertSecret: "mtls-secret", CrlFileName: "default-mtls-secret-ca.crl",
+			}}},
+		},
+		{
+			name: "JWT HTTPS JWKS URI",
+			policy: &v1.Policy{Spec: v1.PolicySpec{JWTAuth: &v1.JWTAuth{
+				Realm: "My API", JwksURI: "https://idp.example.com/.well-known/jwks.json", KeyCache: "1h",
+			}}},
+			cfg: PolicyValidationConfig{IsPlus: true},
+		},
+		{
+			name: "API key query variable suffix",
+			policy: &v1.Policy{Spec: v1.PolicySpec{APIKey: &v1.APIKey{
+				SuppliedIn: &v1.SuppliedIn{Query: []string{"api_key2"}}, ClientSecret: "api-key-secret",
+			}}},
+		},
+		{
+			name: "WAF syslog destination",
+			policy: &v1.Policy{Spec: v1.PolicySpec{WAF: &v1.WAF{
+				Enable: true, SecurityLog: &v1.SecurityLog{Enable: true, LogDest: "syslog:server=logs.example.com:514"},
+			}}},
+			cfg: PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
+		},
+		{
+			name: "egress mTLS cipher and protocols",
+			policy: &v1.Policy{Spec: v1.PolicySpec{EgressMTLS: &v1.EgressMTLS{
+				Ciphers: "DEFAULT:@SECLEVEL=2", Protocols: "TLSv1.2 TLSv1.3",
+			}}},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if err := ValidatePolicy(test.policy, test.cfg); err != nil {
+				t.Errorf("ValidatePolicy() returned error for safe input: %v", err)
+			}
+		})
+	}
+}
+
+func TestValidatePolicy_RejectsDirectiveBreakoutPolicyValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		policy    *v1.Policy
+		cfg       PolicyValidationConfig
+		fieldPath string
+	}{
+		{
+			name: "rate limit key directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_uri}; return 200",
+			}}},
+			fieldPath: "spec.rateLimit.key",
+		},
+		{
+			name: "rate limit JWT claim directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_uri}",
+				Condition: &v1.RateLimitCondition{JWT: &v1.JWTCondition{Claim: "user; return 200", Match: "Gold"}},
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true},
+			fieldPath: "spec.rateLimit.condition.jwt.claim",
+		},
+		{
+			name: "rate limit JWT match directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_uri}",
+				Condition: &v1.RateLimitCondition{JWT: &v1.JWTCondition{Claim: "user.level", Match: "Gold;return"}},
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true},
+			fieldPath: "spec.rateLimit.condition.jwt.match",
+		},
+		{
+			name: "rate limit condition variable source directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_method}",
+				Condition: &v1.RateLimitCondition{Variables: &[]v1.VariableCondition{{Name: "$request_method;return", Match: "GET"}}},
+			}}},
+			fieldPath: "spec.rateLimit.condition.variables[0].name",
+		},
+		{
+			name: "rate limit condition quoted match breakout",
+			policy: &v1.Policy{Spec: v1.PolicySpec{RateLimit: &v1.RateLimit{
+				Rate: "10r/s", ZoneSize: "10M", Key: "${request_method}",
+				Condition: &v1.RateLimitCondition{Variables: &[]v1.VariableCondition{{Name: "$request_method", Match: `"; return 200; #`}}},
+			}}},
+			fieldPath: "spec.rateLimit.condition.variables[0].match",
+		},
+		{
+			name: "cache key directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "unsafe", CacheZoneSize: "10m", CacheKey: "${scheme}; return 200",
+			}}},
+			fieldPath: "spec.cache.cacheKey",
+		},
+		{
+			name: "cache key invalid braced variable",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "unsafe", CacheZoneSize: "10m", CacheKey: "${request-uri}",
+			}}},
+			fieldPath: "spec.cache.cacheKey",
+		},
+		{
+			name: "cache no-cache directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "unsafe", CacheZoneSize: "10m",
+				Conditions: &v1.CacheConditions{NoCache: []string{"$cookie_nocache; return 200"}},
+			}}},
+			fieldPath: "spec.cache.conditions.noCache[0]",
+		},
+		{
+			name: "cache bypass line breakout",
+			policy: &v1.Policy{Spec: v1.PolicySpec{Cache: &v1.Cache{
+				CacheZoneName: "unsafe", CacheZoneSize: "10m",
+				Conditions: &v1.CacheConditions{Bypass: []string{"$arg_skip\nreturn 200"}},
+			}}},
+			fieldPath: "spec.cache.conditions.bypass[0]",
+		},
+		{
+			name: "ingress mTLS CRL traversal",
+			policy: &v1.Policy{Spec: v1.PolicySpec{IngressMTLS: &v1.IngressMTLS{
+				ClientCertSecret: "mtls-secret", CrlFileName: "../../nginx.conf",
+			}}},
+			fieldPath: "spec.ingressMTLS.crlFileName",
+		},
+		{
+			// NGINX would read ca.crl from the quoted form, while path.Join in
+			// addIngressMTLSConfig would look for a file whose name includes the
+			// quotes. The mismatch would surface only as a missing file.
+			name: "ingress mTLS CRL quoted file name",
+			policy: &v1.Policy{Spec: v1.PolicySpec{IngressMTLS: &v1.IngressMTLS{
+				ClientCertSecret: "mtls-secret", CrlFileName: `"ca.crl"`,
+			}}},
+			fieldPath: "spec.ingressMTLS.crlFileName",
+		},
+		{
+			name: "JWT unsupported JWKS scheme",
+			policy: &v1.Policy{Spec: v1.PolicySpec{JWTAuth: &v1.JWTAuth{
+				Realm: "My API", JwksURI: "ftp://idp.example.com/keys", KeyCache: "1h",
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true},
+			fieldPath: "spec.jwt.jwksURI",
+		},
+		{
+			name: "JWT percent-encoded JWKS path directive",
+			policy: &v1.Policy{Spec: v1.PolicySpec{JWTAuth: &v1.JWTAuth{
+				Realm: "My API", JwksURI: "https://idp.example.com/keys%3Breturn%20200", KeyCache: "1h",
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true},
+			fieldPath: "spec.jwt.jwksURI",
+		},
+		{
+			name: "API key query variable breakout",
+			policy: &v1.Policy{Spec: v1.PolicySpec{APIKey: &v1.APIKey{
+				SuppliedIn: &v1.SuppliedIn{Query: []string{"api_key}${http_host}"}}, ClientSecret: "api-key-secret",
+			}}},
+			fieldPath: "spec.apiKey.suppliedIn.query[0]",
+		},
+		{
+			name: "WAF log destination comment",
+			policy: &v1.Policy{Spec: v1.PolicySpec{WAF: &v1.WAF{
+				Enable: true, SecurityLog: &v1.SecurityLog{Enable: true, LogDest: "/var/log/app#ignored"},
+			}}},
+			cfg:       PolicyValidationConfig{IsPlus: true, EnableAppProtect: true},
+			fieldPath: "spec.waf.securityLog.logDest",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidatePolicy(test.policy, test.cfg)
+			if err == nil {
+				t.Fatal("ValidatePolicy() returned no error for malicious input")
+			}
+			if !strings.Contains(err.Error(), test.fieldPath) {
+				t.Errorf("ValidatePolicy() error %q does not identify %s", err, test.fieldPath)
+			}
+		})
 	}
 }
 
@@ -952,6 +1196,19 @@ func TestValidateRateLimitKey(t *testing.T) {
 		allErrs := validateRateLimitKey(emptyKey, field.NewPath("key"), false)
 		if len(allErrs) == 0 {
 			t.Errorf("validateRateLimitKey %q returned no errors for an empty key", emptyKey)
+		}
+	})
+
+	t.Run("non-ASCII whitespace directive injection", func(t *testing.T) {
+		t.Parallel()
+		// U+00A0 is not an NGINX token separator, so the single quote after it is
+		// mid-token and inert; NGINX ends the directive at the first ';' and parses
+		// the embedded zone/log_format directives. The scanner must treat only
+		// NGINX's ASCII whitespace as separators and reject this.
+		payload := "${remote_addr}\u00a0' zone=x:10m rate=1r/s;log_format x x;#'"
+		allErrs := validateRateLimitKey(payload, field.NewPath("key"), false)
+		if len(allErrs) == 0 {
+			t.Errorf("validateRateLimitKey returned no errors for injection payload %q", payload)
 		}
 	})
 }
@@ -1514,6 +1771,25 @@ func TestValidateEgressMTLS_PassesOnValidInput(t *testing.T) {
 			},
 			msg: "ssl name",
 		},
+		{
+			eg: &v1.EgressMTLS{
+				Ciphers: "HIGH:!aNULL:!MD5",
+			},
+			msg: "valid ciphers",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Protocols: "TLSv1.2 TLSv1.3",
+			},
+			msg: "valid protocols",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Ciphers:   "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256",
+				Protocols: "TLSv1.3",
+			},
+			msg: "valid ciphers and protocols together",
+		},
 	}
 	for _, test := range tests {
 		allErrs := validateEgressMTLS(test.eg, field.NewPath("egressMTLS"))
@@ -1554,6 +1830,30 @@ func TestValidateEgressMTLS_FailsOnInvalidInput(t *testing.T) {
 				SSLName: "foo.com;",
 			},
 			msg: "invalid name",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Ciphers: "HIGH; return 500;",
+			},
+			msg: "ciphers with semicolon injection",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Ciphers: "HIGH\"\nproxy_pass http://evil;",
+			},
+			msg: "ciphers with quote and newline injection",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Protocols: "TLSv1.2\nproxy_pass http://evil;",
+			},
+			msg: "protocols with newline injection",
+		},
+		{
+			eg: &v1.EgressMTLS{
+				Protocols: "TLSv1.2; access_log /tmp/evil;",
+			},
+			msg: "protocols with semicolon injection",
 		},
 	}
 
@@ -2025,6 +2325,458 @@ func TestValidateAPIKeyPolicy_FailsOnInvalidInput(t *testing.T) {
 		if len(allErrs) == 0 {
 			t.Errorf("validateAPIKey() returned no errors for invalid input for the case of %v", test.msg)
 		}
+	}
+}
+
+func TestValidateOIDCNative_PassesOnValidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		oidcNative *v1.OIDCNative
+		msg        string
+	}{
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+			},
+			msg: "minimal valid config",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client-id",
+				ClientSecret:          "my-oidc-secret",
+				Scope:                 "openid+profile+email",
+				RedirectURI:           "/oidc_callback",
+				LogoutURI:             "/logout",
+				PostLogoutRedirectURI: "/logged_out",
+				FrontChannelLogoutURI: "/frontchannel_logout",
+				SessionTimeout:        "8h",
+				ProxyBufferSize:       "32k",
+				UserInfoEnable:        true,
+			},
+			msg: "full config with all optional fields",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://login.microsoftonline.com/tenant-id",
+				ClientID:     "azure-client",
+				ClientSecret: "azure-secret",
+				Scope:        "openid+offline_access",
+			},
+			msg: "azure provider with offline_access scope",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://keycloak.example.com/realms/master",
+				ClientID: "keycloak-client",
+			},
+			msg: "keycloak provider with path in issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+				Scope:    "profile openid email",
+			},
+			msg: "space separated scope tokens",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client-id",
+				PKCE:     "on",
+			},
+			msg: "pkce on",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client-id",
+				PKCE:         "off",
+				ClientSecret: "my-oidc-secret",
+			},
+			msg: "pkce off wiith client secret",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateOIDCNative(test.oidcNative, field.NewPath("oidcNative"))
+			if len(allErrs) != 0 {
+				t.Errorf("validateOIDCNative() returned errors %v for valid input for the case of %v", allErrs, test.msg)
+			}
+		})
+	}
+}
+
+func TestValidateOIDCNative_FailsOnInvalidInput(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		oidcNative *v1.OIDCNative
+		fieldPath  string
+		msg        string
+	}{
+		{
+			oidcNative: &v1.OIDCNative{ClientID: "my-client"},
+			fieldPath:  "oidcNative.issuer",
+			msg:        "missing required issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{Issuer: "https://accounts.google.com"},
+			fieldPath:  "oidcNative.clientID",
+			msg:        "missing required clientID",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "not-a-url",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "invalid issuer URL",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "$invalid$chars",
+			},
+			fieldPath: "oidcNative.clientID",
+			msg:       "invalid chars in clientID",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com?query=1",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "issuer contains query parameter",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com#frag",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "issuer contains fragment",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "not-a-url",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL missing scheme",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://idp.example.com",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL missing path",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://IDP.Example.COM/.well-known/openid-configuration",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL host is not a valid DNS name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				ConfigURL: "https://idp.example.com:99999/.well-known/openid-configuration",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "configURL has an invalid port",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "openid; injection",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "dangerous chars in scope",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "notopenid",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "openid must be a complete scope token",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				Scope:    "openid;}server{listen 9999;}",
+			},
+			fieldPath: "oidcNative.scope",
+			msg:       "scope injection through unquoted multi-arg directive",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client",
+				ClientSecret: "Invalid_Name",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret is not a valid k8s secret name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:            "https://accounts.google.com",
+				ClientID:          "my-client",
+				ClientSecret:      "my-oidc-secret",
+				TrustedCertSecret: "Bad_Name",
+			},
+			fieldPath: "oidcNative.trustedCertSecret",
+			msg:       "trustedCertSecret is not a valid k8s secret name",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:            "https://accounts.google.com",
+				ClientID:          "my-client",
+				SSLVerify:         new(bool),
+				TrustedCertSecret: "my-ca",
+			},
+			fieldPath: "oidcNative.trustedCertSecret",
+			msg:       "trustedCertSecret set when sslVerify is false",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "SID; return 500",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "dangerous chars in cookieName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "my-cookie",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "hyphen is not allowed in cookieName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:     "https://accounts.google.com",
+				ClientID:   "my-client",
+				CookieName: "oidc session",
+			},
+			fieldPath: "oidcNative.cookieName",
+			msg:       "whitespace is not allowed in cookieName",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:        "https://accounts.google.com",
+				ClientID:      "my-client",
+				ExtraAuthArgs: `x"; malicious;`,
+			},
+			fieldPath: "oidcNative.extraAuthArgs",
+			msg:       "dangerous chars in extraAuthArgs",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:        "https://accounts.google.com",
+				ClientID:      "my-client",
+				ExtraAuthArgs: "prompt=%zz",
+			},
+			fieldPath: "oidcNative.extraAuthArgs",
+			msg:       "invalid percent-escape in extraAuthArgs",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "evil.example.com;\ninject",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "dangerous chars in sslName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "Keycloak.Example.COM",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "uppercase is not a valid DNS name in sslName",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				SSLName:  "keycloak.example.com:443",
+			},
+			fieldPath: "oidcNative.sslName",
+			msg:       "port is not allowed in sslName",
+		},
+
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:      "https://accounts.google.com",
+				ClientID:    "my-client",
+				RedirectURI: "/../../etc/passwd",
+			},
+			fieldPath: "oidcNative.redirectURI",
+			msg:       "path-traversal in redirectURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://accounts.google.com",
+				ClientID:  "my-client",
+				LogoutURI: "//attacker.example.com/logout",
+			},
+			fieldPath: "oidcNative.logoutURI",
+			msg:       "protocol-relative logoutURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client",
+				PostLogoutRedirectURI: "//evil.com",
+			},
+			fieldPath: "oidcNative.postLogoutRedirectURI",
+			msg:       "protocol-relative postLogoutRedirectURI is an open redirect",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client",
+				FrontChannelLogoutURI: "/a/../../b",
+			},
+			fieldPath: "oidcNative.frontChannelLogoutURI",
+			msg:       "path traversal in frontChannelLogoutURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:       "https://accounts.google.com",
+				ClientID:     "my-client",
+				PKCE:         "on",
+				ClientSecret: "my-oidc-secret",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret cannot be used when pkce is on",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://accounts.google.com",
+				ClientID: "my-client",
+				PKCE:     "off",
+			},
+			fieldPath: "oidcNative.clientSecret",
+			msg:       "clientSecret is required when pkce is off",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:   "https://idp.example.com/realms/master\"",
+				ClientID: "my-client",
+			},
+			fieldPath: "oidcNative.issuer",
+			msg:       "quote in issuer",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:    "https://idp.example.com/realms/master",
+				ClientID:  "my-client",
+				ConfigURL: "https://idp.example.com/realms/master/.well-known/openid-configuration\"",
+			},
+			fieldPath: "oidcNative.configURL",
+			msg:       "quote in configURL",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:      "https://idp.example.com/realms/master",
+				ClientID:    "my-client",
+				RedirectURI: "/oidc_callback\"",
+			},
+			fieldPath: "oidcNative.redirectURI",
+			msg:       "quote in redirectURI",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:         "https://idp.example.com/realms/master",
+				ClientID:       "my-client",
+				SessionTimeout: "999999999999999999999999h",
+			},
+			fieldPath: "oidcNative.sessionTimeout",
+			msg:       "overflow in sessionTimeout",
+		},
+		{
+			oidcNative: &v1.OIDCNative{
+				Issuer:          "https://idp.example.com/realms/master",
+				ClientID:        "my-client",
+				ProxyBufferSize: "999999999999999999999999k",
+			},
+			fieldPath: "oidcNative.proxyBufferSize",
+			msg:       "overflow in proxyBufferSize",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			allErrs := validateOIDCNative(test.oidcNative, field.NewPath("oidcNative"))
+			if len(allErrs) == 0 {
+				t.Errorf("validateOIDCNative() returned no errors for invalid input for the case of %v", test.msg)
+			} else if allErrs[0].Field != test.fieldPath {
+				t.Errorf("validateOIDCNative() returned error on wrong field for the case of %v, want %v, got %v", test.msg, test.fieldPath, allErrs[0].Field)
+			}
+			t.Log(allErrs)
+		})
+	}
+}
+
+func TestValidatePolicy_OIDCNative_GateChecks(t *testing.T) {
+	t.Parallel()
+	validOIDCNative := &v1.OIDCNative{
+		Issuer:   "https://accounts.google.com",
+		ClientID: "my-client-id",
+	}
+	tests := []struct {
+		cfg PolicyValidationConfig
+		msg string
+	}{
+		{
+			cfg: PolicyValidationConfig{IsPlus: false, EnableOIDC: true},
+			msg: "rejected when not Plus",
+		},
+		{
+			cfg: PolicyValidationConfig{IsPlus: true, EnableOIDC: false},
+			msg: "rejected when OIDC not enabled",
+		},
+		{
+			cfg: PolicyValidationConfig{IsPlus: false, EnableOIDC: false},
+			msg: "rejected when neither Plus nor OIDC enabled",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+			policy := &v1.Policy{Spec: v1.PolicySpec{OIDCNative: validOIDCNative}}
+			err := ValidatePolicy(policy, test.cfg)
+			if err == nil {
+				t.Errorf("ValidatePolicy() should have returned error for the case of %v", test.msg)
+			}
+		})
 	}
 }
 
@@ -2521,6 +3273,100 @@ func TestValidatePolicy_IsNotValidCachePolicy(t *testing.T) {
 						CacheZoneName:   "purgeoss",
 						CacheZoneSize:   "10m",
 						CachePurgeAllow: []string{"192.168.1.1"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			// cacheZoneName reaches both a proxy_cache_path keys_zone name and a
+			// proxy_cache argument, so a semicolon in it ends those directives.
+			name: "cacheZoneName with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName: `z; } location /pwned { return 200 "owned"; } location /x {`,
+						CacheZoneSize: "10m",
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cacheZoneName with a path separator",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "../../etc/nginx/zone", CacheZoneSize: "10m"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "cacheZoneSize with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "10m; ip_hash;"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "invalid cacheZoneSize",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "ten megabytes"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "levels with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "10m", Levels: "1:2; ip_hash;"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "levels outside the range proxy_cache_path accepts",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "10m", Levels: "1:2:3:4"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "time with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{CacheZoneName: "zone", CacheZoneSize: "10m", Time: "10m; ip_hash;"},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedMethods with directive breakout",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:  "zone",
+						CacheZoneSize:  "10m",
+						AllowedMethods: []string{"GET; ip_hash;"},
+					},
+				},
+			},
+			isPlus: false,
+		},
+		{
+			name: "allowedMethods with a method proxy_cache_methods rejects",
+			policy: &v1.Policy{
+				Spec: v1.PolicySpec{
+					Cache: &v1.Cache{
+						CacheZoneName:  "zone",
+						CacheZoneSize:  "10m",
+						AllowedMethods: []string{"DELETE"},
 					},
 				},
 			},
@@ -4442,5 +5288,53 @@ func TestValidateLogConf_ThreeWayMutualExclusivity(t *testing.T) {
 	errs := validateLogConf(logConf, field.NewPath("securityLogs").Index(0), true)
 	if len(errs) == 0 {
 		t.Error("expected error when both apLogConf and apLogBundleSource are set")
+	}
+}
+
+func TestContainsWhitespace(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"hello", false},
+		{"https://example.com/path", false},
+		{"hello world", true},
+		{"hello\tworld", true},
+		{"hello\nworld", true},
+		{"hello\rworld", true},
+		{"", false},
+	}
+	for _, tc := range tests {
+		if got := ContainsWhitespace(tc.input); got != tc.want {
+			t.Errorf("ContainsWhitespace(%q) = %v, want %v", tc.input, got, tc.want)
+		}
+	}
+}
+
+func TestContainsWhitespaceOrQuotes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"https://accounts.google.com", false},
+		{"https://idp.example.com/realms/master", false},
+		{"https://idp.example.com/realms/master\"", true},
+		{"https://idp.example.com/realms/master'", true},
+		{"https://idp.example.com/realms/master\\", true},
+		{"https://idp.example.com/realms/master\t", true},
+		{"https://idp.example.com/realms/master\n", true},
+		{"https://idp.example.com/realms/master\r", true},
+		{"https://idp.example.com/realms/master;inject", true},
+		{"https://idp.example.com/realms/${eval}", true},
+		{"https://idp.example.com/{block}", true},
+		{"https://idp.example.com/`cmd`", true},
+		{"", false},
+	}
+	for _, tc := range tests {
+		if got := ContainsWhitespaceOrQuotes(tc.input); got != tc.want {
+			t.Errorf("ContainsWhitespaceOrQuotes(%q) = %v, want %v", tc.input, got, tc.want)
+		}
 	}
 }

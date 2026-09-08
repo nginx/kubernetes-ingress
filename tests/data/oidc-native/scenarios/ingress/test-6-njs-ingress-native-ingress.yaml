@@ -1,0 +1,67 @@
+# Test 6: One Ingress with unsupported NJS OIDC (returns 500), another with
+# native OIDC (returns 302). Verifies one broken Ingress does not affect another.
+#
+# Verify:
+#   - app1 host returns 500 (NJS OIDC unsupported on Ingress).
+#   - app2 host returns 302 (native OIDC redirect to Keycloak).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app1
+  annotations:
+    nginx.com/policies: "oidc-njs-policy"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app1.example.com
+      secretName: tls-secret
+  rules:
+    - host: app1.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app2
+  annotations:
+    nginx.com/policies: "oidcnative-policy"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app2.example.com
+      secretName: tls-secret
+  rules:
+    - host: app2.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidc-njs-policy
+spec:
+  oidc:
+    clientID: nginx-plus
+    clientSecret: oidc-njs-secret
+    authEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/auth
+    tokenEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/token
+    jwksURI: https://keycloak.example.com/realms/master/protocol/openid-connect/certs
+    endSessionEndpoint: https://keycloak.example.com/realms/master/protocol/openid-connect/logout
+    scope: openid+profile+email

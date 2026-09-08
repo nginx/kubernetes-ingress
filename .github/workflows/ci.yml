@@ -383,6 +383,10 @@ jobs:
       go-md5: ${{ needs.checks.outputs.go_code_md5 }}
       go-path: ${{ needs.checks.outputs.go_path }}
       go-proxy: ${{ needs.checks.outputs.go_proxy }}
+      pkg-src-oss: ${{ vars.OSS_REPO }}
+      pkg-src-plus: ${{ vars.PLUS_REPO }}
+      pkg-src-waf: ${{ vars.WAF_REPO }}
+      pkg-src-dos: ${{ vars.DOS_REPO }}
       image-matrix-oss: ${{ needs.checks.outputs.image_matrix_oss }}
       image-matrix-plus: ${{ needs.checks.outputs.image_matrix_plus }}
       image-matrix-nap: ${{ needs.checks.outputs.image_matrix_nap }}
@@ -588,7 +592,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
@@ -699,7 +703,7 @@ jobs:
           echo "matrix_nap=$(cat .github/data/matrix-smoke-nap.json | jq -c --arg latest "${{ needs.checks.outputs.k8s_latest }}" '.k8s += [$latest]')" >> $GITHUB_OUTPUT
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Setup secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730

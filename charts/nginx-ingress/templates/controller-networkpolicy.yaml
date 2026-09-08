@@ -1,6 +1,7 @@
-{{- if .Values.controller.networkPolicy.enabled }}
-{{- $ingress := .Values.controller.networkPolicy.ingress }}
-{{- $egress := .Values.controller.networkPolicy.egress }}
+{{- $np := default (dict) .Values.controller.networkPolicy -}}
+{{- if $np.enabled }}
+{{- $ingress := $np.ingress }}
+{{- $egress := $np.egress }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

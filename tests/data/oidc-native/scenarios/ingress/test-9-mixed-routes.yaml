@@ -1,0 +1,102 @@
+# Test 9: Mixed routes -- some protected, some open.
+#
+# Verify:
+#   - auth_oidc under /api and /admin locations only.
+#   - /api and /admin return 302 (Keycloak redirect).
+#   - /health and /public return 200 directly.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-master
+  annotations:
+    nginx.org/mergeable-ingress-type: "master"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - webapp.example.com
+      secretName: tls-secret
+  rules:
+    - host: webapp.example.com
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-minion-api
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+    nginx.com/policies: "oidcnative-policy"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-minion-admin
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+    nginx.com/policies: "oidcnative-policy"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /admin
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-minion-health
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-minion-public
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /public
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80

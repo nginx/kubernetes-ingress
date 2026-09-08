@@ -1,0 +1,44 @@
+# Test 4: Policy on VS spec, a different policy overrides on one route.
+#
+# Verify:
+#   - `run-test.sh 4 check` shows two oidc_provider blocks (nginx-plus,
+#     nginx-plus-2).
+#   - Browse https://${WEBAPP_HOST}/     -> Keycloak login with clientID=nginx-plus.
+#   - Browse https://${WEBAPP_HOST}/alt  -> Keycloak login with clientID=nginx-plus-2
+#     (fresh incognito window; the two providers keep separate session cookies).
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidcnative-policy-2
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus-2
+    clientSecret: oidcnative-secret
+    scope: openid profile
+    sslVerify: false
+    postLogoutRedirectURI: /_logout
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+    - path: /alt
+      policies:
+        - name: oidcnative-policy-2
+      action:
+        pass: webapp

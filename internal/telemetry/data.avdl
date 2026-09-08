@@ -148,5 +148,8 @@ It is the UID of the `kube-system` Namespace. */
 		/** HSTSPolicies is the number of HSTS policies managed by NGINX Ingress Controller */
 		long? HSTSPolicies = null;
 		
+		/** OIDCNativePolicies is the number of OIDC Native policies managed by NGINX Ingress Controller */
+		long? OIDCNativePolicies = null;
+		
 	}
 }

@@ -95,6 +95,31 @@ func TestHasSuffix(t *testing.T) {
 	}
 }
 
+func TestMakeLocationPath(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: "/backends/backend1", want: `"/backends/backend1"`},
+		{path: `"/_external_auth"`, want: `"/_external_auth"`},
+		{path: "@loc0", want: "@loc0"},
+		{path: "= /exact", want: `= "/exact"`},
+		{path: "=/exact", want: `= "/exact"`},
+		{path: "^~ /prefix", want: `^~ "/prefix"`},
+		{path: "^~/prefix", want: `^~ "/prefix"`},
+		{path: `~ "\.jpg$"`, want: `~ "\.jpg$"`},
+		{path: `~* "\.png$"`, want: `~* "\.png$"`},
+	}
+
+	for _, test := range tests {
+		if got := makeLocationPath(test.path); got != test.want {
+			t.Errorf("makeLocationPath(%q) = %q, want %q", test.path, got, test.want)
+		}
+	}
+}
+
 func TestToLowerInputString(t *testing.T) {
 	t.Parallel()
 

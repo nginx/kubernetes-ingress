@@ -49,6 +49,21 @@ on:
         required: false
         type: boolean
         default: true
+      pkg-src-plus:
+        description: The source repository for the package
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
+      pkg-src-waf:
+        description: The source repository for the F5 WAF package
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
+      pkg-src-dos:
+        description: The source repository for the DoS package
+        required: false
+        type: string
+        default: "pkgs.nginx.com"
 
 defaults:
   run:
@@ -64,7 +79,6 @@ jobs:
       contents: read # for docker/build-push-action to read repo content
       id-token: write # for OIDC login to AWS
       pull-requests: write # for scout report
-    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     steps:
       - name: Checkout Repository
@@ -171,7 +185,7 @@ jobs:
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
         if: ${{ steps.images_exist.outputs.base_exists != 'true' || steps.images_exist.outputs.target_exists != 'true' }}
 
       - name: Build Base Container
@@ -188,6 +202,9 @@ jobs:
           no-cache: true
           build-args: |
             BUILD_OS=${{ inputs.image }}
+            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-plus }}
+            WAF_PACKAGE_REPO=${{ inputs.pkg-src-waf }}
+            DOS_PACKAGE_REPO=${{ inputs.pkg-src-dos }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}
           secret-files: |
@@ -230,6 +247,9 @@ jobs:
           provenance: false
           build-args: |
             BUILD_OS=${{ inputs.image }}
+            PLUS_PACKAGE_REPO=${{ inputs.pkg-src-plus }}
+            WAF_PACKAGE_REPO=${{ inputs.pkg-src-waf }}
+            DOS_PACKAGE_REPO=${{ inputs.pkg-src-dos }}
             ${{ inputs.authenticated && format('PREBUILT_BASE_IMG={0}', steps.base_name.outputs.image ) || '' }}
             IC_VERSION=${{ inputs.ic-version && inputs.ic-version || steps.meta.outputs.version }}
             ${{ inputs.nap-modules != '' && format('NAP_MODULES={0}', steps.nap_modules.outputs.name) || '' }}

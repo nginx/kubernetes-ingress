@@ -155,7 +155,7 @@ jobs:
           fi
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         if: steps.check-sarif.outputs.sarif_has_results == 'true'
         with:
           sarif_file: govulncheck.sarif
@@ -185,6 +185,10 @@ jobs:
       runner: "ubuntu-24.04-amd64"
       write-to-cache: true
       read-from-cache: false
+      pkg-src-oss: ${{ vars.OSS_REPO }}
+      pkg-src-plus: ${{ vars.PLUS_REPO }}
+      pkg-src-waf: ${{ vars.WAF_REPO }}
+      pkg-src-dos: ${{ vars.DOS_REPO }}
     secrets: inherit
     permissions:
       contents: read
@@ -316,7 +320,7 @@ jobs:
           image: quay.io/nginx/nginx-ingress:edge-ubi
           project_id: ${{ env.PYXIS_CERTIFICATION_PROJECT_ID }}
           pyxis_token: ${{ env.PYXIS_TOKEN }}
-          preflight_version: 1.19.2 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
+          preflight_version: 1.21.0 # renovate: datasource=github-releases depName=preflight packageName=redhat-openshift-ecosystem/openshift-preflight
 
   scan-docker-oss:
     name: Scan ${{ matrix.image }}
@@ -413,7 +417,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}
@@ -513,7 +517,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}
@@ -620,7 +624,7 @@ jobs:
         if: ${{ steps.docker-scout.outcome == 'success' }}
 
       - name: Upload Scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
         with:
           sarif_file: "${{ steps.directory.outputs.directory }}/"
         if: ${{ steps.docker-scout.outcome == 'success' }}

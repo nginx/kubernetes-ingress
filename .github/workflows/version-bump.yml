@@ -29,7 +29,7 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
-    if: github.repository == 'nginx/kubernetes-ingress'
+    if: github.repository == 'nginx/kubernetes-ingress-internal'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
@@ -105,9 +105,10 @@ jobs:
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.app_token.outputs.token }}
+          base: ${{ inputs.source_branch }}
+          branch: chore/version-bump-${{ github.event.inputs.ic_version }}
           commit-message: Version Bump for ${{ github.event.inputs.ic_version }}
           title: Version Bump for ${{ github.event.inputs.ic_version }}
-          branch: chore/version-bump-${{ github.event.inputs.ic_version }}
           labels: chore
           body: |
             This automated PR updates the NIC & Helm chart versions for the upcoming ${{ github.event.inputs.ic_version }} release.

@@ -239,10 +239,16 @@ type LoadBalancerController struct {
 	heldForConfigSafety bool
 
 	// WAF bundle polling.
-	bundlePollerMgr wafbundle.Manager
-	bundleFetcher   wafbundle.Fetcher
-	wafVersion      string
-	wafBundlePath   string
+	bundlePollerMgr             wafbundle.Manager
+	bundleFetcher               wafbundle.Fetcher
+	wafVersion                  string
+	wafBundlePath               string
+	plmStorageSecrets           map[string]struct{}
+	plmCredentialsSecretFactory informers.SharedInformerFactory
+
+	// plmEnabled is true when PLM (F5 WAF Policy Controller) S3 storage is
+	// configured (-plm-storage-url set)
+	plmEnabled bool
 
 	// Startup status deferral: pending slices accumulate status updates
 	// during the initial queue drain (!isNginxReady). They are snapshotted
@@ -274,6 +280,7 @@ type NewLoadBalancerControllerInput struct {
 	AppProtectDosEnabled         bool
 	AppProtectVersion            string
 	WAFBundlePath                string
+	PLMStorageSpec               wafbundle.S3ConfigSpec
 	IsNginxPlus                  bool
 	IngressClass                 string
 	ExternalServiceName          string
@@ -359,10 +366,24 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		endpointSliceWarnings:        make(map[string]bool),
 		wafVersion:                   input.AppProtectVersion,
 		wafBundlePath:                input.WAFBundlePath,
+		plmEnabled:                   input.PLMStorageSpec.Endpoint != "",
+		plmStorageSecrets:            plmStorageSecretKeys(input.PLMStorageSpec),
 	}
 
 	if input.AppProtectEnabled && input.WAFBundlePath != "" {
-		fetcher := wafbundle.NewHTTPFetcher()
+		var fetcher wafbundle.Fetcher = wafbundle.NewHTTPFetcher()
+		// When PLM is enabled, wrap the HTTP fetcher so that SourceTypePLM requests are
+		// served from S3 (SeaweedFS) using cluster-wide credentials, while HTTPS/NIM/N1C
+		// continue to use the HTTP fetcher. The wrapper satisfies the 2-arg Fetcher
+		// interface by resolving the per-fetch S3Config from Kubernetes Secrets.
+		if lbc.plmEnabled {
+			fetcher = wafbundle.NewPLMAwareFetcher(
+				fetcher,
+				wafbundle.NewS3Fetcher(),
+				&wafbundle.KubeClientSecretSource{Client: input.KubeClient},
+				input.PLMStorageSpec,
+			)
+		}
 		lbc.bundleFetcher = fetcher
 		lbc.bundlePollerMgr = wafbundle.NewPollerManager(
 			fetcher,
@@ -381,6 +402,9 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 			},
 			nl.LoggerFromContext(input.LoggerContext),
 		)
+	}
+	if lbc.plmEnabled {
+		lbc.addPLMCredentialsSecretInformer(input.PLMStorageSpec.Credentials)
 	}
 
 	lbc.syncQueue = newTaskQueue(lbc.Logger, lbc.sync)
@@ -543,6 +567,30 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	return lbc
 }
 
+func plmStorageSecretKeys(spec wafbundle.S3ConfigSpec) map[string]struct{} {
+	keys := make(map[string]struct{})
+	for _, ref := range []types.NamespacedName{spec.Credentials, spec.CA, spec.ClientSSL} {
+		if ref.Name != "" {
+			keys[ref.Namespace+"/"+ref.Name] = struct{}{}
+		}
+	}
+	return keys
+}
+
+func (lbc *LoadBalancerController) addPLMCredentialsSecretInformer(ref types.NamespacedName) {
+	if ref.Name == "" {
+		return
+	}
+
+	factory := informers.NewSharedInformerFactoryWithOptions(lbc.client, lbc.resync, informers.WithNamespace(ref.Namespace))
+	informer := factory.Core().V1().Secrets().Informer()
+	if _, err := informer.AddEventHandler(createPLMCredentialsSecretHandlers(lbc, ref.Namespace+"/"+ref.Name)); err != nil {
+		nl.Fatalf(lbc.Logger, "Failed to add PLM credentials secret handler for namespace %s: %v", ref.Namespace, err)
+	}
+	lbc.plmCredentialsSecretFactory = factory
+	lbc.cacheSyncs = append(lbc.cacheSyncs, informer.HasSynced)
+}
+
 type namespacedInformer struct {
 	namespace                    string
 	sharedInformerFactory        informers.SharedInformerFactory
@@ -666,8 +714,11 @@ func (lbc *LoadBalancerController) addAppProtectHandlers(nsi *namespacedInformer
 		if err := nsi.addAppProtectLogConfHandler(createAppProtectLogConfHandlers(lbc)); err != nil {
 			return fmt.Errorf("failed to add app protect log conf handler for namespace %s: %w", ns, err)
 		}
-		if err := nsi.addAppProtectUserSigHandler(createAppProtectUserSigHandlers(lbc)); err != nil {
-			return fmt.Errorf("failed to add app protect user sig handler for namespace %s: %w", ns, err)
+
+		if !lbc.plmEnabled {
+			if err := nsi.addAppProtectUserSigHandler(createAppProtectUserSigHandlers(lbc)); err != nil {
+				return fmt.Errorf("failed to add app protect user sig handler for namespace %s: %w", ns, err)
+			}
 		}
 	}
 	if lbc.appProtectDosEnabled {
@@ -775,6 +826,9 @@ func (lbc *LoadBalancerController) Run() {
 
 	for _, nif := range lbc.namespacedInformers {
 		nif.start()
+	}
+	if lbc.plmCredentialsSecretFactory != nil {
+		go lbc.plmCredentialsSecretFactory.Start(lbc.ctx.Done())
 	}
 
 	if lbc.watchNginxConfigMaps {
@@ -2300,6 +2354,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonSecretDeleted, "A special secret [%s] was deleted.  Retaining the secret on this pod but this will affect new pods.", key)
 			nl.Warnf(l, "A special Secret %v was removed. Retaining the Secret.", key)
 		}
+		lbc.enqueuePoliciesUsingPLMStorage(key)
 		return
 	}
 
@@ -2318,6 +2373,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 	if len(resources) > 0 {
 		lbc.handleSecretUpdate(l, secret, resources)
 	}
+	lbc.enqueuePoliciesUsingPLMStorage(key)
 }
 
 func removeDuplicateResources(resources []Resource) []Resource {
@@ -2834,6 +2890,16 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			nl.Warnf(l, "%s", msg)
 			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
+		if err := lbc.addOIDCNativeSecretRefs(ingEx.SecretRefs, policies); err != nil {
+			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
+		}
+		if err := lbc.addOIDCNativeTrustedCertSecretRefs(ingEx.SecretRefs, policies); err != nil {
+			msg := fmt.Sprintf("Policy error for Ingress %v/%v: %v", ing.Namespace, ing.Name, err)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
+		}
 	} else if ingEx.Ingress.Annotations[configs.PoliciesAnnotation] != "" || ingEx.Ingress.Annotations[configs.PoliciesAnnotationPlus] != "" {
 		msg := fmt.Sprintf("Ingress %v/%v has a policies annotation but custom resources are not enabled; policies will be ignored", ing.Namespace, ing.Name)
 		nl.Warnf(l, "%s", msg)
@@ -2862,7 +2928,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 			ingEx.SecretRefs[secretName] = secretRef
 		}
-		if lbc.appProtectEnabled {
+		if lbc.appProtectEnabled && !lbc.plmEnabled {
 			if apPolicyAntn, exists := ingEx.Ingress.Annotations[configs.AppProtectPolicyAnnotation]; exists {
 				policy, err := lbc.getAppProtectPolicy(ing)
 				if err != nil {
@@ -2880,6 +2946,12 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 					ingEx.AppProtectLogs = logConf
 				}
 			}
+		} else if lbc.appProtectEnabled && lbc.plmEnabled &&
+			(ingEx.Ingress.Annotations[configs.AppProtectPolicyAnnotation] != "" ||
+				ingEx.Ingress.Annotations[configs.AppProtectLogConfAnnotation] != "") {
+			msg := fmt.Sprintf("Ingress %v/%v uses legacy App Protect annotations, which are not supported when PLM is enabled", ing.Namespace, ing.Name)
+			nl.Warnf(lbc.Logger, "%s", msg)
+			ingEx.PolicyWarnings = append(ingEx.PolicyWarnings, msg)
 		}
 
 		if lbc.appProtectDosEnabled {
@@ -3103,6 +3175,14 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	if err != nil {
 		nl.Warnf(l, "Error getting OIDC secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 	}
+	err = lbc.addOIDCNativeSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting OIDCNative secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
+	err = lbc.addOIDCNativeTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
+	if err != nil {
+		nl.Warnf(lbc.Logger, "Error getting OIDCNative trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+	}
 	err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, policies)
 	if err != nil {
 		nl.Warnf(l, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
@@ -3244,6 +3324,16 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			nl.Warnf(l, "Error getting OIDC secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
 		}
 
+		err = lbc.addOIDCNativeSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting OIDCNative secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
+
+		err = lbc.addOIDCNativeTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
+		if err != nil {
+			nl.Warnf(lbc.Logger, "Error getting OIDCNative trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
+		}
+
 		err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsRoutePolicies)
 		if err != nil {
 			nl.Warnf(l, "Error getting OIDC trusted cert secrets for VirtualServer %v/%v: %v", virtualServer.Namespace, virtualServer.Name, err)
@@ -3291,6 +3381,16 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 			err = lbc.addOIDCSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
 			if err != nil {
 				nl.Warnf(l, "Error getting OIDC secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
+
+			err = lbc.addOIDCNativeSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting OIDCNative secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+			}
+
+			err = lbc.addOIDCNativeTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
+			if err != nil {
+				nl.Warnf(lbc.Logger, "Error getting OIDCNative trusted cert secrets for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
 			}
 
 			err = lbc.addOIDCTrustedCertSecretRefs(virtualServerEx.SecretRefs, vsrSubroutePolicies)
@@ -3696,6 +3796,42 @@ func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secr
 	return nil
 }
 
+func (lbc *LoadBalancerController) addOIDCNativeSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.OIDCNative == nil || pol.Spec.OIDCNative.ClientSecret == "" {
+			continue
+		}
+
+		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDCNative.ClientSecret)
+		secretRef := lbc.secretStore.GetSecret(secretKey)
+
+		secretRefs[secretKey] = secretRef
+
+		if secretRef.Error != nil {
+			return secretRef.Error
+		}
+	}
+	return nil
+}
+
+func (lbc *LoadBalancerController) addOIDCNativeTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+	for _, pol := range policies {
+		if pol.Spec.OIDCNative == nil || pol.Spec.OIDCNative.TrustedCertSecret == "" {
+			continue
+		}
+
+		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDCNative.TrustedCertSecret)
+		secretRef := lbc.secretStore.GetSecret(secretKey)
+
+		secretRefs[secretKey] = secretRef
+
+		if secretRef.Error != nil {
+			return secretRef.Error
+		}
+	}
+	return nil
+}
+
 func (lbc *LoadBalancerController) addOIDCTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDC == nil {
@@ -3779,6 +3915,10 @@ func findPoliciesForSecret(policies []*conf_v1.Policy, secretNamespace string, s
 		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.ClientSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.OIDC != nil && pol.Spec.OIDC.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
+		} else if pol.Spec.OIDCNative != nil && pol.Spec.OIDCNative.ClientSecret == secretName && pol.Namespace == secretNamespace {
+			res = append(res, pol)
+		} else if pol.Spec.OIDCNative != nil && pol.Spec.OIDCNative.TrustedCertSecret == secretName && pol.Namespace == secretNamespace {
 			res = append(res, pol)
 		} else if pol.Spec.ExternalAuth != nil && pol.Spec.ExternalAuth.TrustedCertSecret != "" {
 			extAuthNs, extAuthName := configs.ParseResourceReference(pol.Spec.ExternalAuth.TrustedCertSecret, pol.Namespace)

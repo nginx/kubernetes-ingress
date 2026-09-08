@@ -58,7 +58,7 @@ validate_if_condition() {
   # <gate>  or  <gate> && ( ... ). The alternation forces the quotes to match
   # (there is no mixed '..." branch). Capture group 2 is the optional tail and
   # group 3 is the tail's inner parenthesised content.
-  local gate_re='^github\.repository == ('\''nginx/kubernetes-ingress'\''|"nginx/kubernetes-ingress")( && \((.+)\))?$'
+  local gate_re='^github\.repository == ('\''nginx/kubernetes-ingress'\''|"nginx/kubernetes-ingress"|'\''nginx/kubernetes-ingress-internal'\''|"nginx/kubernetes-ingress-internal")( && \((.+)\))?$'
   if [[ ! "$cond" =~ $gate_re ]]; then
     echo "  - Job '$job_name' is not correctly gated: '$cond'"
     echo "    Expected: github.repository == 'nginx/kubernetes-ingress'  [ && ( ... ) ]"
@@ -77,7 +77,7 @@ validate_if_condition() {
 
 main() {
   local workflows
-  workflows=$(find .github/workflows -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) ! -name "mirror-*")
+  workflows=$(find .github/workflows -maxdepth 1 \( -name "*.yml" -o -name "*.yaml" \) ! \( -name "mirror-*" -o -name "build-oss.yml" -o -name "build-plus.yml" -o -name "build-artifacts.yml" -o -name "publish-helm.yml" \) )
 
   # Determine which yq binary to use.
   local YQ_BIN="yq"

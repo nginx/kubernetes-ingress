@@ -19,6 +19,10 @@ on:
         description: "Helm Chart name (default: nginx-ingress)"
         default: "nginx-ingress"
         type: string
+      oci_registries:
+        description: "Publish to OCI registries, must include the oci:// prefix, comma separated list"
+        default: "oci://ghcr.io/nginx/charts,oci://registry-1.docker.io/nginxcharts"
+        type: string
       nginx_helm_repo:
         description: "Publish to the NGINX Helm repo"
         required: true
@@ -45,6 +49,10 @@ on:
         description: "Helm Chart name (default: nginx-ingress)"
         default: "nginx-ingress"
         type: string
+      oci_registries:
+        description: "Publish to OCI registries, must include the oci:// prefix, comma separated list"
+        default: "oci://ghcr.io/nginx/charts,oci://registry-1.docker.io/nginxcharts"
+        type: string
       nginx_helm_repo:
         description: "Publish to the NGINX Helm repo"
         required: true
@@ -68,7 +76,6 @@ permissions:
 jobs:
   publish-helm:
     name: Package and Publish Helm Chart
-    if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ${{ inputs.runner }}
     permissions:
       contents: write # for pushing to Helm Charts repository
@@ -89,6 +96,7 @@ jobs:
           vault-name: ${{ secrets.COMMON_KEYVAULT_NAME }}
           secret-names: "docker-username, docker-password, nginx-bot-helm-app-client-id, nginx-bot-helm-app-private-key"
           env-names: "DOCKER_USERNAME, DOCKER_PASSWORD, APP_CLIENT_ID, APP_PRIVATE_KEY_B64"
+        if: ${{ inputs.nginx_helm_repo || contains(inputs.oci_registries, 'docker.io') }}
 
       - name: Login to GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -96,12 +104,45 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+        if: contains(inputs.oci_registries, 'ghcr.io')
 
       - name: DockerHub Login
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ env.DOCKER_PASSWORD }}
+        if: contains(inputs.oci_registries, 'docker.io')
+
+      - name: Get Id Token for Helm Staging Registry
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        id: idtoken-source
+        with:
+          script: |
+            let id_token = await core.getIDToken()
+            core.setOutput('id_token', id_token)
+        if: contains(inputs.oci_registries, 'docker-mgmt')
+
+      - name: Get Registry Hostname
+        id: registry-hostname
+        run: |
+          # Extract the hostname from the OCI registry URL
+          IFS=',' read -ra REGISTRIES <<< "${{ inputs.oci_registries }}"
+          for registry in "${REGISTRIES[@]}"; do
+            if [[ "$registry" == oci://docker-mgmt* ]]; then
+              hostname=$(echo "$registry" | sed 's|oci://||' | awk -F/ '{print $1}')
+              echo "hostname=$hostname" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+        if: contains(inputs.oci_registries, 'docker-mgmt')
+
+      - name: Login to Helm Staging Registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ steps.registry-hostname.outputs.hostname }}
+          username: ${{ steps.idtoken-source.outputs.id_token }}
+          password: ${{ github.actor }}
+        if: contains(inputs.oci_registries, 'docker-mgmt')
 
       - name: Setup Helm
         uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
@@ -119,7 +160,7 @@ jobs:
           fi
           sed -i "s|^name:.*|name: ${chart_name}|" kic/charts/nginx-ingress/Chart.yaml
           if [[ "${{ inputs.ic_version }}" =~ ^20[0-9]+-lts ]]; then
-            IMAGE_REPOSITORY="private-registry.nginx.com/lts/nginx-ic/nginx-plus-ingress"
+            IMAGE_REPOSITORY="private-registry.nginx.com/nginx-ic/lts/nginx-plus-ingress"
             sed -i "s|^  nginxplus: false|  nginxplus: true|" kic/charts/nginx-ingress/values.yaml
             sed -E -i "s|^(    )repository:.*|\1repository: ${IMAGE_REPOSITORY}|" kic/charts/nginx-ingress/values.yaml
             sed -E -i "s|^(    )(# *)?tag:.*|\1tag: \"${{ inputs.ic_version }}\"|" kic/charts/nginx-ingress/values.yaml
@@ -129,8 +170,10 @@ jobs:
 
       - name: Push to OCI registries
         run: |
-          helm push ${{ steps.package.outputs.path }} oci://ghcr.io/nginx/charts
-          helm push ${{ steps.package.outputs.path }} oci://registry-1.docker.io/nginxcharts
+          IFS=',' read -ra REGISTRIES <<< "${{ inputs.oci_registries }}"
+          for registry in "${REGISTRIES[@]}"; do
+            helm push ${{ steps.package.outputs.path }} $registry
+          done
 
       - name: Decode GitHub App private key
         id: app_key
@@ -163,7 +206,7 @@ jobs:
           repositories: helm-charts
         if: ${{ inputs.nginx_helm_repo }}
 
-      - name: Checkout Repository
+      - name: Checkout Helm Charts Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: nginxinc/helm-charts

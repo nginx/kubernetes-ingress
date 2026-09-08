@@ -60,6 +60,7 @@ Minions inherent the following annotations from the master, unless they override
 - nginx.org/proxy-buffer-size
 - nginx.org/proxy-max-temp-file-size
 - nginx.org/location-snippets
+- nginx.org/upstream-vhost
 - nginx.org/lb-method
 - nginx.org/keepalive
 - nginx.org/max-fails
