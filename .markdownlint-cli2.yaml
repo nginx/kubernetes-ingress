@@ -19,6 +19,7 @@ ignores:
   - "docs/**" # Ignore developer docs folder
   - "vendor/**" # Ignore vendor folder
   - "**/.venv/**"
+  - "**/venv/**"
   - ".local/**"
   - ".opencode/**"
 

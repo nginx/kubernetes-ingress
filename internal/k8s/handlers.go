@@ -187,7 +187,7 @@ func createVirtualServerHandlers(lbc *LoadBalancerController) cache.ResourceEven
 				zeroOutVirtualServerSplitWeights(&oldVsCopy)
 
 				if reflect.DeepEqual(oldVsCopy.Spec, curVsCopy.Spec) {
-					lbc.processVSWeightChangesDynamicReload(oldVs, curVs)
+					lbc.syncQueue.EnqueueWithKind(curVs, virtualServerWeightUpdate)
 					return
 				}
 
@@ -249,7 +249,7 @@ func createVirtualServerRouteHandlers(lbc *LoadBalancerController) cache.Resourc
 				zeroOutVirtualServerRouteSplitWeights(&oldVsrCopy)
 
 				if reflect.DeepEqual(oldVsrCopy.Spec, curVsrCopy.Spec) {
-					lbc.processVSRWeightChangesDynamicReload(oldVsr, curVsr)
+					lbc.syncQueue.EnqueueWithKind(curVsr, virtualServerRouteWeightUpdate)
 					return
 				}
 

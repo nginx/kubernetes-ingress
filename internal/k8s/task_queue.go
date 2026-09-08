@@ -66,6 +66,19 @@ func (tq *taskQueue) Enqueue(obj interface{}) {
 	tq.queue.Add(task)
 }
 
+// EnqueueWithKind adds a task with an explicit kind override. Used by the
+// dynamic-weight-change fast lane where the resource's Go type alone doesn't
+// determine the desired task kind.
+func (tq *taskQueue) EnqueueWithKind(obj interface{}, k kind) {
+	key, err := keyFunc(obj)
+	if err != nil {
+		nl.Debugf(tq.logger, "Couldn't get key for object %v: %v", obj, err)
+		return
+	}
+	nl.Debugf(tq.logger, "Adding an element with a key: %v (kind=%d)", key, k)
+	tq.queue.Add(task{Kind: k, Key: key})
+}
+
 // Requeue adds the task to the queue again and logs the given error
 func (tq *taskQueue) Requeue(task task, err error) {
 	nl.Errorf(tq.logger, "Requeuing %v, err %v", task.Key, err)
@@ -130,6 +143,11 @@ const (
 	appProtectDosLogConf
 	appProtectDosProtectedResource
 	ingressLink
+	// virtualServerWeightUpdate / virtualServerRouteWeightUpdate are fast-lane kinds for
+	// dynamic weight-only updates. They are only ever constructed via EnqueueWithKind;
+	// newTask does not derive them from the Go type of the object.
+	virtualServerWeightUpdate
+	virtualServerRouteWeightUpdate
 )
 
 // task is an element of a taskQueue
