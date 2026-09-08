@@ -18,11 +18,39 @@ import (
 )
 
 // VirtualServerInformer provides access to a shared informer and lister for
-// VirtualServers.
+// VirtualServers. Prefer using the type-safe variant (see [TypedVirtualServerInformer]).
 type VirtualServerInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() configurationv1.VirtualServerLister
 }
+
+// TypedVirtualServerInformer provides access to a shared informer and lister for
+// VirtualServers, including the type-safe TypedInformer variant.
+// It is a superset of VirtualServerInformer.
+type TypedVirtualServerInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() VirtualServerIndexInformer
+	Lister() configurationv1.VirtualServerLister
+}
+
+// VirtualServerIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type VirtualServerIndexInformer cache.TypedSharedIndexInformer[*apisconfigurationv1.VirtualServer]
+
+// VirtualServerHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for VirtualServer.
+type VirtualServerHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apisconfigurationv1.VirtualServer]
+
+// VirtualServerDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for VirtualServer.
+type VirtualServerDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apisconfigurationv1.VirtualServer]
+
+// VirtualServerFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for VirtualServer.
+type VirtualServerFilteringHandler = cache.TypedFilteringResourceEventHandler[*apisconfigurationv1.VirtualServer]
+
+// VirtualServerIndexers is a specialization of [cache.TypedIndexers] for VirtualServer.
+type VirtualServerIndexers = cache.TypedIndexers[*apisconfigurationv1.VirtualServer]
+
+// DeletedVirtualServer is a specialization of [cache.DeletedObject] for VirtualServer.
+type DeletedVirtualServer = cache.DeletedObject[*apisconfigurationv1.VirtualServer]
 
 type virtualServerInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -33,25 +61,49 @@ type virtualServerInformer struct {
 // NewVirtualServerInformer constructs a new informer for VirtualServer type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedVirtualServerInformer]).
 func NewVirtualServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewVirtualServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedVirtualServerInformer constructs a new informer for VirtualServer type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedVirtualServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers VirtualServerIndexers) VirtualServerIndexInformer {
+	return NewTypedVirtualServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredVirtualServerInformer constructs a new informer for VirtualServer type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredVirtualServerInformer]).
 func NewFilteredVirtualServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewVirtualServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedVirtualServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredVirtualServerInformer constructs a new informer for VirtualServer type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredVirtualServerInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers VirtualServerIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) VirtualServerIndexInformer {
+	return NewTypedVirtualServerInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewVirtualServerInformerWithOptions constructs a new informer for VirtualServer type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedVirtualServerInformerWithOptions]).
 func NewVirtualServerInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedVirtualServerInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedVirtualServerInformerWithOptions constructs a new informer for VirtualServer type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedVirtualServerInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) VirtualServerIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "virtualservers"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.VirtualServer](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -84,17 +136,57 @@ func NewVirtualServerInformerWithOptions(client versioned.Interface, namespace s
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *virtualServerInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewVirtualServerInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedVirtualServerInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *virtualServerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apisconfigurationv1.VirtualServer{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *virtualServerInformer) TypedInformer() VirtualServerIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.VirtualServer](f.factory.InformerFor(&apisconfigurationv1.VirtualServer{}, f.defaultInformer))
 }
 
 func (f *virtualServerInformer) Lister() configurationv1.VirtualServerLister {
 	return configurationv1.NewVirtualServerLister(f.Informer().GetIndexer())
+}
+
+// ToTypedVirtualServerInformer converts an untyped informer into a TypedVirtualServerInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *VirtualServer. If that is not the case, calling type-safe methods of the returned
+// TypedVirtualServerInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedVirtualServerInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedVirtualServerInformer(informer VirtualServerInformer) TypedVirtualServerInformer {
+	if informer, ok := informer.(TypedVirtualServerInformer); ok {
+		return informer
+	}
+	return &virtualServerTypedInformerAdapter{informer}
+}
+
+type virtualServerTypedInformerAdapter struct {
+	VirtualServerInformer
+}
+
+func (a *virtualServerTypedInformerAdapter) TypedInformer() VirtualServerIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.VirtualServer](a.Informer())
+}
+
+// ToVirtualServerIndexInformer converts an untyped informer into a VirtualServerIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *VirtualServer. If that is not the case, calling type-safe methods of the returned
+// VirtualServerIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a VirtualServerIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToVirtualServerIndexInformer(informer cache.SharedIndexInformer) VirtualServerIndexInformer {
+	if informer, ok := informer.(VirtualServerIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.VirtualServer](informer)
 }

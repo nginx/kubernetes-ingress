@@ -9,15 +9,15 @@ import (
 // Interface provides access to all the informers in this group version.
 type Interface interface {
 	// GlobalConfigurations returns a GlobalConfigurationInformer.
-	GlobalConfigurations() GlobalConfigurationInformer
+	GlobalConfigurations() TypedGlobalConfigurationInformer
 	// Policies returns a PolicyInformer.
-	Policies() PolicyInformer
+	Policies() TypedPolicyInformer
 	// TransportServers returns a TransportServerInformer.
-	TransportServers() TransportServerInformer
+	TransportServers() TypedTransportServerInformer
 	// VirtualServers returns a VirtualServerInformer.
-	VirtualServers() VirtualServerInformer
+	VirtualServers() TypedVirtualServerInformer
 	// VirtualServerRoutes returns a VirtualServerRouteInformer.
-	VirtualServerRoutes() VirtualServerRouteInformer
+	VirtualServerRoutes() TypedVirtualServerRouteInformer
 }
 
 type version struct {
@@ -31,27 +31,27 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// GlobalConfigurations returns a GlobalConfigurationInformer.
-func (v *version) GlobalConfigurations() GlobalConfigurationInformer {
+// GlobalConfigurations returns a TypedGlobalConfigurationInformer.
+func (v *version) GlobalConfigurations() TypedGlobalConfigurationInformer {
 	return &globalConfigurationInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// Policies returns a PolicyInformer.
-func (v *version) Policies() PolicyInformer {
+// Policies returns a TypedPolicyInformer.
+func (v *version) Policies() TypedPolicyInformer {
 	return &policyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// TransportServers returns a TransportServerInformer.
-func (v *version) TransportServers() TransportServerInformer {
+// TransportServers returns a TypedTransportServerInformer.
+func (v *version) TransportServers() TypedTransportServerInformer {
 	return &transportServerInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// VirtualServers returns a VirtualServerInformer.
-func (v *version) VirtualServers() VirtualServerInformer {
+// VirtualServers returns a TypedVirtualServerInformer.
+func (v *version) VirtualServers() TypedVirtualServerInformer {
 	return &virtualServerInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
-// VirtualServerRoutes returns a VirtualServerRouteInformer.
-func (v *version) VirtualServerRoutes() VirtualServerRouteInformer {
+// VirtualServerRoutes returns a TypedVirtualServerRouteInformer.
+func (v *version) VirtualServerRoutes() TypedVirtualServerRouteInformer {
 	return &virtualServerRouteInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
