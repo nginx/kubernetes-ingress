@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: native-fclo-ingress-one
+  annotations:
+    nginx.com/policies: "oidc-native-policy-one"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - native-fclo-one.example.com
+      secretName: tls-secret
+  rules:
+    - host: native-fclo-one.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fclo-one-svc
+                port:
+                  number: 80

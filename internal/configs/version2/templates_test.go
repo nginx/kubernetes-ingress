@@ -857,8 +857,8 @@ func TestExecuteVirtualServerTemplateWithJWKSWithToken(t *testing.T) {
 		t.Error("want `proxy_ssl_server_name on;` in generated template")
 	}
 
-	if !bytes.Contains(got, []byte("proxy_ssl_name sni.idp.spec.example.com;")) {
-		t.Error("want `proxy_ssl_name sni.idp.spec.example.com;` in generated template")
+	if !bytes.Contains(got, []byte(`proxy_ssl_name "sni.idp.spec.example.com";`)) {
+		t.Error(`want proxy_ssl_name "sni.idp.spec.example.com"; in generated template`)
 	}
 
 	snaps.MatchSnapshot(t, string(got))
@@ -937,7 +937,7 @@ func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.
 		t.Error(err)
 	}
 
-	expectedCustomLocation := "location = /custom-location {"
+	expectedCustomLocation := `location = "/custom-location" {`
 	if !bytes.Contains(got, []byte(expectedCustomLocation)) {
 		t.Errorf("Custom redirectURI should generate location block: %s", expectedCustomLocation)
 	}
@@ -983,6 +983,24 @@ func TestExecuteVirtualServerTemplate_WithOIDCTLSVerify(t *testing.T) {
 	}
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_OIDCClientSecretPreservesEscapes(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := virtualServerCfgWithOIDCAndPKCETurnedOn
+	oidc := *cfg.Server.OIDC
+	cfg.Server.OIDC = &oidc
+	cfg.Server.OIDC.ClientSecret = `pa\"ss`
+
+	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Contains(got, []byte(`set $oidc_client_secret "pa\"ss";`)) {
+		t.Errorf("generated config changed the validated client-secret escape: %s", got)
+	}
 }
 
 func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T) {
@@ -1069,7 +1087,10 @@ func TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel(t *testing.T) {
 	}
 
 	content := string(got)
-	locationIdx := strings.Index(content, "location /")
+	locationIdx := strings.Index(content, `location "/"`)
+	if locationIdx == -1 {
+		t.Fatal("want quoted root location, got none")
+	}
 	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
 	if hstsIdx == -1 {
 		t.Error("want Strict-Transport-Security inside location block, got none")
@@ -1137,7 +1158,10 @@ func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtLocationLevel(t *testing.
 	}
 
 	content := string(got)
-	locationIdx := strings.Index(content, "location /")
+	locationIdx := strings.Index(content, `location "/"`)
+	if locationIdx == -1 {
+		t.Fatal("want quoted root location, got none")
+	}
 	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
 	if hstsIdx == -1 {
 		t.Error("want Strict-Transport-Security inside location block, got none")
@@ -3899,6 +3923,43 @@ func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
 	t.Log(string(data))
 }
 
+func TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	}
+	wantLocations := []string{
+		`location "/images/" {`,
+		`location = "/images/logo.jpg" {`,
+		`location ^~ "/images/static/" {`,
+		`location ~ "\.jpg$" {`,
+		`location ~* "\.png$" {`,
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&virtualServerCfgAllPathTypes)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, want := range wantLocations {
+				if !strings.Contains(string(data), want) {
+					t.Errorf("generated config missing %q", want)
+				}
+			}
+			snaps.MatchSnapshot(t, string(data))
+		})
+	}
+}
+
 func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
 	data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)
@@ -3909,6 +3970,92 @@ func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	const want = `error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";`
 	if !strings.Contains(string(data), want) {
 		t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
+}
+
+func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := VirtualServerConfig{
+		KeyValZones: []KeyValZone{
+			{
+				Name:    "oidc_sessions_oidc_default_my_provider_default_cafe",
+				Size:    "10m",
+				Sync:    true,
+				Timeout: "4h",
+			},
+		},
+		OIDCProviders: []OIDCProvider{
+			{
+				Name:                  "oidc_default_my_provider_default_cafe",
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client-id",
+				ClientSecret:          "my-resolved-secret",
+				ConfigURL:             "https://accounts.google.com/.well-known/openid-configuration",
+				Scope:                 "openid profile",
+				RedirectURI:           "/callback",
+				CookieName:            "MY_SESSION",
+				ExtraAuthArgs:         "prompt=login",
+				PKCE:                  "on",
+				LogoutURI:             "/logout",
+				PostLogoutURI:         "/logged_out",
+				FrontChannelLogoutURI: "/frontchannel_logout",
+				LogoutTokenHint:       true,
+				SessionStore:          "oidc_sessions_oidc_default_my_provider_default_cafe",
+				SessionTimeout:        "4h",
+				Sync:                  true,
+				UserInfoEnable:        true,
+				SSLTrustedCert:        "/etc/nginx/secrets/default-google-ca-secret",
+				SSLCrl:                "/etc/nginx/secrets/default-google-ca-secret-ca.crl",
+				SSLVerify:             true,
+				SSLName:               "accounts.google.com",
+				SSLVerifyDepth:        3,
+				ProxyLocation:         "/_oidc_idp_oidc_default_my_provider_default_cafe",
+				ProxyBufferSize:       "16k",
+				ProxyTrustedCertPath:  "/etc/nginx/secrets/default-google-ca-secret",
+				PostLogoutLocation: &AuthOIDCReturnLocation{
+					Path:        "/logged_out",
+					DefaultType: "text/plain",
+					Return: Return{
+						Code: 200,
+						Text: "You have been logged out.\n",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name:             "test-upstream",
+				Servers:          []UpstreamServer{{Address: "10.0.0.20:8001"}},
+				MaxFails:         1,
+				FailTimeout:      "10s",
+				UpstreamZoneSize: "256k",
+			},
+		},
+		Server: Server{
+			ServerName:       "cafe.example.com",
+			StatusZone:       "cafe.example.com",
+			OIDCProviderName: "oidc_default_my_provider_default_cafe",
+			VSNamespace:      "default",
+			VSName:           "cafe",
+			Locations: []Location{
+				{
+					Path:             "/",
+					ProxyPass:        "http://test-upstream",
+					OIDCProviderName: "oidc_default_my_provider_default_cafe",
+				},
+				{
+					Path:      "/public",
+					ProxyPass: "http://test-upstream",
+				},
+			},
+		},
+	}
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Errorf("Failed to execute template: %v", err)
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
@@ -4005,5 +4152,28 @@ func TestErrorPageRendering(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func TestVirtualServerForNginxPlusDisablesInheritedOIDCNative(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := VirtualServerConfig{
+		Server: Server{
+			OIDC:             &OIDC{},
+			OIDCProviderName: "native-provider",
+			Locations: []Location{{
+				Path:      "/njs",
+				ProxyPass: "http://test-upstream",
+				OIDC:      true,
+			}},
+		},
+	}
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?s)location "/njs" \{.*?auth_oidc off;`).Match(data) {
+		t.Error("NJS OIDC locations must disable an inherited native OIDC policy")
 	}
 }

@@ -39,7 +39,7 @@ server {
     listen {{ $s.UnixSocket }} proxy_protocol;
     set_real_ip_from unix:;
         {{- else }}
-    {{ makeTransportListener $s | printf }}
+    {{ makeTransportListener $s }}
     {{- with makeServerName $s }}{{ printf "\t%s" . }}{{- end }}
         {{- end }}
 
@@ -49,7 +49,7 @@ server {
 	    {{- end }}
     {{- end }}
 
-    status_zone {{ $s.StatusZone }};
+    status_zone {{ printf "%q" $s.StatusZone }};
 
     {{- if $s.ProxyRequests }}
     proxy_requests {{ $s.ProxyRequests }};

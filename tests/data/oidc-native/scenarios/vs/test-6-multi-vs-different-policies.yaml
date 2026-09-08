@@ -1,0 +1,59 @@
+# Test 6: Two VirtualServers, each with a different OIDCNative policy.
+#
+# Prerequisites: register app1.${LB_IP}.nip.io and app2.${LB_IP}.nip.io as
+# valid redirect URIs on the Keycloak nginx-plus (and nginx-plus-2) clients.
+#
+# Verify:
+#   - `run-test.sh 6 check` shows two oidc_provider blocks with different names.
+#   - Browse https://app1.${LB_IP}.nip.io/  -> nginx-plus client
+#   - Browse https://app2.${LB_IP}.nip.io/  -> nginx-plus-2 client
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidcnative-policy-2
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus-2
+    clientSecret: oidcnative-secret
+    scope: openid profile
+    sslVerify: false
+    postLogoutRedirectURI: /_logout
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: app1
+spec:
+  host: app1.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: app2
+spec:
+  host: app2.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy-2
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

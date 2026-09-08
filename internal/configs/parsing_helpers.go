@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	internalvalidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -109,11 +110,15 @@ func ParseLBMethod(method string) (string, error) {
 }
 
 var nginxLBValidInput = map[string]bool{
-	"least_conn":            true,
-	"ip_hash":               true,
-	"random":                true,
-	"random two":            true,
-	"random two least_conn": true,
+	"least_conn":                    true,
+	"ip_hash":                       true,
+	"random":                        true,
+	"random two":                    true,
+	"random two least_conn":         true,
+	"least_time header":             true,
+	"least_time last_byte":          true,
+	"least_time header inflight":    true,
+	"least_time last_byte inflight": true,
 }
 
 var nginxPlusLBValidInput = map[string]bool{
@@ -151,6 +156,12 @@ func ParseLBMethodForPlus(method string) (string, error) {
 }
 
 func validateHashLBMethod(method string) (string, error) {
+	if err := internalvalidation.ValidateDirectiveValue(method); err != nil {
+		return "", fmt.Errorf("invalid load balancing method: %q: %w", method, err)
+	}
+	if strings.Contains(method, "\t") {
+		return "", fmt.Errorf("invalid load balancing method: %q", method)
+	}
 	keyWords := strings.Split(method, " ")
 
 	if keyWords[0] == "hash" {
@@ -255,6 +266,17 @@ func ParseSize(s string) (string, error) {
 		return s, nil
 	}
 	return "", errors.New("invalid size string")
+}
+
+// ParseHeaderList validates a comma-separated list of HTTP header names and
+// returns the trimmed names. The caller reports the key and the raw value, so
+// only the reason is returned here.
+func ParseHeaderList(s string) ([]string, error) {
+	names, msgs := internalvalidation.ValidateHeaderNameList(s)
+	if len(msgs) != 0 {
+		return nil, errors.New(strings.Join(msgs, "; "))
+	}
+	return names, nil
 }
 
 var rateRegexp = regexp.MustCompile(`^(\d+)(r/s|r/m)$`)
@@ -445,6 +467,40 @@ var nginxErrorPageRejectedCodes = map[int]bool{
 	499: true,
 }
 
+func expandHTTPErrorRange(start, end int, set map[int]struct{}) {
+	for c := start; c <= end; c++ {
+		if !nginxErrorPageRejectedCodes[c] {
+			set[c] = struct{}{}
+		}
+	}
+}
+
+func parseCustomHTTPErrorToken(token string, set map[int]struct{}) error {
+	switch strings.ToLower(token) {
+	case "4xx":
+		expandHTTPErrorRange(400, 499, set)
+		return nil
+	case "5xx":
+		expandHTTPErrorRange(500, 599, set)
+		return nil
+	}
+	if !isASCIIDigits(token) {
+		return fmt.Errorf("invalid status code %q: must be an integer, '4xx', or '5xx'", token)
+	}
+	code, err := strconv.Atoi(token)
+	if err != nil {
+		return fmt.Errorf("invalid status code %q: must be an integer, '4xx', or '5xx'", token)
+	}
+	if code < 300 || code > 599 {
+		return fmt.Errorf("invalid status code %d: must be in the range [300, 599]", code)
+	}
+	if nginxErrorPageRejectedCodes[code] {
+		return fmt.Errorf("invalid status code %d: NGINX rejects this code in the error_page directive", code)
+	}
+	set[code] = struct{}{}
+	return nil
+}
+
 // ParseCustomHTTPErrors parses the nginx.org/custom-http-errors annotation
 // value into a sorted, deduplicated slice of HTTP status codes.
 //
@@ -460,38 +516,9 @@ func ParseCustomHTTPErrors(value string) ([]int, error) {
 		if token == "" {
 			continue
 		}
-		switch strings.ToLower(token) {
-		case "4xx":
-			for c := 400; c <= 499; c++ {
-				if nginxErrorPageRejectedCodes[c] {
-					continue
-				}
-				set[c] = struct{}{}
-			}
-			continue
-		case "5xx":
-			for c := 500; c <= 599; c++ {
-				if nginxErrorPageRejectedCodes[c] {
-					continue
-				}
-				set[c] = struct{}{}
-			}
-			continue
+		if err := parseCustomHTTPErrorToken(token, set); err != nil {
+			return nil, err
 		}
-		if !isASCIIDigits(token) {
-			return nil, fmt.Errorf("invalid status code %q: must be an integer, '4xx', or '5xx'", token)
-		}
-		code, err := strconv.Atoi(token)
-		if err != nil {
-			return nil, fmt.Errorf("invalid status code %q: must be an integer, '4xx', or '5xx'", token)
-		}
-		if code < 300 || code > 599 {
-			return nil, fmt.Errorf("invalid status code %d: must be in the range [300, 599]", code)
-		}
-		if nginxErrorPageRejectedCodes[code] {
-			return nil, fmt.Errorf("invalid status code %d: NGINX rejects this code in the error_page directive", code)
-		}
-		set[code] = struct{}{}
 	}
 	if len(set) == 0 {
 		return nil, errors.New("no valid status codes found")

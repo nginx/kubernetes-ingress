@@ -106,6 +106,40 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 	}
 }
 
+// createPLMCredentialsSecretHandlers re-enqueues PLM bundle consumers when the
+// configured opaque S3 credentials Secret changes.
+func createPLMCredentialsSecretHandlers(lbc *LoadBalancerController, credentialsKey string) cache.ResourceEventHandlerFuncs {
+	enqueue := func(obj interface{}) {
+		secret := obj.(*v1.Secret)
+		if secret.Namespace+"/"+secret.Name == credentialsKey {
+			lbc.enqueuePoliciesUsingPLMStorage(credentialsKey)
+		}
+	}
+
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: enqueue,
+		UpdateFunc: func(old, cur interface{}) {
+			if !reflect.DeepEqual(old, cur) {
+				enqueue(cur)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			secret, ok := obj.(*v1.Secret)
+			if !ok {
+				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				secret, ok = deletedState.Obj.(*v1.Secret)
+				if !ok {
+					return
+				}
+			}
+			enqueue(secret)
+		},
+	}
+}
+
 func createVirtualServerHandlers(lbc *LoadBalancerController) cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {

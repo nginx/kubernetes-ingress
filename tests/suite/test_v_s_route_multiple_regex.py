@@ -5,6 +5,8 @@ VSR subroute paths must form an exact set match. This file exercises the happy
 path and several failure scenarios.
 """
 
+from typing import Any, cast
+
 import pytest
 import requests
 from settings import TEST_DATA
@@ -61,24 +63,34 @@ def multi_regex_vsr_setup(request, kube_apis, ingress_controller_endpoint, test_
             test_namespace,
         )
 
-    # Poll the Kubernetes API until the IC sets the VS status to "Valid".
-    # The IC only marks the VS Valid after it has successfully applied the
-    # config to nginx, making this a reliable readiness signal that works
-    # across all image variants (OSS, Plus, FIPS) without requiring network
-    # access to nginx. Up to 60 seconds (30 × 2 s) before giving up.
+    # Poll the Kubernetes API until the IC sets the VS and both VSR statuses
+    # to "Valid". The IC only marks these resources Valid after it has
+    # successfully applied the config to nginx, making this a reliable
+    # readiness signal that works across all image variants (OSS, Plus, FIPS)
+    # without requiring network access to nginx. Up to 60 seconds (30 × 2 s)
+    # before giving up.
     # Diagnostic prints are intentional — they surface the IC's state in
     # CI logs so we can distinguish a timing race from a fundamental rejection.
+    resources = [("VS", "virtualservers", vs_name)] + [
+        ("VSR", "virtualserverroutes", vsr_name) for vsr_name in ["route-api", "route-images"]
+    ]
+    statuses: dict[str, str | None] = {}
     for _ in range(30):
-        vs_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "virtualservers", vs_name)
-        state = vs_info.get("status", {}).get("state")
-        print(f"[multi_regex_vsr_setup] VS '{vs_name}' status.state={state!r}")
-        if state == "Valid":
+        statuses = {}
+        for resource_type, resource_plural, resource_name in resources:
+            resource_info = cast(
+                dict[str, Any],
+                read_custom_resource(kube_apis.custom_objects, test_namespace, resource_plural, resource_name),
+            )
+            state = resource_info.get("status", {}).get("state")
+            statuses[f"{resource_type} '{resource_name}'"] = state
+        print(f"[multi_regex_vsr_setup] statuses={statuses!r}")
+        if all(state == "Valid" for state in statuses.values()):
             break
         wait_before_test(2)
     else:
         pytest.fail(
-            f"[multi_regex_vsr_setup] VS '{vs_name}' did not reach Valid state after 60 s; "
-            f"last status={vs_info.get('status', {})!r}"
+            f"[multi_regex_vsr_setup] resources did not reach Valid state after 60 s; " f"last statuses={statuses!r}"
         )
 
     def fin():
@@ -137,8 +149,8 @@ class TestVSRMultipleRegexPaths:
     def test_happy_path_status(self, kube_apis, crd_ingress_controller, multi_regex_vsr_setup):
         """VS and both VSRs should be Valid after initial deploy."""
         setup = multi_regex_vsr_setup
-        # No wait needed here — the fixture already blocked until the IC is
-        # serving traffic, so the status subresource is guaranteed to be set.
+        # No wait needed here — the fixture already blocked until the IC
+        # populated the status subresources for the VS and both VSRs.
         vs_info = read_custom_resource(kube_apis.custom_objects, setup.namespace, "virtualservers", setup.vs_name)
         assert vs_info["status"]["state"] == "Valid", f"VS status: {vs_info.get('status', 'not yet populated')}"
         assert vs_info["status"]["reason"] == "AddedOrUpdated"
@@ -184,7 +196,7 @@ class TestVSRMultipleRegexPaths:
         assert 'location ~ "/api/v2"' in config, 'Expected ~ "/api/v2" location block'
         assert 'location ~* "/images/jpg"' in config, 'Expected ~* "/images/jpg" location block'
         assert 'location ~* "/images/png"' in config, 'Expected ~* "/images/png" location block'
-        assert "location /static" in config, "Expected /static location block (non-VSR direct return route)"
+        assert 'location "/static"' in config, "Expected /static location block (non-VSR direct return route)"
 
     # ------------------------------------------------------------------ #
     # Failure: VS references a path not present in the VSR

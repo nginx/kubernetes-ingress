@@ -223,6 +223,15 @@ func findRemovedKeys(currentKeys []string, newKeys map[string]bool) []string {
 	return removedKeys
 }
 
+// normalizeServerZoneName maps empty-host ingress zones to the underscore token emitted in NGINX config.
+func normalizeServerZoneName(zone string) string {
+	if zone == emptyHostName {
+		return emptyHostToken
+	}
+
+	return zone
+}
+
 func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams []version1.Upstream) {
 	upstreamServerLabels := make(map[string][]string)
 	newUpstreams := make(map[string]bool)
@@ -266,9 +275,13 @@ func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams 
 		newZones := make(map[string]bool)
 		var newZonesNames []string
 		for _, rule := range ingEx.Ingress.Spec.Rules {
-			serverZoneLabels[rule.Host] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
-			newZones[rule.Host] = true
-			newZonesNames = append(newZonesNames, rule.Host)
+			if ingEx.ValidHosts != nil && !ingEx.ValidHosts[rule.Host] {
+				continue
+			}
+			zoneName := normalizeServerZoneName(rule.Host)
+			serverZoneLabels[zoneName] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
+			newZones[zoneName] = true
+			newZonesNames = append(newZonesNames, zoneName)
 		}
 
 		removedZones := findRemovedKeys(cnf.metricLabelsIndex.ingressServerZones[key], newZones)

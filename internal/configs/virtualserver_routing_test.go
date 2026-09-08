@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -296,6 +297,77 @@ func TestGenerateVirtualServerConfigForVirtualServerWithSplits(t *testing.T) {
 
 	if len(warnings) != 0 {
 		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+	}
+}
+
+func TestGenerateVirtualServerConfigFormatsRegexInternalRedirectPaths(t *testing.T) {
+	t.Parallel()
+
+	vsEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: `~ ^/tea/([0-9]{2})$`,
+						Splits: []conf_v1.Split{
+							{Weight: 50, Action: &conf_v1.Action{Proxy: &conf_v1.ActionProxy{Upstream: "tea", RewritePath: `/brew/$1`}}},
+							{Weight: 50, Action: &conf_v1.Action{Pass: "tea"}},
+						},
+					},
+					{Path: `~* ^/coffee/([a-z]+)/([0-9]+)$`, Route: "default/coffee"},
+				},
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "coffee", Namespace: "default"},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Host: "cafe.example.com",
+					Upstreams: []conf_v1.Upstream{
+						{Name: "coffee", Service: "coffee", Port: 80},
+					},
+					Subroutes: []conf_v1.Route{
+						{
+							Path: `~* ^/coffee/([a-z]+)/([0-9]+)$`,
+							Splits: []conf_v1.Split{
+								{Weight: 50, Action: &conf_v1.Action{Proxy: &conf_v1.ActionProxy{Upstream: "coffee", RewritePath: `/roast/$1?id=$2`}}},
+								{Weight: 50, Action: &conf_v1.Action{Pass: "coffee"}},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	cfg, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Fatalf("GenerateVirtualServerConfig() returned warnings: %v", warnings)
+	}
+
+	wantPaths := []string{`~ "^/tea/([0-9]{2})$"`, `~* "^/coffee/([a-z]+)/([0-9]+)$"`}
+	for i, want := range wantPaths {
+		if got := cfg.Server.InternalRedirectLocations[i].Path; got != want {
+			t.Errorf("internal redirect path %d = %q, want %q", i, got, want)
+		}
+	}
+
+	foundCaptures := false
+	for _, location := range cfg.Server.Locations {
+		for _, rewrite := range location.Rewrites {
+			if strings.Contains(rewrite, `"/roast/$1?id=$2"`) {
+				foundCaptures = true
+			}
+		}
+	}
+	if !foundCaptures {
+		t.Error("GenerateVirtualServerConfig() did not preserve rewrite captures")
 	}
 }
 

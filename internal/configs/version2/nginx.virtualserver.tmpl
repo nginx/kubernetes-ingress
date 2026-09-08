@@ -16,7 +16,7 @@ upstream {{ $u.Name }} {
 
 	{{- with $u.SessionCookie }}
 		{{- if .Enable }}
-    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} path={{ .Path }}{{ end }};
+    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} {{ printf "%q" (printf "path=%s" .Path) }}{{ end }};
 		{{- end }}
 	{{- end }}
 }
@@ -58,7 +58,7 @@ server {
     {{- if $s.AddHeaderInherit }}
     add_header_inherit {{ $s.AddHeaderInherit }};
     {{- end }}
-    {{ makeHTTPListener $s | printf }}
+    {{ makeHTTPListener $s }}
 
     server_name {{ $s.ServerName }};
 
@@ -73,7 +73,7 @@ server {
     set_real_ip_from unix:;
     real_ip_header proxy_protocol;
         {{- else }}
-    {{ makeHTTPSListener $s | printf }}
+    {{ makeHTTPSListener $s }}
         {{- end }}
         {{- if $ssl.HTTP2 }}
     http2 on;
@@ -207,7 +207,7 @@ server {
     {{- end }}
 
     {{- with $s.APIKey}}
-    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
     js_var $apikey_auth_local_map "{{ .MapName}}";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
@@ -226,10 +226,10 @@ server {
     proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
     proxy_ssl_verify_depth {{ .VerifyDepth }};
     proxy_ssl_protocols {{ .Protocols }};
-    proxy_ssl_ciphers {{ .Ciphers }};
+    proxy_ssl_ciphers {{ printf "%q" .Ciphers }};
     proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
     proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-    proxy_ssl_name {{ .SSLName }};
+    proxy_ssl_name {{ printf "%q" .SSLName }};
     {{- end }}
 
     {{- if $s.HSTS }}
@@ -247,7 +247,7 @@ server {
     {{- end}}
 
     {{- if $s.ExternalAuth }}
-    auth_request {{ $s.ExternalAuth.URI.InternalPath }};
+    auth_request {{ printf "%q" $s.ExternalAuth.URI.InternalPath }};
     {{- end }}
 
     {{- range $e := $s.ErrorPages }}
@@ -260,7 +260,7 @@ server {
     {{- end }}
 
     {{- range $l := $s.InternalRedirectLocations }}
-    location {{ $l.Path }} {
+    location {{ makeLocationPath $l.Path }} {
         rewrite ^ {{ $l.Destination }} last;
     }
     {{- end }}
@@ -290,7 +290,7 @@ server {
     {{ end }}
 
     {{ range $l := $s.Locations }}
-    location {{ $l.Path }} {
+    location {{ makeLocationPath $l.Path }} {
         set $service "{{ $l.ServiceName }}";
         {{- if $l.IsVSR }}
         set $resource_type "virtualserverroute";
@@ -310,7 +310,7 @@ server {
         {{- if $l.AuthRequestOff }}
         auth_request off;
         {{- else if $l.ExternalAuth }}
-        auth_request {{ $l.ExternalAuth.URI.InternalPath }};
+        auth_request {{ printf "%q" $l.ExternalAuth.URI.InternalPath }};
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}
@@ -355,14 +355,14 @@ server {
 
         {{- with $l.APIKey}}
         set $apikey_auth_local_map  "{{ .MapName }}";
-        set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
+        set $header_query_value {{ makeHeaderQueryValue $l.APIKey }};
         set $apikey_auth_token $apikey_auth_hash;
         auth_request /_validate_apikey_njs;
         set $apikey_client_name ${{ .MapName }};
 
         {{- else }}
         {{- with $s.APIKey }}
-        set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+        set $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
         {{- end }}
         {{- end }}
 
@@ -379,10 +379,10 @@ server {
         {{ $proxyOrGRPC }}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_verify_depth {{ .VerifyDepth }};
         {{ $proxyOrGRPC }}_ssl_protocols {{ .Protocols }};
-        {{ $proxyOrGRPC }}_ssl_ciphers {{ .Ciphers }};
+        {{ $proxyOrGRPC }}_ssl_ciphers {{ printf "%q" .Ciphers }};
         {{ $proxyOrGRPC }}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-        {{ $proxyOrGRPC }}_ssl_name {{ .SSLName }};
+        {{ $proxyOrGRPC }}_ssl_name {{ printf "%q" .SSLName }};
         {{- end }}
 
             {{- if $l.GRPCPass }}
@@ -582,7 +582,7 @@ server {
         proxy_ssl_verify on;
         proxy_ssl_verify_depth {{ $l.ProxySSLVerifyDepth }};
         proxy_ssl_server_name on;
-        proxy_ssl_name {{ $l.ProxySSLName }};
+        proxy_ssl_name {{ printf "%q" $l.ProxySSLName }};
         {{- end }}
         {{- if $l.ProxySSLTrustedCertificate }}
         proxy_ssl_trusted_certificate {{ $l.ProxySSLTrustedCertificate }};

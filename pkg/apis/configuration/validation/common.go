@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -177,6 +178,8 @@ func validateOffset(offset string, fieldPath *field.Path) field.ErrorList {
 // http://nginx.org/en/docs/syntax.html
 const sizeErrMsg = "must consist of numeric characters followed by a valid size suffix. 'k|K|m|M"
 
+var sizeValidationRegexp = regexp.MustCompile(`^[ \t]*\d+[kKmM]?[ \t]*$`)
+
 // ValidateSize is a wrapper for validateSize to be used in other packages
 func ValidateSize(size string, fieldPath *field.Path) field.ErrorList {
 	return validateSize(size, fieldPath)
@@ -185,6 +188,10 @@ func ValidateSize(size string, fieldPath *field.Path) field.ErrorList {
 func validateSize(size string, fieldPath *field.Path) field.ErrorList {
 	if size == "" {
 		return nil
+	}
+	if !sizeValidationRegexp.MatchString(size) {
+		msg := validation.RegexError(sizeErrMsg, configs.SizeFmt, "16", "32k", "64M")
+		return field.ErrorList{field.Invalid(fieldPath, size, msg)}
 	}
 
 	if _, err := configs.ParseSize(size); err != nil {
@@ -274,6 +281,12 @@ func validatePath(path string, fieldPath *field.Path) field.ErrorList {
 	if !pathRegexp.MatchString(path) {
 		msg := validation.RegexError(pathErrMsg, pathFmt, "/", "/path", "/path/subpath-123")
 		return field.ErrorList{field.Invalid(fieldPath, path, msg)}
+	}
+	// Go quoting escapes non-printable runes into syntax NGINX does not decode.
+	for _, char := range path {
+		if !unicode.IsPrint(char) {
+			return field.ErrorList{field.Invalid(fieldPath, path, "must not include non-printable characters")}
+		}
 	}
 	return nil
 }

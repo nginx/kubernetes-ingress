@@ -1,0 +1,54 @@
+# Test 5: Two Ingresses sharing the same OIDCNative policy.
+#
+# Verify:
+#   - Two oidc_provider blocks. Names include the Ingress name so they are
+#     globally unique even though the source policy is the same.
+#   - Signing in on one does NOT log you into the other (separate session
+#     stores per provider).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app1
+  annotations:
+    nginx.com/policies: "oidcnative-policy"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app1.example.com
+      secretName: tls-secret
+  rules:
+    - host: app1.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app2
+  annotations:
+    nginx.com/policies: "oidcnative-policy"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - app2.example.com
+      secretName: tls-secret
+  rules:
+    - host: app2.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
