@@ -137,12 +137,11 @@ func drainSyncQueue(t *testing.T, lbc *LoadBalancerController) {
 	}
 }
 
-// TestBatchModeResetsUpdateAllConfigsFlag is the regression test for issue
-// #10812 / PR #10813: the updateAllConfigsOnBatch flag must be cleared at
-// the end of every batch drain. If the flag stays sticky, every subsequent
-// batch keeps taking the heavy updateAllConfigs() path instead of the
-// lighter ReloadForBatchUpdates() path, even when the batch did not contain
-// a ConfigMap task.
+// TestBatchModeResetsUpdateAllConfigsFlag verifies that the
+// updateAllConfigsOnBatch flag is cleared at the end of every batch drain.
+// If the flag stays sticky, every subsequent batch keeps taking the heavy
+// updateAllConfigs() path instead of the lighter ReloadForBatchUpdates()
+// path, even when the batch did not contain a ConfigMap task.
 //
 // Two consecutive batches are driven through sync():
 //
@@ -177,7 +176,7 @@ func TestBatchModeResetsUpdateAllConfigsFlag(t *testing.T) {
 		t.Fatalf("batch 1: CreateMainConfig calls = %d, want 1 (updateAllConfigs must fire when a batch contains a ConfigMap)", got)
 	}
 	if lbc.updateAllConfigsOnBatch {
-		t.Fatal("batch 1: updateAllConfigsOnBatch still true after drain — reset missing (#10813)")
+		t.Fatal("batch 1: updateAllConfigsOnBatch still true after drain — reset missing")
 	}
 	if lbc.batchSyncEnabled {
 		t.Fatal("batch 1: batchSyncEnabled still true after drain")
@@ -193,7 +192,7 @@ func TestBatchModeResetsUpdateAllConfigsFlag(t *testing.T) {
 	drainSyncQueue(t, lbc)
 
 	if got := mgr.mainConfigs.Load(); got != 1 {
-		t.Fatalf("batch 2: CreateMainConfig calls = %d, want still 1 — sticky updateAllConfigsOnBatch would cause updateAllConfigs to fire again (#10813)", got)
+		t.Fatalf("batch 2: CreateMainConfig calls = %d, want still 1 — sticky updateAllConfigsOnBatch would cause updateAllConfigs to fire again", got)
 	}
 	if lbc.updateAllConfigsOnBatch {
 		t.Fatal("batch 2: updateAllConfigsOnBatch became true without a ConfigMap task in the batch")
