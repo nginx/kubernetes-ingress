@@ -226,6 +226,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "allow-empty-ingress-host",
 			namespace:   "default",
 		},
+		"allowEmptyIngressHostWithoutCRs": {
+			valuesFile:  "testdata/allow-empty-ingress-host-no-crs.yaml",
+			releaseName: "allow-empty-ingress-host-no-crs",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test
