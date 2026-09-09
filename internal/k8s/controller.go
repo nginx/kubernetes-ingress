@@ -4518,7 +4518,7 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 
 	var weightUpdates []configs.WeightUpdate
 
-	splitClientsIndex := lbc.getStartingSplitClientsIndex(vsrNew, vsEx)
+	splitClientsIndex := getStartingSplitClientsIndex(vsrNew, vsEx)
 
 	variableNamer := configs.NewVSVariableNamer(vsEx.VirtualServer)
 
@@ -4562,7 +4562,13 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 	}
 }
 
-func (lbc *LoadBalancerController) getStartingSplitClientsIndex(vsr *conf_v1.VirtualServerRoute, vsEx *configs.VirtualServerEx) int {
+// getStartingSplitClientsIndex returns the split_clients index that vsr's
+// first subroute occupies within vsEx's overall sequence: the referencing
+// VirtualServer's own routes first, then every VirtualServerRoute ahead of vsr
+// in vsEx.VirtualServerRoutes.
+//
+// Pure function: no Configuration or Configurator access.
+func getStartingSplitClientsIndex(vsr *conf_v1.VirtualServerRoute, vsEx *configs.VirtualServerEx) int {
 	var startingSplitClientsIndex int
 
 	for _, r := range vsEx.VirtualServer.Spec.Routes {
@@ -4581,8 +4587,15 @@ func (lbc *LoadBalancerController) getStartingSplitClientsIndex(vsr *conf_v1.Vir
 
 	}
 
+	target := getResourceKey(&vsr.ObjectMeta)
+
 	for _, vsRoute := range vsEx.VirtualServerRoutes {
-		if vsRoute.Name == vsr.Name {
+		// Compare namespace/name, not name alone. A VirtualServer can
+		// reference VirtualServerRoutes in other namespaces, and routeSelector
+		// matches across all of them, so this list can hold two VSRs with the
+		// same name. Stopping at the first name match would return another
+		// VSR's offset and send weight updates to its keyval zone.
+		if getResourceKey(&vsRoute.ObjectMeta) == target {
 			return startingSplitClientsIndex
 		}
 		for _, r := range vsRoute.Spec.Subroutes {
