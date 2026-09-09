@@ -4741,3 +4741,81 @@ func TestGenerateVirtualServerConfigForVSRWithMultipleRegexSubroutes(t *testing.
 		t.Errorf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
 	}
 }
+
+// TestGenerateVirtualServerConfigSplitClientsIndexSequence pins the
+// split_clients index sequence the generator assigns when
+// DynamicWeightChangesReload is enabled.
+//
+// This is the ground truth for the index walk in
+// k8s.computeVSWeightUpdates, which re-derives these indices from two
+// VirtualServer specs in order to push NGINX Plus keyval updates without a
+// reload. The two walks must agree exactly; if they drift, weight updates land
+// on the wrong split's keyval zone (or past the end of the generated zones,
+// where they are silently dropped).
+//
+// The k8s-side walk cannot be called from this package, and the generator
+// cannot be driven from internal/k8s because virtualServerConfigurator is
+// unexported, so the contract is pinned from both sides with the same literal
+// indices instead of compared directly. If this test's expectations change,
+// TestComputeVSWeightUpdates in internal/k8s must change with it.
+func TestGenerateVirtualServerConfigSplitClientsIndexSequence(t *testing.T) {
+	t.Parallel()
+
+	newTwoWaySplits := func() []conf_v1.Split {
+		return []conf_v1.Split{
+			{Weight: 50, Action: &conf_v1.Action{Pass: "tea-v1"}},
+			{Weight: 50, Action: &conf_v1.Action{Pass: "tea-v2"}},
+		}
+	}
+
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea-v1", Service: "tea-v1-svc", Port: 80},
+					{Name: "tea-v2", Service: "tea-v2-svc", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/a", Splits: newTwoWaySplits()},
+					{Path: "/b", Splits: newTwoWaySplits()},
+					{Path: "/c", Splits: newTwoWaySplits()},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-v1-svc:80": {"10.0.0.20:80"},
+			"default/tea-v2-svc:80": {"10.0.0.21:80"},
+		},
+	}
+
+	vsc := newVirtualServerConfigurator(
+		&baseCfgParams, true, false, &StaticConfigParams{DynamicWeightChangesReload: true}, false, &fakeBV,
+	)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	if len(warnings) != 0 {
+		t.Fatalf("GenerateVirtualServerConfig() returned unexpected warnings: %v", warnings)
+	}
+
+	// One 2-way split per route, so the counter advances by
+	// splitClientAmountWhenWeightChangesDynamicReload each time.
+	wantIndexes := []int{0, 101, 202}
+
+	var gotIndexes []int
+	for _, twsc := range result.TwoWaySplitClients {
+		gotIndexes = append(gotIndexes, twsc.SplitClientsIndex)
+	}
+
+	if diff := cmp.Diff(wantIndexes, gotIndexes); diff != "" {
+		t.Errorf("split_clients index sequence mismatch (-want +got):\n%s", diff)
+	}
+
+	// Every index must also be a real, addressable zone: the generator emits
+	// splitClientAmountWhenWeightChangesDynamicReload blocks per 2-way split,
+	// so a walk that overshoots produces an index with no zone behind it.
+	if got, want := len(result.SplitClients), len(wantIndexes)*splitClientAmountWhenWeightChangesDynamicReload; got != want {
+		t.Errorf("generated %d split_clients blocks, want %d", got, want)
+	}
+}
