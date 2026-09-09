@@ -77,8 +77,17 @@ const (
 	// IngressControllerName holds Ingress Controller name
 	IngressControllerName = "nginx.org/ingress-controller"
 
-	typeKeyword                                     = "type"
-	helmReleaseType                                 = "helm.sh/release.v1"
+	typeKeyword     = "type"
+	helmReleaseType = "helm.sh/release.v1"
+	// splitClientAmountWhenWeightChangesDynamicReload mirrors the identically
+	// named constant in internal/configs/virtualserver.go. It must equal the
+	// number of split_clients blocks the generator emits per 2-way split, or
+	// computeVSWeightUpdates re-derives the wrong index and pushes keyval
+	// updates to another split's zone (or to no zone at all).
+	//
+	// This is a second, unconnected declaration of the same number, so
+	// changing either copy alone is not a compile error. See the comment on
+	// the configs-side constant for the full picture.
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 
 	logNamespaceKey = "resource_namespace"

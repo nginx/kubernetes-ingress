@@ -11,17 +11,23 @@ import (
 )
 
 // The split_clients index accounting in computeVSWeightUpdates must mirror
-// configs.GenerateVirtualServerConfig exactly: the generator advances its
-// running counter by splitClientAmountWhenWeightChangesDynamicReload (101) for
-// every 2-way split, because generateSplitsForWeightChangesDynamicReload emits
-// 101 split_clients blocks for one, and by 1 for any other split count.
+// configs.GenerateVirtualServerConfig exactly. There are four branches, and
+// this test has to cover all of them, because the walk reimplements each one:
 //
-// The ground truth for that sequence is pinned on the generator side by
+//	route-level 2-way split      -> += splitClientAmountWhenWeightChangesDynamicReload
+//	route-level non-2-way split  -> += 1
+//	match-level 2-way split      -> += splitClientAmountWhenWeightChangesDynamicReload
+//	match-level non-2-way split  -> += 1
+//
+// A route carrying both matches and route-level splits accounts the matches
+// first, then the route-level splits, sharing one counter.
+//
+// The ground truth for these sequences is pinned on the generator side by
 // TestGenerateVirtualServerConfigSplitClientsIndexSequence in
-// internal/configs/virtualserver_routing_test.go.  If the generator's
-// accounting ever changes, that test fails and the walk here needs the same
-// change.  The two cannot be compared directly in one test because
-// virtualServerConfigurator is unexported.
+// internal/configs/virtualserver_routing_test.go, which uses the same
+// fixtures and the same literal indices. The two cannot be compared directly
+// in one test because virtualServerConfigurator is unexported, so if the
+// expectations there change, they must change here too.
 
 // weightUpdateVS builds a VS whose routes are described by routeSplits: one
 // route per entry, and within each route one match per matchSplits entry
@@ -183,6 +189,51 @@ func TestComputeVSWeightUpdates(t *testing.T) {
 				{routeSplits: []int{70, 30}},
 			},
 			wantIndexes: [][3]int{{1, 70, 30}},
+		},
+		{
+			// Mirrors the "non-two-way splits advance the counter by one
+			// each" fixture in the generator-side test: two 3-way splits
+			// ahead of a 2-way one, so it lands at index 2.
+			name: "two non-two-way splits then a two-way split",
+			old: []weightUpdateRoute{
+				{routeSplits: []int{34, 33, 33}},
+				{routeSplits: []int{34, 33, 33}},
+				{routeSplits: []int{50, 50}},
+			},
+			cur: []weightUpdateRoute{
+				{routeSplits: []int{34, 33, 33}},
+				{routeSplits: []int{34, 33, 33}},
+				{routeSplits: []int{70, 30}},
+			},
+			wantIndexes: [][3]int{{2, 70, 30}},
+		},
+		{
+			// Mirrors the "mixed match-level, non-two-way and route-level
+			// splits" fixture in the generator-side test. Covers all four
+			// accounting branches in one sequence, including a route that
+			// carries both matches and route-level splits:
+			//
+			//	/a match[0] 2-way   -> index 0,   +101
+			//	/a match[1] 3-way   -> index 101, +1
+			//	/a route    2-way   -> index 102, +101
+			//	/b route    3-way   -> index 203, +1
+			//	/c route    2-way   -> index 204, +101
+			//
+			// The 3-way splits are left unchanged: they emit no update but
+			// must still advance the counter, which is exactly what would
+			// break if a generator branch changed underneath us.
+			name: "mixed match-level, non-two-way and route-level splits",
+			old: []weightUpdateRoute{
+				{matchSplits: [][]int{{50, 50}, {34, 33, 33}}, routeSplits: []int{50, 50}},
+				{routeSplits: []int{34, 33, 33}},
+				{routeSplits: []int{50, 50}},
+			},
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{80, 20}, {34, 33, 33}}, routeSplits: []int{70, 30}},
+				{routeSplits: []int{34, 33, 33}},
+				{routeSplits: []int{60, 40}},
+			},
+			wantIndexes: [][3]int{{0, 80, 20}, {102, 70, 30}, {204, 60, 40}},
 		},
 		{
 			name: "identical specs produce no updates",
