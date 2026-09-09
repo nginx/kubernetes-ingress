@@ -24,6 +24,7 @@ import (
 	"math"
 	"net"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -1542,6 +1543,32 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 		nl.Debugf(l, "Adding or Updating VirtualServer: %v\n", key)
 
 		vs := obj.(*conf_v1.VirtualServer)
+
+		if lbc.weightChangesDynamicReload {
+			prevVs := lbc.configuration.GetVirtualServer(key)
+			if prevVs != nil && isWeightOnlyVSDiff(prevVs, vs) && vs.Status.State != conf_v1.StateInvalid {
+				weightUpdates := computeVSWeightUpdates(prevVs, vs)
+				if len(weightUpdates) > 0 {
+					changes, problems = lbc.configuration.AddOrUpdateVirtualServer(vs)
+					lbc.processProblems(problems)
+					if len(problems) > 0 {
+						return
+					}
+					for _, c := range changes {
+						if c.Op == AddOrUpdate {
+							if impl, ok := c.Resource.(*VirtualServerConfiguration); ok {
+								lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
+							}
+						}
+					}
+					for _, w := range weightUpdates {
+						lbc.configurator.UpsertSplitClientsKeyVal(w.Zone, w.Key, w.Value)
+					}
+					return
+				}
+			}
+		}
+
 		changes, problems = lbc.configuration.AddOrUpdateVirtualServer(vs)
 	}
 
@@ -2051,6 +2078,36 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 		nl.Debugf(l, "Adding or Updating VirtualServerRoute: %v", key)
 
 		vsr := obj.(*conf_v1.VirtualServerRoute)
+
+		if lbc.weightChangesDynamicReload {
+			prevVsr := lbc.configuration.GetVirtualServerRoute(key)
+			if prevVsr != nil && isWeightOnlyVSRDiff(prevVsr, vsr) && vsr.Status.State != conf_v1.StateInvalid {
+				changes, problems = lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)
+				lbc.processProblems(problems)
+				if len(problems) > 0 {
+					return
+				}
+
+				var allWeightUpdates []configs.WeightUpdate
+				for _, c := range changes {
+					if c.Op == AddOrUpdate {
+						if impl, ok := c.Resource.(*VirtualServerConfiguration); ok {
+							vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
+							startingIndex := lbc.getStartingSplitClientsIndex(vsr, vsEx)
+							weightUpdates := computeVSRWeightUpdates(vsEx, prevVsr, vsr, startingIndex)
+							allWeightUpdates = append(allWeightUpdates, weightUpdates...)
+							lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
+						}
+					}
+				}
+
+				for _, w := range allWeightUpdates {
+					lbc.configurator.UpsertSplitClientsKeyVal(w.Zone, w.Key, w.Value)
+				}
+				return
+			}
+		}
+
 		changes, problems = lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)
 	}
 
@@ -4417,94 +4474,41 @@ func (lbc *LoadBalancerController) IsNginxReady() bool {
 	return lbc.isNginxReady
 }
 
-func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
-	var weightUpdates []configs.WeightUpdate
-	var splitClientsIndex int
-	variableNamer := configs.NewVSVariableNamer(vsNew)
-
-	for i, routeNew := range vsNew.Spec.Routes {
-		routeOld := vsOld.Spec.Routes[i]
-		for j, matchNew := range routeNew.Matches {
-			matchOld := routeOld.Matches[j]
-			if len(matchNew.Splits) == 2 {
-				if matchNew.Splits[0].Weight != matchOld.Splits[0].Weight || matchNew.Splits[1].Weight != matchOld.Splits[1].Weight {
-					weightUpdates = append(weightUpdates, configs.WeightUpdate{
-						Zone:  variableNamer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
-						Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
-						Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, matchNew.Splits[0].Weight, matchNew.Splits[1].Weight),
-					})
-				}
-				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
-			} else if len(matchNew.Splits) > 0 {
-				splitClientsIndex++
-			}
-		}
-		if len(routeNew.Splits) == 2 {
-			if routeNew.Splits[0].Weight != routeOld.Splits[0].Weight || routeNew.Splits[1].Weight != routeOld.Splits[1].Weight {
-				weightUpdates = append(weightUpdates, configs.WeightUpdate{
-					Zone:  variableNamer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
-					Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
-					Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
-				})
-				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
-			}
-			splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
-		} else if len(routeNew.Splits) > 0 {
-			splitClientsIndex++
-		}
-	}
-
-	if len(weightUpdates) == 0 {
-		return
-	}
-
-	if vsOld.Status.State == conf_v1.StateInvalid {
-		lbc.AddSyncQueue(vsNew)
-		return
-	}
-
-	if lbc.haltIfVSConfigInvalid(vsNew) {
-		return
-	}
-
-	for _, weight := range weightUpdates {
-		lbc.configurator.UpsertSplitClientsKeyVal(weight.Zone, weight.Key, weight.Value)
-	}
+func isWeightOnlyVSDiff(prev, cur *conf_v1.VirtualServer) bool {
+	prevZeroed := prev.DeepCopy()
+	curZeroed := cur.DeepCopy()
+	zeroOutVirtualServerSplitWeights(prevZeroed)
+	zeroOutVirtualServerSplitWeights(curZeroed)
+	return reflect.DeepEqual(prevZeroed.Spec, curZeroed.Spec)
 }
 
-func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *conf_v1.VirtualServerRoute, vsrNew *conf_v1.VirtualServerRoute) {
-	if !lbc.vsrHasWeightChanges(vsrOld, vsrNew) {
-		return
-	}
+func isWeightOnlyVSRDiff(prev, cur *conf_v1.VirtualServerRoute) bool {
+	prevZeroed := prev.DeepCopy()
+	curZeroed := cur.DeepCopy()
+	zeroOutVirtualServerRouteSplitWeights(prevZeroed)
+	zeroOutVirtualServerRouteSplitWeights(curZeroed)
+	return reflect.DeepEqual(prevZeroed.Spec, curZeroed.Spec)
+}
 
-	if vsrOld.Status.State == conf_v1.StateInvalid {
-		changes, problems := lbc.configuration.AddOrUpdateVirtualServerRoute(vsrNew)
-		lbc.processProblems(problems)
-		lbc.processChanges(changes)
-		return
-	}
+func computeVSWeightUpdates(prev, cur *conf_v1.VirtualServer) []configs.WeightUpdate {
+	return appendRouteWeightUpdates(nil, prev.Spec.Routes, cur.Spec.Routes, configs.NewVSVariableNamer(cur), 0)
+}
 
-	halt, vsEx := lbc.haltIfVSRConfigInvalid(vsrNew)
-	if vsEx == nil {
-		return
-	}
+func computeVSRWeightUpdates(vsEx *configs.VirtualServerEx, prev, cur *conf_v1.VirtualServerRoute, startingIndex int) []configs.WeightUpdate {
+	return appendRouteWeightUpdates(nil, prev.Spec.Subroutes, cur.Spec.Subroutes, configs.NewVSVariableNamer(vsEx.VirtualServer), startingIndex)
+}
 
-	var weightUpdates []configs.WeightUpdate
-
-	splitClientsIndex := lbc.getStartingSplitClientsIndex(vsrNew, vsEx)
-
-	variableNamer := configs.NewVSVariableNamer(vsEx.VirtualServer)
-
-	for i, routeNew := range vsrNew.Spec.Subroutes {
-		routeOld := vsrOld.Spec.Subroutes[i]
+func appendRouteWeightUpdates(updates []configs.WeightUpdate, prevRoutes, curRoutes []conf_v1.Route, namer *configs.VariableNamer, splitClientsIndex int) []configs.WeightUpdate {
+	for i, routeNew := range curRoutes {
+		routeOld := prevRoutes[i]
 		for j, matchNew := range routeNew.Matches {
 			matchOld := routeOld.Matches[j]
 			if len(matchNew.Splits) == 2 {
 				if matchNew.Splits[0].Weight != matchOld.Splits[0].Weight || matchNew.Splits[1].Weight != matchOld.Splits[1].Weight {
-					weightUpdates = append(weightUpdates, configs.WeightUpdate{
-						Zone:  variableNamer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
-						Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
-						Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, matchNew.Splits[0].Weight, matchNew.Splits[1].Weight),
+					updates = append(updates, configs.WeightUpdate{
+						Zone:  namer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
+						Key:   namer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
+						Value: namer.GetNameOfKeyOfMapForWeights(splitClientsIndex, matchNew.Splits[0].Weight, matchNew.Splits[1].Weight),
 					})
 				}
 				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
@@ -4514,10 +4518,10 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 		}
 		if len(routeNew.Splits) == 2 {
 			if routeNew.Splits[0].Weight != routeOld.Splits[0].Weight || routeNew.Splits[1].Weight != routeOld.Splits[1].Weight {
-				weightUpdates = append(weightUpdates, configs.WeightUpdate{
-					Zone:  variableNamer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
-					Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
-					Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
+				updates = append(updates, configs.WeightUpdate{
+					Zone:  namer.GetNameOfKeyvalZoneForSplitClientIndex(splitClientsIndex),
+					Key:   namer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
+					Value: namer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
 				})
 			}
 			splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
@@ -4525,14 +4529,7 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 			splitClientsIndex++
 		}
 	}
-
-	if halt {
-		return
-	}
-
-	for _, weight := range weightUpdates {
-		lbc.configurator.UpsertSplitClientsKeyVal(weight.Zone, weight.Key, weight.Value)
-	}
+	return updates
 }
 
 func (lbc *LoadBalancerController) getStartingSplitClientsIndex(vsr *conf_v1.VirtualServerRoute, vsEx *configs.VirtualServerEx) int {
@@ -4575,137 +4572,6 @@ func (lbc *LoadBalancerController) getStartingSplitClientsIndex(vsr *conf_v1.Vir
 	}
 
 	return startingSplitClientsIndex
-}
-
-func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualServer) bool {
-	lbc.configuration.lock.Lock()
-	defer lbc.configuration.lock.Unlock()
-	key := getResourceKey(&vsNew.ObjectMeta)
-	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServer(vsNew)
-	if validationError != nil {
-		delete(lbc.configuration.virtualServers, key)
-	} else {
-		lbc.configuration.virtualServers[key] = vsNew
-	}
-
-	changes, problems := lbc.configuration.rebuildHosts()
-
-	if validationError != nil {
-
-		kind := getResourceKeyWithKind(virtualServerKind, &vsNew.ObjectMeta)
-		for i := range changes {
-			k := changes[i].Resource.GetKeyWithKind()
-
-			if k == kind {
-				changes[i].Error = validationError.Error()
-			}
-		}
-		p := ConfigurationProblem{
-			Object:  vsNew,
-			IsError: true,
-			Reason:  nl.EventReasonRejected,
-			Message: fmt.Sprintf("VirtualServer %s was rejected with error: %s", getResourceKey(&vsNew.ObjectMeta), validationError.Error()),
-		}
-		problems = append(problems, p)
-	}
-
-	if len(problems) > 0 {
-		lbc.processProblems(problems)
-	}
-
-	if len(changes) == 0 {
-		return true
-	}
-
-	for _, c := range changes {
-		if c.Op == AddOrUpdate {
-			switch impl := c.Resource.(type) {
-			case *VirtualServerConfiguration:
-				lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
-			}
-		} else if c.Op == Delete {
-			switch impl := c.Resource.(type) {
-			case *VirtualServerConfiguration:
-				key := getResourceKey(&impl.VirtualServer.ObjectMeta)
-				ns, n, _ := cache.SplitMetaNamespaceKey(key)
-				l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, virtualServerKind, logNameKey, n)
-				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
-				if deleteErr != nil {
-					nl.Errorf(l, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
-				}
-
-				var vsExists bool
-				var err error
-
-				_, vsExists, err = lbc.getNamespacedInformer(ns).virtualServerLister.GetByKey(key)
-				if err != nil {
-					nl.Errorf(l, "Error when getting VirtualServer for %v: %v", key, err)
-				}
-
-				if vsExists {
-					lbc.UpdateVirtualServerStatusAndEventsOnDelete(impl, c.Error, deleteErr)
-				}
-			}
-		}
-	}
-
-	lbc.configuration.virtualServers[key] = vsNew
-	return len(problems) > 0
-}
-
-func (lbc *LoadBalancerController) haltIfVSRConfigInvalid(vsrNew *conf_v1.VirtualServerRoute) (bool, *configs.VirtualServerEx) {
-	lbc.configuration.lock.Lock()
-	defer lbc.configuration.lock.Unlock()
-	key := getResourceKey(&vsrNew.ObjectMeta)
-	var vsEx *configs.VirtualServerEx
-
-	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServerRoute(vsrNew)
-	if validationError != nil {
-		lbc.AddSyncQueue(vsrNew)
-		return true, nil
-	} else {
-		lbc.configuration.virtualServerRoutes[key] = vsrNew
-	}
-
-	changes, _ := lbc.configuration.rebuildHosts()
-
-	if len(changes) == 0 {
-		return true, nil
-	}
-
-	for _, c := range changes {
-		if c.Op == AddOrUpdate {
-			switch impl := c.Resource.(type) {
-			case *VirtualServerConfiguration:
-				vsEx = lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
-				lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
-			}
-		}
-	}
-
-	if vsEx == nil {
-		nl.Debugf(lbc.Logger, "VirtualServerRoute %s does not have a corresponding VirtualServer", vsrNew.Name)
-		return true, nil
-	}
-
-	lbc.configuration.virtualServerRoutes[key] = vsrNew
-	return false, vsEx
-}
-
-func (lbc *LoadBalancerController) vsrHasWeightChanges(vsrOld *conf_v1.VirtualServerRoute, vsrNew *conf_v1.VirtualServerRoute) bool {
-	for i, routeNew := range vsrNew.Spec.Subroutes {
-		routeOld := vsrOld.Spec.Subroutes[i]
-		for j, matchNew := range routeNew.Matches {
-			matchOld := routeOld.Matches[j]
-			if len(matchNew.Splits) == 2 && (matchNew.Splits[0].Weight != matchOld.Splits[0].Weight || matchNew.Splits[1].Weight != matchOld.Splits[1].Weight) {
-				return true
-			}
-		}
-		if len(routeNew.Splits) == 2 && (routeNew.Splits[0].Weight != routeOld.Splits[0].Weight || routeNew.Splits[1].Weight != routeOld.Splits[1].Weight) {
-			return true
-		}
-	}
-	return false
 }
 
 func (lbc *LoadBalancerController) createCombinedDeploymentHeadlessServiceName() string {
