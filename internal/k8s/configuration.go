@@ -1924,7 +1924,7 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 	// GenerateVirtualServerConfig walks in order to assign split_clients
 	// indices, upstream names and location ordering, and which
 	// VirtualServerConfiguration.IsEqual compares positionally.  The loop above
-	// ranges over a map, and Go randomises map iteration order by design, so
+	// ranges over a map, and Go randomizes map iteration order by design, so
 	// this is the only place that ordering guarantee can be established.
 	// Without it, an unchanged VirtualServer compares as changed and gets
 	// needlessly re-rendered and reloaded.

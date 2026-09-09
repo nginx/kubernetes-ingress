@@ -6091,8 +6091,8 @@ func TestValidateVSRSelectors(t *testing.T) {
 }
 
 // selectorTestVSRCount is the number of VSRs registered under a single
-// routeSelector by the determinism tests below.  Go randomises map iteration
-// order, but the randomisation is only reliably observable on a map of
+// routeSelector by the determinism tests below.  Go randomizes map iteration
+// order, but the randomization is only reliably observable on a map of
 // non-trivial size: with 2-3 entries the reorder rate is low enough that a
 // test flakes rather than fails, at 12 it reorders on most calls.
 const selectorTestVSRCount = 12
@@ -6137,7 +6137,7 @@ func vsrKeys(vsrs []*conf_v1.VirtualServerRoute) []string {
 // The slice feeds VirtualServerConfiguration.VirtualServerRoutes, which
 // GenerateVirtualServerConfig walks in order to assign split_clients indices,
 // upstream names and location ordering.  Because it is sourced from
-// Configuration.virtualServerRoutes (a map), the order is randomised by Go
+// Configuration.virtualServerRoutes (a map), the order is randomized by Go
 // unless it is explicitly sorted.  Against the unfixed code this observes
 // several distinct orderings across the attempts below.
 func TestValidateVSRSelectors_DeterministicOrder(t *testing.T) {
