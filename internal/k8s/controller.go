@@ -4418,7 +4418,19 @@ func (lbc *LoadBalancerController) IsNginxReady() bool {
 	return lbc.isNginxReady
 }
 
-func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
+// computeVSWeightUpdates walks vsOld/vsNew route-by-route, in the same order
+// and with the same split_clients index accounting as
+// configs.GenerateVirtualServerConfig, and returns a WeightUpdate for every
+// 2-way split whose weights changed.
+//
+// The index must advance by splitClientAmountWhenWeightChangesDynamicReload
+// for every 2-way split and by 1 for any other split count, because that is
+// how many split_clients blocks the generator emits for each. The increment is
+// unconditional: it does not depend on whether this split's weights changed.
+//
+// Pure function: no Configuration or Configurator access, so it is unit
+// testable without controller scaffolding.
+func computeVSWeightUpdates(vsOld, vsNew *conf_v1.VirtualServer) []configs.WeightUpdate {
 	var weightUpdates []configs.WeightUpdate
 	var splitClientsIndex int
 	variableNamer := configs.NewVSVariableNamer(vsNew)
@@ -4447,13 +4459,18 @@ func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *co
 					Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
 					Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
 				})
-				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
 			}
 			splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
 		} else if len(routeNew.Splits) > 0 {
 			splitClientsIndex++
 		}
 	}
+
+	return weightUpdates
+}
+
+func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
+	weightUpdates := computeVSWeightUpdates(vsOld, vsNew)
 
 	if len(weightUpdates) == 0 {
 		return
