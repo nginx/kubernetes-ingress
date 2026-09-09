@@ -1,5 +1,6 @@
-import pytest
 from _ssl import SSLError
+
+import pytest
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
     create_secret_from_yaml,
