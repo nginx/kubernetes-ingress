@@ -1422,6 +1422,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		}
 
 		lbc.enableBatchReload = false
+		lbc.updateAllConfigsOnBatch = false
 		nl.Debug(lbc.Logger, "Batch sync completed - disabling batch reload")
 	}
 }
