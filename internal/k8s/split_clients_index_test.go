@@ -169,7 +169,7 @@ func TestGetStartingSplitClientsIndex(t *testing.T) {
 		},
 		{
 			// A VSR absent from the VS's list yields the total accumulated
-			// offset. Pinning the existing behaviour so the fix is not
+			// offset. Pinning the existing behavior so the fix is not
 			// mistaken for changing it.
 			name: "target VSR not referenced by the VS",
 			vsrs: []*conf_v1.VirtualServerRoute{
