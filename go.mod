@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/marketplacemetering v1.38.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.0
 	github.com/cert-manager/cert-manager v1.21.1
-	github.com/dlclark/regexp2/v2 v2.7.1
+	github.com/dlclark/regexp2/v2 v2.8.0
 	github.com/gkampitakis/go-snaps v0.5.23
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
@@ -21,14 +21,14 @@ require (
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.46.0
-	golang.org/x/crypto v0.56.0
-	k8s.io/api v0.36.4
-	k8s.io/apiextensions-apiserver v0.36.4
-	k8s.io/apimachinery v0.36.4
-	k8s.io/client-go v0.36.4
-	k8s.io/code-generator v0.36.4
+	golang.org/x/crypto v0.57.0
+	k8s.io/api v0.37.0
+	k8s.io/apiextensions-apiserver v0.37.0
+	k8s.io/apimachinery v0.37.0
+	k8s.io/client-go v0.37.0
+	k8s.io/code-generator v0.37.0
 	k8s.io/utils v0.0.0-20260707023825-cf1189d6abe3
-	sigs.k8s.io/controller-tools v0.21.0
+	sigs.k8s.io/controller-tools v0.22.0
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -110,7 +110,6 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/gobuffalo/flect v1.0.3 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/gonvenience/bunt v1.3.5 // indirect
 	github.com/gonvenience/neat v1.3.12 // indirect
@@ -118,7 +117,7 @@ require (
 	github.com/gonvenience/text v1.0.7 // indirect
 	github.com/gonvenience/wrap v1.1.2 // indirect
 	github.com/gonvenience/ytbx v1.4.4 // indirect
-	github.com/google/cel-go v0.29.0 // indirect
+	github.com/google/cel-go v0.29.2 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
@@ -168,9 +167,9 @@ require (
 	github.com/urfave/cli v1.22.16 // indirect
 	github.com/virtuald/go-ordered-json v0.0.0-20170621173500-b18e6e673d74 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	go.etcd.io/etcd/api/v3 v3.6.8 // indirect
-	go.etcd.io/etcd/client/pkg/v3 v3.6.8 // indirect
-	go.etcd.io/etcd/client/v3 v3.6.8 // indirect
+	go.etcd.io/etcd/api/v3 v3.7.0 // indirect
+	go.etcd.io/etcd/client/pkg/v3 v3.7.0 // indirect
+	go.etcd.io/etcd/client/v3 v3.7.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect
@@ -183,14 +182,14 @@ require (
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93 // indirect
-	golang.org/x/mod v0.39.0 // indirect
+	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
+	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/sync v0.23.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/term v0.46.0 // indirect
+	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
@@ -201,13 +200,13 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiserver v0.36.4 // indirect
-	k8s.io/component-base v0.36.4 // indirect
-	k8s.io/gengo/v2 v2.0.0-20250922181213-ec3ebc5fd46b // indirect
+	k8s.io/apiserver v0.37.0 // indirect
+	k8s.io/component-base v0.37.0 // indirect
+	k8s.io/gengo/v2 v2.0.0-20260408192533-25e2208e0dc3 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
-	k8s.io/kube-openapi v0.0.0-20260501160325-927ab1f70cd6 // indirect
-	k8s.io/streaming v0.36.4 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
+	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
+	k8s.io/streaming v0.37.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.36.0 // indirect
 	sigs.k8s.io/controller-runtime v0.24.1 // indirect
 	sigs.k8s.io/gateway-api v1.6.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
