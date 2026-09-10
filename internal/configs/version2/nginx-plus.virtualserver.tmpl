@@ -2,16 +2,9 @@
 {{ range $u := .Upstreams }}
 upstream {{ $u.Name }} {
     zone {{ $u.Name }} {{ if ne $u.UpstreamZoneSize "0" }}{{ $u.UpstreamZoneSize }}{{ else }}512k{{ end }};
+    state /var/lib/nginx/state/{{ $u.Name }}.conf;
     {{- if $u.LBMethod }}
     {{ $u.LBMethod }};
-    {{- end }}
-
-    {{- range $s := $u.Servers }}
-    server {{ $s.Address }} max_fails={{ $u.MaxFails }} fail_timeout={{ $u.FailTimeout }}{{ if $u.SlowStart }} slow_start={{ $u.SlowStart }}{{ end }} max_conns={{ $u.MaxConns }}{{ if $u.Resolve }} resolve{{ end }};
-    {{- end }}
-
-    {{- range $b := $u.BackupServers }}
-    server {{ $b.Address }} backup resolve;
     {{- end }}
 
     {{- if $u.Keepalive }}

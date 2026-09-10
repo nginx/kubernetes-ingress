@@ -737,6 +737,12 @@ func (cnf *Configurator) AddOrUpdateVirtualServer(virtualServerEx *VirtualServer
 		cnf.nginxManager.UpsertSplitClientsKeyVal(weightUpdate.Zone, weightUpdate.Key, weightUpdate.Value)
 	}
 
+	if cnf.isPlus {
+		if err := cnf.updatePlusEndpointsForVirtualServer(virtualServerEx); err != nil {
+			nl.Warnf(nl.LoggerFromContext(cnf.CfgParams.Context), "Couldn't seed endpoints via Plus API for %v/%v: %v", virtualServerEx.VirtualServer.Namespace, virtualServerEx.VirtualServer.Name, err)
+		}
+	}
+
 	return warnings, nil
 }
 
@@ -824,6 +830,14 @@ func (cnf *Configurator) AddOrUpdateVirtualServers(virtualServerExes []*VirtualS
 
 	for _, weightUpdate := range allWeightUpdates {
 		cnf.nginxManager.UpsertSplitClientsKeyVal(weightUpdate.Zone, weightUpdate.Key, weightUpdate.Value)
+	}
+
+	if cnf.isPlus {
+		for _, vsEx := range virtualServerExes {
+			if err := cnf.updatePlusEndpointsForVirtualServer(vsEx); err != nil {
+				nl.Warnf(nl.LoggerFromContext(cnf.CfgParams.Context), "Couldn't seed endpoints via Plus API for %v/%v: %v", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name, err)
+			}
+		}
 	}
 
 	return allWarnings, nil
@@ -1193,6 +1207,7 @@ func (cnf *Configurator) DeleteVirtualServer(key string, skipReload bool) error 
 
 	if cnf.isPlus {
 		cnf.nginxManager.DeleteKeyValStateFiles(name)
+		cnf.nginxManager.DeleteUpstreamStateFiles(name)
 	}
 
 	delete(cnf.virtualServers, name)
@@ -1327,25 +1342,39 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 	reloadPlus := false
 	allWarnings := newWarnings()
 
-	for _, vs := range virtualServerExes {
-		_, warnings, _, err := cnf.addOrUpdateVirtualServer(vs)
-		if err != nil {
-			return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
-		}
-		allWarnings.Add(warnings)
+	if cnf.isPlus {
+		for _, vs := range virtualServerExes {
+			name := getFileNameForVirtualServer(vs.VirtualServer)
+			if existingVS, ok := cnf.virtualServers[name]; ok {
+				existingVS.Endpoints = vs.Endpoints
+			} else {
+				cnf.virtualServers[name] = vs
+			}
 
-		if cnf.isPlus {
 			err := cnf.updatePlusEndpointsForVirtualServer(vs)
 			if err != nil {
 				nl.Warnf(l, "Couldn't update the endpoints via the API: %v; reloading configuration instead", err)
 				reloadPlus = true
+				_, warnings, _, addErr := cnf.addOrUpdateVirtualServer(vs)
+				if addErr != nil {
+					return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, addErr)
+				}
+				allWarnings.Add(warnings)
 			}
 		}
-	}
 
-	if cnf.isPlus && !reloadPlus {
-		nl.Debug(l, "No need to reload nginx")
-		return allWarnings, nil
+		if !reloadPlus {
+			nl.Debug(l, "Endpoints updated dynamically via Plus API, skipped template generation and reload")
+			return allWarnings, nil
+		}
+	} else {
+		for _, vs := range virtualServerExes {
+			_, warnings, _, err := cnf.addOrUpdateVirtualServer(vs)
+			if err != nil {
+				return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
+			}
+			allWarnings.Add(warnings)
+		}
 	}
 
 	if err := cnf.Reload(nginx.ReloadForEndpointsUpdate); err != nil {
@@ -2030,6 +2059,14 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		cnf.nginxManager.UpsertSplitClientsKeyVal(weightUpdate.Zone, weightUpdate.Key, weightUpdate.Value)
 	}
 
+	if cnf.isPlus {
+		for _, vsEx := range resources.VirtualServerExes {
+			if err := cnf.updatePlusEndpointsForVirtualServer(vsEx); err != nil {
+				nl.Warnf(nl.LoggerFromContext(cnf.CfgParams.Context), "Couldn't seed endpoints via Plus API for %v/%v: %v", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name, err)
+			}
+		}
+	}
+
 	if len(resourceErrors) > 0 {
 		return allWarnings, resourceErrors, nil
 	}
@@ -2073,6 +2110,14 @@ func (cnf *Configurator) UpdateVirtualServers(updatedVSExes []*VirtualServerEx, 
 
 	for _, weightUpdate := range allWeightUpdates {
 		cnf.nginxManager.UpsertSplitClientsKeyVal(weightUpdate.Zone, weightUpdate.Key, weightUpdate.Value)
+	}
+
+	if cnf.isPlus {
+		for _, vsEx := range updatedVSExes {
+			if err := cnf.updatePlusEndpointsForVirtualServer(vsEx); err != nil {
+				nl.Warnf(nl.LoggerFromContext(cnf.CfgParams.Context), "Couldn't seed endpoints via Plus API for %v/%v: %v", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name, err)
+			}
+		}
 	}
 
 	return errList

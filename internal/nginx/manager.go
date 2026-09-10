@@ -110,6 +110,7 @@ type Manager interface {
 	GetOSCABundlePath() (string, error)
 	UpsertSplitClientsKeyVal(zoneName string, key string, value string)
 	DeleteKeyValStateFiles(virtualServerName string)
+	DeleteUpstreamStateFiles(virtualServerName string)
 }
 
 // LocalManager updates NGINX configuration, starts, reloads and quits NGINX, updates License Reporting and the Deployment Metadata file
@@ -807,6 +808,25 @@ func (lm *LocalManager) DeleteKeyValStateFiles(virtualServerName string) {
 		if strings.HasPrefix(file.Name(), virtualServerName+"_keyval_zone_split_clients") {
 			if err := os.Remove(path.Join(lm.stateFilesPath, file.Name())); err != nil {
 				nl.Warnf(lm.logger, "Failed to delete the state file %s: %v", file.Name(), err)
+			}
+		}
+	}
+}
+
+// DeleteUpstreamStateFiles deletes the state files in /var/lib/nginx/state for the given virtual server.
+func (lm *LocalManager) DeleteUpstreamStateFiles(virtualServerName string) {
+	stateDir := "/var/lib/nginx/state"
+	files, err := os.ReadDir(stateDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			nl.Warnf(lm.logger, "Failed to read the upstream state files directory %s: %v", stateDir, err)
+		}
+		return
+	}
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), virtualServerName+"_") {
+			if err := os.Remove(path.Join(stateDir, file.Name())); err != nil && !os.IsNotExist(err) {
+				nl.Warnf(lm.logger, "Failed to delete the upstream state file %s: %v", file.Name(), err)
 			}
 		}
 	}

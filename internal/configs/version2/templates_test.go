@@ -896,7 +896,7 @@ func TestExecuteVirtualServerTemplateWithBackupServerNGINXPlus(t *testing.T) {
 		t.Error(err)
 	}
 
-	want := fmt.Sprintf("server %s backup resolve;", externalName)
+	want := fmt.Sprintf("state /var/lib/nginx/state/%s.conf;", vscfg.Upstreams[0].Name)
 	if !bytes.Contains(got, []byte(want)) {
 		t.Errorf("want %q in generated template", want)
 	}

@@ -232,8 +232,8 @@ server {
 
 upstream test-upstream {
     zone test-upstream 256k;
+    state /var/lib/nginx/state/test-upstream.conf;
     random;
-    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
     keepalive 32;
     queue 10 timeout=60s;
     sticky cookie test expires=25s "path=/tea";
@@ -242,12 +242,12 @@ upstream test-upstream {
 
 upstream coffee-v1 {
     zone coffee-v1 256k;
-    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+    state /var/lib/nginx/state/coffee-v1.conf;
 }
 
 upstream coffee-v2 {
     zone coffee-v2 256k;
-    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+    state /var/lib/nginx/state/coffee-v2.conf;
 }
 
 split_clients $request_id $split_0 {
@@ -664,9 +664,8 @@ server {
 
 upstream test-upstream {
     zone test-upstream 256k;
+    state /var/lib/nginx/state/test-upstream.conf;
     random;
-    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
-    server clustertwo.corp.local:8080 backup resolve;
     keepalive 32;
     queue 10 timeout=60s;
     sticky cookie test expires=25s "path=/tea";
@@ -675,12 +674,12 @@ upstream test-upstream {
 
 upstream coffee-v1 {
     zone coffee-v1 256k;
-    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+    state /var/lib/nginx/state/coffee-v1.conf;
 }
 
 upstream coffee-v2 {
     zone coffee-v2 256k;
-    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+    state /var/lib/nginx/state/coffee-v2.conf;
 }
 
 split_clients $request_id $split_0 {
@@ -1085,7 +1084,7 @@ server {
 
 upstream test-upstream {
     zone test-upstream ;
-    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/test-upstream.conf;
 }
 
 proxy_cache_path /var/cache/nginx/test_cache_full_advanced levels=2:2 keys_zone=test_cache_full_advanced:50m use_temp_path=off;
@@ -1231,7 +1230,7 @@ server {
 
 upstream extended-upstream {
     zone extended-upstream ;
-    server 10.0.0.50:8001 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/extended-upstream.conf;
 }
 
 proxy_cache_path /var/cache/nginx/extended_cache_zone levels=2:2 keys_zone=extended_cache_zone:100m inactive=7d max_size=2g manager_files=500 manager_sleep=200ms manager_threshold=1s use_temp_path=off;
@@ -1301,13 +1300,13 @@ server {
 
 upstream vs_default_cafe_tea {
     zone vs_default_cafe_tea ;
-    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/vs_default_cafe_tea.conf;
     keepalive 16;
 }
 
 upstream vs_default_cafe_coffee {
     zone vs_default_cafe_coffee ;
-    server 10.0.0.30:80 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/vs_default_cafe_coffee.conf;
     keepalive 16;
 }
 
@@ -1427,13 +1426,13 @@ server {
 
 upstream vs_default_cafe_tea {
     zone vs_default_cafe_tea ;
-    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/vs_default_cafe_tea.conf;
     keepalive 16;
 }
 
 upstream vs_default_cafe_coffee {
     zone vs_default_cafe_coffee ;
-    server 10.0.0.30:80 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/vs_default_cafe_coffee.conf;
     keepalive 16;
 }
 
@@ -2023,7 +2022,7 @@ server {
 
 upstream upstream {
     zone upstream ;
-    server 10.0.0.1:8080 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/upstream.conf;
 }
 
 
@@ -3406,7 +3405,7 @@ server {
 
 upstream test-upstream {
     zone test-upstream ;
-    server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/test-upstream.conf;
     sticky cookie test expires=25s samesite=strict "path=/tea";
 }
 
@@ -4251,8 +4250,8 @@ server {
 
 upstream test-upstream {
     zone test-upstream 256k;
+    state /var/lib/nginx/state/test-upstream.conf;
     random;
-    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
     keepalive 32;
     queue 10 timeout=60s;
     sticky cookie test expires=25s "path=/tea";
@@ -4261,12 +4260,12 @@ upstream test-upstream {
 
 upstream coffee-v1 {
     zone coffee-v1 256k;
-    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+    state /var/lib/nginx/state/coffee-v1.conf;
 }
 
 upstream coffee-v2 {
     zone coffee-v2 256k;
-    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+    state /var/lib/nginx/state/coffee-v2.conf;
 }
 
 split_clients $request_id $split_0 {
@@ -4661,12 +4660,12 @@ server {
 
 upstream vs_default_cafe_tea {
     zone vs_default_cafe_tea ;
-    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/vs_default_cafe_tea.conf;
 }
 
 upstream vs_exauth_default_external-auth-policy {
     zone vs_exauth_default_external-auth-policy ;
-    server 10.0.0.40:4180 max_fails=0 fail_timeout= max_conns=0;
+    state /var/lib/nginx/state/vs_exauth_default_external-auth-policy.conf;
 }
 
 
@@ -4726,7 +4725,7 @@ server {
 
 upstream test-upstream {
     zone test-upstream 256k;
-    server 10.0.0.20:8001 max_fails=1 fail_timeout=10s max_conns=0;
+    state /var/lib/nginx/state/test-upstream.conf;
 }
 
 keyval_zone zone=oidc_sessions_oidc_default_my_provider_default_cafe:10m timeout=4h sync;
@@ -4855,8 +4854,8 @@ server {
 
 upstream test-upstream {
     zone test-upstream 256k;
+    state /var/lib/nginx/state/test-upstream.conf;
     random;
-    server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
     keepalive 32;
     queue 10 timeout=60s;
     sticky cookie test expires=25s "path=/tea";
@@ -4865,12 +4864,12 @@ upstream test-upstream {
 
 upstream coffee-v1 {
     zone coffee-v1 256k;
-    server 10.0.0.31:8001 max_fails=8 fail_timeout=15s max_conns=2;
+    state /var/lib/nginx/state/coffee-v1.conf;
 }
 
 upstream coffee-v2 {
     zone coffee-v2 256k;
-    server 10.0.0.32:8001 max_fails=12 fail_timeout=20s max_conns=4;
+    state /var/lib/nginx/state/coffee-v2.conf;
 }
 
 split_clients $request_id $split_0 {

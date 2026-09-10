@@ -14,7 +14,7 @@ if [ -z "${BUILD_OS##*plus*}" ]; then
 fi
 
 mkdir -p /etc/nginx/njs/ && cp -a /code/internal/configs/njs/* /etc/nginx/njs/
-mkdir -p /var/lib/nginx /etc/nginx/secrets /etc/nginx/stream-conf.d
+mkdir -p /var/lib/nginx/state /var/lib/nginx /etc/nginx/secrets /etc/nginx/stream-conf.d
 setcap 'cap_net_bind_service=+eip' /usr/sbin/nginx 'cap_net_bind_service=+eip' /usr/sbin/nginx-debug
 setcap -v 'cap_net_bind_service=+eip' /usr/sbin/nginx 'cap_net_bind_service=+eip' /usr/sbin/nginx-debug
 

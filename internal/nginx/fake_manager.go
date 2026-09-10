@@ -220,6 +220,11 @@ func (fm *FakeManager) DeleteKeyValStateFiles(_ string) {
 	nl.Debugf(fm.logger, "Deleting keyval state files")
 }
 
+// DeleteUpstreamStateFiles is a fake implementation of DeleteUpstreamStateFiles
+func (fm *FakeManager) DeleteUpstreamStateFiles(_ string) {
+	nl.Debugf(fm.logger, "Deleting upstream state files")
+}
+
 // GetOSCABundlePath is a fake implementation of GetOSCABundlePath
 func (fm *FakeManager) GetOSCABundlePath() (string, error) {
 	nl.Debugf(fm.logger, "Getting OS CA Bundle Path")
