@@ -1037,6 +1037,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		otelValid = false
 		cfgParams.MainOtelTraceInHTTP = false
 		cfgParams.MainOtelExporterHeaderName = ""
+		cfgParams.MainOtelTraceContext = ""
 		cfgParams.MainOtelExporterHeaderValue = ""
 		cfgParams.MainOtelServiceName = ""
 	}

@@ -2305,7 +2305,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			},
 			expectedLoadModule:       false,
 			expectedExporterEndpoint: "",
-			expectedTraceContext:     "propagate",
+			expectedTraceContext:     "",
 			msg:                      "trace context set without an exporter endpoint",
 		},
 		{
