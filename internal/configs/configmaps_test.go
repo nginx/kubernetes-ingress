@@ -2061,6 +2061,18 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 			expectedTraceContext:     "ignore",
 			msg:                      "trace context ignore",
 		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context":     "propagate",
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+				},
+			},
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedTraceContext:     "propagate",
+			msg:                      "trace context propagate",
+		},
 	}
 
 	isPlus := true
