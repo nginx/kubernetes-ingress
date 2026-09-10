@@ -1029,6 +1029,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		(cfgParams.MainOtelExporterHeaderName != "" ||
 			cfgParams.MainOtelExporterHeaderValue != "" ||
 			cfgParams.MainOtelServiceName != "" ||
+			cfgParams.MainOtelTraceContext != "" ||
 			cfgParams.MainOtelTraceInHTTP) {
 		errorText := "ConfigMap key 'otel-exporter-endpoint' is required when other otel fields are set"
 		nl.Error(l, errorText)

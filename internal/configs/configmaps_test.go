@@ -2024,17 +2024,7 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 			expectedTraceInHTTP:         false,
 			msg:                         "no config",
 		},
-		{
-			configMap: &v1.ConfigMap{
-				Data: map[string]string{
-					"otel-trace-context": "propagate",
-				},
-			},
-			expectedLoadModule:       false,
-			expectedExporterEndpoint: "",
-			expectedTraceContext:     "propagate",
-			msg:                      "trace context set without an exporter endpoint",
-		},
+
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
@@ -2050,22 +2040,26 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"otel-trace-context": "inject",
+					"otel-trace-context":     "inject",
+					"otel-exporter-endpoint": "https://otel-collector:4317",
 				},
 			},
-			expectedLoadModule:   false,
-			expectedTraceContext: "inject",
-			msg:                  "trace context inject",
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedTraceContext:     "inject",
+			msg:                      "trace context inject",
 		},
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"otel-trace-context": "ignore",
+					"otel-trace-context":     "ignore",
+					"otel-exporter-endpoint": "https://otel-collector:4317",
 				},
 			},
-			expectedLoadModule:   false,
-			expectedTraceContext: "ignore",
-			msg:                  "trace context ignore",
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedTraceContext:     "ignore",
+			msg:                      "trace context ignore",
 		},
 	}
 
@@ -2302,6 +2296,17 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			expectedServiceName:         "",
 			expectedTraceInHTTP:         false,
 			msg:                         "invalid, subdomain is more than 63 characters long",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context": "propagate",
+				},
+			},
+			expectedLoadModule:       false,
+			expectedExporterEndpoint: "",
+			expectedTraceContext:     "propagate",
+			msg:                      "trace context set without an exporter endpoint",
 		},
 		{
 			configMap: &v1.ConfigMap{
