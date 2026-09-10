@@ -2757,52 +2757,6 @@ func TestExecuteTemplate_ForMainForNGINXPlusWithOtel(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
-func TestExecuteTemplate_ForMainForNGINXWithOtelTraceContextOnly(t *testing.T) {
-	t.Parallel()
-
-	tmpl := newNGINXMainTmpl(t)
-	buf := &bytes.Buffer{}
-
-	err := tmpl.Execute(buf, mainCfgWithOTelTraceContextOnly)
-	t.Log(buf.String())
-
-	if err != nil {
-		t.Fatalf("Failed to write template %v", err)
-	}
-
-	mainConf := buf.String()
-	if !strings.Contains(mainConf, "load_module modules/ngx_otel_module.so;") {
-		t.Errorf("want load_module directive in generated config")
-	}
-	if !strings.Contains(mainConf, "otel_trace_context propagate;") {
-		t.Errorf("want otel_trace_context directive in generated config")
-	}
-	snaps.MatchSnapshot(t, buf.String())
-}
-
-func TestExecuteTemplate_ForMainForNGINXPlusWithOtelTraceContextOnly(t *testing.T) {
-	t.Parallel()
-
-	tmpl := newNGINXPlusMainTmpl(t)
-	buf := &bytes.Buffer{}
-
-	err := tmpl.Execute(buf, mainCfgWithOTelTraceContextOnly)
-	t.Log(buf.String())
-
-	if err != nil {
-		t.Fatalf("Failed to write template %v", err)
-	}
-
-	mainConf := buf.String()
-	if !strings.Contains(mainConf, "load_module modules/ngx_otel_module.so;") {
-		t.Errorf("want load_module directive in generated config")
-	}
-	if !strings.Contains(mainConf, "otel_trace_context propagate;") {
-		t.Errorf("want otel_trace_context directive in generated config")
-	}
-	snaps.MatchSnapshot(t, buf.String())
-}
-
 func TestExecuteTemplate_ForMainForNGINXWithOtelTraceContextModuleDisabled(t *testing.T) {
 	t.Parallel()
 
@@ -5624,13 +5578,7 @@ var (
 		MainOtelTraceContext:        "inject",
 	}
 
-	mainCfgWithOTelTraceContextOnly = MainConfig{
-		MainOtelLoadModule:   true,
-		MainOtelTraceContext: "propagate",
-	}
-
 	mainCfgWithOTelTraceContextModuleDisabled = MainConfig{
-		MainOtelLoadModule:   false,
 		MainOtelTraceContext: "propagate",
 	}
 
