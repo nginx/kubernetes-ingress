@@ -62,6 +62,30 @@ func buildWeightUpdateVS(routes []weightUpdateRoute) *conf_v1.VirtualServer {
 	return vs
 }
 
+// buildWeightUpdateVSR builds a VirtualServerRoute whose subroutes have the
+// shapes described by subroutes, using the same description struct as
+// buildWeightUpdateVS.
+func buildWeightUpdateVSR(namespace, name string, subroutes []weightUpdateRoute) *conf_v1.VirtualServerRoute {
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+		Spec:       conf_v1.VirtualServerRouteSpec{Host: "cafe.example.com"},
+	}
+
+	for i, r := range subroutes {
+		route := conf_v1.Route{Path: fmt.Sprintf("/%s-%d", name, i)}
+		for _, weights := range r.matchSplits {
+			route.Matches = append(route.Matches, conf_v1.Match{
+				Conditions: []conf_v1.Condition{{Header: "x-test", Value: "yes"}},
+				Splits:     buildSplits(weights),
+			})
+		}
+		route.Splits = buildSplits(r.routeSplits)
+		vsr.Spec.Subroutes = append(vsr.Spec.Subroutes, route)
+	}
+
+	return vsr
+}
+
 func buildSplits(weights []int) []conf_v1.Split {
 	if len(weights) == 0 {
 		return nil
@@ -271,6 +295,283 @@ func TestComputeVSWeightUpdates(t *testing.T) {
 
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("computeVSWeightUpdates() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestIsVSWeightOnlySpecDiff(t *testing.T) {
+	t.Parallel()
+
+	base := []weightUpdateRoute{
+		{matchSplits: [][]int{{50, 50}}, routeSplits: []int{50, 50}},
+		{routeSplits: []int{34, 33, 33}},
+	}
+
+	tests := []struct {
+		name string
+		cur  []weightUpdateRoute
+		want bool
+	}{
+		{name: "identical", cur: base, want: true},
+		{
+			name: "two-way weights changed",
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{80, 20}}, routeSplits: []int{70, 30}},
+				{routeSplits: []int{34, 33, 33}},
+			},
+			want: true,
+		},
+		{
+			// Only 2-way weights are zeroed before comparison, so a change to
+			// a 3-way split is a real spec change: the generator renders those
+			// weights into the config and there is no keyval zone to poke.
+			name: "three-way weights changed",
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{50, 50}}, routeSplits: []int{50, 50}},
+				{routeSplits: []int{50, 25, 25}},
+			},
+			want: false,
+		},
+		{
+			name: "route added",
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{50, 50}}, routeSplits: []int{50, 50}},
+				{routeSplits: []int{34, 33, 33}},
+				{routeSplits: []int{50, 50}},
+			},
+			want: false,
+		},
+		{
+			name: "split count changed",
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{50, 50}}, routeSplits: []int{34, 33, 33}},
+				{routeSplits: []int{34, 33, 33}},
+			},
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			prev := buildWeightUpdateVS(base)
+			cur := buildWeightUpdateVS(test.cur)
+
+			// Snapshot the inputs to prove the predicate does not mutate the
+			// shared informer cache or the Configuration-owned baseline.
+			prevBefore := buildWeightUpdateVS(base)
+			curBefore := buildWeightUpdateVS(test.cur)
+
+			got, err := isVSWeightOnlySpecDiff(prev, cur)
+			if err != nil {
+				t.Fatalf("isVSWeightOnlySpecDiff() error: %v", err)
+			}
+			if got != test.want {
+				t.Errorf("isVSWeightOnlySpecDiff() = %v, want %v", got, test.want)
+			}
+
+			if diff := cmp.Diff(prevBefore.Spec, prev.Spec); diff != "" {
+				t.Errorf("baseline was mutated (-before +after):\n%s", diff)
+			}
+			if diff := cmp.Diff(curBefore.Spec, cur.Spec); diff != "" {
+				t.Errorf("current object was mutated (-before +after):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestComputeVSRWeightUpdates(t *testing.T) {
+	t.Parallel()
+
+	vsr := func(shapes []weightUpdateRoute) *conf_v1.VirtualServerRoute {
+		return buildWeightUpdateVSR("default", "coffee", shapes)
+	}
+
+	tests := []struct {
+		name          string
+		old, cur      []weightUpdateRoute
+		startingIndex int
+		wantIndexes   [][3]int
+	}{
+		{
+			name:          "single subroute split at offset zero",
+			old:           []weightUpdateRoute{{routeSplits: []int{50, 50}}},
+			cur:           []weightUpdateRoute{{routeSplits: []int{70, 30}}},
+			startingIndex: 0,
+			wantIndexes:   [][3]int{{0, 70, 30}},
+		},
+		{
+			// The starting offset comes from the referencing VirtualServer's
+			// render; everything after it advances the same way as the VS walk.
+			name:          "offset applies to every emitted update",
+			old:           []weightUpdateRoute{{routeSplits: []int{50, 50}}, {routeSplits: []int{50, 50}}},
+			cur:           []weightUpdateRoute{{routeSplits: []int{70, 30}}, {routeSplits: []int{60, 40}}},
+			startingIndex: 101,
+			wantIndexes:   [][3]int{{101, 70, 30}, {202, 60, 40}},
+		},
+		{
+			name: "match-level and non-two-way accounting",
+			old: []weightUpdateRoute{
+				{matchSplits: [][]int{{50, 50}, {34, 33, 33}}, routeSplits: []int{50, 50}},
+				{routeSplits: []int{50, 50}},
+			},
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{80, 20}, {34, 33, 33}}, routeSplits: []int{70, 30}},
+				{routeSplits: []int{60, 40}},
+			},
+			startingIndex: 0,
+			wantIndexes:   [][3]int{{0, 80, 20}, {102, 70, 30}, {203, 60, 40}},
+		},
+		{
+			name:          "no weight change",
+			old:           []weightUpdateRoute{{routeSplits: []int{50, 50}}},
+			cur:           []weightUpdateRoute{{routeSplits: []int{50, 50}}},
+			startingIndex: 0,
+			wantIndexes:   nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			vsrOld := vsr(test.old)
+			vsrNew := vsr(test.cur)
+			namer := configs.NewVSVariableNamer(buildWeightUpdateVS(nil))
+
+			var want []configs.WeightUpdate
+			for _, w := range test.wantIndexes {
+				want = append(want, configs.WeightUpdate{
+					Zone:  namer.GetNameOfKeyvalZoneForSplitClientIndex(w[0]),
+					Key:   namer.GetNameOfKeyvalKeyForSplitClientIndex(w[0]),
+					Value: namer.GetNameOfKeyOfMapForWeights(w[0], w[1], w[2]),
+				})
+			}
+
+			got := computeVSRWeightUpdates(vsrOld, vsrNew, test.startingIndex, namer)
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("computeVSRWeightUpdates() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestWeightUpdateWalksRejectShapeMismatch pins the defensive guard. The walks
+// index the two specs positionally, so without it a caller that skipped the
+// weight-only predicate would panic the sync goroutine. Returning nil instead
+// degrades to a full reload, which is always safe.
+func TestWeightUpdateWalksRejectShapeMismatch(t *testing.T) {
+	t.Parallel()
+
+	twoWay := []weightUpdateRoute{{routeSplits: []int{50, 50}}}
+
+	mismatches := []struct {
+		name     string
+		old, cur []weightUpdateRoute
+	}{
+		{
+			name: "route count differs",
+			old:  twoWay,
+			cur:  []weightUpdateRoute{{routeSplits: []int{70, 30}}, {routeSplits: []int{50, 50}}},
+		},
+		{
+			name: "match count differs",
+			old:  []weightUpdateRoute{{matchSplits: [][]int{{50, 50}}}},
+			cur:  []weightUpdateRoute{{matchSplits: [][]int{{70, 30}, {50, 50}}}},
+		},
+		{
+			name: "split count differs",
+			old:  twoWay,
+			cur:  []weightUpdateRoute{{routeSplits: []int{34, 33, 33}}},
+		},
+		{
+			name: "match split count differs",
+			old:  []weightUpdateRoute{{matchSplits: [][]int{{50, 50}}}},
+			cur:  []weightUpdateRoute{{matchSplits: [][]int{{34, 33, 33}}}},
+		},
+	}
+
+	for _, test := range mismatches {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := computeVSWeightUpdates(buildWeightUpdateVS(test.old), buildWeightUpdateVS(test.cur)); got != nil {
+				t.Errorf("computeVSWeightUpdates() = %v, want nil for mismatched shapes", got)
+			}
+
+			namer := configs.NewVSVariableNamer(buildWeightUpdateVS(nil))
+			vsrOld := buildWeightUpdateVSR("default", "coffee", test.old)
+			vsrNew := buildWeightUpdateVSR("default", "coffee", test.cur)
+			if got := computeVSRWeightUpdates(vsrOld, vsrNew, 0, namer); got != nil {
+				t.Errorf("computeVSRWeightUpdates() = %v, want nil for mismatched shapes", got)
+			}
+		})
+	}
+}
+
+func TestHasTwoWaySplitWeightChanges(t *testing.T) {
+	t.Parallel()
+
+	base := []weightUpdateRoute{
+		{matchSplits: [][]int{{50, 50}, {34, 33, 33}}, routeSplits: []int{50, 50}},
+		{routeSplits: []int{34, 33, 33}},
+	}
+
+	tests := []struct {
+		name string
+		cur  []weightUpdateRoute
+		want bool
+	}{
+		{name: "identical", cur: base, want: false},
+		{
+			name: "route-level two-way weights changed",
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{50, 50}, {34, 33, 33}}, routeSplits: []int{70, 30}},
+				{routeSplits: []int{34, 33, 33}},
+			},
+			want: true,
+		},
+		{
+			name: "match-level two-way weights changed",
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{80, 20}, {34, 33, 33}}, routeSplits: []int{50, 50}},
+				{routeSplits: []int{34, 33, 33}},
+			},
+			want: true,
+		},
+		{
+			// Only 2-way splits have a keyval zone to poke, so a change to a
+			// 3-way split is not something the fast lane can apply.
+			name: "only non-two-way weights changed",
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{50, 50}, {50, 25, 25}}, routeSplits: []int{50, 50}},
+				{routeSplits: []int{50, 25, 25}},
+			},
+			want: false,
+		},
+		{
+			// Shape mismatch cannot be walked positionally, so the answer is
+			// "no in-place change", which sends the caller down the full path.
+			name: "shape mismatch",
+			cur: []weightUpdateRoute{
+				{matchSplits: [][]int{{50, 50}, {34, 33, 33}}, routeSplits: []int{50, 50}},
+			},
+			want: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			prev := buildWeightUpdateVS(base)
+			cur := buildWeightUpdateVS(test.cur)
+
+			got := hasTwoWaySplitWeightChanges(prev.Spec.Routes, cur.Spec.Routes)
+			if got != test.want {
+				t.Errorf("hasTwoWaySplitWeightChanges() = %v, want %v", got, test.want)
 			}
 		})
 	}

@@ -576,6 +576,31 @@ func (c *Configuration) DeleteIngress(key string) ([]ResourceChange, []Configura
 	return c.rebuildHosts()
 }
 
+// GetVirtualServer returns the last-applied VirtualServer with the given key,
+// or nil if none is tracked.
+//
+// "Last applied" means the version that most recently passed validation and
+// the ingress-class check, which is also the version the current NGINX
+// configuration was rendered from. That makes it the correct baseline for
+// deriving an in-place update, and a more reliable one than the informer's
+// previous object, which may be a spec that was never rendered if an event
+// was coalesced across a resync.
+func (c *Configuration) GetVirtualServer(key string) *conf_v1.VirtualServer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.virtualServers[key]
+}
+
+// GetVirtualServerRoute is the VirtualServerRoute counterpart of
+// GetVirtualServer.
+func (c *Configuration) GetVirtualServerRoute(key string) *conf_v1.VirtualServerRoute {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.virtualServerRoutes[key]
+}
+
 // AddOrUpdateVirtualServer adds or updates the VirtualServer resource.
 func (c *Configuration) AddOrUpdateVirtualServer(vs *conf_v1.VirtualServer) ([]ResourceChange, []ConfigurationProblem) {
 	c.lock.Lock()

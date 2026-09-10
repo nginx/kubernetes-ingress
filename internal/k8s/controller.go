@@ -24,12 +24,14 @@ import (
 	"math"
 	"net"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/jinzhu/copier"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos"
 	"github.com/nginx/kubernetes-ingress/internal/telemetry"
@@ -1543,6 +1545,7 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 
 	var changes []ResourceChange
 	var problems []ConfigurationProblem
+	var weightUpdates []configs.WeightUpdate
 
 	if !vsExists {
 		nl.Debugf(l, "Deleting VirtualServer: %v\n", key)
@@ -1552,11 +1555,100 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 		nl.Debugf(l, "Adding or Updating VirtualServer: %v\n", key)
 
 		vs := obj.(*conf_v1.VirtualServer)
+		// Must run before AddOrUpdateVirtualServer, which overwrites the
+		// baseline this compares against.
+		weightUpdates = lbc.weightUpdatesForVirtualServer(l, key, vs)
 		changes, problems = lbc.configuration.AddOrUpdateVirtualServer(vs)
+	}
+
+	if len(weightUpdates) > 0 && lbc.applyWeightOnlyVSChanges(l, key, changes, weightUpdates) {
+		lbc.processProblems(problems)
+		return
 	}
 
 	lbc.processChanges(changes)
 	lbc.processProblems(problems)
+}
+
+// weightUpdatesForVirtualServer returns the keyval updates that would apply
+// vs's new split weights to the running NGINX in place, or nil if the
+// dynamic-weight-change fast lane does not apply and the caller should
+// regenerate the config and reload.
+//
+// Must be called before Configuration.AddOrUpdateVirtualServer, which
+// replaces the baseline it reads.
+//
+// Unlike weightOnlyBaselineForVSR this needs no label check: the
+// VirtualServer UpdateFunc enqueues only on a spec difference, and a
+// VirtualServer's own labels take no part in resource selection —
+// buildVirtualServerRoutes matches routeSelector against VirtualServerRoute
+// labels, not these. Returning an empty slice when no weight actually changed
+// is the equivalent of the VSR path's hasTwoWaySplitWeightChanges guard,
+// because the caller only takes the fast lane for a non-empty result.
+func (lbc *LoadBalancerController) weightUpdatesForVirtualServer(
+	l *slog.Logger, key string, vs *conf_v1.VirtualServer,
+) []configs.WeightUpdate {
+	if !lbc.weightChangesDynamicReload {
+		return nil
+	}
+
+	// A VirtualServer whose last render failed has no valid configuration
+	// loaded, so poking a keyval zone would achieve nothing. Note this reads
+	// the current object's status rather than the baseline's: a spec-only
+	// patch does not touch the status subresource, so for the updates that
+	// reach this path the two agree, and the current object is the more
+	// reliable of the two when the baseline is older than one informer event.
+	if vs.Status.State == conf_v1.StateInvalid {
+		return nil
+	}
+
+	prevVs := lbc.configuration.GetVirtualServer(key)
+	if prevVs == nil {
+		return nil
+	}
+
+	weightOnly, err := isVSWeightOnlySpecDiff(prevVs, vs)
+	if err != nil {
+		nl.Debugf(l, "Error comparing VirtualServer %v for dynamic weight changes, falling back to reload: %v", key, err)
+		return nil
+	}
+	if !weightOnly {
+		return nil
+	}
+
+	return computeVSWeightUpdates(prevVs, vs)
+}
+
+// applyWeightOnlyVSChanges pushes weightUpdates to NGINX via the keyval API
+// and emits the usual status and events, skipping template regeneration and
+// the reload.
+//
+// It returns false, without side effects, unless the change set is exactly
+// what a weight-only diff implies: a single AddOrUpdate of this VirtualServer.
+// Any other shape — a Delete, a cascade to another resource, a rejected spec —
+// means the caller must fall back to processChanges, which is correct for all
+// of them. Guarding on the resulting change set rather than on a second
+// prediction of it keeps that safe by construction.
+func (lbc *LoadBalancerController) applyWeightOnlyVSChanges(
+	l *slog.Logger, key string, changes []ResourceChange, weightUpdates []configs.WeightUpdate,
+) bool {
+	if len(changes) != 1 || changes[0].Op != AddOrUpdate {
+		return false
+	}
+
+	impl, ok := changes[0].Resource.(*VirtualServerConfiguration)
+	if !ok || getResourceKey(&impl.VirtualServer.ObjectMeta) != key {
+		return false
+	}
+
+	nl.Debugf(l, "weight-update via queue: vs=%v updates=%v reload=false", key, len(weightUpdates))
+
+	lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
+	for _, w := range weightUpdates {
+		lbc.configurator.UpsertSplitClientsKeyVal(w.Zone, w.Key, w.Value)
+	}
+
+	return true
 }
 
 func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProblem) {
@@ -2052,6 +2144,8 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 
 	var changes []ResourceChange
 	var problems []ConfigurationProblem
+	var prevVsr, curVsr *conf_v1.VirtualServerRoute
+	var weightOnly bool
 
 	if !exists {
 		nl.Debugf(l, "Deleting VirtualServerRoute: %v", key)
@@ -2060,12 +2154,146 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 	} else {
 		nl.Debugf(l, "Adding or Updating VirtualServerRoute: %v", key)
 
-		vsr := obj.(*conf_v1.VirtualServerRoute)
-		changes, problems = lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)
+		curVsr = obj.(*conf_v1.VirtualServerRoute)
+		// Must run before AddOrUpdateVirtualServerRoute, which overwrites the
+		// baseline this compares against.
+		prevVsr, weightOnly = lbc.weightOnlyBaselineForVSR(l, key, curVsr)
+		changes, problems = lbc.configuration.AddOrUpdateVirtualServerRoute(curVsr)
+	}
+
+	if weightOnly && lbc.applyWeightOnlyVSRChanges(l, changes, prevVsr, curVsr) {
+		lbc.processProblems(problems)
+		return
 	}
 
 	lbc.processChanges(changes)
 	lbc.processProblems(problems)
+}
+
+// weightOnlyBaselineForVSR returns the last-applied VirtualServerRoute to
+// derive weight updates from, and whether curVsr differs from it only in
+// 2-way split weights. A false second return means the caller should
+// regenerate the config and reload.
+//
+// Must be called before Configuration.AddOrUpdateVirtualServerRoute, which
+// replaces the baseline it reads.
+func (lbc *LoadBalancerController) weightOnlyBaselineForVSR(
+	l *slog.Logger, key string, curVsr *conf_v1.VirtualServerRoute,
+) (*conf_v1.VirtualServerRoute, bool) {
+	if !lbc.weightChangesDynamicReload {
+		return nil, false
+	}
+
+	// See the equivalent note in weightUpdatesForVirtualServer on why this
+	// reads the current object's status rather than the baseline's.
+	if curVsr.Status.State == conf_v1.StateInvalid {
+		return nil, false
+	}
+
+	prevVsr := lbc.configuration.GetVirtualServerRoute(key)
+	if prevVsr == nil {
+		return nil, false
+	}
+
+	weightOnly, err := isVSRWeightOnlySpecDiff(prevVsr, curVsr)
+	if err != nil {
+		nl.Debugf(l, "Error comparing VirtualServerRoute %v for dynamic weight changes, falling back to reload: %v", key, err)
+		return nil, false
+	}
+	if !weightOnly {
+		return nil, false
+	}
+
+	// The spec is not the only thing about a VirtualServerRoute that affects
+	// the rendered configuration. Its labels drive routeSelector matching, so
+	// a label change can attach it to another VirtualServer, or detach it,
+	// which needs a real render. The VSR UpdateFunc enqueues on a label change
+	// for exactly that reason, so the fast lane has to exclude it — including
+	// when a label and a weight change arrive in the same update.
+	if !reflect.DeepEqual(prevVsr.Labels, curVsr.Labels) {
+		nl.Debugf(l, "VirtualServerRoute %v labels changed, falling back to reload", key)
+		return nil, false
+	}
+
+	// Weight-only-equal specs may also be entirely identical, in which case
+	// this sync was triggered by something else (an informer re-add, for
+	// instance) and there is nothing to apply in place.
+	if !hasTwoWaySplitWeightChanges(prevVsr.Spec.Subroutes, curVsr.Spec.Subroutes) {
+		return nil, false
+	}
+
+	return prevVsr, true
+}
+
+// applyWeightOnlyVSRChanges applies keyval-only weight updates for every
+// VirtualServer affected by a weight-only VirtualServerRoute change, skipping
+// template regeneration and the reload. Keyval zone names are VirtualServer
+// scoped, so each affected VirtualServer needs its own updates computed
+// against its own render.
+//
+// It returns false, without side effects, unless every change is a plain
+// AddOrUpdate of a VirtualServer that actually references this
+// VirtualServerRoute. Two shapes have to be rejected:
+//
+//   - anything that is not an AddOrUpdate of a VirtualServerConfiguration, for
+//     the same reasons as applyWeightOnlyVSChanges;
+//   - an AddOrUpdate of a VirtualServer that does not reference this VSR.
+//     rebuildHosts reports a change for every host whose configuration moved,
+//     so an unrelated VirtualServer can appear in this set. It needs a real
+//     render, and its starting split_clients index cannot be derived from this
+//     VSR in any case.
+//
+// In both cases the caller must fall back to processChanges.
+func (lbc *LoadBalancerController) applyWeightOnlyVSRChanges(
+	l *slog.Logger, changes []ResourceChange, vsrOld, vsrNew *conf_v1.VirtualServerRoute,
+) bool {
+	target := getResourceKey(&vsrNew.ObjectMeta)
+
+	for _, c := range changes {
+		if c.Op != AddOrUpdate {
+			return false
+		}
+		impl, ok := c.Resource.(*VirtualServerConfiguration)
+		if !ok || !vsConfigReferencesVSR(impl, target) {
+			return false
+		}
+	}
+
+	// An empty change set means no VirtualServer references this VSR: nothing
+	// to render and nothing to poke, so the loop below is a no-op and the fast
+	// lane has trivially succeeded.
+	for _, c := range changes {
+		impl := c.Resource.(*VirtualServerConfiguration)
+
+		vsEx := lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
+		startingIndex := getStartingSplitClientsIndex(vsrNew, vsEx)
+		variableNamer := configs.NewVSVariableNamer(vsEx.VirtualServer)
+
+		lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
+
+		weightUpdates := computeVSRWeightUpdates(vsrOld, vsrNew, startingIndex, variableNamer)
+
+		nl.Debugf(l, "weight-update via queue: vsr=%v vs=%v updates=%v reload=false",
+			target, getResourceKey(&impl.VirtualServer.ObjectMeta), len(weightUpdates))
+
+		for _, w := range weightUpdates {
+			lbc.configurator.UpsertSplitClientsKeyVal(w.Zone, w.Key, w.Value)
+		}
+	}
+
+	return true
+}
+
+// vsConfigReferencesVSR reports whether vsConfig's resolved
+// VirtualServerRoute list contains the VSR with the given namespace/name key.
+func vsConfigReferencesVSR(vsConfig *VirtualServerConfiguration, key string) bool {
+	for _, vsr := range vsConfig.VirtualServerRoutes {
+		if getResourceKey(&vsr.ObjectMeta) == key {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (lbc *LoadBalancerController) syncIngress(task task) {
@@ -4439,7 +4667,16 @@ func (lbc *LoadBalancerController) IsNginxReady() bool {
 //
 // Pure function: no Configuration or Configurator access, so it is unit
 // testable without controller scaffolding.
+//
+// Callers must gate this on isVSWeightOnlySpecDiff. It walks the two specs
+// positionally, so a shape mismatch would be a panic; routesShapeMatch turns
+// that into an empty result, which degrades to a full reload rather than
+// taking down the sync goroutine.
 func computeVSWeightUpdates(vsOld, vsNew *conf_v1.VirtualServer) []configs.WeightUpdate {
+	if !routesShapeMatch(vsOld.Spec.Routes, vsNew.Spec.Routes) {
+		return nil
+	}
+
 	var weightUpdates []configs.WeightUpdate
 	var splitClientsIndex int
 	variableNamer := configs.NewVSVariableNamer(vsNew)
@@ -4478,49 +4715,29 @@ func computeVSWeightUpdates(vsOld, vsNew *conf_v1.VirtualServer) []configs.Weigh
 	return weightUpdates
 }
 
-func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
-	weightUpdates := computeVSWeightUpdates(vsOld, vsNew)
-
-	if len(weightUpdates) == 0 {
-		return
-	}
-
-	if vsOld.Status.State == conf_v1.StateInvalid {
-		lbc.AddSyncQueue(vsNew)
-		return
-	}
-
-	if lbc.haltIfVSConfigInvalid(vsNew) {
-		return
-	}
-
-	for _, weight := range weightUpdates {
-		lbc.configurator.UpsertSplitClientsKeyVal(weight.Zone, weight.Key, weight.Value)
-	}
-}
-
-func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *conf_v1.VirtualServerRoute, vsrNew *conf_v1.VirtualServerRoute) {
-	if !lbc.vsrHasWeightChanges(vsrOld, vsrNew) {
-		return
-	}
-
-	if vsrOld.Status.State == conf_v1.StateInvalid {
-		changes, problems := lbc.configuration.AddOrUpdateVirtualServerRoute(vsrNew)
-		lbc.processProblems(problems)
-		lbc.processChanges(changes)
-		return
-	}
-
-	halt, vsEx := lbc.haltIfVSRConfigInvalid(vsrNew)
-	if vsEx == nil {
-		return
+// computeVSRWeightUpdates walks vsrOld/vsrNew subroute-by-subroute, starting
+// from startingIndex (the split_clients index the referencing VirtualServer's
+// render assigned to this VSR's first subroute — see
+// getStartingSplitClientsIndex), and returns a WeightUpdate for every 2-way
+// split whose weights changed.
+//
+// The index accounting is identical to computeVSWeightUpdates; see the note
+// there. Pure function: no Configuration or Configurator access.
+//
+// Callers must gate this on isVSRWeightOnlySpecDiff. As with
+// computeVSWeightUpdates, the shape check turns a positional mismatch into an
+// empty result rather than a panic.
+func computeVSRWeightUpdates(
+	vsrOld, vsrNew *conf_v1.VirtualServerRoute,
+	startingIndex int,
+	variableNamer *configs.VariableNamer,
+) []configs.WeightUpdate {
+	if !routesShapeMatch(vsrOld.Spec.Subroutes, vsrNew.Spec.Subroutes) {
+		return nil
 	}
 
 	var weightUpdates []configs.WeightUpdate
-
-	splitClientsIndex := getStartingSplitClientsIndex(vsrNew, vsEx)
-
-	variableNamer := configs.NewVSVariableNamer(vsEx.VirtualServer)
+	splitClientsIndex := startingIndex
 
 	for i, routeNew := range vsrNew.Spec.Subroutes {
 		routeOld := vsrOld.Spec.Subroutes[i]
@@ -4553,12 +4770,151 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 		}
 	}
 
-	if halt {
-		return
+	return weightUpdates
+}
+
+// routesShapeMatch reports whether two route slices have identical
+// match-and-split structure. The weight-update walks index the two slices
+// positionally, so this is the precondition for calling them.
+func routesShapeMatch(oldRoutes, newRoutes []conf_v1.Route) bool {
+	if len(oldRoutes) != len(newRoutes) {
+		return false
+	}
+	for i := range newRoutes {
+		if len(oldRoutes[i].Matches) != len(newRoutes[i].Matches) {
+			return false
+		}
+		if len(oldRoutes[i].Splits) != len(newRoutes[i].Splits) {
+			return false
+		}
+		for j := range newRoutes[i].Matches {
+			if len(oldRoutes[i].Matches[j].Splits) != len(newRoutes[i].Matches[j].Splits) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// hasTwoWaySplitWeightChanges reports whether any 2-way split's weights
+// actually differ between the two route slices.
+//
+// A weight-only spec diff is not the same thing as a weight change: two specs
+// can be weight-only-equal and yet identical, which happens whenever a
+// resource is enqueued for a reason other than its own weights. Applying the
+// in-place fast lane in that case would consume the sync without rendering
+// anything.
+//
+// Shape-guarded so it is safe to call before the positional walks.
+func hasTwoWaySplitWeightChanges(prevRoutes, curRoutes []conf_v1.Route) bool {
+	if !routesShapeMatch(prevRoutes, curRoutes) {
+		return false
 	}
 
-	for _, weight := range weightUpdates {
-		lbc.configurator.UpsertSplitClientsKeyVal(weight.Zone, weight.Key, weight.Value)
+	for i, curRoute := range curRoutes {
+		prevRoute := prevRoutes[i]
+
+		for j, curMatch := range curRoute.Matches {
+			prevMatch := prevRoute.Matches[j]
+			if len(curMatch.Splits) == 2 &&
+				(curMatch.Splits[0].Weight != prevMatch.Splits[0].Weight ||
+					curMatch.Splits[1].Weight != prevMatch.Splits[1].Weight) {
+				return true
+			}
+		}
+
+		if len(curRoute.Splits) == 2 &&
+			(curRoute.Splits[0].Weight != prevRoute.Splits[0].Weight ||
+				curRoute.Splits[1].Weight != prevRoute.Splits[1].Weight) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isVSWeightOnlySpecDiff reports whether curVs's spec differs from prevVs's
+// spec only in 2-way split weights, which is the condition for applying the
+// change in place via the keyval API instead of regenerating the config and
+// reloading NGINX.
+//
+// Operates on deep copies, so the shared informer cache and the
+// Configuration-owned baseline are never mutated.
+//
+// A true return also guarantees the two specs have identical route, match and
+// split structure, which is what lets computeVSWeightUpdates walk them
+// positionally.
+func isVSWeightOnlySpecDiff(prevVs, curVs *conf_v1.VirtualServer) (bool, error) {
+	var prevCopy, curCopy conf_v1.VirtualServer
+
+	if err := copier.CopyWithOption(&prevCopy, prevVs, copier.Option{DeepCopy: true}); err != nil {
+		return false, err
+	}
+	if err := copier.CopyWithOption(&curCopy, curVs, copier.Option{DeepCopy: true}); err != nil {
+		return false, err
+	}
+
+	zeroOutVirtualServerSplitWeights(&prevCopy)
+	zeroOutVirtualServerSplitWeights(&curCopy)
+
+	return reflect.DeepEqual(prevCopy.Spec, curCopy.Spec), nil
+}
+
+// isVSRWeightOnlySpecDiff is the VirtualServerRoute counterpart of
+// isVSWeightOnlySpecDiff.
+func isVSRWeightOnlySpecDiff(prevVsr, curVsr *conf_v1.VirtualServerRoute) (bool, error) {
+	var prevCopy, curCopy conf_v1.VirtualServerRoute
+
+	if err := copier.CopyWithOption(&prevCopy, prevVsr, copier.Option{DeepCopy: true}); err != nil {
+		return false, err
+	}
+	if err := copier.CopyWithOption(&curCopy, curVsr, copier.Option{DeepCopy: true}); err != nil {
+		return false, err
+	}
+
+	zeroOutVirtualServerRouteSplitWeights(&prevCopy)
+	zeroOutVirtualServerRouteSplitWeights(&curCopy)
+
+	return reflect.DeepEqual(prevCopy.Spec, curCopy.Spec), nil
+}
+
+// zeroOutVirtualServerSplitWeights zeroes every 2-way split weight in place so
+// that two specs can be compared for differences other than those weights.
+func zeroOutVirtualServerSplitWeights(vs *conf_v1.VirtualServer) {
+	for i, route := range vs.Spec.Routes {
+		for j, match := range route.Matches {
+			if len(match.Splits) == 2 {
+				for k := range match.Splits {
+					vs.Spec.Routes[i].Matches[j].Splits[k].Weight = 0
+				}
+			}
+		}
+
+		if len(route.Splits) == 2 {
+			for j := range route.Splits {
+				vs.Spec.Routes[i].Splits[j].Weight = 0
+			}
+		}
+	}
+}
+
+// zeroOutVirtualServerRouteSplitWeights is the VirtualServerRoute counterpart
+// of zeroOutVirtualServerSplitWeights.
+func zeroOutVirtualServerRouteSplitWeights(vsr *conf_v1.VirtualServerRoute) {
+	for i, route := range vsr.Spec.Subroutes {
+		for j, match := range route.Matches {
+			if len(match.Splits) == 2 {
+				for k := range match.Splits {
+					vsr.Spec.Subroutes[i].Matches[j].Splits[k].Weight = 0
+				}
+			}
+		}
+
+		if len(route.Splits) == 2 {
+			for j := range route.Splits {
+				vsr.Spec.Subroutes[i].Splits[j].Weight = 0
+			}
+		}
 	}
 }
 
@@ -4615,137 +4971,6 @@ func getStartingSplitClientsIndex(vsr *conf_v1.VirtualServerRoute, vsEx *configs
 	}
 
 	return startingSplitClientsIndex
-}
-
-func (lbc *LoadBalancerController) haltIfVSConfigInvalid(vsNew *conf_v1.VirtualServer) bool {
-	lbc.configuration.lock.Lock()
-	defer lbc.configuration.lock.Unlock()
-	key := getResourceKey(&vsNew.ObjectMeta)
-	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServer(vsNew)
-	if validationError != nil {
-		delete(lbc.configuration.virtualServers, key)
-	} else {
-		lbc.configuration.virtualServers[key] = vsNew
-	}
-
-	changes, problems := lbc.configuration.rebuildHosts()
-
-	if validationError != nil {
-
-		kind := getResourceKeyWithKind(virtualServerKind, &vsNew.ObjectMeta)
-		for i := range changes {
-			k := changes[i].Resource.GetKeyWithKind()
-
-			if k == kind {
-				changes[i].Error = validationError.Error()
-			}
-		}
-		p := ConfigurationProblem{
-			Object:  vsNew,
-			IsError: true,
-			Reason:  nl.EventReasonRejected,
-			Message: fmt.Sprintf("VirtualServer %s was rejected with error: %s", getResourceKey(&vsNew.ObjectMeta), validationError.Error()),
-		}
-		problems = append(problems, p)
-	}
-
-	if len(problems) > 0 {
-		lbc.processProblems(problems)
-	}
-
-	if len(changes) == 0 {
-		return true
-	}
-
-	for _, c := range changes {
-		if c.Op == AddOrUpdate {
-			switch impl := c.Resource.(type) {
-			case *VirtualServerConfiguration:
-				lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
-			}
-		} else if c.Op == Delete {
-			switch impl := c.Resource.(type) {
-			case *VirtualServerConfiguration:
-				key := getResourceKey(&impl.VirtualServer.ObjectMeta)
-				ns, n, _ := cache.SplitMetaNamespaceKey(key)
-				l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, virtualServerKind, logNameKey, n)
-				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
-				if deleteErr != nil {
-					nl.Errorf(l, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
-				}
-
-				var vsExists bool
-				var err error
-
-				_, vsExists, err = lbc.getNamespacedInformer(ns).virtualServerLister.GetByKey(key)
-				if err != nil {
-					nl.Errorf(l, "Error when getting VirtualServer for %v: %v", key, err)
-				}
-
-				if vsExists {
-					lbc.UpdateVirtualServerStatusAndEventsOnDelete(impl, c.Error, deleteErr)
-				}
-			}
-		}
-	}
-
-	lbc.configuration.virtualServers[key] = vsNew
-	return len(problems) > 0
-}
-
-func (lbc *LoadBalancerController) haltIfVSRConfigInvalid(vsrNew *conf_v1.VirtualServerRoute) (bool, *configs.VirtualServerEx) {
-	lbc.configuration.lock.Lock()
-	defer lbc.configuration.lock.Unlock()
-	key := getResourceKey(&vsrNew.ObjectMeta)
-	var vsEx *configs.VirtualServerEx
-
-	validationError := lbc.configuration.virtualServerValidator.ValidateVirtualServerRoute(vsrNew)
-	if validationError != nil {
-		lbc.AddSyncQueue(vsrNew)
-		return true, nil
-	} else {
-		lbc.configuration.virtualServerRoutes[key] = vsrNew
-	}
-
-	changes, _ := lbc.configuration.rebuildHosts()
-
-	if len(changes) == 0 {
-		return true, nil
-	}
-
-	for _, c := range changes {
-		if c.Op == AddOrUpdate {
-			switch impl := c.Resource.(type) {
-			case *VirtualServerConfiguration:
-				vsEx = lbc.createVirtualServerEx(impl.VirtualServer, impl.VirtualServerRoutes, impl.VirtualServerRouteSelectors)
-				lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
-			}
-		}
-	}
-
-	if vsEx == nil {
-		nl.Debugf(lbc.Logger, "VirtualServerRoute %s does not have a corresponding VirtualServer", vsrNew.Name)
-		return true, nil
-	}
-
-	lbc.configuration.virtualServerRoutes[key] = vsrNew
-	return false, vsEx
-}
-
-func (lbc *LoadBalancerController) vsrHasWeightChanges(vsrOld *conf_v1.VirtualServerRoute, vsrNew *conf_v1.VirtualServerRoute) bool {
-	for i, routeNew := range vsrNew.Spec.Subroutes {
-		routeOld := vsrOld.Spec.Subroutes[i]
-		for j, matchNew := range routeNew.Matches {
-			matchOld := routeOld.Matches[j]
-			if len(matchNew.Splits) == 2 && (matchNew.Splits[0].Weight != matchOld.Splits[0].Weight || matchNew.Splits[1].Weight != matchOld.Splits[1].Weight) {
-				return true
-			}
-		}
-		if len(routeNew.Splits) == 2 && (routeNew.Splits[0].Weight != routeOld.Splits[0].Weight || routeNew.Splits[1].Weight != routeOld.Splits[1].Weight) {
-			return true
-		}
-	}
-	return false
 }
 
 func (lbc *LoadBalancerController) createCombinedDeploymentHeadlessServiceName() string {

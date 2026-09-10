@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/jinzhu/copier"
-
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
@@ -169,30 +167,12 @@ func createVirtualServerHandlers(lbc *LoadBalancerController) cache.ResourceEven
 			curVs := cur.(*conf_v1.VirtualServer)
 			oldVs := old.(*conf_v1.VirtualServer)
 			l := lbc.Logger.With(logNamespaceKey, curVs.GetNamespace(), logKindKey, virtualServerKind, logNameKey, curVs.GetName())
-			if lbc.weightChangesDynamicReload {
-				var curVsCopy, oldVsCopy conf_v1.VirtualServer
-				err := copier.CopyWithOption(&curVsCopy, curVs, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(l, "Error copying VirtualServer %v: %v for Dynamic Weight Changes", curVs.Name, err)
-					return
-				}
 
-				err = copier.CopyWithOption(&oldVsCopy, oldVs, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(lbc.Logger.With(logNamespaceKey, oldVs.GetNamespace(), logKindKey, virtualServerKind, logNameKey, oldVs.GetName()), "Error copying VirtualServer %v: %v for Dynamic Weight Changes", oldVs.Name, err)
-					return
-				}
-
-				zeroOutVirtualServerSplitWeights(&curVsCopy)
-				zeroOutVirtualServerSplitWeights(&oldVsCopy)
-
-				if reflect.DeepEqual(oldVsCopy.Spec, curVsCopy.Spec) {
-					lbc.processVSWeightChangesDynamicReload(oldVs, curVs)
-					return
-				}
-
-			}
-
+			// A weight-only change is a spec change, so the guard below
+			// enqueues it like any other. syncVirtualServer decides whether it
+			// can be applied in place via the keyval API; that decision needs
+			// the last-rendered spec from Configuration, which only the sync
+			// goroutine may read.
 			if !reflect.DeepEqual(oldVs.Spec, curVs.Spec) {
 				nl.Debugf(l, "VirtualServer %v changed, syncing", curVs.Name)
 				lbc.AddSyncQueue(curVs)
@@ -231,30 +211,9 @@ func createVirtualServerRouteHandlers(lbc *LoadBalancerController) cache.Resourc
 
 			l := lbc.Logger.With(logNamespaceKey, curVsr.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, curVsr.GetName())
 
-			if lbc.weightChangesDynamicReload {
-				var curVsrCopy, oldVsrCopy conf_v1.VirtualServerRoute
-				err := copier.CopyWithOption(&curVsrCopy, curVsr, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(l, "Error copying VirtualServerRoute %v: %v for Dynamic Weight Changes", curVsr.Name, err)
-					return
-				}
-
-				err = copier.CopyWithOption(&oldVsrCopy, oldVsr, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(lbc.Logger.With(logNamespaceKey, oldVsr.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, oldVsr.GetName()), "Error copying VirtualServerRoute %v: %v for Dynamic Weight Changes", oldVsr.Name, err)
-					return
-				}
-
-				zeroOutVirtualServerRouteSplitWeights(&curVsrCopy)
-				zeroOutVirtualServerRouteSplitWeights(&oldVsrCopy)
-
-				if reflect.DeepEqual(oldVsrCopy.Spec, curVsrCopy.Spec) {
-					lbc.processVSRWeightChangesDynamicReload(oldVsr, curVsr)
-					return
-				}
-
-			}
-
+			// See the note in the VirtualServer UpdateFunc: weight-only
+			// changes are enqueued like any other spec change, and
+			// syncVirtualServerRoute decides whether to apply them in place.
 			if !reflect.DeepEqual(oldVsr.Spec, curVsr.Spec) || !reflect.DeepEqual(oldVsr.Labels, curVsr.Labels) {
 				nl.Debugf(l, "VirtualServerRoute %v changed, syncing", curVsr.Name)
 				lbc.AddSyncQueue(curVsr)
@@ -284,36 +243,4 @@ func areResourcesDifferent(l *slog.Logger, oldresource, resource *unstructured.U
 		nl.Debugf(l, "New spec of %v same as old spec", oldresource.GetName())
 	}
 	return !eq, nil
-}
-
-func zeroOutVirtualServerSplitWeights(vs *conf_v1.VirtualServer) {
-	for _, route := range vs.Spec.Routes {
-		for _, match := range route.Matches {
-			if len(match.Splits) == 2 {
-				match.Splits[0].Weight = 0
-				match.Splits[1].Weight = 0
-			}
-		}
-
-		if len(route.Splits) == 2 {
-			route.Splits[0].Weight = 0
-			route.Splits[1].Weight = 0
-		}
-	}
-}
-
-func zeroOutVirtualServerRouteSplitWeights(vs *conf_v1.VirtualServerRoute) {
-	for _, route := range vs.Spec.Subroutes {
-		for _, match := range route.Matches {
-			if len(match.Splits) == 2 {
-				match.Splits[0].Weight = 0
-				match.Splits[1].Weight = 0
-			}
-		}
-
-		if len(route.Splits) == 2 {
-			route.Splits[0].Weight = 0
-			route.Splits[1].Weight = 0
-		}
-	}
 }
