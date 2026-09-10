@@ -2306,12 +2306,14 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 		{
 			configMap: &v1.ConfigMap{
 				Data: map[string]string{
-					"otel-trace-context": "not-a-real-value",
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+					"otel-trace-context":     "not-a-real-value",
 				},
 			},
-			expectedLoadModule:   false,
-			expectedTraceContext: "",
-			msg:                  "invalid, trace context value not recognized",
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedLoadModule:       true,
+			expectedTraceContext:     "",
+			msg:                      "partially invalid, trace context value not recognized",
 		},
 	}
 
