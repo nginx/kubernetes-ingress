@@ -195,12 +195,9 @@ class TestPrometheusExporter:
         ensure_connection(req_url, 200)
         resp = requests.get(req_url)
         assert resp.status_code == 200, f"Expected 200 code for /metrics but got {resp.status_code}"
-        resp_content = resp.content.decode("utf-8")
+        resp.content.decode("utf-8")
 
-        bounds = {
-            line.split('le="', 1)[1].split('"', 1)[0]
-            for line in bucket_lines
-        }
+        bounds = {line.split('le="', 1)[1].split('"', 1)[0] for line in bucket_lines}
 
         assert bucket_lines
         assert bounds == set(custom_buckets + ["+Inf"])
