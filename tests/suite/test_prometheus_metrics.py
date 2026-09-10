@@ -195,15 +195,17 @@ class TestPrometheusExporter:
         ensure_connection(req_url, 200)
         resp = requests.get(req_url)
         assert resp.status_code == 200, f"Expected 200 code for /metrics but got {resp.status_code}"
-        resp.content.decode("utf-8")
+        resp_content = resp.content.decode("utf-8")
 
+        bucket_lines = [
+            line
+            for line in resp_content.splitlines()
+            if line.startswith("nginx_ingress_controller_upstream_server_response_latency_ms_bucket{")
+        ]
         bounds = {line.split('le="', 1)[1].split('"', 1)[0] for line in bucket_lines}
 
         assert bucket_lines
         assert bounds == set(custom_buckets + ["+Inf"])
-
-        # A bound from the default bucket list that isn't in the custom list must not appear
-        assert not any('le="1000"' in line for line in bucket_lines)
 
     @pytest.mark.parametrize(
         "ingress_controller, expected_metrics",
