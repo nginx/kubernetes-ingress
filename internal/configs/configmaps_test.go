@@ -2114,6 +2114,20 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxMainConfigWithOtelTraceContext(t *testing.T) {
+	t.Parallel()
+
+	mainCfg := GenerateNginxMainConfig(
+		&StaticConfigParams{},
+		&ConfigParams{MainOtelTraceContext: "propagate"},
+		nil,
+	)
+
+	if mainCfg.MainOtelTraceContext != "propagate" {
+		t.Errorf("MainOtelTraceContext: want %q, got %q", "propagate", mainCfg.MainOtelTraceContext)
+	}
+}
+
 func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
