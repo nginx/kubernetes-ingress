@@ -15,6 +15,8 @@ from suite.utils.resources_utils import (
     delete_namespace,
     ensure_connection,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_ts_nginx_template_conf,
     replace_configmap,
@@ -50,11 +52,14 @@ def ts_externalname_setup(
     request, kube_apis, ingress_controller_prerequisites, transport_server_tls_passthrough_setup, test_namespace
 ) -> ExternalNameSetup:
     print("------------------------- Deploy External-Backend -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     external_ns = create_namespace_with_name_from_yaml(kube_apis.v1, "external-ns", f"{TEST_DATA}/common/ns.yaml")
     external_svc_name = create_service_with_name(kube_apis.v1, external_ns, "external-backend-svc", 8443, 8443)
     create_secret_from_yaml(kube_apis.v1, external_ns, secure_app_secret)
     create_configmap_from_yaml(kube_apis.v1, external_ns, secure_app_config_map)
-    create_secure_app_deployment_with_name(kube_apis.apps_v1_api, external_ns, "external-backend")
+    create_secure_app_deployment_with_name(
+        kube_apis.apps_v1_api, external_ns, "external-backend", e2e_run_id=e2e_run_id
+    )
     print("------------------------- Prepare ExternalName Setup -----------------------------------")
     external_svc_src = f"{TEST_DATA}/transport-server-backup-service/backup-svc.yaml"
     external_svc_host = f"{external_svc_name}.{external_ns}.svc.cluster.local"
@@ -108,7 +113,14 @@ class TransportServerTlsSetup:
     """
 
     def __init__(
-        self, public_endpoint: PublicEndpoint, tls_passthrough_port: int, ts_resource, name, namespace, ts_host
+        self,
+        public_endpoint: PublicEndpoint,
+        tls_passthrough_port: int,
+        ts_resource,
+        name,
+        namespace,
+        ts_host,
+        e2e_run_id,
     ):
         self.public_endpoint = public_endpoint
         self.tls_passthrough_port = tls_passthrough_port
@@ -116,6 +128,7 @@ class TransportServerTlsSetup:
         self.name = name
         self.namespace = namespace
         self.ts_host = ts_host
+        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -132,17 +145,18 @@ def transport_server_tls_passthrough_setup(
     :return TransportServerTlsSetup:
     """
     print("------------------------- Deploy Transport Server with tls passthrough -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     # deploy secure_app
     secure_app_file = f"{TEST_DATA}/{request.param['example']}/standard/secure-app.yaml"
     secure_app_secret_file = f"{TEST_DATA}/{request.param['example']}/standard/secure-app-secret.yaml"
     create_items_from_yaml(kube_apis, secure_app_secret_file, test_namespace)
-    create_items_from_yaml(kube_apis, secure_app_file, test_namespace)
+    create_items_from_yaml(kube_apis, secure_app_file, test_namespace, e2e_run_id=e2e_run_id)
 
     # deploy transport server
     transport_server_std_src = f"{TEST_DATA}/{request.param['example']}/standard/transport-server.yaml"
     ts_resource = create_ts_from_yaml(kube_apis.custom_objects, transport_server_std_src, test_namespace)
     ts_host = get_first_host_from_yaml(transport_server_std_src)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -160,6 +174,7 @@ def transport_server_tls_passthrough_setup(
         ts_resource["metadata"]["name"],
         test_namespace,
         ts_host,
+        e2e_run_id,
     )
 
 
@@ -218,7 +233,10 @@ class TestTransportServerWithBackupService:
         )
 
         assert resp.status_code == 200
-        assert f"hello from pod {get_first_pod_name(kube_apis.v1, test_namespace)}" in resp.text
+        pod_name = get_first_pod_name(
+            kube_apis.v1, test_namespace, get_e2e_run_selector(transport_server_tls_passthrough_setup.e2e_run_id)
+        )
+        assert f"hello from pod {pod_name}" in resp.text
 
         result_conf = get_ts_nginx_template_conf(
             kube_apis.v1,
@@ -265,7 +283,10 @@ class TestTransportServerWithBackupService:
         )
 
         assert resp.status_code == 200
-        assert f"hello from pod {get_first_pod_name(kube_apis.v1, test_namespace)}" in resp.text
+        pod_name = get_first_pod_name(
+            kube_apis.v1, test_namespace, get_e2e_run_selector(transport_server_tls_passthrough_setup.e2e_run_id)
+        )
+        assert f"hello from pod {pod_name}" in resp.text
 
         result_conf = get_ts_nginx_template_conf(
             kube_apis.v1,

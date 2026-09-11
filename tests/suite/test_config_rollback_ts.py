@@ -31,6 +31,8 @@ from suite.utils.custom_resources_utils import (
 from suite.utils.resources_utils import (
     create_items_from_yaml,
     delete_items_from_yaml,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_ts_nginx_template_conf,
@@ -77,11 +79,12 @@ class TestConfigRollbackTSCreate:
     @pytest.fixture(scope="class")
     def ts_create_setup(self, kube_apis, crd_ingress_controller, test_namespace):
         """Deploy GlobalConfiguration + backend apps, clean up after class."""
+        e2e_run_id = generate_e2e_run_id()
         gc_resource = create_gc_from_yaml(kube_apis.custom_objects, gc_yaml, "nginx-ingress")
-        create_items_from_yaml(kube_apis, tcp_svc_yaml, test_namespace)
+        create_items_from_yaml(kube_apis, tcp_svc_yaml, test_namespace, e2e_run_id=e2e_run_id)
         create_items_from_yaml(kube_apis, secure_app_secret_yaml, test_namespace)
-        create_items_from_yaml(kube_apis, secure_app_yaml, test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_items_from_yaml(kube_apis, secure_app_yaml, test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         yield gc_resource
         delete_items_from_yaml(kube_apis, secure_app_yaml, test_namespace)
         delete_items_from_yaml(kube_apis, secure_app_secret_yaml, test_namespace)
