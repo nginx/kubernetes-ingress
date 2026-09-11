@@ -166,6 +166,48 @@ class TestPrometheusExporter:
             assert item in resp_content
 
     @pytest.mark.parametrize(
+        "ingress_controller, custom_buckets",
+        [
+            pytest.param(
+                {
+                    "extra_args": [
+                        "-enable-prometheus-metrics",
+                        "-enable-latency-metrics",
+                        "-latency-metrics-buckets=5,10,25",
+                    ]
+                },
+                ["5", "10", "25"],
+            )
+        ],
+        indirect=["ingress_controller"],
+    )
+    def test_latency_metrics_custom_buckets(
+        self,
+        ingress_controller_endpoint,
+        ingress_controller,
+        custom_buckets,
+        ingress_setup,
+    ):
+        ensure_connection(ingress_setup.req_url, 200, {"host": ingress_setup.ingress_host})
+        resp = requests.get(ingress_setup.req_url, headers={"host": ingress_setup.ingress_host}, verify=False)
+        assert resp.status_code == 200
+        req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
+        ensure_connection(req_url, 200)
+        resp = requests.get(req_url)
+        assert resp.status_code == 200, f"Expected 200 code for /metrics but got {resp.status_code}"
+        resp_content = resp.content.decode("utf-8")
+
+        bucket_lines = [
+            line
+            for line in resp_content.splitlines()
+            if line.startswith("nginx_ingress_controller_upstream_server_response_latency_ms_bucket{")
+        ]
+        bounds = {line.split('le="', 1)[1].split('"', 1)[0] for line in bucket_lines}
+
+        assert bucket_lines
+        assert bounds == set(custom_buckets + ["+Inf"])
+
+    @pytest.mark.parametrize(
         "ingress_controller, expected_metrics",
         [
             pytest.param(

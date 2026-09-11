@@ -1,8 +1,11 @@
 package collectors
 
 import (
+	"context"
 	"reflect"
 	"testing"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func newTestLatencyMetricsCollector() *LatencyMetricsCollector {
@@ -239,4 +242,54 @@ func contains(x []string, y [][]string) bool {
 		}
 	}
 	return false
+}
+
+// gatherLatencyBucketBounds builds a LatencyMetricsCollector with the given
+// buckets, records a single observation and returns the upper bounds of the
+// resulting upstream_server_response_latency_ms histogram.
+func gatherLatencyBucketBounds(t *testing.T, buckets []float64) []float64 {
+	t.Helper()
+	registry := prometheus.NewRegistry()
+	lc := NewLatencyMetricsCollector(context.Background(), nil, nil, nil, buckets)
+	if err := lc.Register(registry); err != nil {
+		t.Fatalf("could not register latency collector: %v", err)
+	}
+	lc.RecordLatency(`nginx:{"proxyHost":"upstream1","upstreamAddress":"10.0.0.1:80","upstreamStatus":"200","upstreamResponseTime":"0.05"}`)
+
+	mfs, err := registry.Gather()
+	if err != nil {
+		t.Fatalf("could not gather metrics: %v", err)
+	}
+	for _, mf := range mfs {
+		for _, m := range mf.GetMetric() {
+			h := m.GetHistogram()
+			if h == nil {
+				continue
+			}
+			bounds := make([]float64, 0, len(h.GetBucket()))
+			for _, b := range h.GetBucket() {
+				bounds = append(bounds, b.GetUpperBound())
+			}
+			return bounds
+		}
+	}
+	t.Fatal("no histogram metric was collected")
+	return nil
+}
+
+func TestNewLatencyMetricsCollectorUsesCustomBuckets(t *testing.T) {
+	t.Parallel()
+	custom := []float64{10, 100, 1000}
+	got := gatherLatencyBucketBounds(t, custom)
+	if !reflect.DeepEqual(got, custom) {
+		t.Errorf("expected custom buckets %v, got %v", custom, got)
+	}
+}
+
+func TestNewLatencyMetricsCollectorFallsBackToDefaultBuckets(t *testing.T) {
+	t.Parallel()
+	got := gatherLatencyBucketBounds(t, nil)
+	if !reflect.DeepEqual(got, DefaultLatencyBuckets) {
+		t.Errorf("expected default buckets %v, got %v", DefaultLatencyBuckets, got)
+	}
 }
