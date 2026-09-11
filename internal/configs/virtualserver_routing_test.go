@@ -4742,33 +4742,13 @@ func TestGenerateVirtualServerConfigForVSRWithMultipleRegexSubroutes(t *testing.
 	}
 }
 
-// TestGenerateVirtualServerConfigSplitClientsIndexSequence pins the
-// split_clients index sequence the generator assigns when
-// DynamicWeightChangesReload is enabled.
-//
-// This is the ground truth for the index walk in k8s.computeVSWeightUpdates,
-// which re-derives these indices from two VirtualServer specs in order to push
-// NGINX Plus keyval updates without a reload. The two walks must agree
-// exactly; if they drift, weight updates land on the wrong split's keyval zone
-// or past the end of the generated zones, where they are silently dropped.
-//
-// There are four accounting branches and all of them must be pinned, because
-// the k8s-side walk reimplements each one:
-//
-//	route-level 2-way split      -> += splitClientAmountWhenWeightChangesDynamicReload
-//	route-level non-2-way split  -> += 1
-//	match-level 2-way split      -> += splitClientAmountWhenWeightChangesDynamicReload
-//	match-level non-2-way split  -> += 1
-//
-// A route carrying both matches and route-level splits accounts the matches
-// first, then the route-level splits, sharing one counter.
-//
-// The k8s-side walk cannot be called from this package, and the generator
-// cannot be driven from internal/k8s because virtualServerConfigurator is
-// unexported, so the contract is pinned from both sides with the same literal
-// indices instead of compared directly. TestComputeVSWeightUpdates in
-// internal/k8s carries matching cases; if the expectations here change, they
-// must change there too.
+// Pins the split_clients index sequence the generator assigns when
+// DynamicWeightChangesReload is enabled. k8s.computeVSWeightUpdates
+// re-derives these same indices to push keyval updates without a reload, so
+// the two must agree exactly or updates land on the wrong zone. Since
+// virtualServerConfigurator is unexported, the contract is pinned from both
+// sides with matching literal indices rather than compared directly; keep
+// internal/k8s's equivalent test in sync with changes here.
 func TestGenerateVirtualServerConfigSplitClientsIndexSequence(t *testing.T) {
 	t.Parallel()
 
@@ -4787,11 +4767,8 @@ func TestGenerateVirtualServerConfigSplitClientsIndexSequence(t *testing.T) {
 	}
 	conditions := []conf_v1.Condition{{Header: "x-version", Value: "canary"}}
 
-	// Deliberately a literal, not splitClientAmountWhenWeightChangesDynamicReload.
-	// That constant is declared twice — internal/configs/virtualserver.go and
-	// internal/k8s/controller.go — with nothing tying the two together, so a
-	// test derived from either copy would follow a change to it and stay
-	// green while the other package drifted. Both sides pin 101 independently.
+	// Deliberately a literal: the constant is declared separately in two
+	// packages, so deriving from either would mask drift between them.
 	const step = 101
 
 	tests := []struct {
