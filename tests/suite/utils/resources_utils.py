@@ -334,27 +334,31 @@ class PodNotReadyException(Exception):
         super().__init__(self.message)
 
 
-def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None:
+def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, label_selector=None, timeout=600) -> None:
     """
     Wait for all the pods to be 'Ready'.
 
     :param v1: CoreV1Api
     :param namespace: namespace of a pod
+    :param label_selector: Kubernetes label selector for pods required by the test
     :param timeout: maximum seconds to wait before raising (default 600)
     :return:
     """
-    print("Start waiting for all pods in a namespace to be Ready")
+    print(f"Start waiting for pods matching '{label_selector}' in namespace '{namespace}' to be Ready")
     counter = 0
-    while not are_all_pods_in_ready_state(v1, namespace):
+    while not are_all_pods_in_ready_state(v1, namespace, label_selector):
         print("There are pods that are not Ready. Wait ...")
         wait_before_test()
         counter = counter + 1
         if counter * 3 >= timeout:
-            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}' to be Ready")
+            raise Exception(
+                f"Timed out after {timeout}s waiting for pods matching '{label_selector}' "
+                f"in namespace '{namespace}' to be Ready"
+            )
     print("All pods are Ready")
 
 
-def get_pod_list(v1: CoreV1Api, namespace) -> []:
+def get_pod_list(v1: CoreV1Api, namespace, label_selector=None) -> []:
     """
     Get a list of pods in a namespace.
 
@@ -362,10 +366,10 @@ def get_pod_list(v1: CoreV1Api, namespace) -> []:
     :param namespace: namespace
     :return: []
     """
-    return v1.list_namespaced_pod(namespace).items
+    return v1.list_namespaced_pod(namespace, label_selector=label_selector).items
 
 
-def get_first_pod_name(v1: CoreV1Api, namespace) -> str:
+def get_first_pod_name(v1: CoreV1Api, namespace, label_selector=None) -> str:
     """
     Return 1st pod_name in a list of pods in a namespace.
 
@@ -373,23 +377,25 @@ def get_first_pod_name(v1: CoreV1Api, namespace) -> str:
     :param namespace:
     :return: str
     """
-    resp = v1.list_namespaced_pod(namespace)
+    resp = v1.list_namespaced_pod(namespace, label_selector=label_selector)
     return resp.items[0].metadata.name
 
 
-def are_all_pods_in_ready_state(v1: CoreV1Api, namespace) -> bool:
+def are_all_pods_in_ready_state(v1: CoreV1Api, namespace, label_selector=None) -> bool:
     """
     Check if all the pods have Ready condition.
 
     :param v1: CoreV1Api
     :param namespace: namespace
+    :param label_selector: Kubernetes label selector for pods required by the test
     :return: bool
     """
-    pods = v1.list_namespaced_pod(namespace)
-    if not pods.items:
+    pods = v1.list_namespaced_pod(namespace, label_selector=label_selector)
+    active_pods = [pod for pod in pods.items if pod.metadata.deletion_timestamp is None]
+    if not active_pods:
         return False
     pod_ready_amount = 0
-    for pod in pods.items:
+    for pod in active_pods:
         print(f"Pod {pod.metadata.name} has image {pod.spec.containers[0].image}")
         if pod.status.conditions is None:
             return False
@@ -397,10 +403,10 @@ def are_all_pods_in_ready_state(v1: CoreV1Api, namespace) -> bool:
             if condition.type == "Ready" and condition.status == "True":
                 pod_ready_amount = pod_ready_amount + 1
                 break
-    return pod_ready_amount == len(pods.items)
+    return pod_ready_amount == len(active_pods)
 
 
-def get_pods_amount(v1: CoreV1Api, namespace) -> int:
+def get_pods_amount(v1: CoreV1Api, namespace, label_selector=None) -> int:
     """
     Get an amount of pods.
 
@@ -408,11 +414,11 @@ def get_pods_amount(v1: CoreV1Api, namespace) -> int:
     :param namespace: namespace
     :return: int
     """
-    pods = v1.list_namespaced_pod(namespace)
+    pods = v1.list_namespaced_pod(namespace, label_selector=label_selector)
     return 0 if not pods.items else len(pods.items)
 
 
-def get_pods_amount_with_name(v1: CoreV1Api, namespace, name) -> int:
+def get_pods_amount_with_name(v1: CoreV1Api, namespace, name, label_selector=None) -> int:
     """
     Get an amount of pods.
 
@@ -421,7 +427,7 @@ def get_pods_amount_with_name(v1: CoreV1Api, namespace, name) -> int:
     :param name: name
     :return: int
     """
-    pods = v1.list_namespaced_pod(namespace)
+    pods = v1.list_namespaced_pod(namespace, label_selector=label_selector)
     count = 0
     if pods and pods.items:
         for item in pods.items:
@@ -430,7 +436,7 @@ def get_pods_amount_with_name(v1: CoreV1Api, namespace, name) -> int:
     return count
 
 
-def get_pod_name_that_contains(v1: CoreV1Api, namespace, contains_string) -> str:
+def get_pod_name_that_contains(v1: CoreV1Api, namespace, contains_string, label_selector=None) -> str:
     """
     Get an amount of pods.
 
@@ -439,7 +445,7 @@ def get_pod_name_that_contains(v1: CoreV1Api, namespace, contains_string) -> str
     :param contains_string: string to search on
     :return: string
     """
-    for item in v1.list_namespaced_pod(namespace).items:
+    for item in v1.list_namespaced_pod(namespace, label_selector=label_selector).items:
         if contains_string in item.metadata.name:
             return item.metadata.name
     return ""
@@ -2286,18 +2292,22 @@ def get_last_log_entry(kube_apis, pod_name, namespace) -> str:
     return logs.split("\n")[-2]
 
 
-def get_resource_metrics(kube_apis, plural, namespace="nginx-ingress") -> str:
+def get_resource_metrics(kube_apis, plural, namespace="nginx-ingress", label_selector=None) -> str:
     """
     :param kube_apis: kube apis
     :param namespace: the namespace
     :param plural: the plural of the resource
     """
     if plural == "pods":
-        metrics = kube_apis.list_namespaced_custom_object("metrics.k8s.io", "v1beta1", namespace, plural)
+        metrics = kube_apis.list_namespaced_custom_object(
+            "metrics.k8s.io", "v1beta1", namespace, plural, label_selector=label_selector
+        )
         while metrics["items"] == []:
             wait_before_test()
             try:
-                metrics = kube_apis.list_namespaced_custom_object("metrics.k8s.io", "v1beta1", namespace, plural)
+                metrics = kube_apis.list_namespaced_custom_object(
+                    "metrics.k8s.io", "v1beta1", namespace, plural, label_selector=label_selector
+                )
             except ApiException as e:
                 print(f"Error: {e}")
     elif plural == "nodes":

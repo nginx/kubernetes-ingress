@@ -1,5 +1,6 @@
 import re
 import tempfile
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
@@ -8,6 +9,7 @@ from suite.fixtures.fixtures import create_generic_from_yaml
 from suite.utils.resources_utils import (
     E2E_RUN_ID_LABEL,
     add_e2e_run_id_to_workload,
+    are_all_pods_in_ready_state,
     create_daemon_set,
     create_deployment,
     create_stateful_set,
@@ -93,3 +95,21 @@ def test_generic_apply_labels_workloads_in_memory():
     applied_docs = list(yaml.safe_load_all(kwargs["input"]))
     assert E2E_RUN_ID_LABEL not in applied_docs[0].get("metadata", {}).get("labels", {})
     assert applied_docs[1]["spec"]["template"]["metadata"]["labels"][E2E_RUN_ID_LABEL] == "run-id"
+
+
+def test_ready_check_ignores_terminating_pods_and_uses_the_run_selector():
+    ready_pod = SimpleNamespace(
+        metadata=SimpleNamespace(name="current", deletion_timestamp=None),
+        spec=SimpleNamespace(containers=[SimpleNamespace(image="backend")]),
+        status=SimpleNamespace(conditions=[SimpleNamespace(type="Ready", status="True")]),
+    )
+    terminating_pod = SimpleNamespace(
+        metadata=SimpleNamespace(name="previous", deletion_timestamp="2026-09-11T00:00:00Z"),
+        spec=SimpleNamespace(containers=[SimpleNamespace(image="backend")]),
+        status=SimpleNamespace(conditions=[SimpleNamespace(type="Ready", status="False")]),
+    )
+    v1 = Mock()
+    v1.list_namespaced_pod.return_value = SimpleNamespace(items=[ready_pod, terminating_pod])
+
+    assert are_all_pods_in_ready_state(v1, "test-namespace", "e2e.nginx.org/run-id=run-id")
+    v1.list_namespaced_pod.assert_called_once_with("test-namespace", label_selector="e2e.nginx.org/run-id=run-id")
