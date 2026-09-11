@@ -12,6 +12,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     is_secret_present,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -56,12 +58,13 @@ def wildcard_tls_secret_setup(
 ) -> WildcardTLSSecretSetup:
     ing_type = request.param
     print("------------------------- Deploy Wildcard-Tls-Secret-Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     create_items_from_yaml(
         kube_apis, f"{TEST_DATA}/wildcard-tls-secret/{ing_type}/wildcard-secret-ingress.yaml", test_namespace
     )
     host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/wildcard-tls-secret/{ing_type}/wildcard-secret-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -91,11 +94,14 @@ def wildcard_tls_secret_ingress_controller(
     """
     namespace = ingress_controller_prerequisites.namespace
     print("------------------------- Create IC and wildcard secret -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     secret_name = create_secret_from_yaml(
         kube_apis.v1, namespace, f"{TEST_DATA}/wildcard-tls-secret/wildcard-tls-secret.yaml"
     )
     extra_args = [f"-wildcard-tls-secret={namespace}/{secret_name}", "-enable-custom-resources=false"]
-    name = create_ingress_controller(kube_apis.v1, kube_apis.apps_v1_api, cli_arguments, namespace, extra_args)
+    name = create_ingress_controller(
+        kube_apis.v1, kube_apis.apps_v1_api, cli_arguments, namespace, extra_args, e2e_run_id=e2e_run_id
+    )
     ensure_connection_to_public_endpoint(
         wildcard_tls_secret_setup.public_endpoint.public_ip,
         wildcard_tls_secret_setup.public_endpoint.port,
