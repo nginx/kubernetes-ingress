@@ -337,7 +337,7 @@ class PodNotReadyException(Exception):
         super().__init__(self.message)
 
 
-def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, label_selector=None, timeout=600) -> None:
+def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, label_selector, timeout=600) -> None:
     """
     Wait for all the pods to be 'Ready'.
 
@@ -384,7 +384,7 @@ def get_first_pod_name(v1: CoreV1Api, namespace, label_selector=None) -> str:
     return resp.items[0].metadata.name
 
 
-def are_all_pods_in_ready_state(v1: CoreV1Api, namespace, label_selector=None) -> bool:
+def are_all_pods_in_ready_state(v1: CoreV1Api, namespace, label_selector) -> bool:
     """
     Check if all the pods have Ready condition.
 

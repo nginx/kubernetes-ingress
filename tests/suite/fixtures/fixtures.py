@@ -35,6 +35,7 @@ from suite.utils.resources_utils import (
     delete_namespace,
     delete_testing_namespaces,
     generate_e2e_run_id,
+    get_e2e_run_selector,
     get_leases,
     get_service_node_ports,
     replace_configmap_from_yaml,
@@ -472,10 +473,11 @@ def create_certmanager(request):
     """
     cm_yaml = f"{TEST_DATA}/virtual-server-certmanager/certmanager.yaml"
     kube_apis = request.getfixturevalue("kube_apis")
+    e2e_run_id = generate_e2e_run_id()
     with open(cm_yaml) as f:
         cm_yaml_content = yaml.load_all(f, Loader=yaml.SafeLoader)
         print("------------------------- Deploy CertManager in the cluster -----------------------------------")
-        create_generic_from_yaml(cm_yaml, request)
+        create_generic_from_yaml(cm_yaml, request, e2e_run_id)
         for doc in cm_yaml_content:
             if doc["kind"] == "Deployment":
                 replicas = doc["spec"].get("replicas", 1)
@@ -483,7 +485,11 @@ def create_certmanager(request):
                 name = doc["metadata"]["name"]
                 print(f"Wait until Cert-manager deployment {name} in namespace {ns} has {replicas} ready replicas")
                 count = 0
-                while (not are_all_pods_in_ready_state(request.getfixturevalue("kube_apis").v1, ns)) and count < 10:
+                while (
+                    not are_all_pods_in_ready_state(
+                        request.getfixturevalue("kube_apis").v1, ns, get_e2e_run_selector(e2e_run_id)
+                    )
+                ) and count < 10:
                     count += 1
                     wait_before_test()
 
