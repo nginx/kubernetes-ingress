@@ -296,7 +296,7 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "latency-metrics-buckets-invalid",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"does not match pattern"},
-    },
+		},
 		"appProtectWAFPLMWithoutV5": {
 			valuesFile:        "testdata/app-protect-waf-plm-without-v5.yaml",
 			releaseName:       "appprotect-waf-plm-without-v5",

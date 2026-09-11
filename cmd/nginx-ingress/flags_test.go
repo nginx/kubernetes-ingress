@@ -236,7 +236,7 @@ func TestParseLatencyBuckets(t *testing.T) {
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("parseLatencyBuckets(%q) = %v, expected %v", tc.input, got, tc.expected)
 		}
-  }
+	}
 }
 
 func TestValidatePLMSecretRef(t *testing.T) {
