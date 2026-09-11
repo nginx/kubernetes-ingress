@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.27
 	github.com/aws/aws-sdk-go-v2/service/marketplacemetering v1.38.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.0
-	github.com/cert-manager/cert-manager v1.21.1
+	github.com/cert-manager/cert-manager v1.21.2
 	github.com/dlclark/regexp2/v2 v2.8.0
 	github.com/gkampitakis/go-snaps v0.5.23
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -118,7 +118,7 @@ require (
 	github.com/gonvenience/text v1.0.7 // indirect
 	github.com/gonvenience/wrap v1.1.2 // indirect
 	github.com/gonvenience/ytbx v1.4.4 // indirect
-	github.com/google/cel-go v0.29.2 // indirect
+	github.com/google/cel-go v0.30.0 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
@@ -195,7 +195,7 @@ require (
 	golang.org/x/tools v0.49.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
-	google.golang.org/grpc v1.83.1 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
