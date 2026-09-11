@@ -4540,8 +4540,6 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 // first subroute occupies within vsEx's overall sequence: the referencing
 // VirtualServer's own routes first, then every VirtualServerRoute ahead of vsr
 // in vsEx.VirtualServerRoutes.
-//
-// Pure function: no Configuration or Configurator access.
 func getStartingSplitClientsIndex(vsr *conf_v1.VirtualServerRoute, vsEx *configs.VirtualServerEx) int {
 	var startingSplitClientsIndex int
 
