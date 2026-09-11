@@ -77,8 +77,11 @@ const (
 	// IngressControllerName holds Ingress Controller name
 	IngressControllerName = "nginx.org/ingress-controller"
 
-	typeKeyword                                     = "type"
-	helmReleaseType                                 = "helm.sh/release.v1"
+	typeKeyword     = "type"
+	helmReleaseType = "helm.sh/release.v1"
+	// splitClientAmountWhenWeightChangesDynamicReload mirrors the identically
+	// named constant in internal/configs/virtualserver.go. Keep both in sync,
+	// or computeVSWeightUpdates re-derives the wrong split_clients index.
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 
 	logNamespaceKey = "resource_namespace"
@@ -4418,7 +4421,13 @@ func (lbc *LoadBalancerController) IsNginxReady() bool {
 	return lbc.isNginxReady
 }
 
-func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
+// computeVSWeightUpdates walks vsOld/vsNew route-by-route, using the same
+// split_clients index accounting as configs.GenerateVirtualServerConfig, and
+// returns a WeightUpdate for every 2-way split whose weights changed. The
+// index advances unconditionally, regardless of whether this split changed.
+//
+// Pure function so it's unit testable without controller scaffolding.
+func computeVSWeightUpdates(vsOld, vsNew *conf_v1.VirtualServer) []configs.WeightUpdate {
 	var weightUpdates []configs.WeightUpdate
 	var splitClientsIndex int
 	variableNamer := configs.NewVSVariableNamer(vsNew)
@@ -4447,13 +4456,18 @@ func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *co
 					Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
 					Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
 				})
-				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
 			}
 			splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
 		} else if len(routeNew.Splits) > 0 {
 			splitClientsIndex++
 		}
 	}
+
+	return weightUpdates
+}
+
+func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
+	weightUpdates := computeVSWeightUpdates(vsOld, vsNew)
 
 	if len(weightUpdates) == 0 {
 		return
