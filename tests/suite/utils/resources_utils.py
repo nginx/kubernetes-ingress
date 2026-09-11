@@ -268,6 +268,9 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     :param value: int
     :return: original: int the original amount of replicas
     """
+    deployment = apps_v1_api.read_namespaced_deployment(name, namespace)
+    e2e_run_id = deployment.spec.template.metadata.labels[E2E_RUN_ID_LABEL]
+    selector = get_e2e_run_selector(e2e_run_id)
     body = apps_v1_api.read_namespaced_deployment_scale(name, namespace)
     original = body.spec.replicas
     print(f"Original number of replicas is {original}")
@@ -276,7 +279,7 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     apps_v1_api.patch_namespaced_deployment_scale(name, namespace, body)
     if value != 0:
         now = time.time()
-        wait_until_all_pods_are_ready(v1, namespace)
+        wait_until_all_pods_are_ready(v1, namespace, selector)
         later = time.time()
         print(f"All pods came up in {int(later - now)} seconds")
 

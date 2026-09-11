@@ -23,6 +23,7 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_ingress,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
     get_default_server_conf,
     get_e2e_run_selector,
     get_events_for_object,
@@ -53,8 +54,9 @@ class TestConfigRollbackStartup:
 
     @pytest.fixture(scope="class")
     def simple_app_setup(self, request, kube_apis, test_namespace):
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        e2e_run_id = generate_e2e_run_id()
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":
