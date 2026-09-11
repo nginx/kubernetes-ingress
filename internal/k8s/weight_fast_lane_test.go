@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -365,6 +366,73 @@ func TestSyncVirtualServer_FallsBackToReload(t *testing.T) {
 				t.Errorf("keyval writes with the feature disabled: %d, want 0", len(got))
 			}
 		})
+	}
+}
+
+// TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems pins a bug
+// where the halt-before-reload guard keyed off the full problems slice
+// returned alongside changes. That slice carries every problem detected
+// across the whole configuration -- including ones for resources that have
+// nothing to do with the VS being synced -- so an unrelated orphan
+// VirtualServerRoute elsewhere could either mask a real rejection (event
+// never reported) or, if empty, let a rejected weight-only update fall
+// through to a reload that removes the last valid config. The halt must be
+// keyed off whether this VS's own change carries an error instead.
+func TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBC(t, true)
+
+	vs := weightTestVS("cafe", 1, []conf_v1.Route{twoWayRoute("/tea", 70, 30)})
+	seedVS(t, lbc, vs)
+
+	// An orphan VirtualServerRoute unrelated to "cafe", inserted directly so
+	// that the next rebuildHosts() pass -- the one triggered by cafe's own
+	// update below -- is the first time it's evaluated and reports it as a
+	// problem. This reproduces the field symptom: an unrelated problem
+	// surfacing in the very same sync as a weight-only rejection.
+	orphan := &conf_v1.VirtualServerRoute{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "orphan"},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Host:      "orphan.example.com",
+			Subroutes: []conf_v1.Route{{Path: "/", Action: &conf_v1.Action{Pass: "v1"}}},
+		},
+	}
+	lbc.configuration.virtualServerRoutes[getResourceKey(&orphan.ObjectMeta)] = orphan
+
+	writesAfterSeed := mgr.configWrites.Load()
+	reloadsAfterSeed := mgr.reloads.Load()
+	keyvalsAfterSeed := len(mgr.recordedKeyvals())
+
+	// 70/40 doesn't sum to 100: rejected by NIC's own validation.
+	invalid := weightTestVS("cafe", 2, []conf_v1.Route{twoWayRoute("/tea", 70, 40)})
+	updateVS(t, lbc, invalid)
+
+	lbc.syncVirtualServer(task{Kind: virtualserver, Key: "default/cafe"})
+
+	if got := mgr.configWrites.Load() - writesAfterSeed; got != 0 {
+		t.Errorf("rejected update wrote %d NGINX configs, want 0 (last valid config must keep serving)", got)
+	}
+	if got := mgr.reloads.Load() - reloadsAfterSeed; got != 0 {
+		t.Errorf("rejected update triggered %d reloads, want 0", got)
+	}
+	if got := mgr.keyvalsSince(keyvalsAfterSeed); len(got) != 0 {
+		t.Errorf("rejected update wrote %d keyvals, want 0", len(got))
+	}
+
+	fakeRecorder, ok := lbc.recorder.(*record.FakeRecorder)
+	if !ok {
+		t.Fatalf("recorder is %T, want *record.FakeRecorder", lbc.recorder)
+	}
+	close(fakeRecorder.Events)
+	var sawCafeRejected bool
+	for e := range fakeRecorder.Events {
+		if strings.Contains(e, "cafe") && strings.Contains(e, "Rejected") {
+			sawCafeRejected = true
+		}
+	}
+	if !sawCafeRejected {
+		t.Error("no Rejected event was recorded for default/cafe; the unrelated orphan problem must not swallow it")
 	}
 }
 

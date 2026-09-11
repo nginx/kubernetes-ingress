@@ -1558,11 +1558,17 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 
 		if len(weightUpdates) > 0 {
 			lbc.processProblems(problems)
-			// A rejected update halts here rather than falling back to
-			// processChanges, matching the pre-fast-lane behavior of
-			// haltIfVSConfigInvalid: NGINX keeps serving the last valid
-			// config and the resource gets a fresh sync on its next event.
-			if len(problems) > 0 {
+			// problems is the global rebuildHosts() output and can hold
+			// unrelated orphan/conflict entries for other resources, so it
+			// must not gate this halt. Only this VS's own change -- which
+			// AddOrUpdateVirtualServer annotates with Error when validation
+			// rejects it -- matters here. A rejected update halts rather than
+			// falling back to processChanges, matching the pre-fast-lane
+			// behavior of haltIfVSConfigInvalid: NGINX keeps serving the last
+			// valid config and the resource gets a fresh sync on its next
+			// event.
+			if impl, changeErr, rejected := vsSelfChangeError(changes, vs); rejected {
+				lbc.UpdateVirtualServerStatusAndEventsOnDelete(impl, changeErr, nil)
 				return
 			}
 			if lbc.applyWeightOnlyVSChanges(key, changes, weightUpdates) {
@@ -1588,6 +1594,26 @@ func vsWeightOnlyEligible(prevVs, curVs *conf_v1.VirtualServer) bool {
 		return false
 	}
 	return isWeightOnlyVSDiff(prevVs, curVs)
+}
+
+// vsSelfChangeError reports whether vs's own change was annotated with a
+// validation error by AddOrUpdateVirtualServer, returning the affected
+// VirtualServerConfiguration and the error string. This must be checked
+// instead of the problems slice returned alongside changes: that slice is
+// the global rebuildHosts() output and can contain unrelated orphan/conflict
+// problems for other resources, so a non-empty problems slice does not mean
+// vs itself was rejected.
+func vsSelfChangeError(changes []ResourceChange, vs *conf_v1.VirtualServer) (*VirtualServerConfiguration, string, bool) {
+	kind := getResourceKeyWithKind(virtualServerKind, &vs.ObjectMeta)
+	for _, c := range changes {
+		if c.Error == "" || c.Resource == nil || c.Resource.GetKeyWithKind() != kind {
+			continue
+		}
+		if impl, ok := c.Resource.(*VirtualServerConfiguration); ok {
+			return impl, c.Error, true
+		}
+	}
+	return nil, "", false
 }
 
 // applyWeightOnlyVSChanges pushes weightUpdates to NGINX via the keyval API
@@ -2132,11 +2158,14 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 
 		if weightOnly {
 			lbc.processProblems(problems)
-			// A rejected update halts here rather than falling back to
-			// processChanges, matching the pre-fast-lane behavior of
-			// haltIfVSRConfigInvalid: NGINX keeps serving the last valid
-			// config and the resource gets a fresh sync on its next event.
-			if len(problems) > 0 {
+			// problems is the global rebuildHosts() output and can hold
+			// unrelated orphan/conflict entries for other resources, so it
+			// must not gate this halt on its own. A rejected update halts
+			// here rather than falling back to processChanges, matching the
+			// pre-fast-lane behavior of haltIfVSRConfigInvalid: NGINX keeps
+			// serving the last valid config and the resource gets a fresh
+			// sync on its next event.
+			if vsrSelfProblem(problems, key) {
 				return
 			}
 			if lbc.applyWeightOnlyVSRChanges(prevVsr, vsr, changes) {
@@ -2147,6 +2176,21 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 
 	lbc.processChanges(changes)
 	lbc.processProblems(problems)
+}
+
+// vsrSelfProblem reports whether problems contains a rejection for the
+// VirtualServerRoute identified by key. Unlike vsSelfChangeError for
+// VirtualServers, AddOrUpdateVirtualServerRoute always appends the VSR's own
+// rejection to problems, so this only needs to scope that slice down to key
+// -- it can otherwise also hold unrelated orphan/conflict problems for other
+// resources from the same rebuildHosts() pass.
+func vsrSelfProblem(problems []ConfigurationProblem, key string) bool {
+	for _, p := range problems {
+		if vsr, ok := p.Object.(*conf_v1.VirtualServerRoute); ok && getResourceKey(&vsr.ObjectMeta) == key {
+			return true
+		}
+	}
+	return false
 }
 
 // vsrWeightOnlyEligible reports whether curVsr differs from prevVsr only in
