@@ -21,6 +21,7 @@ from settings import ALLOWED_DEPLOYMENT_TYPES, ALLOWED_IC_TYPES, ALLOWED_SERVICE
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.kube_config_utils import ensure_context_in_config, get_current_context_name
 from suite.utils.resources_utils import (
+    add_e2e_run_id_to_workload,
     are_all_pods_in_ready_state,
     cleanup_rbac,
     configure_rbac,
@@ -515,7 +516,7 @@ def create_issuer(request):
         create_generic_from_yaml(issuer_secret_yaml, request)
 
 
-def create_generic_from_yaml(file_path, request):
+def create_generic_from_yaml(file_path, request, e2e_run_id=None):
     """
     Create an object using a path to the yaml file.
 
@@ -523,7 +524,21 @@ def create_generic_from_yaml(file_path, request):
     :param request: pytest fixture
     """
     try:
-        subprocess.run(["kubectl", "apply", "-f", f"{file_path}"], capture_output=True, check=True)
+        if e2e_run_id:
+            with open(file_path) as f:
+                docs = list(yaml.safe_load_all(f))
+            for doc in docs:
+                if doc and doc["kind"] in {"Deployment", "DaemonSet", "StatefulSet"}:
+                    add_e2e_run_id_to_workload(doc, e2e_run_id)
+            subprocess.run(
+                ["kubectl", "apply", "-f", "-"],
+                input=yaml.safe_dump_all(docs),
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+        else:
+            subprocess.run(["kubectl", "apply", "-f", file_path], capture_output=True, check=True)
     except subprocess.CalledProcessError:
         print("Error occurred while applying a resource definition. See logs for details.")
         raise

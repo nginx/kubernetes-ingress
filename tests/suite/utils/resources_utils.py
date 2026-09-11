@@ -177,7 +177,7 @@ def cleanup_rbac(rbac_v1: RbacAuthorizationV1Api, rbac: RBACAuthorization) -> No
     rbac_v1.delete_cluster_role(rbac.role)
 
 
-def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest) -> str:
+def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest, e2e_run_id=None) -> str:
     """
     Create a deployment based on yaml file.
 
@@ -189,7 +189,7 @@ def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest
     print(f"Load {yaml_manifest}")
     with open(yaml_manifest) as f:
         dep = yaml.safe_load(f)
-    return create_deployment(apps_v1_api, namespace, dep)
+    return create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
 
 def patch_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest) -> str:
@@ -222,7 +222,7 @@ def patch_deployment(apps_v1_api: AppsV1Api, namespace, body) -> str:
     return body["metadata"]["name"]
 
 
-def create_deployment(apps_v1_api: AppsV1Api, namespace, body) -> str:
+def create_deployment(apps_v1_api: AppsV1Api, namespace, body, e2e_run_id=None) -> str:
     """
     Create a deployment based on a dict.
 
@@ -231,13 +231,15 @@ def create_deployment(apps_v1_api: AppsV1Api, namespace, body) -> str:
     :param body: dict
     :return: str
     """
+    if e2e_run_id:
+        add_e2e_run_id_to_workload(body, e2e_run_id)
     print("Create a deployment:")
     apps_v1_api.create_namespaced_deployment(namespace, body)
     print(f"Deployment created with name '{body['metadata']['name']}'")
     return body["metadata"]["name"]
 
 
-def create_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name) -> str:
+def create_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name, e2e_run_id=None) -> str:
     """
     Create a deployment with a specific name based on common yaml file.
 
@@ -253,7 +255,7 @@ def create_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name) -> str:
         dep["spec"]["selector"]["matchLabels"]["app"] = name
         dep["spec"]["template"]["metadata"]["labels"]["app"] = name
         dep["spec"]["template"]["spec"]["containers"][0]["name"] = name
-        return create_deployment(apps_v1_api, namespace, dep)
+        return create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
 
 def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, value) -> int:
@@ -292,7 +294,7 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     return original
 
 
-def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body) -> str:
+def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body, e2e_run_id=None) -> str:
     """
     Create a daemon-set based on a dict.
 
@@ -301,13 +303,15 @@ def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body) -> str:
     :param body: dict
     :return: str
     """
+    if e2e_run_id:
+        add_e2e_run_id_to_workload(body, e2e_run_id)
     print("Create a daemon-set:")
     apps_v1_api.create_namespaced_daemon_set(namespace, body)
     print(f"Daemon-Set created with name '{body['metadata']['name']}'")
     return body["metadata"]["name"]
 
 
-def create_stateful_set(apps_v1_api, namespace, body) -> str:
+def create_stateful_set(apps_v1_api, namespace, body, e2e_run_id=None) -> str:
     """
     Create a stateful-set based on a dict.
 
@@ -316,6 +320,8 @@ def create_stateful_set(apps_v1_api, namespace, body) -> str:
     :param body: dict
     :return: str
     """
+    if e2e_run_id:
+        add_e2e_run_id_to_workload(body, e2e_run_id)
     print("Create a statefulset:")
     apps_v1_api.create_namespaced_stateful_set(namespace, body)
     print(f"StatefulSet created with name '{body['metadata']['name']}'")
@@ -488,7 +494,7 @@ def create_service_with_name(v1: CoreV1Api, namespace, name, port=80, targetPort
         return create_service(v1, namespace, dep)
 
 
-def create_secure_app_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name) -> str:
+def create_secure_app_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name, e2e_run_id=None) -> str:
     """
     Deploys app in /common/app/secure in the configured name and namespace
 
@@ -504,7 +510,7 @@ def create_secure_app_deployment_with_name(apps_v1_api: AppsV1Api, namespace, na
         dep["spec"]["selector"]["matchLabels"]["app"] = name
         dep["spec"]["template"]["metadata"]["labels"]["app"] = name
         dep["spec"]["template"]["spec"]["containers"][0]["name"] = name
-        return create_deployment(apps_v1_api, namespace, dep)
+        return create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
 
 def get_service_node_ports(v1: CoreV1Api, name, namespace) -> (int, int, int, int, int, int, int):
@@ -1124,7 +1130,7 @@ def extract_block(nginx_config, block_name):
     return nginx_config[start:end]
 
 
-def create_example_app(kube_apis, app_type, namespace) -> None:
+def create_example_app(kube_apis, app_type, namespace, e2e_run_id=None) -> None:
     """
     Create a backend application.
 
@@ -1140,7 +1146,7 @@ def create_example_app(kube_apis, app_type, namespace) -> None:
         if is_secret_present(kube_apis.v1, secret_name, namespace):
             delete_secret(kube_apis.v1, secret_name, namespace)
         create_secret_from_yaml(kube_apis.v1, namespace, f"{TEST_DATA}/common/app/{app_type}/app-tls-secret.yaml")
-    create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace)
+    create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace, e2e_run_id)
 
 
 def delete_common_app(kube_apis, app_type, namespace) -> None:
@@ -1265,7 +1271,9 @@ def wait_for_event_increment(kube_apis, namespace, event_count, offset) -> bool:
         return False
 
 
-def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, args=None) -> str:
+def create_ingress_controller(
+    v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, args=None, e2e_run_id=None
+) -> str:
     """
     Create an Ingress Controller according to the params.
 
@@ -1292,11 +1300,11 @@ def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_argumen
     if args is not None:
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
-        name = create_deployment(apps_v1_api, namespace, dep)
+        name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
     elif cli_arguments["deployment-type"] == "daemon-set":
-        name = create_daemon_set(apps_v1_api, namespace, dep)
+        name = create_daemon_set(apps_v1_api, namespace, dep, e2e_run_id)
     elif cli_arguments["deployment-type"] == "stateful-set":
-        name = create_stateful_set(apps_v1_api, namespace, dep)
+        name = create_stateful_set(apps_v1_api, namespace, dep, e2e_run_id)
     else:
         raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
@@ -1308,7 +1316,14 @@ def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_argumen
 
 
 def create_ingress_controller_wafv5(
-    v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, reg_secret, args=None, rorfs=False
+    v1: CoreV1Api,
+    apps_v1_api: AppsV1Api,
+    cli_arguments,
+    namespace,
+    reg_secret,
+    args=None,
+    rorfs=False,
+    e2e_run_id=None,
 ) -> str:
     """
     Create an Ingress Controller according to the params.
@@ -1501,11 +1516,11 @@ def create_ingress_controller_wafv5(
     if args is not None:
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
-        name = create_deployment(apps_v1_api, namespace, dep)
+        name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
     elif cli_arguments["deployment-type"] == "daemon-set":
-        name = create_daemon_set(apps_v1_api, namespace, dep)
+        name = create_daemon_set(apps_v1_api, namespace, dep, e2e_run_id)
     elif cli_arguments["deployment-type"] == "stateful-set":
-        name = create_stateful_set(apps_v1_api, namespace, dep)
+        name = create_stateful_set(apps_v1_api, namespace, dep, e2e_run_id)
     else:
         raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
@@ -1537,7 +1552,7 @@ def delete_ingress_controller(apps_v1_api: AppsV1Api, name, dep_type, namespace)
 
 
 def create_dos_arbitrator(
-    v1: CoreV1Api, apps_v1_api: AppsV1Api, namespace, deployment_yaml_manifest, svc_yaml_manifest
+    v1: CoreV1Api, apps_v1_api: AppsV1Api, namespace, deployment_yaml_manifest, svc_yaml_manifest, e2e_run_id=None
 ) -> str:
     """
     Create dos arbitrator according to the params.
@@ -1553,7 +1568,7 @@ def create_dos_arbitrator(
     with open(deployment_yaml_manifest) as f:
         dep = yaml.safe_load(f)
 
-    name = create_deployment(apps_v1_api, namespace, dep)
+    name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
     before = time.time()
     wait_until_all_pods_are_ready(v1, namespace)
@@ -1606,7 +1621,7 @@ def create_ns_and_sa_from_yaml(v1: CoreV1Api, yaml_manifest) -> str:
     return res["namespace"]
 
 
-def create_items_from_yaml(kube_apis, yaml_manifest, namespace) -> {}:
+def create_items_from_yaml(kube_apis, yaml_manifest, namespace, e2e_run_id=None) -> {}:
     """
     Apply yaml manifest with multiple items.
 
@@ -1630,11 +1645,11 @@ def create_items_from_yaml(kube_apis, yaml_manifest, namespace) -> {}:
                 elif doc["kind"] == "Service":
                     res["Service"] = create_service(kube_apis.v1, namespace, doc)
                 elif doc["kind"] == "Deployment":
-                    res["Deployment"] = create_deployment(kube_apis.apps_v1_api, namespace, doc)
+                    res["Deployment"] = create_deployment(kube_apis.apps_v1_api, namespace, doc, e2e_run_id)
                 elif doc["kind"] == "DaemonSet":
-                    res["DaemonSet"] = create_daemon_set(kube_apis.apps_v1_api, namespace, doc)
+                    res["DaemonSet"] = create_daemon_set(kube_apis.apps_v1_api, namespace, doc, e2e_run_id)
                 elif doc["kind"] == "StatefulSet":
-                    res["StatefulSet"] = create_stateful_set(kube_apis.apps_v1_api, namespace, doc)
+                    res["StatefulSet"] = create_stateful_set(kube_apis.apps_v1_api, namespace, doc, e2e_run_id)
                 elif doc["kind"] == "Namespace":
                     res["Namespace"] = create_namespace(kube_apis.v1, doc)
 
