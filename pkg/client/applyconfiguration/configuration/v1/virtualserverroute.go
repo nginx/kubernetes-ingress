@@ -13,7 +13,7 @@ import (
 //
 // VirtualServerRoute defines the VirtualServerRoute resource.
 type VirtualServerRouteApplyConfiguration struct {
-	metav1.TypeMetaApplyConfiguration    `json:",inline"`
+	metav1.TypeMetaApplyConfiguration    `json:""`
 	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                                 *VirtualServerRouteSpecApplyConfiguration   `json:"spec,omitempty"`
 	Status                               *VirtualServerRouteStatusApplyConfiguration `json:"status,omitempty"`

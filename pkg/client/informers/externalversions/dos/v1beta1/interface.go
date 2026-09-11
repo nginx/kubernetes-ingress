@@ -9,7 +9,7 @@ import (
 // Interface provides access to all the informers in this group version.
 type Interface interface {
 	// DosProtectedResources returns a DosProtectedResourceInformer.
-	DosProtectedResources() DosProtectedResourceInformer
+	DosProtectedResources() TypedDosProtectedResourceInformer
 }
 
 type version struct {
@@ -23,7 +23,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// DosProtectedResources returns a DosProtectedResourceInformer.
-func (v *version) DosProtectedResources() DosProtectedResourceInformer {
+// DosProtectedResources returns a TypedDosProtectedResourceInformer.
+func (v *version) DosProtectedResources() TypedDosProtectedResourceInformer {
 	return &dosProtectedResourceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
