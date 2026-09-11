@@ -20,6 +20,8 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     delete_namespace,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_file_contents,
     get_service_endpoint,
     replace_configmap_from_yaml,
@@ -64,6 +66,7 @@ def appprotect_setup(
     """
     policy_method = request.param["policy"]
     vs_or_vsr = request.param["vs_or_vsr"]
+    e2e_run_id = generate_e2e_run_id()
     vsr = None
     try:
         print("------------------------- Replace ConfigMap with HTTP2 -------------------------")
@@ -74,9 +77,11 @@ def appprotect_setup(
             cm_source,
         )
         if vs_or_vsr == "vs":
-            src_pol_name, vs_name, vs_host, vs_paths = ap_vs_setup(kube_apis, test_namespace, policy_method)
+            src_pol_name, vs_name, vs_host, vs_paths = ap_vs_setup(kube_apis, test_namespace, policy_method, e2e_run_id)
         elif vs_or_vsr == "vsr":
-            src_pol_name, vsr_ns, vs_host, vs_name, vsr = ap_vsr_setup(kube_apis, test_namespace, policy_method)
+            src_pol_name, vsr_ns, vs_host, vs_name, vsr = ap_vsr_setup(
+                kube_apis, test_namespace, policy_method, e2e_run_id
+            )
         wait_before_test(120)
     except Exception:
         cleanup(kube_apis, ingress_controller_prerequisites, src_pol_name, test_namespace, vs_or_vsr, vs_name, vsr)
@@ -93,18 +98,20 @@ def appprotect_setup(
         return VirtualServerRouteSetup(ingress_controller_endpoint, vsr_ns, vs_host, vs_name, vsr, None)
 
 
-def ap_vs_setup(kube_apis, test_namespace, policy_method) -> tuple:
-    src_pol_name, vs_name = ap_generic_setup(kube_apis, test_namespace, test_namespace, policy_method, waf_spec_vs_src)
+def ap_vs_setup(kube_apis, test_namespace, policy_method, e2e_run_id) -> tuple:
+    src_pol_name, vs_name = ap_generic_setup(
+        kube_apis, test_namespace, test_namespace, policy_method, waf_spec_vs_src, e2e_run_id
+    )
     vs_host = get_first_host_from_yaml(waf_spec_vs_src)
     vs_paths = get_paths_from_vs_yaml(waf_spec_vs_src)
     return (src_pol_name, vs_name, vs_host, vs_paths)
 
 
-def ap_vsr_setup(kube_apis, test_namespace, policy_method) -> tuple:
+def ap_vsr_setup(kube_apis, test_namespace, policy_method, e2e_run_id) -> tuple:
     print(f"------------------------- Deploy namespace ---------------------------")
     vs_routes_ns = "grpcs"
     vsr_ns = create_namespace_with_name_from_yaml(kube_apis.v1, vs_routes_ns, f"{TEST_DATA}/common/ns.yaml")
-    src_pol_name, vs_name = ap_generic_setup(kube_apis, vsr_ns, test_namespace, policy_method, vsr_vs_yaml)
+    src_pol_name, vs_name = ap_generic_setup(kube_apis, vsr_ns, test_namespace, policy_method, vsr_vs_yaml, e2e_run_id)
     vs_host = get_first_host_from_yaml(vsr_vs_yaml)
     print("------------------------- Deploy Virtual Server Route ----------------------------")
     vsr_name = create_v_s_route_from_yaml(kube_apis.custom_objects, waf_subroute_vsr_src, vsr_ns)
@@ -114,7 +121,7 @@ def ap_vsr_setup(kube_apis, test_namespace, policy_method) -> tuple:
     return (src_pol_name, vsr_ns, vs_host, vs_name, vsr)
 
 
-def ap_generic_setup(kube_apis, vs_namespace, test_namespace, policy_method, vs_yaml):
+def ap_generic_setup(kube_apis, vs_namespace, test_namespace, policy_method, vs_yaml, e2e_run_id):
     src_pol_yaml = f"{TEST_DATA}/ap-waf-grpc/policies/waf-block-{policy_method}.yaml"
     print("------------------------- Deploy logconf -----------------------------")
     global log_name
@@ -128,8 +135,8 @@ def ap_generic_setup(kube_apis, vs_namespace, test_namespace, policy_method, vs_
     wait_before_test(20)
     syslog_ep = get_service_endpoint(kube_apis, "syslog-svc", test_namespace)
     print("------------------------- Deploy App -----------------------------")
-    create_example_app(kube_apis, "grpc-vs", vs_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, vs_namespace)
+    create_example_app(kube_apis, "grpc-vs", vs_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, vs_namespace, get_e2e_run_selector(e2e_run_id))
     print("------------------------- Deploy Secret -----------------------------")
     create_secret_from_yaml(kube_apis.v1, vs_namespace, src_vs_sec_yaml)
     print(f"------------------------- Deploy policy ---------------------------")

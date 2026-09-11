@@ -117,10 +117,11 @@ def ingress_setup(
     ingress_controller_prerequisites,
     ingress_controller_endpoint,
     test_namespace,
+    e2e_run_id,
 ) -> IngressSetup:
     print("------------------------- Deploy backend app first -----------------------------------")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     print("------------------------- Deploy Ingress with AccessControl policy -----------------------------------")
     src = f"{TEST_DATA}/access-control/ingress/{request.param}/annotations-ac-ingress.yaml"

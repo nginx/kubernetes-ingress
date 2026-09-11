@@ -14,6 +14,8 @@ from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_common_app,
     delete_secret,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_pod_name_that_contains,
     replace_configmap_from_yaml,
     wait_before_test,
@@ -65,14 +67,15 @@ class KeycloakSetupForFCLO:
 def keycloak_setup(request, kube_apis, test_namespace, ingress_controller_endpoint):
 
     # Create Keycloak resources and setup Keycloak idp
+    e2e_run_id = generate_e2e_run_id()
 
     secret_name = create_secret_from_yaml(
         kube_apis.v1, test_namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
     )
     keycloak_address = "keycloak.example.com"
-    create_example_app(kube_apis, "keycloak", test_namespace)
+    create_example_app(kube_apis, "keycloak", test_namespace, e2e_run_id=e2e_run_id)
     wait_before_test()
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     keycloak_vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, keycloak_vs_src, test_namespace)
     wait_before_test()
 

@@ -8,6 +8,8 @@ from suite.utils.resources_utils import (
     create_namespace_with_name_from_yaml,
     delete_namespace,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import create_v_s_route_from_yaml, create_virtual_server_from_yaml
@@ -59,12 +61,13 @@ class VSRAdvancedRoutingSetup:
         backends_url (str): backend url
     """
 
-    def __init__(self, namespace, vs_host, vs_name, route: VirtualServerRoute, backends_url):
+    def __init__(self, namespace, vs_host, vs_name, route: VirtualServerRoute, backends_url, e2e_run_id):
         self.namespace = namespace
         self.vs_host = vs_host
         self.vs_name = vs_name
         self.route = route
         self.backends_url = backends_url
+        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -101,8 +104,9 @@ def vsr_canary_setup(
     backends_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}{vsr_paths[0]}"
 
     print("---------------------- Deploy simple app ----------------------------")
-    create_example_app(kube_apis, "simple", ns_1)
-    wait_until_all_pods_are_ready(kube_apis.v1, ns_1)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "simple", ns_1, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, ns_1, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -111,7 +115,7 @@ def vsr_canary_setup(
 
     request.addfinalizer(fin)
 
-    return VSRAdvancedRoutingSetup(ns_1, vs_host, vs_name, route, backends_url)
+    return VSRAdvancedRoutingSetup(ns_1, vs_host, vs_name, route, backends_url, e2e_run_id)
 
 
 @pytest.mark.flaky(max_runs=3)

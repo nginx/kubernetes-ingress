@@ -17,6 +17,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_namespace,
     delete_secret,
+    generate_e2e_run_id,
     get_e2e_run_selector,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -216,9 +217,10 @@ def ingress_conf(kube_apis, ingress_controller_prerequisites, namespace, ingress
 @pytest.fixture(scope="class")
 def backend_setup(request, kube_apis, test_namespace):
     """Deploy backend1 once for all scenario tests."""
-    create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/backend1.yaml", test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/backend1.yaml", test_namespace, e2e_run_id=e2e_run_id)
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/backend1-svc.yaml", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         delete_items_from_yaml(kube_apis, f"{TEST_DATA}/common/backend1.yaml", test_namespace)

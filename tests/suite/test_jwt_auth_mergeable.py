@@ -10,6 +10,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     is_secret_present,
     replace_secret,
     wait_before_test,
@@ -42,6 +44,7 @@ class JWTAuthMergeableSetup:
 def jwt_auth_setup(
     request, kube_apis, ingress_controller_endpoint, ingress_controller, test_namespace
 ) -> JWTAuthMergeableSetup:
+    e2e_run_id = generate_e2e_run_id()
     tokens = {"master": get_token_from_file("master"), "minion": get_token_from_file("minion")}
     master_secret_name = create_secret_from_yaml(
         kube_apis.v1, test_namespace, f"{TEST_DATA}/jwt-auth-mergeable/jwt-master-secret.yaml"
@@ -52,8 +55,8 @@ def jwt_auth_setup(
     print("------------------------- Deploy JWT Auth Mergeable Minions Example -----------------------------------")
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/jwt-auth-mergeable/mergeable/jwt-auth-ingress.yaml", test_namespace)
     ingress_host = get_first_ingress_host_from_yaml(f"{TEST_DATA}/jwt-auth-mergeable/mergeable/jwt-auth-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
