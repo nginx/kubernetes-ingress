@@ -17,6 +17,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    get_e2e_run_selector,
     retry_get_until_status_code,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -97,14 +98,15 @@ class TestIngressMTLSPoliciesIngress:
         expected_code,
         expected_text,
         exception,
+        e2e_run_id,
     ):
         """Validates that an IngressMTLS policy on a standard Ingress enforces client certificate authentication."""
 
         ingress_host = get_first_ingress_host_from_yaml(mtls_ingress_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         mtls_secret_name = ""
         tls_secret_name = ""
@@ -191,14 +193,15 @@ class TestIngressMTLSPoliciesIngress:
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        e2e_run_id,
     ):
         """Validates that an invalid IngressMTLS policy is rejected and results in HTTP 500."""
 
         ingress_host = get_first_ingress_host_from_yaml(mtls_ingress_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         tls_secret_name = ""
         pol_name = ""
@@ -270,14 +273,15 @@ class TestIngressMTLSPoliciesIngress:
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        e2e_run_id,
     ):
         """Validates that verifyDepth controls acceptance of intermediate CA certificate chains."""
 
         ingress_host = get_first_ingress_host_from_yaml(mtls_ingress_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         mtls_secret_name = ""
         tls_secret_name = ""
@@ -373,14 +377,15 @@ class TestIngressMTLSPoliciesIngress:
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        e2e_run_id,
     ):
         """Validates that an IngressMTLS policy referencing a non-existent secret results in HTTP 500 without invalidating the policy object."""
 
         ingress_host = get_first_ingress_host_from_yaml(mtls_ingress_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         tls_secret_name = ""
         pol_name = ""
