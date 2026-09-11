@@ -223,7 +223,9 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 	logger := lbc.Logger.With(logNamespaceKey, transportServer.Namespace, logKindKey, transportServerKind, logNameKey, transportServer.Name)
 
 	for _, u := range transportServer.Spec.Upstreams {
-		podEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Service, uint16(u.Port)) //nolint:gosec
+		// TransportServer upstreams do not expose a use-traffic-distribution surface,
+		// so topology-aware distribution is never applied here.
+		podEndps, external, err := lbc.getEndpointsForUpstream(transportServer.Namespace, u.Service, uint16(u.Port), false) //nolint:gosec
 		if err == nil && external && lbc.isNginxPlus {
 			externalNameSvcs[configs.GenerateExternalNameSvcKey(transportServer.Namespace, u.Service)] = true
 		}

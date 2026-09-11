@@ -641,6 +641,9 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		} else {
 			allErrs = append(allErrs, validateLabels(u.Subselector, idxPath.Child("subselector"))...)
 		}
+		if u.UseTrafficDistribution && u.UseClusterIP {
+			allErrs = append(allErrs, field.Forbidden(idxPath.Child("use-traffic-distribution"), "use-traffic-distribution can't be used with use-cluster-ip"))
+		}
 
 		allErrs = append(allErrs, validateVirtualServerServiceName(u.Service, idxPath.Child("service"))...)
 		allErrs = append(allErrs, validateTime(u.ProxyConnectTimeout, idxPath.Child("connect-timeout"))...)
