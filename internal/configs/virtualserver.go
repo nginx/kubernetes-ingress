@@ -32,26 +32,11 @@ const (
 	splitClientsKeyValZoneSize = "100k"
 	// splitClientAmountWhenWeightChangesDynamicReload is how far a
 	// split_clients index advances per 2-way split when
-	// DynamicWeightChangesReload is on.
-	//
-	// WARNING: this value is replicated in three unconnected places and all
-	// three must agree, or dynamic weight updates silently target the wrong
-	// keyval zone:
-	//
-	//  1. the `i <= 100` loop bound in generateSplitsForWeightChangesDynamicReload,
-	//     which is the real ground truth — it decides how many split_clients
-	//     blocks are emitted, and therefore how far the running index actually
-	//     moves;
-	//  2. this constant, used only by generateMatchesConfig's main-map walk;
-	//  3. an identical, separate declaration in internal/k8s/controller.go,
-	//     used by computeVSWeightUpdates to re-derive these indices when
-	//     pushing keyval updates without a reload.
-	//
-	// Changing one without the others is not a compile error. The index
-	// sequences are pinned from both sides by
-	// TestGenerateVirtualServerConfigSplitClientsIndexSequence here and
-	// TestComputeVSWeightUpdates in internal/k8s, which assert the literal
-	// 101 rather than deriving it from either constant.
+	// DynamicWeightChangesReload is on. It must match the `i <= 100` loop
+	// bound in generateSplitsForWeightChangesDynamicReload (the real ground
+	// truth) and its duplicate in internal/k8s/controller.go, or dynamic
+	// weight updates target the wrong keyval zone. Changing one without the
+	// others is not a compile error.
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 	defaultLogOutput                                = "syslog:server=localhost:514"
 	// oidcNativeSessionZoneSize is the shared memory allocated to each
@@ -2386,12 +2371,8 @@ func generateSplitsForWeightChangesDynamicReload(splits []conf_v1.Split, scIndex
 	var splitClients []version2.SplitClient
 	var mapParameters []version2.Parameter
 	// One split_clients block per whole-percent weight pair, 0/100 through
-	// 100/0, so 101 blocks. This bound is the ground truth for
-	// splitClientAmountWhenWeightChangesDynamicReload: it is what actually
-	// advances the running split_clients index, and both that constant and
-	// its copy in internal/k8s/controller.go must match it. Changing this
-	// bound without changing them is not a compile error — see the comment on
-	// the constant.
+	// 100/0, so 101 blocks — the ground truth for
+	// splitClientAmountWhenWeightChangesDynamicReload; see the comment there.
 	for i := 0; i <= 100; i++ {
 		j := 100 - i
 		var split version2.SplitClient

@@ -11,23 +11,12 @@ import (
 )
 
 // The split_clients index accounting in computeVSWeightUpdates must mirror
-// configs.GenerateVirtualServerConfig exactly. There are four branches, and
-// this test has to cover all of them, because the walk reimplements each one:
-//
-//	route-level 2-way split      -> += splitClientAmountWhenWeightChangesDynamicReload
-//	route-level non-2-way split  -> += 1
-//	match-level 2-way split      -> += splitClientAmountWhenWeightChangesDynamicReload
-//	match-level non-2-way split  -> += 1
-//
-// A route carrying both matches and route-level splits accounts the matches
-// first, then the route-level splits, sharing one counter.
-//
-// The ground truth for these sequences is pinned on the generator side by
-// TestGenerateVirtualServerConfigSplitClientsIndexSequence in
-// internal/configs/virtualserver_routing_test.go, which uses the same
-// fixtures and the same literal indices. The two cannot be compared directly
-// in one test because virtualServerConfigurator is unexported, so if the
-// expectations there change, they must change here too.
+// configs.GenerateVirtualServerConfig exactly, across route-level, match-level,
+// 2-way and non-2-way splits, including a route with both matches and a
+// route-level split sharing one counter. The equivalent test in
+// internal/configs uses the same fixtures and literal indices; keep both in
+// sync since virtualServerConfigurator is unexported and the two can't be
+// compared directly.
 
 // weightUpdateVS builds a VS whose routes are described by routeSplits: one
 // route per entry, and within each route one match per matchSplits entry

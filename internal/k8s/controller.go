@@ -80,14 +80,8 @@ const (
 	typeKeyword     = "type"
 	helmReleaseType = "helm.sh/release.v1"
 	// splitClientAmountWhenWeightChangesDynamicReload mirrors the identically
-	// named constant in internal/configs/virtualserver.go. It must equal the
-	// number of split_clients blocks the generator emits per 2-way split, or
-	// computeVSWeightUpdates re-derives the wrong index and pushes keyval
-	// updates to another split's zone (or to no zone at all).
-	//
-	// This is a second, unconnected declaration of the same number, so
-	// changing either copy alone is not a compile error. See the comment on
-	// the configs-side constant for the full picture.
+	// named constant in internal/configs/virtualserver.go. Keep both in sync,
+	// or computeVSWeightUpdates re-derives the wrong split_clients index.
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 
 	logNamespaceKey = "resource_namespace"
@@ -4427,18 +4421,12 @@ func (lbc *LoadBalancerController) IsNginxReady() bool {
 	return lbc.isNginxReady
 }
 
-// computeVSWeightUpdates walks vsOld/vsNew route-by-route, in the same order
-// and with the same split_clients index accounting as
-// configs.GenerateVirtualServerConfig, and returns a WeightUpdate for every
-// 2-way split whose weights changed.
+// computeVSWeightUpdates walks vsOld/vsNew route-by-route, using the same
+// split_clients index accounting as configs.GenerateVirtualServerConfig, and
+// returns a WeightUpdate for every 2-way split whose weights changed. The
+// index advances unconditionally, regardless of whether this split changed.
 //
-// The index must advance by splitClientAmountWhenWeightChangesDynamicReload
-// for every 2-way split and by 1 for any other split count, because that is
-// how many split_clients blocks the generator emits for each. The increment is
-// unconditional: it does not depend on whether this split's weights changed.
-//
-// Pure function: no Configuration or Configurator access, so it is unit
-// testable without controller scaffolding.
+// Pure function so it's unit testable without controller scaffolding.
 func computeVSWeightUpdates(vsOld, vsNew *conf_v1.VirtualServer) []configs.WeightUpdate {
 	var weightUpdates []configs.WeightUpdate
 	var splitClientsIndex int
