@@ -183,6 +183,11 @@ func weightTestVS(name string, generation int64, routes []conf_v1.Route) *conf_v
 	}
 }
 
+// path is retained on every caller for fixture readability; unparam flags it
+// because every current caller passes "/tea", but that will change as more
+// route-shape fixtures land.
+//
+//nolint:unparam
 func twoWayRoute(path string, w0, w1 int) conf_v1.Route {
 	return conf_v1.Route{
 		Path: path,
@@ -436,6 +441,10 @@ func TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems(t *testin
 	}
 }
 
+// name is retained on every caller for fixture readability; unparam flags it
+// because every current caller passes "coffee".
+//
+//nolint:unparam
 func weightTestVSR(name string, generation int64, subroutes []conf_v1.Route) *conf_v1.VirtualServerRoute {
 	return &conf_v1.VirtualServerRoute{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: name, Generation: generation},
@@ -785,6 +794,9 @@ func TestSyncHandlersReleaseConfigurationLock(t *testing.T) {
 	go func() {
 		defer close(done)
 		lbc.configuration.lock.Lock()
+		// Lock() making the timeout below is the assertion; the read is
+		// just here to keep staticcheck quiet about the empty crit section.
+		_ = len(lbc.configuration.virtualServers)
 		lbc.configuration.lock.Unlock()
 	}()
 
