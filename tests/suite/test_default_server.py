@@ -38,6 +38,7 @@ secret_path = f"{TEST_DATA}/common/default-server-secret.yaml"
 test_data_path = f"{TEST_DATA}/default-server"
 invalid_secret_path = f"{test_data_path}/invalid-tls-secret.yaml"
 new_secret_path = f"{test_data_path}/new-tls-secret.yaml"
+opaque_secret_path = f"{test_data_path}/opaque-tls-secret.yaml"
 secret_name = "default-server-secret"
 secret_namespace = "nginx-ingress"
 
@@ -149,6 +150,46 @@ class TestDefaultServer:
 
         print("Step 5: ensure CN of the default TLS cert after restoring the secret")
         replace_secret(kube_apis.v1, secret_name, secret_namespace, secret_path)
+        wait_before_test(1)
+        assert_cn(ingress_controller_endpoint, "NGINXIngressController")
+
+    @pytest.mark.parametrize(
+        "ingress_controller",
+        [
+            {
+                "extra_args": [
+                    "-allow-empty-ingress-host",
+                ],
+            },
+        ],
+        indirect=True,
+    )
+    def test_with_opaque_default_tls_secret(
+        self,
+        kube_apis,
+        ingress_controller_endpoint,
+        secret_setup,
+        default_server_setup,
+        deploy_empty_host_ingress,
+    ):
+        """
+        The default server TLS secret is served from an Opaque secret carrying the same
+        tls.crt/tls.key keys.
+
+        Asserts on the certificate actually served on the wire rather than on an event, because
+        a secret NIC fails to apply still produces a SecretUpdated event while serving the stale
+        certificate.
+        """
+        print("Step 1: swap the default server secret for an Opaque one")
+        delete_secret(kube_apis.v1, secret_name, secret_namespace)
+        # Secret type is immutable, so the swap must be delete-then-create.
+        create_secret_from_yaml(kube_apis.v1, secret_namespace, opaque_secret_path)
+        wait_before_test(1)
+        assert_cn(ingress_controller_endpoint, "NGINXIngressController")
+
+        print("Step 2: restore the typed secret")
+        delete_secret(kube_apis.v1, secret_name, secret_namespace)
+        create_secret_from_yaml(kube_apis.v1, secret_namespace, secret_path)
         wait_before_test(1)
         assert_cn(ingress_controller_endpoint, "NGINXIngressController")
 

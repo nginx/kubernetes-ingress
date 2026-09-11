@@ -153,6 +153,24 @@ class TestIngressTLS:
         expected_reloads = 1
         assert reloads == expected_reloads, f"expected {expected_reloads} reloads, got {reloads}"
 
+    def test_tls_termination_with_opaque_secret(
+        self, kube_apis, ingress_controller_endpoint, test_namespace, tls_setup
+    ):
+        opaque_secret_path = f"{TEST_DATA}/tls/opaque-tls-secret.yaml"
+
+        print("Step 1: deploy an Opaque secret holding the same cert/key pair")
+        if is_secret_present(kube_apis.v1, tls_setup.secret_name, test_namespace):
+            delete_secret(kube_apis.v1, tls_setup.secret_name, test_namespace)
+        create_secret_from_yaml(kube_apis.v1, test_namespace, opaque_secret_path)
+        wait_before_test(1)
+        assert_us_subject(ingress_controller_endpoint, tls_setup.ingress_host)
+
+        print("Step 2: restore the kubernetes.io/tls secret and check it still works")
+        delete_secret(kube_apis.v1, tls_setup.secret_name, test_namespace)
+        create_secret_from_yaml(kube_apis.v1, test_namespace, tls_setup.secret_path)
+        wait_before_test(1)
+        assert_us_subject(ingress_controller_endpoint, tls_setup.ingress_host)
+
 
 @pytest.mark.ingresses
 @pytest.mark.parametrize(

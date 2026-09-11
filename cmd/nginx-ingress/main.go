@@ -381,7 +381,7 @@ func processClientAuthSecret(kubeClient *kubernetes.Clientset, nginxManager ngin
 
 	clientAuthSecretNsName := controllerNamespace + "/" + mgmtCfgParams.Secrets.ClientAuth
 
-	secret, err := getAndValidateSecret(kubeClient, clientAuthSecretNsName, api_v1.SecretTypeTLS)
+	secret, err := getAndValidateSecret(kubeClient, clientAuthSecretNsName, secrets.RoleTLS)
 	if err != nil {
 		return fmt.Errorf("error trying to get the client auth secret %v: %w", clientAuthSecretNsName, err)
 	}
@@ -398,7 +398,7 @@ func processTrustedCertSecret(kubeClient *kubernetes.Clientset, nginxManager ngi
 
 	trustedCertSecretNsName := controllerNamespace + "/" + mgmtCfgParams.Secrets.TrustedCert
 
-	secret, err := getAndValidateSecret(kubeClient, trustedCertSecretNsName, secrets.SecretTypeCA)
+	secret, err := getAndValidateSecret(kubeClient, trustedCertSecretNsName, secrets.RoleCA)
 	if err != nil {
 		return fmt.Errorf("error trying to get the trusted cert secret %v: %w", trustedCertSecretNsName, err)
 	}
@@ -743,7 +743,7 @@ func processDefaultServerSecret(kubeClient *kubernetes.Clientset, nginxManager n
 	var sslRejectHandshake bool
 
 	if *defaultServerSecret != "" {
-		secret, err := getAndValidateSecret(kubeClient, *defaultServerSecret, api_v1.SecretTypeTLS)
+		secret, err := getAndValidateSecret(kubeClient, *defaultServerSecret, secrets.RoleTLS)
 		if err != nil {
 			return sslRejectHandshake, fmt.Errorf("error trying to get the default server TLS secret %v: %w", *defaultServerSecret, err)
 		}
@@ -767,7 +767,7 @@ func processDefaultServerSecret(kubeClient *kubernetes.Clientset, nginxManager n
 func processWildcardSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.Manager) (bool, error) {
 	isWildcardEnabled := *wildcardTLSSecret != ""
 	if isWildcardEnabled {
-		secret, err := getAndValidateSecret(kubeClient, *wildcardTLSSecret, api_v1.SecretTypeTLS)
+		secret, err := getAndValidateSecret(kubeClient, *wildcardTLSSecret, secrets.RoleTLS)
 		if err != nil {
 			return false, fmt.Errorf("error trying to get the wildcard TLS secret %v: %w", *wildcardTLSSecret, err)
 		}
@@ -781,7 +781,7 @@ func processWildcardSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.
 func processLicenseSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.Manager, mgmtCfgParams *configs.MGMTConfigParams, controllerNamespace string) error {
 	licenseSecretNsName := controllerNamespace + "/" + mgmtCfgParams.Secrets.License
 
-	secret, err := getAndValidateSecret(kubeClient, licenseSecretNsName, secrets.SecretTypeLicense)
+	secret, err := getAndValidateSecret(kubeClient, licenseSecretNsName, secrets.RoleLicense)
 	if err != nil {
 		return fmt.Errorf("license secret: %w", err)
 	}
@@ -855,7 +855,7 @@ func getSocketClient(sockPath string) *http.Client {
 }
 
 // getAndValidateSecret gets and validates a secret.
-func getAndValidateSecret(kubeClient *kubernetes.Clientset, secretNsName string, secretType api_v1.SecretType) (secret *api_v1.Secret, err error) {
+func getAndValidateSecret(kubeClient *kubernetes.Clientset, secretNsName string, role secrets.SecretRole) (secret *api_v1.Secret, err error) {
 	ns, name, err := k8s.ParseNamespaceName(secretNsName)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse the %v argument: %w", secretNsName, err)
@@ -864,22 +864,9 @@ func getAndValidateSecret(kubeClient *kubernetes.Clientset, secretNsName string,
 	if err != nil {
 		return nil, fmt.Errorf("could not find %v: %w", secretNsName, err)
 	}
-	switch secretType {
-	case api_v1.SecretTypeTLS:
-		err = secrets.ValidateTLSSecret(secret)
-		if err != nil {
-			return nil, fmt.Errorf("%v is invalid: %w", secretNsName, err)
-		}
-	case secrets.SecretTypeLicense:
-		err = secrets.ValidateLicenseSecret(secret)
-		if err != nil {
-			return nil, err
-		}
-	case secrets.SecretTypeCA:
-		err = secrets.ValidateCASecret(secret)
-		if err != nil {
-			return nil, err
-		}
+	err = secrets.ValidateSecretForRole(secret, role)
+	if err != nil {
+		return nil, fmt.Errorf("%v is invalid: %w", secretNsName, err)
 	}
 
 	return secret, nil
@@ -1014,7 +1001,7 @@ func createPlusAndLatencyCollectors(
 	syslogListener = metrics.NewSyslogFakeServer()
 
 	if *prometheusTLSSecretName != "" {
-		prometheusSecret, err = getAndValidateSecret(kubeClient, *prometheusTLSSecretName, api_v1.SecretTypeTLS)
+		prometheusSecret, err = getAndValidateSecret(kubeClient, *prometheusTLSSecretName, secrets.RoleTLS)
 		if err != nil {
 			nl.Fatalf(l, "Error trying to get the prometheus TLS secret %v: %v", *prometheusTLSSecretName, err)
 		}
@@ -1061,7 +1048,7 @@ func createHealthProbeEndpoint(kubeClient *kubernetes.Clientset, plusClient *cli
 	var err error
 
 	if *serviceInsightTLSSecretName != "" {
-		serviceInsightSecret, err = getAndValidateSecret(kubeClient, *serviceInsightTLSSecretName, api_v1.SecretTypeTLS)
+		serviceInsightSecret, err = getAndValidateSecret(kubeClient, *serviceInsightTLSSecretName, secrets.RoleTLS)
 		if err != nil {
 			nl.Fatalf(l, "Error trying to get the service insight TLS secret %v: %v", *serviceInsightTLSSecretName, err)
 		}

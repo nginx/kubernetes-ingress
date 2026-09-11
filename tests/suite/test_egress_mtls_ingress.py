@@ -19,6 +19,7 @@ from suite.utils.resources_utils import (
 from suite.utils.yaml_utils import get_first_ingress_host_from_yaml, get_name_from_yaml
 
 trusted_cert_secret_src = f"{TEST_DATA}/egress-mtls/secret/egress-mtls-secret.yaml"
+trusted_cert_secret_opaque_src = f"{TEST_DATA}/egress-mtls/secret/egress-mtls-secret-opaque.yaml"
 tls_secret_src = f"{TEST_DATA}/egress-mtls/secret/tls-secret.yaml"
 
 valid_policy_src = f"{TEST_DATA}/egress-mtls/policies/egress-mtls.yaml"
@@ -49,11 +50,11 @@ class IngressSetup:
         self.metrics_url = metrics_url
 
 
-def setup_policy(kube_apis, test_namespace, policy_src):
+def setup_policy(kube_apis, test_namespace, policy_src, trusted_cert_src=trusted_cert_secret_src):
     """Create the trusted CA and client TLS secrets, then apply a valid egress mTLS policy."""
 
     print("------------- Create egress mTLS secrets --------------")
-    trusted_cert_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, trusted_cert_secret_src)
+    trusted_cert_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, trusted_cert_src)
     tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_secret_src)
 
     print("------------- Create egress mTLS policy --------------")
@@ -169,6 +170,45 @@ class TestEgressMTLSPoliciesIngress:
             resp = requests.get(ingress_setup.request_url, headers={"host": ingress_setup.ingress_host})
 
             # Valid egress mTLS policies should allow requests to reach the secure backend.
+            assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
+            assert "hello from pod secure-app" in resp.text, f"Unexpected response body: {resp.text}"
+        finally:
+            if ingress_setup is not None:
+                delete_items_from_yaml(kube_apis, ingress_setup.ingress_src_file, test_namespace)
+            if policy_name is not None:
+                teardown_policy(kube_apis, test_namespace, policy_name, tls_secret_name, mtls_secret_name)
+
+    def test_valid_egress_mtls_policy_with_opaque_ca(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        backend_setup,
+        ingress_controller_endpoint,
+        test_namespace,
+    ):
+        """
+        Validate an egress mTLS policy whose trusted CA lives in an Opaque secret.
+
+        The secret carries the same ca.crt key, the same CA certificate and the same name as the
+        nginx.org/ca fixture, so the policy resolves it unchanged.
+        """
+
+        policy_name = tls_secret_name = mtls_secret_name = None
+        ingress_setup = None
+
+        try:
+            mtls_secret_name, tls_secret_name, policy_name = setup_policy(
+                kube_apis, test_namespace, valid_policy_src, trusted_cert_secret_opaque_src
+            )
+            ingress_setup = deploy_ingress(kube_apis, ingress_controller_endpoint, test_namespace, "standard")
+
+            ensure_connection_to_public_endpoint(
+                ingress_controller_endpoint.public_ip,
+                ingress_controller_endpoint.port,
+                ingress_controller_endpoint.port_ssl,
+            )
+            resp = requests.get(ingress_setup.request_url, headers={"host": ingress_setup.ingress_host})
+
             assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
             assert "hello from pod secure-app" in resp.text, f"Unexpected response body: {resp.text}"
         finally:

@@ -11,6 +11,7 @@ from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml, patch_
 std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
 std_vsr_src = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
 htpasswd_sec_valid_src = f"{TEST_DATA}/auth-basic-policy/secret/htpasswd-secret-valid.yaml"
+htpasswd_sec_valid_opaque_src = f"{TEST_DATA}/auth-basic-policy/secret/htpasswd-secret-valid-opaque.yaml"
 htpasswd_sec_invalid_src = f"{TEST_DATA}/auth-basic-policy/secret/htpasswd-secret-invalid.yaml"
 htpasswd_sec_valid_empty_src = f"{TEST_DATA}/auth-basic-policy/secret/htpasswd-secret-valid-empty.yaml"
 auth_basic_pol_valid_src = f"{TEST_DATA}/auth-basic-policy/policies/auth-basic-policy-valid.yaml"
@@ -148,7 +149,9 @@ class TestAuthBasicPoliciesVsr:
             assert resp.status_code == 401
             assert f"Authorization Required" in resp.text
 
-    @pytest.mark.parametrize("htpasswd_secret", [htpasswd_sec_valid_src, htpasswd_sec_invalid_src])
+    @pytest.mark.parametrize(
+        "htpasswd_secret", [htpasswd_sec_valid_src, htpasswd_sec_valid_opaque_src, htpasswd_sec_invalid_src]
+    )
     def test_auth_basic_policy_secret(
         self,
         kube_apis,
@@ -162,7 +165,7 @@ class TestAuthBasicPoliciesVsr:
         Test auth-basic-policy with a valid and an invalid secret
         """
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
-        if htpasswd_secret == htpasswd_sec_valid_src:
+        if htpasswd_secret in (htpasswd_sec_valid_src, htpasswd_sec_valid_opaque_src):
             pol = auth_basic_pol_valid_src
             vsr = auth_basic_vsr_valid_src
         elif htpasswd_secret == htpasswd_sec_invalid_src:
@@ -211,7 +214,7 @@ class TestAuthBasicPoliciesVsr:
             v_s_route_setup.route_m.namespace,
         )
 
-        if htpasswd_secret == htpasswd_sec_valid_src:
+        if htpasswd_secret in (htpasswd_sec_valid_src, htpasswd_sec_valid_opaque_src):
             assert resp.status_code == 200
             assert f"Request ID:" in resp.text
             assert crd_info["status"]["state"] == "Valid"

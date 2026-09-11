@@ -9,6 +9,7 @@ from suite.utils.vs_vsr_resources_utils import patch_v_s_route_from_yaml, patch_
 std_vs_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
 std_vsr_src = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
 jwk_sec_valid_src = f"{TEST_DATA}/jwt-policy/secret/jwk-secret-valid.yaml"
+jwk_sec_valid_opaque_src = f"{TEST_DATA}/jwt-policy/secret/jwk-secret-valid-opaque.yaml"
 jwk_sec_invalid_src = f"{TEST_DATA}/jwt-policy/secret/jwk-secret-invalid.yaml"
 jwt_pol_valid_src = f"{TEST_DATA}/jwt-policy/policies/jwt-policy-valid.yaml"
 jwt_pol_multi_src = f"{TEST_DATA}/jwt-policy/policies/jwt-policy-valid-multi.yaml"
@@ -136,7 +137,7 @@ class TestJWTPoliciesVsr:
             assert resp2.status_code == 401
             assert f"Authorization Required" in resp2.text
 
-    @pytest.mark.parametrize("jwk_secret", [jwk_sec_valid_src, jwk_sec_invalid_src])
+    @pytest.mark.parametrize("jwk_secret", [jwk_sec_valid_src, jwk_sec_valid_opaque_src, jwk_sec_invalid_src])
     def test_jwt_policy_secret(
         self,
         kube_apis,
@@ -150,7 +151,7 @@ class TestJWTPoliciesVsr:
         Test jwt-policy with a valid and an invalid secret
         """
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
-        if jwk_secret == jwk_sec_valid_src:
+        if jwk_secret in (jwk_sec_valid_src, jwk_sec_valid_opaque_src):
             pol = jwt_pol_valid_src
             vsr = jwt_vsr_valid_src
         elif jwk_secret == jwk_sec_invalid_src:
@@ -199,7 +200,7 @@ class TestJWTPoliciesVsr:
             v_s_route_setup.route_m.namespace,
         )
 
-        if jwk_secret == jwk_sec_valid_src:
+        if jwk_secret in (jwk_sec_valid_src, jwk_sec_valid_opaque_src):
             assert resp.status_code == 200
             assert f"Request ID:" in resp.text
             assert crd_info["status"]["state"] == "Valid"
