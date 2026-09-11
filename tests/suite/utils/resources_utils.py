@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+import uuid
 from unittest import mock
 
 import pytest
@@ -27,6 +28,27 @@ from kubernetes.stream import stream
 from more_itertools import first
 from settings import DEPLOYMENTS, NGX_REG, PROJECT_ROOT, RECONFIGURATION_DELAY, TEST_DATA, WAF_V5_VERSION
 from suite.utils.ssl_utils import create_sni_session
+
+E2E_RUN_ID_LABEL = "e2e.nginx.org/run-id"
+
+
+def generate_e2e_run_id() -> str:
+    """Generate a Kubernetes-label-safe identifier for one e2e test invocation."""
+    return uuid.uuid4().hex
+
+
+def get_e2e_run_selector(e2e_run_id: str) -> str:
+    """Return the pod label selector for an e2e run."""
+    return f"{E2E_RUN_ID_LABEL}={e2e_run_id}"
+
+
+def add_e2e_run_id_to_workload(workload: dict, e2e_run_id: str) -> None:
+    """Add an e2e run ID only to a workload's pod template."""
+    if workload["kind"] not in {"Deployment", "DaemonSet", "StatefulSet"}:
+        raise ValueError(f"Unsupported workload kind: {workload['kind']}")
+
+    labels = workload["spec"]["template"].setdefault("metadata", {}).setdefault("labels", {})
+    labels[E2E_RUN_ID_LABEL] = e2e_run_id
 
 
 class RBACAuthorization:

@@ -33,6 +33,7 @@ from suite.utils.resources_utils import (
     delete_lease,
     delete_namespace,
     delete_testing_namespaces,
+    generate_e2e_run_id,
     get_leases,
     get_service_node_ports,
     replace_configmap_from_yaml,
@@ -130,6 +131,12 @@ def print_name() -> None:
     """Print out a current test name."""
     test_name = f"{os.environ.get('PYTEST_CURRENT_TEST').split(':')[2]} :: {os.environ.get('PYTEST_CURRENT_TEST').split(':')[4].split(' ')[0]}"
     print(f"\n============================= {test_name} =============================")
+
+
+@pytest.fixture(scope="function")
+def e2e_run_id() -> str:
+    """Provide one run ID for all workloads created by a test invocation."""
+    return generate_e2e_run_id()
 
 
 @pytest.fixture(scope="class")
