@@ -17,6 +17,7 @@ from suite.utils.external_auth_utils import (
     ext_auth_pol_tls_signin_src,
     ext_auth_pol_tls_verify_no_ssl_src,
     ext_auth_tls_backend_src,
+    ext_auth_tls_ca_secret_opaque_src,
     ext_auth_tls_missing_ca_crt_src,
     invalid_credentials,
     valid_auth_headers,
@@ -118,6 +119,51 @@ class TestExternalAuthPoliciesTLS:
         Test external-auth policy with full TLS verification:
         sslEnabled, sslVerify, sslVerifyDepth, sniName, and trustedCertSecret.
         Verifies the policy and VirtualServer are accepted as Valid.
+        """
+        _, policy_names = ext_auth_setup
+        headers = build_ext_auth_headers(virtual_server_setup.vs_host, valid_credentials)
+
+        policy_info = read_policy(kube_apis.custom_objects, test_namespace, policy_names[0])
+        assert policy_info["status"]["state"] == "Valid"
+
+        apply_and_assert_valid_vs(
+            kube_apis,
+            virtual_server_setup.namespace,
+            virtual_server_setup.vs_name,
+            ext_auth_vs_tls_src,
+        )
+        ensure_response_from_backend(
+            virtual_server_setup.backend_1_url,
+            virtual_server_setup.vs_host,
+            additional_headers=valid_auth_headers(),
+        )
+
+        resp = requests.get(virtual_server_setup.backend_1_url, headers=headers)
+        print(f"Status: {resp.status_code}")
+
+        assert resp.status_code == 200
+        assert "Request ID:" in resp.text
+
+    @pytest.mark.parametrize(
+        "ext_auth_setup",
+        [([ext_auth_pol_tls_full_src], True, True, ext_auth_tls_ca_secret_opaque_src)],
+        indirect=True,
+    )
+    def test_tls_full_verify_with_opaque_ca_secret(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+        ext_auth_setup,
+        ext_auth_restore_vs,
+    ):
+        """
+        Full TLS verification with the trusted CA stored in an Opaque secret.
+
+        The secret carries the same ca.crt key, the same CA certificate and the same name as the
+        nginx.org/ca fixture, so the policy resolves it unchanged and the auth backend's cert
+        still verifies.
         """
         _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(virtual_server_setup.vs_host, valid_credentials)

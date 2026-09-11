@@ -10,6 +10,7 @@ from suite.utils.vs_vsr_resources_utils import delete_and_create_vs_from_yaml
 
 std_vs_src = f"{TEST_DATA}/virtual-server/standard/virtual-server.yaml"
 htpasswd_sec_valid_src = f"{TEST_DATA}/auth-basic-policy/secret/htpasswd-secret-valid.yaml"
+htpasswd_sec_valid_opaque_src = f"{TEST_DATA}/auth-basic-policy/secret/htpasswd-secret-valid-opaque.yaml"
 htpasswd_sec_invalid_src = f"{TEST_DATA}/auth-basic-policy/secret/htpasswd-secret-invalid.yaml"
 htpasswd_sec_valid_empty_src = f"{TEST_DATA}/auth-basic-policy/secret/htpasswd-secret-valid-empty.yaml"
 auth_basic_pol_valid_src = f"{TEST_DATA}/auth-basic-policy/policies/auth-basic-policy-valid.yaml"
@@ -158,7 +159,9 @@ class TestAuthBasicPolicies:
             assert resp.status_code == 401
             assert f"Authorization Required" in resp.text
 
-    @pytest.mark.parametrize("htpasswd_secret", [htpasswd_sec_valid_src, htpasswd_sec_invalid_src])
+    @pytest.mark.parametrize(
+        "htpasswd_secret", [htpasswd_sec_valid_src, htpasswd_sec_valid_opaque_src, htpasswd_sec_invalid_src]
+    )
     def test_auth_basic_policy_secret(
         self,
         kube_apis,
@@ -170,7 +173,7 @@ class TestAuthBasicPolicies:
         """
         Test auth-basic-policy with a valid and an invalid secret
         """
-        if htpasswd_secret == htpasswd_sec_valid_src:
+        if htpasswd_secret in (htpasswd_sec_valid_src, htpasswd_sec_valid_opaque_src):
             pol = auth_basic_pol_valid_src
             vs = auth_basic_vs_single_src
         elif htpasswd_secret == htpasswd_sec_invalid_src:
@@ -215,7 +218,7 @@ class TestAuthBasicPolicies:
             virtual_server_setup.namespace,
         )
 
-        if htpasswd_secret == htpasswd_sec_valid_src:
+        if htpasswd_secret in (htpasswd_sec_valid_src, htpasswd_sec_valid_opaque_src):
             assert resp.status_code == 200
             assert f"Request ID:" in resp.text
             assert crd_info["status"]["state"] == "Valid"

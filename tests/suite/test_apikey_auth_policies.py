@@ -21,6 +21,7 @@ apikey_auth_pol_server = f"{TEST_DATA}/apikey-auth-policy/policies/apikey-policy
 apikey_auth_pol_route = f"{TEST_DATA}/apikey-auth-policy/policies/apikey-policy-vs-route.yaml"
 
 apikey_auth_secret_1 = f"{TEST_DATA}/apikey-auth-policy/secret/apikey-secret-1.yaml"
+apikey_auth_secret_1_opaque = f"{TEST_DATA}/apikey-auth-policy/secret/apikey-secret-1-opaque.yaml"
 apikey_auth_secret_2 = f"{TEST_DATA}/apikey-auth-policy/secret/apikey-secret-2.yaml"
 apikey_auth_secret_server = f"{TEST_DATA}/apikey-auth-policy/secret/apikey-secret-server.yaml"
 apikey_auth_secret_route = f"{TEST_DATA}/apikey-auth-policy/secret/apikey-secret-route.yaml"
@@ -289,6 +290,74 @@ class TestAPIKeyAuthPolicies:
         # with correct password in query
         assert len(backend2_correct_query_with_correct_password_resps) > 0
         for response in backend2_correct_query_with_correct_password_resps:
+            assert response.status_code == 200
+
+    def test_apikey_auth_policy_opaque_secret_vs(
+        self, kube_apis, crd_ingress_controller, virtual_server_setup, test_namespace
+    ):
+        # The VirtualServer references both policies, so both are created; only the
+        # server-level one (backed by the Opaque Secret) is exercised here.
+        apikey_policy_details = self.setup_single_policy(
+            kube_apis,
+            virtual_server_setup.namespace,
+            apikey_auth_secret_1_opaque,
+            apikey_auth_pol_valid,
+            virtual_server_setup.vs_host,
+        )
+
+        apikey_policy_2_details = self.setup_single_policy(
+            kube_apis,
+            virtual_server_setup.namespace,
+            apikey_auth_secret_2,
+            apikey_auth_pol_valid_2,
+            virtual_server_setup.vs_host,
+        )
+
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            apikey_auth_vs_single_src,
+            virtual_server_setup.namespace,
+        )
+
+        host = apikey_policy_details.vs_host
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        wait_before_test()
+
+        header = apikey_policy_details.headers[0]
+        without_auth_resp = requests.get(virtual_server_setup.backend_1_url, headers={"host": host})
+        wrong_key_resp = requests.get(
+            virtual_server_setup.backend_1_url, headers={"host": host, header: "wrongpassword"}
+        )
+        correct_key_resps = [
+            requests.get(virtual_server_setup.backend_1_url, headers={"host": host, header: key})
+            for key in apikey_policy_details.apikeys
+        ]
+
+        crd_info = read_custom_resource(
+            kube_apis.custom_objects,
+            virtual_server_setup.namespace,
+            "virtualservers",
+            virtual_server_setup.vs_name,
+        )
+
+        delete_policy(kube_apis.custom_objects, apikey_policy_details.policy_name, test_namespace)
+        delete_secret(kube_apis.v1, apikey_policy_details.secret_name, test_namespace)
+        delete_policy(kube_apis.custom_objects, apikey_policy_2_details.policy_name, test_namespace)
+        delete_secret(kube_apis.v1, apikey_policy_2_details.secret_name, test_namespace)
+
+        delete_and_create_vs_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            std_vs_src,
+            virtual_server_setup.namespace,
+        )
+
+        assert crd_info["status"]["state"] == "Valid"
+        assert without_auth_resp.status_code == 401
+        assert wrong_key_resp.status_code == 403
+        assert len(correct_key_resps) > 0
+        for response in correct_key_resps:
             assert response.status_code == 200
 
     def test_apikey_auth_policy_vs_and_vsr(

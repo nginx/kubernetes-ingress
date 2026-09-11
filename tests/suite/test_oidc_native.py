@@ -246,6 +246,35 @@ class TestOIDCNative:
             oidcYaml,
         )
 
+    def test_oidc_native_with_opaque_secret(
+        self,
+        request,
+        kube_apis,
+        ingress_controller_endpoint,
+        ingress_controller_prerequisites,
+        crd_ingress_controller,
+        test_namespace,
+        virtual_server_setup,
+        keycloak_setup,
+    ):
+        """
+        Full login flow with the client secret stored in an Opaque secret.
+
+        The secret carries the same client-secret key and the same name as the nginx.org/oidc
+        fixture, so the policy resolves it unchanged.
+        """
+        run_test(
+            kube_apis,
+            ingress_controller_endpoint,
+            ingress_controller_prerequisites,
+            test_namespace,
+            virtual_server_setup,
+            keycloak_setup,
+            cm_src,
+            "standard",
+            secret_type="Opaque",
+        )
+
 
 def run_test(
     kube_apis,
@@ -256,6 +285,7 @@ def run_test(
     keycloak_setup,
     configmap,
     oidcYaml,
+    secret_type=None,
 ):
     # Order matters. NGINX cannot change the `sync` flag of an existing shared
     # memory zone across a reload -- it fails with "the \"sync\" flag of
@@ -295,6 +325,8 @@ def run_test(
         with open(oidc_native_secret_src) as f:
             secret_data = yaml.safe_load(f)
         secret_data["data"]["client-secret"] = keycloak_setup.secret
+        if secret_type is not None:
+            secret_data["type"] = secret_type
         secret_name = create_secret(kube_apis.v1, test_namespace, secret_data)
 
         policy_file = get_oidc_native_policy_file(oidcYaml)

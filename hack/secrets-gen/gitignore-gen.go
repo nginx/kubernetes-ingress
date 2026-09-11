@@ -137,6 +137,28 @@ func generateMtlsIgnoreLines(mtls []mtlsBundle) []string {
 			)
 		}
 
+		if bundle.CaOpaque.FileName != "" {
+			filesToIgnore = append(
+				filesToIgnore,
+				path.Join(realSecretDirectory, bundle.CaOpaque.FileName),
+			)
+
+			for _, symlink := range bundle.CaOpaque.Symlinks {
+				filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+			}
+		}
+
+		if bundle.ClientOpaque.FileName != "" {
+			filesToIgnore = append(
+				filesToIgnore,
+				path.Join(realSecretDirectory, bundle.ClientOpaque.FileName),
+			)
+
+			for _, symlink := range bundle.ClientOpaque.Symlinks {
+				filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+			}
+		}
+
 		for _, symlink := range bundle.Ca.Symlinks {
 			ext = filepath.Ext(symlink)
 			crlSymlink := strings.ReplaceAll(symlink, ext, "-crl"+ext)
@@ -250,6 +272,14 @@ func generateIngressMtlsIgnoreLines(ingressMtls IngressMtls) []string {
 		filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
 	}
 
+	// Opaque copy of the CA
+	if ingressMtls.CaOpaque.FileName != "" {
+		filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, ingressMtls.CaOpaque.FileName))
+		for _, symlink := range ingressMtls.CaOpaque.Symlinks {
+			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+		}
+	}
+
 	// CRL
 	filesToIgnore = append(
 		filesToIgnore,
@@ -291,6 +321,20 @@ func generateMgmtCMKeysIgnoreLines(bundles []MgmtCMKeysBundle) []string {
 
 		for _, symlink := range bundle.CaWithCrl.Symlinks {
 			filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+		}
+
+		if bundle.ClientOpaque.FileName != "" {
+			filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, bundle.ClientOpaque.FileName))
+			for _, symlink := range bundle.ClientOpaque.Symlinks {
+				filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+			}
+		}
+
+		if bundle.CaWithCrlOpaque.FileName != "" {
+			filesToIgnore = append(filesToIgnore, path.Join(realSecretDirectory, bundle.CaWithCrlOpaque.FileName))
+			for _, symlink := range bundle.CaWithCrlOpaque.Symlinks {
+				filesToIgnore = append(filesToIgnore, strings.TrimPrefix(symlink, "/"))
+			}
 		}
 	}
 

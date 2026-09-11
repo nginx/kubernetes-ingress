@@ -1,6 +1,5 @@
-from _ssl import SSLError
-
 import pytest
+from _ssl import SSLError
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
     create_secret_from_yaml,
@@ -149,6 +148,27 @@ class TestVirtualServerTLS:
         reloads = count_after - count_before_replace
         expected_reloads = 1
         assert reloads == expected_reloads, f"expected {expected_reloads} reloads, got {reloads}"
+
+    def test_tls_termination_with_opaque_secret(
+        self, kube_apis, crd_ingress_controller, virtual_server_setup, clean_up
+    ):
+        opaque_secret_path = f"{TEST_DATA}/virtual-server-tls/opaque-tls-secret.yaml"
+        secret_name = get_name_from_yaml(opaque_secret_path)
+
+        print("\nStep 1: deploy an Opaque secret holding the same cert/key pair")
+        if is_secret_present(kube_apis.v1, secret_name, virtual_server_setup.namespace):
+            delete_secret(kube_apis.v1, secret_name, virtual_server_setup.namespace)
+        create_secret_from_yaml(kube_apis.v1, virtual_server_setup.namespace, opaque_secret_path)
+        wait_before_test(1)
+        assert_us_subject(virtual_server_setup)
+
+        print("\nStep 2: restore the kubernetes.io/tls secret and check it still works")
+        delete_secret(kube_apis.v1, secret_name, virtual_server_setup.namespace)
+        create_secret_from_yaml(
+            kube_apis.v1, virtual_server_setup.namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
+        )
+        wait_before_test(1)
+        assert_us_subject(virtual_server_setup)
 
 
 @pytest.mark.vs

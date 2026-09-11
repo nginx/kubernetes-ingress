@@ -20,6 +20,7 @@ mergeable_master_src = f"{TEST_DATA}/ingress-mtls/ingress/mergeable-master/ingre
 mergeable_minion_src = f"{TEST_DATA}/ingress-mtls/ingress/mergeable-minion/ingress-mtls-ingress.yaml"
 mtls_pol_src = f"{TEST_DATA}/ingress-mtls/policies/ingress-mtls.yaml"
 mtls_sec_src = f"{TEST_DATA}/ingress-mtls/secret/ingress-mtls-secret.yaml"
+mtls_sec_opaque_src = f"{TEST_DATA}/ingress-mtls/secret/ingress-mtls-secret-opaque.yaml"
 tls_sec_src = f"{TEST_DATA}/ingress-mtls/secret/tls-secret.yaml"
 crt = f"{TEST_DATA}/ingress-mtls/client-auth/valid/client-cert.pem"
 key = f"{TEST_DATA}/ingress-mtls/client-auth/valid/client-key.pem"
@@ -40,12 +41,14 @@ key = f"{TEST_DATA}/ingress-mtls/client-auth/valid/client-key.pem"
     indirect=["crd_ingress_controller"],
 )
 class TestIngressMTLSMergeableIngress:
+    @pytest.mark.parametrize("mtls_secret_src", [mtls_sec_src, mtls_sec_opaque_src], ids=["typed_ca", "opaque_ca"])
     def test_ingress_mtls_policy_mergeable_master(
         self,
         kube_apis,
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        mtls_secret_src,
     ):
         """Validates that an IngressMTLS policy on a mergeable master Ingress enforces client certificate authentication across all merged paths."""
 
@@ -61,7 +64,7 @@ class TestIngressMTLSMergeableIngress:
         ingress_created = False
         try:
             print("Create ingress-mtls secret")
-            mtls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, mtls_sec_src)
+            mtls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, mtls_secret_src)
             print("Create tls secret")
             tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_sec_src)
             print("Create ingress-mtls policy")

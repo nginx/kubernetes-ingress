@@ -121,6 +121,26 @@ class TestAuthBasicSecrets:
         assert resp.status_code == 200
         assert f"Server name: backend2" in resp.text
 
+    def test_response_code_200_with_opaque_secret(
+        self, kube_apis, auth_basic_secrets_setup, test_namespace, auth_basic_secret
+    ):
+        req_url = f"http://{auth_basic_secrets_setup.public_endpoint.public_ip}:{auth_basic_secrets_setup.public_endpoint.port}/backend2"
+        # Secret type is immutable, so the typed Secret is replaced rather than patched.
+        delete_secret(kube_apis.v1, auth_basic_secret.secret_name, test_namespace)
+        create_secret_from_yaml(
+            kube_apis.v1, test_namespace, f"{TEST_DATA}/auth-basic-secrets/auth-basic-secret-opaque.yaml"
+        )
+        wait_before_test(1)
+        resp = requests.get(
+            req_url,
+            headers={
+                "host": auth_basic_secrets_setup.ingress_host,
+                "authorization": f"Basic {to_base64(auth_basic_secrets_setup.credentials)}",
+            },
+        )
+        assert resp.status_code == 200
+        assert f"Server name: backend2" in resp.text
+
     def test_response_codes_after_secret_remove_and_restore(
         self, kube_apis, auth_basic_secrets_setup, test_namespace, auth_basic_secret
     ):

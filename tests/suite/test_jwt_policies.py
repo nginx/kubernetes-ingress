@@ -8,6 +8,7 @@ from suite.utils.vs_vsr_resources_utils import delete_and_create_vs_from_yaml
 
 std_vs_src = f"{TEST_DATA}/virtual-server/standard/virtual-server.yaml"
 jwk_sec_valid_src = f"{TEST_DATA}/jwt-policy/secret/jwk-secret-valid.yaml"
+jwk_sec_valid_opaque_src = f"{TEST_DATA}/jwt-policy/secret/jwk-secret-valid-opaque.yaml"
 jwk_sec_invalid_src = f"{TEST_DATA}/jwt-policy/secret/jwk-secret-invalid.yaml"
 jwt_pol_valid_src = f"{TEST_DATA}/jwt-policy/policies/jwt-policy-valid.yaml"
 jwt_pol_multi_src = f"{TEST_DATA}/jwt-policy/policies/jwt-policy-valid-multi.yaml"
@@ -137,7 +138,7 @@ class TestJWTPolicies:
             assert resp2.status_code == 401
             assert f"Authorization Required" in resp2.text
 
-    @pytest.mark.parametrize("jwk_secret", [jwk_sec_valid_src, jwk_sec_invalid_src])
+    @pytest.mark.parametrize("jwk_secret", [jwk_sec_valid_src, jwk_sec_valid_opaque_src, jwk_sec_invalid_src])
     def test_jwt_policy_secret(
         self,
         kube_apis,
@@ -149,7 +150,7 @@ class TestJWTPolicies:
         """
         Test jwt-policy with a valid and an invalid secret
         """
-        if jwk_secret == jwk_sec_valid_src:
+        if jwk_secret in (jwk_sec_valid_src, jwk_sec_valid_opaque_src):
             pol = jwt_pol_valid_src
             vs = jwt_vs_single_src
         elif jwk_secret == jwk_sec_invalid_src:
@@ -194,7 +195,7 @@ class TestJWTPolicies:
             virtual_server_setup.namespace,
         )
 
-        if jwk_secret == jwk_sec_valid_src:
+        if jwk_secret in (jwk_sec_valid_src, jwk_sec_valid_opaque_src):
             assert resp.status_code == 200
             assert f"Request ID:" in resp.text
             assert crd_info["status"]["state"] == "Valid"

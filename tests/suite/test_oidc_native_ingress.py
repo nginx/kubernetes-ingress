@@ -229,8 +229,17 @@ def keycloak_ingress_setup(request, kube_apis, test_namespace, ingress_controlle
 )
 class TestOIDCNativeIngress:
 
-    @pytest.mark.parametrize("configmap", [cm_src, cm_zs_src])
-    @pytest.mark.parametrize("oidcYaml", ["standard", "pkce"])
+    @pytest.mark.parametrize(
+        "configmap, oidcYaml, secret_type",
+        [
+            (cm_src, "standard", None),
+            (cm_src, "pkce", None),
+            (cm_zs_src, "standard", None),
+            (cm_zs_src, "pkce", None),
+            # Same client-secret key and secret name, Opaque type.
+            (cm_src, "standard", "Opaque"),
+        ],
+    )
     def test_oidc_native_ingress(
         self,
         kube_apis,
@@ -240,6 +249,7 @@ class TestOIDCNativeIngress:
         keycloak_ingress_setup,
         configmap,
         oidcYaml,
+        secret_type,
     ):
         secret_name = None
         pol_name = None
@@ -271,6 +281,8 @@ class TestOIDCNativeIngress:
             with open(oidc_native_secret_src) as f:
                 secret_data = yaml.safe_load(f)
             secret_data["data"]["client-secret"] = keycloak_ingress_setup.secret
+            if secret_type is not None:
+                secret_data["type"] = secret_type
             secret_name = create_secret(kube_apis.v1, test_namespace, secret_data)
 
             policy_file = get_oidc_native_policy_file(oidcYaml)

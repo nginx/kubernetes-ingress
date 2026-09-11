@@ -45,6 +45,7 @@ ext_auth_pol_custom_port_src = f"{TEST_DATA}/external-auth/policies/external-aut
 ext_auth_tls_backend_src = f"{TEST_DATA}/external-auth/backend/external-auth-backend-tls.yaml"
 ext_auth_tls_server_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-server-tls-secret.yaml"
 ext_auth_tls_ca_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-ca-secret.yaml"
+ext_auth_tls_ca_secret_opaque_src = f"{TEST_DATA}/external-auth/backend/external-auth-ca-secret-opaque.yaml"
 ext_auth_tls_missing_ca_crt_src = f"{TEST_DATA}/external-auth/backend/missing-ca-crt-secret.yaml"
 
 # TLS policies
@@ -246,7 +247,7 @@ def teardown_ext_auth(kube_apis, namespace, secret_names, policy_names, *, tls=F
 def ext_auth_setup(request, kube_apis, test_namespace):
     """Parametrized fixture that deploys the external auth backend and policies.
 
-    ``request.param`` is a tuple: ``(policy_yamls[, tls[, validate_policies]])``.
+    ``request.param`` is a tuple: ``(policy_yamls[, tls[, validate_policies[, ca_secret_src]]])``.
 
     .. code-block:: python
 
@@ -264,10 +265,11 @@ def ext_auth_setup(request, kube_apis, test_namespace):
     policy_yamls = params[0]
     tls = params[1] if len(params) > 1 else False
     validate_policies = params[2] if len(params) > 2 else True
+    ca_secret_src = params[3] if len(params) > 3 else ext_auth_tls_ca_secret_src
 
     backend_yaml = ext_auth_tls_backend_src if tls else ext_auth_backend_src
     secret_yamls = (
-        [ext_auth_backend_secret_src, ext_auth_tls_server_secret_src, ext_auth_tls_ca_secret_src]
+        [ext_auth_backend_secret_src, ext_auth_tls_server_secret_src, ca_secret_src]
         if tls
         else [ext_auth_backend_secret_src]
     )

@@ -649,6 +649,58 @@ class TestTransportServerTcpLoadBalance:
         self.restore_ts(kube_apis, transport_server_setup)
         delete_items_from_yaml(kube_apis, src_sec_yaml, transport_server_setup.namespace)
 
+    def test_secure_tcp_request_with_opaque_secret(
+        self, kube_apis, crd_ingress_controller, transport_server_setup, ingress_controller_prerequisites
+    ):
+        """
+        Sends requests to a TLS enabled TCP service whose certificate is stored in an Opaque secret.
+
+        The secret carries the same tls.crt/tls.key keys and the same name as the kubernetes.io/tls
+        fixture, so the TransportServer resolves it unchanged.
+        """
+        src_sec_yaml = f"{TEST_DATA}/transport-server-tcp-load-balance/tcp-tls-secret-opaque.yaml"
+        create_secret_from_yaml(kube_apis.v1, transport_server_setup.namespace, src_sec_yaml)
+        patch_src = f"{TEST_DATA}/transport-server-tcp-load-balance/transport-server-tls.yaml"
+        patch_ts_from_yaml(
+            kube_apis.custom_objects,
+            transport_server_setup.name,
+            patch_src,
+            transport_server_setup.namespace,
+        )
+        wait_before_test()
+
+        result_conf = get_ts_nginx_template_conf(
+            kube_apis.v1,
+            transport_server_setup.namespace,
+            transport_server_setup.name,
+            transport_server_setup.ingress_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+
+        sec_name = get_secret_name_from_vs_or_ts_yaml(patch_src)
+        cert_name = f"{transport_server_setup.namespace}-{sec_name}"
+
+        assert f"listen 3333 ssl;" in result_conf
+        assert f"ssl_certificate /etc/nginx/secrets/{cert_name};" in result_conf
+        assert f"ssl_certificate_key /etc/nginx/secrets/{cert_name};" in result_conf
+
+        port = transport_server_setup.public_endpoint.tcp_server_port
+        host = transport_server_setup.public_endpoint.public_ip.strip("[]")
+        print(f"sending tcp requests to: {host}:{port}")
+
+        with socket.create_connection((host, port)) as sock:
+            ctx = ssl.SSLContext()
+            ctx.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1  # only secure TLSv1_2+ is allowed
+            ssock = ctx.wrap_socket(sock)
+            print(ssock.version())
+            ssock.sendall(b"connect")
+            response = ssock.recv(4096)
+            endpoint = response.decode()
+            print(f"Connected securely to: {endpoint}")
+
+        self.restore_ts(kube_apis, transport_server_setup)
+        delete_items_from_yaml(kube_apis, src_sec_yaml, transport_server_setup.namespace)
+
 
 @pytest.mark.ts
 @pytest.mark.skip_for_loadbalancer
