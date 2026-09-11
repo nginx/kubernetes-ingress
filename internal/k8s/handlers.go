@@ -7,7 +7,6 @@ import (
 
 	"github.com/jinzhu/copier"
 
-	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -60,10 +59,6 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 		AddFunc: func(obj interface{}) {
 			secret := obj.(*v1.Secret)
 			l := lbc.Logger.With(logNamespaceKey, secret.GetNamespace(), logKindKey, secretKind, logNameKey, secret.GetName())
-			if !secrets.IsSupportedSecretType(secret.Type) {
-				nl.Debugf(l, "Ignoring Secret %v of unsupported type %v", secret.Name, secret.Type)
-				return
-			}
 			nl.Debugf(l, "Adding Secret: %v", secret.Name)
 			lbc.AddSyncQueue(obj)
 		},
@@ -82,23 +77,16 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 				}
 			}
 			l := lbc.Logger.With(logNamespaceKey, secret.GetNamespace(), logKindKey, secretKind, logNameKey, secret.GetName())
-			if !secrets.IsSupportedSecretType(secret.Type) {
-				nl.Debugf(l, "Ignoring Secret %v of unsupported type %v", secret.Name, secret.Type)
-				return
-			}
 			nl.Debugf(l, "Removing Secret: %v", secret.Name)
 			lbc.AddSyncQueue(secret)
 		},
 		UpdateFunc: func(old, cur interface{}) {
-			// A secret cannot change its type. That's why we only need to check the type of the current secret.
+			// TO EDIT A secret cannot change its type. That's why we only need to check the type of the current secret.
+			oldSecret := old.(*v1.Secret)
 			curSecret := cur.(*v1.Secret)
 			l := lbc.Logger.With(logNamespaceKey, curSecret.GetNamespace(), logKindKey, secretKind, logNameKey, curSecret.GetName())
-			if !secrets.IsSupportedSecretType(curSecret.Type) {
-				nl.Debugf(l, "Ignoring Secret %v of unsupported type %v", curSecret.Name, curSecret.Type)
-				return
-			}
 
-			if !reflect.DeepEqual(old, cur) {
+			if !reflect.DeepEqual(oldSecret.Data, curSecret.Data) {
 				nl.Debugf(l, "Secret %v changed, syncing", cur.(*v1.Secret).Name)
 				lbc.AddSyncQueue(cur)
 			}

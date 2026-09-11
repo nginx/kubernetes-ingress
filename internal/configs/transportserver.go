@@ -5,8 +5,6 @@ import (
 	"sort"
 	"strings"
 
-	api_v1 "k8s.io/api/core/v1"
-
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -22,7 +20,7 @@ type TransportServerEx struct {
 	PodsByIP         map[string]string
 	ExternalNameSvcs map[string]bool
 	DisableIPV6      bool
-	SecretRefs       map[string]*secrets.SecretReference
+	SecretRefs       map[secrets.SecretRefKey]*secrets.SecretReference
 	IPv4             string
 	IPv6             string
 }
@@ -144,7 +142,7 @@ func generateUnixSocket(transportServerEx *TransportServerEx) string {
 	return ""
 }
 
-func generateSSLConfig(ts *conf_v1.TransportServer, tls *conf_v1.TransportServerTLS, namespace string, secretRefs map[string]*secrets.SecretReference) (*version2.StreamSSL, Warnings) {
+func generateSSLConfig(ts *conf_v1.TransportServer, tls *conf_v1.TransportServerTLS, namespace string, secretRefs map[secrets.SecretRefKey]*secrets.SecretReference) (*version2.StreamSSL, Warnings) {
 	if tls == nil {
 		return &version2.StreamSSL{Enabled: false}, nil
 	}
@@ -157,17 +155,9 @@ func generateSSLConfig(ts *conf_v1.TransportServer, tls *conf_v1.TransportServer
 	warnings := newWarnings()
 	sslEnabled := true
 
-	secretRef := secretRefs[fmt.Sprintf("%s/%s", namespace, tls.Secret)]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
+	secretRef := secretRefs[secrets.RefKey(fmt.Sprintf("%s/%s", namespace, tls.Secret), secrets.RoleTLS)]
 	name := secretRef.Path
-	if secretType != "" && secretType != api_v1.SecretTypeTLS {
-		errMsg := fmt.Sprintf("TLS secret %s is of a wrong type '%s', must be '%s'. SSL termination will not be enabled for this server.", tls.Secret, secretType, api_v1.SecretTypeTLS)
-		warnings.AddWarning(ts, errMsg)
-		sslEnabled = false
-	} else if secretRef.Error != nil {
+	if secretRef.Error != nil {
 		errMsg := fmt.Sprintf("TLS secret %s is invalid: %v. SSL termination will not be enabled for this server.", tls.Secret, secretRef.Error)
 		warnings.AddWarning(ts, errMsg)
 		sslEnabled = false

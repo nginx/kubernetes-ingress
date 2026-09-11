@@ -249,17 +249,17 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 		}
 	}
 
-	scrtRefs := make(map[string]*secrets.SecretReference)
+	scrtRefs := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 
 	if transportServer.Spec.TLS != nil && transportServer.Spec.TLS.Secret != "" {
 		scrtKey := transportServer.Namespace + "/" + transportServer.Spec.TLS.Secret
 
-		scrtRef := lbc.secretStore.GetSecret(scrtKey)
+		scrtRef := lbc.secretStore.GetSecret(scrtKey, secrets.RoleTLS)
 		if scrtRef.Error != nil {
 			nl.Warnf(logger, "Error trying to get the secret %v for TransportServer %v: %v", scrtKey, transportServer.Name, scrtRef.Error)
 		}
 
-		scrtRefs[scrtKey] = scrtRef
+		scrtRefs[secrets.RefKey(scrtKey, secrets.RoleTLS)] = scrtRef
 	}
 
 	return &configs.TransportServerEx{

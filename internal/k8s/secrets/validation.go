@@ -6,6 +6,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"regexp"
+	"strings"
+	"slices"
 
 	api_v1 "k8s.io/api/core/v1"
 )
@@ -16,11 +18,33 @@ const JWTKeyKey = "jwk"
 // CAKey is the key of the data field of a Secret where the certificate authority must be stored.
 const CAKey = "ca.crt"
 
+// CACrlKey is the key of the data field of a Secret where the certificate revocation list must be stored.
+const CACrlKey = "ca.crl"
+
 // ClientSecretKey is the key of the data field of a Secret where the OIDC client secret must be stored.
 const ClientSecretKey = "client-secret"
 
 // HtpasswdFileKey is the key of the data field of a Secret where the HTTP basic authorization list must be stored
 const HtpasswdFileKey = "htpasswd"
+
+// LicenseKey is the key of the data field of a Secret where the NGINX Plus license must be stored.
+const LicenseKey = "license.jwt"
+
+// BundleTokenKey is the key of the data field of a Secret where the WAF bundle API token (NGINX One Console)
+// or bearer token (NGINX Instance Manager) must be stored.
+const BundleTokenKey    = "token"
+
+// BundleUsernameKey is the key of the data field of a Secret where the WAF bundle basic auth username must be stored.
+const BundleUsernameKey = "username"
+
+// BundlePasswordKey is the key of the data field of a Secret where the WAF bundle basic auth password must be stored.
+const BundlePasswordKey = "password"
+
+// PLMS3SecretKey is the data key for the PLM S3 storage secret access key.
+const PLMS3SecretKey = "seaweedfs_admin_secret"
+
+// apiKeyClientIDDisallowedChars are the characters an API key client ID may not contain.
+const apiKeyClientIDDisallowedChars = ";{}$`\"'\\\n\r"
 
 // SecretTypeCA contains a certificate authority for TLS certificate verification. #nosec G101
 const SecretTypeCA api_v1.SecretType = "nginx.org/ca" //nolint:gosec // G101: Potential hardcoded credentials - false positive
@@ -43,10 +67,105 @@ const SecretTypeLicense api_v1.SecretType = "nginx.com/license" // #nosec G101
 // SecretTypeWAFBundle contains credentials for fetching WAF bundles from management planes (N1C, NIM). #nosec G101
 const SecretTypeWAFBundle api_v1.SecretType = "nginx.com/waf-bundle" // #nosec G101
 
+// SecretRole is what a Secret is used for at a particular reference site.
+// It is independent of api_v1.SecretType.
+type SecretRole string
+
+const (
+    RoleTLS       SecretRole = "tls"
+    RoleCA        SecretRole = "ca"
+    RoleJWK       SecretRole = "jwk"
+    RoleHtpasswd  SecretRole = "htpasswd"
+    RoleOIDC      SecretRole = "oidc"
+	RoleLicense   SecretRole = "license"
+    RoleAPIKey    SecretRole = "apikey"
+    RoleWAFBundle SecretRole = "wafbundle"
+)
+
+var allRoles = []SecretRole{
+	RoleTLS, RoleCA, RoleJWK, RoleHtpasswd,
+	RoleOIDC, RoleAPIKey, RoleLicense, RoleWAFBundle,
+}
+
+// RequiredKeys returns the data keys a Secret must carry to satisfy role.
+// RoleAPIKey returns nil — its keys are user-defined client IDs.
+// RoleWAFBundle returns nil — its keys are user-defined token or username+password.
+func RequiredKeys(role SecretRole) []string {
+	switch role {
+	case RoleTLS:
+		return []string{api_v1.TLSCertKey, api_v1.TLSPrivateKeyKey}
+	case RoleCA:
+		return []string{CAKey}
+	case RoleJWK:
+		return []string{JWTKeyKey}
+	case RoleHtpasswd:
+		return []string{HtpasswdFileKey}
+	case RoleOIDC:
+		return []string{ClientSecretKey}
+	case RoleLicense:
+		return []string{LicenseKey}
+	case RoleAPIKey, RoleWAFBundle:
+		return nil
+	}
+	return nil
+
+}
+
+// KnownKeys returns every key a role assigns meaning to, required or not. It
+// is a superset of RequiredKeys: RoleCA also reads the optional ca.crl, and
+// RoleWAFBundle accepts a token OR username+password plus an optional ca.crt, so
+// all four are known while none is individually required.
+func KnownKeys(role SecretRole) []string {
+	switch role {
+	case RoleCA:
+		return []string{CAKey, CACrlKey}
+	case RoleWAFBundle:
+		return []string{BundleTokenKey, BundleUsernameKey, BundlePasswordKey, CAKey}
+	case RoleAPIKey:
+		return nil
+	default:
+		return RequiredKeys(role)
+	}
+}
+
+// requireRoleKeys checks that each key is present in the Secret's data. Presence only,
+// deliberately not non-emptiness: five of the eight validators accept an empty
+// value today, and narrowing that would reject working-if-degraded deployments
+// on upgrade.
+func requiredRoleKeys(secret *api_v1.Secret, role SecretRole) error {
+	for _, key := range RequiredKeys(role) {
+		if _, exists := secret.Data[key]; !exists {
+			return fmt.Errorf("secret is missing required key %q", key)
+		}
+	}
+	return nil
+}
+
+// reservedKeys returns every data key that belongs to some other NGINX Ingress
+// Controller feature: the union of KnownKeys over every role except RoleAPIKey,
+// plus the well-known Kubernetes Secret keys.
+func reservedKeys() map[string]struct{} {
+	reserved := map[string]struct{}{
+		PLMS3SecretKey:                 {},
+		"namespace":                    {},
+		api_v1.DockerConfigKey:         {},
+		api_v1.DockerConfigJsonKey:     {},
+	}
+	for _, role := range allRoles {
+		if role == RoleAPIKey {
+			continue
+		}
+		for _, key := range KnownKeys(role) {
+			reserved[key] = struct{}{}
+		}
+	}
+	return reserved
+}
+
 // ValidateTLSSecret validates the secret. If it is valid, the function returns nil.
 func ValidateTLSSecret(secret *api_v1.Secret) error {
-	if secret.Type != api_v1.SecretTypeTLS {
-		return fmt.Errorf("TLS Secret must be of the type %v", api_v1.SecretTypeTLS)
+	if err := requiredRoleKeys(secret, RoleTLS); err != nil {
+		return err
 	}
 
 	// Kubernetes ensures that 'tls.crt' and 'tls.key' are present for secrets of api_v1.SecretTypeTLS type
@@ -61,29 +180,17 @@ func ValidateTLSSecret(secret *api_v1.Secret) error {
 
 // ValidateJWKSecret validates the secret. If it is valid, the function returns nil.
 func ValidateJWKSecret(secret *api_v1.Secret) error {
-	if secret.Type != SecretTypeJWK {
-		return fmt.Errorf("JWK secret must be of the type %v", SecretTypeJWK)
-	}
-
-	if _, exists := secret.Data[JWTKeyKey]; !exists {
-		return fmt.Errorf("JWK secret must have the data field %v", JWTKeyKey)
-	}
-
 	// we don't validate the contents of secret.Data[JWTKeyKey], because invalid contents will not make NGINX Plus
 	// fail to reload: NGINX Plus will return 500 responses for the affected URLs.
-
-	return nil
+	return requiredRoleKeys(secret, RoleJWK)
 }
 
 // ValidateCASecret validates the secret. If it is valid, the function returns nil.
 func ValidateCASecret(secret *api_v1.Secret) error {
-	if secret.Type != SecretTypeCA {
-		return fmt.Errorf("CA secret must be of the type %v", SecretTypeCA)
+	if err := requiredRoleKeys(secret, RoleCA); err != nil {
+		return err
 	}
 
-	if _, exists := secret.Data[CAKey]; !exists {
-		return fmt.Errorf("CA secret must have the data field %v", CAKey)
-	}
 
 	block, _ := pem.Decode(secret.Data[CAKey])
 	if block == nil {
@@ -103,15 +210,12 @@ func ValidateCASecret(secret *api_v1.Secret) error {
 
 // ValidateOIDCSecret validates the secret. If it is valid, the function returns nil.
 func ValidateOIDCSecret(secret *api_v1.Secret) error {
-	if secret.Type != SecretTypeOIDC {
-		return fmt.Errorf("OIDC secret must be of the type %v", SecretTypeOIDC)
+	err := requiredRoleKeys(secret, RoleOIDC)
+	if err != nil {
+		return err
 	}
 
-	clientSecret, exists := secret.Data[ClientSecretKey]
-	if !exists {
-		return fmt.Errorf("OIDC secret must have the data field %v", ClientSecretKey)
-	}
-
+	clientSecret := secret.Data[ClientSecretKey]
 	if msg, ok := isValidClientSecretValue(string(clientSecret)); !ok {
 		return fmt.Errorf("OIDC client secret is invalid: %s", msg)
 	}
@@ -120,61 +224,72 @@ func ValidateOIDCSecret(secret *api_v1.Secret) error {
 
 // ValidateAPIKeySecret validates the secret. If it is valid, the function returns nil.
 func ValidateAPIKeySecret(secret *api_v1.Secret) error {
-	if secret.Type != SecretTypeAPIKey {
-		return fmt.Errorf("APIKey secret must be of the type %v", SecretTypeAPIKey)
+	if err := requiredRoleKeys(secret, RoleAPIKey); err != nil {
+		return err
 	}
-
+	if err := rejectReservedAPIKeyClientIDs(secret); err != nil {
+		return err
+	}
 	uniqueKeys := make(map[string]bool)
-	for _, key := range secret.Data {
-		if uniqueKeys[string(key)] {
+	for clientID, apiKey := range secret.Data {
+		if strings.ContainsAny(clientID, apiKeyClientIDDisallowedChars) {
+			return fmt.Errorf("secret has an API key client ID %q containing characters "+
+				"that are not permitted in NGINX configuration",
+				clientID)
+		}
+		if uniqueKeys[string(apiKey)] {
 			return fmt.Errorf("API Keys cannot be repeated")
 		}
-		uniqueKeys[string(key)] = true
+		uniqueKeys[string(apiKey)] = true
 	}
 
 	return nil
+}
+
+// rejectReservedAPIKeyClientIDs rejects a Secret whose keys are all reserved by
+// another feature, when it carries two or more of them.
+func rejectReservedAPIKeyClientIDs(secret *api_v1.Secret) error {
+	if len(secret.Data) < 2 {
+		return nil
+	}
+	clientIDs := make([]string, 0, len(secret.Data))
+
+	reserved := reservedKeys()
+	for key := range secret.Data {
+		if _, isReserved := reserved[key]; !isReserved {
+			return nil
+		}
+		clientIDs = append(clientIDs, key)
+	}
+	slices.Sort(clientIDs)
+
+	return fmt.Errorf("secret cannot be used for API key authentication: "+
+		"every data key (%s) is reserved by another NGINX Ingress Controller feature",
+		strings.Join(clientIDs, ", "))
 }
 
 // ValidateHtpasswdSecret validates the secret. If it is valid, the function returns nil.
 func ValidateHtpasswdSecret(secret *api_v1.Secret) error {
-	if secret.Type != SecretTypeHtpasswd {
-		return fmt.Errorf("htpasswd secret must be of the type %v", SecretTypeHtpasswd)
-	}
-
-	if _, exists := secret.Data[HtpasswdFileKey]; !exists {
-		return fmt.Errorf("htpasswd secret must have the data field %v", HtpasswdFileKey)
-	}
-
 	// we don't validate the contents of secret.Data[HtpasswdFileKey], because invalid contents will not make NGINX
 	// fail to reload: NGINX will return 403 responses for the affected URLs.
-
-	return nil
+	return requiredRoleKeys(secret, RoleHtpasswd)
 }
 
 // ValidateLicenseSecret validates the secret. If it is valid, the function returns nil.
 func ValidateLicenseSecret(secret *api_v1.Secret) error {
-	if secret.Type != SecretTypeLicense {
-		return fmt.Errorf("license secret must be of the type %v", SecretTypeLicense)
-	}
-
-	if _, exists := secret.Data["license.jwt"]; !exists {
-		return fmt.Errorf("license secret must have the data field %v", "license.jwt")
-	}
-
-	return nil
+	return requiredRoleKeys(secret, RoleLicense)
 }
 
 // ValidateWAFBundleSecret validates a WAF bundle credentials secret.
-// The secret must be of type nginx.com/waf-bundle and contain a 'token' field
-// (API token for N1C, bearer token for NIM) or 'username'+'password' (basic auth for NIM).
+// The secret must contain a 'token' field (API token for N1C, bearer
+// token for NIM) or 'username'+'password' (basic auth for NIM).
 func ValidateWAFBundleSecret(secret *api_v1.Secret) error {
-	if secret.Type != SecretTypeWAFBundle {
-		return fmt.Errorf("WAF bundle secret must be of the type %v", SecretTypeWAFBundle)
+	if err := requiredRoleKeys(secret, RoleWAFBundle); err != nil {
+		return err
 	}
-
-	_, hasToken := secret.Data["token"]
-	_, hasUsername := secret.Data["username"]
-	_, hasPassword := secret.Data["password"]
+	_, hasToken := secret.Data[BundleTokenKey]
+	_, hasUsername := secret.Data[BundleUsernameKey]
+	_, hasPassword := secret.Data[BundlePasswordKey]
 
 	if !hasToken && !hasUsername {
 		return fmt.Errorf("WAF bundle secret must contain 'token' or 'username'+'password'")
@@ -186,40 +301,27 @@ func ValidateWAFBundleSecret(secret *api_v1.Secret) error {
 	return nil
 }
 
-// IsSupportedSecretType checks if the secret type is supported.
-func IsSupportedSecretType(secretType api_v1.SecretType) bool {
-	return secretType == api_v1.SecretTypeTLS ||
-		secretType == SecretTypeCA ||
-		secretType == SecretTypeJWK ||
-		secretType == SecretTypeOIDC ||
-		secretType == SecretTypeHtpasswd ||
-		secretType == SecretTypeAPIKey ||
-		secretType == SecretTypeLicense ||
-		secretType == SecretTypeWAFBundle
-}
-
-// ValidateSecret validates the secret. If it is valid, the function returns nil.
-func ValidateSecret(secret *api_v1.Secret) error {
-	switch secret.Type {
-	case api_v1.SecretTypeTLS:
+// ValidateSecretForRole replaces the type-dispatching ValidateSecret.
+func ValidateSecretForRole(secret *api_v1.Secret, role SecretRole) error {
+	switch role {
+	case RoleTLS:
 		return ValidateTLSSecret(secret)
-	case SecretTypeJWK:
-		return ValidateJWKSecret(secret)
-	case SecretTypeCA:
+	case RoleCA:
 		return ValidateCASecret(secret)
-	case SecretTypeOIDC:
-		return ValidateOIDCSecret(secret)
-	case SecretTypeHtpasswd:
+	case RoleJWK:
+		return ValidateJWKSecret(secret)
+	case RoleHtpasswd:
 		return ValidateHtpasswdSecret(secret)
-	case SecretTypeAPIKey:
-		return ValidateAPIKeySecret(secret)
-	case SecretTypeLicense:
+	case RoleOIDC:
+		return ValidateOIDCSecret(secret)
+	case RoleLicense:
 		return ValidateLicenseSecret(secret)
-	case SecretTypeWAFBundle:
+	case RoleAPIKey:
+		return ValidateAPIKeySecret(secret)
+	case RoleWAFBundle:
 		return ValidateWAFBundleSecret(secret)
 	}
-
-	return fmt.Errorf("secret is of the unsupported type %v", secret.Type)
+	return fmt.Errorf("unknown secret role %q", role)
 }
 
 var clientSecretValueFmtRegexp = regexp.MustCompile(`^([^"$\\\s]|\\[^$])*$`)

@@ -45,6 +45,14 @@ const (
 	// causing all resources to fail, and continuing would waste O(N) reloads.
 
 	sharedInputFailureThreshold = 2
+
+	// Secret file name prefixes, one per role that produces a file on disk.
+	tlsKeyPairFilePrefix   = "ssl_keypair_"
+	caCertBundleFilePrefix = "cert_bundle_"
+	caCRLBundleFilePrefix  = "crl_bundle_"
+	jwtKeyFilePrefix       = "jwt_key_"
+	basicAuthFilePrefix    = "basic_auth_"
+
 )
 
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
@@ -497,16 +505,6 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	cnf.updateDosResource(ingEx.DosEx)
 	dosResource := getAppProtectDosResource(ingEx.DosEx)
 
-	// LocalSecretStore will not set Path if the secret is not on the filesystem.
-	// However, NGINX configuration for an Ingress resource, to handle the case of a missing secret,
-	// relies on the path to be always configured.
-	if jwtKey, exists := ingEx.Ingress.Annotations[JWTKeyAnnotation]; exists {
-		ingEx.SecretRefs[jwtKey].Path = cnf.nginxManager.GetFilenameForSecret(ingEx.Ingress.Namespace + "-" + jwtKey)
-	}
-	if basicAuth, exists := ingEx.Ingress.Annotations[BasicAuthSecretAnnotation]; exists {
-		ingEx.SecretRefs[basicAuth].Path = cnf.nginxManager.GetFilenameForSecret(ingEx.Ingress.Namespace + "-" + basicAuth)
-	}
-
 	isMinion := false
 	nginxCfg, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:              cnf.staticCfgParams,
@@ -571,24 +569,6 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	apResources := cnf.updateApResourcesForMergeableIngresses(mergeableIngs)
 	cnf.updateDosResource(mergeableIngs.Master.DosEx)
 	dosResource := getAppProtectDosResource(mergeableIngs.Master.DosEx)
-
-	// LocalSecretStore will not set Path if the secret is not on the filesystem.
-	// However, NGINX configuration for an Ingress resource, to handle the case of a missing secret,
-	// relies on the path to be always configured.
-	if jwtKey, exists := mergeableIngs.Master.Ingress.Annotations[JWTKeyAnnotation]; exists {
-		mergeableIngs.Master.SecretRefs[jwtKey].Path = cnf.nginxManager.GetFilenameForSecret(mergeableIngs.Master.Ingress.Namespace + "-" + jwtKey)
-	}
-	if basicAuth, exists := mergeableIngs.Master.Ingress.Annotations[BasicAuthSecretAnnotation]; exists {
-		mergeableIngs.Master.SecretRefs[basicAuth].Path = cnf.nginxManager.GetFilenameForSecret(mergeableIngs.Master.Ingress.Namespace + "-" + basicAuth)
-	}
-	for _, minion := range mergeableIngs.Minions {
-		if jwtKey, exists := minion.Ingress.Annotations[JWTKeyAnnotation]; exists {
-			minion.SecretRefs[jwtKey].Path = cnf.nginxManager.GetFilenameForSecret(minion.Ingress.Namespace + "-" + jwtKey)
-		}
-		if basicAuth, exists := minion.Ingress.Annotations[BasicAuthSecretAnnotation]; exists {
-			minion.SecretRefs[basicAuth].Path = cnf.nginxManager.GetFilenameForSecret(minion.Ingress.Namespace + "-" + basicAuth)
-		}
-	}
 
 	nginxCfg, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
 		mergeableIngs:             mergeableIngs,
@@ -989,6 +969,30 @@ func (cnf *Configurator) AddOrUpdateCASecret(secret *api_v1.Secret, crtFileName,
 	crtFilePath := cnf.nginxManager.CreateSecret(crtFileName, crtData, nginx.ReadWriteOnlyFileMode)
 	crlFilePath := cnf.nginxManager.CreateSecret(crlFileName, crlData, nginx.ReadWriteOnlyFileMode)
 	return fmt.Sprintf("%s %s", crtFilePath, crlFilePath)
+}
+
+// addOrUpdateCASecretForRole writes a RoleCA Secret under its role-derived file names
+func (cnf *Configurator) addOrUpdateCASecretForRole(secret *api_v1.Secret, key string) secrets.Materialised {
+	crtData, crlData := GenerateCAFileContent(secret)
+
+	m := secrets.Materialised{Path: cnf.nginxManager.CreateSecret(
+		secretFileName(key,secrets.RoleCA,),
+		crtData,
+		nginx.ReadWriteOnlyFileMode,
+	)}
+
+	crlFileName := secretCRLFileName(key)
+	if _, hasCRL := secret.Data[secrets.CACrlKey]; hasCRL {
+		m.CRLPath = cnf.nginxManager.CreateSecret(
+			crlFileName,
+			crlData,
+			nginx.ReadWriteOnlyFileMode,
+		)
+	} else {
+		cnf.nginxManager.DeleteSecret(crlFileName)
+	}
+
+	return m
 }
 
 func (cnf *Configurator) addOrUpdateJWKSecret(secret *api_v1.Secret) string {
@@ -2579,34 +2583,93 @@ func (cnf *Configurator) DeleteAppProtectDosAllowList(obj *v1beta1.DosProtectedR
 	cnf.nginxManager.DeleteAppProtectResourceFile(appProtectDosAllowListFileName(obj.Namespace, obj.Name))
 }
 
-// AddOrUpdateSecret adds or updates a secret.
-func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret) string {
-	switch secret.Type {
-	case secrets.SecretTypeCA:
-		name := objectMetaToFileName(&secret.ObjectMeta)
-		crtSecretName := fmt.Sprintf("%s-%s", name, CACrtKey)
-		crlSecretName := fmt.Sprintf("%s-%s", name, CACrlKey)
-		return cnf.AddOrUpdateCASecret(secret, crtSecretName, crlSecretName)
-	case secrets.SecretTypeJWK:
-		return cnf.addOrUpdateJWKSecret(secret)
-	case secrets.SecretTypeHtpasswd:
-		return cnf.addOrUpdateHtpasswdSecret(secret)
-	case secrets.SecretTypeOIDC:
-		// OIDC ClientSecret is not required on the filesystem, it is written directly to the config file.
-		return ""
-	case secrets.SecretTypeAPIKey:
-		// APIKey ClientSecret is not required on the filesystem, it is written directly to the config file.
-		return ""
-	case secrets.SecretTypeLicense:
-		return ""
-	default:
-		return cnf.addOrUpdateTLSSecret(secret)
+// AddOrUpdateSecret writes a Secret to disk for the given role and returns the resulting paths.
+func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.SecretRole) secrets.Materialised {
+	key := generateNamespaceNameKey(&secret.ObjectMeta)
+
+	switch role {
+	case secrets.RoleTLS:
+		return secrets.Materialised{
+			Path: cnf.nginxManager.CreateSecret(
+				secretFileName(key, role),
+				GenerateCertAndKeyFileContent(secret),
+				nginx.ReadWriteOnlyFileMode,
+			),
+		}
+
+	case secrets.RoleCA:
+		return cnf.addOrUpdateCASecretForRole(secret, key)
+
+	case secrets.RoleJWK:
+		return secrets.Materialised{
+			Path: cnf.nginxManager.CreateSecret(
+				secretFileName(key, role),
+				secret.Data[secrets.JWTKeyKey],
+				nginx.JWKSecretFileMode,
+			),
+		}
+	case secrets.RoleHtpasswd:
+		return secrets.Materialised{
+			Path: cnf.nginxManager.CreateSecret(
+				secretFileName(key, role),
+				secret.Data[secrets.HtpasswdFileKey],
+				nginx.HtpasswdSecretFileMode,
+			),
+		}
+	}
+	return secrets.Materialised{}
+}
+
+// DeleteSecret removes the files a Secret occupies for the given role.
+func (cnf *Configurator) DeleteSecret(key string, role secrets.SecretRole) {
+	name := secretFileName(key, role)
+	if name == "" {
+		return
+	}
+	cnf.nginxManager.DeleteSecret(name)
+
+	if role == secrets.RoleCA {
+		cnf.nginxManager.DeleteSecret(secretCRLFileName(key))
 	}
 }
 
-// DeleteSecret deletes a secret.
-func (cnf *Configurator) DeleteSecret(key string) {
-	cnf.nginxManager.DeleteSecret(keyToFileName(key))
+// SecretPaths returns the paths a Secret would occupy for role, without touching
+// the file system.
+func (cnf *Configurator) SecretPaths(key string, role secrets.SecretRole) secrets.Materialised {
+	name := secretFileName(key, role)
+	if name == "" {
+		return secrets.Materialised{}
+	}
+	return secrets.Materialised{Path: cnf.nginxManager.GetFilenameForSecret(name)}
+}
+
+// secretFileName returns the file name a Secret identified by key
+// ("<namespace>/<name>") occupies for role, or "" for roles that produce no file.
+func secretFileName(key string, role secrets.SecretRole) string {
+	name := strings.ReplaceAll(key, "/", "_")
+
+	switch role {
+	case secrets.RoleTLS:
+		return tlsKeyPairFilePrefix + name + ".pem"
+	case secrets.RoleCA:
+		return caCertBundleFilePrefix + name + ".crt"
+	case secrets.RoleJWK:
+		return jwtKeyFilePrefix + name
+	case secrets.RoleHtpasswd:
+		return basicAuthFilePrefix + name
+	default:
+		// OIDC and API key data is inlined into the generated configuration,
+		// WAF bundle credentials are read from the Secret at fetch time, and the
+		// license is written to a fixed path by AddOrUpdateLicenseSecret.
+		return ""
+	}
+}
+
+// secretCRLFileName returns the certificate revocation list file name for a
+// RoleCA Secret. Separate from secretFileName because RoleCA is the only role
+// that produces two files.
+func secretCRLFileName(key string) string {
+	return caCRLBundleFilePrefix + strings.ReplaceAll(key, "/", "_") + ".pem"
 }
 
 // DynamicSSLReloadEnabled is used to check if dynamic reloading of SSL certificates is enabled
