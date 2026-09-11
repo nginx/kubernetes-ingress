@@ -70,7 +70,7 @@ repos:
       - id: pyupgrade
 
   - repo: https://github.com/PyCQA/isort
-    rev: 9.0.0
+    rev: 9.0.1
     hooks:
       - id: isort
 
