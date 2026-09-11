@@ -41,6 +41,7 @@ type testNginxManager struct {
 	FailCreateForName  string
 	FailCreateOnCall   int
 	CreateCalls        int
+	KeyValUpdates      []configs.WeightUpdate
 }
 
 func newTestNginxManager() *testNginxManager {
@@ -56,6 +57,13 @@ func (m *testNginxManager) CreateConfig(name string, content []byte) (bool, erro
 	}
 
 	return m.FakeManager.CreateConfig(name, content)
+}
+
+// UpsertSplitClientsKeyVal records the keyval writes the weight-change fast
+// lane makes, so tests can assert on them without a real NGINX process.
+func (m *testNginxManager) UpsertSplitClientsKeyVal(zoneName, key, value string) {
+	m.KeyValUpdates = append(m.KeyValUpdates, configs.WeightUpdate{Zone: zoneName, Key: key, Value: value})
+	m.FakeManager.UpsertSplitClientsKeyVal(zoneName, key, value)
 }
 
 // fakeStore wraps FakeCustomStore to satisfy the cache.Store interface, which gained
