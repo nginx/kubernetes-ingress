@@ -9,7 +9,9 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_ingress,
     delete_ingress_controller,
+    generate_e2e_run_id,
     get_default_server_conf,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -50,8 +52,9 @@ class TestEmptyHostIngressReload:
         ingress_controller,
         test_namespace,
     ):
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        e2e_run_id = generate_e2e_run_id()
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         wait_and_assert_status_code(
             404,
             f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/",
@@ -73,7 +76,11 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
 
         print("Step 1: create a working empty-host ingress that owns _default-server.conf")
@@ -122,7 +129,11 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
@@ -177,7 +188,11 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         http_request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
         print("Step 1: create a working named-host ingress")
@@ -247,7 +262,11 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
 
         print("Step 1: create a working empty-host ingress")
@@ -312,8 +331,9 @@ class TestEmptyHostIngressStartupProtection:
         expect_rollback,
     ):
         print("Step 1: create the backend and an empty-host ingress that will fail during initial apply")
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        e2e_run_id = generate_e2e_run_id()
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         # This ingress exists before NIC starts. It will be accepted from the API perspective,
         # but its generated NGINX config will fail validation during initial apply.
         ingress_name = create_ingress_from_yaml(
@@ -340,6 +360,7 @@ class TestEmptyHostIngressStartupProtection:
             cli_arguments,
             ingress_controller_prerequisites.namespace,
             extra_args,
+            e2e_run_id=e2e_run_id,
         )
 
         def fin():
@@ -367,7 +388,11 @@ class TestEmptyHostIngressStartupProtection:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 

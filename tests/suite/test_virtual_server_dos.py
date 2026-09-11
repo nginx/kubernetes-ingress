@@ -24,6 +24,8 @@ from suite.utils.resources_utils import (
     create_example_app,
     delete_common_app,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_file_contents,
     get_vs_nginx_template_conf,
     nginx_reload,
@@ -57,14 +59,15 @@ class VirtualServerSetupDos:
 @pytest.fixture(scope="class")
 def virtual_server_setup_dos(request, kube_apis, ingress_controller_endpoint, test_namespace) -> VirtualServerSetupDos:
     print("------------------------- Deploy Virtual Server Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     vs_source = f"{TEST_DATA}/virtual-server-dos/virtual-server.yaml"
     vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
     vs_host = get_first_host_from_yaml(vs_source)
     vs_paths = get_paths_from_vs_yaml(vs_source)
     vs_paths[0] += f"good_path.html"
     if request.param["app_type"]:
-        create_example_app(kube_apis, request.param["app_type"], test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, request.param["app_type"], test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

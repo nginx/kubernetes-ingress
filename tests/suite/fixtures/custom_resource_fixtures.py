@@ -15,6 +15,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_namespace,
     delete_service,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_first_pod_name,
     wait_until_all_pods_are_ready,
 )
@@ -101,13 +103,14 @@ def virtual_server_setup(request, kube_apis, ingress_controller_endpoint, test_n
     :return: VirtualServerSetup
     """
     print("------------------------- Deploy Virtual Server Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     vs_source = f"{TEST_DATA}/{request.param['example']}/standard/virtual-server.yaml"
     vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
     vs_host = get_first_host_from_yaml(vs_source)
     vs_paths = get_paths_from_vs_yaml(vs_source)
     if request.param.get("app_type"):
-        create_example_app(kube_apis, request.param["app_type"], test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, request.param["app_type"], test_namespace, e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -157,6 +160,7 @@ def transport_server_setup(
     :return: TransportServerSetup
     """
     print("------------------------- Deploy Transport Server Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
 
     # deploy global config
     global_config_file = f"{TEST_DATA}/{request.param['example']}/standard/global-configuration.yaml"
@@ -164,13 +168,13 @@ def transport_server_setup(
 
     # deploy service_file
     service_file = f"{TEST_DATA}/{request.param['example']}/standard/service_deployment.yaml"
-    create_items_from_yaml(kube_apis, service_file, test_namespace)
+    create_items_from_yaml(kube_apis, service_file, test_namespace, e2e_run_id)
 
     # deploy transport server
     transport_server_file = f"{TEST_DATA}/{request.param['example']}/standard/transport-server.yaml"
     ts_resource = create_ts_from_yaml(kube_apis.custom_objects, transport_server_file, test_namespace)
 
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -181,7 +185,11 @@ def transport_server_setup(
 
     request.addfinalizer(fin)
 
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
     ic_namespace = ingress_controller_prerequisites.namespace
 
     metrics_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
@@ -210,16 +218,24 @@ def v_s_route_app_setup(request, kube_apis, v_s_route_setup) -> None:
     :return:
     """
     print("---------------------- Deploy a VS Route Example Application ----------------------------")
+    e2e_run_id = generate_e2e_run_id()
     svc_one = create_service_with_name(kube_apis.v1, v_s_route_setup.route_m.namespace, "backend1-svc")
     svc_three = create_service_with_name(kube_apis.v1, v_s_route_setup.route_m.namespace, "backend3-svc")
-    deployment_one = create_deployment_with_name(kube_apis.apps_v1_api, v_s_route_setup.route_m.namespace, "backend1")
-    deployment_three = create_deployment_with_name(kube_apis.apps_v1_api, v_s_route_setup.route_m.namespace, "backend3")
+    deployment_one = create_deployment_with_name(
+        kube_apis.apps_v1_api, v_s_route_setup.route_m.namespace, "backend1", e2e_run_id
+    )
+    deployment_three = create_deployment_with_name(
+        kube_apis.apps_v1_api, v_s_route_setup.route_m.namespace, "backend3", e2e_run_id
+    )
 
     svc_two = create_service_with_name(kube_apis.v1, v_s_route_setup.route_s.namespace, "backend2-svc")
-    deployment_two = create_deployment_with_name(kube_apis.apps_v1_api, v_s_route_setup.route_s.namespace, "backend2")
+    deployment_two = create_deployment_with_name(
+        kube_apis.apps_v1_api, v_s_route_setup.route_s.namespace, "backend2", e2e_run_id
+    )
 
-    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_setup.route_m.namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_setup.route_s.namespace)
+    selector = get_e2e_run_selector(e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_setup.route_m.namespace, selector)
+    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_setup.route_s.namespace, selector)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -247,22 +263,24 @@ def v_s_route_selector_app_setup(request, kube_apis, v_s_route_selector_setup) -
     :return:
     """
     print("---------------------- Deploy a VS Route Example Application ----------------------------")
+    e2e_run_id = generate_e2e_run_id()
     svc_one = create_service_with_name(kube_apis.v1, v_s_route_selector_setup.route_m.namespace, "backend1-svc")
     svc_three = create_service_with_name(kube_apis.v1, v_s_route_selector_setup.route_m.namespace, "backend3-svc")
     deployment_one = create_deployment_with_name(
-        kube_apis.apps_v1_api, v_s_route_selector_setup.route_m.namespace, "backend1"
+        kube_apis.apps_v1_api, v_s_route_selector_setup.route_m.namespace, "backend1", e2e_run_id
     )
     deployment_three = create_deployment_with_name(
-        kube_apis.apps_v1_api, v_s_route_selector_setup.route_m.namespace, "backend3"
+        kube_apis.apps_v1_api, v_s_route_selector_setup.route_m.namespace, "backend3", e2e_run_id
     )
 
     svc_two = create_service_with_name(kube_apis.v1, v_s_route_selector_setup.route_s.namespace, "backend2-svc")
     deployment_two = create_deployment_with_name(
-        kube_apis.apps_v1_api, v_s_route_selector_setup.route_s.namespace, "backend2"
+        kube_apis.apps_v1_api, v_s_route_selector_setup.route_s.namespace, "backend2", e2e_run_id
     )
 
-    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_selector_setup.route_m.namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_selector_setup.route_s.namespace)
+    selector = get_e2e_run_selector(e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_selector_setup.route_m.namespace, selector)
+    wait_until_all_pods_are_ready(kube_apis.v1, v_s_route_selector_setup.route_s.namespace, selector)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

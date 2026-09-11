@@ -15,6 +15,7 @@ from suite.utils.resources_utils import (
     create_secret,
     delete_namespace,
     delete_secret,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
@@ -204,7 +205,11 @@ def scenario_response(endpoint, host, path="/", https=True):
 
 
 def vs_conf(kube_apis, ingress_controller_prerequisites, namespace, vs_name):
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
     return get_vs_nginx_template_conf(
         kube_apis.v1, namespace, vs_name, ic_pod_name, ingress_controller_prerequisites.namespace
     )

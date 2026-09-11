@@ -10,6 +10,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    get_e2e_run_selector,
     retry_get_until_status_code,
     wait_until_all_pods_are_ready,
 )
@@ -46,14 +47,15 @@ class TestIngressMTLSMergeableIngress:
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        e2e_run_id,
     ):
         """Validates that an IngressMTLS policy on a mergeable master Ingress enforces client certificate authentication across all merged paths."""
 
         ingress_host = get_first_ingress_host_from_yaml(mergeable_master_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         mtls_secret_name = ""
         tls_secret_name = ""
@@ -137,14 +139,15 @@ class TestIngressMTLSMergeableIngress:
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        e2e_run_id,
     ):
         """Validates that an IngressMTLS policy on a minion Ingress is rejected with HTTP 500 and must be attached to the master Ingress only."""
 
         ingress_host = get_first_ingress_host_from_yaml(mergeable_minion_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         mtls_secret_name = ""
         tls_secret_name = ""

@@ -23,6 +23,7 @@ from suite.utils.policy_resources_utils import (
 from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_response_from_backend,
+    get_e2e_run_selector,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -287,6 +288,7 @@ class TestExternalAuthPolicies:
         test_namespace,
         ext_auth_setup,
         ext_auth_restore_vs,
+        e2e_run_id,
     ):
         """
         Test that the VirtualServer recovers after external auth backend endpoints
@@ -324,7 +326,7 @@ class TestExternalAuthPolicies:
         # Phase 3: scale back to 1 -- endpoints recover -> 200
         print("Scale external-auth deployment back to 1")
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "external-auth", test_namespace, 1)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         # Poll until the full auth path (backend + auth subrequest) returns 200,
         # giving NGINX time to pick up the recovered endpoints and reload.
         resp3 = None

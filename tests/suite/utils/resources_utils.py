@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+import uuid
 from unittest import mock
 
 import pytest
@@ -27,6 +28,27 @@ from kubernetes.stream import stream
 from more_itertools import first
 from settings import DEPLOYMENTS, NGX_REG, PROJECT_ROOT, RECONFIGURATION_DELAY, TEST_DATA, WAF_V5_VERSION
 from suite.utils.ssl_utils import create_sni_session
+
+E2E_RUN_ID_LABEL = "e2e.nginx.org/run-id"
+
+
+def generate_e2e_run_id() -> str:
+    """Generate a Kubernetes-label-safe identifier for one e2e test invocation."""
+    return uuid.uuid4().hex
+
+
+def get_e2e_run_selector(e2e_run_id: str) -> str:
+    """Return the pod label selector for an e2e run."""
+    return f"{E2E_RUN_ID_LABEL}={e2e_run_id}"
+
+
+def add_e2e_run_id_to_workload(workload: dict, e2e_run_id: str) -> None:
+    """Add an e2e run ID only to a workload's pod template."""
+    if workload["kind"] not in {"Deployment", "DaemonSet", "StatefulSet"}:
+        raise ValueError(f"Unsupported workload kind: {workload['kind']}")
+
+    labels = workload["spec"]["template"].setdefault("metadata", {}).setdefault("labels", {})
+    labels[E2E_RUN_ID_LABEL] = e2e_run_id
 
 
 class RBACAuthorization:
@@ -155,7 +177,7 @@ def cleanup_rbac(rbac_v1: RbacAuthorizationV1Api, rbac: RBACAuthorization) -> No
     rbac_v1.delete_cluster_role(rbac.role)
 
 
-def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest) -> str:
+def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest, e2e_run_id=None) -> str:
     """
     Create a deployment based on yaml file.
 
@@ -167,7 +189,7 @@ def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest
     print(f"Load {yaml_manifest}")
     with open(yaml_manifest) as f:
         dep = yaml.safe_load(f)
-    return create_deployment(apps_v1_api, namespace, dep)
+    return create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
 
 def patch_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest) -> str:
@@ -200,7 +222,7 @@ def patch_deployment(apps_v1_api: AppsV1Api, namespace, body) -> str:
     return body["metadata"]["name"]
 
 
-def create_deployment(apps_v1_api: AppsV1Api, namespace, body) -> str:
+def create_deployment(apps_v1_api: AppsV1Api, namespace, body, e2e_run_id=None) -> str:
     """
     Create a deployment based on a dict.
 
@@ -209,13 +231,15 @@ def create_deployment(apps_v1_api: AppsV1Api, namespace, body) -> str:
     :param body: dict
     :return: str
     """
+    if e2e_run_id:
+        add_e2e_run_id_to_workload(body, e2e_run_id)
     print("Create a deployment:")
     apps_v1_api.create_namespaced_deployment(namespace, body)
     print(f"Deployment created with name '{body['metadata']['name']}'")
     return body["metadata"]["name"]
 
 
-def create_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name) -> str:
+def create_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name, e2e_run_id=None) -> str:
     """
     Create a deployment with a specific name based on common yaml file.
 
@@ -231,7 +255,7 @@ def create_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name) -> str:
         dep["spec"]["selector"]["matchLabels"]["app"] = name
         dep["spec"]["template"]["metadata"]["labels"]["app"] = name
         dep["spec"]["template"]["spec"]["containers"][0]["name"] = name
-        return create_deployment(apps_v1_api, namespace, dep)
+        return create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
 
 def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, value) -> int:
@@ -244,6 +268,9 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     :param value: int
     :return: original: int the original amount of replicas
     """
+    deployment = apps_v1_api.read_namespaced_deployment(name, namespace)
+    e2e_run_id = deployment.spec.template.metadata.labels[E2E_RUN_ID_LABEL]
+    selector = get_e2e_run_selector(e2e_run_id)
     body = apps_v1_api.read_namespaced_deployment_scale(name, namespace)
     original = body.spec.replicas
     print(f"Original number of replicas is {original}")
@@ -252,7 +279,7 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     apps_v1_api.patch_namespaced_deployment_scale(name, namespace, body)
     if value != 0:
         now = time.time()
-        wait_until_all_pods_are_ready(v1, namespace)
+        wait_until_all_pods_are_ready(v1, namespace, selector)
         later = time.time()
         print(f"All pods came up in {int(later - now)} seconds")
 
@@ -270,7 +297,7 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     return original
 
 
-def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body) -> str:
+def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body, e2e_run_id=None) -> str:
     """
     Create a daemon-set based on a dict.
 
@@ -279,13 +306,15 @@ def create_daemon_set(apps_v1_api: AppsV1Api, namespace, body) -> str:
     :param body: dict
     :return: str
     """
+    if e2e_run_id:
+        add_e2e_run_id_to_workload(body, e2e_run_id)
     print("Create a daemon-set:")
     apps_v1_api.create_namespaced_daemon_set(namespace, body)
     print(f"Daemon-Set created with name '{body['metadata']['name']}'")
     return body["metadata"]["name"]
 
 
-def create_stateful_set(apps_v1_api, namespace, body) -> str:
+def create_stateful_set(apps_v1_api, namespace, body, e2e_run_id=None) -> str:
     """
     Create a stateful-set based on a dict.
 
@@ -294,6 +323,8 @@ def create_stateful_set(apps_v1_api, namespace, body) -> str:
     :param body: dict
     :return: str
     """
+    if e2e_run_id:
+        add_e2e_run_id_to_workload(body, e2e_run_id)
     print("Create a statefulset:")
     apps_v1_api.create_namespaced_stateful_set(namespace, body)
     print(f"StatefulSet created with name '{body['metadata']['name']}'")
@@ -306,27 +337,31 @@ class PodNotReadyException(Exception):
         super().__init__(self.message)
 
 
-def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None:
+def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, label_selector, timeout=600) -> None:
     """
     Wait for all the pods to be 'Ready'.
 
     :param v1: CoreV1Api
     :param namespace: namespace of a pod
+    :param label_selector: Kubernetes label selector for pods required by the test
     :param timeout: maximum seconds to wait before raising (default 600)
     :return:
     """
-    print("Start waiting for all pods in a namespace to be Ready")
+    print(f"Start waiting for pods matching '{label_selector}' in namespace '{namespace}' to be Ready")
     counter = 0
-    while not are_all_pods_in_ready_state(v1, namespace):
+    while not are_all_pods_in_ready_state(v1, namespace, label_selector):
         print("There are pods that are not Ready. Wait ...")
         wait_before_test()
         counter = counter + 1
         if counter * 3 >= timeout:
-            raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}' to be Ready")
+            raise Exception(
+                f"Timed out after {timeout}s waiting for pods matching '{label_selector}' "
+                f"in namespace '{namespace}' to be Ready"
+            )
     print("All pods are Ready")
 
 
-def get_pod_list(v1: CoreV1Api, namespace) -> []:
+def get_pod_list(v1: CoreV1Api, namespace, label_selector=None) -> []:
     """
     Get a list of pods in a namespace.
 
@@ -334,10 +369,10 @@ def get_pod_list(v1: CoreV1Api, namespace) -> []:
     :param namespace: namespace
     :return: []
     """
-    return v1.list_namespaced_pod(namespace).items
+    return v1.list_namespaced_pod(namespace, label_selector=label_selector).items
 
 
-def get_first_pod_name(v1: CoreV1Api, namespace) -> str:
+def get_first_pod_name(v1: CoreV1Api, namespace, label_selector=None) -> str:
     """
     Return 1st pod_name in a list of pods in a namespace.
 
@@ -345,23 +380,25 @@ def get_first_pod_name(v1: CoreV1Api, namespace) -> str:
     :param namespace:
     :return: str
     """
-    resp = v1.list_namespaced_pod(namespace)
+    resp = v1.list_namespaced_pod(namespace, label_selector=label_selector)
     return resp.items[0].metadata.name
 
 
-def are_all_pods_in_ready_state(v1: CoreV1Api, namespace) -> bool:
+def are_all_pods_in_ready_state(v1: CoreV1Api, namespace, label_selector) -> bool:
     """
     Check if all the pods have Ready condition.
 
     :param v1: CoreV1Api
     :param namespace: namespace
+    :param label_selector: Kubernetes label selector for pods required by the test
     :return: bool
     """
-    pods = v1.list_namespaced_pod(namespace)
-    if not pods.items:
+    pods = v1.list_namespaced_pod(namespace, label_selector=label_selector)
+    active_pods = [pod for pod in pods.items if pod.metadata.deletion_timestamp is None]
+    if not active_pods:
         return False
     pod_ready_amount = 0
-    for pod in pods.items:
+    for pod in active_pods:
         print(f"Pod {pod.metadata.name} has image {pod.spec.containers[0].image}")
         if pod.status.conditions is None:
             return False
@@ -369,10 +406,10 @@ def are_all_pods_in_ready_state(v1: CoreV1Api, namespace) -> bool:
             if condition.type == "Ready" and condition.status == "True":
                 pod_ready_amount = pod_ready_amount + 1
                 break
-    return pod_ready_amount == len(pods.items)
+    return pod_ready_amount == len(active_pods)
 
 
-def get_pods_amount(v1: CoreV1Api, namespace) -> int:
+def get_pods_amount(v1: CoreV1Api, namespace, label_selector=None) -> int:
     """
     Get an amount of pods.
 
@@ -380,11 +417,11 @@ def get_pods_amount(v1: CoreV1Api, namespace) -> int:
     :param namespace: namespace
     :return: int
     """
-    pods = v1.list_namespaced_pod(namespace)
+    pods = v1.list_namespaced_pod(namespace, label_selector=label_selector)
     return 0 if not pods.items else len(pods.items)
 
 
-def get_pods_amount_with_name(v1: CoreV1Api, namespace, name) -> int:
+def get_pods_amount_with_name(v1: CoreV1Api, namespace, name, label_selector=None) -> int:
     """
     Get an amount of pods.
 
@@ -393,7 +430,7 @@ def get_pods_amount_with_name(v1: CoreV1Api, namespace, name) -> int:
     :param name: name
     :return: int
     """
-    pods = v1.list_namespaced_pod(namespace)
+    pods = v1.list_namespaced_pod(namespace, label_selector=label_selector)
     count = 0
     if pods and pods.items:
         for item in pods.items:
@@ -402,7 +439,7 @@ def get_pods_amount_with_name(v1: CoreV1Api, namespace, name) -> int:
     return count
 
 
-def get_pod_name_that_contains(v1: CoreV1Api, namespace, contains_string) -> str:
+def get_pod_name_that_contains(v1: CoreV1Api, namespace, contains_string, label_selector=None) -> str:
     """
     Get an amount of pods.
 
@@ -411,7 +448,7 @@ def get_pod_name_that_contains(v1: CoreV1Api, namespace, contains_string) -> str
     :param contains_string: string to search on
     :return: string
     """
-    for item in v1.list_namespaced_pod(namespace).items:
+    for item in v1.list_namespaced_pod(namespace, label_selector=label_selector).items:
         if contains_string in item.metadata.name:
             return item.metadata.name
     return ""
@@ -466,7 +503,7 @@ def create_service_with_name(v1: CoreV1Api, namespace, name, port=80, targetPort
         return create_service(v1, namespace, dep)
 
 
-def create_secure_app_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name) -> str:
+def create_secure_app_deployment_with_name(apps_v1_api: AppsV1Api, namespace, name, e2e_run_id=None) -> str:
     """
     Deploys app in /common/app/secure in the configured name and namespace
 
@@ -482,7 +519,7 @@ def create_secure_app_deployment_with_name(apps_v1_api: AppsV1Api, namespace, na
         dep["spec"]["selector"]["matchLabels"]["app"] = name
         dep["spec"]["template"]["metadata"]["labels"]["app"] = name
         dep["spec"]["template"]["spec"]["containers"][0]["name"] = name
-        return create_deployment(apps_v1_api, namespace, dep)
+        return create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
 
 def get_service_node_ports(v1: CoreV1Api, name, namespace) -> (int, int, int, int, int, int, int):
@@ -1102,7 +1139,7 @@ def extract_block(nginx_config, block_name):
     return nginx_config[start:end]
 
 
-def create_example_app(kube_apis, app_type, namespace) -> None:
+def create_example_app(kube_apis, app_type, namespace, e2e_run_id=None) -> None:
     """
     Create a backend application.
 
@@ -1118,7 +1155,7 @@ def create_example_app(kube_apis, app_type, namespace) -> None:
         if is_secret_present(kube_apis.v1, secret_name, namespace):
             delete_secret(kube_apis.v1, secret_name, namespace)
         create_secret_from_yaml(kube_apis.v1, namespace, f"{TEST_DATA}/common/app/{app_type}/app-tls-secret.yaml")
-    create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace)
+    create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{app_type}/app.yaml", namespace, e2e_run_id)
 
 
 def delete_common_app(kube_apis, app_type, namespace) -> None:
@@ -1243,7 +1280,9 @@ def wait_for_event_increment(kube_apis, namespace, event_count, offset) -> bool:
         return False
 
 
-def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, args=None) -> str:
+def create_ingress_controller(
+    v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, args=None, e2e_run_id=None
+) -> str:
     """
     Create an Ingress Controller according to the params.
 
@@ -1270,15 +1309,15 @@ def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_argumen
     if args is not None:
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
-        name = create_deployment(apps_v1_api, namespace, dep)
+        name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
     elif cli_arguments["deployment-type"] == "daemon-set":
-        name = create_daemon_set(apps_v1_api, namespace, dep)
+        name = create_daemon_set(apps_v1_api, namespace, dep, e2e_run_id)
     elif cli_arguments["deployment-type"] == "stateful-set":
-        name = create_stateful_set(apps_v1_api, namespace, dep)
+        name = create_stateful_set(apps_v1_api, namespace, dep, e2e_run_id)
     else:
         raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace)
+    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Ingress Controller was created with name '{name}'")
@@ -1286,7 +1325,14 @@ def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_argumen
 
 
 def create_ingress_controller_wafv5(
-    v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, reg_secret, args=None, rorfs=False
+    v1: CoreV1Api,
+    apps_v1_api: AppsV1Api,
+    cli_arguments,
+    namespace,
+    reg_secret,
+    args=None,
+    rorfs=False,
+    e2e_run_id=None,
 ) -> str:
     """
     Create an Ingress Controller according to the params.
@@ -1479,15 +1525,15 @@ def create_ingress_controller_wafv5(
     if args is not None:
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
-        name = create_deployment(apps_v1_api, namespace, dep)
+        name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
     elif cli_arguments["deployment-type"] == "daemon-set":
-        name = create_daemon_set(apps_v1_api, namespace, dep)
+        name = create_daemon_set(apps_v1_api, namespace, dep, e2e_run_id)
     elif cli_arguments["deployment-type"] == "stateful-set":
-        name = create_stateful_set(apps_v1_api, namespace, dep)
+        name = create_stateful_set(apps_v1_api, namespace, dep, e2e_run_id)
     else:
         raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace)
+    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Ingress Controller was created with name '{name}'")
@@ -1515,7 +1561,7 @@ def delete_ingress_controller(apps_v1_api: AppsV1Api, name, dep_type, namespace)
 
 
 def create_dos_arbitrator(
-    v1: CoreV1Api, apps_v1_api: AppsV1Api, namespace, deployment_yaml_manifest, svc_yaml_manifest
+    v1: CoreV1Api, apps_v1_api: AppsV1Api, namespace, deployment_yaml_manifest, svc_yaml_manifest, e2e_run_id=None
 ) -> str:
     """
     Create dos arbitrator according to the params.
@@ -1531,10 +1577,10 @@ def create_dos_arbitrator(
     with open(deployment_yaml_manifest) as f:
         dep = yaml.safe_load(f)
 
-    name = create_deployment(apps_v1_api, namespace, dep)
+    name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace)
+    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Dos arbitrator was created with name '{name}'")
@@ -1584,7 +1630,7 @@ def create_ns_and_sa_from_yaml(v1: CoreV1Api, yaml_manifest) -> str:
     return res["namespace"]
 
 
-def create_items_from_yaml(kube_apis, yaml_manifest, namespace) -> {}:
+def create_items_from_yaml(kube_apis, yaml_manifest, namespace, e2e_run_id=None) -> {}:
     """
     Apply yaml manifest with multiple items.
 
@@ -1608,11 +1654,11 @@ def create_items_from_yaml(kube_apis, yaml_manifest, namespace) -> {}:
                 elif doc["kind"] == "Service":
                     res["Service"] = create_service(kube_apis.v1, namespace, doc)
                 elif doc["kind"] == "Deployment":
-                    res["Deployment"] = create_deployment(kube_apis.apps_v1_api, namespace, doc)
+                    res["Deployment"] = create_deployment(kube_apis.apps_v1_api, namespace, doc, e2e_run_id)
                 elif doc["kind"] == "DaemonSet":
-                    res["DaemonSet"] = create_daemon_set(kube_apis.apps_v1_api, namespace, doc)
+                    res["DaemonSet"] = create_daemon_set(kube_apis.apps_v1_api, namespace, doc, e2e_run_id)
                 elif doc["kind"] == "StatefulSet":
-                    res["StatefulSet"] = create_stateful_set(kube_apis.apps_v1_api, namespace, doc)
+                    res["StatefulSet"] = create_stateful_set(kube_apis.apps_v1_api, namespace, doc, e2e_run_id)
                 elif doc["kind"] == "Namespace":
                     res["Namespace"] = create_namespace(kube_apis.v1, doc)
 
@@ -2249,18 +2295,22 @@ def get_last_log_entry(kube_apis, pod_name, namespace) -> str:
     return logs.split("\n")[-2]
 
 
-def get_resource_metrics(kube_apis, plural, namespace="nginx-ingress") -> str:
+def get_resource_metrics(kube_apis, plural, namespace="nginx-ingress", label_selector=None) -> str:
     """
     :param kube_apis: kube apis
     :param namespace: the namespace
     :param plural: the plural of the resource
     """
     if plural == "pods":
-        metrics = kube_apis.list_namespaced_custom_object("metrics.k8s.io", "v1beta1", namespace, plural)
+        metrics = kube_apis.list_namespaced_custom_object(
+            "metrics.k8s.io", "v1beta1", namespace, plural, label_selector=label_selector
+        )
         while metrics["items"] == []:
             wait_before_test()
             try:
-                metrics = kube_apis.list_namespaced_custom_object("metrics.k8s.io", "v1beta1", namespace, plural)
+                metrics = kube_apis.list_namespaced_custom_object(
+                    "metrics.k8s.io", "v1beta1", namespace, plural, label_selector=label_selector
+                )
             except ApiException as e:
                 print(f"Error: {e}")
     elif plural == "nodes":
@@ -2328,12 +2378,12 @@ def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
     return v1.read_namespaced_ingress(name, namespace)
 
 
-def pod_restart(v1: CoreV1Api, namespace):
+def pod_restart(v1: CoreV1Api, namespace, label_selector=None):
     """
     Restart all pods in a deployment.
     """
     try:
-        pods = v1.list_namespaced_pod(namespace=namespace)
+        pods = v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
 
         print(f"Found {len(pods.items)} pods to restart")
 
@@ -2342,7 +2392,7 @@ def pod_restart(v1: CoreV1Api, namespace):
             print(f"Deleting pod {pod.metadata.name}")
             v1.delete_namespaced_pod(name=pod.metadata.name, namespace=namespace)
 
-        wait_until_all_pods_are_ready(v1, namespace)
+        wait_until_all_pods_are_ready(v1, namespace, label_selector)
         print("Pod restart complete")
 
     except Exception as e:

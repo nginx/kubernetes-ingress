@@ -10,6 +10,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_namespace,
     extract_block,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_vs_nginx_template_conf,
     scale_deployment,
@@ -51,6 +53,7 @@ def virtual_server_foreign_upstream_app_setup(
     :return: VirtualServerSetup
     """
     vs_source = f"{TEST_DATA}/{request.param['example']}/standard/virtual-server.yaml"
+    e2e_run_id = generate_e2e_run_id()
     upstream_namespaces = get_upstream_namespace_from_vs_yaml(vs_source, test_namespace)
     print(f"Upstream namespaces detected in the VS yaml: {upstream_namespaces}")
     ns_1 = (
@@ -64,11 +67,15 @@ def virtual_server_foreign_upstream_app_setup(
         else test_namespace
     )
     print("------------------------- Deploy Virtual Server Example -----------------------------------")
-    create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{request.param['app_type']}/backend1.yaml", ns_1)
-    create_items_from_yaml(kube_apis, f"{TEST_DATA}/common/app/{request.param['app_type']}/backend2.yaml", ns_2)
+    create_items_from_yaml(
+        kube_apis, f"{TEST_DATA}/common/app/{request.param['app_type']}/backend1.yaml", ns_1, e2e_run_id=e2e_run_id
+    )
+    create_items_from_yaml(
+        kube_apis, f"{TEST_DATA}/common/app/{request.param['app_type']}/backend2.yaml", ns_2, e2e_run_id=e2e_run_id
+    )
 
-    wait_until_all_pods_are_ready(kube_apis.v1, ns_1)
-    wait_until_all_pods_are_ready(kube_apis.v1, ns_2)
+    wait_until_all_pods_are_ready(kube_apis.v1, ns_1, get_e2e_run_selector(e2e_run_id))
+    wait_until_all_pods_are_ready(kube_apis.v1, ns_2, get_e2e_run_selector(e2e_run_id))
 
     vs_name = create_virtual_server_from_yaml(kube_apis.custom_objects, vs_source, test_namespace)
     vs_host = get_first_host_from_yaml(vs_source)
@@ -255,7 +262,11 @@ class TestVirtualServerForeignUpstream:
         crd_ingress_controller,
         virtual_server_foreign_upstream_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         upstream_name = f"upstream vs_{virtual_server_foreign_upstream_app_setup.namespace}_{virtual_server_foreign_upstream_app_setup.vs_name}_backend2"
         original_server_count = 1
         scaled_server_count = 3
@@ -346,7 +357,11 @@ class TestVirtualServerForeignUpstream:
         crd_ingress_controller,
         virtual_server_foreign_upstream_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         vs_source = f"{TEST_DATA}/virtual-server-foreign-upstream/standard/virtual-server-vsr.yaml"
         original_server_count = 1
         scaled_server_count = 3

@@ -19,6 +19,7 @@ from suite.utils.policy_resources_utils import (
 from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_secret,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_pod_list,
     get_vs_nginx_template_conf,
@@ -445,7 +446,11 @@ class TestRateLimitingPoliciesVsr:
             src,
         )
 
-        ic_pods = get_pod_list(kube_apis.v1, ns)
+        ic_pods = get_pod_list(
+            kube_apis.v1,
+            ns,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         for i in range(len(ic_pods)):
             conf = get_vs_nginx_template_conf(
                 kube_apis.v1,
@@ -511,7 +516,11 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test()
 
         print("Step 4: check if pods are ready")
-        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        wait_until_all_pods_are_ready(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
 
         print("Step 5: check plus api for zone sync")
         api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
@@ -592,7 +601,11 @@ class TestRateLimitingPoliciesVsr:
         wait_before_test()
 
         print("Step 4: check if pods are ready")
-        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        wait_until_all_pods_are_ready(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
 
         print("Step 5: check plus api for zone sync")
         api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
@@ -607,7 +620,11 @@ class TestRateLimitingPoliciesVsr:
         assert check_synced_zone_exists(zone_sync_url, pol_name.replace("-", "_", -1))
 
         print("Step 7: check sync in config")
-        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         vsr_config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,

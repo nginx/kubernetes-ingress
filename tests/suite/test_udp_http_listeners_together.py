@@ -10,6 +10,7 @@ from suite.utils.custom_resources_utils import (
     read_ts,
 )
 from suite.utils.resources_utils import (
+    get_e2e_run_selector,
     get_first_pod_name,
     get_ts_nginx_template_conf,
     get_vs_nginx_template_conf,
@@ -64,7 +65,11 @@ class TestUDPandHTTPListenersTogether:
         )
         wait_before_test()
 
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         ts_config = get_ts_nginx_template_conf(
             kube_apis.v1,
             transport_server_setup.namespace,

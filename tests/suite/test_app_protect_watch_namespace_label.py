@@ -18,6 +18,8 @@ from suite.utils.resources_utils import (
     delete_namespace,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     patch_namespace_with_label,
     retry_get_until_body_contains,
     wait_before_test,
@@ -65,15 +67,16 @@ def backend_setup(request, kube_apis, ingress_controller_endpoint) -> BackendSet
     test_namespace = f"test-namespace-{str(timestamp)}"
     policy_namespace = f"policy-test-namespace-{str(timestamp)}"
     policy = "file-block"
+    e2e_run_id = generate_e2e_run_id()
 
     create_namespace_with_name_from_yaml(kube_apis.v1, test_namespace, f"{TEST_DATA}/common/ns.yaml")
     print("------------------------- Deploy backend application -------------------------")
 
-    create_example_app(kube_apis, "simple", test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
     req_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
     req_url_2 = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend2"
     metrics_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,

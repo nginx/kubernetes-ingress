@@ -20,6 +20,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_file_contents,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -55,9 +57,10 @@ class AppProtectSetup:
         metrics_url (str):
     """
 
-    def __init__(self, req_url, metrics_url):
+    def __init__(self, req_url, metrics_url, e2e_run_id):
         self.req_url = req_url
         self.metrics_url = metrics_url
+        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -72,10 +75,11 @@ def appprotect_setup(request, kube_apis, ingress_controller_endpoint, test_names
     :return: BackendSetup
     """
     print("------------------------- Deploy simple backend application -------------------------")
-    create_example_app(kube_apis, "simple", test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
     req_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
     metrics_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,
@@ -96,7 +100,7 @@ def appprotect_setup(request, kube_apis, ingress_controller_endpoint, test_names
 
     print("------------------------- Deploy syslog server ---------------------------")
     src_syslog_yaml = f"{TEST_DATA}/appprotect/syslog.yaml"
-    create_items_from_yaml(kube_apis, src_syslog_yaml, test_namespace)
+    create_items_from_yaml(kube_apis, src_syslog_yaml, test_namespace, e2e_run_id=e2e_run_id)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -111,7 +115,7 @@ def appprotect_setup(request, kube_apis, ingress_controller_endpoint, test_names
 
     request.addfinalizer(fin)
 
-    return AppProtectSetup(req_url, metrics_url)
+    return AppProtectSetup(req_url, metrics_url, e2e_run_id)
 
 
 def assert_ap_crd_info(ap_crd_info, policy_name) -> None:
@@ -328,7 +332,7 @@ class TestAppProtect:
 
     @pytest.mark.flaky(max_runs=3)
     def test_ap_multi_sec_logs(
-        self, request, kube_apis, crd_ingress_controller_with_ap, appprotect_setup, test_namespace
+        self, request, kube_apis, crd_ingress_controller_with_ap, appprotect_setup, test_namespace, e2e_run_id
     ):
         """
         Test corresponding log entries with multiple log destinations (in this case, two syslog servers)
@@ -337,7 +341,7 @@ class TestAppProtect:
         log_loc = "/var/log/messages"
 
         print("Create a second syslog server")
-        create_items_from_yaml(kube_apis, src_syslog2_yaml, test_namespace)
+        create_items_from_yaml(kube_apis, src_syslog2_yaml, test_namespace, e2e_run_id=e2e_run_id)
 
         syslog_dst = f"syslog-svc.{test_namespace}"
         syslog2_dst = f"syslog2-svc.{test_namespace}"
@@ -368,8 +372,12 @@ class TestAppProtect:
         print("----------------------- Send request ----------------------")
         response = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response.text)
-        syslog_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog-")
-        syslog2_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog2")
+        syslog_pod = get_pod_name_that_contains(
+            kube_apis.v1, test_namespace, "syslog-", get_e2e_run_selector(appprotect_setup.e2e_run_id)
+        )
+        syslog2_pod = get_pod_name_that_contains(
+            kube_apis.v1, test_namespace, "syslog2", get_e2e_run_selector(e2e_run_id)
+        )
         log_contents = ""
         log2_contents = ""
         retry = 0

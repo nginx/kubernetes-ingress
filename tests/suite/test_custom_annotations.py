@@ -4,6 +4,7 @@ from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.resources_utils import (
     create_items_from_yaml,
     delete_items_from_yaml,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     replace_configmap_from_yaml,
@@ -51,7 +52,11 @@ def custom_annotations_setup(
     ingress_name = get_name_from_yaml(ing_src)
     wait_before_test(1)
 
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

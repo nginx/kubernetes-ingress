@@ -6,6 +6,8 @@ DEPLOYMENT_TYPE             = deployment
 SERVICE                     ?= nodeport
 NODE_IP                     =
 TEST_PREFIX                 = test-runner
+CA_BUNDLE                   ?= $(CURL_CA_BUNDLE)
+COMMA                       := ,
 KUBE_CONFIG_FOLDER          = ${HOME}/.kube
 KIND_KUBE_CONFIG_FOLDER     = $(KUBE_CONFIG_FOLDER)/kind
 MINIKUBE_KUBE_CONFIG_FOLDER = $(KUBE_CONFIG_FOLDER)/minikube
@@ -46,7 +48,7 @@ help: ## Show available make targets
 
 .PHONY: build
 build: ## Run build
-	docker build --build-arg ARCH=$(ARCH) -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
+	docker build --build-arg ARCH=$(ARCH) $(if $(CA_BUNDLE),--secret id=ca-bundle$(COMMA)src="$(CA_BUNDLE)") -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
 
 
 $(KUBE_CONFIG_FOLDER):

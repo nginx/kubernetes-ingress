@@ -5,6 +5,7 @@ from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.resources_utils import (
     create_service_from_yaml,
     delete_service,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_vs_nginx_template_conf,
     patch_rbac,
@@ -183,7 +184,11 @@ class TestVirtualServer:
 
         print("Step 2: verify gunzip directive is present")
 
-        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
 
         confFile = get_vs_nginx_template_conf(
             kube_apis.v1,

@@ -21,6 +21,7 @@ from settings import ALLOWED_DEPLOYMENT_TYPES, ALLOWED_IC_TYPES, ALLOWED_SERVICE
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.kube_config_utils import ensure_context_in_config, get_current_context_name
 from suite.utils.resources_utils import (
+    add_e2e_run_id_to_workload,
     are_all_pods_in_ready_state,
     cleanup_rbac,
     configure_rbac,
@@ -33,6 +34,8 @@ from suite.utils.resources_utils import (
     delete_lease,
     delete_namespace,
     delete_testing_namespaces,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_leases,
     get_service_node_ports,
     replace_configmap_from_yaml,
@@ -120,9 +123,10 @@ class IngressControllerPrerequisites:
         config_map (str): config_map name
     """
 
-    def __init__(self, config_map, namespace):
+    def __init__(self, config_map, namespace, e2e_run_id):
         self.namespace = namespace
         self.config_map = config_map
+        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(autouse=True)
@@ -130,6 +134,12 @@ def print_name() -> None:
     """Print out a current test name."""
     test_name = f"{os.environ.get('PYTEST_CURRENT_TEST').split(':')[2]} :: {os.environ.get('PYTEST_CURRENT_TEST').split(':')[4].split(' ')[0]}"
     print(f"\n============================= {test_name} =============================")
+
+
+@pytest.fixture(scope="function")
+def e2e_run_id() -> str:
+    """Provide one run ID for all workloads created by a test invocation."""
+    return generate_e2e_run_id()
 
 
 @pytest.fixture(scope="class")
@@ -279,7 +289,7 @@ def ingress_controller_prerequisites(cli_arguments, kube_apis, request) -> Ingre
 
     request.addfinalizer(fin)
 
-    return IngressControllerPrerequisites(config_map, namespace)
+    return IngressControllerPrerequisites(config_map, namespace, generate_e2e_run_id())
 
 
 @pytest.fixture(scope="session")
@@ -463,10 +473,11 @@ def create_certmanager(request):
     """
     cm_yaml = f"{TEST_DATA}/virtual-server-certmanager/certmanager.yaml"
     kube_apis = request.getfixturevalue("kube_apis")
+    e2e_run_id = generate_e2e_run_id()
     with open(cm_yaml) as f:
         cm_yaml_content = yaml.load_all(f, Loader=yaml.SafeLoader)
         print("------------------------- Deploy CertManager in the cluster -----------------------------------")
-        create_generic_from_yaml(cm_yaml, request)
+        create_generic_from_yaml(cm_yaml, request, e2e_run_id)
         for doc in cm_yaml_content:
             if doc["kind"] == "Deployment":
                 replicas = doc["spec"].get("replicas", 1)
@@ -474,7 +485,11 @@ def create_certmanager(request):
                 name = doc["metadata"]["name"]
                 print(f"Wait until Cert-manager deployment {name} in namespace {ns} has {replicas} ready replicas")
                 count = 0
-                while (not are_all_pods_in_ready_state(request.getfixturevalue("kube_apis").v1, ns)) and count < 10:
+                while (
+                    not are_all_pods_in_ready_state(
+                        request.getfixturevalue("kube_apis").v1, ns, get_e2e_run_selector(e2e_run_id)
+                    )
+                ) and count < 10:
                     count += 1
                     wait_before_test()
 
@@ -508,7 +523,7 @@ def create_issuer(request):
         create_generic_from_yaml(issuer_secret_yaml, request)
 
 
-def create_generic_from_yaml(file_path, request):
+def create_generic_from_yaml(file_path, request, e2e_run_id=None):
     """
     Create an object using a path to the yaml file.
 
@@ -516,7 +531,21 @@ def create_generic_from_yaml(file_path, request):
     :param request: pytest fixture
     """
     try:
-        subprocess.run(["kubectl", "apply", "-f", f"{file_path}"], capture_output=True, check=True)
+        if e2e_run_id:
+            with open(file_path) as f:
+                docs = list(yaml.safe_load_all(f))
+            for doc in docs:
+                if doc and doc["kind"] in {"Deployment", "DaemonSet", "StatefulSet"}:
+                    add_e2e_run_id_to_workload(doc, e2e_run_id)
+            subprocess.run(
+                ["kubectl", "apply", "-f", "-"],
+                input=yaml.safe_dump_all(docs),
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+        else:
+            subprocess.run(["kubectl", "apply", "-f", file_path], capture_output=True, check=True)
     except subprocess.CalledProcessError:
         print("Error occurred while applying a resource definition. See logs for details.")
         raise

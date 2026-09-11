@@ -7,6 +7,7 @@ from suite.utils.custom_resources_utils import create_gc_from_yaml, delete_gc
 from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_secret,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -144,7 +145,11 @@ class TestVirtualServerCustomListeners:
         wait_before_test(30)
 
         print("\nStep 3: Test generated VS configs")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         vs_config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,

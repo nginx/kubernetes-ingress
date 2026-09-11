@@ -19,6 +19,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    get_e2e_run_selector,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -42,9 +43,9 @@ def assert_waf_rejected(response):
     assert "The requested URL was rejected. Please consult with your administrator." in response.text
 
 
-def create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, ingress_src):
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+def create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, ingress_src, e2e_run_id):
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     create_items_from_yaml(kube_apis, ingress_src, test_namespace)
 
     ingress_host = get_first_ingress_host_from_yaml(ingress_src)
@@ -64,15 +65,15 @@ def cleanup_ingress_setup(kube_apis, ingress_src, test_namespace):
 
 
 @pytest.fixture(scope="function")
-def ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace):
-    setup = create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, ingress_src)
+def ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, e2e_run_id):
+    setup = create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, ingress_src, e2e_run_id)
     yield setup
     cleanup_ingress_setup(kube_apis, ingress_src, test_namespace)
 
 
 @pytest.fixture(scope="function")
-def mergeable_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace):
-    setup = create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, mergeable_ing_src)
+def mergeable_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, e2e_run_id):
+    setup = create_ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, mergeable_ing_src, e2e_run_id)
     yield setup
     cleanup_ingress_setup(kube_apis, mergeable_ing_src, test_namespace)
 

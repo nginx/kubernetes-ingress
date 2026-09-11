@@ -1,7 +1,7 @@
 import pytest
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_vs_conf_exists, assert_vs_conf_not_exists, wait_and_assert_status_code
-from suite.utils.resources_utils import get_events, get_first_pod_name, wait_before_test
+from suite.utils.resources_utils import get_e2e_run_selector, get_events, get_first_pod_name, wait_before_test
 from suite.utils.vs_vsr_resources_utils import (
     create_virtual_server_from_yaml,
     delete_virtual_server,
@@ -50,7 +50,11 @@ class TestVirtualServerValidation:
     def test_virtual_server_behavior(
         self, kube_apis, cli_arguments, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
 
         print("Step 1: initial check")
         assert_vs_conf_exists(

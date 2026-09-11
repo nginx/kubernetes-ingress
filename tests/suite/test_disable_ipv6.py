@@ -8,6 +8,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     get_nginx_template_conf,
@@ -50,7 +52,11 @@ class TestDisableIpv6VsTs:
         transport_server_setup,
     ):
         wait_before_test()
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         nginx_config = get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace)
         ts_config = get_ts_nginx_template_conf(
             kube_apis.v1,
@@ -97,18 +103,23 @@ def ingress_setup(
     test_namespace,
 ) -> IngressSetup:
     print("------------------------- Deploy Disable IPV6 Example -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, f"{TEST_DATA}/smoke/smoke-secret.yaml")
     create_items_from_yaml(kube_apis, f"{TEST_DATA}/smoke/standard/smoke-ingress.yaml", test_namespace)
     ingress_name = get_name_from_yaml(f"{TEST_DATA}/smoke/standard/smoke-ingress.yaml")
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,
         ingress_controller_endpoint.port_ssl,
     )
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
