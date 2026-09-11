@@ -8,8 +8,11 @@
 .github/config/config-plus-*
 .github/config/config-prep-*
 .github/data/matrix-regression.json
+.github/data/dependency-check.ini
 .github/ISSUE_TEMPLATE/*
+.github/scripts/check-packages.py
 .github/scripts/create-release-tarballs.sh
+.github/scripts/dependency-check.sh
 .github/scripts/docker-updater.sh
 .github/scripts/docs-shortcode-update.sh
 .github/scripts/pull-release-notes.py
@@ -28,6 +31,7 @@
 .github/workflows/cherry-pick.yml
 .github/workflows/codeql-analysis.yml
 .github/workflows/create-release-branch.yml
+.github/workflows/dependency-check.yml
 .github/workflows/dependency-review.yml
 .github/workflows/dockerhub-description.yml
 .github/workflows/docs-build-push.yml
