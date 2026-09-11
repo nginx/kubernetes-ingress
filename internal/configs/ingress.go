@@ -861,7 +861,7 @@ func generateJWTConfig(
 ) (*version1.JWTAuth, *version1.JWTRedirectLocation, Warnings) {
 	warnings := newWarnings()
 
-	secretRef := secretRefs[secrets.RefKey(namespace + "/" + cfgParams.JWTKey, secrets.RoleJWK)]
+	secretRef := secretRefs[secrets.RefKey(namespace+"/"+cfgParams.JWTKey, secrets.RoleJWK)]
 	if secretRef.Error != nil {
 		warnings.AddWarningf(owner, "JWK secret %s is invalid: %v", cfgParams.JWTKey, secretRef.Error)
 	}
@@ -892,7 +892,7 @@ func generateJWTConfig(
 func generateBasicAuthConfig(owner runtime.Object, namespace string, secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams) (*version1.BasicAuth, Warnings) {
 	warnings := newWarnings()
 
-	secretRef := secretRefs[secrets.RefKey(namespace + "/" + cfgParams.BasicAuthSecret, secrets.RoleHtpasswd)]
+	secretRef := secretRefs[secrets.RefKey(namespace+"/"+cfgParams.BasicAuthSecret, secrets.RoleHtpasswd)]
 	if secretRef.Error != nil {
 		warnings.AddWarningf(owner, "Basic auth secret %s is invalid: %v", cfgParams.BasicAuthSecret, secretRef.Error)
 	}
@@ -1079,7 +1079,7 @@ func addSSLConfig(server *version1.Server, owner runtime.Object, namespace strin
 	var rejectHandshake bool
 
 	if tlsSecret != "" {
-		secretRef := secretRefs[secrets.RefKey(namespace + "/" + tlsSecret, secrets.RoleTLS)]
+		secretRef := secretRefs[secrets.RefKey(namespace+"/"+tlsSecret, secrets.RoleTLS)]
 		if secretRef.Error != nil {
 			rejectHandshake = true
 			warnings.AddWarningf(owner, "TLS secret %s is invalid: %v", tlsSecret, secretRef.Error)

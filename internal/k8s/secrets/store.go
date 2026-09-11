@@ -10,17 +10,17 @@ import (
 
 // SecretReference holds a reference to a secret stored on the file system.
 type SecretReference struct {
-	Secret *api_v1.Secret
-	Path   string
+	Secret  *api_v1.Secret
+	Path    string
 	CRLPath string
-	Error  error
+	Error   error
 }
 
 // Materialised is what a file manager produced for one (key, role). CRLPath is set
 // only for RoleCA, and only when the Secret carries ca.crl.
 type Materialised struct {
-    Path    string
-    CRLPath string
+	Path    string
+	CRLPath string
 }
 
 // SecretFileManager manages secrets on the file system.
@@ -66,7 +66,7 @@ type SecretRefKey struct {
 // It validates the secrets and manages them on the file system (via SecretFileManager).
 type LocalSecretStore struct {
 	secrets map[string]*api_v1.Secret
-	refs map[storeKey]*secretEntry
+	refs    map[storeKey]*secretEntry
 	manager SecretFileManager
 	lock    sync.RWMutex
 }
@@ -102,7 +102,7 @@ func (s *LocalSecretStore) AddOrUpdateSecret(secret *api_v1.Secret) {
 		entry.ref.setPaths(paths)
 
 		if entry.ref.Error != nil {
-			if entry.materialised{
+			if entry.materialised {
 				s.manager.DeleteSecret(key, refKey.role)
 				entry.materialised = false
 			}
@@ -255,7 +255,7 @@ func (s *FakeSecretStore) DeleteSecret(_ string) {
 }
 
 // GetSecret is a fake implementation of GetSecret.
-func (s *FakeSecretStore) GetSecret(key string , _ SecretRole) *SecretReference {
+func (s *FakeSecretStore) GetSecret(key string, _ SecretRole) *SecretReference {
 	secretRef, exists := s.secrets[key]
 	if !exists {
 		return &SecretReference{

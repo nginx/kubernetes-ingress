@@ -2517,7 +2517,7 @@ func (lbc *LoadBalancerController) writeSpecialSecrets(l *slog.Logger, secret *a
 	case lbc.specialSecrets.clientAuthSecret:
 		lbc.configurator.AddOrUpdateMGMTClientAuthSecret(secret)
 	case lbc.specialSecrets.defaultServerSecret, lbc.specialSecrets.wildcardTLSSecret:
-			lbc.configurator.AddOrUpdateSpecialTLSSecrets(secret, specialTLSSecretsToUpdate)
+		lbc.configurator.AddOrUpdateSpecialTLSSecrets(secret, specialTLSSecretsToUpdate)
 	}
 	return true
 }

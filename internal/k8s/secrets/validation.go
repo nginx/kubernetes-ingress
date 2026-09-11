@@ -6,8 +6,8 @@ import (
 	"encoding/pem"
 	"fmt"
 	"regexp"
-	"strings"
 	"slices"
+	"strings"
 
 	api_v1 "k8s.io/api/core/v1"
 )
@@ -32,7 +32,7 @@ const LicenseKey = "license.jwt"
 
 // BundleTokenKey is the key of the data field of a Secret where the WAF bundle API token (NGINX One Console)
 // or bearer token (NGINX Instance Manager) must be stored.
-const BundleTokenKey    = "token"
+const BundleTokenKey = "token"
 
 // BundleUsernameKey is the key of the data field of a Secret where the WAF bundle basic auth username must be stored.
 const BundleUsernameKey = "username"
@@ -72,14 +72,14 @@ const SecretTypeWAFBundle api_v1.SecretType = "nginx.com/waf-bundle" // #nosec G
 type SecretRole string
 
 const (
-    RoleTLS       SecretRole = "tls"
-    RoleCA        SecretRole = "ca"
-    RoleJWK       SecretRole = "jwk"
-    RoleHtpasswd  SecretRole = "htpasswd"
-    RoleOIDC      SecretRole = "oidc"
+	RoleTLS       SecretRole = "tls"
+	RoleCA        SecretRole = "ca"
+	RoleJWK       SecretRole = "jwk"
+	RoleHtpasswd  SecretRole = "htpasswd"
+	RoleOIDC      SecretRole = "oidc"
 	RoleLicense   SecretRole = "license"
-    RoleAPIKey    SecretRole = "apikey"
-    RoleWAFBundle SecretRole = "wafbundle"
+	RoleAPIKey    SecretRole = "apikey"
+	RoleWAFBundle SecretRole = "wafbundle"
 )
 
 var allRoles = []SecretRole{
@@ -108,7 +108,6 @@ func RequiredKeys(role SecretRole) []string {
 		return nil
 	}
 	return nil
-
 }
 
 // KnownKeys returns every key a role assigns meaning to, required or not. It
@@ -146,10 +145,10 @@ func requiredRoleKeys(secret *api_v1.Secret, role SecretRole) error {
 // plus the well-known Kubernetes Secret keys.
 func reservedKeys() map[string]struct{} {
 	reserved := map[string]struct{}{
-		PLMS3SecretKey:                 {},
-		"namespace":                    {},
-		api_v1.DockerConfigKey:         {},
-		api_v1.DockerConfigJsonKey:     {},
+		PLMS3SecretKey:             {},
+		"namespace":                {},
+		api_v1.DockerConfigKey:     {},
+		api_v1.DockerConfigJsonKey: {},
 	}
 	for _, role := range allRoles {
 		if role == RoleAPIKey {
@@ -190,7 +189,6 @@ func ValidateCASecret(secret *api_v1.Secret) error {
 	if err := requiredRoleKeys(secret, RoleCA); err != nil {
 		return err
 	}
-
 
 	block, _ := pem.Decode(secret.Data[CAKey])
 	if block == nil {

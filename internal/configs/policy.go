@@ -522,10 +522,10 @@ func (p *policiesCfg) addIngressMTLSConfig(
 	}
 
 	switch {
-		case ingressMTLS.CrlFileName != "":
-			mtls.ClientCrl = path.Join(DefaultSecretPath, path.Base(ingressMTLS.CrlFileName))
-		case secretRef.CRLPath != "":
-			mtls.ClientCrl = secretRef.CRLPath
+	case ingressMTLS.CrlFileName != "":
+		mtls.ClientCrl = path.Join(DefaultSecretPath, path.Base(ingressMTLS.CrlFileName))
+	case secretRef.CRLPath != "":
+		mtls.ClientCrl = secretRef.CRLPath
 	}
 	p.IngressMTLS = mtls
 
@@ -833,7 +833,7 @@ func resolveOIDCNativeTrustedCert(
 	}
 
 	trustedCertPath = trustedCertRef.Path
-	trustedCrlPath  = trustedCertRef.CRLPath
+	trustedCrlPath = trustedCertRef.CRLPath
 	return trustedCertPath, trustedCrlPath, true
 }
 

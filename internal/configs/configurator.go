@@ -52,7 +52,6 @@ const (
 	caCRLBundleFilePrefix  = "crl_bundle_"
 	jwtKeyFilePrefix       = "jwt_key_"
 	basicAuthFilePrefix    = "basic_auth_"
-
 )
 
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
@@ -976,7 +975,7 @@ func (cnf *Configurator) addOrUpdateCASecretForRole(secret *api_v1.Secret, key s
 	crtData, crlData := GenerateCAFileContent(secret)
 
 	m := secrets.Materialised{Path: cnf.nginxManager.CreateSecret(
-		secretFileName(key,secrets.RoleCA,),
+		secretFileName(key, secrets.RoleCA),
 		crtData,
 		nginx.ReadWriteOnlyFileMode,
 	)}
