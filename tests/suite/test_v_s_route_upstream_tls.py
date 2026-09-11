@@ -13,6 +13,7 @@ from suite.utils.resources_utils import (
     create_items_from_yaml,
     delete_items_from_yaml,
     ensure_response_from_backend,
+    get_e2e_run_selector,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -89,7 +90,11 @@ class TestVSRouteUpstreamTls:
         v_s_route_setup,
         v_s_route_secure_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -143,7 +148,11 @@ class TestVSRouteUpstreamTls:
         v_s_route_setup,
         v_s_route_secure_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         initial_events_ns_m = get_events(kube_apis.v1, v_s_route_setup.route_m.namespace)
         initial_events_ns_s = get_events(kube_apis.v1, v_s_route_setup.route_s.namespace)
         with pytest.raises(ApiException) as exc_info:
@@ -193,7 +202,11 @@ class TestVSRouteUpstreamTls:
         v_s_route_setup,
         v_s_route_secure_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         text_s = f"{v_s_route_setup.route_s.namespace}/{v_s_route_setup.route_s.name}"
         text_m = f"{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}"
         text_vs = f"{v_s_route_setup.namespace}/{v_s_route_setup.vs_name}"

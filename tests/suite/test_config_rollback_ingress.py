@@ -19,6 +19,7 @@ from suite.utils.resources_utils import (
     delete_ingress,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -96,7 +97,11 @@ class TestConfigRollbackIngressCreate:
         # Step 2: conf file removed — no traffic served
         assert_ingress_conf_not_exists(
             kube_apis,
-            get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+            get_first_pod_name(
+                kube_apis.v1,
+                ingress_controller_prerequisites.namespace,
+                get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+            ),
             ingress_controller_prerequisites.namespace,
             test_namespace,
             ingress_name,
@@ -161,7 +166,11 @@ class TestConfigRollbackIngress:
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":

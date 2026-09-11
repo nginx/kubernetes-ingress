@@ -13,6 +13,7 @@ from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_common_app,
     delete_items_from_yaml,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
@@ -89,7 +90,11 @@ class TestVirtualServerMixedUpstreamType:
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
         print("\nStep 1: assert config")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,

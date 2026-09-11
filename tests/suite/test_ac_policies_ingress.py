@@ -10,6 +10,7 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_reload_count,
     replace_configmap_from_yaml,
@@ -136,7 +137,11 @@ def ingress_setup(
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

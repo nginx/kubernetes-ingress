@@ -185,7 +185,11 @@ def transport_server_setup(
 
     request.addfinalizer(fin)
 
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
     ic_namespace = ingress_controller_prerequisites.namespace
 
     metrics_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"

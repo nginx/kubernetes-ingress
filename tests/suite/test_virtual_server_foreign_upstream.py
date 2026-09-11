@@ -262,7 +262,11 @@ class TestVirtualServerForeignUpstream:
         crd_ingress_controller,
         virtual_server_foreign_upstream_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         upstream_name = f"upstream vs_{virtual_server_foreign_upstream_app_setup.namespace}_{virtual_server_foreign_upstream_app_setup.vs_name}_backend2"
         original_server_count = 1
         scaled_server_count = 3
@@ -353,7 +357,11 @@ class TestVirtualServerForeignUpstream:
         crd_ingress_controller,
         virtual_server_foreign_upstream_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         vs_source = f"{TEST_DATA}/virtual-server-foreign-upstream/standard/virtual-server-vsr.yaml"
         original_server_count = 1
         scaled_server_count = 3

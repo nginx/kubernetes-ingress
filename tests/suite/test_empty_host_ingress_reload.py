@@ -76,7 +76,11 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
 
         print("Step 1: create a working empty-host ingress that owns _default-server.conf")
@@ -125,7 +129,11 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
@@ -180,7 +188,11 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         http_request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
         print("Step 1: create a working named-host ingress")
@@ -250,7 +262,11 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
 
         print("Step 1: create a working empty-host ingress")
@@ -372,7 +388,11 @@ class TestEmptyHostIngressStartupProtection:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 

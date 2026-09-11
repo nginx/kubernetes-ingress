@@ -1,7 +1,7 @@
 import pytest
 from kubernetes.stream import stream
 from settings import TEST_DATA
-from suite.utils.resources_utils import get_file_contents, get_first_pod_name, wait_before_test
+from suite.utils.resources_utils import get_e2e_run_selector, get_file_contents, get_first_pod_name, wait_before_test
 
 
 @pytest.mark.skip_for_nginx_oss
@@ -21,7 +21,11 @@ from suite.utils.resources_utils import get_file_contents, get_first_pod_name, w
 )
 class TestAppProtectAgentV2:
     def test_ap_agent(self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller_with_ap):
-        pod_name = get_first_pod_name(kube_apis.v1, "nginx-ingress")
+        pod_name = get_first_pod_name(
+            kube_apis.v1,
+            "nginx-ingress",
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         log = kube_apis.v1.read_namespaced_pod_log(pod_name, ingress_controller_prerequisites.namespace)
 
         command = ["/usr/bin/nginx-agent", "-v"]

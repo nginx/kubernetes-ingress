@@ -64,7 +64,11 @@ class TestEmptyHostIngressCollisionResolution:
         empty_host_apps_setup,
         test_namespace,
     ):
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
@@ -237,7 +241,11 @@ class TestEmptyHostIngressValidation:
         )
         wait_before_test()
 
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         conf = get_default_server_conf(kube_apis.v1, ic_pod, ingress_controller_prerequisites.namespace)
 
         assert "backend2-svc" in conf

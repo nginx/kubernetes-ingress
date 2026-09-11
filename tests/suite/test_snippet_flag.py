@@ -6,6 +6,7 @@ from suite.utils.custom_assertions import assert_event
 from suite.utils.resources_utils import (
     create_ingress_from_yaml,
     delete_ingress,
+    get_e2e_run_selector,
     get_events,
     get_file_contents,
     get_first_pod_name,
@@ -33,7 +34,11 @@ class TestSnippetAnnotation:
         ingress_name = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, file_name)
         time.sleep(5)
         pod_namespace = ingress_controller_prerequisites.namespace
-        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         file_path = f"/etc/nginx/conf.d/{test_namespace}-{ingress_name}.conf"
         result_conf = get_file_contents(kube_apis.v1, file_path, pod_name, pod_namespace)
         snippet_annotation = "tcp_nodelay on;"

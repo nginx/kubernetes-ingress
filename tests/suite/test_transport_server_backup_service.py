@@ -77,7 +77,11 @@ def ts_externalname_setup(
     )
     wait_before_test(2)
     ensure_connection(req_url)
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
     ensure_response_from_backend(
         req_url,
         transport_server_tls_passthrough_setup.ts_host,

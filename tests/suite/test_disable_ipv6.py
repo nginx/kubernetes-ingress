@@ -8,6 +8,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    get_e2e_run_selector,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     get_nginx_template_conf,
@@ -50,7 +51,11 @@ class TestDisableIpv6VsTs:
         transport_server_setup,
     ):
         wait_before_test()
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         nginx_config = get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace)
         ts_config = get_ts_nginx_template_conf(
             kube_apis.v1,
@@ -108,7 +113,11 @@ def ingress_setup(
         ingress_controller_endpoint.port,
         ingress_controller_endpoint.port_ssl,
     )
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

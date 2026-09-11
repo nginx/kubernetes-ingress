@@ -462,7 +462,11 @@ class TestOIDCNativeTrustedCA:
             vs_patched = True
             assert_vs_status(kube_apis, test_namespace, virtual_server_setup.vs_name, "Valid")
 
-            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+            ic_pod_name = get_first_pod_name(
+                kube_apis.v1,
+                ingress_controller_prerequisites.namespace,
+                get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+            )
             conf = get_vs_nginx_template_conf(
                 kube_apis.v1,
                 test_namespace,
