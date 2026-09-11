@@ -1314,7 +1314,7 @@ def create_ingress_controller(
     else:
         raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace)
+    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Ingress Controller was created with name '{name}'")
@@ -1530,7 +1530,7 @@ def create_ingress_controller_wafv5(
     else:
         raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace)
+    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Ingress Controller was created with name '{name}'")
@@ -1577,7 +1577,7 @@ def create_dos_arbitrator(
     name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
 
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace)
+    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Dos arbitrator was created with name '{name}'")
@@ -2375,12 +2375,12 @@ def read_ingress(v1: NetworkingV1Api, name, namespace) -> V1Ingress:
     return v1.read_namespaced_ingress(name, namespace)
 
 
-def pod_restart(v1: CoreV1Api, namespace):
+def pod_restart(v1: CoreV1Api, namespace, label_selector=None):
     """
     Restart all pods in a deployment.
     """
     try:
-        pods = v1.list_namespaced_pod(namespace=namespace)
+        pods = v1.list_namespaced_pod(namespace=namespace, label_selector=label_selector)
 
         print(f"Found {len(pods.items)} pods to restart")
 
@@ -2389,7 +2389,7 @@ def pod_restart(v1: CoreV1Api, namespace):
             print(f"Deleting pod {pod.metadata.name}")
             v1.delete_namespaced_pod(name=pod.metadata.name, namespace=namespace)
 
-        wait_until_all_pods_are_ready(v1, namespace)
+        wait_until_all_pods_are_ready(v1, namespace, label_selector)
         print("Pod restart complete")
 
     except Exception as e:
