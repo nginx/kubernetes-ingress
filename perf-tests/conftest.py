@@ -15,7 +15,7 @@ from settings import (
     DEFAULT_SERVICE,
     NUM_REPLICAS,
 )
-from suite.utils.resources_utils import get_first_pod_name
+from suite.utils.resources_utils import get_e2e_run_selector, get_first_pod_name
 
 
 def pytest_addoption(parser) -> None:
@@ -157,7 +157,8 @@ def pytest_runtest_makereport(item) -> None:
     # we only look at actual failing test calls, not setup/teardown
     if rep.when == "call" and rep.failed and item.config.getoption("--show-ic-logs") == "yes":
         pod_namespace = item.funcargs["ingress_controller_prerequisites"].namespace
-        pod_name = get_first_pod_name(item.funcargs["kube_apis"].v1, pod_namespace)
+        selector = get_e2e_run_selector(item.funcargs["ingress_controller_prerequisites"].e2e_run_id)
+        pod_name = get_first_pod_name(item.funcargs["kube_apis"].v1, pod_namespace, selector)
         print("\n===================== IC Logs Start =====================")
         print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace))
         print("\n===================== IC Logs End =====================")

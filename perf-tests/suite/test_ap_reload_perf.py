@@ -24,6 +24,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    get_e2e_run_selector,
     get_resource_metrics,
     replace_ingress_with_ap_annotations,
     wait_before_test,
@@ -62,7 +63,11 @@ def enable_prometheus_port(
     body = kube_apis.apps_v1_api.read_namespaced_deployment("nginx-ingress", namespace)
     body.spec.template.spec.containers[0].ports.append(port)
     kube_apis.apps_v1_api.patch_namespaced_deployment("nginx-ingress", namespace, body)
-    wait_until_all_pods_are_ready(kube_apis.v1, namespace)
+    wait_until_all_pods_are_ready(
+        kube_apis.v1,
+        namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
 
 
 @pytest.fixture(scope="class")
