@@ -68,7 +68,11 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, transportServerKind, logNameKey, n)
-	obj, tsExists, err = lbc.getNamespacedInformer(ns).transportServerLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, tsExists, err = nsi.transportServerLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return

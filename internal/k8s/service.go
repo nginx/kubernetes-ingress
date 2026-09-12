@@ -210,7 +210,11 @@ func (lbc *LoadBalancerController) syncService(task task) {
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, serviceKind, logNameKey, n)
-	obj, exists, err = lbc.getNamespacedInformer(ns).svcLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, exists, err = nsi.svcLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return

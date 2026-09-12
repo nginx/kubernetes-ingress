@@ -67,7 +67,11 @@ func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 	var resourcesFound bool
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
-	obj, endpointSliceExists, err = lbc.getNamespacedInformer(ns).endpointSliceLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return false
+	}
+	obj, endpointSliceExists, err = nsi.endpointSliceLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return false
