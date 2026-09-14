@@ -1,103 +1,148 @@
 {
-  "image": [
-    "debian-plus-nap",
-    "debian-plus-nap-agent"
-  ],
-  "platforms": [
-    "linux/amd64"
-  ],
-  "target": [
-    "goreleaser"
-  ],
-  "nap_modules": [
-    "dos",
-    "waf",
-    "waf,dos"
-  ],
   "include": [
     {
-      "image": "ubi-10-plus-nap",
+      "build_os": "ubi-10-plus-nap",
+      "image": "nginx-ic-nap/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf",
+      "tag_suffix": "-ubi"
     },
     {
-      "image": "ubi-10-plus-nap",
+      "build_os": "ubi-10-plus-nap",
+      "image": "nginx-ic-nap-dos/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "dos"
+      "nap_modules": "waf,dos",
+      "tag_suffix": "-ubi"
     },
     {
-      "image": "ubi-10-plus-nap",
+      "build_os": "ubi-10-plus-nap-agent",
+      "image": "nginx-ic-nap/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf,dos"
+      "nap_modules": "waf",
+      "tag_suffix": "-ubi-agent"
     },
     {
-      "image": "ubi-10-plus-nap-agent",
+      "build_os": "ubi-10-plus-nap-agent",
+      "image": "nginx-ic-dos/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "dos",
+      "tag_suffix": "-ubi"
     },
     {
-      "image": "ubi-10-plus-nap-agent",
+      "build_os": "ubi-10-plus-nap-agent",
+      "image": "nginx-ic-nap-dos/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "dos"
+      "nap_modules": "waf,dos",
+      "tag_suffix": "-ubi-agent"
     },
     {
-      "image": "ubi-10-plus-nap-agent",
+      "build_os": "ubi-10-plus-nap-v5",
+      "image": "nginx-ic-nap-v5/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf,dos"
+      "nap_modules": "waf",
+      "tag_suffix": "-ubi"
     },
     {
-      "image": "ubi-10-plus-nap-v5",
+      "build_os": "ubi-10-plus-nap-v5-agent",
+      "image": "nginx-ic-nap-v5/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf",
+      "tag_suffix": "-ubi-agent"
     },
     {
-      "image": "ubi-10-plus-nap-v5-agent",
+      "build_os": "alpine-plus-nap-fips",
+      "image": "nginx-ic-nap/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf",
+      "tag_suffix": "-alpine-fips"
     },
     {
-      "image": "alpine-plus-nap-fips",
+      "build_os": "alpine-plus-nap-fips-agent",
+      "image": "nginx-ic-nap/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf",
+      "tag_suffix": "-alpine-fips-agent"
     },
     {
-      "image": "alpine-plus-nap-fips-agent",
+      "build_os": "alpine-plus-nap-v5-fips",
+      "image": "nginx-ic-nap-v5/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf",
+      "tag_suffix": "-alpine-fips"
     },
     {
-      "image": "alpine-plus-nap-v5-fips",
+      "build_os": "alpine-plus-nap-v5-fips-agent",
+      "image": "nginx-ic-nap-v5/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf",
+      "tag_suffix": "-alpine-fips-agent"
     },
     {
-      "image": "alpine-plus-nap-v5-fips-agent",
+      "build_os": "debian-plus-nap",
+      "image": "nginx-ic-nap/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf",
+      "tag_suffix": ""
     },
     {
-      "image": "debian-plus-nap-v5",
+      "build_os": "debian-plus-nap",
+      "image": "nginx-ic-nap-dos/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf,dos",
+      "tag_suffix": ""
     },
     {
-      "image": "debian-plus-nap-v5-agent",
+      "build_os": "debian-plus-nap-agent",
+      "image": "nginx-ic-nap/nginx-plus-ingress",
       "target": "goreleaser",
       "platforms": "linux/amd64",
-      "nap_modules": "waf"
+      "nap_modules": "waf",
+      "tag_suffix": "-agent"
+    },
+    {
+      "build_os": "debian-plus-nap-agent",
+      "image": "nginx-ic-dos/nginx-plus-ingress",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "dos",
+      "tag_suffix": ""
+    },
+    {
+      "build_os": "debian-plus-nap-agent",
+      "image": "nginx-ic-nap-dos/nginx-plus-ingress",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf,dos",
+      "tag_suffix": "-agent"
+    },
+    {
+      "build_os": "debian-plus-nap-v5",
+      "image": "nginx-ic-nap-v5/nginx-plus-ingress",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf",
+      "tag_suffix": ""
+    },
+    {
+      "build_os": "debian-plus-nap-v5-agent",
+      "image": "nginx-ic-nap-v5/nginx-plus-ingress",
+      "target": "goreleaser",
+      "platforms": "linux/amd64",
+      "nap_modules": "waf",
+      "tag_suffix": "-agent"
     }
   ]
 }
