@@ -621,6 +621,75 @@ func TestSyncVirtualServerRoute_WeightOnlyDiffAppliesKeyvalWithoutReload(t *test
 	}
 }
 
+// TestSyncVirtualServerRoute_RejectedUpdateFallsBackAndRerendersVS covers the
+// VSR counterpart to TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems:
+// a weight-only-looking VirtualServerRoute update that AddOrUpdateVirtualServerRoute
+// actually rejects.
+//
+// Unlike the VirtualServer path -- which tears down the previously-served
+// config in place -- a rejected VirtualServerRoute has no config of its own
+// to tear down; the referencing VirtualServer must be re-rendered without it.
+// vsrSelfProblem is what routes control there instead of into
+// applyWeightOnlyVSRChanges, and it previously had no test exercising that
+// branch at all.
+func TestSyncVirtualServerRoute_RejectedUpdateFallsBackAndRerenders(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBC(t, true)
+	nsi := lbc.namespacedInformers["default"]
+
+	vsr := weightTestVSR("coffee", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
+	if err := nsi.virtualServerRouteLister.Add(vsr); err != nil {
+		t.Fatalf("seeding VSR informer: %v", err)
+	}
+	lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := weightTestVS("cafe", 1, []conf_v1.Route{{Path: "/tea", Route: "coffee"}})
+	seedVS(t, lbc, vs)
+
+	writesAfterSeed := mgr.configWrites.Load()
+	keyvalsAfterSeed := len(mgr.recordedKeyvals())
+
+	// 70/40 doesn't sum to 100: rejected by NIC's own validation, even
+	// though the spec shape still looks weight-only against the seeded
+	// baseline.
+	invalid := weightTestVSR("coffee", 2, []conf_v1.Route{twoWayRoute("/tea", 70, 40)})
+	if err := nsi.virtualServerRouteLister.Update(invalid); err != nil {
+		t.Fatalf("updating VSR informer: %v", err)
+	}
+
+	lbc.syncVirtualServerRoute(task{Kind: virtualServerRoute, Key: "default/coffee"})
+
+	// The fast lane must not have applied: no keyval writes, and cafe (the
+	// referencing VirtualServer) must have been re-rendered without coffee,
+	// which is only possible via processChanges.
+	if got := mgr.keyvalsSince(keyvalsAfterSeed); len(got) != 0 {
+		t.Errorf("rejected update wrote %d keyvals, want 0", len(got))
+	}
+	if got := mgr.configWrites.Load() - writesAfterSeed; got == 0 {
+		t.Error("rejected update did not fall back to processChanges: cafe was never re-rendered")
+	}
+
+	if got := lbc.configuration.GetVirtualServerRoute("default/coffee"); got != nil {
+		t.Error("rejected VirtualServerRoute is still tracked as Configuration's baseline")
+	}
+
+	fakeRecorder, ok := lbc.recorder.(*record.FakeRecorder)
+	if !ok {
+		t.Fatalf("recorder is %T, want *record.FakeRecorder", lbc.recorder)
+	}
+	close(fakeRecorder.Events)
+	var sawCoffeeRejected bool
+	for e := range fakeRecorder.Events {
+		if strings.Contains(e, "coffee") && strings.Contains(e, "Rejected") {
+			sawCoffeeRejected = true
+		}
+	}
+	if !sawCoffeeRejected {
+		t.Error("no Rejected event was recorded for default/coffee")
+	}
+}
+
 // TestApplyWeightOnlyVSChanges_RejectsUnexpectedChangeShapes pins the guard
 // that keeps the fast lane safe by construction. A weight-only spec diff is
 // expected to produce exactly one AddOrUpdate for the VirtualServer itself;
