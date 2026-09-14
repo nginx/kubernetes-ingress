@@ -1560,7 +1560,6 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 		changes, problems = lbc.configuration.AddOrUpdateVirtualServer(vs)
 
 		if len(weightUpdates) > 0 {
-			lbc.processProblems(problems)
 			// problems is the global rebuildHosts() output and can hold
 			// unrelated orphan/conflict entries for other resources, so it
 			// must not gate this halt. Only this VS's own change -- which
@@ -1569,7 +1568,13 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 			// previously-served config so a bad update stops serving stale
 			// traffic, matching the pre-fast-lane behavior of
 			// haltIfVSConfigInvalid.
+			//
+			// processProblems is called once per branch that returns here,
+			// instead of eagerly above, so a fall-through to the
+			// processChanges/processProblems pair below never processes the
+			// same problems slice twice.
 			if impl, changeErr, rejected := vsSelfChangeError(changes, vs); rejected {
+				lbc.processProblems(problems)
 				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
 				if deleteErr != nil {
 					nl.Errorf(l, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
@@ -1578,6 +1583,7 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 				return
 			}
 			if lbc.applyWeightOnlyVSChanges(key, changes, weightUpdates) {
+				lbc.processProblems(problems)
 				return
 			}
 		}
@@ -2163,18 +2169,24 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 		changes, problems = lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)
 
 		if weightOnly {
-			lbc.processProblems(problems)
 			// problems is the global rebuildHosts() output and can hold
 			// unrelated orphan/conflict entries for other resources, so it
 			// must not gate this halt on its own. On rejection, fall through
 			// to processChanges so affected VirtualServers get re-rendered
 			// without this VSR, matching the pre-fast-lane behavior of
 			// haltIfVSRConfigInvalid.
+			//
+			// processProblems is called once per branch that returns here,
+			// instead of eagerly above, so a fall-through to the
+			// processChanges/processProblems pair below never processes the
+			// same problems slice twice.
 			if vsrSelfProblem(problems, key) {
+				lbc.processProblems(problems)
 				lbc.processChanges(changes)
 				return
 			}
 			if lbc.applyWeightOnlyVSRChanges(prevVsr, vsr, changes) {
+				lbc.processProblems(problems)
 				return
 			}
 		}

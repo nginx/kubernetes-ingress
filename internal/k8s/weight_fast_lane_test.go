@@ -443,6 +443,80 @@ func TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems(t *testin
 	}
 }
 
+// TestSyncVirtualServer_FallbackShapeDoesNotDoubleProcessProblems pins a bug
+// where processProblems(problems) ran once eagerly as soon as weightUpdates
+// was non-empty, and again from the processChanges/processProblems pair at
+// the bottom of syncVirtualServer whenever applyWeightOnlyVSChanges declined
+// the unexpected changes shape (rather than returning). Any problem in that
+// shared problems slice -- like an unrelated orphan resource -- would then be
+// reported to the user twice for a single sync.
+//
+// The unrelated shape is produced the same way
+// TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems produces
+// an unrelated problem: a second VirtualServer is inserted directly into
+// Configuration's map, bypassing AddOrUpdateVirtualServer, so the
+// rebuildHosts() pass triggered by cafe's own (valid) weight-only update is
+// the first time it's noticed and rides along in the same changes batch.
+func TestSyncVirtualServer_FallbackShapeDoesNotDoubleProcessProblems(t *testing.T) {
+	t.Parallel()
+
+	lbc, _ := newWeightTestLBC(t, true)
+
+	vs := weightTestVS("aaa", 1, []conf_v1.Route{twoWayRoute("/tea", 70, 30)})
+	seedVS(t, lbc, vs)
+
+	// An orphan VirtualServerRoute unrelated to "aaa", inserted directly so
+	// the rebuildHosts() pass below is the first time it's evaluated and
+	// reports it as a problem.
+	orphan := &conf_v1.VirtualServerRoute{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "orphan"},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Host:      "orphan.example.com",
+			Subroutes: []conf_v1.Route{{Path: "/", Action: &conf_v1.Action{Pass: "v1"}}},
+		},
+	}
+	lbc.configuration.virtualServerRoutes[getResourceKey(&orphan.ObjectMeta)] = orphan
+
+	// A second, unrelated VirtualServer inserted directly into Configuration's
+	// map, bypassing AddOrUpdateVirtualServer, so it too is only noticed by
+	// the rebuildHosts() pass triggered below -- landing an unrelated
+	// AddOrUpdate change in the same batch as aaa's own (valid, non-rejected)
+	// weight-only change and forcing applyWeightOnlyVSChanges to decline the
+	// unexpected shape.
+	extra := weightTestVS("ccc", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
+	lbc.configuration.virtualServers[getResourceKey(&extra.ObjectMeta)] = extra
+	if err := lbc.namespacedInformers["default"].virtualServerLister.Add(extra); err != nil {
+		t.Fatalf("seeding ccc informer: %v", err)
+	}
+
+	// A valid weight-only update to aaa: not rejected, so the only thing
+	// that can force a fall-through to the bottom processChanges/
+	// processProblems pair is the unexpected two-entry changes shape above.
+	updated := weightTestVS("aaa", 2, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
+	updateVS(t, lbc, updated)
+
+	lbc.syncVirtualServer(task{Kind: virtualserver, Key: "default/aaa"})
+
+	fakeRecorder, ok := lbc.recorder.(*record.FakeRecorder)
+	if !ok {
+		t.Fatalf("recorder is %T, want *record.FakeRecorder", lbc.recorder)
+	}
+	close(fakeRecorder.Events)
+	var orphanEvents int
+	for e := range fakeRecorder.Events {
+		// The orphan-VSR problem's Reason, not its Message, is what
+		// identifies it: FakeRecorder's event text is "<type> <reason>
+		// <message>" and this problem's Message ("VirtualServer is invalid
+		// or doesn't exist") never names the VSR.
+		if strings.Contains(e, nl.EventReasonNoVirtualServerFound) {
+			orphanEvents++
+		}
+	}
+	if orphanEvents != 1 {
+		t.Errorf("orphan problem produced %d events, want 1 (processProblems must not run twice)", orphanEvents)
+	}
+}
+
 // name is retained on every caller for fixture readability; unparam flags it
 // because every current caller passes "coffee".
 //
