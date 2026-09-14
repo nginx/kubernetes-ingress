@@ -379,10 +379,12 @@ func TestSyncVirtualServer_FallsBackToReload(t *testing.T) {
 // returned alongside changes. That slice carries every problem detected
 // across the whole configuration -- including ones for resources that have
 // nothing to do with the VS being synced -- so an unrelated orphan
-// VirtualServerRoute elsewhere could either mask a real rejection (event
-// never reported) or, if empty, let a rejected weight-only update fall
-// through to a reload that removes the last valid config. The halt must be
-// keyed off whether this VS's own change carries an error instead.
+// VirtualServerRoute elsewhere could mask a real rejection and the event
+// would never be reported. The halt must be keyed off whether this VS's own
+// change carries an error instead.
+//
+// On rejection the previously-served config must be torn down, matching
+// haltIfVSConfigInvalid, so a bad update stops serving stale traffic.
 func TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems(t *testing.T) {
 	t.Parallel()
 
@@ -416,10 +418,10 @@ func TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems(t *testin
 	lbc.syncVirtualServer(task{Kind: virtualserver, Key: "default/cafe"})
 
 	if got := mgr.configWrites.Load() - writesAfterSeed; got != 0 {
-		t.Errorf("rejected update wrote %d NGINX configs, want 0 (last valid config must keep serving)", got)
+		t.Errorf("rejected update wrote %d NGINX configs, want 0 (tear-down does not write)", got)
 	}
-	if got := mgr.reloads.Load() - reloadsAfterSeed; got != 0 {
-		t.Errorf("rejected update triggered %d reloads, want 0", got)
+	if got := mgr.reloads.Load() - reloadsAfterSeed; got != 1 {
+		t.Errorf("rejected update triggered %d reloads, want 1 (tear-down of last valid config)", got)
 	}
 	if got := mgr.keyvalsSince(keyvalsAfterSeed); len(got) != 0 {
 		t.Errorf("rejected update wrote %d keyvals, want 0", len(got))

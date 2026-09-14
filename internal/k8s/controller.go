@@ -1565,13 +1565,16 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 			// unrelated orphan/conflict entries for other resources, so it
 			// must not gate this halt. Only this VS's own change -- which
 			// AddOrUpdateVirtualServer annotates with Error when validation
-			// rejects it -- matters here. A rejected update halts rather than
-			// falling back to processChanges, matching the pre-fast-lane
-			// behavior of haltIfVSConfigInvalid: NGINX keeps serving the last
-			// valid config and the resource gets a fresh sync on its next
-			// event.
+			// rejects it -- matters here. On rejection, tear down the
+			// previously-served config so a bad update stops serving stale
+			// traffic, matching the pre-fast-lane behavior of
+			// haltIfVSConfigInvalid.
 			if impl, changeErr, rejected := vsSelfChangeError(changes, vs); rejected {
-				lbc.UpdateVirtualServerStatusAndEventsOnDelete(impl, changeErr, nil)
+				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
+				if deleteErr != nil {
+					nl.Errorf(l, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
+				}
+				lbc.UpdateVirtualServerStatusAndEventsOnDelete(impl, changeErr, deleteErr)
 				return
 			}
 			if lbc.applyWeightOnlyVSChanges(key, changes, weightUpdates) {
@@ -2163,12 +2166,12 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 			lbc.processProblems(problems)
 			// problems is the global rebuildHosts() output and can hold
 			// unrelated orphan/conflict entries for other resources, so it
-			// must not gate this halt on its own. A rejected update halts
-			// here rather than falling back to processChanges, matching the
-			// pre-fast-lane behavior of haltIfVSRConfigInvalid: NGINX keeps
-			// serving the last valid config and the resource gets a fresh
-			// sync on its next event.
+			// must not gate this halt on its own. On rejection, fall through
+			// to processChanges so affected VirtualServers get re-rendered
+			// without this VSR, matching the pre-fast-lane behavior of
+			// haltIfVSRConfigInvalid.
 			if vsrSelfProblem(problems, key) {
+				lbc.processChanges(changes)
 				return
 			}
 			if lbc.applyWeightOnlyVSRChanges(prevVsr, vsr, changes) {
