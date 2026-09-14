@@ -9401,10 +9401,10 @@ metadata:
   name: latency-metrics-buckets-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
@@ -9414,10 +9414,10 @@ metadata:
   name: latency-metrics-buckets-nginx-ingress
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 data:
   {}
@@ -9429,10 +9429,10 @@ metadata:
   name: latency-metrics-buckets-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 /-/-/-/
 # Source: nginx-ingress/templates/clusterrole.yaml
@@ -9441,10 +9441,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: latency-metrics-buckets-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 rules:
 - apiGroups:
@@ -9556,10 +9556,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: latency-metrics-buckets-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 subjects:
 - kind: ServiceAccount
@@ -9576,10 +9576,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: latency-metrics-buckets-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 rules:
@@ -9636,10 +9636,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: latency-metrics-buckets-nginx-ingress
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
   namespace: default
 roleRef:
@@ -9658,10 +9658,10 @@ metadata:
   name: latency-metrics-buckets-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   externalTrafficPolicy: Local
@@ -9688,10 +9688,10 @@ metadata:
   name: latency-metrics-buckets-nginx-ingress-controller
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -9719,7 +9719,7 @@ spec:
       hostNetwork: false
       dnsPolicy: ClusterFirst
       containers:
-      - image: nginx/nginx-ingress:5.6.0
+      - image: nginx/nginx-ingress:5.7.0
         name: nginx-ingress
         imagePullPolicy: "IfNotPresent"
         ports:
@@ -9815,10 +9815,10 @@ kind: IngressClass
 metadata:
   name: nginx
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
@@ -9833,10 +9833,10 @@ metadata:
   name: latency-metrics-buckets-nginx-ingress-leader-election
   namespace: default
   labels:
-    helm.sh/chart: nginx-ingress-2.7.0
+    helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
-    app.kubernetes.io/version: "5.6.0"
+    app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 ---
 
