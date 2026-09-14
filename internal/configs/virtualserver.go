@@ -22,14 +22,21 @@ import (
 )
 
 const (
-	nginx502Server                                  = "unix:/var/lib/nginx/nginx-502-server.sock"
-	internalLocationPrefix                          = "internal_location_"
-	nginx418Server                                  = "unix:/var/lib/nginx/nginx-418-server.sock"
-	specContext                                     = "spec"
-	routeContext                                    = "route"
-	subRouteContext                                 = "subroute"
-	keyvalZoneBasePath                              = "/etc/nginx/state_files"
-	splitClientsKeyValZoneSize                      = "100k"
+	nginx502Server             = "unix:/var/lib/nginx/nginx-502-server.sock"
+	internalLocationPrefix     = "internal_location_"
+	nginx418Server             = "unix:/var/lib/nginx/nginx-418-server.sock"
+	specContext                = "spec"
+	routeContext               = "route"
+	subRouteContext            = "subroute"
+	keyvalZoneBasePath         = "/etc/nginx/state_files"
+	splitClientsKeyValZoneSize = "100k"
+	// splitClientAmountWhenWeightChangesDynamicReload is how far a
+	// split_clients index advances per 2-way split when
+	// DynamicWeightChangesReload is on. It must match the `i <= 100` loop
+	// bound in generateSplitsForWeightChangesDynamicReload (the real ground
+	// truth) and its duplicate in internal/k8s/controller.go, or dynamic
+	// weight updates target the wrong keyval zone. Changing one without the
+	// others is not a compile error.
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 	defaultLogOutput                                = "syslog:server=localhost:514"
 	// oidcNativeSessionZoneSize is the shared memory allocated to each
@@ -2363,6 +2370,9 @@ func generateDefaultSplitsConfig(
 func generateSplitsForWeightChangesDynamicReload(splits []conf_v1.Split, scIndex int, VariableNamer *VariableNamer) ([]version2.SplitClient, version2.Map) {
 	var splitClients []version2.SplitClient
 	var mapParameters []version2.Parameter
+	// One split_clients block per whole-percent weight pair, 0/100 through
+	// 100/0, so 101 blocks — the ground truth for
+	// splitClientAmountWhenWeightChangesDynamicReload; see the comment there.
 	for i := 0; i <= 100; i++ {
 		j := 100 - i
 		var split version2.SplitClient

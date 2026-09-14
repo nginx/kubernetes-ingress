@@ -77,8 +77,11 @@ const (
 	// IngressControllerName holds Ingress Controller name
 	IngressControllerName = "nginx.org/ingress-controller"
 
-	typeKeyword                                     = "type"
-	helmReleaseType                                 = "helm.sh/release.v1"
+	typeKeyword     = "type"
+	helmReleaseType = "helm.sh/release.v1"
+	// splitClientAmountWhenWeightChangesDynamicReload mirrors the identically
+	// named constant in internal/configs/virtualserver.go. Keep both in sync,
+	// or computeVSWeightUpdates re-derives the wrong split_clients index.
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 
 	logNamespaceKey = "resource_namespace"
@@ -4418,7 +4421,13 @@ func (lbc *LoadBalancerController) IsNginxReady() bool {
 	return lbc.isNginxReady
 }
 
-func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
+// computeVSWeightUpdates walks vsOld/vsNew route-by-route, using the same
+// split_clients index accounting as configs.GenerateVirtualServerConfig, and
+// returns a WeightUpdate for every 2-way split whose weights changed. The
+// index advances unconditionally, regardless of whether this split changed.
+//
+// Pure function so it's unit testable without controller scaffolding.
+func computeVSWeightUpdates(vsOld, vsNew *conf_v1.VirtualServer) []configs.WeightUpdate {
 	var weightUpdates []configs.WeightUpdate
 	var splitClientsIndex int
 	variableNamer := configs.NewVSVariableNamer(vsNew)
@@ -4447,13 +4456,18 @@ func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *co
 					Key:   variableNamer.GetNameOfKeyvalKeyForSplitClientIndex(splitClientsIndex),
 					Value: variableNamer.GetNameOfKeyOfMapForWeights(splitClientsIndex, routeNew.Splits[0].Weight, routeNew.Splits[1].Weight),
 				})
-				splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
 			}
 			splitClientsIndex += splitClientAmountWhenWeightChangesDynamicReload
 		} else if len(routeNew.Splits) > 0 {
 			splitClientsIndex++
 		}
 	}
+
+	return weightUpdates
+}
+
+func (lbc *LoadBalancerController) processVSWeightChangesDynamicReload(vsOld *conf_v1.VirtualServer, vsNew *conf_v1.VirtualServer) {
+	weightUpdates := computeVSWeightUpdates(vsOld, vsNew)
 
 	if len(weightUpdates) == 0 {
 		return
@@ -4492,7 +4506,7 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 
 	var weightUpdates []configs.WeightUpdate
 
-	splitClientsIndex := lbc.getStartingSplitClientsIndex(vsrNew, vsEx)
+	splitClientsIndex := getStartingSplitClientsIndex(vsrNew, vsEx)
 
 	variableNamer := configs.NewVSVariableNamer(vsEx.VirtualServer)
 
@@ -4536,7 +4550,11 @@ func (lbc *LoadBalancerController) processVSRWeightChangesDynamicReload(vsrOld *
 	}
 }
 
-func (lbc *LoadBalancerController) getStartingSplitClientsIndex(vsr *conf_v1.VirtualServerRoute, vsEx *configs.VirtualServerEx) int {
+// getStartingSplitClientsIndex returns the split_clients index that vsr's
+// first subroute occupies within vsEx's overall sequence: the referencing
+// VirtualServer's own routes first, then every VirtualServerRoute ahead of vsr
+// in vsEx.VirtualServerRoutes.
+func getStartingSplitClientsIndex(vsr *conf_v1.VirtualServerRoute, vsEx *configs.VirtualServerEx) int {
 	var startingSplitClientsIndex int
 
 	for _, r := range vsEx.VirtualServer.Spec.Routes {
@@ -4555,8 +4573,15 @@ func (lbc *LoadBalancerController) getStartingSplitClientsIndex(vsr *conf_v1.Vir
 
 	}
 
+	target := getResourceKey(&vsr.ObjectMeta)
+
 	for _, vsRoute := range vsEx.VirtualServerRoutes {
-		if vsRoute.Name == vsr.Name {
+		// Compare namespace/name, not name alone. A VirtualServer can
+		// reference VirtualServerRoutes in other namespaces, and routeSelector
+		// matches across all of them, so this list can hold two VSRs with the
+		// same name. Stopping at the first name match would return another
+		// VSR's offset and send weight updates to its keyval zone.
+		if getResourceKey(&vsRoute.ObjectMeta) == target {
 			return startingSplitClientsIndex
 		}
 		for _, r := range vsRoute.Spec.Subroutes {
