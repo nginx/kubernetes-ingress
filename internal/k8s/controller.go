@@ -1552,8 +1552,19 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 		// baseline this compares against.
 		var weightUpdates []configs.WeightUpdate
 		if lbc.weightChangesDynamicReload {
-			if prevVs := lbc.configuration.GetVirtualServer(key); vsWeightOnlyEligible(prevVs, vs) {
-				weightUpdates = computeVSWeightUpdates(prevVs, vs)
+			if prevVs := lbc.configuration.GetVirtualServer(key); prevVs != nil {
+				// prevVs was normalized by balanceUpstreamProxies before
+				// AddOrUpdateVirtualServer stored it, but vs is the raw
+				// informer object. With -enable-directive-autoadjust,
+				// comparing them as-is would report every autoadjusted
+				// upstream as a spec change and defeat the fast lane on
+				// every single update, so cur is normalized the same way
+				// before the comparison.
+				curBalanced := vs.DeepCopy()
+				lbc.configuration.balanceUpstreamProxies(curBalanced.Spec.Upstreams)
+				if vsWeightOnlyEligible(prevVs, curBalanced) {
+					weightUpdates = computeVSWeightUpdates(prevVs, curBalanced)
+				}
 			}
 		}
 
@@ -2163,7 +2174,16 @@ func (lbc *LoadBalancerController) syncVirtualServerRoute(task task) {
 		var weightOnly bool
 		if lbc.weightChangesDynamicReload {
 			prevVsr = lbc.configuration.GetVirtualServerRoute(key)
-			weightOnly = vsrWeightOnlyEligible(prevVsr, vsr)
+			if prevVsr != nil {
+				// prevVsr was normalized by balanceUpstreamProxies before
+				// AddOrUpdateVirtualServerRoute stored it, but vsr is the
+				// raw informer object; see the identical comment in
+				// syncVirtualServer for why this needs balancing too before
+				// the comparison.
+				curBalanced := vsr.DeepCopy()
+				lbc.configuration.balanceUpstreamProxies(curBalanced.Spec.Upstreams)
+				weightOnly = vsrWeightOnlyEligible(prevVsr, curBalanced)
+			}
 		}
 
 		changes, problems = lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)

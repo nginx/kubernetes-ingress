@@ -83,6 +83,14 @@ func (m *recordingWeightManager) Reload(isEndpointsUpdate bool) error {
 // happens well before that branch.
 func newWeightTestLBC(tb testing.TB, dynamicReload bool) (*LoadBalancerController, *recordingWeightManager) {
 	tb.Helper()
+	return newWeightTestLBCWithAutoadjust(tb, dynamicReload, false)
+}
+
+// newWeightTestLBCWithAutoadjust is newWeightTestLBC with control over
+// Configuration's isDirectiveAutoadjustEnabled, for fixtures that need
+// -enable-directive-autoadjust's ProxyBuffers normalization to actually run.
+func newWeightTestLBCWithAutoadjust(tb testing.TB, dynamicReload, autoadjust bool) (*LoadBalancerController, *recordingWeightManager) {
+	tb.Helper()
 
 	mgr := newRecordingWeightManager()
 
@@ -146,7 +154,7 @@ func newWeightTestLBC(tb testing.TB, dynamicReload bool) (*LoadBalancerControlle
 			validation.NewVirtualServerValidator(),
 			validation.NewGlobalConfigurationValidator(map[int]bool{}),
 			validation.NewTransportServerValidator(false, false, false),
-			false, false, false, false, false, false,
+			false, false, false, false, autoadjust, false,
 		),
 		weightChangesDynamicReload: dynamicReload,
 		recorder:                   record.NewFakeRecorder(100),
@@ -267,6 +275,64 @@ func TestSyncVirtualServer_WeightOnlyDiffAppliesKeyvalWithoutReload(t *testing.T
 	stored := lbc.configuration.GetVirtualServer("default/cafe")
 	if got := stored.Spec.Routes[0].Splits[0].Weight; got != 70 {
 		t.Errorf("Configuration baseline weight = %d, want 70", got)
+	}
+}
+
+// TestSyncVirtualServer_WeightOnlyDiffWithAutoadjustAppliesKeyval covers the
+// interaction between the fast lane and -enable-directive-autoadjust.
+//
+// AddOrUpdateVirtualServer normalizes ProxyBuffers/ProxyBufferSize/
+// ProxyBusyBuffersSize via balanceUpstreamProxies before storing, so
+// Configuration's baseline (prevVs) is always normalized. The informer's
+// object (vs) is not; it is normalized only when it is actually stored. If
+// the eligibility check compared the two as they came in, a VirtualServer
+// with un-normalized ProxyBuffers would see every weight-only update reported
+// as a full spec change, since the raw upstream would never equal the
+// normalized baseline -- permanently defeating the fast lane for that
+// VirtualServer.
+func TestSyncVirtualServer_WeightOnlyDiffWithAutoadjustAppliesKeyval(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBCWithAutoadjust(t, true, true)
+
+	// "4" (no unit) is not the form BalanceProxiesForUpstreams normalizes to
+	// -- it rewrites this to "4m" -- so this upstream is guaranteed to be
+	// mutated on first storage.
+	unnormalizedBuffers := func(vs *conf_v1.VirtualServer) *conf_v1.VirtualServer {
+		vs.Spec.Upstreams[0].ProxyBuffers = &conf_v1.UpstreamBuffers{Number: 8, Size: "4"}
+		vs.Spec.Upstreams[0].ProxyBufferSize = "4"
+		vs.Spec.Upstreams[0].ProxyBusyBuffersSize = "4"
+		return vs
+	}
+
+	vs := unnormalizedBuffers(weightTestVS("cafe", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)}))
+	seedVS(t, lbc, vs)
+
+	if got := lbc.configuration.GetVirtualServer("default/cafe").Spec.Upstreams[0].ProxyBufferSize; got != "4m" {
+		t.Fatalf("fixture invalid: seeded baseline ProxyBufferSize = %q, want the normalized \"4m\" -- balanceUpstreamProxies did not run as expected", got)
+	}
+
+	writesAfterSeed := mgr.configWrites.Load()
+	keyvalsAfterSeed := len(mgr.recordedKeyvals())
+
+	// The informer always serves the raw, un-normalized object: only the
+	// weights differ from the seeded spec above.
+	updated := unnormalizedBuffers(weightTestVS("cafe", 2, []conf_v1.Route{twoWayRoute("/tea", 70, 30)}))
+	updateVS(t, lbc, updated)
+
+	lbc.syncVirtualServer(task{Kind: virtualserver, Key: "default/cafe"})
+
+	namer := configs.NewVSVariableNamer(updated)
+	want := []configs.WeightUpdate{{
+		Zone:  namer.GetNameOfKeyvalZoneForSplitClientIndex(0),
+		Key:   namer.GetNameOfKeyvalKeyForSplitClientIndex(0),
+		Value: namer.GetNameOfKeyOfMapForWeights(0, 70, 30),
+	}}
+	if diff := cmp.Diff(want, mgr.keyvalsSince(keyvalsAfterSeed)); diff != "" {
+		t.Errorf("keyval writes mismatch (-want +got):\n%s", diff)
+	}
+	if got := mgr.configWrites.Load() - writesAfterSeed; got != 0 {
+		t.Errorf("fast lane wrote %d NGINX configs, want 0 -- autoadjust normalization must not defeat the fast lane", got)
 	}
 }
 
