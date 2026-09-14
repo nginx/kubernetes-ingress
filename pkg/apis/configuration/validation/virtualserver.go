@@ -664,6 +664,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		allErrs = append(allErrs, validateQueue(u.Queue, idxPath.Child("queue"))...)
 		allErrs = append(allErrs, validateSessionCookie(u.SessionCookie, idxPath.Child("sessionCookie"))...)
 		allErrs = append(allErrs, validateUpstreamType(u.Type, idxPath.Child("type"))...)
+		allErrs = append(allErrs, validateUpstreamProxyHTTPVersion(u.ProxyHTTPVersion, idxPath.Child("proxy-http-version"))...)
 
 		for _, msg := range validation.IsValidPortNum(int(u.Port)) {
 			allErrs = append(allErrs, field.Invalid(idxPath.Child("port"), u.Port, msg))
@@ -675,6 +676,16 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 
 	}
 	return allErrs, upstreamNames
+}
+
+func validateUpstreamProxyHTTPVersion(version string, fieldPath *field.Path) field.ErrorList {
+	if version == "" {
+		return nil
+	}
+	if version != "1.0" && version != "1.1" && version != "2" {
+		return field.ErrorList{field.Invalid(fieldPath, version, "must be one of `1.0`, `1.1` or `2`")}
+	}
+	return nil
 }
 
 // validateBackup validates backup service name and port semantics and business logic.

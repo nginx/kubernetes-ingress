@@ -1153,6 +1153,7 @@ func createLocation(p locationParams) version1.Location {
 		ProxyReadTimeout:         cfg.ProxyReadTimeout,
 		ProxySendTimeout:         cfg.ProxySendTimeout,
 		ProxySetHeaders:          cfg.ProxySetHeaders,
+		ProxyHTTPVersion:         cfg.ProxyHTTPVersion,
 		ClientMaxBodySize:        cfg.ClientMaxBodySize,
 		ClientBodyBufferSize:     cfg.ClientBodyBufferSize,
 		Websocket:                p.websocket,

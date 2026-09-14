@@ -444,6 +444,9 @@ var (
 			validateRequiredAnnotation,
 			validateSSLCiphersAnnotation,
 		},
+		configs.ProxyHTTPVersionAnnotation: {
+			validateProxyHTTPVersionAnnotation,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
@@ -806,6 +809,14 @@ func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) f
 	}
 
 	return allErrs
+}
+
+func validateProxyHTTPVersionAnnotation(context *annotationValidationContext) field.ErrorList {
+	validVersions := sets.NewString("1.0", "1.1", "2")
+	if !validVersions.Has(context.value) {
+		return field.ErrorList{field.Invalid(context.fieldPath, context.value, fmt.Sprintf("must be one of the following values: %s", strings.Join(validVersions.List(), ", ")))}
+	}
+	return nil
 }
 
 func sortedAnnotationNames(annotationValidations annotationValidationConfig) []string {

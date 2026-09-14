@@ -7590,3 +7590,40 @@ func TestValidateProxyRedirectFromRegexUsesNGINXUnescaping(t *testing.T) {
 		t.Errorf("validateProxyRedirectFromAnnotation(%q) returned no errors; NGINX unescapes it to a lone trailing backslash that PCRE rejects", context.value)
 	}
 }
+
+func TestValidateProxyHTTPVersionAnnotation(t *testing.T) {
+	t.Parallel()
+
+	validVersions := []string{
+		"1.0",
+		"1.1",
+		"2",
+	}
+
+	for _, version := range validVersions {
+		context := &annotationValidationContext{
+			value:     version,
+			fieldPath: field.NewPath("annotations").Child("nginx.org/proxy-http-version"),
+		}
+		if errs := validateProxyHTTPVersionAnnotation(context); len(errs) > 0 {
+			t.Errorf("validateProxyHTTPVersionAnnotation(%q) returned errors %v for valid input", version, errs)
+		}
+	}
+
+	invalidVersions := []string{
+		"1.2",
+		"3",
+		"1.0.0",
+		"abc",
+	}
+
+	for _, version := range invalidVersions {
+		context := &annotationValidationContext{
+			value:     version,
+			fieldPath: field.NewPath("annotations").Child("nginx.org/proxy-http-version"),
+		}
+		if errs := validateProxyHTTPVersionAnnotation(context); len(errs) == 0 {
+			t.Errorf("validateProxyHTTPVersionAnnotation(%q) returned no errors for invalid input", version)
+		}
+	}
+}
