@@ -761,6 +761,129 @@ func TestSyncVirtualServerRoute_WeightOnlyDiffAppliesKeyvalWithoutReload(t *test
 	}
 }
 
+// TestSyncVirtualServerRoute_SelectorWeightOnlyUsesRenderedOrder pins the fast
+// lane's split_clients offset against the deterministic order that
+// validateVSRSelectors now sorts selector-matched VirtualServerRoutes into
+// (namespace/name -- see TestValidateVSRSelectors_DeterministicOrder in
+// configuration_test.go). getStartingSplitClientsIndex derives the offset by
+// walking vsEx.VirtualServerRoutes, which is a straight pass-through of
+// whatever order the render used, so if that order were ever sourced from an
+// unsorted map iteration again, a selector-attached VSR could inherit another
+// VSR's stale offset and this fast lane would upsert the wrong keyval,
+// silently redirecting the wrong split.
+//
+// aaa-tea and zzz-coffee are named so their sorted namespace/name order is
+// fixed and known: this pins a non-zero starting index for the second VSR,
+// which every other fast-lane VSR test misses by only ever attaching one VSR
+// (so its offset is always 0).
+func TestSyncVirtualServerRoute_SelectorWeightOnlyUsesRenderedOrder(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBC(t, true)
+	nsi := lbc.namespacedInformers["default"]
+
+	selectorLabels := map[string]string{"app": "route"}
+
+	// Subroute paths must be prefixed by the VS route's selector path
+	// ("/tea", from weightTestSelectorVS) to pass
+	// validateSubroutesPrefix, but distinct from each other so
+	// validateDuplicateVSRPaths does not prune either one.
+	vsrA := weightTestVSR("aaa-tea", 1, []conf_v1.Route{twoWayRoute("/tea/aaa", 50, 50)})
+	vsrA.Labels = selectorLabels
+	vsrZ := weightTestVSR("zzz-coffee", 1, []conf_v1.Route{twoWayRoute("/tea/zzz", 50, 50)})
+	vsrZ.Labels = selectorLabels
+
+	for _, vsr := range []*conf_v1.VirtualServerRoute{vsrA, vsrZ} {
+		if err := nsi.virtualServerRouteLister.Add(vsr); err != nil {
+			t.Fatalf("seeding VSR informer for %s: %v", vsr.Name, err)
+		}
+		lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)
+	}
+
+	vs := weightTestSelectorVS("cafe", 1)
+	seedVS(t, lbc, vs)
+
+	vsConfig, ok := lbc.configuration.hosts["cafe.example.com"].(*VirtualServerConfiguration)
+	if !ok || len(vsConfig.VirtualServerRoutes) != 2 {
+		t.Fatalf("fixture did not attach both VirtualServerRoutes to the VirtualServer")
+	}
+	// Pin the assumption the rest of the test relies on: sorted
+	// namespace/name order puts aaa-tea first and zzz-coffee second, so
+	// zzz-coffee's subroute lands after aaa-tea's two-way split in the
+	// rendered split_clients sequence.
+	if got, want := vsConfig.VirtualServerRoutes[0].Name, "aaa-tea"; got != want {
+		t.Fatalf("VirtualServerRoutes[0].Name = %q, want %q", got, want)
+	}
+	if got, want := vsConfig.VirtualServerRoutes[1].Name, "zzz-coffee"; got != want {
+		t.Fatalf("VirtualServerRoutes[1].Name = %q, want %q", got, want)
+	}
+
+	// Keyval zone names are VirtualServer scoped, so the update is addressed
+	// with the referencing VirtualServer's namer, not the VSR's.
+	namer := configs.NewVSVariableNamer(vs)
+
+	tests := []struct {
+		name       string
+		vsr        *conf_v1.VirtualServerRoute
+		wantOffset int
+	}{
+		{
+			name:       "first VSR in sorted order starts at index 0",
+			vsr:        vsrA,
+			wantOffset: 0,
+		},
+		{
+			name: "second VSR in sorted order starts after the first VSR's two-way split",
+			vsr:  vsrZ,
+			// One two-way split ahead of it occupies indexes
+			// [0, splitClientAmountWhenWeightChangesDynamicReload), so
+			// zzz-coffee's own split starts right after that block.
+			wantOffset: splitClientAmountWhenWeightChangesDynamicReload,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			keyvalsBefore := len(mgr.recordedKeyvals())
+			writesBefore := mgr.configWrites.Load()
+			reloadsBefore := mgr.reloads.Load()
+
+			updated := test.vsr.DeepCopy()
+			updated.Generation++
+			updated.Spec.Subroutes[0].Splits[0].Weight = 70
+			updated.Spec.Subroutes[0].Splits[1].Weight = 30
+
+			if err := nsi.virtualServerRouteLister.Update(updated); err != nil {
+				t.Fatalf("updating VSR informer: %v", err)
+			}
+
+			key := getResourceKey(&test.vsr.ObjectMeta)
+			lbc.syncVirtualServerRoute(task{Kind: virtualServerRoute, Key: key})
+
+			want := []configs.WeightUpdate{{
+				Zone:  namer.GetNameOfKeyvalZoneForSplitClientIndex(test.wantOffset),
+				Key:   namer.GetNameOfKeyvalKeyForSplitClientIndex(test.wantOffset),
+				Value: namer.GetNameOfKeyOfMapForWeights(test.wantOffset, 70, 30),
+			}}
+			if diff := cmp.Diff(want, mgr.keyvalsSince(keyvalsBefore)); diff != "" {
+				t.Errorf("keyval writes mismatch (-want +got):\n%s", diff)
+			}
+
+			if got := mgr.configWrites.Load() - writesBefore; got != 0 {
+				t.Errorf("fast lane wrote %d NGINX configs, want 0", got)
+			}
+			if got := mgr.reloads.Load() - reloadsBefore; got != 0 {
+				t.Errorf("fast lane triggered %d reloads, want 0", got)
+			}
+
+			stored := lbc.configuration.GetVirtualServerRoute(key)
+			if got := stored.Spec.Subroutes[0].Splits[0].Weight; got != 70 {
+				t.Errorf("Configuration baseline weight = %d, want 70", got)
+			}
+		})
+	}
+}
+
 // TestSyncVirtualServerRoute_RejectedUpdateFallsBackAndRerendersVS covers the
 // VSR counterpart to TestSyncVirtualServer_RejectedUpdateHaltsDespiteUnrelatedProblems:
 // a weight-only-looking VirtualServerRoute update that AddOrUpdateVirtualServerRoute
