@@ -5071,6 +5071,8 @@ spec:
         name: app-protect-config
       - emptyDir: {}
         name: app-protect-bundles
+      - name: app-protect-ipi-db
+        emptyDir: {}
       serviceAccountName: appprotect-wafv5-resources-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -5138,7 +5140,7 @@ spec:
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-ip-intelligence=true
           - -app-protect-enforcer-address="localhost:50001"
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/appprotect-wafv5-resources-nginx-ingress
@@ -5199,6 +5201,8 @@ spec:
         volumeMounts:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
       - name: waf-config-mgr
         image: my.private.reg/nap/waf-config-mgr:5.15.0
         imagePullPolicy: "IfNotPresent"
@@ -5225,6 +5229,28 @@ spec:
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
+      - name: waf-ip-intelligence
+        image: my.private.reg/nap/waf-ip-intelligence:5.15.0
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+      
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - all
+            runAsNonRoot: true
+            runAsUser: 101
+        resources:
+      
+            limits:
+              cpu: 125m
+              memory: 128Mi
+            requests:
+              cpu: 25m
+              memory: 32Mi
+        volumeMounts:
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
