@@ -1584,13 +1584,9 @@ func (lbc *LoadBalancerController) syncVirtualServer(task task) {
 			// instead of eagerly above, so a fall-through to the
 			// processChanges/processProblems pair below never processes the
 			// same problems slice twice.
-			if impl, changeErr, rejected := vsSelfChangeError(changes, vs); rejected {
+			if vsSelfRejected(changes, vs) {
 				lbc.processProblems(problems)
-				deleteErr := lbc.configurator.DeleteVirtualServer(key, false)
-				if deleteErr != nil {
-					nl.Errorf(l, "Error when deleting configuration for VirtualServer %v: %v", key, deleteErr)
-				}
-				lbc.UpdateVirtualServerStatusAndEventsOnDelete(impl, changeErr, deleteErr)
+				lbc.processRejectedVSChanges(changes)
 				return
 			}
 			if lbc.applyWeightOnlyVSChanges(key, changes, weightUpdates) {
@@ -1619,24 +1615,49 @@ func vsWeightOnlyEligible(prevVs, curVs *conf_v1.VirtualServer) bool {
 	return isWeightOnlyVSDiff(prevVs, curVs)
 }
 
-// vsSelfChangeError reports whether vs's own change was annotated with a
-// validation error by AddOrUpdateVirtualServer, returning the affected
-// VirtualServerConfiguration and the error string. This must be checked
-// instead of the problems slice returned alongside changes: that slice is
-// the global rebuildHosts() output and can contain unrelated orphan/conflict
-// problems for other resources, so a non-empty problems slice does not mean
-// vs itself was rejected.
-func vsSelfChangeError(changes []ResourceChange, vs *conf_v1.VirtualServer) (*VirtualServerConfiguration, string, bool) {
+// vsSelfRejected reports whether vs's own change was annotated with a
+// validation error by AddOrUpdateVirtualServer. This must be checked instead
+// of the problems slice returned alongside changes: that slice is the global
+// rebuildHosts() output and can contain unrelated orphan/conflict problems
+// for other resources, so a non-empty problems slice does not mean vs itself
+// was rejected.
+func vsSelfRejected(changes []ResourceChange, vs *conf_v1.VirtualServer) bool {
 	kind := getResourceKeyWithKind(virtualServerKind, &vs.ObjectMeta)
 	for _, c := range changes {
 		if c.Error == "" || c.Resource == nil || c.Resource.GetKeyWithKind() != kind {
 			continue
 		}
-		if impl, ok := c.Resource.(*VirtualServerConfiguration); ok {
-			return impl, c.Error, true
+		if _, ok := c.Resource.(*VirtualServerConfiguration); ok {
+			return true
 		}
 	}
-	return nil, "", false
+	return false
+}
+
+// processRejectedVSChanges handles the rebuildHosts() batch produced by a
+// rejected VirtualServer update, with the same semantics the pre-fast-lane
+// haltIfVSConfigInvalid had: a VirtualServer Delete is torn down and
+// reported via processDelete (which duplicates none of the logic here), a
+// VirtualServer AddOrUpdate only gets a status/event update, and any
+// non-VirtualServer change is left untouched.
+//
+// AddOrUpdate deliberately does not render here. That means a VirtualServer
+// taking over the host just freed by the rejected one is left unserved until
+// a later event resyncs it -- a pre-existing gap carried over verbatim from
+// haltIfVSConfigInvalid. Rendering it would add a second reload to this
+// path, which is a real behavior change out of scope for this refactor.
+func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceChange) {
+	for _, c := range changes {
+		impl, ok := c.Resource.(*VirtualServerConfiguration)
+		if !ok {
+			continue
+		}
+		if c.Op == AddOrUpdate {
+			lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
+			continue
+		}
+		lbc.processDelete(c)
+	}
 }
 
 // applyWeightOnlyVSChanges pushes weightUpdates to NGINX via the keyval API
