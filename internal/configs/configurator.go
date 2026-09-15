@@ -971,10 +971,10 @@ func (cnf *Configurator) AddOrUpdateCASecret(secret *api_v1.Secret, crtFileName,
 }
 
 // addOrUpdateCASecretForRole writes a RoleCA Secret under its role-derived file names
-func (cnf *Configurator) addOrUpdateCASecretForRole(secret *api_v1.Secret, key string) secrets.Materialised {
+func (cnf *Configurator) addOrUpdateCASecretForRole(secret *api_v1.Secret, key string) secrets.Materialized {
 	crtData, crlData := GenerateCAFileContent(secret)
 
-	m := secrets.Materialised{Path: cnf.nginxManager.CreateSecret(
+	m := secrets.Materialized{Path: cnf.nginxManager.CreateSecret(
 		secretFileName(key, secrets.RoleCA),
 		crtData,
 		nginx.ReadWriteOnlyFileMode,
@@ -2583,12 +2583,12 @@ func (cnf *Configurator) DeleteAppProtectDosAllowList(obj *v1beta1.DosProtectedR
 }
 
 // AddOrUpdateSecret writes a Secret to disk for the given role and returns the resulting paths.
-func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.SecretRole) secrets.Materialised {
+func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.SecretRole) secrets.Materialized {
 	key := generateNamespaceNameKey(&secret.ObjectMeta)
 
 	switch role {
 	case secrets.RoleTLS:
-		return secrets.Materialised{
+		return secrets.Materialized{
 			Path: cnf.nginxManager.CreateSecret(
 				secretFileName(key, role),
 				GenerateCertAndKeyFileContent(secret),
@@ -2600,7 +2600,7 @@ func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.S
 		return cnf.addOrUpdateCASecretForRole(secret, key)
 
 	case secrets.RoleJWK:
-		return secrets.Materialised{
+		return secrets.Materialized{
 			Path: cnf.nginxManager.CreateSecret(
 				secretFileName(key, role),
 				secret.Data[secrets.JWTKeyKey],
@@ -2608,7 +2608,7 @@ func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.S
 			),
 		}
 	case secrets.RoleHtpasswd:
-		return secrets.Materialised{
+		return secrets.Materialized{
 			Path: cnf.nginxManager.CreateSecret(
 				secretFileName(key, role),
 				secret.Data[secrets.HtpasswdFileKey],
@@ -2616,7 +2616,7 @@ func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.S
 			),
 		}
 	}
-	return secrets.Materialised{}
+	return secrets.Materialized{}
 }
 
 // DeleteSecret removes the files a Secret occupies for the given role.
@@ -2634,12 +2634,12 @@ func (cnf *Configurator) DeleteSecret(key string, role secrets.SecretRole) {
 
 // SecretPaths returns the paths a Secret would occupy for role, without touching
 // the file system.
-func (cnf *Configurator) SecretPaths(key string, role secrets.SecretRole) secrets.Materialised {
+func (cnf *Configurator) SecretPaths(key string, role secrets.SecretRole) secrets.Materialized {
 	name := secretFileName(key, role)
 	if name == "" {
-		return secrets.Materialised{}
+		return secrets.Materialized{}
 	}
-	return secrets.Materialised{Path: cnf.nginxManager.GetFilenameForSecret(name)}
+	return secrets.Materialized{Path: cnf.nginxManager.GetFilenameForSecret(name)}
 }
 
 // secretFileName returns the file name a Secret identified by key

@@ -16,18 +16,18 @@ type SecretReference struct {
 	Error   error
 }
 
-// Materialised is what a file manager produced for one (key, role). CRLPath is set
+// Materialized is what a file manager produced for one (key, role). CRLPath is set
 // only for RoleCA, and only when the Secret carries ca.crl.
-type Materialised struct {
+type Materialized struct {
 	Path    string
 	CRLPath string
 }
 
 // SecretFileManager manages secrets on the file system.
 type SecretFileManager interface {
-	AddOrUpdateSecret(secret *api_v1.Secret, role SecretRole) Materialised
+	AddOrUpdateSecret(secret *api_v1.Secret, role SecretRole) Materialized
 	DeleteSecret(key string, role SecretRole)
-	SecretPaths(key string, role SecretRole) Materialised
+	SecretPaths(key string, role SecretRole) Materialized
 }
 
 // SecretStore stores secrets that the Ingress Controller uses.
@@ -50,7 +50,7 @@ type storeKey struct {
 // from SecretReference so materialisation state stays inside this package.
 type secretEntry struct {
 	ref          *SecretReference
-	materialised bool
+	materialized bool
 }
 
 // SecretRefKey identifies a SecretReference within a resource's SecretRefs map.
@@ -102,19 +102,19 @@ func (s *LocalSecretStore) AddOrUpdateSecret(secret *api_v1.Secret) {
 		entry.ref.setPaths(paths)
 
 		if entry.ref.Error != nil {
-			if entry.materialised {
+			if entry.materialized {
 				s.manager.DeleteSecret(key, refKey.role)
-				entry.materialised = false
+				entry.materialized = false
 			}
 			continue
 		}
 		paths = s.manager.AddOrUpdateSecret(secret, refKey.role)
 		entry.ref.setPaths(paths)
-		entry.materialised = true
+		entry.materialized = true
 	}
 }
 
-// DeleteSecret removes a Secret and every file it materialised, fanning out over
+// DeleteSecret removes a Secret and every file it materialized, fanning out over
 // each role it was resolved in.
 func (s *LocalSecretStore) DeleteSecret(key string) {
 	s.lock.Lock()
@@ -129,17 +129,17 @@ func (s *LocalSecretStore) DeleteSecret(key string) {
 		if refKey.secret != key {
 			continue
 		}
-		if entry.materialised {
+		if entry.materialized {
 			s.manager.DeleteSecret(key, refKey.role)
 		}
 		delete(s.refs, refKey)
 	}
 }
 
-// GetSecret returns the SecretReference for a Secret in the given role.
-// If the secret is valid and not yet on disk it is materialised. Path and CRLPath are populated whatever
-// the verdict, so callers always have a non-empty path to render. If the Secret is missing or invalid, the
-// Error field is set.
+// GetSecret returns the SecretReference for a Secret in the given role, materializing
+// it if valid and not yet on disk. Path is set whatever the verdict so callers never
+// render an empty path; inlined roles (OIDC, API key, WAF bundle, license) have none.
+// CRLPath is set only on a valid RoleCA verdict. Error is set if missing or invalid.
 func (s *LocalSecretStore) GetSecret(key string, role SecretRole) *SecretReference {
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -166,7 +166,7 @@ func (s *LocalSecretStore) GetSecret(key string, role SecretRole) *SecretReferen
 	if ref.Error == nil {
 		paths = s.manager.AddOrUpdateSecret(secret, role)
 		ref.setPaths(paths)
-		entry.materialised = true
+		entry.materialized = true
 	}
 	s.refs[refKey] = entry
 	return ref
@@ -209,7 +209,7 @@ func getResourceKey(meta *metav1.ObjectMeta) string {
 	return fmt.Sprintf("%s/%s", meta.Namespace, meta.Name)
 }
 
-func (r *SecretReference) setPaths(paths Materialised) {
+func (r *SecretReference) setPaths(paths Materialized) {
 	r.Path = paths.Path
 	r.CRLPath = paths.CRLPath
 }

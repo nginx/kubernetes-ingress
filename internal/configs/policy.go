@@ -800,6 +800,11 @@ func resolveOIDCNativeClientSecret(
 		res.isError = true
 		return "", false
 	}
+	if secretRef.Secret == nil {
+		res.addWarningf("OIDCNative policy %s references an invalid secret %s: secret doesn't exist", polKey, secretKey)
+		res.isError = true
+		return "", false
+	}
 
 	clientSecretBytes, _ := secretRef.Secret.Data[ClientSecretKey]
 

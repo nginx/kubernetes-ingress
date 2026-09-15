@@ -127,7 +127,7 @@ func KnownKeys(role SecretRole) []string {
 	}
 }
 
-// requireRoleKeys checks that each key is present in the Secret's data. Presence only,
+// requiredRoleKeys checks that each key is present in the Secret's data. Presence only,
 // deliberately not non-emptiness: five of the eight validators accept an empty
 // value today, and narrowing that would reject working-if-degraded deployments
 // on upgrade.
@@ -166,8 +166,6 @@ func ValidateTLSSecret(secret *api_v1.Secret) error {
 	if err := requiredRoleKeys(secret, RoleTLS); err != nil {
 		return err
 	}
-
-	// Kubernetes ensures that 'tls.crt' and 'tls.key' are present for secrets of api_v1.SecretTypeTLS type
 
 	_, err := tls.X509KeyPair(secret.Data[api_v1.TLSCertKey], secret.Data[api_v1.TLSPrivateKeyKey])
 	if err != nil {

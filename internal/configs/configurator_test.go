@@ -119,7 +119,7 @@ func createHostlessCafeIngressEx() IngressEx {
 	ingEx.Ingress.Spec.TLS = nil
 	ingEx.Ingress.Spec.Rules[0].Host = ""
 	ingEx.ValidHosts = map[string]bool{"": true}
-	ingEx.SecretRefs = map[string]*secrets.SecretReference{}
+	ingEx.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{}
 	return ingEx
 }
 
@@ -128,7 +128,7 @@ func createHostlessMergeableCafeIngress() *MergeableIngresses {
 	mergeableIngress.Master.Ingress.Spec.TLS = nil
 	mergeableIngress.Master.Ingress.Spec.Rules[0].Host = ""
 	mergeableIngress.Master.ValidHosts = map[string]bool{"": true}
-	mergeableIngress.Master.SecretRefs = map[string]*secrets.SecretReference{}
+	mergeableIngress.Master.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{}
 
 	for _, minion := range mergeableIngress.Minions {
 		minion.Ingress.Spec.Rules[0].Host = ""
@@ -2418,11 +2418,9 @@ func TestGenerateApDosAllowListFileContent(t *testing.T) {
 
 func createTransportServerExWithHostNoTLSPassthrough() TransportServerEx {
 	return TransportServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/echo-secret": {
-				Secret: &api_v1.Secret{
-					Type: api_v1.SecretTypeTLS,
-				},
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/echo-secret", secrets.RoleTLS): {
+				Secret: &api_v1.Secret{},
 				Path: "secret.pem",
 			},
 		},
@@ -3878,10 +3876,9 @@ func createOIDCVirtualServerEx() *VirtualServerEx {
 		Endpoints: map[string][]string{
 			"default/tea-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},

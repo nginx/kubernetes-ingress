@@ -3,6 +3,7 @@ package secrets
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,22 +12,49 @@ import (
 )
 
 type fakeSecretFileManager struct {
-	AddedOrUpdatedSecret *api_v1.Secret
-	DeletedSecret        string
+	AddedOrUpdated map[SecretRefKey]*api_v1.Secret
+	Deleted        map[SecretRefKey]bool
 }
 
-func (m *fakeSecretFileManager) AddOrUpdateSecret(secret *api_v1.Secret) string {
-	m.AddedOrUpdatedSecret = secret
-	return "testpath"
+func newFakeSecretFileManager() *fakeSecretFileManager {
+	return &fakeSecretFileManager{
+		AddedOrUpdated: map[SecretRefKey]*api_v1.Secret{},
+		Deleted:        map[SecretRefKey]bool{},
+	}
 }
 
-func (m *fakeSecretFileManager) DeleteSecret(key string) {
-	m.DeletedSecret = key
+func (m *fakeSecretFileManager) AddOrUpdateSecret(secret *api_v1.Secret, role SecretRole) Materialized {
+	key := getResourceKey(&secret.ObjectMeta)
+	m.AddedOrUpdated[RefKey(key, role)] = secret
+
+	paths := m.SecretPaths(key, role)
+	if role == RoleCA {
+		if _, hasCRL := secret.Data[CACrlKey]; hasCRL {
+			paths.CRLPath = fakeCRLPath(key)
+		}
+	}
+	return paths
+}
+
+func (m *fakeSecretFileManager) DeleteSecret(key string, role SecretRole) {
+	m.Deleted[RefKey(key, role)] = true
+}
+
+func (m *fakeSecretFileManager) SecretPaths(key string, role SecretRole) Materialized {
+	return Materialized{Path: fakePath(key, role)}
 }
 
 func (m *fakeSecretFileManager) Reset() {
-	m.AddedOrUpdatedSecret = nil
-	m.DeletedSecret = ""
+	m.AddedOrUpdated = map[SecretRefKey]*api_v1.Secret{}
+	m.Deleted = map[SecretRefKey]bool{}
+}
+
+func fakePath(key string, role SecretRole) string {
+	return fmt.Sprintf("/etc/nginx/secrets/%s_%s", role, strings.ReplaceAll(key, "/", "_"))
+}
+
+func fakeCRLPath(key string) string {
+	return fmt.Sprintf("/etc/nginx/secrets/crl_%s", strings.ReplaceAll(key, "/", "_"))
 }
 
 var (
@@ -52,6 +80,25 @@ var (
 			"tls.key": validKey,
 		},
 	}
+	caSecret = &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "ca-secret", Namespace: "default"},
+		Type:       api_v1.SecretTypeOpaque,
+		Data:       map[string][]byte{CAKey: validCACert},
+	}
+	caSecretWithCRL = &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "ca-secret", Namespace: "default"},
+		Type:       api_v1.SecretTypeOpaque,
+		Data:       map[string][]byte{CAKey: validCACert, CACrlKey: validCACert},
+	}
+	dualRoleSecret = &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "dual-secret", Namespace: "default"},
+		Type:       api_v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			api_v1.TLSCertKey:       validCert,
+			api_v1.TLSPrivateKeyKey: validKey,
+			CAKey:                   validCACert,
+		},
+	}
 )
 
 func errorComparer(e1, e2 error) bool {
@@ -64,13 +111,13 @@ func errorComparer(e1, e2 error) bool {
 
 func TestAddOrUpdateSecret(t *testing.T) {
 	t.Parallel()
-	manager := &fakeSecretFileManager{}
+	manager := newFakeSecretFileManager()
 
 	store := NewLocalSecretStore(manager)
 
 	// Add the valid secret
 
-	expectedManager := &fakeSecretFileManager{}
+	expectedManager := newFakeSecretFileManager()
 
 	store.AddOrUpdateSecret(validSecret)
 
@@ -82,15 +129,14 @@ func TestAddOrUpdateSecret(t *testing.T) {
 
 	expectedSecretRef := &SecretReference{
 		Secret: validSecret,
-		Path:   "testpath",
+		Path:   fakePath("default/tls-secret", RoleTLS),
 		Error:  nil,
 	}
-	expectedManager = &fakeSecretFileManager{
-		AddedOrUpdatedSecret: validSecret,
-	}
+	expectedManager = newFakeSecretFileManager()
+	expectedManager.AddedOrUpdated[RefKey("default/tls-secret", RoleTLS)] = validSecret
 
 	manager.Reset()
-	secretRef := store.GetSecret("default/tls-secret")
+	secretRef := store.GetSecret("default/tls-secret", RoleTLS)
 
 	if diff := cmp.Diff(expectedSecretRef, secretRef, cmp.Comparer(errorComparer)); diff != "" {
 		t.Errorf("GetSecret() returned unexpected result (-want +got):\n%s", diff)
@@ -100,10 +146,8 @@ func TestAddOrUpdateSecret(t *testing.T) {
 	}
 
 	// Make the secret invalid
-
-	expectedManager = &fakeSecretFileManager{
-		DeletedSecret: fmt.Sprintf("%s/%s", validSecret.Namespace, validSecret.Name),
-	}
+	expectedManager = newFakeSecretFileManager()
+	expectedManager.Deleted[RefKey("default/tls-secret", RoleTLS)] = true
 
 	manager.Reset()
 	store.AddOrUpdateSecret(invalidSecret)
@@ -116,13 +160,13 @@ func TestAddOrUpdateSecret(t *testing.T) {
 
 	expectedSecretRef = &SecretReference{
 		Secret: invalidSecret,
-		Path:   "",
+		Path:   fakePath("default/tls-secret", RoleTLS),
 		Error:  errors.New("failed to validate TLS cert and key: x509: malformed certificate"),
 	}
-	expectedManager = &fakeSecretFileManager{}
+	expectedManager = newFakeSecretFileManager()
 
 	manager.Reset()
-	secretRef = store.GetSecret("default/tls-secret")
+	secretRef = store.GetSecret("default/tls-secret", RoleTLS)
 
 	if diff := cmp.Diff(expectedSecretRef, secretRef, cmp.Comparer(errorComparer)); diff != "" {
 		t.Errorf("GetSecret() returned unexpected result (-want +got):\n%s", diff)
@@ -133,7 +177,8 @@ func TestAddOrUpdateSecret(t *testing.T) {
 
 	// Restore the valid secret
 
-	expectedManager = &fakeSecretFileManager{}
+	expectedManager = newFakeSecretFileManager()
+	expectedManager.AddedOrUpdated[RefKey("default/tls-secret", RoleTLS)] = validSecret
 
 	manager.Reset()
 	store.AddOrUpdateSecret(validSecret)
@@ -146,15 +191,13 @@ func TestAddOrUpdateSecret(t *testing.T) {
 
 	expectedSecretRef = &SecretReference{
 		Secret: validSecret,
-		Path:   "testpath",
+		Path:   fakePath("default/tls-secret", RoleTLS),
 		Error:  nil,
 	}
-	expectedManager = &fakeSecretFileManager{
-		AddedOrUpdatedSecret: validSecret,
-	}
+	expectedManager = newFakeSecretFileManager()
 
 	manager.Reset()
-	secretRef = store.GetSecret("default/tls-secret")
+	secretRef = store.GetSecret("default/tls-secret", RoleTLS)
 
 	if diff := cmp.Diff(expectedSecretRef, secretRef, cmp.Comparer(errorComparer)); diff != "" {
 		t.Errorf("GetSecret() returned unexpected result (-want +got):\n%s", diff)
@@ -165,9 +208,8 @@ func TestAddOrUpdateSecret(t *testing.T) {
 
 	// Update the secret
 
-	expectedManager = &fakeSecretFileManager{
-		AddedOrUpdatedSecret: validSecret,
-	}
+	expectedManager = newFakeSecretFileManager()
+	expectedManager.AddedOrUpdated[RefKey("default/tls-secret", RoleTLS)] = validSecret
 
 	manager.Reset()
 	// for the test, it is ok to use the same version
@@ -181,13 +223,13 @@ func TestAddOrUpdateSecret(t *testing.T) {
 
 	expectedSecretRef = &SecretReference{
 		Secret: validSecret,
-		Path:   "testpath",
+		Path:   fakePath("default/tls-secret", RoleTLS),
 		Error:  nil,
 	}
-	expectedManager = &fakeSecretFileManager{}
+	expectedManager = newFakeSecretFileManager()
 
 	manager.Reset()
-	secretRef = store.GetSecret("default/tls-secret")
+	secretRef = store.GetSecret("default/tls-secret", RoleTLS)
 
 	if diff := cmp.Diff(expectedSecretRef, secretRef, cmp.Comparer(errorComparer)); diff != "" {
 		t.Errorf("GetSecret() returned unexpected result (-want +got):\n%s", diff)
@@ -199,10 +241,10 @@ func TestAddOrUpdateSecret(t *testing.T) {
 
 func TestDeleteSecretNonExisting(t *testing.T) {
 	t.Parallel()
-	manager := &fakeSecretFileManager{}
+	manager := newFakeSecretFileManager()
 	store := NewLocalSecretStore(manager)
 
-	expectedManager := &fakeSecretFileManager{}
+	expectedManager := newFakeSecretFileManager()
 
 	store.DeleteSecret("default/tls-secret")
 
@@ -213,12 +255,12 @@ func TestDeleteSecretNonExisting(t *testing.T) {
 
 func TestDeleteSecretValidSecret(t *testing.T) {
 	t.Parallel()
-	manager := &fakeSecretFileManager{}
+	manager := newFakeSecretFileManager()
 	store := NewLocalSecretStore(manager)
 
 	// Add the valid secret
 
-	expectedManager := &fakeSecretFileManager{}
+	expectedManager := newFakeSecretFileManager()
 
 	store.AddOrUpdateSecret(validSecret)
 
@@ -230,15 +272,14 @@ func TestDeleteSecretValidSecret(t *testing.T) {
 
 	expectedSecretRef := &SecretReference{
 		Secret: validSecret,
-		Path:   "testpath",
+		Path:   fakePath("default/tls-secret", RoleTLS),
 		Error:  nil,
 	}
-	expectedManager = &fakeSecretFileManager{
-		AddedOrUpdatedSecret: validSecret,
-	}
+	expectedManager = newFakeSecretFileManager()
+	expectedManager.AddedOrUpdated[RefKey("default/tls-secret", RoleTLS)] = validSecret
 
 	manager.Reset()
-	secretRef := store.GetSecret("default/tls-secret")
+	secretRef := store.GetSecret("default/tls-secret", RoleTLS)
 
 	if diff := cmp.Diff(expectedSecretRef, secretRef, cmp.Comparer(errorComparer)); diff != "" {
 		t.Errorf("GetSecret() returned unexpected result (-want +got):\n%s", diff)
@@ -249,9 +290,8 @@ func TestDeleteSecretValidSecret(t *testing.T) {
 
 	// Delete the secret
 
-	expectedManager = &fakeSecretFileManager{
-		DeletedSecret: "default/tls-secret",
-	}
+	expectedManager = newFakeSecretFileManager()
+	expectedManager.Deleted[RefKey("default/tls-secret", RoleTLS)] = true
 
 	manager.Reset()
 	store.DeleteSecret("default/tls-secret")
@@ -263,12 +303,13 @@ func TestDeleteSecretValidSecret(t *testing.T) {
 	// Get the secret
 
 	expectedSecretRef = &SecretReference{
-		Error: errors.New("secret doesn't exist or of an unsupported type"),
+		Path:  fakePath("default/tls-secret", RoleTLS),
+		Error: errors.New("secret default/tls-secret doesn't exist"),
 	}
-	expectedManager = &fakeSecretFileManager{}
+	expectedManager = newFakeSecretFileManager()
 
 	manager.Reset()
-	secretRef = store.GetSecret("default/tls-secret")
+	secretRef = store.GetSecret("default/tls-secret", RoleTLS)
 
 	if diff := cmp.Diff(expectedSecretRef, secretRef, cmp.Comparer(errorComparer)); diff != "" {
 		t.Errorf("GetSecret() returned unexpected result (-want +got):\n%s", diff)
@@ -280,12 +321,12 @@ func TestDeleteSecretValidSecret(t *testing.T) {
 
 func TestDeleteSecretInvalidSecret(t *testing.T) {
 	t.Parallel()
-	manager := &fakeSecretFileManager{}
+	manager := newFakeSecretFileManager()
 	store := NewLocalSecretStore(manager)
 
 	// Add invalid secret
 
-	expectedManager := &fakeSecretFileManager{}
+	expectedManager := newFakeSecretFileManager()
 
 	store.AddOrUpdateSecret(invalidSecret)
 
@@ -295,7 +336,7 @@ func TestDeleteSecretInvalidSecret(t *testing.T) {
 
 	// Delete invalid secret
 
-	expectedManager = &fakeSecretFileManager{}
+	expectedManager = newFakeSecretFileManager()
 
 	manager.Reset()
 	store.DeleteSecret("default/tls-secret")
@@ -305,37 +346,186 @@ func TestDeleteSecretInvalidSecret(t *testing.T) {
 	}
 }
 
-func TestGetSecretReferenceMapAddSecret(t *testing.T) {
+func TestSecretCount(t *testing.T) {
+	t.Parallel()
+	store := NewLocalSecretStore(newFakeSecretFileManager())
+
+	store.AddOrUpdateSecret(validSecret)
+	store.AddOrUpdateSecret(caSecret)
+	if got := store.SecretCount(); got != 0 {
+		t.Errorf("expected 0 before anything resolves, got %d", got)
+	}
+
+	store.GetSecret("default/tls-secret", RoleTLS)
+	if got := store.SecretCount(); got != 1 {
+		t.Errorf("expected 1 after one resolution, got %d", got)
+	}
+
+	// A failed resolution does not count.
+	store.GetSecret("default/ca-secret", RoleTLS)
+	if got := store.SecretCount(); got != 1 {
+		t.Errorf("expected an invalid resolution not to count, got %d", got)
+	}
+}
+
+func TestGetSecretRecoversWhenSecretBecomesValid(t *testing.T) {
+	t.Parallel()
+	manager := newFakeSecretFileManager()
+	store := NewLocalSecretStore(manager)
+
+	store.AddOrUpdateSecret(invalidSecret)
+
+	ref := store.GetSecret("default/tls-secret", RoleTLS)
+	if ref.Error == nil {
+		t.Fatal("expected the invalid Secret to be rejected")
+	}
+	if len(manager.AddedOrUpdated) != 0 {
+		t.Errorf("expected no file for an invalid Secret, got %v", manager.AddedOrUpdated)
+	}
+
+	manager.Reset()
+	store.AddOrUpdateSecret(validSecret)
+
+	wantKey := RefKey("default/tls-secret", RoleTLS)
+	if _, written := manager.AddedOrUpdated[wantKey]; !written {
+		t.Error("expected the Secret to be materialized when it became valid")
+	}
+
+	ref = store.GetSecret("default/tls-secret", RoleTLS)
+	if ref.Error != nil {
+		t.Errorf("expected the restored Secret to be valid, got %v", ref.Error)
+	}
+	if ref.Path != fakePath("default/tls-secret", RoleTLS) {
+		t.Errorf("expected Path %q, got %q", fakePath("default/tls-secret", RoleTLS), ref.Path)
+	}
+}
+
+func TestGetSecretTwoRoles(t *testing.T) {
+	t.Parallel()
+	manager := newFakeSecretFileManager()
+	store := NewLocalSecretStore(manager)
+	store.AddOrUpdateSecret(dualRoleSecret)
+
+	tlsRef := store.GetSecret("default/dual-secret", RoleTLS)
+	caRef := store.GetSecret("default/dual-secret", RoleCA)
+
+	if tlsRef.Error != nil {
+		t.Errorf("expected RoleTLS to resolve, got %v", tlsRef.Error)
+	}
+	if caRef.Error != nil {
+		t.Errorf("expected RoleCA to resolve, got %v", caRef.Error)
+	}
+	if tlsRef.Path == caRef.Path {
+		t.Errorf("expected distinct paths per role, both were %q", tlsRef.Path)
+	}
+	if len(manager.AddedOrUpdated) != 2 {
+		t.Errorf("expected two files, got %v", manager.AddedOrUpdated)
+	}
+}
+
+func TestGetSecretPopulatesPathOnEveryVerdict(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		testName          string
-		manager           *fakeSecretFileManager
-		secret            *api_v1.Secret
-		expectedSecretKey string
+	tests := []struct {
+		name      string
+		secret    *api_v1.Secret
+		wantError bool
 	}{
 		{
-			testName:          "Add valid secret to store",
-			manager:           &fakeSecretFileManager{},
-			secret:            validSecret,
-			expectedSecretKey: getResourceKey(&validSecret.ObjectMeta),
+			name:   "valid secret",
+			secret: validSecret,
 		},
 		{
-			testName:          "Add invalid secret to store",
-			manager:           &fakeSecretFileManager{},
-			secret:            invalidSecret,
-			expectedSecretKey: getResourceKey(&invalidSecret.ObjectMeta),
+			name:      "secret that fails validation",
+			secret:    invalidSecret,
+			wantError: true,
+		},
+		{
+			name:      "secret absent from the store",
+			secret:    nil,
+			wantError: true,
 		},
 	}
 
-	for _, test := range testCases {
-		store := NewLocalSecretStore(test.manager)
-		store.AddOrUpdateSecret(test.secret)
+	wantPath := fakePath("default/tls-secret", RoleTLS)
 
-		secretRefMap := store.GetSecretReferenceMap()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-		if _, ok := secretRefMap[test.expectedSecretKey]; !ok {
-			t.Errorf("test case %s expected secret %v to be in store", test.testName, store.GetSecret(test.expectedSecretKey).Secret)
-		}
+			store := NewLocalSecretStore(newFakeSecretFileManager())
+			if test.secret != nil {
+				store.AddOrUpdateSecret(test.secret)
+			}
+
+			ref := store.GetSecret("default/tls-secret", RoleTLS)
+
+			if test.wantError && ref.Error == nil {
+				t.Fatal("GetSecret() expected a validation error, got none")
+			}
+			if !test.wantError && ref.Error != nil {
+				t.Fatalf("GetSecret() unexpected error: %v", ref.Error)
+			}
+			if ref.Path != wantPath {
+				t.Errorf("GetSecret() Path = %q, want %q whatever the verdict", ref.Path, wantPath)
+			}
+		})
+	}
+}
+
+func TestGetSecretCRLPathOnlyOnValidVerdict(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		secret      *api_v1.Secret
+		key         string
+		wantError   bool
+		wantCRLPath string
+	}{
+		{
+			name:        "valid CA secret carrying ca.crl",
+			secret:      caSecretWithCRL,
+			key:         "default/ca-secret",
+			wantCRLPath: fakeCRLPath("default/ca-secret"),
+		},
+		{
+			name:        "valid CA secret without ca.crl",
+			secret:      caSecret,
+			key:         "default/ca-secret",
+			wantCRLPath: "",
+		},
+		{
+			name:        "secret invalid for the CA role",
+			secret:      validSecret,
+			key:         "default/tls-secret",
+			wantError:   true,
+			wantCRLPath: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := NewLocalSecretStore(newFakeSecretFileManager())
+			store.AddOrUpdateSecret(test.secret)
+
+			ref := store.GetSecret(test.key, RoleCA)
+
+			if test.wantError && ref.Error == nil {
+				t.Fatal("GetSecret() expected a validation error, got none")
+			}
+			if !test.wantError && ref.Error != nil {
+				t.Fatalf("GetSecret() unexpected error: %v", ref.Error)
+			}
+			if ref.CRLPath != test.wantCRLPath {
+				t.Errorf("GetSecret() CRLPath = %q, want %q", ref.CRLPath, test.wantCRLPath)
+			}
+			// Path is populated regardless, including on the error verdict.
+			if ref.Path != fakePath(test.key, RoleCA) {
+				t.Errorf("GetSecret() Path = %q, want %q", ref.Path, fakePath(test.key, RoleCA))
+			}
+		})
 	}
 }
