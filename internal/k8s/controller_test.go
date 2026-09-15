@@ -2681,6 +2681,179 @@ func TestProcessChangesDispatchesDelete(t *testing.T) {
 	})
 }
 
+// The following tests guard against a nil pointer dereference panic (see
+// getNamespacedInformer) when a resource for a namespace that is no longer watched
+// (e.g. its watch-namespace-label was removed) is processed.
+
+func TestProcessDeleteNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	newLBC := func(t *testing.T) *LoadBalancerController {
+		t.Helper()
+		manager := nginx.NewFakeManager("/etc/nginx")
+		return &LoadBalancerController{
+			configurator:        createTestPolicySyncConfigurator(t, manager),
+			recorder:            record.NewFakeRecorder(100),
+			secretStore:         secrets.NewEmptyFakeSecretsStore(),
+			namespacedInformers: map[string]*namespacedInformer{},
+			Logger:              nl.LoggerFromContext(context.Background()),
+		}
+	}
+
+	t.Run("Ingress", func(t *testing.T) {
+		t.Parallel()
+		lbc := newLBC(t)
+		ing := createTestIngress("not-watched-ingress", "example.com")
+		lbc.processDelete(ResourceChange{Op: Delete, Resource: NewRegularIngressConfiguration(ing)})
+	})
+
+	t.Run("VirtualServer", func(t *testing.T) {
+		t.Parallel()
+		lbc := newLBC(t)
+		vs := createTestVirtualServer("not-watched-vs", "example.com")
+		lbc.processDelete(ResourceChange{
+			Op: Delete,
+			Resource: &VirtualServerConfiguration{
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
+			},
+		})
+	})
+
+	t.Run("TransportServer", func(t *testing.T) {
+		t.Parallel()
+		lbc := newLBC(t)
+		ts := createTestTLSPassthroughTransportServer("not-watched-ts", "example.com")
+		lbc.processDelete(ResourceChange{
+			Op:       Delete,
+			Resource: &TransportServerConfiguration{TransportServer: ts},
+		})
+	})
+}
+
+func TestSyncVirtualServerNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+	lbc.syncVirtualServer(task{Kind: virtualserver, Key: "not-watched/some-vs"})
+}
+
+func TestSyncVirtualServerRouteNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+	lbc.syncVirtualServerRoute(task{Kind: virtualServerRoute, Key: "not-watched/some-vsr"})
+}
+
+func TestSyncIngressNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+	lbc.syncIngress(task{Kind: ingress, Key: "not-watched/some-ingress"})
+}
+
+func TestSyncSecretNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+	lbc.syncSecret(task{Kind: secret, Key: "not-watched/some-secret"})
+}
+
+func TestGetServiceForIngressBackendNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	backend := &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{Name: "some-service"},
+	}
+	svc, err := lbc.getServiceForIngressBackend(backend, "not-watched")
+	if svc != nil {
+		t.Errorf("getServiceForIngressBackend() returned %v, expected nil", svc)
+	}
+	if err == nil {
+		t.Error("getServiceForIngressBackend() returned nil error, expected an error for an unwatched namespace")
+	}
+}
+
+func TestGetEndpointsForIngressBackendNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	backend := &networking.IngressBackend{
+		Service: &networking.IngressServiceBackend{Name: "some-service"},
+	}
+	svc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "some-service", Namespace: "not-watched"},
+	}
+	result, isExternal, err := lbc.getEndpointsForIngressBackend(backend, svc)
+	if result != nil {
+		t.Errorf("getEndpointsForIngressBackend() returned %v, expected nil", result)
+	}
+	if isExternal {
+		t.Error("getEndpointsForIngressBackend() returned isExternal=true, expected false for an unwatched namespace")
+	}
+	if err == nil {
+		t.Error("getEndpointsForIngressBackend() returned nil error, expected an error for an unwatched namespace")
+	}
+}
+
+func TestGetTargetPortNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	svcPort := api_v1.ServicePort{
+		TargetPort: intstr.FromString("http"),
+	}
+	svc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "some-service", Namespace: "not-watched"},
+	}
+	port, err := lbc.getTargetPort(svcPort, svc)
+	if port != 0 {
+		t.Errorf("getTargetPort() returned port %v, expected 0", port)
+	}
+	if err == nil {
+		t.Error("getTargetPort() returned nil error, expected an error for an unwatched namespace")
+	}
+}
+
+func TestGetPodOwnerTypeAndNameFromAddressNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	parentType, parentName := lbc.getPodOwnerTypeAndNameFromAddress("not-watched", "some-pod")
+	if parentType != "" || parentName != "" {
+		t.Errorf("getPodOwnerTypeAndNameFromAddress() returned (%q, %q), expected (\"\", \"\") for an unwatched namespace", parentType, parentName)
+	}
+}
+
 func TestGetPodOwnerTypeAndName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
