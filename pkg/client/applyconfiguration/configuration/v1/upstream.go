@@ -63,6 +63,8 @@ type UpstreamApplyConfiguration struct {
 	SessionCookie *SessionCookieApplyConfiguration `json:"sessionCookie,omitempty"`
 	// Enables using the Cluster IP and port of the service instead of the default behavior of using the IP and port of the pods. When this field is enabled, the fields that configure NGINX behavior related to multiple upstream servers (like lb-method and next-upstream) will have no effect, as NGINX Ingress Controller will configure NGINX with only one upstream server that will match the service Cluster IP.
 	UseClusterIP *bool `json:"use-cluster-ip,omitempty"`
+	// Enables topology-aware routing that honors EndpointSlice hints populated by the service's spec.trafficDistribution. When true, requests prefer endpoints on the same node as the Ingress Controller, then the same zone, falling back to all endpoints. Defaults to false, in which case all endpoints are used and hints are ignored. Cannot be used with use-cluster-ip.
+	UseTrafficDistribution *bool `json:"use-traffic-distribution,omitempty"`
 	// Allows proxying requests with NTLM Authentication. In order for NTLM authentication to work, it is necessary to enable keepalive connections to upstream servers using the keepalive field. Note: this feature is supported only in NGINX Plus.
 	NTLM *bool `json:"ntlm,omitempty"`
 	// The type of the upstream. Supported values are http and grpc. The default is http. For gRPC, it is necessary to enable HTTP/2 in the ConfigMap and configure TLS termination in the VirtualServer.
@@ -298,6 +300,14 @@ func (b *UpstreamApplyConfiguration) WithSessionCookie(value *SessionCookieApply
 // If called multiple times, the UseClusterIP field is set to the value of the last call.
 func (b *UpstreamApplyConfiguration) WithUseClusterIP(value bool) *UpstreamApplyConfiguration {
 	b.UseClusterIP = &value
+	return b
+}
+
+// WithUseTrafficDistribution sets the UseTrafficDistribution field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the UseTrafficDistribution field is set to the value of the last call.
+func (b *UpstreamApplyConfiguration) WithUseTrafficDistribution(value bool) *UpstreamApplyConfiguration {
+	b.UseTrafficDistribution = &value
 	return b
 }
 
