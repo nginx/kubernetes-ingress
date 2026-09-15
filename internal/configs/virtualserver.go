@@ -1197,7 +1197,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			LimitReqs:                 policiesCfg.RateLimit.Reqs,
 			JWTAuth:                   policiesCfg.JWTAuth.Auth,
 			ExternalAuth:              policiesCfg.ExternalAuth,
-			ErrorPages:                getServerErrorPages(policiesCfg),
 			BasicAuth:                 policiesCfg.BasicAuth,
 			JWTAuthList:               policiesCfg.JWTAuth.List,
 			JWKSAuthEnabled:           policiesCfg.JWTAuth.JWKSEnabled,
@@ -1314,19 +1313,6 @@ func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policie
 		loc.ProxySSLName = policiesCfg.ExternalAuth.SNIName
 	}
 	return loc
-}
-
-func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
-	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
-		return []version2.ErrorPage{
-			{
-				Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
-				Codes:        "401",
-				ResponseCode: version2.ErrorPageResponseCodeInherit,
-			},
-		}
-	}
-	return nil
 }
 
 func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
@@ -1552,11 +1538,6 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.PoliciesErrorReturn = cfg.ErrorReturn
 
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
-		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
-			Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
-			Codes:        "401",
-			ResponseCode: version2.ErrorPageResponseCodeInherit,
-		})
 		location.ProxyInterceptErrors = true
 	}
 
@@ -1565,11 +1546,6 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.AddHeaders = append(location.AddHeaders, cfg.CORSHeaders...)
 		location.CORSEnabled = true
 	}
-}
-
-func escapeForNGINXQuotedString(value string) string {
-	quoted := fmt.Sprintf("%q", value)
-	return quoted[1 : len(quoted)-1]
 }
 
 func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {
