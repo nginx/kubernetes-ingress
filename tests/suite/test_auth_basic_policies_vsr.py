@@ -368,8 +368,7 @@ class TestAuthBasicPoliciesVsr:
         assert crd_info["status"]["state"] == "Warning"
         assert (
             f"references an invalid secret {v_s_route_setup.route_m.namespace}/{secret}: "
-            f"secret {v_s_route_setup.route_m.namespace}/{secret} doesn't exist"
-            in crd_info["status"]["message"]
+            f"secret {v_s_route_setup.route_m.namespace}/{secret} doesn't exist" in crd_info["status"]["message"]
         )
         assert resp2.status_code == 500
         assert f"Internal Server Error" in resp2.text
