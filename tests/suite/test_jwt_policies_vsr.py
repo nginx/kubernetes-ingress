@@ -356,7 +356,8 @@ class TestJWTPoliciesVsr:
         assert f"Request ID:" in resp1.text
         assert crd_info["status"]["state"] == "Warning"
         assert (
-            f"references an invalid secret {v_s_route_setup.route_m.namespace}/{secret}: secret doesn't exist or of an unsupported type"
+            f"references an invalid secret {v_s_route_setup.route_m.namespace}/{secret}: "
+            f"secret {v_s_route_setup.route_m.namespace}/{secret} doesn't exist"
             in crd_info["status"]["message"]
         )
         assert resp2.status_code == 500
