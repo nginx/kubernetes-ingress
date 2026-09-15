@@ -906,24 +906,15 @@ func (lbc *LoadBalancerController) resolveWAFBundleAuth(bs *conf_v1.BundleSource
 
 // resolveWAFBundleSecret resolves the primary auth secret into the given BundleAuth.
 func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSource, namespace string, auth *wafbundle.BundleAuth) error {
-	secretKey := namespace + "/" + bs.Secret
-	ref := lbc.secretStore.GetSecret(secretKey)
-	if ref == nil || ref.Error != nil {
-		var msg string
-		if ref != nil {
-			msg = ref.Error.Error()
-		}
-		return fmt.Errorf("secret %s not found or invalid: %s", secretKey, msg)
+	role := secrets.RoleTLS
+	if bs.Type == conf_v1.BundleSourceTypeN1C || bs.Type == conf_v1.BundleSourceTypeNIM {
+		role = secrets.RoleWAFBundle
 	}
 
-	if bs.Type == conf_v1.BundleSourceTypeN1C || bs.Type == conf_v1.BundleSourceTypeNIM {
-		if err := secrets.ValidateWAFBundleSecret(ref.Secret); err != nil {
-			return fmt.Errorf("secret %s: %w", secretKey, err)
-		}
-	} else { // HTTPS
-		if err := secrets.ValidateTLSSecret(ref.Secret); err != nil {
-			return fmt.Errorf("secret %s: %w", secretKey, err)
-		}
+	secretKey := namespace + "/" + bs.Secret
+	ref := lbc.secretStore.GetSecret(secretKey, role)
+	if ref.Error != nil {
+		return fmt.Errorf("secret %s not found or invalid: %w", secretKey, ref.Error)
 	}
 
 	data := ref.Secret.Data
@@ -931,23 +922,23 @@ func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSour
 
 	switch bs.Type {
 	case conf_v1.BundleSourceTypeN1C:
-		tok := string(data["token"])
+		tok := string(data[secrets.BundleTokenKey])
 		if tok == "" {
-			return fmt.Errorf("N1C secret %s must contain a 'token' field (type nginx.com/waf-bundle)", secretKey)
+			return fmt.Errorf("N1C secret %s must contain a 'token' field", secretKey)
 		}
 		auth.APIToken = tok
 	case conf_v1.BundleSourceTypeNIM:
-		if tok := string(data["token"]); tok != "" {
+		if tok := string(data[secrets.BundleTokenKey]); tok != "" {
 			auth.BearerToken = tok
-		} else if usr := string(data["username"]); usr != "" {
+		} else if usr := string(data[secrets.BundleUsernameKey]); usr != "" {
 			auth.Username = usr
-			auth.Password = string(data["password"])
+			auth.Password = string(data[secrets.BundlePasswordKey])
 		} else {
-			return fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password' (type nginx.com/waf-bundle)", secretKey)
+			return fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password'", secretKey)
 		}
 	default: // HTTPS
-		auth.TLSCert = data["tls.crt"]
-		auth.TLSKey = data["tls.key"]
+		auth.TLSCert = data[api_v1.TLSCertKey]
+		auth.TLSKey = data[api_v1.TLSPrivateKeyKey]
 	}
 	return nil
 }
@@ -955,7 +946,7 @@ func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSour
 // resolveWAFTrustedCert resolves the trusted CA certificate secret.
 func (lbc *LoadBalancerController) resolveWAFTrustedCert(secretName, namespace string, auth *wafbundle.BundleAuth) error {
 	caSecretKey := namespace + "/" + secretName
-	caRef := lbc.secretStore.GetSecret(caSecretKey)
+	caRef := lbc.secretStore.GetSecret(caSecretKey, secrets.RoleCA)
 	if caRef == nil || caRef.Error != nil {
 		var msg string
 		if caRef != nil {

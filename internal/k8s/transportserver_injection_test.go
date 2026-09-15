@@ -261,9 +261,9 @@ func shapeForTransportServer(t *testing.T, ts *conf_v1.TransportServer, isPlus b
 	// exists, because the controller resolves references before generating
 	// configuration. Provide one so a TransportServer carrying spec.tls.secret
 	// reaches the generator rather than panicking on the way in.
-	secretRefs := make(map[string]*secrets.SecretReference)
+	secretRefs := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 	if ts.Spec.TLS != nil {
-		secretRefs[ts.Namespace+"/"+ts.Spec.TLS.Secret] = &secrets.SecretReference{}
+		secretRefs[secrets.RefKey(ts.Namespace+"/"+ts.Spec.TLS.Secret, secrets.RoleTLS)] = &secrets.SecretReference{}
 	}
 
 	tsEx := &configs.TransportServerEx{

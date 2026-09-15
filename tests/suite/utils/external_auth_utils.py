@@ -45,13 +45,14 @@ ext_auth_pol_custom_port_src = f"{TEST_DATA}/external-auth/policies/external-aut
 ext_auth_tls_backend_src = f"{TEST_DATA}/external-auth/backend/external-auth-backend-tls.yaml"
 ext_auth_tls_server_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-server-tls-secret.yaml"
 ext_auth_tls_ca_secret_src = f"{TEST_DATA}/external-auth/backend/external-auth-ca-secret.yaml"
-ext_auth_tls_wrong_ca_src = f"{TEST_DATA}/external-auth/backend/wrong-type-ca-secret.yaml"
+ext_auth_tls_ca_secret_opaque_src = f"{TEST_DATA}/external-auth/backend/external-auth-ca-secret-opaque.yaml"
+ext_auth_tls_missing_ca_crt_src = f"{TEST_DATA}/external-auth/backend/missing-ca-crt-secret.yaml"
 
 # TLS policies
 ext_auth_pol_tls_basic_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-basic.yaml"
 ext_auth_pol_tls_full_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-full.yaml"
 ext_auth_pol_tls_nonexistent_ca_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-nonexistent-ca.yaml"
-ext_auth_pol_tls_wrong_ca_type_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-wrong-ca-type.yaml"
+ext_auth_pol_tls_missing_ca_crt_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-missing-ca-crt.yaml"
 ext_auth_pol_tls_bad_sni_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-bad-sni.yaml"
 ext_auth_pol_tls_cross_ns_ca_src = f"{TEST_DATA}/external-auth/policies/external-auth-policy-tls-cross-ns-ca.yaml"
 ext_auth_pol_tls_no_trusted_cert_src = (
@@ -246,7 +247,7 @@ def teardown_ext_auth(kube_apis, namespace, secret_names, policy_names, *, tls=F
 def ext_auth_setup(request, kube_apis, test_namespace):
     """Parametrized fixture that deploys the external auth backend and policies.
 
-    ``request.param`` is a tuple: ``(policy_yamls[, tls[, validate_policies]])``.
+    ``request.param`` is a tuple: ``(policy_yamls[, tls[, validate_policies[, ca_secret_src]]])``.
 
     .. code-block:: python
 
@@ -264,10 +265,11 @@ def ext_auth_setup(request, kube_apis, test_namespace):
     policy_yamls = params[0]
     tls = params[1] if len(params) > 1 else False
     validate_policies = params[2] if len(params) > 2 else True
+    ca_secret_src = params[3] if len(params) > 3 else ext_auth_tls_ca_secret_src
 
     backend_yaml = ext_auth_tls_backend_src if tls else ext_auth_backend_src
     secret_yamls = (
-        [ext_auth_backend_secret_src, ext_auth_tls_server_secret_src, ext_auth_tls_ca_secret_src]
+        [ext_auth_backend_secret_src, ext_auth_tls_server_secret_src, ca_secret_src]
         if tls
         else [ext_auth_backend_secret_src]
     )

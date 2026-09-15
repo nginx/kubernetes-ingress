@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -38,6 +39,7 @@ type testNginxManager struct {
 	*nginx.FakeManager
 
 	CreatedConfigNames []string
+	CreatedSecretNames []string
 	FailCreateForName  string
 	FailCreateOnCall   int
 	CreateCalls        int
@@ -56,6 +58,23 @@ func (m *testNginxManager) CreateConfig(name string, content []byte) (bool, erro
 	}
 
 	return m.FakeManager.CreateConfig(name, content)
+}
+
+func (m *testNginxManager) CreateSecret(name string, content []byte, mode os.FileMode) string {
+	m.CreatedSecretNames = append(m.CreatedSecretNames, name)
+	return m.FakeManager.CreateSecret(name, content, mode)
+}
+
+type fakeSecretFileManager struct{}
+
+func (fakeSecretFileManager) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.SecretRole) secrets.Materialized {
+	return secrets.Materialized{Path: fmt.Sprintf("/etc/nginx/secrets/%s_%s_%s", role, secret.Namespace, secret.Name)}
+}
+
+func (fakeSecretFileManager) DeleteSecret(string, secrets.SecretRole) {}
+
+func (fakeSecretFileManager) SecretPaths(key string, role secrets.SecretRole) secrets.Materialized {
+	return secrets.Materialized{Path: fmt.Sprintf("/etc/nginx/secrets/%s_%s", role, key)}
 }
 
 // fakeStore wraps FakeCustomStore to satisfy the cache.Store interface, which gained
@@ -2478,14 +2497,13 @@ func TestCreateIngressEx_NoSpuriousWarningWhenTLSSecretNameEmpty(t *testing.T) {
 
 			ingEx := lbc.createIngressEx(ing, map[string]bool{"example.com": true}, nil)
 
-			// The empty-secretName entry must be present in SecretRefs with no error —
-			// downstream addSSLConfig() reads this key and falls through to the wildcard path.
-			ref, exists := ingEx.SecretRefs[""]
-			if !exists {
-				t.Fatal("expected SecretRefs[\"\"] to exist for empty-secretName TLS block")
-			}
-			if ref.Error != nil {
-				t.Errorf("expected no error in SecretRefs[\"\"] when secretName is empty, got: %v", ref.Error)
+			// A tls: block with no secretName produces no SecretRefs entry at all:
+			// createIngressEx skips the store lookup to avoid a spurious
+			// "secret doesn't exist" warning on every sync. addSSLConfig only
+			// looks the key up when tlsSecret != "", and otherwise falls through
+			// to the wildcard path, so nothing downstream reads it.
+			if len(ingEx.SecretRefs) != 0 {
+				t.Errorf("expected no SecretRefs entries for an empty-secretName TLS block, got %d", len(ingEx.SecretRefs))
 			}
 		})
 	}
@@ -3272,7 +3290,7 @@ func TestAddJWTSecrets(t *testing.T) {
 
 	tests := []struct {
 		policies           []*conf_v1.Policy
-		expectedSecretRefs map[string]*secrets.SecretReference
+		expectedSecretRefs map[secrets.SecretRefKey]*secrets.SecretReference
 		wantErr            bool
 		msg                string
 	}{
@@ -3291,8 +3309,8 @@ func TestAddJWTSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/valid-jwk-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/valid-jwk-secret", secrets.RoleJWK): {
 					Secret: validJWKSecret,
 					Path:   "/etc/nginx/secrets/default-valid-jwk-secret",
 				},
@@ -3316,13 +3334,13 @@ func TestAddJWTSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid policy using JwksUri",
 		},
 		{
 			policies:           []*conf_v1.Policy{},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid secret with no policy",
 		},
@@ -3340,7 +3358,7 @@ func TestAddJWTSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting invalid secret with wrong policy",
 		},
@@ -3359,8 +3377,8 @@ func TestAddJWTSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/invalid-jwk-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-jwk-secret", secrets.RoleJWK): {
 					Secret: invalidJWKSecret,
 					Error:  invalidErr,
 				},
@@ -3385,7 +3403,7 @@ func TestAddJWTSecrets(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := make(map[string]*secrets.SecretReference)
+		result := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 
 		err := lbc.addJWTSecretRefs(result, test.policies)
 		if (err != nil) != test.wantErr {
@@ -3418,7 +3436,7 @@ func TestAddBasicSecrets(t *testing.T) {
 
 	tests := []struct {
 		policies           []*conf_v1.Policy
-		expectedSecretRefs map[string]*secrets.SecretReference
+		expectedSecretRefs map[secrets.SecretRefKey]*secrets.SecretReference
 		wantErr            bool
 		msg                string
 	}{
@@ -3437,8 +3455,8 @@ func TestAddBasicSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/valid-basic-auth-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/valid-basic-auth-secret", secrets.RoleHtpasswd): {
 					Secret: validBasicSecret,
 					Path:   "/etc/nginx/secrets/default-valid-basic-auth-secret",
 				},
@@ -3448,7 +3466,7 @@ func TestAddBasicSecrets(t *testing.T) {
 		},
 		{
 			policies:           []*conf_v1.Policy{},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid secret with no policy",
 		},
@@ -3466,7 +3484,7 @@ func TestAddBasicSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting invalid secret with wrong policy",
 		},
@@ -3485,8 +3503,8 @@ func TestAddBasicSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/invalid-basic-auth-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-basic-auth-secret", secrets.RoleHtpasswd): {
 					Secret: invalidBasicSecret,
 					Error:  invalidErr,
 				},
@@ -3511,7 +3529,7 @@ func TestAddBasicSecrets(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := make(map[string]*secrets.SecretReference)
+		result := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 
 		err := lbc.addBasicSecretRefs(result, test.policies)
 		if (err != nil) != test.wantErr {
@@ -3544,7 +3562,7 @@ func TestAddIngressMTLSSecret(t *testing.T) {
 
 	tests := []struct {
 		policies           []*conf_v1.Policy
-		expectedSecretRefs map[string]*secrets.SecretReference
+		expectedSecretRefs map[secrets.SecretRefKey]*secrets.SecretReference
 		wantErr            bool
 		msg                string
 	}{
@@ -3562,8 +3580,8 @@ func TestAddIngressMTLSSecret(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/valid-ingress-mtls-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/valid-ingress-mtls-secret", secrets.RoleCA): {
 					Secret: validSecret,
 					Path:   "/etc/nginx/secrets/default-valid-ingress-mtls-secret",
 				},
@@ -3573,7 +3591,7 @@ func TestAddIngressMTLSSecret(t *testing.T) {
 		},
 		{
 			policies:           []*conf_v1.Policy{},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid secret with no policy",
 		},
@@ -3591,7 +3609,7 @@ func TestAddIngressMTLSSecret(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid secret with wrong policy",
 		},
@@ -3609,8 +3627,8 @@ func TestAddIngressMTLSSecret(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/invalid-ingress-mtls-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-ingress-mtls-secret", secrets.RoleCA): {
 					Secret: invalidSecret,
 					Error:  invalidErr,
 				},
@@ -3635,7 +3653,7 @@ func TestAddIngressMTLSSecret(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := make(map[string]*secrets.SecretReference)
+		result := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 
 		err := lbc.addIngressMTLSSecretRefs(result, test.policies)
 		if (err != nil) != test.wantErr {
@@ -3682,7 +3700,7 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 
 	tests := []struct {
 		policies           []*conf_v1.Policy
-		expectedSecretRefs map[string]*secrets.SecretReference
+		expectedSecretRefs map[secrets.SecretRefKey]*secrets.SecretReference
 		wantErr            bool
 		msg                string
 	}{
@@ -3700,8 +3718,8 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/valid-egress-mtls-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/valid-egress-mtls-secret", secrets.RoleTLS): {
 					Secret: validMTLSSecret,
 					Path:   "/etc/nginx/secrets/default-valid-egress-mtls-secret",
 				},
@@ -3723,8 +3741,8 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/valid-egress-trusted-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/valid-egress-trusted-secret", secrets.RoleCA): {
 					Secret: validTrustedSecret,
 					Path:   "/etc/nginx/secrets/default-valid-egress-trusted-secret",
 				},
@@ -3747,12 +3765,12 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/valid-egress-mtls-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/valid-egress-mtls-secret", secrets.RoleTLS): {
 					Secret: validMTLSSecret,
 					Path:   "/etc/nginx/secrets/default-valid-egress-mtls-secret",
 				},
-				"default/valid-egress-trusted-secret": {
+				secrets.RefKey("default/valid-egress-trusted-secret", secrets.RoleCA): {
 					Secret: validTrustedSecret,
 					Path:   "/etc/nginx/secrets/default-valid-egress-trusted-secret",
 				},
@@ -3762,7 +3780,7 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 		},
 		{
 			policies:           []*conf_v1.Policy{},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid secret with no policy",
 		},
@@ -3780,7 +3798,7 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid secret with wrong policy",
 		},
@@ -3798,8 +3816,8 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/invalid-egress-mtls-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-egress-mtls-secret", secrets.RoleTLS): {
 					Secret: invalidMTLSSecret,
 					Error:  invalidErr,
 				},
@@ -3821,8 +3839,8 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/invalid-egress-trusted-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-egress-trusted-secret", secrets.RoleCA): {
 					Secret: invalidTrustedSecret,
 					Error:  invalidErr,
 				},
@@ -3855,7 +3873,7 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := make(map[string]*secrets.SecretReference)
+		result := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 
 		err := lbc.addEgressMTLSSecretRefs(result, test.policies)
 		if (err != nil) != test.wantErr {
@@ -3890,7 +3908,7 @@ func TestAddOidcSecret(t *testing.T) {
 
 	tests := []struct {
 		policies           []*conf_v1.Policy
-		expectedSecretRefs map[string]*secrets.SecretReference
+		expectedSecretRefs map[secrets.SecretRefKey]*secrets.SecretReference
 		wantErr            bool
 		msg                string
 	}{
@@ -3908,8 +3926,8 @@ func TestAddOidcSecret(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/valid-oidc-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/valid-oidc-secret", secrets.RoleOIDC): {
 					Secret: validSecret,
 				},
 			},
@@ -3918,7 +3936,7 @@ func TestAddOidcSecret(t *testing.T) {
 		},
 		{
 			policies:           []*conf_v1.Policy{},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid secret with no policy",
 		},
@@ -3936,7 +3954,7 @@ func TestAddOidcSecret(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			wantErr:            false,
 			msg:                "test getting valid secret with wrong policy",
 		},
@@ -3954,8 +3972,8 @@ func TestAddOidcSecret(t *testing.T) {
 					},
 				},
 			},
-			expectedSecretRefs: map[string]*secrets.SecretReference{
-				"default/invalid-oidc-secret": {
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-oidc-secret", secrets.RoleOIDC): {
 					Secret: invalidSecret,
 					Error:  invalidErr,
 				},
@@ -3979,7 +3997,7 @@ func TestAddOidcSecret(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := make(map[string]*secrets.SecretReference)
+		result := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 
 		err := lbc.addOIDCSecretRefs(result, test.policies)
 		if (err != nil) != test.wantErr {
@@ -3999,17 +4017,13 @@ func TestPreSyncSecrets(t *testing.T) {
 			return []interface{}{
 				&api_v1.Secret{
 					ObjectMeta: meta_v1.ObjectMeta{
-						Name:      "supported-secret",
-						Namespace: "default",
-					},
-					Type: api_v1.SecretTypeTLS,
-				},
-				&api_v1.Secret{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name:      "unsupported-secret",
+						Name:      "jwk-secret",
 						Namespace: "default",
 					},
 					Type: api_v1.SecretTypeOpaque,
+					Data: map[string][]byte{
+						"jwk": []byte("{}"),
+					},
 				},
 			}
 		},
@@ -4019,23 +4033,144 @@ func TestPreSyncSecrets(t *testing.T) {
 
 	lbc := LoadBalancerController{
 		isNginxPlus:         true,
-		secretStore:         secrets.NewEmptyFakeSecretsStore(),
+		secretStore:         secrets.NewLocalSecretStore(fakeSecretFileManager{}),
 		namespacedInformers: nsi,
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 
 	lbc.preSyncSecrets()
 
-	supportedKey := "default/supported-secret"
-	ref := lbc.secretStore.GetSecret(supportedKey)
-	if ref.Error != nil {
-		t.Errorf("GetSecret(%q) returned a reference with an unexpected error %v", supportedKey, ref.Error)
+	const key = "default/jwk-secret"
+
+	if ref := lbc.secretStore.GetSecret(key, secrets.RoleJWK); ref.Error != nil {
+		t.Errorf("GetSecret(%q, RoleJWK) returned an unexpected error: %v", key, ref.Error)
 	}
 
-	unsupportedKey := "default/unsupported-secret"
-	ref = lbc.secretStore.GetSecret(unsupportedKey)
-	if ref.Error == nil {
-		t.Errorf("GetSecret(%q) returned a reference without an expected error", unsupportedKey)
+	if ref := lbc.secretStore.GetSecret(key, secrets.RoleTLS); ref.Error == nil {
+		t.Errorf("GetSecret(%q, RoleTLS) expected an error for a Secret with no jwk key", key)
+	}
+
+	if ref := lbc.secretStore.GetSecret("default/nope", secrets.RoleJWK); ref.Error == nil {
+		t.Error(`GetSecret("default/nope", RoleJWK) expected an error for an absent Secret`)
+	}
+}
+
+func TestWriteSpecialSecretsDispatch(t *testing.T) {
+	t.Parallel()
+
+	special := specialSecrets{
+		defaultServerSecret: "nginx-ingress/default-server-secret",
+		wildcardTLSSecret:   "nginx-ingress/wildcard-secret",
+		licenseSecret:       "nginx-ingress/license-secret",
+		clientAuthSecret:    "nginx-ingress/client-auth-secret",
+		trustedCertSecret:   "nginx-ingress/trusted-cert-secret",
+	}
+
+	tlsData := map[string][]byte{
+		"tls.crt": []byte("cert"),
+		"tls.key": []byte("key"),
+	}
+
+	tests := []struct {
+		name               string
+		secretNsName       string
+		data               map[string][]byte
+		specialTLSSecrets  []string
+		wantCreatedSecrets []string
+		wantOK             bool
+	}{
+		{
+			name:               "license secret",
+			secretNsName:       special.licenseSecret,
+			data:               map[string][]byte{configs.LicenseSecretFileName: []byte("license-data")},
+			wantCreatedSecrets: []string{"license.jwt"},
+			wantOK:             true,
+		},
+		{
+			name:         "trusted cert secret writes the fixed mgmt CA paths",
+			secretNsName: special.trustedCertSecret,
+			data: map[string][]byte{
+				configs.CACrtKey: []byte("cert"),
+				configs.CACrlKey: []byte("crl"),
+			},
+			wantCreatedSecrets: []string{"mgmt/ca.crt", "mgmt/ca.crl"},
+			wantOK:             true,
+		},
+		{
+			name:               "client auth secret",
+			secretNsName:       special.clientAuthSecret,
+			data:               tlsData,
+			wantCreatedSecrets: []string{"mgmt/client"},
+			wantOK:             true,
+		},
+		{
+			name:               "default server secret",
+			secretNsName:       special.defaultServerSecret,
+			data:               tlsData,
+			specialTLSSecrets:  []string{configs.DefaultServerSecretFileName},
+			wantCreatedSecrets: []string{"default"},
+			wantOK:             true,
+		},
+		{
+			name:               "wildcard TLS secret",
+			secretNsName:       special.wildcardTLSSecret,
+			data:               tlsData,
+			specialTLSSecrets:  []string{configs.WildcardSecretFileName},
+			wantCreatedSecrets: []string{"wildcard"},
+			wantOK:             true,
+		},
+		{
+			name:               "secret that is not special writes nothing",
+			secretNsName:       "default/some-other-secret",
+			data:               tlsData,
+			wantCreatedSecrets: nil,
+			wantOK:             true,
+		},
+		{
+			name:               "license secret missing its key is rejected",
+			secretNsName:       special.licenseSecret,
+			data:               map[string][]byte{},
+			wantCreatedSecrets: nil,
+			wantOK:             false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ns, name, found := strings.Cut(test.secretNsName, "/")
+			if !found {
+				t.Fatalf("malformed test fixture %q, want <namespace>/<name>", test.secretNsName)
+			}
+
+			manager := newTestNginxManager()
+			lbc := LoadBalancerController{
+				configurator:   createTestPolicySyncConfigurator(t, manager),
+				recorder:       record.NewFakeRecorder(100),
+				specialSecrets: special,
+				metadata: controllerMetadata{
+					pod: &api_v1.Pod{
+						ObjectMeta: meta_v1.ObjectMeta{Name: "nginx-ingress", Namespace: "nginx-ingress"},
+					},
+				},
+				Logger: nl.LoggerFromContext(context.Background()),
+			}
+
+			secret := &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: name, Namespace: ns},
+				Data:       test.data,
+			}
+
+			got := lbc.writeSpecialSecrets(lbc.Logger, secret, test.specialTLSSecrets)
+
+			if got != test.wantOK {
+				t.Errorf("writeSpecialSecrets() = %v, want %v", got, test.wantOK)
+			}
+			if diff := cmp.Diff(test.wantCreatedSecrets, manager.CreatedSecretNames); diff != "" {
+				t.Errorf("writeSpecialSecrets() secret files (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 
@@ -4114,80 +4249,98 @@ func TestShouldForceReloadOnSecretUpdate(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name                    string
-		secretType              api_v1.SecretType
+		roles                   []secrets.SecretRole
 		dynamicSSLReloadEnabled bool
 		expected                bool
 	}{
 		{
 			name:                    "TLS server secret with dynamic SSL reload enabled skips forced reload",
-			secretType:              api_v1.SecretTypeTLS,
+			roles:                   []secrets.SecretRole{secrets.RoleTLS},
 			dynamicSSLReloadEnabled: true,
 			expected:                false,
 		},
 		{
 			name:                    "TLS server secret with dynamic SSL reload disabled forces reload",
-			secretType:              api_v1.SecretTypeTLS,
+			roles:                   []secrets.SecretRole{secrets.RoleTLS},
 			dynamicSSLReloadEnabled: false,
 			expected:                true,
 		},
 		{
 			name:                    "CA secret forces reload even when dynamic SSL reload is enabled",
-			secretType:              secrets.SecretTypeCA,
+			roles:                   []secrets.SecretRole{secrets.RoleCA},
 			dynamicSSLReloadEnabled: true,
 			expected:                true,
 		},
 		{
 			name:                    "JWK secret forces reload even when dynamic SSL reload is enabled",
-			secretType:              secrets.SecretTypeJWK,
+			roles:                   []secrets.SecretRole{secrets.RoleJWK},
 			dynamicSSLReloadEnabled: true,
 			expected:                true,
 		},
 		{
 			name:                    "Htpasswd secret forces reload even when dynamic SSL reload is enabled",
-			secretType:              secrets.SecretTypeHtpasswd,
+			roles:                   []secrets.SecretRole{secrets.RoleHtpasswd},
 			dynamicSSLReloadEnabled: true,
 			expected:                true,
 		},
 		{
 			name:                    "OIDC secret forces reload even when dynamic SSL reload is enabled",
-			secretType:              secrets.SecretTypeOIDC,
+			roles:                   []secrets.SecretRole{secrets.RoleOIDC},
 			dynamicSSLReloadEnabled: true,
 			expected:                true,
 		},
 		{
 			name:                    "APIKey secret forces reload even when dynamic SSL reload is enabled",
-			secretType:              secrets.SecretTypeAPIKey,
+			roles:                   []secrets.SecretRole{secrets.RoleAPIKey},
 			dynamicSSLReloadEnabled: true,
 			expected:                true,
 		},
 		{
 			name:                    "CA secret forces reload when dynamic SSL reload is disabled",
-			secretType:              secrets.SecretTypeCA,
+			roles:                   []secrets.SecretRole{secrets.RoleCA},
 			dynamicSSLReloadEnabled: false,
 			expected:                true,
 		},
 		{
 			name:                    "JWK secret forces reload when dynamic SSL reload is disabled",
-			secretType:              secrets.SecretTypeJWK,
+			roles:                   []secrets.SecretRole{secrets.RoleJWK},
 			dynamicSSLReloadEnabled: false,
 			expected:                true,
 		},
 		{
 			name:                    "Htpasswd secret forces reload when dynamic SSL reload is disabled",
-			secretType:              secrets.SecretTypeHtpasswd,
+			roles:                   []secrets.SecretRole{secrets.RoleHtpasswd},
 			dynamicSSLReloadEnabled: false,
 			expected:                true,
 		},
 		{
 			name:                    "OIDC secret forces reload when dynamic SSL reload is disabled",
-			secretType:              secrets.SecretTypeOIDC,
+			roles:                   []secrets.SecretRole{secrets.RoleOIDC},
 			dynamicSSLReloadEnabled: false,
 			expected:                true,
 		},
 		{
 			name:                    "APIKey secret forces reload when dynamic SSL reload is disabled",
-			secretType:              secrets.SecretTypeAPIKey,
+			roles:                   []secrets.SecretRole{secrets.RoleAPIKey},
 			dynamicSSLReloadEnabled: false,
+			expected:                true,
+		},
+		{
+			name:                    "TLS and CA roles force reload even when dynamic SSL reload is enabled",
+			roles:                   []secrets.SecretRole{secrets.RoleTLS, secrets.RoleCA},
+			dynamicSSLReloadEnabled: true,
+			expected:                true,
+		},
+		{
+			name:                    "Multiple TLS-only roles still skip forced reload",
+			roles:                   []secrets.SecretRole{secrets.RoleTLS, secrets.RoleTLS},
+			dynamicSSLReloadEnabled: true,
+			expected:                false,
+		},
+		{
+			name:                    "No resolved roles forces reload",
+			roles:                   nil,
+			dynamicSSLReloadEnabled: true,
 			expected:                true,
 		},
 	}
@@ -4195,10 +4348,10 @@ func TestShouldForceReloadOnSecretUpdate(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := shouldForceReloadOnSecretUpdate(tc.secretType, tc.dynamicSSLReloadEnabled)
+			got := shouldForceReloadOnSecretUpdate(tc.roles, tc.dynamicSSLReloadEnabled)
 			if got != tc.expected {
 				t.Fatalf("shouldForceReloadOnSecretUpdate(%q, %v) = %v, want %v",
-					tc.secretType, tc.dynamicSSLReloadEnabled, got, tc.expected)
+					tc.roles, tc.dynamicSSLReloadEnabled, got, tc.expected)
 			}
 		})
 	}

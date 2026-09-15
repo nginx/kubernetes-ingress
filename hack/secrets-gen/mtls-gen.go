@@ -22,10 +22,15 @@ import (
 )
 
 type mtlsBundle struct {
-	Ca     TLSSecret `json:"ca"`
-	Client TLSSecret `json:"client,omitempty"`
-	Server TLSSecret `json:"server,omitempty"`
-	Crl    bool      `json:"crl,omitempty"`
+	Ca TLSSecret `json:"ca"`
+	// CaOpaque re-emits the same CA under a second file name, letting a bundle ship
+	// both a typed and an Opaque copy of one certificate.
+	CaOpaque TLSSecret `json:"caOpaque,omitempty"`
+	Client   TLSSecret `json:"client,omitempty"`
+	// ClientOpaque re-emits the same client cert under a second file name.
+	ClientOpaque TLSSecret `json:"clientOpaque,omitempty"`
+	Server       TLSSecret `json:"server,omitempty"`
+	Crl          bool      `json:"crl,omitempty"`
 }
 
 //gocyclo:ignore
@@ -69,7 +74,7 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
 	}
 
 	// Write the CA to disk
-	caContents, err := createYamlCA(bundle.Ca.SecretName, ca, nil)
+	caContents, err := createYamlCA(bundle.Ca.SecretName, bundle.Ca.SecretType, ca, nil)
 	if err != nil {
 		return fmt.Errorf("marshaling bundle CA %s to yaml: %w", bundle.Ca.FileName, err)
 	}
@@ -77,6 +82,23 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
 	err = writeFiles(logger, caContents, bundle.Ca.FileName, bundle.Ca.Symlinks)
 	if err != nil {
 		return fmt.Errorf("writing bundle CA %s to project root: %w", bundle.Ca.FileName, err)
+	}
+
+	if bundle.CaOpaque.FileName != "" {
+		opaqueCA := bundle.CaOpaque
+		if opaqueCA.SecretName == "" {
+			opaqueCA.SecretName = bundle.Ca.SecretName
+		}
+
+		opaqueContents, err := createYamlCA(opaqueCA.SecretName, opaqueCA.SecretType, ca, nil)
+		if err != nil {
+			return fmt.Errorf("marshaling bundle CA %s to yaml: %w", opaqueCA.FileName, err)
+		}
+
+		err = writeFiles(logger, opaqueContents, opaqueCA.FileName, opaqueCA.Symlinks)
+		if err != nil {
+			return fmt.Errorf("writing bundle CA %s to project root: %w", opaqueCA.FileName, err)
+		}
 	}
 
 	// =================== Client certificate ===================
@@ -120,6 +142,23 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
 		err = writeFiles(logger, clientContents, bundle.Client.FileName, bundle.Client.Symlinks)
 		if err != nil {
 			return fmt.Errorf("writing bundle client %s to project root: %w", bundle.Client.FileName, err)
+		}
+
+		if bundle.ClientOpaque.FileName != "" {
+			opaqueClient := bundle.ClientOpaque
+			if opaqueClient.SecretName == "" {
+				opaqueClient.SecretName = bundle.Client.SecretName
+			}
+
+			opaqueClientContents, err := createKubeTLSSecretYaml(opaqueClient, true, client)
+			if err != nil {
+				return fmt.Errorf("marshaling bundle client %s to yaml: %w", opaqueClient.FileName, err)
+			}
+
+			err = writeFiles(logger, opaqueClientContents, opaqueClient.FileName, opaqueClient.Symlinks)
+			if err != nil {
+				return fmt.Errorf("writing bundle client %s to project root: %w", opaqueClient.FileName, err)
+			}
 		}
 	}
 	// =================== Server certificate ===================
@@ -191,7 +230,7 @@ func generateMTLSBundleFiles(logger *slog.Logger, bundle mtlsBundle) error {
 			return fmt.Errorf("encoding revocation list: %w", err)
 		}
 
-		crlContents, err := createYamlCA(bundle.Ca.SecretName, ca, crlOut.Bytes())
+		crlContents, err := createYamlCA(bundle.Ca.SecretName, bundle.Ca.SecretType, ca, crlOut.Bytes())
 		if err != nil {
 			return fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", bundle.Ca.FileName, err)
 		}

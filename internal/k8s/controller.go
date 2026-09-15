@@ -1248,11 +1248,6 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 		for _, obj := range objects {
 			secret := obj.(*api_v1.Secret)
 
-			if !secrets.IsSupportedSecretType(secret.Type) {
-				nl.Debugf(lbc.Logger, "Ignoring Secret %s/%s of unsupported type %s", secret.Namespace, secret.Name, secret.Type)
-				continue
-			}
-
 			nl.Debugf(lbc.Logger, "Adding Secret: %s/%s", secret.Namespace, secret.Name)
 			lbc.secretStore.AddOrUpdateSecret(secret)
 		}
@@ -2427,7 +2422,7 @@ func (lbc *LoadBalancerController) handleSecretUpdate(l *slog.Logger, secret *ap
 
 	resourceExes := lbc.createExtendedResources(resources)
 
-	reloadIfUnchanged := shouldForceReloadOnSecretUpdate(secret.Type, lbc.configurator.DynamicSSLReloadEnabled())
+	reloadIfUnchanged := shouldForceReloadOnSecretUpdate(lbc.secretStore.ResolvedRoles(secretNsName), lbc.configurator.DynamicSSLReloadEnabled())
 	warnings, addOrUpdateErr = lbc.configurator.AddOrUpdateResources(resourceExes, reloadIfUnchanged)
 	if addOrUpdateErr != nil {
 		nl.Errorf(l, "Error when updating Secret %v: %v", secretNsName, addOrUpdateErr)
@@ -2439,12 +2434,20 @@ func (lbc *LoadBalancerController) handleSecretUpdate(l *slog.Logger, secret *ap
 
 // shouldForceReloadOnSecretUpdate reports whether NGINX must be reloaded on a secret
 // update even if the rendered config bytes are unchanged. The -ssl-dynamic-reload
-// optimization only applies to TLS server secrets (kubernetes.io/tls), whose
-// ssl_certificate / ssl_certificate_key directives read the file at request time via
-// a variable path. Any non-TLS secret type is parsed at config-load time and would
-// otherwise remain stale until an unrelated event triggers a reload.
-func shouldForceReloadOnSecretUpdate(secretType api_v1.SecretType, dynamicSSLReloadEnabled bool) bool {
-	return secretType != api_v1.SecretTypeTLS || !dynamicSSLReloadEnabled
+// optimization only applies to secrets resolved in RoleTLS, whose cert and key paths
+// are rendered through a variable and so are re-read per request. Any other role is
+// read at config-load time and would remain stale, so a secret resolved in several
+// roles forces a reload unless all of them are RoleTLS.
+func shouldForceReloadOnSecretUpdate(roles []secrets.SecretRole, dynamicSSLReloadEnabled bool) bool {
+	if !dynamicSSLReloadEnabled || len(roles) == 0 {
+		return true
+	}
+	for _, role := range roles {
+		if role != secrets.RoleTLS {
+			return true
+		}
+	}
+	return false
 }
 
 func (lbc *LoadBalancerController) validationTLSSpecialSecret(secret *api_v1.Secret, secretName string, secretList *[]string) error {
@@ -2503,27 +2506,21 @@ func (lbc *LoadBalancerController) handleSpecialSecretUpdate(l *slog.Logger, sec
 // writeSpecialSecrets generates content and writes the secret to disk
 func (lbc *LoadBalancerController) writeSpecialSecrets(l *slog.Logger, secret *api_v1.Secret, specialTLSSecretsToUpdate []string) bool {
 	secretNsName := generateSecretNSName(secret)
-	var mgmtClientAuthNamespaceName string
-	if lbc.configurator.MgmtCfgParams != nil {
-		mgmtClientAuthNamespaceName = fmt.Sprintf("%s/%s", lbc.metadata.pod.Namespace, lbc.configurator.MgmtCfgParams.Secrets.ClientAuth)
-	}
-	switch secret.Type {
-	case secrets.SecretTypeLicense:
+
+	switch secretNsName {
+	case lbc.specialSecrets.licenseSecret:
 		err := lbc.configurator.AddOrUpdateLicenseSecret(secret)
 		if err != nil {
 			nl.Error(l, err)
 			lbc.recorder.Eventf(lbc.metadata.pod, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "the license Secret %v was updated, but not applied: %v", secretNsName, err)
 			return false
 		}
-	case secrets.SecretTypeCA:
+	case lbc.specialSecrets.trustedCertSecret:
 		lbc.configurator.AddOrUpdateCASecret(secret, fmt.Sprintf("mgmt/%s", configs.CACrtKey), fmt.Sprintf("mgmt/%s", configs.CACrlKey))
-	case api_v1.SecretTypeTLS:
-		// if the secret name matches the specified
-		if secretNsName == mgmtClientAuthNamespaceName {
-			lbc.configurator.AddOrUpdateMGMTClientAuthSecret(secret)
-		} else {
-			lbc.configurator.AddOrUpdateSpecialTLSSecrets(secret, specialTLSSecretsToUpdate)
-		}
+	case lbc.specialSecrets.clientAuthSecret:
+		lbc.configurator.AddOrUpdateMGMTClientAuthSecret(secret)
+	case lbc.specialSecrets.defaultServerSecret, lbc.specialSecrets.wildcardTLSSecret:
+		lbc.configurator.AddOrUpdateSpecialTLSSecrets(secret, specialTLSSecretsToUpdate)
 	}
 	return true
 }
@@ -2831,7 +2828,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 		ValidMinionPaths: validMinionPaths,
 	}
 
-	ingEx.SecretRefs = make(map[string]*secrets.SecretReference)
+	ingEx.SecretRefs = make(map[secrets.SecretRefKey]*secrets.SecretReference)
 	l := lbc.Logger.With(logNamespaceKey, ing.GetNamespace(), logKindKey, ingressKind, logNameKey, ing.GetName())
 
 	for _, tls := range ing.Spec.TLS {
@@ -2841,29 +2838,28 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			// "secret doesn't exist" warning on every sync of this Ingress.
 			// If --wildcard-tls-secret is configured, NGINX config generation will
 			// fall back to the wildcard TLS secret for this host.
-			ingEx.SecretRefs[secretName] = &secrets.SecretReference{}
 			continue
 		}
 		secretKey := ing.Namespace + "/" + secretName
 
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleTLS)
 		if secretRef.Error != nil {
 			nl.Warnf(l, "Error trying to get the secret %v for Ingress %v: %v", secretName, ing.Name, secretRef.Error)
 		}
 
-		ingEx.SecretRefs[secretName] = secretRef
+		ingEx.SecretRefs[secrets.RefKey(secretKey, secrets.RoleTLS)] = secretRef
 	}
 
 	if basicAuth, exists := ingEx.Ingress.Annotations[configs.BasicAuthSecretAnnotation]; exists {
 		secretName := basicAuth
 		secretKey := ing.Namespace + "/" + secretName
 
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleHtpasswd)
 		if secretRef.Error != nil {
 			nl.Warnf(l, "Error trying to get the secret %v for Ingress %v/%v: %v", secretName, ing.Namespace, ing.Name, secretRef.Error)
 		}
 
-		ingEx.SecretRefs[secretName] = secretRef
+		ingEx.SecretRefs[secrets.RefKey(secretKey, secrets.RoleHtpasswd)] = secretRef
 	}
 
 	var policies []*conf_v1.Policy
@@ -2925,12 +2921,12 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 			secretName := jwtKey
 			secretKey := ing.Namespace + "/" + secretName
 
-			secretRef := lbc.secretStore.GetSecret(secretKey)
+			secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleJWK)
 			if secretRef.Error != nil {
 				nl.Warnf(l, "Error trying to get the secret %v for Ingress %v/%v: %v", secretName, ing.Namespace, ing.Name, secretRef.Error)
 			}
 
-			ingEx.SecretRefs[secretName] = secretRef
+			ingEx.SecretRefs[secrets.RefKey(secretKey, secrets.RoleJWK)] = secretRef
 		}
 		if lbc.appProtectEnabled && !lbc.plmEnabled {
 			if apPolicyAntn, exists := ingEx.Ingress.Annotations[configs.AppProtectPolicyAnnotation]; exists {
@@ -3118,7 +3114,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	virtualServerEx := configs.VirtualServerEx{
 		VirtualServer:               virtualServer,
 		VirtualServerSelectorRoutes: selectorMap,
-		SecretRefs:                  make(map[string]*secrets.SecretReference),
+		SecretRefs:                  make(map[secrets.SecretRefKey]*secrets.SecretReference),
 		ApPolRefs:                   make(map[string]*unstructured.Unstructured),
 		LogConfRefs:                 make(map[string]*unstructured.Unstructured),
 		DosProtectedEx:              make(map[string]*configs.DosEx),
@@ -3142,12 +3138,12 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	if virtualServer.Spec.TLS != nil && virtualServer.Spec.TLS.Secret != "" {
 		scrtKey := virtualServer.Namespace + "/" + virtualServer.Spec.TLS.Secret
 
-		scrtRef := lbc.secretStore.GetSecret(scrtKey)
+		scrtRef := lbc.secretStore.GetSecret(scrtKey, secrets.RoleTLS)
 		if scrtRef.Error != nil {
 			nl.Warnf(l, "Error trying to get the secret %v for VirtualServer %v: %v", scrtKey, virtualServer.Name, scrtRef.Error)
 		}
 
-		virtualServerEx.SecretRefs[scrtKey] = scrtRef
+		virtualServerEx.SecretRefs[secrets.RefKey(scrtKey, secrets.RoleTLS)] = scrtRef
 	}
 
 	policies, policyErrors := lbc.getPolicies(virtualServer.Spec.Policies, virtualServer.Namespace)
@@ -3668,7 +3664,7 @@ func (lbc *LoadBalancerController) getPolicies(policies []conf_v1.PolicyReferenc
 	return result, errors
 }
 
-func (lbc *LoadBalancerController) addJWTSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addJWTSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.JWTAuth == nil {
 			continue
@@ -3679,9 +3675,9 @@ func (lbc *LoadBalancerController) addJWTSecretRefs(secretRefs map[string]*secre
 		}
 
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.JWTAuth.Secret)
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleJWK)
 
-		secretRefs[secretKey] = secretRef
+		secretRefs[secrets.RefKey(secretKey, secrets.RoleJWK)] = secretRef
 
 		if secretRef.Error != nil {
 			return secretRef.Error
@@ -3691,16 +3687,16 @@ func (lbc *LoadBalancerController) addJWTSecretRefs(secretRefs map[string]*secre
 	return nil
 }
 
-func (lbc *LoadBalancerController) addBasicSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addBasicSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.BasicAuth == nil {
 			continue
 		}
 
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.BasicAuth.Secret)
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleHtpasswd)
 
-		secretRefs[secretKey] = secretRef
+		secretRefs[secrets.RefKey(secretKey, secrets.RoleHtpasswd)] = secretRef
 
 		if secretRef.Error != nil {
 			return secretRef.Error
@@ -3710,16 +3706,16 @@ func (lbc *LoadBalancerController) addBasicSecretRefs(secretRefs map[string]*sec
 	return nil
 }
 
-func (lbc *LoadBalancerController) addIngressMTLSSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addIngressMTLSSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.IngressMTLS == nil {
 			continue
 		}
 
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.IngressMTLS.ClientCertSecret)
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleCA)
 
-		secretRefs[secretKey] = secretRef
+		secretRefs[secrets.RefKey(secretKey, secrets.RoleCA)] = secretRef
 
 		return secretRef.Error
 	}
@@ -3727,7 +3723,7 @@ func (lbc *LoadBalancerController) addIngressMTLSSecretRefs(secretRefs map[strin
 	return nil
 }
 
-func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.EgressMTLS == nil {
 			continue
@@ -3735,9 +3731,9 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 		// Resolve both client and trusted CA secrets up front so policy validation and template rendering share the same inputs.
 		if pol.Spec.EgressMTLS.TLSSecret != "" {
 			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.EgressMTLS.TLSSecret)
-			secretRef := lbc.secretStore.GetSecret(secretKey)
+			secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleTLS)
 
-			secretRefs[secretKey] = secretRef
+			secretRefs[secrets.RefKey(secretKey, secrets.RoleTLS)] = secretRef
 
 			if secretRef.Error != nil {
 				return secretRef.Error
@@ -3745,9 +3741,9 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 		}
 		if pol.Spec.EgressMTLS.TrustedCertSecret != "" {
 			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.EgressMTLS.TrustedCertSecret)
-			secretRef := lbc.secretStore.GetSecret(secretKey)
+			secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleCA)
 
-			secretRefs[secretKey] = secretRef
+			secretRefs[secrets.RefKey(secretKey, secrets.RoleCA)] = secretRef
 
 			if secretRef.Error != nil {
 				return secretRef.Error
@@ -3758,16 +3754,16 @@ func (lbc *LoadBalancerController) addEgressMTLSSecretRefs(secretRefs map[string
 	return nil
 }
 
-func (lbc *LoadBalancerController) addJWTTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addJWTTrustedCertSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.JWTAuth == nil {
 			continue
 		}
 		if pol.Spec.JWTAuth.TrustedCertSecret != "" {
 			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.JWTAuth.TrustedCertSecret)
-			secretRef := lbc.secretStore.GetSecret(secretKey)
+			secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleCA)
 
-			secretRefs[secretKey] = secretRef
+			secretRefs[secrets.RefKey(secretKey, secrets.RoleCA)] = secretRef
 
 			if secretRef.Error != nil {
 				return secretRef.Error
@@ -3778,7 +3774,7 @@ func (lbc *LoadBalancerController) addJWTTrustedCertSecretRefs(secretRefs map[st
 	return nil
 }
 
-func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDC == nil {
 			continue
@@ -3789,9 +3785,9 @@ func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secr
 		}
 
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDC.ClientSecret)
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleOIDC)
 
-		secretRefs[secretKey] = secretRef
+		secretRefs[secrets.RefKey(secretKey, secrets.RoleOIDC)] = secretRef
 
 		if secretRef.Error != nil {
 			return secretRef.Error
@@ -3800,16 +3796,16 @@ func (lbc *LoadBalancerController) addOIDCSecretRefs(secretRefs map[string]*secr
 	return nil
 }
 
-func (lbc *LoadBalancerController) addOIDCNativeSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addOIDCNativeSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDCNative == nil || pol.Spec.OIDCNative.ClientSecret == "" {
 			continue
 		}
 
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDCNative.ClientSecret)
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleOIDC)
 
-		secretRefs[secretKey] = secretRef
+		secretRefs[secrets.RefKey(secretKey, secrets.RoleOIDC)] = secretRef
 
 		if secretRef.Error != nil {
 			return secretRef.Error
@@ -3818,16 +3814,16 @@ func (lbc *LoadBalancerController) addOIDCNativeSecretRefs(secretRefs map[string
 	return nil
 }
 
-func (lbc *LoadBalancerController) addOIDCNativeTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addOIDCNativeTrustedCertSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDCNative == nil || pol.Spec.OIDCNative.TrustedCertSecret == "" {
 			continue
 		}
 
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDCNative.TrustedCertSecret)
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleCA)
 
-		secretRefs[secretKey] = secretRef
+		secretRefs[secrets.RefKey(secretKey, secrets.RoleCA)] = secretRef
 
 		if secretRef.Error != nil {
 			return secretRef.Error
@@ -3836,16 +3832,16 @@ func (lbc *LoadBalancerController) addOIDCNativeTrustedCertSecretRefs(secretRefs
 	return nil
 }
 
-func (lbc *LoadBalancerController) addOIDCTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addOIDCTrustedCertSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.OIDC == nil {
 			continue
 		}
 		if pol.Spec.OIDC.TrustedCertSecret != "" {
 			secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.OIDC.TrustedCertSecret)
-			secretRef := lbc.secretStore.GetSecret(secretKey)
+			secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleCA)
 
-			secretRefs[secretKey] = secretRef
+			secretRefs[secrets.RefKey(secretKey, secrets.RoleCA)] = secretRef
 
 			if secretRef.Error != nil {
 				return secretRef.Error
@@ -3856,7 +3852,7 @@ func (lbc *LoadBalancerController) addOIDCTrustedCertSecretRefs(secretRefs map[s
 	return nil
 }
 
-func (lbc *LoadBalancerController) addExternalAuthTrustedCertSecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addExternalAuthTrustedCertSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.ExternalAuth == nil {
 			continue
@@ -3864,9 +3860,9 @@ func (lbc *LoadBalancerController) addExternalAuthTrustedCertSecretRefs(secretRe
 		if pol.Spec.ExternalAuth.TrustedCertSecret != "" {
 			secretNS, secretName := configs.ParseServiceReference(pol.Spec.ExternalAuth.TrustedCertSecret, pol.Namespace)
 			secretKey := fmt.Sprintf("%v/%v", secretNS, secretName)
-			secretRef := lbc.secretStore.GetSecret(secretKey)
+			secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleCA)
 
-			secretRefs[secretKey] = secretRef
+			secretRefs[secrets.RefKey(secretKey, secrets.RoleCA)] = secretRef
 
 			if secretRef.Error != nil {
 				return secretRef.Error
@@ -3877,16 +3873,16 @@ func (lbc *LoadBalancerController) addExternalAuthTrustedCertSecretRefs(secretRe
 	return nil
 }
 
-func (lbc *LoadBalancerController) addAPIKeySecretRefs(secretRefs map[string]*secrets.SecretReference, policies []*conf_v1.Policy) error {
+func (lbc *LoadBalancerController) addAPIKeySecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, policies []*conf_v1.Policy) error {
 	for _, pol := range policies {
 		if pol.Spec.APIKey == nil {
 			continue
 		}
 
 		secretKey := fmt.Sprintf("%v/%v", pol.Namespace, pol.Spec.APIKey.ClientSecret)
-		secretRef := lbc.secretStore.GetSecret(secretKey)
+		secretRef := lbc.secretStore.GetSecret(secretKey, secrets.RoleAPIKey)
 
-		secretRefs[secretKey] = secretRef
+		secretRefs[secrets.RefKey(secretKey, secrets.RoleAPIKey)] = secretRef
 
 		if secretRef.Error != nil {
 			return secretRef.Error
