@@ -47,7 +47,7 @@ type storeKey struct {
 }
 
 // secretEntry is the store's bookkeeping for one (secret, role). Kept separate
-// from SecretReference so materialisation state stays inside this package.
+// from SecretReference so materialization state stays inside this package.
 type secretEntry struct {
 	ref          *SecretReference
 	materialized bool
@@ -81,7 +81,7 @@ func NewLocalSecretStore(manager SecretFileManager) *LocalSecretStore {
 }
 
 // AddOrUpdateSecret adds or updates a Secret and re-validates every role it has
-// already been resolved in, re-materialising or removing files as each verdict
+// already been resolved in, re-materializing or removing files as each verdict
 // changes. Roles nobody has resolved are untouched.
 func (s *LocalSecretStore) AddOrUpdateSecret(secret *api_v1.Secret) {
 	s.lock.Lock()
@@ -273,7 +273,7 @@ func (s *FakeSecretStore) SecretCount() int {
 
 // ResolvedRoles is a fake implementation of ResolvedRoles. The fake store is not
 // role-aware, so it reports no roles: callers then treat the update conservatively
-// and force a reload. Per-role behaviour is covered by LocalSecretStore tests.
+// and force a reload. Per-role behavior is covered by LocalSecretStore tests.
 func (s *FakeSecretStore) ResolvedRoles(_ string) []SecretRole {
 	return nil
 }

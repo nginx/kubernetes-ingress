@@ -806,7 +806,7 @@ func resolveOIDCNativeClientSecret(
 		return "", false
 	}
 
-	clientSecretBytes, _ := secretRef.Secret.Data[ClientSecretKey]
+	clientSecretBytes := secretRef.Secret.Data[ClientSecretKey]
 
 	return string(clientSecretBytes), true
 }

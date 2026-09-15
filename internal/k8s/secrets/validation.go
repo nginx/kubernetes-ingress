@@ -44,7 +44,7 @@ const BundlePasswordKey = "password"
 const PLMS3SecretKey = "seaweedfs_admin_secret"
 
 // apiKeyClientIDDisallowedChars are the characters an API key client ID may not contain.
-const apiKeyClientIDDisallowedChars = ";{}$`\"'\\\n\r"
+const apiKeyClientIDDisallowedChars = ";{}$`\"'\\\n\r" //nolint:gosec // G101: Potential hardcoded credentials - false positive
 
 // SecretTypeCA contains a certificate authority for TLS certificate verification. #nosec G101
 const SecretTypeCA api_v1.SecretType = "nginx.org/ca" //nolint:gosec // G101: Potential hardcoded credentials - false positive
@@ -71,6 +71,8 @@ const SecretTypeWAFBundle api_v1.SecretType = "nginx.com/waf-bundle" // #nosec G
 // It is independent of api_v1.SecretType.
 type SecretRole string
 
+// Secret roles. A role is what a Secret is used for at one reference site and
+// determines which data keys it must carry; see RequiredKeys and KnownKeys.
 const (
 	RoleTLS       SecretRole = "tls"
 	RoleCA        SecretRole = "ca"

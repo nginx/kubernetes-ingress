@@ -994,18 +994,6 @@ func (cnf *Configurator) addOrUpdateCASecretForRole(secret *api_v1.Secret, key s
 	return m
 }
 
-func (cnf *Configurator) addOrUpdateJWKSecret(secret *api_v1.Secret) string {
-	name := objectMetaToFileName(&secret.ObjectMeta)
-	data := secret.Data[JWTKeyKey]
-	return cnf.nginxManager.CreateSecret(name, data, nginx.JWKSecretFileMode)
-}
-
-func (cnf *Configurator) addOrUpdateHtpasswdSecret(secret *api_v1.Secret) string {
-	name := objectMetaToFileName(&secret.ObjectMeta)
-	data := secret.Data[HtpasswdFileKey]
-	return cnf.nginxManager.CreateSecret(name, data, nginx.HtpasswdSecretFileMode)
-}
-
 // AddOrUpdateResources adds or updates configuration for resources.
 func (cnf *Configurator) AddOrUpdateResources(resources ExtendedResources, reloadIfUnchanged bool) (Warnings, error) {
 	allWarnings := newWarnings()
@@ -1093,12 +1081,6 @@ func (cnf *Configurator) AddOrUpdateLicenseSecret(secret *api_v1.Secret) error {
 	cnf.nginxManager.CreateSecret(LicenseSecretFileName, data, nginx.ReadWriteOnlyFileMode)
 
 	return nil
-}
-
-func (cnf *Configurator) addOrUpdateTLSSecret(secret *api_v1.Secret) string {
-	name := objectMetaToFileName(&secret.ObjectMeta)
-	data := GenerateCertAndKeyFileContent(secret)
-	return cnf.nginxManager.CreateSecret(name, data, nginx.ReadWriteOnlyFileMode)
 }
 
 // AddOrUpdateSpecialTLSSecrets adds or updates a file with a TLS cert and a key from a Special TLS Secret (eg. DefaultServerSecret, WildcardTLSSecret).
