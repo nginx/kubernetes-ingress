@@ -615,7 +615,7 @@ class TestTransportServerTcpLoadBalance:
         host = transport_server_setup.public_endpoint.public_ip
 
         sec_name = get_secret_name_from_vs_or_ts_yaml(patch_src)
-        cert_name = f"{transport_server_setup.namespace}-{sec_name}"
+        cert_name = f"ssl_keypair_{transport_server_setup.namespace}_{sec_name}.pem"
 
         assert f"listen 3333 ssl;" in result_conf
         assert f"ssl_certificate /etc/nginx/secrets/{cert_name};" in result_conf
@@ -678,7 +678,7 @@ class TestTransportServerTcpLoadBalance:
         )
 
         sec_name = get_secret_name_from_vs_or_ts_yaml(patch_src)
-        cert_name = f"{transport_server_setup.namespace}-{sec_name}"
+        cert_name = f"ssl_keypair_{transport_server_setup.namespace}_{sec_name}.pem"
 
         assert f"listen 3333 ssl;" in result_conf
         assert f"ssl_certificate /etc/nginx/secrets/{cert_name};" in result_conf
@@ -750,7 +750,7 @@ class TestTransportServerTcpLoadBalanceDynamicReload:
         )
 
         sec_name = get_secret_name_from_vs_or_ts_yaml(patch_src)
-        cert_name = f"{transport_server_setup.namespace}-{sec_name}"
+        cert_name = f"ssl_keypair_{transport_server_setup.namespace}_{sec_name}.pem"
 
         assert f"listen 3333 ssl;" in result_conf
         assert f"ssl_certificate $secret_dir_path/{cert_name};" in result_conf

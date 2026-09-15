@@ -2421,7 +2421,7 @@ func createTransportServerExWithHostNoTLSPassthrough() TransportServerEx {
 		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
 			secrets.RefKey("default/echo-secret", secrets.RoleTLS): {
 				Secret: &api_v1.Secret{},
-				Path: "secret.pem",
+				Path:   "secret.pem",
 			},
 		},
 		TransportServer: &conf_v1.TransportServer{

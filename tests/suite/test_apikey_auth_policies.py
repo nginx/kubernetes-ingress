@@ -3,6 +3,7 @@ from collections import namedtuple
 import pytest
 import requests
 from settings import TEST_DATA
+from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
 from suite.utils.resources_utils import (
     create_secret_from_yaml,

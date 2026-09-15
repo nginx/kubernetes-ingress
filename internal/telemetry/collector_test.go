@@ -2322,7 +2322,7 @@ func createCafeIngressEx() configs.IngressEx {
 		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
 			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
 				Secret: &coreV1.Secret{},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}
@@ -2442,8 +2442,8 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
 				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
 					Secret: &coreV1.Secret{},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -2584,8 +2584,8 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
 				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
 					Secret: &coreV1.Secret{},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -2684,7 +2684,7 @@ func createCafeIngressExWithCustomAnnotations(annotations map[string]string) con
 		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
 			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
 				Secret: &coreV1.Secret{},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}
