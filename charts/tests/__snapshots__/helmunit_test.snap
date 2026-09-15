@@ -829,8 +829,6 @@ spec:
           - -enable-custom-resources=false
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -default-http-listener-port=80
-          - -default-https-listener-port=443
           - -allow-empty-ingress-host=true
           - -ready-status=true
           - -ready-status-port=8081
@@ -6057,8 +6055,6 @@ spec:
           - -enable-custom-resources=false
           - -enable-snippets=false
           - -disable-ipv6=false
-          - -default-http-listener-port=80
-          - -default-https-listener-port=443
           - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
@@ -8813,9 +8809,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -global-configuration=$(POD_NAMESPACE)/global-configuration-nginx-ingress-controller
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -global-configuration=$(POD_NAMESPACE)/global-configuration-nginx-ingress-controller
           - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
@@ -9282,9 +9278,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -global-configuration=test-namespace/my-custom-global-config
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -global-configuration=test-namespace/my-custom-global-config
           - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
