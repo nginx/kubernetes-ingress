@@ -436,7 +436,8 @@ class TestExternalAuthPoliciesIngress:
     ):
         """
         Test external-auth policy with authSigninURI set on a standard Ingress.
-        Verifies the policy is accepted as Valid and authenticated requests pass through.
+        Unauthenticated requests redirect to authSigninURI, while authenticated
+        requests still reach the protected backend.
         """
         _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(EXT_AUTH_HOST, valid_credentials)
@@ -448,10 +449,17 @@ class TestExternalAuthPoliciesIngress:
             additional_headers=valid_auth_headers(),
         )
 
+        unauthenticated_resp = requests.get(
+            ext_auth_ingress.request_url,
+            headers=build_ext_auth_headers(ext_auth_ingress.ingress_host),
+            allow_redirects=False,
+        )
         resp = requests.get(ext_auth_ingress.request_url, headers=headers)
         print(f"Status: {resp.status_code}")
 
         assert policy_info["status"]["state"] == "Valid"
+        assert unauthenticated_resp.status_code == 302
+        assert unauthenticated_resp.headers["location"] == "/oauth2/signin"
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
 

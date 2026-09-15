@@ -9,6 +9,12 @@ data:
         listen 8080;
         listen [::]:8080;
 
+        location = /oauth2/signin {
+            auth_basic off;
+            default_type text/html;
+            return 200 "<h1>fake signin page</h1>";
+        }
+
         root /usr/share/nginx/html;
         try_files /index.html =404;
 

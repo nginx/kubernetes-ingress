@@ -6,4 +6,4 @@ spec:
   externalAuth:
     authURI: "/auth"
     authServiceName: "external-auth-svc"
-    authSigninURI: "/signin"
+    authSigninURI: "/oauth2/signin"
