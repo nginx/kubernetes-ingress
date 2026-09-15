@@ -4684,7 +4684,8 @@ server {
 
     server_tokens "";
     auth_request "/_external_auth/oauth2/auth";
-    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+    set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+    error_page 401 = @external_auth_signin;
 
     
 
@@ -4693,9 +4694,10 @@ server {
         set $service "tea-svc";
         status_zone "tea-svc";
         auth_request "/_external_auth/oauth2/auth";
+        set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+        error_page 401 = @external_auth_signin;
 
         
-        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout ;
@@ -4717,6 +4719,10 @@ server {
         proxy_next_upstream ;
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
+    }
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
     }
 }
 
@@ -5376,7 +5382,8 @@ server {
 
     server_tokens "";
     auth_request "/_external_auth/oauth2/auth";
-    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+    set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+    error_page 401 = @external_auth_signin;
 
     
 
@@ -5384,9 +5391,10 @@ server {
     location "/tea" {
         set $service "tea-svc";
         auth_request "/_external_auth/oauth2/auth";
+        set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+        error_page 401 = @external_auth_signin;
 
         
-        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
         proxy_intercept_errors on;
         set $default_connection_header close;
         proxy_connect_timeout ;
@@ -5408,6 +5416,10 @@ server {
         proxy_next_upstream ;
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
+    }
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
     }
 }
 

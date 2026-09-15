@@ -7924,7 +7924,12 @@ func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
 
 	const signinURL = "/oauth2/start?rd=$scheme://$host$request_uri"
-	want := fmt.Sprintf(`error_page 401 = "%s";`, signinURL)
+	wants := []string{
+		fmt.Sprintf(`set $external_auth_signin_uri "%s";`, signinURL),
+		`error_page 401 = @external_auth_signin;`,
+		`location @external_auth_signin {`,
+		`return 302 $external_auth_signin_uri;`,
+	}
 
 	cases := []struct {
 		name    string
@@ -7956,12 +7961,15 @@ func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
 				t.Errorf("want auth_request directive in rendered config\n---\n%s", got)
 			}
 
-			hasErrorPage := strings.Contains(got, want)
+			hasSigninRedirect := true
+			for _, want := range wants {
+				hasSigninRedirect = hasSigninRedirect && strings.Contains(got, want)
+			}
 			switch {
-			case tc.wantHit && !hasErrorPage:
-				t.Errorf("want %q in rendered config\n---\n%s", want, got)
-			case !tc.wantHit && strings.Contains(got, "error_page 401"):
-				t.Errorf("did not want error_page 401 when SigninURL is empty\n---\n%s", got)
+			case tc.wantHit && !hasSigninRedirect:
+				t.Errorf("want ExternalAuth signin redirect in rendered config\n---\n%s", got)
+			case !tc.wantHit && strings.Contains(got, "@external_auth_signin"):
+				t.Errorf("did not want ExternalAuth signin redirect when SigninURL is empty\n---\n%s", got)
 			}
 
 			snaps.MatchSnapshot(t, got)

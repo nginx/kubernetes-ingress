@@ -473,17 +473,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					ProxyNextUpstreamTries:   0,
 					ProxyInterceptErrors:     true,
 					HasKeepalive:             true,
-					ErrorPages: []version2.ErrorPage{
-						{
-							Name:         "/oauth2/signin",
-							Codes:        "401",
-							ResponseCode: version2.ErrorPageResponseCodeInherit,
-						},
-					},
-					ProxySSLName:            "tea-svc.default.svc",
-					ProxyPassRequestHeaders: true,
-					ProxySetHeaders:         []version2.Header{{Name: "Host", Value: "$host"}},
-					ServiceName:             "tea-svc",
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
 					ExternalAuth: &version2.ExternalAuth{
 						URI: &version2.AuthURI{
 							Service:      "auth-server",
@@ -927,20 +920,13 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ProxyNextUpstreamTries:   0,
 					ProxyInterceptErrors:     true,
 					HasKeepalive:             true,
-					ErrorPages: []version2.ErrorPage{
-						{
-							Name:         "/signin",
-							Codes:        "401",
-							ResponseCode: -1,
-						},
-					},
-					ProxySSLName:            "tea-v1-svc.default.svc",
-					ProxyPassRequestHeaders: true,
-					ProxySetHeaders:         []version2.Header{{Name: "Host", Value: "$host"}},
-					ServiceName:             "tea-v1-svc",
-					IsVSR:                   true,
-					VSRName:                 "tea-vsr",
-					VSRNamespace:            "default",
+					ProxySSLName:             "tea-v1-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-v1-svc",
+					IsVSR:                    true,
+					VSRName:                  "tea-vsr",
+					VSRNamespace:             "default",
 					ExternalAuth: &version2.ExternalAuth{
 						URI: &version2.AuthURI{
 							Service:      "auth-server",
@@ -4562,73 +4548,6 @@ func TestGenerateExternalAuthOAuth2Location(t *testing.T) {
 	}
 }
 
-func TestGetServerErrorPages(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		cfg      policiesCfg
-		expected []version2.ErrorPage
-	}{
-		{
-			name: "nil ExternalAuth returns nil",
-			cfg: policiesCfg{
-				ExternalAuth: nil,
-			},
-			expected: nil,
-		},
-		{
-			name: "empty SigninURL returns nil",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "",
-				},
-			},
-			expected: nil,
-		},
-		{
-			name: "non-empty SigninURL returns 401 error page",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "https://example.com/oauth2/start?rd=$scheme://$host$request_uri",
-				},
-			},
-			expected: []version2.ErrorPage{
-				{
-					Name:         "https://example.com/oauth2/start?rd=$scheme://$host$request_uri",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
-		},
-		{
-			name: "simple SigninURL returns 401 error page",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "https://auth.example.com/login",
-				},
-			},
-			expected: []version2.ErrorPage{
-				{
-					Name:         "https://auth.example.com/login",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := getServerErrorPages(tc.cfg)
-			if diff := cmp.Diff(tc.expected, result); diff != "" {
-				t.Errorf("getServerErrorPages() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
 func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -4777,13 +4696,6 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				Snippets:               "proxy_set_header X-Custom-Header \"custom-value\";",
 				ServicePorts:           nil,
 			},
-			ErrorPages: []version2.ErrorPage{
-				{
-					Name:         "/signin",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
 			Locations: []version2.Location{
 				{
 					Path:                    `"/_external_auth/auth"`,
@@ -4927,7 +4839,7 @@ func TestGenerateVirtualServerConfigQuotesExternalAuthPaths(t *testing.T) {
 	if !signinLocationFound {
 		t.Error("GenerateVirtualServerConfig() did not quote the ExternalAuth signin redirect path")
 	}
-	if len(cfg.Server.ErrorPages) != 1 || cfg.Server.ErrorPages[0].Name != `/start\"; return 200; #` {
-		t.Errorf("GenerateVirtualServerConfig() did not escape the ExternalAuth signin URL: %+v", cfg.Server.ErrorPages)
+	if cfg.Server.ExternalAuth == nil || cfg.Server.ExternalAuth.SigninURL != `/start"; return 200; #` {
+		t.Errorf("GenerateVirtualServerConfig() did not preserve the ExternalAuth signin URL: %+v", cfg.Server.ExternalAuth)
 	}
 }
