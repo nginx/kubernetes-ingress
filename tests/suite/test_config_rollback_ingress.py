@@ -19,6 +19,8 @@ from suite.utils.resources_utils import (
     delete_ingress,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
@@ -96,7 +98,11 @@ class TestConfigRollbackIngressCreate:
         # Step 2: conf file removed — no traffic served
         assert_ingress_conf_not_exists(
             kube_apis,
-            get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+            get_first_pod_name(
+                kube_apis.v1,
+                ingress_controller_prerequisites.namespace,
+                get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+            ),
             ingress_controller_prerequisites.namespace,
             test_namespace,
             ingress_name,
@@ -151,17 +157,22 @@ class TestConfigRollbackIngress:
         test_namespace,
     ) -> IngressSetup:
         """Create an Ingress with a backend app for the test class."""
+        e2e_run_id = generate_e2e_run_id()
         create_items_from_yaml(kube_apis, ingress_src, test_namespace)
         ingress_name = get_name_from_yaml(ingress_src)
         ingress_host = get_first_ingress_host_from_yaml(ingress_src)
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":

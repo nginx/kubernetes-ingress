@@ -11,6 +11,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
+    get_e2e_run_selector,
     get_reload_count,
     wait_before_test,
     wait_for_reload,
@@ -107,12 +108,12 @@ def deploy_ingress(kube_apis, ingress_controller_endpoint, test_namespace, ingre
 
 
 @pytest.fixture(scope="function")
-def backend_setup(request, kube_apis, test_namespace):
+def backend_setup(request, kube_apis, test_namespace, e2e_run_id):
     """Deploy the secure backend once per test case and clean it up afterwards."""
 
     print("------------- Deploy secure backend app --------------")
-    create_example_app(kube_apis, "secure-ca", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "secure-ca", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

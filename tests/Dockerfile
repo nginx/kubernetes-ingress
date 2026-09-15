@@ -17,7 +17,9 @@ COPY --link config /workspace/config
 COPY --link tests /workspace/tests
 COPY --link pyproject.toml /workspace/pyproject.toml
 
-RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/${ARCH}/kubectl \
+RUN --mount=type=secret,id=ca-bundle,required=false \
+	if [ -s /run/secrets/ca-bundle ]; then export CURL_CA_BUNDLE=/run/secrets/ca-bundle; fi \
+	&& curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/${ARCH}/kubectl \
 	&& install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl \
 	&& install -m 0755 -d /etc/apt/keyrings \
     && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \

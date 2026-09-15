@@ -13,6 +13,7 @@ from suite.utils.custom_assertions import (
 from suite.utils.resources_utils import (
     create_service_with_name,
     delete_service,
+    get_e2e_run_selector,
     get_events,
     get_events_for_object,
     get_first_pod_name,
@@ -77,7 +78,11 @@ class TestVirtualServerRoute:
         )
 
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         vs_name = f"{v_s_route_setup.namespace}/{v_s_route_setup.vs_name}"
         vsr_1_name = f"{v_s_route_setup.namespace}/{v_s_route_setup.route_m.name}"
         vsr_2_name = f"{v_s_route_setup.route_s.namespace}/{v_s_route_setup.route_s.name}"
@@ -338,7 +343,11 @@ class TestVirtualServerRouteValidation:
     def test_vsr_without_vs(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup, test_namespace
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         vsr_name = create_v_s_route_from_yaml(
             kube_apis.custom_objects, f"{TEST_DATA}/virtual-server-route/route-orphan.yaml", test_namespace
         )
@@ -369,7 +378,11 @@ class TestVirtualServerRouteValidation:
     def test_make_existing_vsr_invalid(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup, route_yaml
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         patch_v_s_route_from_yaml(
             kube_apis.custom_objects, v_s_route_setup.route_s.name, route_yaml, v_s_route_setup.route_s.namespace
         )
@@ -399,7 +412,11 @@ class TestVirtualServerRouteValidation:
     def test_openapi_validation_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         config_old = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -439,7 +456,11 @@ class TestCreateInvalidVirtualServerRoute:
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup
     ):
         route_yaml = f"{TEST_DATA}/virtual-server-route/route-single-duplicate-path.yaml"
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         text = f"{v_s_route_setup.route_s.namespace}/{v_s_route_setup.route_s.name}"
         vs_event_text = f"Configuration for {v_s_route_setup.namespace}/{v_s_route_setup.vs_name} was added or updated with warning(s)"
         vsr_event_text = (
@@ -507,7 +528,11 @@ class TestVirtualServerRouteSelector:
         )
 
         req_url = f"http://{v_s_route_selector_setup.public_endpoint.public_ip}:{v_s_route_selector_setup.public_endpoint.port}"
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         vs_name = f"{v_s_route_selector_setup.namespace}/{v_s_route_selector_setup.vs_name}"
         vsr_1_name = f"{v_s_route_selector_setup.route_m.namespace}/{v_s_route_selector_setup.route_m.name}"
         vsr_2_name = f"{v_s_route_selector_setup.route_s.namespace}/{v_s_route_selector_setup.route_s.name}"

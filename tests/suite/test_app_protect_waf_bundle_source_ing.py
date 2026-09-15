@@ -18,6 +18,7 @@ from suite.utils.resources_utils import (
     delete_common_app,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    get_e2e_run_selector,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -44,10 +45,10 @@ def bundle_server(kube_apis, test_namespace) -> BundleServerSetup:
 
 
 @pytest.fixture(scope="function")
-def ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace):
+def ingress_setup(kube_apis, ingress_controller_endpoint, test_namespace, e2e_run_id):
     """Deploy a backend app and Ingress that references the WAF policy."""
-    create_example_app(kube_apis, "simple", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     create_items_from_yaml(kube_apis, INGRESS_SRC, test_namespace)
 
     ingress_host = get_first_ingress_host_from_yaml(INGRESS_SRC)
