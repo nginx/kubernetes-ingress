@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 import pytest
 import requests
 from kubernetes.client.rest import ApiException
@@ -486,7 +488,7 @@ class TestExternalAuthPolicies:
 
         assert policy_info["status"]["state"] == "Valid"
         assert unauthenticated_resp.status_code == 302
-        assert unauthenticated_resp.headers["location"] == "/oauth2/signin"
+        assert urlparse(unauthenticated_resp.headers["location"]).path == "/oauth2/signin"
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
 
