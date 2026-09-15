@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -15,7 +16,10 @@ import (
 
 const nginxSeparator = "nginx:"
 
-var latencyBucketsMilliSeconds = []float64{
+// DefaultLatencyBuckets are the histogram buckets, in milliseconds, used for the
+// upstream_server_response_latency_ms metric when no custom buckets are configured
+// via the -latency-metrics-buckets command-line argument.
+var DefaultLatencyBuckets = []float64{
 	1,
 	2,
 	3,
@@ -78,13 +82,18 @@ type LatencyMetricsCollector struct {
 	logger                       *slog.Logger
 }
 
-// NewLatencyMetricsCollector creates a new LatencyMetricsCollector
+// NewLatencyMetricsCollector creates a new LatencyMetricsCollector.
+// If buckets is empty, DefaultLatencyBuckets is used.
 func NewLatencyMetricsCollector(
 	ctx context.Context,
 	constLabels map[string]string,
 	upstreamServerLabelNames []string,
 	upstreamServerPeerLabelNames []string,
+	buckets []float64,
 ) *LatencyMetricsCollector {
+	if len(buckets) == 0 {
+		buckets = slices.Clone(DefaultLatencyBuckets)
+	}
 	return &LatencyMetricsCollector{
 		httpLatency: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -92,7 +101,7 @@ func NewLatencyMetricsCollector(
 				Name:        "upstream_server_response_latency_ms",
 				Help:        "Bucketed response times from when NGINX establishes a connection to an upstream server to when the last byte of the response body is received by NGINX",
 				ConstLabels: constLabels,
-				Buckets:     latencyBucketsMilliSeconds,
+				Buckets:     buckets,
 			},
 			createLatencyLabelNames(upstreamServerLabelNames, upstreamServerPeerLabelNames),
 		),
