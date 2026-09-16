@@ -498,3 +498,12 @@ ifeq (, $(shell command -v go))
 else
 	@make -C hack/secrets-gen clean
 endif
+
+.PHONY: test-dependency-checker
+test-dependency-checker: ## Run unit tests for dependency checker
+	python3 -m unittest discover -s .github/scripts -p "test_*.py"
+
+.PHONY: dependency-check
+dependency-check: ## Run pre-release dependency availability check (override with ARGS="...")
+	./.github/scripts/dependency-check.sh $(or $(ARGS),--group oss)
+
