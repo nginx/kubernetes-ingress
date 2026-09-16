@@ -34,7 +34,7 @@ spec:
       securityContext:
       ...
       containers:
-      - image: nginx-plus-ingress:2026-lts-r7
+      - image: nginx-plus-ingress:2026-lts-r8
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
@@ -323,7 +323,7 @@ spec:
       securityContext:
       ...
       containers:
-      - image: nginx-plus-ingress:2026-lts-r7
+      - image: nginx-plus-ingress:2026-lts-r8
         imagePullPolicy: IfNotPresent
         name: nginx-plus-ingress
         ports:
