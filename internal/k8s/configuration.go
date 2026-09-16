@@ -412,6 +412,18 @@ type Configuration struct {
 	// and enables GetVirtualServersForVirtualServerRoute.
 	vsrToVSConfigs map[string][]*conf_v1.VirtualServer
 
+	// vsrsWithChangedRefs holds the VirtualServerRoutes whose vsrToVSConfigs
+	// entry changed (grew, shrank, or was reordered by identity) during the
+	// most recent rebuildHosts() call. Config-generation changes already
+	// cause any re-rendered VirtualServer to overwrite its VSRs' referencedBy
+	// status (see updateVirtualServerStatusAndEvents), but detaching a VS
+	// from a VSR without changing any *other* VS's own config (deleting one
+	// of several VSs sharing a hostless VSR, for example) produces no such
+	// re-render. GetVirtualServerRoutesWithChangedReferences lets the
+	// controller refresh exactly the VSRs affected in that case, without
+	// forcing a render of every VS that is unaffected.
+	vsrsWithChangedRefs []*conf_v1.VirtualServerRoute
+
 	globalConfiguration *conf_v1.GlobalConfiguration
 
 	hostProblems     map[string]ConfigurationProblem
@@ -934,7 +946,17 @@ func (c *Configuration) CompleteStartup() ([]ResourceChange, []ConfigurationProb
 	defer c.lock.Unlock()
 
 	c.startupComplete = true
-	return c.rebuildHosts()
+	changes, problems := c.rebuildHosts()
+
+	// The startup rebuild's vsrsWithChangedRefs diff is every VSR that went
+	// from "no index entry" to its startup state, i.e. effectively all of
+	// them. The pending-status flush that follows startup (see
+	// flushPendingStatusesAsync) already writes referencedBy for every VSR
+	// from a definitive post-startup snapshot, so replaying this diff
+	// afterwards would only add redundant, already-covered API calls.
+	c.vsrsWithChangedRefs = nil
+
+	return changes, problems
 }
 
 func (c *Configuration) rebuildListenerHosts() ([]ResourceChange, []ConfigurationProblem) {
@@ -1248,6 +1270,8 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 	removedHosts, updatedHosts, addedHosts := detectChangesInHosts(c.hosts, newHosts)
 	changes := createResourceChangesForHosts(removedHosts, updatedHosts, addedHosts, c.hosts, newHosts)
 
+	c.vsrsWithChangedRefs = detectChangesInVSRReferences(c.vsrToVSConfigs, newVSRToVSConfigs, c.virtualServerRoutes)
+
 	// safe to update hosts and the VSR reverse index
 	c.hosts = newHosts
 	c.vsrToVSConfigs = newVSRToVSConfigs
@@ -1487,6 +1511,18 @@ func (c *Configuration) GetVirtualServersForVirtualServerRoute(vsr *conf_v1.Virt
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.vsrToVSConfigs[getResourceKey(&vsr.ObjectMeta)]
+}
+
+// GetVirtualServerRoutesWithChangedReferences returns the VirtualServerRoutes
+// whose set of referencing VirtualServers (as returned by
+// GetVirtualServersForVirtualServerRoute) changed during the most recent
+// rebuildHosts() call. Callers use this to refresh Status.ReferencedBy for
+// exactly the VSRs affected by a change, without needing every referencing VS
+// to have been re-rendered itself. See vsrsWithChangedRefs.
+func (c *Configuration) GetVirtualServerRoutesWithChangedReferences() []*conf_v1.VirtualServerRoute {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.vsrsWithChangedRefs
 }
 
 // addProblemsForOrphanOrIgnoredVsrs emits ConfigurationProblems for VSRs that
@@ -2429,6 +2465,53 @@ func detectChangesInHosts(oldHosts map[string]Resource, newHosts map[string]Reso
 	}
 
 	return removedHosts, updatedHosts, addedHosts
+}
+
+// detectChangesInVSRReferences compares the old and new VSR->VS reverse
+// indexes and returns the VirtualServerRoutes (looked up in vsrs) whose set of
+// referencing VirtualServers changed. A VSR that no longer exists in vsrs is
+// skipped: it has no Status to refresh, and if it is orphaned or ignored,
+// addProblemsForOrphanOrIgnoredVsrs handles reporting that separately.
+// The comparison is by VS identity (namespace/name) and order, matching the
+// deterministic sorted-by-VS-key order both indexes are built in, so a
+// reordering (which cannot currently happen without an identity change, but
+// would signal something worth refreshing) is treated as a change too.
+func detectChangesInVSRReferences(
+	oldIndex map[string][]*conf_v1.VirtualServer,
+	newIndex map[string][]*conf_v1.VirtualServer,
+	vsrs map[string]*conf_v1.VirtualServerRoute,
+) []*conf_v1.VirtualServerRoute {
+	var changed []*conf_v1.VirtualServerRoute
+
+	for _, key := range getSortedVirtualServerRouteKeys(vsrs) {
+		if vsSlicesReferenceSameVirtualServers(oldIndex[key], newIndex[key]) {
+			continue
+		}
+		changed = append(changed, vsrs[key])
+	}
+
+	return changed
+}
+
+// vsSlicesReferenceSameVirtualServers reports whether two slices of
+// VirtualServers reference the same VirtualServers, in the same order,
+// identified by namespace/name.
+func vsSlicesReferenceSameVirtualServers(a, b []*conf_v1.VirtualServer) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] == nil || b[i] == nil {
+			if a[i] != b[i] {
+				return false
+			}
+			continue
+		}
+		if a[i].Namespace != b[i].Namespace || a[i].Name != b[i].Name {
+			return false
+		}
+	}
+	return true
 }
 
 func detectChangesInListenerHosts(

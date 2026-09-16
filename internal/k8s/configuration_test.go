@@ -7572,3 +7572,239 @@ func TestHostlessVSR_TSHostDoesNotConfuse(t *testing.T) {
 		t.Errorf("expected NoVirtualServerFound reason, got %q", problems[0].Reason)
 	}
 }
+
+// changedRefsNames returns the sorted VSR name list from
+// GetVirtualServerRoutesWithChangedReferences, for compact assertions.
+func changedRefsNames(cfg *Configuration) []string {
+	var names []string
+	for _, vsr := range cfg.GetVirtualServerRoutesWithChangedReferences() {
+		names = append(names, vsr.Namespace+"/"+vsr.Name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// TestHostlessVSR_ReferenceSetShrinkIsDetected verifies that deleting one of
+// several VirtualServers sharing a hostless VirtualServerRoute is reported by
+// GetVirtualServerRoutesWithChangedReferences, and that the reverse index
+// itself shrinks accordingly. This is the reported bug: deleting vs-c does
+// not change vs-a's or vs-b's own rendered config, so nothing besides this
+// diff would otherwise signal that the VSR's referencedBy needs a refresh.
+func TestHostlessVSR_ReferenceSetShrinkIsDetected(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	for _, name := range []string{"vs-a", "vs-b", "vs-c"} {
+		vs := vsWithRoute(name, name+".example.com", "default/coffee")
+		cfg.AddOrUpdateVirtualServer(vs)
+	}
+	// Adding the three VSs is itself a set of changes; only the delete below
+	// is under test.
+
+	_, _ = cfg.DeleteVirtualServer("default/vs-c")
+
+	if diff := cmp.Diff([]string{"default/coffee"}, changedRefsNames(cfg)); diff != "" {
+		t.Errorf("GetVirtualServerRoutesWithChangedReferences mismatch after deleting vs-c (-want +got):\n%s", diff)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotNames []string
+	for _, vs := range got {
+		gotNames = append(gotNames, vs.Name)
+	}
+	if diff := cmp.Diff([]string{"vs-a", "vs-b"}, gotNames); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after deleting vs-c (-want +got):\n%s", diff)
+	}
+}
+
+// TestHostlessVSR_ReferenceSetShrinkIsDetectedCrossNamespace is
+// TestHostlessVSR_ReferenceSetShrinkIsDetected with the hostless VSR and its
+// three referencing VirtualServers spread across four different namespaces,
+// covering the same cross-namespace hostless-VSR support exercised by
+// TestHostlessVSR_CrossNamespace. GetVirtualServersForVirtualServerRoute's
+// order is by VS key ("namespace/name"), so "apps-ns/vs-b" sorts before
+// "default/vs-a".
+func TestHostlessVSR_ReferenceSetShrinkIsDetectedCrossNamespace(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("routes-ns")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vsSpecs := []struct{ namespace, name, host string }{
+		{"default", "vs-a", "vs-a.example.com"},
+		{"apps-ns", "vs-b", "vs-b.example.com"},
+		{"other-ns", "vs-c", "vs-c.example.com"},
+	}
+	for _, s := range vsSpecs {
+		vs := &conf_v1.VirtualServer{
+			ObjectMeta: metav1.ObjectMeta{Namespace: s.namespace, Name: s.name},
+			Spec: conf_v1.VirtualServerSpec{
+				IngressClass: "nginx",
+				Host:         s.host,
+				Routes: []conf_v1.Route{
+					{Path: "/coffee", Route: "routes-ns/coffee"},
+				},
+			},
+		}
+		cfg.AddOrUpdateVirtualServer(vs)
+	}
+
+	_, _ = cfg.DeleteVirtualServer("other-ns/vs-c")
+
+	if diff := cmp.Diff([]string{"routes-ns/coffee"}, changedRefsNames(cfg)); diff != "" {
+		t.Errorf("GetVirtualServerRoutesWithChangedReferences mismatch after deleting other-ns/vs-c (-want +got):\n%s", diff)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotKeys []string
+	for _, vs := range got {
+		gotKeys = append(gotKeys, vs.Namespace+"/"+vs.Name)
+	}
+	if diff := cmp.Diff([]string{"apps-ns/vs-b", "default/vs-a"}, gotKeys); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after deleting other-ns/vs-c (-want +got):\n%s", diff)
+	}
+}
+
+// TestHostlessVSR_ReferenceSetNoChangeWhenUnaffected verifies that a rebuild
+// triggered by an unrelated resource does not report the hostless VSR as
+// changed when its referencing-VS set is unaffected.
+func TestHostlessVSR_ReferenceSetNoChangeWhenUnaffected(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vsA := vsWithRoute("vs-a", "vs-a.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vsA)
+
+	// Add an unrelated VS with no connection to the hostless VSR at all.
+	unrelated := createTestVirtualServer("unrelated", "unrelated.example.com")
+	cfg.AddOrUpdateVirtualServer(unrelated)
+
+	if got := changedRefsNames(cfg); len(got) != 0 {
+		t.Errorf("expected no changed VSR references from an unrelated VS add, got %v", got)
+	}
+}
+
+// TestHostlessVSR_ReferenceSetChangeSkipsDeletedVSR verifies that deleting the
+// VirtualServerRoute itself is not reported by
+// GetVirtualServerRoutesWithChangedReferences: the VSR no longer exists in
+// c.virtualServerRoutes, so there is no Status left to refresh, and the
+// orphan/ignored problem path is what reports that case instead.
+func TestHostlessVSR_ReferenceSetChangeSkipsDeletedVSR(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := vsWithRoute("vs-a", "vs-a.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vs)
+
+	_, _ = cfg.DeleteVirtualServerRoute("default/coffee")
+
+	if got := changedRefsNames(cfg); len(got) != 0 {
+		t.Errorf("expected no changed VSR references after deleting the VSR itself, got %v", got)
+	}
+}
+
+// TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletion verifies the case
+// the controller cannot detect purely from ResourceChange: a VS is kept but
+// edited so it no longer selects the hostless VSR (its route now points
+// elsewhere). rebuildHosts rewrites ResourceChange.Resource to the latest
+// version of a changed resource, so the *old* VSR reference is not visible
+// from the changes slice alone -- GetVirtualServerRoutesWithChangedReferences
+// must be the source of truth here.
+func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletion(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vsA := vsWithRoute("vs-a", "vs-a.example.com", "default/coffee")
+	vsB := vsWithRoute("vs-b", "vs-b.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vsA)
+	cfg.AddOrUpdateVirtualServer(vsB)
+
+	// Edit vs-b so it no longer references the VSR at all.
+	vsBDetached := createTestVirtualServerWithRoutes("vs-b", "vs-b.example.com", []conf_v1.Route{
+		{Path: "/coffee", Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "vs-b-local"}}},
+	})
+	cfg.AddOrUpdateVirtualServer(vsBDetached)
+
+	if diff := cmp.Diff([]string{"default/coffee"}, changedRefsNames(cfg)); diff != "" {
+		t.Errorf("GetVirtualServerRoutesWithChangedReferences mismatch after detaching vs-b (-want +got):\n%s", diff)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotNames []string
+	for _, vs := range got {
+		gotNames = append(gotNames, vs.Name)
+	}
+	if diff := cmp.Diff([]string{"vs-a"}, gotNames); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after detaching vs-b (-want +got):\n%s", diff)
+	}
+}
+
+// TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace is
+// TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletion with the VSR and
+// both VirtualServers in three different namespaces.
+func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("routes-ns")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vsA := &conf_v1.VirtualServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "vs-a"},
+		Spec: conf_v1.VirtualServerSpec{
+			IngressClass: "nginx",
+			Host:         "vs-a.example.com",
+			Routes:       []conf_v1.Route{{Path: "/coffee", Route: "routes-ns/coffee"}},
+		},
+	}
+	vsB := &conf_v1.VirtualServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "apps-ns", Name: "vs-b"},
+		Spec: conf_v1.VirtualServerSpec{
+			IngressClass: "nginx",
+			Host:         "vs-b.example.com",
+			Routes:       []conf_v1.Route{{Path: "/coffee", Route: "routes-ns/coffee"}},
+		},
+	}
+	cfg.AddOrUpdateVirtualServer(vsA)
+	cfg.AddOrUpdateVirtualServer(vsB)
+
+	// Edit vs-b (in "apps-ns") so it no longer references the cross-namespace
+	// VSR at all.
+	vsBDetached := &conf_v1.VirtualServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "apps-ns", Name: "vs-b"},
+		Spec: conf_v1.VirtualServerSpec{
+			IngressClass: "nginx",
+			Host:         "vs-b.example.com",
+			Routes: []conf_v1.Route{
+				{Path: "/coffee", Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "vs-b-local"}}},
+			},
+		},
+	}
+	cfg.AddOrUpdateVirtualServer(vsBDetached)
+
+	if diff := cmp.Diff([]string{"routes-ns/coffee"}, changedRefsNames(cfg)); diff != "" {
+		t.Errorf("GetVirtualServerRoutesWithChangedReferences mismatch after detaching apps-ns/vs-b (-want +got):\n%s", diff)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotKeys []string
+	for _, vs := range got {
+		gotKeys = append(gotKeys, vs.Namespace+"/"+vs.Name)
+	}
+	if diff := cmp.Diff([]string{"default/vs-a"}, gotKeys); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after detaching apps-ns/vs-b (-want +got):\n%s", diff)
+	}
+}

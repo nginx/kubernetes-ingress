@@ -512,7 +512,13 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 	return err
 }
 
-func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string, referencedByString string) bool {
+// hasVsrStatusChanged reports whether writing state/reason/message/
+// referencedBy to vsr's status would actually change it. referencedBy is a
+// pointer so callers that don't manage the field (UpdateVirtualServerRouteStatus)
+// can pass nil to exclude it from the comparison, distinct from a managing
+// caller (UpdateVirtualServerRouteStatusWithReferencedBy) explicitly passing an
+// empty string to clear it.
+func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string, referencedBy *string) bool {
 	if vsr.Status.State != state {
 		return true
 	}
@@ -525,7 +531,7 @@ func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, st
 		return true
 	}
 
-	if referencedByString != "" && vsr.Status.ReferencedBy != referencedByString {
+	if referencedBy != nil && vsr.Status.ReferencedBy != *referencedBy {
 		return true
 	}
 
@@ -579,7 +585,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 
 	vsrCopy := vsrLatest.(*conf_v1.VirtualServerRoute).DeepCopy()
 
-	if !su.hasVsrStatusChanged(vsrCopy, state, reason, message, referencedByString) {
+	if !su.hasVsrStatusChanged(vsrCopy, state, reason, message, &referencedByString) {
 		return nil
 	}
 
@@ -592,6 +598,49 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 	_, err = su.confClient.K8sV1().VirtualServerRoutes(vsrCopy.Namespace).UpdateStatus(context.TODO(), vsrCopy, metav1.UpdateOptions{})
 	if err != nil {
 		nl.Warnf(l, "error setting VirtualServerRoute %v/%v status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
+		return su.retryUpdateVirtualServerRouteStatus(vsrCopy)
+	}
+	return err
+}
+
+// UpdateVirtualServerRouteReferencedBy updates only the referencedBy field of
+// a VirtualServerRoute's status, preserving its current State, Reason and
+// Message. It is used to refresh referencedBy for VSRs whose set of
+// referencing VirtualServers changed without any of those VirtualServers'
+// own rendered config changing (see
+// Configuration.GetVirtualServerRoutesWithChangedReferences), so it must not
+// overwrite state/reason/message with stale values the way a full status
+// write would.
+func (su *statusUpdater) UpdateVirtualServerRouteReferencedBy(vsr *conf_v1.VirtualServerRoute, referencedBy []*conf_v1.VirtualServer) error {
+	referencedByString := formatReferencedBy(referencedBy)
+
+	// Get an up-to-date VirtualServerRoute from the Store
+	var vsrLatest interface{}
+	var exists bool
+	var err error
+
+	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
+	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
+	if err != nil {
+		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
+		return err
+	}
+	if !exists {
+		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
+		return nil
+	}
+
+	vsrCopy := vsrLatest.(*conf_v1.VirtualServerRoute).DeepCopy()
+
+	if vsrCopy.Status.ReferencedBy == referencedByString {
+		return nil
+	}
+
+	vsrCopy.Status.ReferencedBy = referencedByString
+
+	_, err = su.confClient.K8sV1().VirtualServerRoutes(vsrCopy.Namespace).UpdateStatus(context.TODO(), vsrCopy, metav1.UpdateOptions{})
+	if err != nil {
+		nl.Warnf(l, "error setting VirtualServerRoute %v/%v referencedBy status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
 		return su.retryUpdateVirtualServerRouteStatus(vsrCopy)
 	}
 	return err
@@ -619,7 +668,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServ
 
 	vsrCopy := vsrLatest.(*conf_v1.VirtualServerRoute).DeepCopy()
 
-	if !su.hasVsrStatusChanged(vsrCopy, state, reason, message, "") {
+	if !su.hasVsrStatusChanged(vsrCopy, state, reason, message, nil) {
 		return nil
 	}
 

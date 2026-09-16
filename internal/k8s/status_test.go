@@ -786,12 +786,52 @@ func TestHasVsrStatusChanged(t *testing.T) {
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			changed := su.hasVsrStatusChanged(&test.vsr, state, reason, msg, referencedBy)
+			changed := su.hasVsrStatusChanged(&test.vsr, state, reason, msg, &referencedBy)
 
 			if changed != test.expected {
 				t.Errorf("hasVsrStatusChanged(%v, %v, %v, %v) returned %v but expected %v for test: %s", test.vsr, state, reason, msg, changed, test.expected, test.desc)
 			}
 		})
+	}
+}
+
+// TestHasVsrStatusChangedReferencedByPointerSemantics verifies that a nil
+// referencedBy pointer excludes the field from the comparison (so
+// UpdateVirtualServerRouteStatus, which does not manage referencedBy, cannot
+// spuriously trigger or suppress a write based on it), while a non-nil
+// pointer to an empty string is compared like any other value (so
+// UpdateVirtualServerRouteStatusWithReferencedBy can clear a stale value down
+// to empty).
+func TestHasVsrStatusChangedReferencedByPointerSemantics(t *testing.T) {
+	t.Parallel()
+
+	state := "Valid"
+	reason := "AddedOrUpdated"
+	msg := "Configuration was added or updated"
+
+	su := &statusUpdater{}
+
+	vsr := &conf_v1.VirtualServerRoute{
+		Status: conf_v1.VirtualServerRouteStatus{
+			State:        state,
+			Reason:       reason,
+			Message:      msg,
+			ReferencedBy: "default/vs-a, default/vs-b",
+		},
+	}
+
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, nil); changed {
+		t.Errorf("hasVsrStatusChanged with nil referencedBy = true, want false (field must be ignored)")
+	}
+
+	empty := ""
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, &empty); !changed {
+		t.Errorf("hasVsrStatusChanged with &\"\" referencedBy against a non-empty stored value = false, want true (must detect the shrink-to-empty case)")
+	}
+
+	same := "default/vs-a, default/vs-b"
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, &same); changed {
+		t.Errorf("hasVsrStatusChanged with an unchanged referencedBy pointer = true, want false")
 	}
 }
 
