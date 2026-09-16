@@ -590,6 +590,10 @@ volumeMounts:
   securityContext:
 {{ toYaml .Values.controller.appprotect.ipIntelligence.securityContext | nindent 6 }}
 {{- end }}
+{{- if .Values.controller.appprotect.ipIntelligence.resources }}
+  resources:
+{{ toYaml .Values.controller.appprotect.ipIntelligence.resources | nindent 6 }}
+{{- end }}
   volumeMounts:
     - name: app-protect-ipi-db
       mountPath: /var/IpRep
