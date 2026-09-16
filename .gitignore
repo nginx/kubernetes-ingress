@@ -65,6 +65,8 @@ package.json
 # kind kube-config
 kube-local
 venv/
+__pycache__/
+*.pyc
 
 # AUTO GENERATED SECTION BY CERTGEN (hack/secrets-gen/gitignore-gen.go), DO NOT EDIT BELOW
 

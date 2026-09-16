@@ -25,6 +25,7 @@ build on.
 
 import argparse
 import base64
+import collections
 import configparser
 import gzip
 import http.client
@@ -175,11 +176,12 @@ def paint(text, code):
 
 def visible_len(s):
     """Length of s as rendered, ignoring SGR sequences."""
-    return len(ANSI_RE.sub("", s))
+    return len(ANSI_RE.sub("", str(s)))
 
 
 def ljust_visible(s, width):
     """Left-justify to a visible width, padding outside any SGR span."""
+    s = str(s)
     return s + " " * max(0, width - visible_len(s))
 
 
@@ -189,23 +191,6 @@ def parse_semver_key(v):
     return [int(t) if t.isdigit() else t for t in tokens]
 
 
-def fetch_index_xml(host, uri, cert_file=None, key_file=None):
-    """Fetch and parse index.xml from the given repository host and URI using mTLS if certs exist."""
-    context = ssl.create_default_context()
-    if cert_file and key_file and os.path.exists(cert_file) and os.path.exists(key_file):
-        context.load_cert_chain(certfile=cert_file, keyfile=key_file)
-
-    conn = http.client.HTTPSConnection(host, context=context, timeout=30)
-    path = f"{uri.rstrip('/')}/index.xml"
-    conn.request("GET", path)
-    res = conn.getresponse()
-    if res.status != 200:
-        raise RuntimeError(f"HTTP {res.status} {res.reason} for {path} on {host}")
-    data = res.read()
-    conn.close()
-    return ET.fromstring(data)
-
-
 def _tls_context(cert_file, key_file):
     context = ssl.create_default_context()
     if cert_file and key_file and os.path.exists(cert_file) and os.path.exists(key_file):
@@ -213,15 +198,44 @@ def _tls_context(cert_file, key_file):
     return context
 
 
-def _http_get(host, path, cert_file, key_file, headers=None):
-    conn = http.client.HTTPSConnection(host, context=_tls_context(cert_file, key_file), timeout=30)
-    try:
-        conn.request("GET", path, headers=headers or {})
-        res = conn.getresponse()
-        body = res.read()
-        return res.status, {k.lower(): v for k, v in res.getheaders()}, body
-    finally:
-        conn.close()
+def _http_get(host, path, cert_file=None, key_file=None, headers=None, max_redirects=5):
+    """Perform an HTTPS GET with mTLS if configured, following redirects up to max_redirects."""
+    current_host = host
+    current_path = path
+    for _ in range(max_redirects + 1):
+        conn = http.client.HTTPSConnection(current_host, context=_tls_context(cert_file, key_file), timeout=30)
+        try:
+            conn.request("GET", current_path, headers=headers or {})
+            res = conn.getresponse()
+            body = res.read()
+            hdrs = {k.lower(): v for k, v in res.getheaders()}
+        finally:
+            conn.close()
+
+        if res.status in (301, 302, 303, 307, 308) and "location" in hdrs:
+            loc = hdrs["location"]
+            parsed = urllib.parse.urlsplit(loc)
+            if parsed.netloc:
+                current_host = parsed.netloc
+                current_path = parsed.path
+                if parsed.query:
+                    current_path += f"?{parsed.query}"
+            else:
+                current_path = urllib.parse.urljoin(current_path, loc)
+            continue
+
+        return res.status, hdrs, body
+
+    raise RuntimeError(f"Too many redirects while requesting {path} from {host}")
+
+
+def fetch_index_xml(host, uri, cert_file=None, key_file=None):
+    """Fetch and parse index.xml from the given repository host and URI using mTLS if certs exist."""
+    path = f"{uri.rstrip('/')}/index.xml"
+    status, _headers, body = _http_get(host, path, cert_file, key_file)
+    if status != 200:
+        raise RuntimeError(f"HTTP {status} for {path} on {host}")
+    return ET.fromstring(body)
 
 
 def _bearer_token(host, challenge, cert_file, key_file, jwt=None):
@@ -353,12 +367,29 @@ def fetch_image_manifest(host, repository, tag, cert_file=None, key_file=None, j
 
 def fetch_image_tags(host, repository, cert_file=None, key_file=None, jwt=None):
     """Return published tags that look like plain versions, naturally sorted."""
-    path = f"/v2/{repository}/tags/list"
-    status, _headers, body = registry_get(host, path, cert_file, key_file, None, jwt)
-    if status != 200:
-        raise registry_error(status, host, path, cert_file)
-    tags = json.loads(body).get("tags") or []
-    return sorted((t for t in tags if TAG_VERSION_RE.match(t)), key=parse_semver_key)
+    path = f"/v2/{repository}/tags/list?n=1000"
+    all_tags = []
+    while path:
+        status, headers, body = registry_get(host, path, cert_file, key_file, None, jwt)
+        if status != 200:
+            raise registry_error(status, host, path, cert_file)
+        payload = json.loads(body)
+        tags = payload.get("tags") or []
+        all_tags.extend(tags)
+
+        # Check for OCI pagination: Link: <...>; rel="next"
+        link = headers.get("link", "")
+        m = re.search(r'<([^>]+)>;\s*rel="next"', link)
+        if m:
+            next_url = m.group(1)
+            parsed = urllib.parse.urlsplit(next_url)
+            path = parsed.path
+            if parsed.query:
+                path += f"?{parsed.query}"
+        else:
+            path = None
+
+    return sorted((t for t in all_tags if TAG_VERSION_RE.match(t)), key=parse_semver_key)
 
 
 def parse_chart_appversion(path):
@@ -375,21 +406,29 @@ def parse_chart_image_tag(path, repository):
     """Find the tag belonging to a given image repository in values.yaml.
 
     Keyed on the repository string rather than a YAML path, so it survives the
-    values file being reorganised. Returns None when the tag is commented out,
-    which is how the chart expresses "fall back to appVersion"
+    values file being reorganised. Returns None when the tag is commented out or
+    omitted, which is how the chart expresses "fall back to appVersion"
     (charts/nginx-ingress/templates/_helpers.tpl:164-166).
     """
     with open(path, "r") as f:
         lines = f.readlines()
 
     for i, line in enumerate(lines):
-        if re.match(r"^\s*repository:\s*" + re.escape(repository) + r"\s*$", line):
+        m_repo = re.match(r"^(\s*)repository:\s*" + re.escape(repository) + r"\s*$", line)
+        if m_repo:
+            indent_len = len(m_repo.group(1))
             for following in lines[i + 1 :]:
-                if re.match(r"^\s*repository:\s*\S", following):
-                    break  # next image block, no tag for this one
-                m = re.match(r"^\s*tag:\s*[\"']?([^\"'\s]+)", following)
-                if m:
-                    return m.group(1)
+                stripped = following.strip()
+                if not stripped:
+                    continue
+                line_indent = len(following) - len(following.lstrip(" "))
+                if line_indent < indent_len and not stripped.startswith("#"):
+                    break
+                m_tag = re.match(r"^\s*tag:\s*[\"']?([^\"'\s#]+)", following)
+                if m_tag:
+                    return m_tag.group(1)
+                if re.match(r"^\s*repository:\s*\S", following) and line_indent <= indent_len:
+                    break
             return None
     raise RuntimeError(f"image repository '{repository}' not found in {path}")
 
@@ -524,13 +563,19 @@ def parse_dockerfile_args(path):
 
     Bare `ARG NAME` re-declarations carry no value and are skipped. The first
     definition wins, which is the top-of-file block that Makefile mirrors.
+    Quotes and inline comments are cleanly stripped.
     """
     args = {}
     with open(path, "r") as f:
         for line in f:
             m = re.match(r"^ARG\s+([A-Za-z_][A-Za-z0-9_]*)=(.*?)\s*$", line)
             if m:
-                args.setdefault(m.group(1), m.group(2))
+                name, val = m.group(1), m.group(2).strip()
+                if not (val.startswith('"') and val.endswith('"')) and not (val.startswith("'") and val.endswith("'")):
+                    val = val.split("#", 1)[0].strip()
+                if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                    val = val[1:-1]
+                args.setdefault(name, val)
     return args
 
 
@@ -550,13 +595,110 @@ def resolve_distro_versions(path):
         debian.add(DEBIAN_CODENAMES.get(token, token))
     debian = sorted(debian, key=parse_semver_key)
 
-    centos = sorted(set(re.findall(r"centos/(\d+)", text)), key=parse_semver_key)
+    centos = set()
+    for ubi_ver in re.findall(r"(?:redhat/ubi|ubi)(\d+)", text, re.I):
+        centos.add(ubi_ver)
+    if not centos:
+        centos.update(re.findall(r"centos/(\d+)", text))
+    centos = sorted(centos, key=parse_semver_key)
 
     resolved = {"alpine": alpine, "debian": debian, "centos": centos}
     missing = [d for d, v in resolved.items() if not v]
     if missing:
         raise RuntimeError(f"could not resolve distro versions from {path} for: {', '.join(missing)}")
     return resolved
+
+
+def parse_matrix_file(path):
+    """Parse a matrix JSON file and return mapping of distro family -> set of arch labels (x86, arm).
+    Also returns all advertised platforms.
+    """
+    if not os.path.exists(path):
+        return {}, []
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as e:
+        raise RuntimeError(f"could not parse matrix file '{path}': {e}")
+
+    distros = collections.defaultdict(set)
+    platforms_found = set()
+
+    def process_entry(img, platforms_val):
+        distro = None
+        if "alpine" in img:
+            distro = "alpine"
+        elif "debian" in img:
+            distro = "debian"
+        elif "ubi" in img or "centos" in img:
+            distro = "centos"
+        if not distro:
+            return
+
+        raw_platforms = []
+        if isinstance(platforms_val, list):
+            for item in platforms_val:
+                raw_platforms.extend(item.split(","))
+        elif isinstance(platforms_val, str):
+            raw_platforms.extend(platforms_val.split(","))
+
+        for p in raw_platforms:
+            p = p.strip()
+            if not p:
+                continue
+            platforms_found.add(p)
+            arch_key = p.split("/")[-1] if "/" in p else p
+            arch = ARCH_LABELS.get(arch_key)
+            if arch:
+                distros[distro].add(arch)
+
+    # Base entries
+    base_images = data.get("image", [])
+    if isinstance(base_images, str):
+        base_images = [base_images]
+    base_platforms = data.get("platforms", [])
+    for img in base_images:
+        process_entry(img, base_platforms)
+
+    # Included entries
+    for inc in data.get("include", []):
+        img = inc.get("image", "")
+        p = inc.get("platforms", base_platforms)
+        process_entry(img, p)
+
+    return dict(distros), sorted(platforms_found)
+
+
+def resolve_matrix_distros(data_dir):
+    """Derive default target distros and platforms per group from matrix JSON files in data_dir."""
+    group_distros = {}
+    default_platforms = []
+
+    if not data_dir or not os.path.isdir(data_dir):
+        return group_distros, default_platforms
+
+    oss_distros, oss_plats = parse_matrix_file(os.path.join(data_dir, "matrix-images-oss.json"))
+    plus_distros, _ = parse_matrix_file(os.path.join(data_dir, "matrix-images-plus.json"))
+    nap_distros, _ = parse_matrix_file(os.path.join(data_dir, "matrix-images-nap.json"))
+
+    if oss_distros:
+        group_distros["oss"] = oss_distros
+        default_platforms = oss_plats
+    if plus_distros:
+        group_distros["plus"] = plus_distros
+    if oss_distros or plus_distros:
+        agent_distros = collections.defaultdict(set)
+        for d in (oss_distros, plus_distros):
+            for distro, arches in d.items():
+                agent_distros[distro].update(arches)
+        group_distros["agent"] = dict(agent_distros)
+    if nap_distros:
+        group_distros["nap-waf"] = nap_distros
+        group_distros["nap-signatures"] = nap_distros
+        group_distros["nap-dos"] = nap_distros
+
+    return group_distros, default_platforms
 
 
 def normalize_version(scheme, ver):
@@ -653,7 +795,7 @@ def version_matches(declared, available):
 
 
 class Dependency:
-    def __init__(self, name, section):
+    def __init__(self, name, section, default_distros=None, default_platforms=None):
         self.name = name
         self.group = section.get("group", "default").strip()
         self.kind = section.get("kind", KIND_PACKAGE).strip()
@@ -685,6 +827,8 @@ class Dependency:
         # Images only: platforms the manifest list must advertise. Empty skips
         # the check, which is right for the single-arch NAP sidecars.
         self.platforms = [p.strip() for p in section.get("platforms", "").split(",") if p.strip()]
+        if not self.platforms and default_platforms and name == "nic-image":
+            self.platforms = list(default_platforms)
         # Images only: reported but never blocking. The NIC image at the version
         # being released does not exist yet -- it is the artifact being built,
         # not a dependency.
@@ -695,9 +839,14 @@ class Dependency:
         # reported stale because 3.x exists.
         self.track = section.get("track", "").strip()
         self.distros = {}
-        for token in section.get("distros", "").split():
-            distro, _, arches = token.partition(":")
-            self.distros[distro] = {a.strip() for a in arches.split(",") if a.strip()}
+        if self.kind == KIND_PACKAGE:
+            explicit_distros = section.get("distros", "").strip()
+            if explicit_distros:
+                for token in explicit_distros.split():
+                    distro, _, arches = token.partition(":")
+                    self.distros[distro] = {a.strip() for a in arches.split(",") if a.strip()}
+            elif default_distros:
+                self.distros = {d: set(arches) for d, arches in default_distros.items()}
 
         # Filled in during the run.
         self.declared = None
@@ -745,12 +894,22 @@ class Dependency:
         return targets
 
 
-def load_config(path):
+def load_config(path, matrix_dir=None):
+    if matrix_dir is None:
+        matrix_dir = os.path.dirname(os.path.abspath(path))
+    group_distros, default_platforms = resolve_matrix_distros(matrix_dir)
+
     parser = configparser.ConfigParser()
     parser.optionxform = str
     if not parser.read(path):
         raise RuntimeError(f"could not read config '{path}'")
-    return [Dependency(name, parser[name]) for name in parser.sections()]
+    deps = []
+    for name in parser.sections():
+        section = parser[name]
+        group = section.get("group", "").strip()
+        dep_default_distros = group_distros.get(group)
+        deps.append(Dependency(name, section, default_distros=dep_default_distros, default_platforms=default_platforms))
+    return deps
 
 
 def evaluate_image(dep, cert_file, key_file, jwt=None):
@@ -846,7 +1005,7 @@ def print_table(headers, rows):
     """Render a table, sizing columns by visible width so colour cannot skew it."""
     if not rows:
         return
-    widths = [max(len(h), *(visible_len(r[i]) for r in rows)) + 2 for i, h in enumerate(headers)]
+    widths = [max(visible_len(h), *(visible_len(r[i]) for r in rows)) + 2 for i, h in enumerate(headers)]
 
     def render(cells):
         return "".join(ljust_visible(c, w) for c, w in zip(cells, widths)).rstrip()
@@ -864,7 +1023,7 @@ def print_repositories(deps):
     for d in deps:
         if (d.host, d.uri) not in seen:
             seen.append((d.host, d.uri))
-    host_w = max(len(h) for h, _ in seen) + 2
+    host_w = max((len(h) for h, _ in seen), default=0) + 2
     print(paint("Repositories", BOLD))
     for host, uri in seen:
         print(f"  {ljust_visible(host, host_w)}{uri}")
@@ -1117,6 +1276,27 @@ def print_matrix_legend(deps):
         print(f"  {paint('?', BRIGHT_RED)}       = index could not be fetched")
 
 
+def matrix_cell(dep, distro, dver, targets):
+    """Format one matrix cell for (distro, dver)."""
+    if dep.oses is None:
+        return paint("?", BRIGHT_RED)
+    arches = sorted(a for dd, vv, a in dep.oses if (dd, vv) == (distro, dver))
+    required = {a for dd, vv, a in targets if (dd, vv) == (distro, dver)}
+    # Only rows NIC actually builds on are coloured, so target rows stand out.
+    if arches:
+        cell = "+".join(arches)
+        if required - set(arches):
+            return paint(cell + "!", YELLOW)
+        if required:
+            return paint(cell, GREEN)
+        return cell
+    if required:
+        return paint("MISSING", RED)
+    if (distro, dver) in (dep.repos or set()):
+        return paint("-", GREY)
+    return paint(".", GREY)
+
+
 def print_os_matrix(deps, distro_versions, os_filter=None, title=None):
     """Print an OS/arch availability matrix for the version being validated.
 
@@ -1138,57 +1318,26 @@ def print_os_matrix(deps, distro_versions, os_filter=None, title=None):
         return
 
     ordered = sorted(rows, key=lambda r: (r[0], parse_semver_key(r[1])))
-    labels = [f"{distro}:{dver}" for distro, dver in ordered]
+    dep_targets = [d.required_targets(distro_versions) for d in deps]
 
-    columns = []
-    for d in deps:
-        targets = d.required_targets(distro_versions)
-        cells = []
-        for distro, dver in ordered:
-            if d.oses is None:
-                cells.append(paint("?", BRIGHT_RED))
-                continue
-            arches = sorted(a for dd, vv, a in d.oses if (dd, vv) == (distro, dver))
-            required = {a for dd, vv, a in targets if (dd, vv) == (distro, dver)}
-            # Only rows NIC actually builds on are coloured, so the handful of
-            # target rows stand out from the informational ones.
-            if arches:
-                cell = "+".join(arches)
-                if required - set(arches):
-                    cell = paint(cell + "!", YELLOW)
-                elif required:
-                    cell = paint(cell, GREEN)
-            elif required:
-                cell = paint("MISSING", RED)
-            elif (distro, dver) in (d.repos or set()):
-                cell = paint("-", GREY)
-            else:
-                cell = paint(".", GREY)
-            cells.append(cell)
-        columns.append((d.name, cells))
+    table_rows = []
+    for distro, dver in ordered:
+        row = [f"{distro}:{dver}"]
+        for d, targets in zip(deps, dep_targets):
+            row.append(matrix_cell(d, distro, dver, targets))
+        table_rows.append(row)
 
-    label_w = max([len("OS")] + [len(x) for x in labels]) + 2
-    widths = [max([len(name)] + [visible_len(c) for c in cells]) + 2 for name, cells in columns]
-
-    def render(first, rest):
-        out = ljust_visible(first, label_w)
-        for cell, width in zip(rest, widths):
-            out += ljust_visible(cell, width)
-        return out.rstrip()
-
+    headers = ["OS"] + [d.name for d in deps]
     if title:
         print(f"\n{paint(title, BOLD)}")
-    print(render(paint("OS", BOLD), [paint(name, BOLD) for name, _ in columns]))
-    print(render("-" * (label_w - 2), ["-" * (w - 2) for w in widths]))
-    for i, label in enumerate(labels):
-        print(render(label, [cells[i] for _, cells in columns]))
+    print_table(headers, table_rows)
 
 
 def run(args):
     global _COLOR
     _COLOR = should_color(args.color)
 
-    deps = load_config(args.config)
+    deps = load_config(args.config, matrix_dir=getattr(args, "matrix_dir", None))
 
     # Captured before --group filtering so combining --group and --host does not
     # reject a name that is legitimately in the config.
@@ -1279,13 +1428,22 @@ def run(args):
 
     def load_index(dep):
         key = (dep.host, dep.uri) if not args.index_dir else dep.uri
-        if key not in index_cache:
+        if key in index_cache:
+            val = index_cache[key]
+            if isinstance(val, Exception):
+                raise val
+            return val
+        try:
             if args.index_dir:
                 path = os.path.join(args.index_dir, f"{dep.uri.strip('/').replace('/', '-')}.xml")
-                index_cache[key] = ET.parse(path).getroot()
+                root = ET.parse(path).getroot()
             else:
-                index_cache[key] = fetch_index_xml(dep.host, dep.uri, args.cert, args.key)
-        return index_cache[key]
+                root = fetch_index_xml(dep.host, dep.uri, args.cert, args.key)
+            index_cache[key] = root
+            return root
+        except Exception as e:
+            index_cache[key] = e
+            raise
 
     for dep in deps:
         try:
@@ -1334,11 +1492,8 @@ def run(args):
     if args.matrix and packages:
         os_filter = {d.strip() for d in args.os.split(",") if d.strip()}
         print_matrix_legend(packages)
-        seen = []
-        for dep in packages:  # config order, not alphabetical
-            if dep.group not in seen:
-                seen.append(dep.group)
-        for group in seen:
+        groups = list(dict.fromkeys(d.group for d in packages))
+        for group in groups:
             members = [d for d in packages if d.group == group]
             print_os_matrix(members, distro_versions, os_filter, title=group)
 
@@ -1377,6 +1532,10 @@ def main():
         "--config",
         default=os.path.join(repo_root, ".github/data/dependency-check.ini"),
         help="Dependency config (default: .github/data/dependency-check.ini)",
+    )
+    parser.add_argument(
+        "--matrix-dir",
+        help="Directory containing matrix-images-*.json files (default: inferred from config location)",
     )
     parser.add_argument(
         "--dockerfile",
