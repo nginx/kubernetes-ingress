@@ -7455,7 +7455,6 @@ http {
     otel_service_name nginx-ingress-controller:nginx;
     
     otel_trace on;
-    
     otel_trace_context inject;
 
     
