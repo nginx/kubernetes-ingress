@@ -5799,3 +5799,89 @@ server {
 }
 
 ---
+
+[TestVirtualServerLocationExternalAuthWithoutSigninURL/nginx - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    auth_request "/_external_auth/server";
+    set $external_auth_signin_uri "/oauth2/start";
+    error_page 401 = @external_auth_signin;
+
+    
+
+    
+    location "/tea" {
+        set $service "";
+        auth_request "/_external_auth/location";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        set $default_connection_header close;
+    }
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---
+
+[TestVirtualServerLocationExternalAuthWithoutSigninURL/nginx-plus - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    auth_request "/_external_auth/server";
+    set $external_auth_signin_uri "/oauth2/start";
+    error_page 401 = @external_auth_signin;
+
+    
+
+    
+    location "/tea" {
+        set $service "";
+        status_zone "";
+        auth_request "/_external_auth/location";
+        error_page 401 = @external_auth_unauthorized;
+
+        
+        set $default_connection_header close;
+    }
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+}
+
+---

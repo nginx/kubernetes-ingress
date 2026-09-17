@@ -3965,6 +3965,53 @@ func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	t.Log(string(data))
 }
 
+func TestVirtualServerLocationExternalAuthWithoutSigninURL(t *testing.T) {
+	t.Parallel()
+
+	cfg := VirtualServerConfig{
+		Server: Server{
+			ServerName: "cafe.example.com",
+			ExternalAuth: &ExternalAuth{
+				URI:       &AuthURI{InternalPath: "/_external_auth/server"},
+				SigninURL: "/oauth2/start",
+			},
+			Locations: []Location{
+				{
+					Path:         "/tea",
+					ExternalAuth: &ExternalAuth{URI: &AuthURI{InternalPath: "/_external_auth/location"}},
+				},
+			},
+		},
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(*testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := string(data)
+			for _, want := range []string{
+				`error_page 401 = @external_auth_unauthorized;`,
+				`location @external_auth_unauthorized {`,
+				`return 401;`,
+			} {
+				if !strings.Contains(got, want) {
+					t.Errorf("rendered config missing %q\n---\n%s", want, got)
+				}
+			}
+			snaps.MatchSnapshot(t, got)
+		})
+	}
+}
+
 func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINXPlus(t)

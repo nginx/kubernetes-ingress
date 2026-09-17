@@ -180,6 +180,7 @@ keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;
 
 server {
     {{- $hasExternalAuthSignin := false}}
+    {{- $hasExternalAuthNoSignin := false}}
     {{- if $s.ExternalAuth}}
         {{- if $s.ExternalAuth.SigninURL}}
             {{- $hasExternalAuthSignin = true}}
@@ -189,6 +190,8 @@ server {
         {{- if $l.ExternalAuth}}
             {{- if $l.ExternalAuth.SigninURL}}
                 {{- $hasExternalAuthSignin = true}}
+            {{- else}}
+                {{- $hasExternalAuthNoSignin = true}}
             {{- end}}
         {{- end}}
     {{- end}}
@@ -667,6 +670,8 @@ server {
             {{- if $l.ExternalAuth.SigninURL }}
         set $external_auth_signin_uri {{ printf "%q" $l.ExternalAuth.SigninURL }};
         error_page 401 = @external_auth_signin;
+            {{- else}}
+        error_page 401 = @external_auth_unauthorized;
             {{- end}}
         {{- end }}
 
@@ -1033,6 +1038,12 @@ server {
     location @external_auth_signin {
         auth_request off;
         return 302 $external_auth_signin_uri;
+    }
+    {{- end}}
+    {{- if $hasExternalAuthNoSignin}}
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
     }
     {{- end}}
 

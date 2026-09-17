@@ -36,6 +36,7 @@ limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReq
 {{range $server := .Servers}}
 server {
 	{{- $hasExternalAuthSignin := false}}
+	{{- $hasExternalAuthNoSignin := false}}
 	{{- if $server.ExternalAuth}}
 		{{- if $server.ExternalAuth.SigninURL}}
 			{{- $hasExternalAuthSignin = true}}
@@ -45,6 +46,8 @@ server {
 		{{- if $location.ExternalAuth}}
 			{{- if $location.ExternalAuth.SigninURL}}
 				{{- $hasExternalAuthSignin = true}}
+			{{- else}}
+				{{- $hasExternalAuthNoSignin = true}}
 			{{- end}}
 		{{- end}}
 	{{- end}}
@@ -270,6 +273,8 @@ server {
 		proxy_intercept_errors on;
 		set $external_auth_signin_uri {{ printf "%q" $location.ExternalAuth.SigninURL }};
 		error_page 401 = @external_auth_signin;
+		{{- else}}
+		error_page 401 = @external_auth_unauthorized;
 		{{- end }}
 		{{- end }}
 
@@ -474,6 +479,12 @@ server {
 	location @external_auth_signin {
 		auth_request off;
 		return 302 $external_auth_signin_uri;
+	}
+	{{- end}}
+	{{- if $hasExternalAuthNoSignin}}
+	location @external_auth_unauthorized {
+		auth_request off;
+		return 401;
 	}
 	{{- end}}
 	{{- if $server.CustomHTTPErrorBackend}}
