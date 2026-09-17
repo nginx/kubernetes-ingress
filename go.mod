@@ -14,7 +14,6 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/go-cmp v0.7.0
 	github.com/gruntwork-io/terratest v1.0.1
-	github.com/jinzhu/copier v0.4.0
 	github.com/nginx/nginx-plus-go-client/v3 v3.0.2
 	github.com/nginx/nginx-prometheus-exporter v1.5.3
 	github.com/nginx/telemetry-exporter v0.1.6
