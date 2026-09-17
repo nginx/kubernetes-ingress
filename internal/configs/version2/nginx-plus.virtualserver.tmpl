@@ -179,22 +179,6 @@ keyval $pkce_id $pkce_code_verifier zone=oidc_pkce;
 {{- end }}
 
 server {
-    {{- $hasExternalAuthSignin := false}}
-    {{- $hasExternalAuthNoSignin := false}}
-    {{- if $s.ExternalAuth}}
-        {{- if $s.ExternalAuth.SigninURL}}
-            {{- $hasExternalAuthSignin = true}}
-        {{- end}}
-    {{- end}}
-    {{- range $l := $s.Locations}}
-        {{- if $l.ExternalAuth}}
-            {{- if $l.ExternalAuth.SigninURL}}
-                {{- $hasExternalAuthSignin = true}}
-            {{- else}}
-                {{- $hasExternalAuthNoSignin = true}}
-            {{- end}}
-        {{- end}}
-    {{- end}}
     {{- if $s.Gunzip }}
     gunzip on;
     {{- end }}
@@ -1034,13 +1018,13 @@ server {
     }
     {{- end }}
 
-    {{- if $hasExternalAuthSignin}}
+    {{- if $s.HasExternalAuthSignin}}
     location @external_auth_signin {
         auth_request off;
         return 302 $external_auth_signin_uri;
     }
     {{- end}}
-    {{- if $hasExternalAuthNoSignin}}
+    {{- if $s.HasExternalAuthNoSignin}}
     location @external_auth_unauthorized {
         auth_request off;
         return 401;

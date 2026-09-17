@@ -3948,6 +3948,12 @@ func TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs(t *testing.T) {
 
 func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
+	if !virtualServerCfgWithExternalAuthSigninURL.Server.HasExternalAuthSignin() {
+		t.Error("HasExternalAuthSignin() = false, want true")
+	}
+	if virtualServerCfgWithExternalAuthSigninURL.Server.HasExternalAuthNoSignin() {
+		t.Error("HasExternalAuthNoSignin() = true, want false")
+	}
 	data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)
 	if err != nil {
 		t.Fatalf("Failed to execute template: %v", err)
@@ -3982,6 +3988,12 @@ func TestVirtualServerLocationExternalAuthWithoutSigninURL(t *testing.T) {
 				},
 			},
 		},
+	}
+	if !cfg.Server.HasExternalAuthSignin() {
+		t.Error("HasExternalAuthSignin() = false, want true")
+	}
+	if !cfg.Server.HasExternalAuthNoSignin() {
+		t.Error("HasExternalAuthNoSignin() = false, want true")
 	}
 
 	for _, test := range []struct {

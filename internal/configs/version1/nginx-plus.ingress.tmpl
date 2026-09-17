@@ -96,22 +96,6 @@ oidc_provider {{ $p.Name }} {
 
 {{range $server := .Servers}}
 server {
-	{{- $hasExternalAuthSignin := false}}
-	{{- $hasExternalAuthNoSignin := false}}
-	{{- if $server.ExternalAuth}}
-		{{- if $server.ExternalAuth.SigninURL}}
-			{{- $hasExternalAuthSignin = true}}
-		{{- end}}
-	{{- end}}
-	{{- range $location := $server.Locations}}
-		{{- if $location.ExternalAuth}}
-			{{- if $location.ExternalAuth.SigninURL}}
-				{{- $hasExternalAuthSignin = true}}
-			{{- else}}
-				{{- $hasExternalAuthNoSignin = true}}
-			{{- end}}
-		{{- end}}
-	{{- end}}
 	{{- if not $server.GRPCOnly}}
 	{{- range $port := $server.Ports}}
 	listen {{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
@@ -701,13 +685,13 @@ server {
 		{{end}}
 	}
 	{{end -}}
-	{{- if $hasExternalAuthSignin}}
+	{{- if $server.HasExternalAuthSignin}}
 	location @external_auth_signin {
 		auth_request off;
 		return 302 $external_auth_signin_uri;
 	}
 	{{- end}}
-	{{- if $hasExternalAuthNoSignin}}
+	{{- if $server.HasExternalAuthNoSignin}}
 	location @external_auth_unauthorized {
 		auth_request off;
 		return 401;
