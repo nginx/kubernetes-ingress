@@ -377,20 +377,22 @@ func TestValidateTLSSecretFails(t *testing.T) {
 
 func TestValidateOIDCSecret(t *testing.T) {
 	t.Parallel()
-	secret := &v1.Secret{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "oidc-secret",
-			Namespace: "default",
-		},
-		Type: SecretTypeOIDC,
-		Data: map[string][]byte{
-			"client-secret": nil,
-		},
-	}
 
-	err := ValidateOIDCSecret(secret)
-	if err != nil {
-		t.Errorf("ValidateOIDCSecret() returned error %v", err)
+	for _, clientSecret := range []string{"", `pa\"ss`, `path\\secret`} {
+		secret := &v1.Secret{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "oidc-secret",
+				Namespace: "default",
+			},
+			Type: SecretTypeOIDC,
+			Data: map[string][]byte{
+				"client-secret": []byte(clientSecret),
+			},
+		}
+
+		if err := ValidateOIDCSecret(secret); err != nil {
+			t.Errorf("ValidateOIDCSecret() returned error for %q: %v", clientSecret, err)
+		}
 	}
 }
 
@@ -448,6 +450,19 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 				},
 			},
 			msg: "Invalid newline in OIDC client secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "oidc-secret",
+					Namespace: "default",
+				},
+				Type: SecretTypeOIDC,
+				Data: map[string][]byte{
+					"client-secret": []byte(`foo"; access_log /dev/null; set $dummy "`),
+				},
+			},
+			msg: "Unescaped quote breakout in OIDC client secret",
 		},
 	}
 
@@ -760,3 +775,65 @@ var (
 
 	invalidCACert = invalidCert
 )
+
+func TestValidateWAFBundleSecret(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		secret  *v1.Secret
+		wantErr bool
+	}{
+		{
+			name: "valid with token",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Type:       SecretTypeWAFBundle,
+				Data:       map[string][]byte{"token": []byte("my-api-token")},
+			},
+		},
+		{
+			name: "valid with username+password",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Type:       SecretTypeWAFBundle,
+				Data:       map[string][]byte{"username": []byte("admin"), "password": []byte("secret")},
+			},
+		},
+		{
+			name: "wrong type",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Type:       v1.SecretTypeOpaque,
+				Data:       map[string][]byte{"token": []byte("tok")},
+			},
+			wantErr: true,
+		},
+		{
+			name: "missing token and username",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Type:       SecretTypeWAFBundle,
+				Data:       map[string][]byte{"other": []byte("value")},
+			},
+			wantErr: true,
+		},
+		{
+			name: "username without password",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Type:       SecretTypeWAFBundle,
+				Data:       map[string][]byte{"username": []byte("admin")},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateWAFBundleSecret(tc.secret)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("ValidateWAFBundleSecret() error = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}

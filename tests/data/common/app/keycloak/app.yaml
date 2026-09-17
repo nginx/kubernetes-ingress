@@ -9,6 +9,9 @@ spec:
   - name: http
     port: 8080
     targetPort: 8080
+  - name: https
+    port: 8443
+    targetPort: 8443
   selector:
     app: keycloak
 ---
@@ -30,7 +33,7 @@ spec:
     spec:
       containers:
       - name: keycloak
-        image: quay.io/keycloak/keycloak:26.6
+        image: quay.io/keycloak/keycloak:26.7
         args: ["start-dev"]
         env:
         - name: KC_BOOTSTRAP_ADMIN_USERNAME

@@ -148,12 +148,6 @@ spec:
 {{- if .Values.controller.env }}
 {{ toYaml .Values.controller.env | indent 8 }}
 {{- end }}
-{{- if .Values.nginxServiceMesh.enable }}
-        - name: POD_SERVICEACCOUNT
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.serviceAccountName
-{{- end }}
 {{- if hasKey .Values.controller.mgmt "usageReport" -}}
 {{- if hasKey .Values.controller.mgmt.usageReport "proxyCredentialsSecretName" }}
 {{- if not (hasKey .Values.controller.mgmt.usageReport "proxyHost") -}}

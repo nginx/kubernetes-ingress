@@ -84,6 +84,11 @@ The `.spec` object supports the following fields:
 | `externalAuth.sslVerify` | `boolean` | SSLVerify enables verification of the external authentication server's SSL certificate. Default is false. |
 | `externalAuth.sslVerifyDepth` | `integer` | SSLVerifyDepth sets the verification depth in the external authentication server certificates chain. Default is 1. |
 | `externalAuth.trustedCertSecret` | `string` | TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt. |
+| `hsts` | `object` | The HSTS policy configures HTTP Strict Transport Security headers |
+| `hsts.behindProxy` | `boolean` | BehindProxy configures NGINX to set the HSTS header based on the X-Forwarded-Proto request header rather than the $https variable. |
+| `hsts.includeSubDomains` | `boolean` | IncludeSubDomains extends the HSTS policy to all subdomains of the host. |
+| `hsts.maxAge` | `integer` | MaxAge defines how long (in seconds) the browser should cache and enforce the HSTS policy. |
+| `hsts.preload` | `boolean` | Preload indicates that the domain should be included in browsers' HSTS preload lists. |
 | `ingressClassName` | `string` | Specifies which instance of NGINX Ingress Controller must handle the Policy resource. |
 | `ingressMTLS` | `object` | The IngressMTLS policy configures client certificate verification. |
 | `ingressMTLS.clientCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid. |
@@ -118,6 +123,27 @@ The `.spec` object supports the following fields:
 | `oidc.tokenEndpoint` | `string` | URL for the token endpoint provided by your OpenID Connect provider. |
 | `oidc.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt. |
 | `oidc.zoneSyncLeeway` | `integer` | Specifies the maximum timeout in milliseconds for synchronizing ID/access tokens and shared values between Ingress Controller pods. The default is 200. |
+| `oidcNative` | `object` | The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native. |
+| `oidcNative.clientID` | `string` | The client ID provided by your OpenID Connect provider. |
+| `oidcNative.clientSecret` | `string` | The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. |
+| `oidcNative.configURL` | `string` | ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification. |
+| `oidcNative.cookieName` | `string` | Sets the name of the session cookie. Defaults to NGX_OIDC_<providerName>. |
+| `oidcNative.extraAuthArgs` | `string` | Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login". |
+| `oidcNative.frontChannelLogoutURI` | `string` | Defines the URI path for triggering OIDC front-channel logout. When set, the IdP calls this URI in a hidden iframe when the user logs out globally, allowing NGINX to terminate the local session. |
+| `oidcNative.issuer` | `string` | Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme. |
+| `oidcNative.logoutTokenHint` | `boolean` | Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers. |
+| `oidcNative.logoutURI` | `string` | Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the post logout page. |
+| `oidcNative.pkce` | `string` | Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata. Allowed values: `"on"`, `"off"`. |
+| `oidcNative.postLogoutRedirectURI` | `string` | Defines the path where the user is redirected after logout. Must be a path on the same host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response. If multiple OIDCNative providers on the same host set the same path, only one auto-generated location is rendered; providers whose other generated locations (redirectURI, or the internal IdP proxy location) collide are rejected instead. |
+| `oidcNative.proxyBufferSize` | `string` | Buffer size used when proxying requests to the OpenID Provider. Applies to `proxy_buffer_size` and each buffer in `proxy_buffers`. Default is `32k`. |
+| `oidcNative.redirectURI` | `string` | Allows overriding the default redirect URI. Defaults to /oidc_callback_<providerName>. |
+| `oidcNative.scope` | `string` | List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". Default is "openid". |
+| `oidcNative.sessionTimeout` | `string` | Sets a timeout after which the session is deleted, unless it was refreshed. Default is 8h. |
+| `oidcNative.sslName` | `string` | Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. If omitted, NGINX dynamically resolves SNI and Host header from the endpoint URLs. |
+| `oidcNative.sslVerify` | `boolean` | Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure). |
+| `oidcNative.sslVerifyDepth` | `integer` | Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1. |
+| `oidcNative.trustedCertSecret` | `string` | The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt. |
+| `oidcNative.userInfoEnable` | `boolean` | Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables. |
 | `rateLimit` | `object` | The rate limit policy controls the rate of processing requests per a defined key. |
 | `rateLimit.burst` | `integer` | Excessive requests are delayed until their number exceeds the burst size, in which case the request is terminated with an error. |
 | `rateLimit.condition` | `object` | Add a condition to a rate-limit policy. |
@@ -138,16 +164,55 @@ The `.spec` object supports the following fields:
 | `rateLimit.scale` | `boolean` | Enables a constant rate-limit by dividing the configured rate by the number of nginx-ingress pods currently serving traffic. This adjustment ensures that the rate-limit remains consistent, even as the number of nginx-pods fluctuates due to autoscaling. This will not work properly if requests from a client are not evenly distributed across all ingress pods (Such as with sticky sessions, long lived TCP Connections with many requests, and so forth). In such cases using zone-sync instead would give better results. Enabling zone-sync will suppress this setting. |
 | `rateLimit.zoneSize` | `string` | Size of the shared memory zone. Only positive values are allowed. Allowed suffixes are k or m, if none are present k is assumed. |
 | `waf` | `object` | The WAF policy configures WAF and log configuration policies for NGINX AppProtect |
-| `waf.apBundle` | `string` | The App Protect WAF policy bundle. Mutually exclusive with apPolicy. |
-| `waf.apPolicy` | `string` | The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle. |
+| `waf.apBundle` | `string` | The App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundleSource. |
+| `waf.apBundleSource` | `object` | ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApPolicy and ApBundle. |
+| `waf.apBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. Defaults to false. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
+| `waf.apBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
+| `waf.apBundleSource.name` | `string` | Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
+| `waf.apBundleSource.namespace` | `string` | Namespace is the namespace/tenant on the management plane. Required for N1C; forbidden otherwise. |
+| `waf.apBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
+| `waf.apBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
+| `waf.apBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
+| `waf.apBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |
+| `waf.apBundleSource.trustedCertSecret` | `string` | TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate for verifying the remote endpoint TLS certificate. The secret must be in the same namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt. |
+| `waf.apBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`. |
+| `waf.apBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. |
+| `waf.apBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only. |
+| `waf.apPolicy` | `string` | The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource. |
 | `waf.enable` | `boolean` | Enables NGINX App Protect WAF. |
-| `waf.securityLog` | `object` | SecurityLog defines the security log of a WAF policy. |
+| `waf.securityLog` | `object` | SecurityLog defines the security log of a WAF policy. Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer. |
 | `waf.securityLog.apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle. |
+| `waf.securityLog.apLogBundleSource` | `object` | ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF. |
+| `waf.securityLog.apLogBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. Defaults to false. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
+| `waf.securityLog.apLogBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
+| `waf.securityLog.apLogBundleSource.name` | `string` | Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
+| `waf.securityLog.apLogBundleSource.namespace` | `string` | Namespace is the namespace/tenant on the management plane. Required for N1C; forbidden otherwise. |
+| `waf.securityLog.apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
+| `waf.securityLog.apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
+| `waf.securityLog.apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
+| `waf.securityLog.apLogBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |
+| `waf.securityLog.apLogBundleSource.trustedCertSecret` | `string` | TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate for verifying the remote endpoint TLS certificate. The secret must be in the same namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt. |
+| `waf.securityLog.apLogBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`. |
+| `waf.securityLog.apLogBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. |
+| `waf.securityLog.apLogBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only. |
 | `waf.securityLog.apLogConf` | `string` | The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy. |
 | `waf.securityLog.enable` | `boolean` | Enables security log. |
 | `waf.securityLog.logDest` | `string` | The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>. |
 | `waf.securityLogs` | `array` | List of configuration values. |
 | `waf.securityLogs[].apLogBundle` | `string` | The App Protect WAF log bundle resource. Only works with apBundle. |
+| `waf.securityLogs[].apLogBundleSource` | `object` | ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint. Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF. |
+| `waf.securityLogs[].apLogBundleSource.enablePolling` | `boolean` | EnablePolling enables background polling to automatically detect and fetch updated bundles at the configured PollInterval. Defaults to false. When false, the bundle is fetched once on policy creation or update; subsequent updates require modifying the Policy resource to trigger a new fetch. |
+| `waf.securityLogs[].apLogBundleSource.insecureSkipVerify` | `boolean` | InsecureSkipVerify disables TLS certificate verification when fetching bundles. Not recommended for production use. |
+| `waf.securityLogs[].apLogBundleSource.name` | `string` | Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS. |
+| `waf.securityLogs[].apLogBundleSource.namespace` | `string` | Namespace is the namespace/tenant on the management plane. Required for N1C; forbidden otherwise. |
+| `waf.securityLogs[].apLogBundleSource.pollInterval` | `string` | PollInterval is how often to re-fetch the bundle when enablePolling is true. Minimum 1m. Default 5m. Ignored when enablePolling is false. |
+| `waf.securityLogs[].apLogBundleSource.retryAttempts` | `integer` | RetryAttempts is the number of retry attempts on transient failure. Range 1–10. |
+| `waf.securityLogs[].apLogBundleSource.secret` | `string` | Secret is the name of a Kubernetes Secret in the same namespace as the Policy. For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA). For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token. For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth). |
+| `waf.securityLogs[].apLogBundleSource.timeout` | `string` | Timeout is the per-request HTTP timeout. Default 60s. |
+| `waf.securityLogs[].apLogBundleSource.trustedCertSecret` | `string` | TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate for verifying the remote endpoint TLS certificate. The secret must be in the same namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt. |
+| `waf.securityLogs[].apLogBundleSource.type` | `string` | Type is the bundle source backend. Defaults to HTTPS. Allowed values: `"HTTPS"`, `"NIM"`, `"N1C"`. |
+| `waf.securityLogs[].apLogBundleSource.url` | `string` | URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://. |
+| `waf.securityLogs[].apLogBundleSource.verifyChecksum` | `boolean` | VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only. |
 | `waf.securityLogs[].apLogConf` | `string` | The App Protect WAF log conf resource. Accepts an optional namespace. Only works with apPolicy. |
 | `waf.securityLogs[].enable` | `boolean` | Enables security log. |
 | `waf.securityLogs[].logDest` | `string` | The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>. |

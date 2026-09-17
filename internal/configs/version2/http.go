@@ -22,10 +22,9 @@ type VirtualServerConfig struct {
 	LimitReqZones           []LimitReqZone
 	Maps                    []Map
 	AuthJWTClaimSets        []AuthJWTClaimSet
+	OIDCProviders           []OIDCProvider
 	CacheZones              []CacheZone
 	Server                  Server
-	SpiffeCerts             bool
-	SpiffeClientCerts       bool
 	SplitClients            []SplitClient
 	StatusMatches           []StatusMatch
 	Upstreams               []Upstream
@@ -96,11 +95,13 @@ type Server struct {
 	JWTAuthList               map[string]*JWTAuth
 	JWKSAuthEnabled           bool
 	ExternalAuth              *ExternalAuth
+	HSTS                      *HSTS
 	ErrorPages                []ErrorPage
 	BasicAuth                 *BasicAuth
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
 	OIDC                      *OIDC
+	OIDCProviderName          string
 	APIKey                    *APIKey
 	APIKeyEnabled             bool
 	WAF                       *WAF
@@ -234,10 +235,12 @@ type Location struct {
 	LimitReqOptions            LimitReqOptions
 	LimitReqs                  []LimitReq
 	JWTAuth                    *JWTAuth
+	OIDCProviderName           string
 	AuthRequestOff             bool
 	ExternalAuth               *ExternalAuth
 	BasicAuth                  *BasicAuth
 	EgressMTLS                 *EgressMTLS
+	HSTS                       *HSTS
 	OIDC                       bool
 	APIKey                     *APIKey
 	WAF                        *WAF
@@ -250,6 +253,7 @@ type Location struct {
 	VSRNamespace               string
 	GRPCPass                   string
 	CORSEnabled                bool
+	DisableForwardedHeaders    bool
 	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
@@ -276,6 +280,12 @@ type Return struct {
 	Code int
 	Text string
 }
+
+// ErrorPageResponseCodeInherit is the sentinel ResponseCode value that makes the
+// virtualserver template emit `error_page <codes> = "<name>";` with no explicit
+// response code, so nginx forwards the target URI's status (e.g. oauth2-proxy's
+// 302) to the client instead of the original error code.
+const ErrorPageResponseCodeInherit = -1
 
 // ErrorPage defines an error_page of a location.
 type ErrorPage struct {
@@ -393,6 +403,53 @@ type Queue struct {
 	Timeout string
 }
 
+// OIDCProvider defines an OIDC provider for the native ngx_http_oidc_module.
+type OIDCProvider struct {
+	Name                  string
+	PolicyKey             string
+	Issuer                string
+	ClientID              string
+	ClientSecret          string //nolint:gosec // G117: internal field carrying the resolved OIDC client secret; not a credential match
+	ConfigURL             string
+	CookieName            string
+	ExtraAuthArgs         string
+	PKCE                  string
+	RedirectURI           string
+	LogoutURI             string
+	PostLogoutURI         string
+	FrontChannelLogoutURI string
+	LogoutTokenHint       bool
+	Scope                 string
+	SessionStore          string
+	SessionTimeout        string
+	SSLCrl                string
+	SSLTrustedCert        string
+	SSLVerify             bool
+	SSLName               string
+	SSLVerifyDepth        int
+	Sync                  bool
+	UserInfoEnable        bool
+	// ProxyLocation is the internal NGINX location that acts as a proxy to the IdP.
+	// The oidc_provider block references it, and a matching `location = <path>` is generated in the server block.
+	ProxyLocation string
+	// ProxyBufferSize controls proxy_buffer_size and the size of each buffer in proxy_buffers on the proxy location.
+	ProxyBufferSize string
+	// ProxyTrustedCertPath is the path to the CA cert to use for proxy_ssl_trusted_certificate on the proxy location.
+	// Empty when TLS verification is disabled or no trusted cert is provided.
+	ProxyTrustedCertPath string
+	// PostLogoutLocation, when non-nil, describes an auto-generated unauthenticated location
+	// serving a static response after logout. Nil when no such location should be generated.
+	PostLogoutLocation *AuthOIDCReturnLocation
+}
+
+// AuthOIDCReturnLocation describes an OIDC-generated location that returns a canned response
+// with auth_oidc off. Used for post-logout confirmation pages.
+type AuthOIDCReturnLocation struct {
+	Path        string
+	DefaultType string
+	Return      Return
+}
+
 // LimitReqZone defines a rate limit shared memory zone.
 type LimitReqZone struct {
 	Key           string
@@ -485,6 +542,14 @@ type ExternalAuth struct {
 	SNIName                string // Server name for SNI and certificate verification
 }
 
+// HSTS defines HTTP Strict Transport Security configuration.
+type HSTS struct {
+	MaxAge            int
+	IncludeSubDomains bool
+	BehindProxy       bool
+	Preload           bool
+}
+
 // AuthURI defines the components of an AuthURI
 type AuthURI struct {
 	Service      string
@@ -502,9 +567,11 @@ type BasicAuth struct {
 
 // KeyValZone defines a keyval zone.
 type KeyValZone struct {
-	Name  string
-	Size  string
-	State string
+	Name    string
+	Size    string
+	State   string
+	Sync    bool
+	Timeout string
 }
 
 // KeyVal defines a keyval.

@@ -1065,6 +1065,66 @@ func TestServiceIsReferencedByVirtualServerAndVirtualServerRoutes(t *testing.T) 
 			expected:         false,
 			msg:              "wrong name for service in an upstream",
 		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			serviceNamespace: "other-namespace",
+			serviceName:      "test-service",
+			expected:         true,
+			msg:              "cross-namespace service is referenced in an upstream",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			serviceNamespace: "some-namespace",
+			serviceName:      "test-service",
+			expected:         false,
+			msg:              "wrong namespace for cross-namespace service in an upstream",
+		},
 	}
 
 	for _, test := range tests {
@@ -1788,6 +1848,98 @@ func TestEndpointIsReferencedByVirtualServerAndVirtualServerRoutes(t *testing.T)
 			serviceName:      "test-service",
 			expected:         true,
 			msg:              "one upstream without Cluster IP",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			serviceNamespace: "other-namespace",
+			serviceName:      "test-service",
+			expected:         true,
+			msg:              "cross-namespace service is referenced in an upstream",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service: "other-namespace/test-service",
+						},
+					},
+				},
+			},
+			serviceNamespace: "some-namespace",
+			serviceName:      "test-service",
+			expected:         false,
+			msg:              "wrong namespace for cross-namespace service in an upstream",
+		},
+		{
+			vs: &conf_v1.VirtualServer{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service:      "other-namespace/test-service",
+							UseClusterIP: true,
+						},
+					},
+				},
+			},
+			vsr: &conf_v1.VirtualServerRoute{
+				ObjectMeta: v1.ObjectMeta{
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{
+						{
+							Service:      "other-namespace/test-service",
+							UseClusterIP: true,
+						},
+					},
+				},
+			},
+			serviceNamespace: "other-namespace",
+			serviceName:      "test-service",
+			expected:         false,
+			msg:              "cross-namespace upstream uses clusterIP",
 		},
 	}
 

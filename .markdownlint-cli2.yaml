@@ -17,6 +17,10 @@ noBanner: true
 ignores:
   - ".github/**"
   - "docs/**" # Ignore developer docs folder
+  - "vendor/**" # Ignore vendor folder
+  - "**/.venv/**"
+  - ".local/**"
+  - ".opencode/**"
 
 # Fix any fixable errors
 fix: true

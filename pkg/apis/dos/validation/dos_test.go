@@ -38,7 +38,7 @@ func TestValidateDosProtectedResource(t *testing.T) {
 					},
 				},
 			},
-			expectErr: "error validating DosProtectedResource:  invalid field: apDosMonitor err: app Protect Dos Monitor must have valid URL",
+			expectErr: "error validating DosProtectedResource:  invalid field: apDosMonitor err: app Protect Dos Monitor must have valid URI",
 			msg:       "invalid apDosMonitor specified",
 		},
 		{
@@ -398,6 +398,16 @@ func TestValidateAppProtectDosMonitor(t *testing.T) {
 			Protocol: "websocket",
 			Timeout:  10,
 		},
+		{
+			URI:      "/path/to/monitor",
+			Protocol: "http1",
+			Timeout:  5,
+		},
+		{
+			URI:      "/",
+			Protocol: "http1",
+			Timeout:  5,
+		},
 	}
 	negDstAntns := []struct {
 		apDosMonitor v1beta1.ApDosMonitor
@@ -426,6 +436,65 @@ func TestValidateAppProtectDosMonitor(t *testing.T) {
 				Timeout:  5,
 			},
 			msg: "app Protect Dos Monitor Protocol must be: dosMonitorProtocol: Invalid value: \"http3\": 'http3' contains an invalid NGINX parameter. Accepted parameters are:",
+		},
+		{
+			apDosMonitor: v1beta1.ApDosMonitor{
+				URI:      "} location /bad { return 200; }",
+				Protocol: "http2",
+				Timeout:  10,
+			},
+			msg: "app Protect Dos Monitor must have valid URI",
+		},
+		{
+			apDosMonitor: v1beta1.ApDosMonitor{
+				URI:      ";return 200;",
+				Protocol: "http2",
+				Timeout:  10,
+			},
+			msg: "app Protect Dos Monitor must have valid URI",
+		},
+		// Issue 2: empty URI — apDosMonitor pointer being non-nil already signals intent;
+		// a URI must be provided, omit the field entirely to disable the monitor.
+		{
+			apDosMonitor: v1beta1.ApDosMonitor{
+				URI: "",
+			},
+			msg: "app Protect Dos Monitor must have valid URI",
+		},
+		// Issue 1: dangerous chars embedded in an otherwise valid-looking URI path.
+		// The regex path component [^\s]* allows these through, but they can inject
+		// NGINX config when rendered unquoted (tmpl line 182: uri={{$server.AppProtectDosMonitorURI}}).
+		{
+			apDosMonitor: v1beta1.ApDosMonitor{
+				URI:      "http://example.com/path;return 200",
+				Protocol: "http2",
+				Timeout:  10,
+			},
+			msg: "app Protect Dos Monitor must have valid URI",
+		},
+		{
+			apDosMonitor: v1beta1.ApDosMonitor{
+				URI:      "http://example.com/path{block}",
+				Protocol: "http2",
+				Timeout:  10,
+			},
+			msg: "app Protect Dos Monitor must have valid URI",
+		},
+		{
+			apDosMonitor: v1beta1.ApDosMonitor{
+				URI:      "http://example.com/$nginx_variable",
+				Protocol: "http2",
+				Timeout:  10,
+			},
+			msg: "app Protect Dos Monitor must have valid URI",
+		},
+		{
+			apDosMonitor: v1beta1.ApDosMonitor{
+				URI:      "http://example.com/path`cmd`",
+				Protocol: "http2",
+				Timeout:  10,
+			},
+			msg: "app Protect Dos Monitor must have valid URI",
 		},
 	}
 

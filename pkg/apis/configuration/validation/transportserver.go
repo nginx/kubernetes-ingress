@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	internalvalidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -180,7 +181,7 @@ func validateTransportServerUpstreams(upstreams []conf_v1.TransportServerUpstrea
 
 		allErrs = append(allErrs, validateServiceName(u.Service, idxPath.Child("service"))...)
 		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(u.MaxFails, idxPath.Child("maxFails"))...)
-		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(u.MaxFails, idxPath.Child("maxConns"))...)
+		allErrs = append(allErrs, validatePositiveIntOrZeroFromPointer(u.MaxConns, idxPath.Child("maxConns"))...)
 		allErrs = append(allErrs, validateTime(u.FailTimeout, idxPath.Child("failTimeout"))...)
 
 		for _, msg := range validation.IsValidPortNum(u.Port) {
@@ -216,11 +217,15 @@ func validateLoadBalancingMethod(method string, fieldPath *field.Path, isPlus bo
 }
 
 var nginxStreamLoadBalanceValidInput = map[string]bool{
-	"round_robin":           true,
-	"least_conn":            true,
-	"random":                true,
-	"random two":            true,
-	"random two least_conn": true,
+	"round_robin":                   true,
+	"least_conn":                    true,
+	"random":                        true,
+	"random two":                    true,
+	"random two least_conn":         true,
+	"least_time connect":            true,
+	"least_time first_byte":         true,
+	"least_time last_byte":          true,
+	"least_time last_byte inflight": true,
 }
 
 var nginxPlusStreamLoadBalanceValidInput = map[string]bool{
@@ -243,6 +248,9 @@ var loadBalancingVariables = map[string]bool{
 var hashMethodRegexp = regexp.MustCompile(`^hash (\S+)(?: consistent)?$`)
 
 func validateHashLoadBalancingMethod(method string, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	if err := internalvalidation.ValidateDirectiveValue(method); err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, method, err.Error())}
+	}
 	matches := hashMethodRegexp.FindStringSubmatch(method)
 	if len(matches) != 2 {
 		msg := fmt.Sprintf("invalid value for load balancing method: %v", method)
@@ -287,7 +295,7 @@ func validateHealthCheckMatch(match *conf_v1.TransportServerMatch, fieldPath *fi
 	}
 
 	allErrs := validateMatchExpect(match.Expect, fieldPath.Child("expect"))
-	allErrs = append(allErrs, validateMatchSend(match.Expect, fieldPath.Child("send"))...)
+	allErrs = append(allErrs, validateMatchSend(match.Send, fieldPath.Child("send"))...)
 	return allErrs
 }
 

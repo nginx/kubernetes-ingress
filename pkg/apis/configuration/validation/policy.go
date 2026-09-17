@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	validation2 "github.com/nginx/kubernetes-ingress/internal/validation"
@@ -125,6 +127,25 @@ func policyFields() []policyFieldValidator {
 			},
 		},
 		{
+			name:  "oidcNative",
+			isSet: func(s *v1.PolicySpec) bool { return s.OIDCNative != nil },
+			gateCheck: func(p *field.Path, cfg PolicyValidationConfig) (field.ErrorList, bool) {
+				var errs field.ErrorList
+				if !cfg.EnableOIDC {
+					errs = append(errs, field.Forbidden(p.Child("oidcNative"),
+						"OIDC must be enabled via cli argument -enable-oidc to use OIDCNative policy"))
+				}
+				if !cfg.IsPlus {
+					errs = append(errs, field.Forbidden(p.Child("oidcNative"), "OIDCNative is only supported in NGINX Plus"))
+					return errs, true
+				}
+				return errs, false
+			},
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateOIDCNative(s.OIDCNative, p.Child("oidcNative"))
+			},
+		},
+		{
 			name:  "apiKey",
 			isSet: func(s *v1.PolicySpec) bool { return s.APIKey != nil },
 			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
@@ -163,6 +184,13 @@ func policyFields() []policyFieldValidator {
 				return validateCORS(s.CORS, p.Child("cors"))
 			},
 		},
+		{
+			name:  "hsts",
+			isSet: func(s *v1.PolicySpec) bool { return s.HSTS != nil },
+			validate: func(s *v1.PolicySpec, p *field.Path, _ PolicyValidationConfig) field.ErrorList {
+				return validateHSTS(s.HSTS, p.Child("hsts"))
+			},
+		},
 	}
 }
 
@@ -189,9 +217,9 @@ func validatePolicySpec(spec *v1.PolicySpec, fieldPath *field.Path, cfg PolicyVa
 	}
 
 	if fieldCount != 1 {
-		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`"
+		msg := "must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`"
 		if cfg.IsPlus {
-			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `waf`")
+			msg = fmt.Sprint(msg, ", `jwt`, `oidc`, `oidcNative`, `waf`")
 		}
 		allErrs = append(allErrs, field.Invalid(fieldPath, "", msg))
 	}
@@ -249,16 +277,88 @@ func validateRateLimit(rateLimit *v1.RateLimit, fieldPath *field.Path, isPlus bo
 		}
 	}
 
-	if rateLimit.Condition != nil && (rateLimit.Condition.JWT == nil && rateLimit.Condition.Variables == nil) {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "must specify either jwt or variable conditions"))
+	if rateLimit.Condition != nil {
+		conditionPath := fieldPath.Child("condition")
+		if rateLimit.Condition.JWT == nil && rateLimit.Condition.Variables == nil {
+			allErrs = append(allErrs, field.Required(conditionPath, "must specify either jwt or variable conditions"))
+		}
+
+		if rateLimit.Condition.JWT != nil && rateLimit.Condition.Variables != nil {
+			allErrs = append(allErrs, field.Required(conditionPath, "only one condition, jwt or variables is allowed"))
+		}
+
+		if rateLimit.Condition.JWT != nil {
+			allErrs = append(allErrs, validateRateLimitJWTCondition(rateLimit.Condition.JWT, conditionPath.Child("jwt"))...)
+			if !isPlus {
+				allErrs = append(allErrs, field.Forbidden(conditionPath.Child("jwt"), "is only supported in NGINX Plus"))
+			}
+		}
+
+		if rateLimit.Condition.Variables != nil {
+			if len(*rateLimit.Condition.Variables) == 0 {
+				allErrs = append(allErrs, field.Required(conditionPath.Child("variables"), "must contain a variable condition"))
+			}
+			for i := range *rateLimit.Condition.Variables {
+				allErrs = append(allErrs, validateRateLimitVariableCondition(&(*rateLimit.Condition.Variables)[i], conditionPath.Child("variables").Index(i), isPlus)...)
+			}
+		}
 	}
 
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && rateLimit.Condition.Variables != nil {
-		allErrs = append(allErrs, field.Required(fieldPath.Child("condition"), "only one condition, jwt or variables is allowed"))
+	return allErrs
+}
+
+func validateRateLimitJWTCondition(condition *v1.JWTCondition, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	claimPath := fieldPath.Child("claim")
+	if condition.Claim == "" {
+		allErrs = append(allErrs, field.Required(claimPath, ""))
+	} else {
+		for _, segment := range strings.Split(condition.Claim, ".") {
+			if err := validation2.ValidateDirectiveToken(segment); err != nil || strings.Contains(segment, "$") {
+				allErrs = append(allErrs, field.Invalid(claimPath, condition.Claim, "must contain literal claim-name tokens separated by dots"))
+				break
+			}
+		}
 	}
 
-	if rateLimit.Condition != nil && rateLimit.Condition.JWT != nil && !isPlus {
-		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("condition.jwt"), "is only supported in NGINX Plus"))
+	matchPath := fieldPath.Child("match")
+	if condition.Match == "" {
+		allErrs = append(allErrs, field.Required(matchPath, ""))
+	} else if err := validation2.ValidateDirectiveToken(condition.Match); err != nil || strings.Contains(condition.Match, "$") {
+		allErrs = append(allErrs, field.Invalid(matchPath, condition.Match, "must be a literal NGINX token"))
+	}
+
+	return allErrs
+}
+
+func validateRateLimitVariableCondition(condition *v1.VariableCondition, fieldPath *field.Path, isPlus bool) field.ErrorList {
+	allErrs := field.ErrorList{}
+	namePath := fieldPath.Child("name")
+	if err := validation2.ValidateDirectiveToken(condition.Name); err != nil || !strings.HasPrefix(condition.Name, "$") {
+		allErrs = append(allErrs, field.Invalid(namePath, condition.Name, "must be a single NGINX variable"))
+	} else {
+		name := strings.TrimPrefix(condition.Name, "$")
+		isSpecial := false
+		for _, prefix := range rateLimitKeySpecialVariables {
+			if strings.HasPrefix(name, prefix) {
+				isSpecial = true
+				break
+			}
+		}
+		if isSpecial {
+			allErrs = append(allErrs, validateSpecialVariable(name, namePath, isPlus)...)
+		} else {
+			allErrs = append(allErrs, validateVariable(name, rateLimitKeyVariables, namePath)...)
+		}
+	}
+
+	matchPath := fieldPath.Child("match")
+	if condition.Match == "" {
+		allErrs = append(allErrs, field.Required(matchPath, ""))
+	} else if err := ValidateEscapedString(condition.Match); err != nil {
+		allErrs = append(allErrs, field.Invalid(matchPath, condition.Match, err.Error()))
+	} else if strings.ContainsAny(condition.Match, "\r\n") {
+		allErrs = append(allErrs, field.Invalid(matchPath, condition.Match, "must not contain line breaks"))
 	}
 
 	return allErrs
@@ -311,7 +411,7 @@ func validateJWT(jwt *v1.JWTAuth, fieldPath *field.Path) field.ErrorList {
 
 	// Verify a case when using JWKS
 	if jwt.JwksURI != "" {
-		allErrs = append(allErrs, validateURL(jwt.JwksURI, fieldPath.Child("JwksURI"))...)
+		allErrs = append(allErrs, validateJWKsURI(jwt.JwksURI, fieldPath.Child("jwksURI"))...)
 		allErrs = append(allErrs, validateTime(jwt.KeyCache, fieldPath.Child("keyCache"))...)
 		// jwt.Token is not required field. Verify it if it's provided.
 		if jwt.Token != "" {
@@ -367,6 +467,7 @@ func validateIngressMTLS(ingressMTLS *v1.IngressMTLS, fieldPath *field.Path) fie
 	}
 	allErrs := validateSecretName(ingressMTLS.ClientCertSecret, fieldPath.Child("clientCertSecret"))
 	allErrs = append(allErrs, validateIngressMTLSVerifyClient(ingressMTLS.VerifyClient, fieldPath.Child("verifyClient"))...)
+	allErrs = append(allErrs, validateCRLFileName(ingressMTLS.CrlFileName, fieldPath.Child("crlFileName"))...)
 	if ingressMTLS.VerifyDepth != nil {
 		allErrs = append(allErrs, validatePositiveIntOrZero(*ingressMTLS.VerifyDepth, fieldPath.Child("verifyDepth"))...)
 	}
@@ -383,6 +484,14 @@ func validateEgressMTLS(egressMTLS *v1.EgressMTLS, fieldPath *field.Path) field.
 
 	if egressMTLS.VerifyDepth != nil {
 		allErrs = append(allErrs, validatePositiveIntOrZero(*egressMTLS.VerifyDepth, fieldPath.Child("verifyDepth"))...)
+	}
+	if egressMTLS.Ciphers != "" && !validation2.SSLCiphersRegex.MatchString(egressMTLS.Ciphers) {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("ciphers"), egressMTLS.Ciphers, "contains invalid characters"))
+	}
+	if egressMTLS.Protocols != "" {
+		if err := validation2.ValidateTLSProtocols(egressMTLS.Protocols); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("protocols"), egressMTLS.Protocols, err.Error()))
+		}
 	}
 	return append(allErrs, validateSSLName(egressMTLS.SSLName, fieldPath.Child("sslName"))...)
 }
@@ -428,11 +537,170 @@ func validateOIDC(oidc *v1.OIDC, fieldPath *field.Path) field.ErrorList {
 		allErrs = append(allErrs, validateQueryString(strings.Join(oidc.AuthExtraArgs, "&"), fieldPath.Child("authExtraArgs"))...)
 	}
 
+	if oidc.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidc.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+	}
 	allErrs = append(allErrs, validateURL(oidc.AuthEndpoint, fieldPath.Child("authEndpoint"))...)
 	allErrs = append(allErrs, validateURL(oidc.TokenEndpoint, fieldPath.Child("tokenEndpoint"))...)
 	allErrs = append(allErrs, validateURL(oidc.JWKSURI, fieldPath.Child("jwksURI"))...)
 	allErrs = append(allErrs, validateSecretName(oidc.ClientSecret, fieldPath.Child("clientSecret"))...)
 	return append(allErrs, validateClientID(oidc.ClientID, fieldPath.Child("clientID"))...)
+}
+
+func validateOIDCNative(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	// Each field gets the validator appropriate to its type — URL, path,
+	// hostname, cookie name, query string, secret name. The kubebuilder
+	// markers on OIDCNative complement these checks rather than replace
+	// them; sessionTimeout, proxyBufferSize, sslVerifyDepth and the
+	// pkce/clientSecret combination is checked below
+
+	if oidcNative.Issuer == "" {
+		return field.ErrorList{field.Required(fieldPath.Child("issuer"), "")}
+	}
+	if oidcNative.ClientID == "" {
+		return field.ErrorList{field.Required(fieldPath.Child("clientID"), "")}
+	}
+
+	allErrs := field.ErrorList{}
+
+	allErrs = append(allErrs, validateIssuerURL(oidcNative.Issuer, fieldPath.Child("issuer"))...)
+	allErrs = append(allErrs, validateClientID(oidcNative.ClientID, fieldPath.Child("clientID"))...)
+	if oidcNative.Scope != "" {
+		allErrs = append(allErrs, validateOIDCNativeScope(oidcNative.Scope, fieldPath.Child("scope"))...)
+	}
+	allErrs = append(allErrs, validateOIDCNativeSecrets(oidcNative, fieldPath)...)
+
+	if oidcNative.ConfigURL != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.ConfigURL) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("configURL"), oidcNative.ConfigURL, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validateURL(oidcNative.ConfigURL, fieldPath.Child("configURL"))...)
+	}
+
+	allErrs = append(allErrs, validateOIDCNativeURIs(oidcNative, fieldPath)...)
+
+	if oidcNative.CookieName != "" {
+		for _, msg := range isCookieName(oidcNative.CookieName) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cookieName"), oidcNative.CookieName, msg))
+		}
+	}
+
+	if oidcNative.ExtraAuthArgs != "" {
+		allErrs = append(allErrs, validateQueryString(oidcNative.ExtraAuthArgs, fieldPath.Child("extraAuthArgs"))...)
+	}
+
+	allErrs = append(allErrs, validateSSLName(oidcNative.SSLName, fieldPath.Child("sslName"))...)
+	allErrs = append(allErrs, validateOIDCNativeLimits(oidcNative, fieldPath)...)
+
+	if oidcNative.SessionTimeout != "" {
+		allErrs = append(allErrs, validateTime(oidcNative.SessionTimeout, fieldPath.Child("sessionTimeout"))...)
+		if len(oidcNative.SessionTimeout) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sessionTimeout"), oidcNative.SessionTimeout, "sessionTimeout value is too large"))
+		}
+	}
+	if oidcNative.ProxyBufferSize != "" {
+		allErrs = append(allErrs, validateSize(oidcNative.ProxyBufferSize, fieldPath.Child("proxyBufferSize"))...)
+		if len(oidcNative.ProxyBufferSize) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("proxyBufferSize"), oidcNative.ProxyBufferSize, "proxyBufferSize value is too large"))
+		}
+	}
+
+	switch oidcNative.PKCE {
+	case "on":
+		allErrs = append(allErrs, validatePKCE(true, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	case "off":
+		allErrs = append(allErrs, validatePKCE(false, oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+
+	return allErrs
+}
+
+func validateOIDCNativeSecrets(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if oidcNative.SSLVerify != nil && !*oidcNative.SSLVerify && oidcNative.TrustedCertSecret != "" {
+		allErrs = append(allErrs, field.Forbidden(fieldPath.Child("trustedCertSecret"),
+			"trustedCertSecret can be set only if sslVerify is true"))
+	}
+	if oidcNative.ClientSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.ClientSecret, fieldPath.Child("clientSecret"))...)
+	}
+	if oidcNative.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(oidcNative.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+	}
+	return allErrs
+}
+
+func validateOIDCNativeLimits(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if oidcNative.SessionTimeout != "" {
+		allErrs = append(allErrs, validateTime(oidcNative.SessionTimeout, fieldPath.Child("sessionTimeout"))...)
+		if len(oidcNative.SessionTimeout) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sessionTimeout"), oidcNative.SessionTimeout, "sessionTimeout value is too large"))
+		}
+	}
+	if oidcNative.ProxyBufferSize != "" {
+		allErrs = append(allErrs, validateSize(oidcNative.ProxyBufferSize, fieldPath.Child("proxyBufferSize"))...)
+		if len(oidcNative.ProxyBufferSize) > 10 {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("proxyBufferSize"), oidcNative.ProxyBufferSize, "proxyBufferSize value is too large"))
+		}
+	}
+	return allErrs
+}
+
+func validateOIDCNativeURIs(oidcNative *v1.OIDCNative, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if oidcNative.RedirectURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.RedirectURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("redirectURI"), oidcNative.RedirectURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validatePath(oidcNative.RedirectURI, fieldPath.Child("redirectURI"))...)
+	}
+
+	if oidcNative.LogoutURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.LogoutURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("logoutURI"), oidcNative.LogoutURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validatePath(oidcNative.LogoutURI, fieldPath.Child("logoutURI"))...)
+	}
+
+	if oidcNative.PostLogoutRedirectURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.PostLogoutRedirectURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("postLogoutRedirectURI"), oidcNative.PostLogoutRedirectURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validatePath(oidcNative.PostLogoutRedirectURI, fieldPath.Child("postLogoutRedirectURI"))...)
+	}
+
+	if oidcNative.FrontChannelLogoutURI != "" {
+		if ContainsWhitespaceOrQuotes(oidcNative.FrontChannelLogoutURI) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("frontChannelLogoutURI"), oidcNative.FrontChannelLogoutURI, "must not include whitespace, quotes, or dangerous characters"))
+		}
+		allErrs = append(allErrs, validatePath(oidcNative.FrontChannelLogoutURI, fieldPath.Child("frontChannelLogoutURI"))...)
+	}
+
+	return allErrs
+}
+
+func validateOIDCNativeScope(scope string, fieldPath *field.Path) field.ErrorList {
+	tokens := strings.FieldsFunc(scope, func(r rune) bool { return r == '+' || unicode.IsSpace(r) })
+	hasOpenID := false
+	for _, token := range tokens {
+		if token == "openid" {
+			hasOpenID = true
+		}
+		for _, r := range token {
+			if !unicode.Is(validOIDCScopeRanges, r) {
+				return field.ErrorList{field.Invalid(fieldPath, scope, fmt.Sprintf("not allowed character %q in scope %s", r, scope))}
+			}
+			if strings.ContainsRune(";{}$`#", r) {
+				return field.ErrorList{field.Invalid(fieldPath, scope, fmt.Sprintf("character %q is not allowed in scope %s", r, scope))}
+			}
+		}
+	}
+	if !hasOpenID {
+		return field.ErrorList{field.Required(fieldPath, "openid is required as a scope token")}
+	}
+	return nil
 }
 
 func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
@@ -462,9 +730,9 @@ func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
 	}
 
 	if apiKey.SuppliedIn.Query != nil {
-		for _, query := range apiKey.SuppliedIn.Query {
-			if err := ValidateEscapedString(query); err != nil {
-				allErrs = append(allErrs, field.Invalid(fieldPath.Child("suppliedIn.query"), query, err.Error()))
+		for i, query := range apiKey.SuppliedIn.Query {
+			for _, msg := range isArgumentName(query) {
+				allErrs = append(allErrs, field.Invalid(fieldPath.Child("suppliedIn").Child("query").Index(i), query, msg))
 			}
 		}
 	}
@@ -480,16 +748,29 @@ func validateAPIKey(apiKey *v1.APIKey, fieldPath *field.Path) field.ErrorList {
 
 func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
-	bundleMode := waf.ApBundle != ""
 
-	// WAF Policy references either apPolicy or apBundle.
-	if waf.ApPolicy != "" && waf.ApBundle != "" {
-		msg := "apPolicy and apBundle fields in the WAF policy are mutually exclusive"
-		allErrs = append(
-			allErrs,
-			field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg),
-			field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg),
-		)
+	// Three-way mutual exclusivity.
+	setCount := 0
+	if waf.ApPolicy != "" {
+		setCount++
+	}
+	if waf.ApBundle != "" {
+		setCount++
+	}
+	if waf.ApBundleSource != nil {
+		setCount++
+	}
+	if setCount > 1 {
+		msg := "apPolicy, apBundle, and apBundleSource are mutually exclusive"
+		if waf.ApPolicy != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apPolicy"), waf.ApPolicy, msg))
+		}
+		if waf.ApBundle != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg))
+		}
+		if waf.ApBundleSource != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundleSource"), waf.ApBundleSource.URL, msg))
+		}
 	}
 
 	if waf.ApPolicy != "" {
@@ -498,11 +779,17 @@ func validateWAF(waf *v1.WAF, fieldPath *field.Path) field.ErrorList {
 		}
 	}
 
-	if bundleMode {
+	if waf.ApBundle != "" {
 		for _, msg := range validation.IsQualifiedName(waf.ApBundle) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundle"), waf.ApBundle, msg))
 		}
 	}
+
+	if waf.ApBundleSource != nil {
+		allErrs = append(allErrs, validateBundleSource(waf.ApBundleSource, fieldPath.Child("apBundleSource"))...)
+	}
+
+	bundleMode := waf.ApBundle != "" || waf.ApBundleSource != nil
 
 	if waf.SecurityLog != nil {
 		allErrs = append(allErrs, validateLogConf(waf.SecurityLog, fieldPath.Child("securityLog"), bundleMode)...)
@@ -521,6 +808,119 @@ func validateLogConfs(logs []*v1.SecurityLog, fieldPath *field.Path, bundleMode 
 		allErrs = append(allErrs, validateLogConf(logs[i], fieldPath.Index(i), bundleMode)...)
 	}
 
+	return allErrs
+}
+
+const minBundlePollInterval = 1 * time.Minute
+
+// validateBundleSource validates a BundleSource. CEL rules on the CRD handle structural
+// constraints; this is a secondary layer for rules CEL cannot express (duration minimums).
+func validateBundleSource(bs *v1.BundleSource, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	srcType := bs.Type
+	if srcType == "" {
+		srcType = v1.BundleSourceTypeHTTPS
+	}
+
+	if bs.URL == "" {
+		allErrs = append(allErrs, field.Required(fieldPath.Child("url"), "url is required"))
+		return allErrs
+	}
+	allErrs = append(allErrs, validateBundleSourceURL(bs.URL, fieldPath.Child("url"))...)
+
+	typeErrs, earlyReturn := validateBundleSourceType(bs, srcType, fieldPath)
+	allErrs = append(allErrs, typeErrs...)
+	if earlyReturn {
+		return allErrs
+	}
+
+	if bs.Secret != "" {
+		allErrs = append(allErrs, validateSecretName(bs.Secret, fieldPath.Child("secret"))...)
+	}
+	if bs.TrustedCertSecret != "" {
+		allErrs = append(allErrs, validateSecretName(bs.TrustedCertSecret, fieldPath.Child("trustedCertSecret"))...)
+	}
+
+	if bs.EnablePolling && bs.PollInterval != nil && bs.PollInterval.Duration < minBundlePollInterval {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("pollInterval"), bs.PollInterval,
+			fmt.Sprintf("pollInterval must be at least %v when enablePolling is true", minBundlePollInterval)))
+	}
+	if bs.Timeout != nil && bs.Timeout.Duration <= 0 {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("timeout"), bs.Timeout, "timeout must be positive"))
+	}
+
+	return allErrs
+}
+
+// validateBundleSourceType validates type-specific field requirements for a BundleSource.
+func validateBundleSourceType(bs *v1.BundleSource, srcType v1.BundleSourceType, fieldPath *field.Path) (field.ErrorList, bool) {
+	allErrs := field.ErrorList{}
+
+	switch srcType {
+	case v1.BundleSourceTypeHTTPS:
+		if bs.Name != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), bs.Name, "name is only valid for NIM and N1C"))
+		}
+		if bs.Namespace != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("namespace"), bs.Namespace, "namespace is only valid for N1C"))
+		}
+	case v1.BundleSourceTypeNIM:
+		if bs.Name == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("name"), "name is required for NIM"))
+		} else if ContainsDangerousChars(bs.Name) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), bs.Name, "name contains dangerous characters"))
+		}
+		if bs.Namespace != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("namespace"), bs.Namespace, "namespace is only valid for N1C"))
+		}
+		if bs.VerifyChecksum {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("verifyChecksum"), bs.VerifyChecksum, "verifyChecksum is only supported for HTTPS type"))
+		}
+	case v1.BundleSourceTypeN1C:
+		if bs.Name == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("name"), "name is required for N1C"))
+		} else if ContainsDangerousChars(bs.Name) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("name"), bs.Name, "name contains dangerous characters"))
+		}
+		if bs.Namespace == "" {
+			allErrs = append(allErrs, field.Required(fieldPath.Child("namespace"), "namespace is required for N1C"))
+		} else if ContainsDangerousChars(bs.Namespace) {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("namespace"), bs.Namespace, "namespace contains dangerous characters"))
+		}
+		if bs.VerifyChecksum {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("verifyChecksum"), bs.VerifyChecksum, "verifyChecksum is only supported for HTTPS type"))
+		}
+	default:
+		allErrs = append(allErrs, field.NotSupported(fieldPath.Child("type"), srcType,
+			[]string{
+				string(v1.BundleSourceTypeHTTPS), string(v1.BundleSourceTypeNIM),
+				string(v1.BundleSourceTypeN1C),
+			}))
+		return allErrs, true
+	}
+
+	return allErrs, false
+}
+
+// validateBundleSourceURL checks that a URL is well-formed HTTPS with no dangerous characters.
+func validateBundleSourceURL(rawURL string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if ContainsDangerousChars(rawURL) {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url contains dangerous characters"))
+		return allErrs
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, fmt.Sprintf("invalid URL: %v", err)))
+		return allErrs
+	}
+	if parsed.Scheme != "https" {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url must use https://"))
+	}
+	if parsed.Host == "" {
+		allErrs = append(allErrs, field.Invalid(fieldPath, rawURL, "url must contain a host"))
+	}
 	return allErrs
 }
 
@@ -545,6 +945,21 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 	if cache.MinFree != "" {
 		allErrs = append(allErrs, validateOffset(cache.MinFree, fieldPath.Child("minFree"))...)
 	}
+	if cache.CacheZoneSize != "" {
+		allErrs = append(allErrs, validateSize(cache.CacheZoneSize, fieldPath.Child("cacheZoneSize"))...)
+	}
+
+	// cacheZoneName becomes both a proxy_cache_path keys_zone name and a path
+	// segment under the cache root, so it has to be a bare identifier.
+	allErrs = append(allErrs, validateCacheZoneName(cache.CacheZoneName, fieldPath.Child("cacheZoneName"))...)
+
+	if cache.Levels != "" {
+		allErrs = append(allErrs, validateCacheLevels(cache.Levels, fieldPath.Child("levels"))...)
+	}
+	if cache.Time != "" {
+		allErrs = append(allErrs, validateTime(cache.Time, fieldPath.Child("time"))...)
+	}
+	allErrs = append(allErrs, validateCacheMethods(cache.AllowedMethods, fieldPath.Child("allowedMethods"))...)
 
 	// Validate manager fields
 	if cache.Manager != nil {
@@ -581,6 +996,7 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 		if err := ValidateEscapedString(cache.CacheKey); err != nil {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("cacheKey"), cache.CacheKey, err.Error()))
 		}
+		allErrs = append(allErrs, validateDirectiveValueWithVariables(cache.CacheKey, fieldPath.Child("cacheKey"))...)
 		// Cache keys support both ${var} and $var NGINX syntax, so we skip variable braces validation
 		// but still validate basic syntax rules like not ending with $
 		if strings.HasSuffix(cache.CacheKey, "$") {
@@ -596,6 +1012,7 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 				if err := ValidateEscapedString(condition); err != nil {
 					allErrs = append(allErrs, field.Invalid(conditionsPath.Child("noCache").Index(i), condition, err.Error()))
 				}
+				allErrs = append(allErrs, validateDirectiveValueWithVariables(condition, conditionsPath.Child("noCache").Index(i))...)
 			}
 		}
 		for i, condition := range cache.Conditions.Bypass {
@@ -603,6 +1020,7 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 				if err := ValidateEscapedString(condition); err != nil {
 					allErrs = append(allErrs, field.Invalid(conditionsPath.Child("bypass").Index(i), condition, err.Error()))
 				}
+				allErrs = append(allErrs, validateDirectiveValueWithVariables(condition, conditionsPath.Child("bypass").Index(i))...)
 			}
 		}
 	}
@@ -614,6 +1032,53 @@ func validateCache(cache *v1.Cache, fieldPath *field.Path, isPlus bool) field.Er
 }
 
 // validateCacheAllowedCodes validates the allowedCodes field
+// cacheZoneNameFmt matches a bare identifier. cacheZoneName is interpolated
+// into a proxy_cache_path keys_zone name, a proxy_cache argument and a
+// filesystem path under the cache root, so anything outside this set is either
+// an injection or a path that does not mean what it appears to.
+const cacheZoneNameFmt = `[a-zA-Z0-9_-]+`
+
+var cacheZoneNameRegexp = regexp.MustCompile("^" + cacheZoneNameFmt + "$")
+
+func validateCacheZoneName(name string, fieldPath *field.Path) field.ErrorList {
+	if name == "" {
+		// An unset zone name is filled in from the VirtualServer's own name.
+		return field.ErrorList{}
+	}
+	if !cacheZoneNameRegexp.MatchString(name) {
+		return field.ErrorList{field.Invalid(fieldPath, name, fmt.Sprintf("must consist of letters, digits, %q or %q, matching the regex %q", "-", "_", cacheZoneNameFmt))}
+	}
+	return field.ErrorList{}
+}
+
+// cacheLevelsFmt matches the levels argument of proxy_cache_path: one to three
+// digits separated by colons, as documented for the directive.
+const cacheLevelsFmt = `[12](:[12]){0,2}`
+
+var cacheLevelsRegexp = regexp.MustCompile("^" + cacheLevelsFmt + "$")
+
+func validateCacheLevels(levels string, fieldPath *field.Path) field.ErrorList {
+	if !cacheLevelsRegexp.MatchString(levels) {
+		return field.ErrorList{field.Invalid(fieldPath, levels, fmt.Sprintf("must be up to three colon-separated levels of 1 or 2, matching the regex %q", cacheLevelsFmt))}
+	}
+	return field.ErrorList{}
+}
+
+// validateCacheMethods validates the allowedMethods of a cache policy, which
+// become the arguments of proxy_cache_methods. NGINX accepts only this set for
+// that directive; GET and HEAD are always cached and need not be listed.
+func validateCacheMethods(methods []string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	validMethods := map[string]bool{"GET": true, "HEAD": true, "POST": true}
+
+	for i, method := range methods {
+		if !validMethods[method] {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), method, "must be one of GET, HEAD or POST, the methods proxy_cache_methods accepts"))
+		}
+	}
+	return allErrs
+}
+
 func validateCacheAllowedCodes(cache *v1.Cache, fieldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
@@ -709,18 +1174,33 @@ func validateCacheUseStale(cache *v1.Cache, fieldPath *field.Path) field.ErrorLi
 func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode bool) field.ErrorList {
 	allErrs := field.ErrorList{}
 
-	if logConf.ApLogConf != "" && logConf.ApLogBundle != "" {
-		msg := "apLogConf and apLogBundle fields in the securityLog are mutually exclusive"
-		allErrs = append(
-			allErrs,
-			field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg),
-			field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg),
-		)
+	// Three-way mutual exclusivity.
+	setCount := 0
+	if logConf.ApLogConf != "" {
+		setCount++
+	}
+	if logConf.ApLogBundle != "" {
+		setCount++
+	}
+	if logConf.ApLogBundleSource != nil {
+		setCount++
+	}
+	if setCount > 1 {
+		msg := "apLogConf, apLogBundle, and apLogBundleSource are mutually exclusive"
+		if logConf.ApLogConf != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg))
+		}
+		if logConf.ApLogBundle != "" {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg))
+		}
+		if logConf.ApLogBundleSource != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundleSource"), logConf.ApLogBundleSource.URL, msg))
+		}
 	}
 
 	if logConf.ApLogConf != "" {
 		if bundleMode {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, "apLogConf is not supported with apBundle"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, "apLogConf is not supported with apBundle or apBundleSource"))
 		}
 		for _, msg := range validation.IsQualifiedName(logConf.ApLogConf) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, msg))
@@ -729,15 +1209,24 @@ func validateLogConf(logConf *v1.SecurityLog, fieldPath *field.Path, bundleMode 
 
 	if logConf.ApLogBundle != "" {
 		if !bundleMode {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogConf"), logConf.ApLogConf, "apLogBundle is not supported with apPolicy"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, "apLogBundle is not supported with apPolicy"))
 		}
 		for _, msg := range validation.IsQualifiedName(logConf.ApLogBundle) {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apBundle"), logConf.ApLogBundle, msg))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundle"), logConf.ApLogBundle, msg))
 		}
 	}
 
-	err := ValidateAppProtectLogDestination(logConf.LogDest)
-	if err != nil {
+	if logConf.ApLogBundleSource != nil {
+		if !bundleMode {
+			allErrs = append(allErrs, field.Invalid(fieldPath.Child("apLogBundleSource"), logConf.ApLogBundleSource.URL,
+				"apLogBundleSource requires the parent WAF to use apBundle or apBundleSource"))
+		}
+		allErrs = append(allErrs, validateBundleSource(logConf.ApLogBundleSource, fieldPath.Child("apLogBundleSource"))...)
+	}
+
+	if err := validation2.ValidateDirectiveToken(logConf.LogDest); err != nil {
+		allErrs = append(allErrs, field.Invalid(fieldPath.Child("logDest"), logConf.LogDest, err.Error()))
+	} else if err := ValidateAppProtectLogDestination(logConf.LogDest); err != nil {
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("logDest"), logConf.LogDest, err.Error()))
 	}
 	return allErrs
@@ -809,7 +1298,43 @@ func validatePKCE(PKCEEnable bool, clientSecret string,
 	return nil
 }
 
+// validateIssuerURL validates an OIDC issuer URL, which requires https scheme and a hostname
+// but does not require a path (unlike validateURL). Per the OpenID Connect spec, the issuer
+// identifier is a URL using the https scheme with no query or fragment components.
+func validateIssuerURL(issuer string, fieldPath *field.Path) field.ErrorList {
+	if ContainsWhitespaceOrQuotes(issuer) {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "must not include whitespace, quotes, or dangerous characters")}
+	}
+	u, err := url.Parse(issuer)
+	if err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, err.Error())}
+	}
+	if u.Scheme != "https" {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "scheme must be https")}
+	}
+	if u.Host == "" {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "hostname required")}
+	}
+	if u.RawQuery != "" || u.Fragment != "" || u.User != nil {
+		return field.ErrorList{field.Invalid(fieldPath, issuer, "must not include userinfo, query, or fragment")}
+	}
+
+	host, port, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		host = u.Host
+	}
+
+	allErrs := validateSSLName(host, fieldPath)
+	if port != "" {
+		allErrs = append(allErrs, validatePortNumber(port, fieldPath)...)
+	}
+	return allErrs
+}
+
 func validateURL(name string, fieldPath *field.Path) field.ErrorList {
+	if err := validation2.ValidateQuotedDirectiveValue(name); err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, name, err.Error())}
+	}
 	u, err := url.Parse(name)
 	if err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, name, err.Error())}
@@ -836,7 +1361,31 @@ func validateURL(name string, fieldPath *field.Path) field.ErrorList {
 	return allErrs
 }
 
+func validateJWKsURI(name string, fieldPath *field.Path) field.ErrorList {
+	allErrs := validateURL(name, fieldPath)
+	u, err := url.Parse(name)
+	if err != nil {
+		return allErrs
+	}
+
+	if u.Scheme != "http" && u.Scheme != "https" {
+		allErrs = append(allErrs, field.NotSupported(fieldPath, u.Scheme, []string{"http", "https"}))
+	}
+	// url.Parse exposes Path in decoded form, so encoded NGINX delimiters are
+	// checked exactly as they would be rendered by config generation.
+	if u.Path != "" {
+		if err := validation2.ValidateDirectiveToken(u.Path); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath, name, "path must remain a single NGINX token after percent-decoding"))
+		}
+	}
+
+	return allErrs
+}
+
 func validateQueryString(queryString string, fieldPath *field.Path) field.ErrorList {
+	if err := validation2.ValidateQuotedDirectiveValue(queryString); err != nil {
+		return field.ErrorList{field.Invalid(fieldPath, queryString, err.Error())}
+	}
 	_, err := url.ParseQuery(queryString)
 	if err != nil {
 		return field.ErrorList{field.Invalid(fieldPath, queryString, err.Error())}
@@ -935,7 +1484,46 @@ func validateRateLimitKey(key string, fieldPath *field.Path, isPlus bool) field.
 	if err := ValidateEscapedString(key, `Hello World! \n`, `\"${request_uri}\" is unavailable. \n`); err != nil {
 		allErrs = append(allErrs, field.Invalid(fieldPath, key, err.Error()))
 	}
+	allErrs = append(allErrs, validateDirectiveValueWithVariables(key, fieldPath)...)
 	return append(allErrs, validateStringWithVariables(key, fieldPath, rateLimitKeySpecialVariables, rateLimitKeyVariables, isPlus)...)
+}
+
+func validateDirectiveValueWithVariables(value string, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	maskedValue := nginxVariableRegexp.ReplaceAllStringFunc(value, func(variable string) string {
+		name := strings.TrimSuffix(strings.TrimPrefix(variable, "${"), "}")
+		if !nginxVariableNameRegexp.MatchString(name) {
+			allErrs = append(allErrs, field.Invalid(fieldPath, value, "contains an invalid NGINX variable"))
+		} else if err := validation2.ValidateDirectiveToken(name); err != nil {
+			allErrs = append(allErrs, field.Invalid(fieldPath, value, "contains an invalid NGINX variable"))
+		}
+		return "$variable"
+	})
+	if err := validation2.ValidateDirectiveValue(maskedValue); err != nil {
+		allErrs = append(allErrs, field.Invalid(fieldPath, value, err.Error()))
+	}
+	return allErrs
+}
+
+// validateCRLFileName validates a CRL file name, which addIngressMTLSConfig
+// joins onto the secret directory with path.Join and which the template then
+// renders unquoted into ssl_crl.
+//
+// Quotes are rejected even though ValidateDirectiveToken permits them and NGINX
+// would accept them, because this value is read as a Go path as well as written
+// to the config. A name of "ca.crl" would make Go look for
+// /etc/nginx/secrets/"ca.crl" while NGINX reads /etc/nginx/secrets/ca.crl, and
+// the mismatch surfaces only as a missing file at runtime.
+func validateCRLFileName(name string, fieldPath *field.Path) field.ErrorList {
+	if name == "" {
+		return nil
+	}
+	if err := validation2.ValidateDirectiveToken(name); err != nil ||
+		strings.ContainsAny(name, `"'`) ||
+		name == "." || name == ".." || path.Base(name) != name {
+		return field.ErrorList{field.Invalid(fieldPath, name, "must be a safe file basename")}
+	}
+	return nil
 }
 
 var jwtTokenSpecialVariables = []string{"arg_", "http_", "cookie_"}
@@ -1056,7 +1644,7 @@ func validateCORSOrigins(origins []string, fieldPath *field.Path) field.ErrorLis
 		}
 
 		// Check for dangerous characters that could cause nginx injection
-		if containsDangerousChars(origin) {
+		if ContainsDangerousChars(origin) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), origin, "origin contains dangerous characters that could cause nginx configuration injection"))
 		}
 	}
@@ -1186,11 +1774,18 @@ func validateCORSAllowHeaders(headers []string, fieldPath *field.Path) field.Err
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard value for
+		// Access-Control-Allow-Headers. Browser handling may differ when
+		// credentials are used, but that is not enforced by this validator.
+		if header == "*" {
+			continue
+		}
+
 		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
 
-		// Check for wildcard
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
 		if strings.Contains(header, "*") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
 		}
 
 		// Check for forbidden request headers that cannot be set by JavaScript
@@ -1211,7 +1806,7 @@ func validateCORSMethods(methods []string, fieldPath *field.Path) field.ErrorLis
 
 	for i, method := range methods {
 		// Check for dangerous characters
-		if containsDangerousChars(method) {
+		if ContainsDangerousChars(method) {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), method, "method contains dangerous characters that could cause nginx configuration injection"))
 		}
 
@@ -1242,11 +1837,19 @@ func validateCORSExposeHeaders(headers []string, fieldPath *field.Path) field.Er
 	allErrs := field.ErrorList{}
 
 	for i, header := range headers {
+		// '*' is accepted here as a valid standalone wildcard for
+		// Access-Control-Expose-Headers. Browsers apply additional CORS
+		// semantics for credentialed requests; that behavior is not enforced
+		// by this validator.
+		if header == "*" {
+			continue
+		}
+
 		allErrs = append(allErrs, validateHeaderName(header, fieldPath.Index(i))...)
 
-		// Check for wildcard
+		// Embedded wildcards (e.g. "X-*-Header") are not valid header names.
 		if strings.Contains(header, "*") {
-			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' is not allowed in individual header names for exposeHeaders"))
+			allErrs = append(allErrs, field.Invalid(fieldPath.Index(i), header, "wildcard '*' may only be used as a standalone value, not embedded in a header name"))
 		}
 
 		// Check for forbidden response headers that cannot be exposed
@@ -1267,7 +1870,7 @@ func validateHeaderName(header string, fieldPath *field.Path) field.ErrorList {
 	}
 
 	// Check for dangerous characters that could cause nginx injection
-	if containsDangerousChars(header) {
+	if ContainsDangerousChars(header) {
 		allErrs = append(allErrs, field.Invalid(fieldPath, header, "header name contains dangerous characters that could cause nginx configuration injection"))
 	}
 
@@ -1302,8 +1905,8 @@ func isForbiddenResponseHeader(header string) bool {
 	return lower == "set-cookie" || lower == "set-cookie2"
 }
 
-// containsDangerousChars checks if a string contains characters that could cause nginx injection
-func containsDangerousChars(value string) bool {
+// ContainsDangerousChars checks if a string contains characters that could cause nginx injection
+func ContainsDangerousChars(value string) bool {
 	// Map of dangerous characters for O(1) lookup per character
 	dangerousChars := map[rune]bool{
 		';':  true, // End nginx directive - NEVER ALLOWED
@@ -1321,6 +1924,16 @@ func containsDangerousChars(value string) bool {
 		}
 	}
 	return false
+}
+
+// ContainsWhitespace checks if a string contains any whitespace character (space, tab, newline, carriage return, etc.)
+func ContainsWhitespace(value string) bool {
+	return strings.IndexFunc(value, unicode.IsSpace) != -1
+}
+
+// ContainsWhitespaceOrQuotes checks if a string contains whitespace, quotes, backslashes, or dangerous NGINX injection characters
+func ContainsWhitespaceOrQuotes(value string) bool {
+	return ContainsWhitespace(value) || ContainsDangerousChars(value) || strings.ContainsAny(value, "\"'\\")
 }
 
 func validateExternalAuth(externalAuth *v1.ExternalAuth, fieldPath *field.Path, enableSnippets bool) field.ErrorList {
@@ -1399,13 +2012,43 @@ func validateExternalAuthSSLFields(externalAuth *v1.ExternalAuth, fieldPath *fie
 		allErrs = append(allErrs, validateSecretName(name, fieldPath.Child("trustedCertSecret"))...)
 	}
 
-	if externalAuth.SNIName != "" && containsDangerousChars(externalAuth.SNIName) {
+	if externalAuth.SNIName != "" && ContainsDangerousChars(externalAuth.SNIName) {
 		allErrs = append(allErrs, field.Invalid(fieldPath.Child("sniName"), externalAuth.SNIName, "contains invalid characters"))
 	}
 
 	if externalAuth.SSLVerifyDepth != nil {
 		if *externalAuth.SSLVerifyDepth < 0 {
 			allErrs = append(allErrs, field.Invalid(fieldPath.Child("sslVerifyDepth"), *externalAuth.SSLVerifyDepth, "must be a non-negative integer"))
+		}
+	}
+
+	return allErrs
+}
+
+func validateHSTS(hsts *v1.HSTS, fieldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	const minAgeValueForPreload = 31536000
+
+	if hsts.MaxAge == nil {
+		return append(allErrs, field.Required(fieldPath.Child("maxAge"), "maxAge is required for HSTS policy"))
+	}
+
+	allErrs = append(allErrs, validatePositiveIntOrZero(*hsts.MaxAge, fieldPath.Child("maxAge"))...)
+
+	if hsts.Preload {
+		if !hsts.IncludeSubDomains {
+			allErrs = append(allErrs, field.Invalid(
+				fieldPath.Child("preload"), hsts.Preload,
+				"preload requires includeSubDomains to be enabled",
+			))
+		}
+
+		if *hsts.MaxAge < minAgeValueForPreload {
+			allErrs = append(allErrs, field.Invalid(
+				fieldPath.Child("preload"), hsts.Preload,
+				"preload requires maxAge to be at least 31536000 (one year)",
+			))
 		}
 	}
 

@@ -1,0 +1,22 @@
+# Ingress with proxy_redirect from/to pair. Emits: proxy_redirect http://redirect-backend-svc/v1/ http://cafe.example.com/coffee/;
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress
+  annotations:
+    nginx.org/proxy-redirect-from: "http://redirect-backend-svc/v1/"
+    nginx.org/proxy-redirect-to: "http://cafe.example.com/coffee/"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: cafe.example.com
+    http:
+      paths:
+      - path: /coffee
+        pathType: Prefix
+        backend:
+          service:
+            name: redirect-backend-svc
+            port:
+              number: 80

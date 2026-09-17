@@ -1,0 +1,22 @@
+# Ingress with proxy_redirect regex pattern. Emits: proxy_redirect ~^http://redirect-backend-svc/v(\d+)/(.*) http://cafe.example.com/coffee/$2;
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress
+  annotations:
+    nginx.org/proxy-redirect-from: "~^http://redirect-backend-svc/v(\\d+)/(.*)"
+    nginx.org/proxy-redirect-to: "http://cafe.example.com/coffee/$2"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: cafe.example.com
+    http:
+      paths:
+      - path: /coffee
+        pathType: Prefix
+        backend:
+          service:
+            name: redirect-backend-svc
+            port:
+              number: 80

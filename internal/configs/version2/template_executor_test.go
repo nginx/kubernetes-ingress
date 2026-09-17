@@ -93,6 +93,101 @@ func TestTemplateExecutorUsesOriginalTStemplate(t *testing.T) {
 	t.Logf("\n%s\n", string(tsConfig))
 }
 
+func TestExecuteVirtualServerTemplateQuotesExternalAuth(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		virtualServerTmpl   string
+		transportServerTmpl string
+	}{
+		{name: "nginx", virtualServerTmpl: "nginx.virtualserver.tmpl", transportServerTmpl: "nginx.transportserver.tmpl"},
+		{name: "nginx plus", virtualServerTmpl: "nginx-plus.virtualserver.tmpl", transportServerTmpl: "nginx-plus.transportserver.tmpl"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			executor, err := NewTemplateExecutor(test.virtualServerTmpl, test.transportServerTmpl, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			internalPath := "/_external_auth/check\"; return 200; #"
+			cfg := VirtualServerConfig{Server: Server{
+				ServerName:   "example.com",
+				ExternalAuth: &ExternalAuth{URI: &AuthURI{InternalPath: internalPath}},
+			}}
+			got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			config := string(got)
+			if !strings.Contains(config, `auth_request "/_external_auth/check\"; return 200; #";`) {
+				t.Errorf("external auth path was not emitted as one quoted argument:\n%s", config)
+			}
+		})
+	}
+}
+
+func TestExecuteOIDCTemplateQuotesRedirectPath(t *testing.T) {
+	t.Parallel()
+
+	executor := newTestTemplateExecutor(t)
+	got, err := executor.ExecuteOIDCTemplate(&OIDC{RedirectURI: "/callback\"; return 200; #"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := string(got)
+	for _, want := range []string{
+		`set $redir_location "/callback\"; return 200; #";`,
+		`location = "/callback\"; return 200; #" {`,
+	} {
+		if !strings.Contains(config, want) {
+			t.Errorf("OIDC redirect path was not emitted as one quoted argument; want %q in:\n%s", want, config)
+		}
+	}
+}
+
+// TestExecuteVirtualServerTemplateRendersPreEscapedValuesVerbatim guards the
+// pre-escaped half of the escaping contract documented in
+// internal/validation/nginx.go.
+//
+// The OIDC client secret and the JWT realm are admitted by validators of the
+// form ([^"$\\]|\\[^$])* , which reject an unescaped '"' but accept '\"'. Such a
+// value is already escaped for NGINX, so the templates quote it plainly and let
+// NGINX unescape it. Rendering it with printf "%q" instead would escape the
+// backslashes a second time and change the value NGINX receives: the secret
+// below would reach the identity provider as pa\"ss rather than pa"ss, failing
+// every login while nginx -t still passes. This test fails if either directive
+// is switched to printf "%q".
+func TestExecuteVirtualServerTemplateRendersPreEscapedValuesVerbatim(t *testing.T) {
+	t.Parallel()
+
+	executor := newTestTemplateExecutor(t)
+	cfg := VirtualServerConfig{Server: Server{
+		ServerName: "example.com",
+		VSName:     "default/example",
+		OIDC:       &OIDC{ClientSecret: `pa\"ss`, ClientID: "client", RedirectURI: "/_codexch"},
+		JWTAuth:    &JWTAuth{Realm: `My \"API\"`, Key: "/etc/nginx/secrets/default-jwk", Token: "$http_token"},
+	}}
+
+	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	config := string(got)
+	for _, want := range []string{
+		`set $oidc_client_secret "pa\"ss";`,
+		`auth_jwt "My \"API\"" token=$http_token;`,
+	} {
+		if !strings.Contains(config, want) {
+			t.Errorf("pre-escaped value was not rendered verbatim; want %q in:\n%s", want, config)
+		}
+	}
+}
+
 func newTestTemplateExecutor(t *testing.T) *TemplateExecutor {
 	t.Helper()
 	te, err := NewTemplateExecutor("nginx-plus.virtualserver.tmpl", "nginx-plus.transportserver.tmpl", "oidc.tmpl")
@@ -279,20 +374,10 @@ server {
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
-        {{- else if $.SpiffeCerts }}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
        {{- else }}
     ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
     ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- end }}
-    {{- else }}
-      {{- if $.SpiffeCerts }}
-    listen 443 ssl;
-    {{if not $s.DisableIPV6}}listen [::]:443 ssl;{{end}}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-      {{- end }}
     {{- end }}
 
     {{- with $s.IngressMTLS }}
@@ -882,16 +967,6 @@ server {
             return 204;
         }
         {{- end }}
-
-            {{- if $.SpiffeClientCerts }}
-        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        {{ $proxyOrGRPC }}_ssl_server_name on;
-        {{ $proxyOrGRPC }}_ssl_verify on;
-        {{ $proxyOrGRPC }}_ssl_verify_depth 25;
-        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
-            {{- end }}
 
         {{- with $l.Cache }}
         proxy_cache {{ $l.Cache.ZoneName }};

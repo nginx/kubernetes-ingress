@@ -1,0 +1,38 @@
+# Test 15: Mixed routes -- some protected, some open.
+#
+# Verify:
+#   - `run-test.sh 15 check` shows auth_oidc under /api and /admin locations
+#     only, not under /health or /public.
+#   - curl -sI https://${WEBAPP_HOST}/api     -> 302 (Keycloak)
+#   - curl -sI https://${WEBAPP_HOST}/admin   -> 302 (Keycloak)
+#   - curl -sI https://${WEBAPP_HOST}/health  -> 200
+#   - curl -sI https://${WEBAPP_HOST}/public  -> 200
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /api
+      policies:
+        - name: oidcnative-policy
+      action:
+        pass: webapp
+    - path: /admin
+      policies:
+        - name: oidcnative-policy
+      action:
+        pass: webapp
+    - path: /health
+      action:
+        pass: webapp
+    - path: /public
+      action:
+        pass: webapp

@@ -1,0 +1,11 @@
+controller:
+  networkPolicy:
+    enabled: true
+    ingress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: ingress-allowed
+        ports:
+          - protocol: TCP
+            port: 443

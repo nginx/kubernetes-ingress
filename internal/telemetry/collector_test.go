@@ -290,6 +290,20 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "HSTSPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{hstsPolicy}
+			},
+			want: 1,
+		},
+		{
+			name: "OIDCNativePolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{oidcNativePolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -443,6 +457,8 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				cachePolicy,
 				corsPolicy,
 				externalAuthPolicy,
+				hstsPolicy,
+				oidcNativePolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -472,6 +488,8 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 		CachePolicies:        1,
 		CORSPolicies:         1,
 		ExternalAuthPolicies: 1,
+		HSTSPolicies:         1,
+		OIDCNativePolicies:   1,
 	}
 
 	td := telemetry.Data{
@@ -483,6 +501,41 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 	got := buf.String()
 	if !cmp.Equal(want, got) {
 		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestCollectWAFBundleSourceTypes(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+	cfg := telemetry.CollectorConfig{
+		Configurator:    newConfigurator(t),
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+		Policies: func() []*conf_v1.Policy {
+			return []*conf_v1.Policy{
+				wafBundleSourceN1CPolicy,
+				wafBundleSourceNIMPolicy,
+				wafPolicy, // plain WAF without bundle source
+			}
+		},
+		CustomResourcesEnabled: true,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	got := buf.String()
+	// Verify bundle source types are reported (sorted: N1C, NIM)
+	if !strings.Contains(got, "N1C") {
+		t.Error("expected WAFBundleSourceTypes to contain N1C")
+	}
+	if !strings.Contains(got, "NIM") {
+		t.Error("expected WAFBundleSourceTypes to contain NIM")
 	}
 }
 
@@ -1474,9 +1527,9 @@ func TestCollectBuildOS(t *testing.T) {
 			wantOS:  "debian-plus",
 		},
 		{
-			name:    "ubi-9 plus app protect image",
-			buildOS: "ubi-9-plus-nap",
-			wantOS:  "ubi-9-plus-nap",
+			name:    "ubi-10 plus app protect image",
+			buildOS: "ubi-10-plus-nap",
+			wantOS:  "ubi-10-plus-nap",
 		},
 		{
 			name:    "alpine oss image",
@@ -2938,5 +2991,75 @@ var (
 			ExternalAuth: &conf_v1.ExternalAuth{},
 		},
 		Status: conf_v1.PolicyStatus{},
+	}
+
+	hstsPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "hsts-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			HSTS: &conf_v1.HSTS{
+				MaxAge: new(31536000),
+			},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	oidcNativePolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "oidc-native-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			OIDCNative: &conf_v1.OIDCNative{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	wafBundleSourceN1CPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "waf-bundle-n1c",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypeN1C,
+					URL:  "https://tenant.console.ves.volterra.io",
+				},
+			},
+		},
+	}
+
+	wafBundleSourceNIMPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "waf-bundle-nim",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypeNIM,
+					URL:  "https://nim.example.com",
+				},
+			},
+		},
 	}
 )

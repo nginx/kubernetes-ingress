@@ -7,7 +7,7 @@ package v1
 //
 // AddHeader defines an HTTP Header with an optional Always field to use with the add_header NGINX directive.
 type AddHeaderApplyConfiguration struct {
-	HeaderApplyConfiguration `json:",inline"`
+	HeaderApplyConfiguration `json:""`
 	// If set to true, add the header regardless of the response status code**. Default is false.
 	Always *bool `json:"always,omitempty"`
 }

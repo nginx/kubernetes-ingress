@@ -42,6 +42,9 @@ outputs:
   test-results-path:
     description: Test results full path
     value: ${{ steps.k8s.outputs.test_output_path }}
+  test-junit-path:
+    description: Test JUnit XML full path
+    value: ${{ steps.k8s.outputs.test_junit_path }}
 
 runs:
   using: composite
@@ -59,12 +62,16 @@ runs:
         cluster_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${{ github.run_id }}-control-plane)
         test_name=tests-nginx-${{ inputs.image-type }}-${name}.html
         test_output_path=${{ github.workspace }}/tests/${test_name}
+        test_junit_name=junit-nginx-${{ inputs.image-type }}-${name}.xml
+        test_junit_path=${{ github.workspace }}/tests/${test_junit_name}
         echo "cluster_ip=${cluster_ip}" >> $GITHUB_OUTPUT
         echo "test_name=${test_name}" >> $GITHUB_OUTPUT
         echo "test_output_path=${test_output_path}" >> $GITHUB_OUTPUT
+        echo "test_junit_path=${test_junit_path}" >> $GITHUB_OUTPUT
         echo "Output:"
         echo "  cluster_ip=${cluster_ip}"
         echo "  test_output_path=${test_output_path}"
+        echo "  test_junit_path=${test_junit_path}"
       shell: bash
 
     - name: Setup Kubeconfig
@@ -76,6 +83,7 @@ runs:
       id: smoke-tests
       run: |
         touch ${{ steps.k8s.outputs.test_output_path }}
+        touch ${{ steps.k8s.outputs.test_junit_path }}
         docker run --rm \
         --name test-runner-${{ github.run_id }} \
         --network=kind \
@@ -88,6 +96,7 @@ runs:
         -v ${{ github.workspace }}/config:/workspace/config \
         -v ${{ github.workspace }}/pyproject.toml:/workspace/pyproject.toml \
         -v ${{ steps.k8s.outputs.test_output_path }}:${{ steps.k8s.outputs.test_output_path }} \
+        -v ${{ steps.k8s.outputs.test_junit_path }}:${{ steps.k8s.outputs.test_junit_path }} \
         -v ~/.kube/kind/config:/root/.kube/config ${{ inputs.test-image }} \
         --docker-registry-user=oauth2accesstoken \
         --docker-registry-token=${{ inputs.registry-token }} \
@@ -98,7 +107,9 @@ runs:
         --service=nodeport --node-ip=${{ steps.k8s.outputs.cluster_ip }} \
         --html=${{ steps.k8s.outputs.test_output_path }} \
         --self-contained-html \
+        --junitxml=${{ steps.k8s.outputs.test_junit_path }} \
         --durations=10 \
+        -rfE \
         --show-ic-logs=yes \
         --plus-jwt=${{ inputs.plus-jwt }} \
         -m ${{ inputs.marker != '' && inputs.marker || '""' }}

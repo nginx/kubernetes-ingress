@@ -33,7 +33,6 @@ func createTestConfigurationDuringStartup() *Configuration {
 	isPlus := false
 	appProtectEnabled := false
 	appProtectDosEnabled := false
-	internalRoutesEnabled := false
 	isTLSPassthroughEnabled := true
 	certManagerEnabled := true
 	snippetsEnabled := true
@@ -45,7 +44,6 @@ func createTestConfigurationDuringStartup() *Configuration {
 		isPlus,
 		appProtectEnabled,
 		appProtectDosEnabled,
-		internalRoutesEnabled,
 		validation.NewVirtualServerValidator(validation.IsPlus(isTLSPassthroughEnabled), validation.IsDosEnabled(appProtectDosEnabled), validation.IsCertManagerEnabled(certManagerEnabled)),
 		validation.NewGlobalConfigurationValidator(map[int]bool{
 			80:  true,
@@ -4355,6 +4353,11 @@ func createTestIngressMinion(name string, host string, path string) *networking.
 			Paths: []networking.HTTPIngressPath{
 				{
 					Path: path,
+					Backend: networking.IngressBackend{
+						Service: &networking.IngressServiceBackend{
+							Name: "test-svc",
+						},
+					},
 				},
 			},
 		},
@@ -6071,14 +6074,9 @@ func TestValidateVSRSelectors(t *testing.T) {
 			}
 			vsrs, selectors, warnings := configuration.validateVSRSelectors(testCase.route, testCase.vsHost)
 
-			sort.Slice(testCase.expectedVSRs, func(i, j int) bool {
-				return testCase.expectedVSRs[i].Name < testCase.expectedVSRs[j].Name
-			})
-
-			sort.Slice(vsrs, func(i, j int) bool {
-				return vsrs[i].Name < vsrs[j].Name
-			})
-
+			// No sorting of either side before comparison: validateVSRSelectors
+			// guarantees namespace/name order, and expectedVSRs is written in
+			// that order.  Sorting here would mask an ordering regression.
 			if diff := cmp.Diff(testCase.expectedVSRs, vsrs); diff != "" {
 				t.Errorf("validateVSRSelectors() returned unexpected VSRs (-want +got):\n%s", diff)
 			}
@@ -6089,6 +6087,196 @@ func TestValidateVSRSelectors(t *testing.T) {
 				t.Errorf("validateVSRSelectors() returned unexpected VSR selectors (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// selectorTestVSRCount is the number of VSRs registered under a single
+// routeSelector by the determinism tests below.  Go randomizes map iteration
+// order, but the randomization is only reliably observable on a map of
+// non-trivial size: with 2-3 entries the reorder rate is low enough that a
+// test flakes rather than fails, at 12 it reorders on most calls.
+const selectorTestVSRCount = 12
+
+// selectorTestHost is the host shared by the selector VS and all its VSRs;
+// ValidateVirtualServerRouteForVirtualServer requires them to match.
+const selectorTestHost = "cafe.example.com"
+
+// registerSelectorVSRs registers selectorTestVSRCount VSRs that all match the
+// label selector {app: route}, each with a distinct subroute path so that
+// validateDuplicateVSRPaths does not prune any of them.  The namespace order
+// is deliberately the reverse of the name order, so any assertion on the
+// returned ordering pins sorting by namespace/name rather than by name alone.
+// Returns the expected namespace/name keys in sorted order.
+func registerSelectorVSRs(c *Configuration) []string {
+	keys := make([]string, 0, selectorTestVSRCount)
+	for i := range selectorTestVSRCount {
+		ns := fmt.Sprintf("ns-%02d", selectorTestVSRCount-1-i)
+		name := fmt.Sprintf("route-%02d", i)
+		vsr := createTestVirtualServerRouteWithLabels(
+			name, ns, selectorTestHost, fmt.Sprintf("/route-%02d", i), map[string]string{"app": "route"},
+		)
+		key := fmt.Sprintf("%s/%s", ns, name)
+		c.virtualServerRoutes[key] = vsr
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func vsrKeys(vsrs []*conf_v1.VirtualServerRoute) []string {
+	keys := make([]string, 0, len(vsrs))
+	for _, vsr := range vsrs {
+		keys = append(keys, fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name))
+	}
+	return keys
+}
+
+// TestValidateVSRSelectors_DeterministicOrder pins that the VSR slice returned
+// by validateVSRSelectors is stable across calls and sorted by namespace/name.
+//
+// The slice feeds VirtualServerConfiguration.VirtualServerRoutes, which
+// GenerateVirtualServerConfig walks in order to assign split_clients indices,
+// upstream names and location ordering.  Because it is sourced from
+// Configuration.virtualServerRoutes (a map), the order is randomized by Go
+// unless it is explicitly sorted.  Against the unfixed code this observes
+// several distinct orderings across the attempts below.
+func TestValidateVSRSelectors_DeterministicOrder(t *testing.T) {
+	t.Parallel()
+
+	const attempts = 40
+
+	configuration := createTestConfiguration()
+	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{}
+	wantKeys := registerSelectorVSRs(configuration)
+
+	route := &conf_v1.Route{
+		Path:          "/",
+		RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+	}
+
+	seen := make(map[string]int)
+	for i := range attempts {
+		vsrs, selectors, warnings := configuration.validateVSRSelectors(route, selectorTestHost)
+		if len(warnings) != 0 {
+			t.Fatalf("attempt %d: validateVSRSelectors() returned unexpected warnings: %v", i, warnings)
+		}
+
+		gotKeys := vsrKeys(vsrs)
+		seen[strings.Join(gotKeys, ",")]++
+
+		if diff := cmp.Diff(wantKeys, gotKeys); diff != "" {
+			t.Fatalf("attempt %d: validateVSRSelectors() returned VSRs in unexpected order (-want +got):\n%s", i, diff)
+		}
+
+		// The tracking side-channel must agree with the object slice; it was
+		// already sorted before this fix, the object slice was not.
+		if diff := cmp.Diff(wantKeys, selectors["app=route"]); diff != "" {
+			t.Errorf("attempt %d: vsrSelectors[app=route] disagrees with the returned VSR slice (-want +got):\n%s", i, diff)
+		}
+	}
+
+	if len(seen) != 1 {
+		t.Errorf("validateVSRSelectors() produced %d distinct orderings across %d calls, want 1", len(seen), attempts)
+	}
+}
+
+// TestSelectorVS_NoSpuriousChangesOnUnrelatedUpdate pins the dominant
+// production symptom of the unsorted VSR slice.
+//
+// VirtualServerConfiguration.IsEqual compares VirtualServerRoutes
+// positionally, so a reordered-but-identical VSR set compares as not equal.
+// rebuildHosts() then emits a ResourceChange for a VirtualServer that nobody
+// modified, driving a full template regen and an NGINX reload.  Every
+// unrelated resource event in the cluster becomes a coin flip on needlessly
+// reloading NGINX.
+//
+// Note that no mutation of the unrelated VS is required: every
+// AddOrUpdateVirtualServer call runs a full rebuildHosts(), which recomputes
+// the selector VS's VSR slice from scratch.  Against the unfixed code this
+// fires on the large majority of iterations.
+func TestSelectorVS_NoSpuriousChangesOnUnrelatedUpdate(t *testing.T) {
+	t.Parallel()
+
+	const attempts = 30
+
+	configuration := createTestConfiguration()
+	registerSelectorVSRs(configuration)
+
+	selectorVS := createTestVirtualServerWithRoutes("cafe", selectorTestHost, []conf_v1.Route{
+		{
+			Path:          "/",
+			RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+		},
+	})
+	if _, problems := configuration.AddOrUpdateVirtualServer(selectorVS); len(problems) != 0 {
+		t.Fatalf("AddOrUpdateVirtualServer(selectorVS) returned unexpected problems: %v", problems)
+	}
+
+	// Sanity: the fixture must actually attach all the VSRs, otherwise there is
+	// nothing to reorder and the test is vacuous.
+	selectorKey := getResourceKeyWithKind(virtualServerKind, &selectorVS.ObjectMeta)
+	vsConfig, ok := configuration.hosts[selectorTestHost].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not backed by a VirtualServerConfiguration", selectorTestHost)
+	}
+	if got := len(vsConfig.VirtualServerRoutes); got != selectorTestVSRCount {
+		t.Fatalf("selector VS attached %d VirtualServerRoutes, want %d", got, selectorTestVSRCount)
+	}
+
+	unrelated := createTestVirtualServer("unrelated", "other.example.com")
+	configuration.AddOrUpdateVirtualServer(unrelated)
+
+	spurious := 0
+	for range attempts {
+		changes, _ := configuration.AddOrUpdateVirtualServer(unrelated)
+		for _, c := range changes {
+			if c.Resource.GetKeyWithKind() == selectorKey {
+				spurious++
+			}
+		}
+	}
+
+	if spurious != 0 {
+		t.Errorf("re-adding an unrelated VirtualServer produced %d spurious changes for %s across %d iterations, want 0",
+			spurious, selectorKey, attempts)
+	}
+}
+
+// TestValidateVSRSelectors_InvalidVSRExcludedFromOrder pins that filtering
+// invalid VSRs does not perturb the ordering of the valid ones, and that an
+// excluded VSR is absent from both the object slice and the tracking map while
+// still producing a warning.
+func TestValidateVSRSelectors_InvalidVSRExcludedFromOrder(t *testing.T) {
+	t.Parallel()
+
+	configuration := createTestConfiguration()
+	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{}
+	wantKeys := registerSelectorVSRs(configuration)
+
+	// Same selector, but a host mismatch makes it fail
+	// ValidateVirtualServerRouteForVirtualServer.
+	bad := createTestVirtualServerRouteWithLabels(
+		"route-bad", "ns-bad", "wrong.example.com", "/route-bad", map[string]string{"app": "route"},
+	)
+	configuration.virtualServerRoutes["ns-bad/route-bad"] = bad
+
+	route := &conf_v1.Route{
+		Path:          "/",
+		RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+	}
+
+	vsrs, selectors, warnings := configuration.validateVSRSelectors(route, selectorTestHost)
+
+	if diff := cmp.Diff(wantKeys, vsrKeys(vsrs)); diff != "" {
+		t.Errorf("validateVSRSelectors() returned unexpected VSRs (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantKeys, selectors["app=route"]); diff != "" {
+		t.Errorf("validateVSRSelectors() returned unexpected vsrSelectors (-want +got):\n%s", diff)
+	}
+
+	wantWarn := `VirtualServerRoute ns-bad/route-bad is invalid: spec.host: Invalid value: "wrong.example.com": must be equal to 'cafe.example.com'`
+	if diff := cmp.Diff([]string{wantWarn}, warnings); diff != "" {
+		t.Errorf("validateVSRSelectors() returned unexpected warnings (-want +got):\n%s", diff)
 	}
 }
 
@@ -6385,6 +6573,134 @@ func TestValidateDuplicateVSRPaths(t *testing.T) {
 			expectedVSRs:  []*conf_v1.VirtualServerRoute{},
 			expectedWarns: nil,
 		},
+		{
+			name: "Paths differing only by whitespace after modifier are normalized duplicates",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~/foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-foo"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~ /foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr2-foo"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "~/foo",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-foo"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path ~ /foo has conflicting subroutes on default/vsr2 and default/vsr1",
+			},
+		},
+		{
+			name: "Longest-prefix paths differing only by whitespace are normalized duplicates",
+			vsrs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~/static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-static"},
+								},
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~ /static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr2-static"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedVSRs: []*conf_v1.VirtualServerRoute{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "vsr1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.VirtualServerRouteSpec{
+						IngressClass: "nginx",
+						Host:         "foo.example.com",
+						Subroutes: []conf_v1.Route{
+							{
+								Path: "^~/static",
+								Action: &conf_v1.Action{
+									Return: &conf_v1.ActionReturn{Body: "vsr1-static"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedWarns: []string{
+				"path ^~ /static has conflicting subroutes on default/vsr2 and default/vsr1",
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -6445,6 +6761,44 @@ func TestClassifyAndCollectVSRsDuplicateDedup(t *testing.T) {
 	}
 	if !foundDupWarning {
 		t.Errorf("expected duplicate VSR warning, got warnings: %v", col.warnings)
+	}
+}
+
+func TestClassifyAndCollectVSRsNormalizesRegexPaths(t *testing.T) {
+	t.Parallel()
+
+	const (
+		host      = "foo.example.com"
+		namespace = "default"
+		vsName    = "cafe"
+	)
+
+	vsr := createTestVirtualServerRoute("regex-vsr", namespace, host, "~/api")
+
+	vs := createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{Path: "~/api", Route: "regex-vsr"},
+		{Path: "~ /api", Route: "regex-vsr"},
+	})
+
+	cfg := createTestConfiguration()
+	cfg.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{
+		namespace + "/regex-vsr": vsr,
+	}
+
+	col := cfg.classifyAndCollectVSRs(vs)
+	entry, exists := col.regexEntries[namespace+"/regex-vsr"]
+	if !exists {
+		t.Fatalf("expected regex entry for %s/regex-vsr", namespace)
+	}
+
+	if diff := cmp.Diff([]string{"~/api"}, entry.paths); diff != "" {
+		t.Errorf("classifyAndCollectVSRs() collected unexpected regex paths (-want +got):\n%s", diff)
+	}
+	if entry.firstSeenIdx != 0 {
+		t.Errorf("expected firstSeenIdx 0, got %d", entry.firstSeenIdx)
+	}
+	if len(col.warnings) != 0 {
+		t.Errorf("expected no warnings, got %v", col.warnings)
 	}
 }
 

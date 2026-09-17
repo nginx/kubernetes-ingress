@@ -298,7 +298,7 @@ class TestVirtualServerGrpcHealthCheck:
         param_list = [
             "health_check port=50051 interval=1s jitter=2s",
             "type=grpc grpc_status=12",
-            "grpc_service=none.None;",
+            '"grpc_service=none.None";',
         ]
         for p in param_list:
             assert p in config
@@ -353,7 +353,7 @@ class TestVirtualServerGrpcHealthCheck:
             ic_pod_name,
             ingress_controller_prerequisites.namespace,
         )
-        assert "grpc_service=none.None" in config
+        assert '"grpc_service=none.None"' in config
 
         # Attempt to send a Hello message
         cert = get_certificate(

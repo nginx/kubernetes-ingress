@@ -22,10 +22,21 @@ import (
 )
 
 const (
-	ingressKind            = "Ingress"
-	virtualServerKind      = "VirtualServer"
-	virtualServerRouteKind = "VirtualServerRoute"
-	transportServerKind    = "TransportServer"
+	ingressKind                        = "Ingress"
+	virtualServerKind                  = "VirtualServer"
+	virtualServerRouteKind             = "VirtualServerRoute"
+	transportServerKind                = "TransportServer"
+	policyKind                         = "Policy"
+	secretKind                         = "Secret"
+	serviceKind                        = "Service"
+	namespaceKind                      = "Namespace"
+	endpointSliceKind                  = "EndpointSlice"
+	appProtectKind                     = "APPolicy"
+	appProtectLogConfKind              = "APLogConf"
+	appProtectUserSigKind              = "APUserSig"
+	appProtectDosKind                  = "APDosPolicy"
+	appProtectDosProtectedResourceKind = "APDosProtectedResource"
+	appProtectDosLogConfKind           = "APDosLogConf"
 )
 
 // Operation defines an operation to perform for a resource.
@@ -413,7 +424,6 @@ type Configuration struct {
 	isPlus                       bool
 	appProtectEnabled            bool
 	appProtectDosEnabled         bool
-	internalRoutesEnabled        bool
 	isTLSPassthroughEnabled      bool
 	snippetsEnabled              bool
 	isCertManagerEnabled         bool
@@ -436,7 +446,6 @@ func NewConfiguration(
 	isPlus bool,
 	appProtectEnabled bool,
 	appProtectDosEnabled bool,
-	internalRoutesEnabled bool,
 	virtualServerValidator *validation.VirtualServerValidator,
 	globalConfigurationValidator *validation.GlobalConfigurationValidator,
 	transportServerValidator *validation.TransportServerValidator,
@@ -471,7 +480,6 @@ func NewConfiguration(
 		isPlus:                       isPlus,
 		appProtectEnabled:            appProtectEnabled,
 		appProtectDosEnabled:         appProtectDosEnabled,
-		internalRoutesEnabled:        internalRoutesEnabled,
 		isTLSPassthroughEnabled:      isTLSPassthroughEnabled,
 		snippetsEnabled:              snippetsEnabled,
 		isCertManagerEnabled:         isCertManagerEnabled,
@@ -493,7 +501,7 @@ func (c *Configuration) AddOrUpdateIngress(ing *networking.Ingress) ([]ResourceC
 		delete(c.ingresses, key)
 		c.updateMinionIndex(key, nil)
 	} else {
-		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.internalRoutesEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled, c.allowEmptyIngressHost).ToAggregate()
+		validationError = validateIngress(ing, c.isPlus, c.appProtectEnabled, c.appProtectDosEnabled, c.snippetsEnabled, c.isDirectiveAutoadjustEnabled, c.allowEmptyIngressHost).ToAggregate()
 		if validationError != nil {
 			delete(c.ingresses, key)
 			c.updateMinionIndex(key, nil)
@@ -652,6 +660,14 @@ func (c *Configuration) DeleteVirtualServer(key string) ([]ResourceChange, []Con
 	return c.rebuildHosts()
 }
 
+// GetVirtualServer returns the last-applied VirtualServer with the given key,
+// or nil if none is tracked. Safe to call from any goroutine.
+func (c *Configuration) GetVirtualServer(key string) *conf_v1.VirtualServer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualServers[key]
+}
+
 // AddOrUpdateVirtualServerRoute adds or updates the VirtualServerRoute.
 func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServerRoute) ([]ResourceChange, []ConfigurationProblem) {
 	c.lock.Lock()
@@ -718,6 +734,14 @@ func (c *Configuration) DeleteVirtualServerRoute(key string) ([]ResourceChange, 
 	}
 
 	return c.rebuildHosts()
+}
+
+// GetVirtualServerRoute returns the last-applied VirtualServerRoute with the given key,
+// or nil if none is tracked. Safe to call from any goroutine.
+func (c *Configuration) GetVirtualServerRoute(key string) *conf_v1.VirtualServerRoute {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualServerRoutes[key]
 }
 
 // AddOrUpdateGlobalConfiguration adds or updates the GlobalConfiguration.
@@ -1893,6 +1917,12 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 		vsrSelectors[selectorStr] = make([]string, 0)
 	}
 
+	type matchedVSR struct {
+		key string
+		vsr *conf_v1.VirtualServerRoute
+	}
+	var matched []matchedVSR
+
 	for vsrKey, vsr := range c.virtualServerRoutes {
 		if sel.Matches(labels.Set(vsr.Labels)) {
 			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
@@ -1901,14 +1931,28 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 				warnings = append(warnings, warning)
 				continue
 			}
-			vsrs = append(vsrs, vsr)
-
-			// Add to selectors map
-			vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
+			matched = append(matched, matchedVSR{key: vsrKey, vsr: vsr})
 		}
 	}
 
-	sort.Strings(vsrSelectors[selectorStr])
+	// Sort before building the output slices.  The vsrs slice ends up as
+	// VirtualServerConfiguration.VirtualServerRoutes, which
+	// GenerateVirtualServerConfig walks in order to assign split_clients
+	// indices, upstream names and location ordering, and which
+	// VirtualServerConfiguration.IsEqual compares positionally.  The loop above
+	// ranges over a map, and Go randomizes map iteration order by design, so
+	// this is the only place that ordering guarantee can be established.
+	// Without it, an unchanged VirtualServer compares as changed and gets
+	// needlessly re-rendered and reloaded.
+	sort.Slice(matched, func(i, j int) bool { return matched[i].key < matched[j].key })
+
+	for _, m := range matched {
+		vsrs = append(vsrs, m.vsr)
+		// Built in sorted order, so no separate sort of the tracking map is
+		// needed.
+		vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], m.key)
+	}
+
 	return vsrs, vsrSelectors, warnings
 }
 
@@ -1920,7 +1964,8 @@ func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.V
 
 	for _, vsr := range vsrs {
 		for _, subroute := range vsr.Spec.Subroutes {
-			if path, exists := paths[subroute.Path]; exists {
+			normPath := validation.NormalizePath(subroute.Path)
+			if path, exists := paths[normPath]; exists {
 				subRoutes := fmt.Sprintf("%s and %s", fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name), path)
 				if fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name) == path {
 					// both subroutes are from the same VSR
@@ -1931,7 +1976,7 @@ func validateDuplicateVSRPaths(vsrs []*conf_v1.VirtualServerRoute) ([]*conf_v1.V
 
 				vsrsToRemove = append(vsrsToRemove, getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta))
 			} else {
-				paths[subroute.Path] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
+				paths[normPath] = fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name)
 			}
 		}
 	}
@@ -2029,6 +2074,7 @@ func (col *vsrCollection) collectRegexNamedRoute(
 	routeName, path string, routeIdx int,
 	regexSeenPaths map[string]map[string]struct{},
 ) {
+	normPath := validation.NormalizePath(path)
 	vsrKey := routeName
 	if !nsutils.HasNamespace(vsrKey) {
 		vsrKey = fmt.Sprintf("%s/%s", vs.Namespace, routeName)
@@ -2039,13 +2085,13 @@ func (col *vsrCollection) collectRegexNamedRoute(
 		return
 	}
 	if entry, found := col.regexEntries[vsrKey]; found {
-		if _, seen := regexSeenPaths[vsrKey][path]; !seen {
-			regexSeenPaths[vsrKey][path] = struct{}{}
+		if _, seen := regexSeenPaths[vsrKey][normPath]; !seen {
+			regexSeenPaths[vsrKey][normPath] = struct{}{}
 			entry.paths = append(entry.paths, path)
 		}
 	} else {
 		col.regexEntries[vsrKey] = &regexVSREntry{vsr: vsr, paths: []string{path}, firstSeenIdx: routeIdx}
-		regexSeenPaths[vsrKey] = map[string]struct{}{path: {}}
+		regexSeenPaths[vsrKey] = map[string]struct{}{normPath: {}}
 	}
 }
 

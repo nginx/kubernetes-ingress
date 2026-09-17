@@ -1,5 +1,4 @@
 import pytest
-import requests
 import yaml
 from settings import CRDS, TEST_DATA
 from suite.utils.ap_resources_utils import (
@@ -28,6 +27,7 @@ from suite.utils.resources_utils import (
     get_pod_name_that_contains,
     get_pods_amount,
     get_test_file_name,
+    retry_get,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -209,7 +209,7 @@ class TestAppProtect:
         ensure_response_from_backend(appprotect_setup.req_url, ingress_host, check404=True)
 
         print("----------------------- Send request ----------------------")
-        response = requests.get(appprotect_setup.req_url + "/<script>", headers={"host": ingress_host}, verify=False)
+        response = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response.text)
         delete_items_from_yaml(kube_apis, src_ing_yaml, test_namespace)
         assert_invalid_responses(response)
@@ -233,7 +233,7 @@ class TestAppProtect:
         wait_before_test(5)
 
         print("----------------------- Send request ----------------------")
-        response = requests.get(appprotect_setup.req_url + "/<script>", headers={"host": ingress_host}, verify=False)
+        response = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response.text)
         delete_items_from_yaml(kube_apis, src_ing_yaml, test_namespace)
         assert_valid_responses(response)
@@ -260,7 +260,7 @@ class TestAppProtect:
         ensure_response_from_backend(appprotect_setup.req_url, ingress_host, check404=True)
 
         print("----------------------- Send request ----------------------")
-        response = requests.get(appprotect_setup.req_url + "/<script>", headers={"host": ingress_host}, verify=False)
+        response = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response.text)
         delete_items_from_yaml(kube_apis, src_ing_yaml, test_namespace)
         assert_invalid_responses(response)
@@ -288,7 +288,7 @@ class TestAppProtect:
 
         print("----------------------- Send request ----------------------")
         wait_before_test(5)
-        response = requests.get(appprotect_setup.req_url + "/<script>", headers={"host": ingress_host}, verify=False)
+        response = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response.text)
         delete_items_from_yaml(kube_apis, src_ing_yaml, test_namespace)
         assert_valid_responses(response)
@@ -366,7 +366,7 @@ class TestAppProtect:
         ensure_response_from_backend(appprotect_setup.req_url, ingress_host, check404=True)
 
         print("----------------------- Send request ----------------------")
-        response = requests.get(appprotect_setup.req_url + "/<script>", headers={"host": ingress_host}, verify=False)
+        response = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response.text)
         syslog_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog-")
         syslog2_pod = get_pod_name_that_contains(kube_apis.v1, test_namespace, "syslog2")
@@ -434,9 +434,9 @@ class TestAppProtect:
         wait_before_test(120)
         ensure_response_from_backend(appprotect_setup.req_url, ingress_host, check404=True)
         print("----------------------- Send request ----------------------")
-        response1 = requests.get(appprotect_setup.req_url, headers={"host": ingress_host}, verify=False, data="kic")
+        response1 = retry_get(appprotect_setup.req_url, ingress_host, verify=False, data="kic")
         print(response1.text)
-        response2 = requests.get(appprotect_setup.req_url + "/<script>", headers={"host": ingress_host}, verify=False)
+        response2 = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response2.text)
         reload_ms = get_last_reload_time(appprotect_setup.metrics_url, "nginx")
         print(f"last reload duration: {reload_ms} ms")

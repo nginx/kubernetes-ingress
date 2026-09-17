@@ -6,6 +6,7 @@ package v1
 // with apply.
 //
 // SecurityLog defines the security log of a WAF policy.
+// Mutual exclusivity of apLogConf, apLogBundle, and apLogBundleSource is enforced by the Go validation layer.
 type SecurityLogApplyConfiguration struct {
 	// Enables security log.
 	Enable *bool `json:"enable,omitempty"`
@@ -13,6 +14,9 @@ type SecurityLogApplyConfiguration struct {
 	ApLogConf *string `json:"apLogConf,omitempty"`
 	// The App Protect WAF log bundle resource. Only works with apBundle.
 	ApLogBundle *string `json:"apLogBundle,omitempty"`
+	// ApLogBundleSource fetches the log profile bundle from N1C, NIM, or an HTTPS endpoint.
+	// Mutually exclusive with ApLogConf and ApLogBundle. Requires apBundleSource on the parent WAF.
+	ApLogBundleSource *BundleSourceApplyConfiguration `json:"apLogBundleSource,omitempty"`
 	// The log destination for the security log. Only accepted variables are syslog:server=<ip-address>; localhost; fqdn>:<port>, stderr, <absolute path to file>.
 	LogDest *string `json:"logDest,omitempty"`
 }
@@ -44,6 +48,14 @@ func (b *SecurityLogApplyConfiguration) WithApLogConf(value string) *SecurityLog
 // If called multiple times, the ApLogBundle field is set to the value of the last call.
 func (b *SecurityLogApplyConfiguration) WithApLogBundle(value string) *SecurityLogApplyConfiguration {
 	b.ApLogBundle = &value
+	return b
+}
+
+// WithApLogBundleSource sets the ApLogBundleSource field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ApLogBundleSource field is set to the value of the last call.
+func (b *SecurityLogApplyConfiguration) WithApLogBundleSource(value *BundleSourceApplyConfiguration) *SecurityLogApplyConfiguration {
+	b.ApLogBundleSource = value
 	return b
 }
 

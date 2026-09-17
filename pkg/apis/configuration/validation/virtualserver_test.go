@@ -10,6 +10,38 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+func TestNormalizePath(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		input    string
+		expected string
+		msg      string
+	}{
+		{input: "/foo", expected: "/foo", msg: "plain prefix unchanged"},
+		{input: "~ /api", expected: "~/api", msg: "regex with space"},
+		{input: "~  /api", expected: "~/api", msg: "regex with double space"},
+		{input: "~\t/api", expected: "~/api", msg: "regex with tab"},
+		{input: "~/api", expected: "~/api", msg: "regex without space"},
+		{input: "~* /bar", expected: "~*/bar", msg: "regex-ic with space"},
+		{input: "~*  /bar", expected: "~*/bar", msg: "regex-ic with double space"},
+		{input: "~*/bar", expected: "~*/bar", msg: "regex-ic without space"},
+		{input: "= /exact", expected: "=/exact", msg: "exact with space"},
+		{input: "=/exact", expected: "=/exact", msg: "exact without space"},
+		{input: "^~ /images", expected: "^~/images", msg: "longest prefix with space"},
+		{input: "^~/images", expected: "^~/images", msg: "longest prefix without space"},
+		{input: "~\u00a0/api", expected: "~/api", msg: "regex with non-breaking space (U+00A0)"},
+		{input: "^~\u00a0/images", expected: "^~/images", msg: "longest prefix with non-breaking space (U+00A0)"},
+		{input: "=\u00a0/exact", expected: "=/exact", msg: "exact with non-breaking space (U+00A0)"},
+	}
+
+	for _, test := range tests {
+		result := NormalizePath(test.input)
+		if result != test.expected {
+			t.Errorf("NormalizePath(%q) = %q, want %q for case: %s", test.input, result, test.expected, test.msg)
+		}
+	}
+}
+
 func TestValidateVirtualServer(t *testing.T) {
 	t.Parallel()
 
@@ -66,6 +98,138 @@ func TestValidateVirtualServer(t *testing.T) {
 	err := vsv.ValidateVirtualServer(&virtualServer)
 	if err != nil {
 		t.Errorf("ValidateVirtualServer() returned error %v for valid input %v", err, virtualServer)
+	}
+}
+
+func TestValidateVirtualServerPreservesRegexCapturesAndRewriteVariables(t *testing.T) {
+	t.Parallel()
+
+	vs := makeVirtualServer()
+	vs.Spec.Routes = []v1.Route{
+		{
+			Path: `~ ^/items/([0-9]{2})/([a-z]+)$`,
+			Splits: []v1.Split{
+				{
+					Weight: 50,
+					Action: &v1.Action{Proxy: &v1.ActionProxy{
+						Upstream:    "first",
+						RewritePath: `/backend/$1?name=$2`,
+					}},
+				},
+				{Weight: 50, Action: &v1.Action{Pass: "second"}},
+			},
+		},
+	}
+
+	err := NewVirtualServerValidator(IsPlus(true), IsDosEnabled(true)).ValidateVirtualServer(&vs)
+	if err != nil {
+		t.Fatalf("ValidateVirtualServer() rejected valid regex captures and rewrite variables: %v", err)
+	}
+}
+
+func TestValidateVirtualServerRejectsNginxSyntaxInUnquotedPaths(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		configure func(*v1.VirtualServer)
+	}{
+		{
+			name: "route comment delimiter",
+			configure: func(vs *v1.VirtualServer) {
+				vs.Spec.Routes[0].Path = "/first#ignored"
+			},
+		},
+		{
+			name: "route quote delimiter",
+			configure: func(vs *v1.VirtualServer) {
+				vs.Spec.Routes[0].Path = `/first"`
+			},
+		},
+		{
+			name: "route backtick",
+			configure: func(vs *v1.VirtualServer) {
+				vs.Spec.Routes[0].Path = "/first`"
+			},
+		},
+		{
+			name: "proxy rewrite comment delimiter",
+			configure: func(vs *v1.VirtualServer) {
+				vs.Spec.Routes[0].Action = &v1.Action{Proxy: &v1.ActionProxy{Upstream: "first", RewritePath: "/backend#ignored"}}
+			},
+		},
+		{
+			name: "proxy rewrite quote delimiter",
+			configure: func(vs *v1.VirtualServer) {
+				vs.Spec.Routes[0].Action = &v1.Action{Proxy: &v1.ActionProxy{Upstream: "first", RewritePath: `/backend"`}}
+			},
+		},
+		{
+			name: "grpc service comment delimiter",
+			configure: func(vs *v1.VirtualServer) {
+				vs.Spec.Upstreams[0].HealthCheck = &v1.HealthCheck{Enable: true, GRPCService: "health.Service#ignored"}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			vs := makeVirtualServer()
+			test.configure(&vs)
+			err := NewVirtualServerValidator(IsPlus(true), IsDosEnabled(true)).ValidateVirtualServer(&vs)
+			if err == nil {
+				t.Fatal("ValidateVirtualServer() accepted NGINX syntax-breaking input")
+			}
+		})
+	}
+}
+
+func TestValidateVirtualServerRouteRejectsNginxSyntaxInPath(t *testing.T) {
+	t.Parallel()
+
+	vsr := v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "items", Namespace: "default"},
+		Spec: v1.VirtualServerRouteSpec{
+			Host: "example.com",
+			Upstreams: []v1.Upstream{
+				{Name: "items", Service: "items", Port: 80},
+			},
+			Subroutes: []v1.Route{
+				{Path: "/items#ignored", Action: &v1.Action{Pass: "items"}},
+			},
+		},
+	}
+
+	if err := NewVirtualServerValidator().ValidateVirtualServerRoute(&vsr); err == nil {
+		t.Fatal("ValidateVirtualServerRoute() accepted a comment delimiter in a subroute path")
+	}
+}
+
+func TestValidateVirtualServerRoutePreservesRegexCapturesAndRewriteVariables(t *testing.T) {
+	t.Parallel()
+
+	vsr := v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "items", Namespace: "default"},
+		Spec: v1.VirtualServerRouteSpec{
+			Host: "example.com",
+			Upstreams: []v1.Upstream{
+				{Name: "items", Service: "items", Port: 80},
+			},
+			Subroutes: []v1.Route{
+				{
+					Path: `~ ^/items/([0-9]+)/([a-z]+)$`,
+					Action: &v1.Action{Proxy: &v1.ActionProxy{
+						Upstream:    "items",
+						RewritePath: `/backend/$1?name=$2`,
+					}},
+				},
+			},
+		},
+	}
+
+	if err := NewVirtualServerValidator().ValidateVirtualServerRoute(&vsr); err != nil {
+		t.Fatalf("ValidateVirtualServerRoute() rejected valid regex captures and rewrite variables: %v", err)
 	}
 }
 
@@ -622,6 +786,38 @@ func TestValidateUpstreamsFails(t *testing.T) {
 				"upstream1": {},
 			},
 			msg: "invalid service",
+		},
+		{
+			// client-body-buffer-size was the one size field in this list without
+			// a validator, and it renders unquoted into client_body_buffer_size in
+			// location context, so a value ending the directive could close the
+			// location and open one of its own.
+			upstreams: []v1.Upstream{
+				{
+					Name:                 "upstream1",
+					Service:              "test-1",
+					Port:                 80,
+					ClientBodyBufferSize: `8k; } location /injected { return 200 "owned"; } location /x {`,
+				},
+			},
+			expectedUpstreamNames: map[string]sets.Empty{
+				"upstream1": {},
+			},
+			msg: "client-body-buffer-size with directive breakout",
+		},
+		{
+			upstreams: []v1.Upstream{
+				{
+					Name:                 "upstream1",
+					Service:              "test-1",
+					Port:                 80,
+					ClientBodyBufferSize: "not-a-size",
+				},
+			},
+			expectedUpstreamNames: map[string]sets.Empty{
+				"upstream1": {},
+			},
+			msg: "invalid client-body-buffer-size",
 		},
 		{
 			upstreams: []v1.Upstream{
@@ -1433,6 +1629,60 @@ func TestValidateActionFails(t *testing.T) {
 			},
 			msg: "proxy action with missing upstream field",
 		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "", Value: "value"}},
+				},
+			},
+			msg: "return action with empty header name",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "X-Header;inject", Value: "value"}},
+				},
+			},
+			msg: "return action with semicolon in header name",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "X-Header", Value: "$http_authorization"}},
+				},
+			},
+			msg: "return action with $ in header value",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "X-Header", Value: "value\"inject"}},
+				},
+			},
+			msg: "return action with unescaped quote in header value",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: "X-Header{inject}", Value: "value"}},
+				},
+			},
+			msg: "return action with brace in header name",
+		},
+		{
+			action: &v1.Action{
+				Return: &v1.ActionReturn{
+					Body:    "Hello World",
+					Headers: []v1.Header{{Name: ";}location /pwned {", Value: "x"}},
+				},
+			},
+			msg: "return action with full injection payload in header name",
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
@@ -1691,6 +1941,14 @@ func TestValidateRegexPath(t *testing.T) {
 			regexPath: "~ ^/coffee/(?!.*\\/latte)(?!.*\\/americano)(.*)",
 			msg:       "regex with backtracking",
 		},
+		{
+			regexPath: "~  ^/foo.*\\.jpg",
+			msg:       "case sensitive regexp with extra space after modifier",
+		},
+		{
+			regexPath: "~*\t^/Bar.*\\.jpg",
+			msg:       "case insensitive regexp with tab after modifier",
+		},
 	}
 
 	for _, test := range tests {
@@ -1722,6 +1980,18 @@ func TestValidateRegexPathFails(t *testing.T) {
 		{
 			regexPath: `~ /foo\`,
 			msg:       "ending in backslash",
+		},
+		{
+			regexPath: `~ /foo\\`,
+			msg:       "ending in escaped backslash: NGINX collapses \\\\ to a lone trailing \\ that PCRE rejects",
+		},
+		{
+			regexPath: "~ ^/foo\u0085bar",
+			msg:       "non-printable character",
+		},
+		{
+			regexPath: "~ +",
+			msg:       "bare + after modifier is nothing to repeat",
 		},
 	}
 
@@ -2606,6 +2876,21 @@ func TestValidateVirtualServerRouteSubroutes(t *testing.T) {
 		{
 			routes: []v1.Route{
 				{
+					Path: "^~/images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test": {},
+			},
+			vsPaths: []string{"^~ /images"},
+			msg:     "valid longest prefix match with spaced VS path",
+		},
+		{
+			routes: []v1.Route{
+				{
 					Path: "~/api/v1",
 					Action: &v1.Action{
 						Pass: "test",
@@ -2836,6 +3121,27 @@ func TestValidateVirtualServerRouteSubroutesFails(t *testing.T) {
 			},
 			vsPaths: []string{"^~/images"},
 			msg:     "longest prefix match vs path with plain prefix subroute path",
+		},
+		{
+			routes: []v1.Route{
+				{
+					Path: "^~/images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+				{
+					Path: "^~ /images/thumbnails",
+					Action: &v1.Action{
+						Pass: "test-1",
+					},
+				},
+			},
+			upstreamNames: map[string]sets.Empty{
+				"test-1": {},
+			},
+			vsPaths: []string{"^~ /images"},
+			msg:     "spacing-duplicate longest prefix subroute paths",
 		},
 		{
 			routes: []v1.Route{
@@ -3838,6 +4144,13 @@ func TestValidateActionReturn(t *testing.T) {
 			Type: "application/json",
 			Body: "Hello World",
 		},
+		{
+			Body: "Hello World",
+			Headers: []v1.Header{
+				{Name: "X-Custom-Header", Value: "my-value"},
+				{Name: "Content-Type", Value: "text/html"},
+			},
+		},
 	}
 
 	vsv := &VirtualServerValidator{isPlus: false}
@@ -4526,6 +4839,19 @@ func TestValidateErrorPageReturn(t *testing.T) {
 				Type:    "application/json",
 				Body:    `{\"message\": \"Could not process request, try again\", \"upstream_status\": \"${upstream_status}\"}`,
 				Headers: nil,
+			},
+		},
+		{
+			ActionReturn: v1.ActionReturn{
+				Code: 502,
+				Type: "",
+				Body: "Bad Gateway",
+				Headers: []v1.Header{
+					{
+						Name:  "X-Upstream-Status",
+						Value: "${upstream_status}",
+					},
+				},
 			},
 		},
 	}

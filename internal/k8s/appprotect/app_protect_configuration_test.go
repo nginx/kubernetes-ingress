@@ -1198,3 +1198,97 @@ func TestGetAppProtectResource(t *testing.T) {
 		}
 	}
 }
+
+// resetAPIVersionForTesting restores the package-level GVR/GVK vars to their
+// default v1beta1 values.
+func resetAPIVersionForTesting(t *testing.T) {
+	t.Helper()
+	if err := SetAPIVersion(APIVersionV1beta1); err != nil {
+		t.Fatalf("resetAPIVersionForTesting: %v", err)
+	}
+}
+
+func TestSelectAPIVersion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		plmEnabled  bool
+		wantVersion APIVersion
+	}{
+		{
+			name:        "PLM disabled selects v1beta1 (default)",
+			plmEnabled:  false,
+			wantVersion: APIVersionV1beta1,
+		},
+		{
+			name:        "PLM enabled selects v1",
+			plmEnabled:  true,
+			wantVersion: APIVersionV1,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := SelectAPIVersion(tc.plmEnabled); got != tc.wantVersion {
+				t.Errorf("SelectAPIVersion(%v) = %q, want %q", tc.plmEnabled, got, tc.wantVersion)
+			}
+		})
+	}
+}
+
+func TestSetAPIVersion(t *testing.T) {
+	defer resetAPIVersionForTesting(t)
+
+	tests := []struct {
+		name       string
+		version    APIVersion
+		wantErr    bool
+		wantOnGVRs string // expected Version on all GVRs / GVKs after the call
+	}{
+		{
+			name:       "v1",
+			version:    APIVersionV1,
+			wantOnGVRs: "v1",
+		},
+		{
+			name:       "v1beta1",
+			version:    APIVersionV1beta1,
+			wantOnGVRs: "v1beta1",
+		},
+		{
+			name:    "unsupported version rejected",
+			version: APIVersion("v2alpha1"),
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := SetAPIVersion(tc.version)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("SetAPIVersion(%q) expected an error, got nil", tc.version)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("SetAPIVersion(%q) unexpected error: %v", tc.version, err)
+			}
+			for _, got := range []struct {
+				name string
+				v    string
+			}{
+				{"PolicyGVR", PolicyGVR.Version},
+				{"PolicyGVK", PolicyGVK.Version},
+				{"LogConfGVR", LogConfGVR.Version},
+				{"LogConfGVK", LogConfGVK.Version},
+				{"UserSigGVR", UserSigGVR.Version},
+				{"UserSigGVK", UserSigGVK.Version},
+			} {
+				if got.v != tc.wantOnGVRs {
+					t.Errorf("%s.Version = %q, want %q", got.name, got.v, tc.wantOnGVRs)
+				}
+			}
+		})
+	}
+}

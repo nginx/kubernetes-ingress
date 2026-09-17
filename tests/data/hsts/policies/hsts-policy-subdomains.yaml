@@ -1,0 +1,8 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: hsts-policy-subdomains
+spec:
+  hsts:
+    maxAge: 2592000
+    includeSubDomains: true

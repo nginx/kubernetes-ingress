@@ -1,0 +1,47 @@
+# Test 9: NJS on VS1 and Native on VS2 (separate VirtualServers).
+#
+# Prerequisites: app1.${LB_IP}.nip.io and app2.${LB_IP}.nip.io registered in
+# Keycloak (NJS callback /_codexch for app1; native callback for app2).
+#
+# Verify:
+#   - `run-test.sh 9 check` shows the NJS OIDC set variables under app1's
+#     server{} and an oidc_provider block referenced from app2's server{}.
+#   - Browse https://app1.${LB_IP}.nip.io/ -> NJS callback /_codexch.
+#   - Browse https://app2.${LB_IP}.nip.io/ -> native callback /oidc_callback_*.
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: app1
+spec:
+  host: app1.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidc-njs-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: app2
+spec:
+  host: app2.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

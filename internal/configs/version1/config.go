@@ -20,11 +20,12 @@ type IngressNginxConfig struct {
 	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
+	OIDCProviders           []version2.OIDCProvider
 	Ingress                 Ingress
-	SpiffeClientCerts       bool
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
+	KeyValZones             []version2.KeyValZone
 }
 
 // Ingress holds information about an Ingress resource.
@@ -116,6 +117,7 @@ type Server struct {
 	AddHeaders             []version2.AddHeader
 	Allow                  []string
 	Deny                   []string
+	OIDCProviderName       string
 	PoliciesErrorReturn    *version2.Return
 
 	HealthChecks map[string]HealthCheck
@@ -147,9 +149,22 @@ type Server struct {
 	AppProtectDosAccessLogDst    string
 	WAF                          *version2.WAF
 
-	SpiffeCerts bool
-
 	DisableIPV6 bool
+
+	ProxyRedirectFrom string
+	ProxyRedirectTo   string
+
+	// CustomHTTPErrorCodes holds the upstream status codes to intercept at server
+	// context (set from the nginx.org/custom-http-errors annotation on the Ingress
+	// or on the master of a mergeable Ingress). All non-overriding locations on
+	// the server inherit these directives via standard NGINX inheritance.
+	CustomHTTPErrorCodes []int
+	// CustomHTTPErrorBackend is the upstream name that @custom_default_backend
+	// proxies to. Populated from the Ingress's spec.defaultBackend upstream.
+	// Non-empty iff the server should render the shared @custom_default_backend
+	// named location — that is, custom-http-errors are configured AND the Ingress
+	// has a spec.defaultBackend. Doubles as the enable flag; no separate boolean.
+	CustomHTTPErrorBackend string
 
 	AppRoot string
 }
@@ -203,6 +218,7 @@ type Location struct {
 	Websocket               bool
 	Rewrite                 string
 	RewriteTarget           string
+	UpstreamVhost           string
 	SSL                     bool
 	GRPC                    bool
 	ProxyBuffering          bool
@@ -217,6 +233,7 @@ type Location struct {
 	BasicAuth               *BasicAuth
 	ServiceName             string
 	LimitReq                *LimitReq
+	DisableForwardedHeaders bool
 	CORSEnabled             bool
 
 	AuthRequestOff bool
@@ -224,9 +241,23 @@ type Location struct {
 
 	MinionIngress *Ingress
 
-	ProxyNextUpstream          string
-	ProxyNextUpstreamTimeout   string
-	ProxyNextUpstreamTries     *uint64
+	ProxyNextUpstream        string
+	ProxyNextUpstreamTimeout string
+	ProxyNextUpstreamTries   *uint64
+	ProxyRedirectFrom        string
+	ProxyRedirectTo          string
+	// CustomHTTPErrorCodes lists the upstream status codes to intercept at this
+	// location. When non-empty, the location renders proxy_intercept_errors on;
+	// and, when the parent Server has a non-empty CustomHTTPErrorBackend, an
+	// error_page directive routing those codes to @custom_default_backend.
+	// Overrides any server-level CustomHTTPErrorCodes for this location per
+	// NGINX's error_page inheritance rule (nested block replaces parent).
+	CustomHTTPErrorCodes []int
+	// SkipCustomHTTPErrors is set on the synthesized default-backend location to
+	// break the intercept loop when server-level custom-http-errors would
+	// otherwise cause the default backend to intercept its own responses. When
+	// true the template emits proxy_intercept_errors off; inside the location.
+	SkipCustomHTTPErrors       bool
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
@@ -234,6 +265,7 @@ type Location struct {
 	Deny                       []string
 	WAF                        *version2.WAF
 	EgressMTLS                 *version2.EgressMTLS
+	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
 }
 
@@ -345,8 +377,6 @@ type MainConfig struct {
 	AppProtectDosLogFormat             []string
 	AppProtectDosLogFormatEscaping     string
 	AppProtectDosArbFqdn               string
-	InternalRouteServer                bool
-	InternalRouteServerName            string
 	LatencyMetrics                     bool
 	ZoneSyncConfig                     ZoneSyncConfig
 	OIDC                               OIDCConfig

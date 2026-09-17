@@ -10,15 +10,19 @@ import (
 // with apply.
 //
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.
+// Mutual exclusivity of apPolicy, apBundle, and apBundleSource is enforced by the Go validation layer.
 type WAFApplyConfiguration struct {
 	// Enables NGINX App Protect WAF.
 	Enable *bool `json:"enable,omitempty"`
-	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle.
+	// The App Protect WAF policy of the WAF. Accepts an optional namespace. Mutually exclusive with apBundle and apBundleSource.
 	ApPolicy *string `json:"apPolicy,omitempty"`
-	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy.
-	ApBundle     *string                        `json:"apBundle,omitempty"`
-	SecurityLog  *SecurityLogApplyConfiguration `json:"securityLog,omitempty"`
-	SecurityLogs []*configurationv1.SecurityLog `json:"securityLogs,omitempty"`
+	// The App Protect WAF policy bundle. Mutually exclusive with apPolicy and apBundleSource.
+	ApBundle *string `json:"apBundle,omitempty"`
+	// ApBundleSource fetches the WAF policy bundle from N1C, NIM, or an HTTPS endpoint.
+	// Mutually exclusive with ApPolicy and ApBundle.
+	ApBundleSource *BundleSourceApplyConfiguration `json:"apBundleSource,omitempty"`
+	SecurityLog    *SecurityLogApplyConfiguration  `json:"securityLog,omitempty"`
+	SecurityLogs   []*configurationv1.SecurityLog  `json:"securityLogs,omitempty"`
 }
 
 // WAFApplyConfiguration constructs a declarative configuration of the WAF type for use with
@@ -48,6 +52,14 @@ func (b *WAFApplyConfiguration) WithApPolicy(value string) *WAFApplyConfiguratio
 // If called multiple times, the ApBundle field is set to the value of the last call.
 func (b *WAFApplyConfiguration) WithApBundle(value string) *WAFApplyConfiguration {
 	b.ApBundle = &value
+	return b
+}
+
+// WithApBundleSource sets the ApBundleSource field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ApBundleSource field is set to the value of the last call.
+func (b *WAFApplyConfiguration) WithApBundleSource(value *BundleSourceApplyConfiguration) *WAFApplyConfiguration {
+	b.ApBundleSource = value
 	return b
 }
 

@@ -253,18 +253,6 @@ http {
 
         return 418;
     }
-    {{- if .InternalRouteServer}}
-    server {
-        listen 443 ssl;
-        {{if not .DisableIPV6}}listen [::]:443 ssl;{{end}}
-        server_name {{.InternalRouteServerName}};
-        ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_client_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        ssl_verify_client on;
-        ssl_verify_depth 25;
-    }
-    {{- end}}
 }
 
 stream {

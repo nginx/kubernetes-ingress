@@ -148,7 +148,7 @@ class TestVSRouteUpstreamOptions:
                     },
                 },
                 [
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly secure path=/some-valid/path;",
+                    'sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly secure "path=/some-valid/path";',
                 ],
             ),
         ],
@@ -608,7 +608,7 @@ class TestOptionsSpecificForPlus:
                     "queue": {"size": 100},
                 },
                 [
-                    "health_check uri=/  port=8080 interval=5s jitter=0s fails=1 passes=1 keepalive_time=60s;",
+                    'health_check "uri=/"  port=8080 interval=5s jitter=0s fails=1 passes=1 keepalive_time=60s;',
                     "slow_start=3h",
                     "queue 100 timeout=60s;",
                 ],
@@ -643,7 +643,7 @@ class TestOptionsSpecificForPlus:
                     "proxy_send_timeout 55s;",
                     'proxy_set_header Host "virtual-server.example.com";',
                     "proxy_pass https://vs",
-                    "health_check uri=/health  port=8080 interval=15s jitter=3s fails=2 passes=2 match=vs_backends-namespace_virtual-server-route_vsr_backend2-namespace_backend2_backend2_match keepalive_time=120s;",
+                    'health_check "uri=/health"  port=8080 interval=15s jitter=3s fails=2 passes=2 match=vs_backends-namespace_virtual-server-route_vsr_backend2-namespace_backend2_backend2_match keepalive_time=120s;',
                 ],
             ),
         ],
