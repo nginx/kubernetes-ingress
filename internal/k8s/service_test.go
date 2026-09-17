@@ -147,6 +147,41 @@ func TestHasServicePortChanges(t *testing.T) {
 			false,
 			"Some names some ports",
 		},
+		{
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("kubernetes.io/h2c"),
+			}},
+			[]v1.ServicePort{{
+				Port: 80,
+			}},
+			true,
+			"AppProtocol added/removed",
+		},
+		{
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("kubernetes.io/h2c"),
+			}},
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("http"),
+			}},
+			true,
+			"AppProtocol changed",
+		},
+		{
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("kubernetes.io/h2c"),
+			}},
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("kubernetes.io/h2c"),
+			}},
+			false,
+			"AppProtocol unchanged",
+		},
 	}
 
 	for _, c := range cases {
