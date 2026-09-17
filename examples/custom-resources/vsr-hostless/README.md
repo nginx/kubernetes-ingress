@@ -1,163 +1,284 @@
-# Hostless VirtualServerRoute
+# Hostless VirtualServerRoute Configuration
 
-This example demonstrates the **hostless VirtualServerRoute** feature: a
-VirtualServerRoute whose `spec.host` field is omitted can be referenced by
-any number of VirtualServers, regardless of each VirtualServer's own host.
+In this example we use the [VirtualServer and
+VirtualServerRoute](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/)
+resources to configure load balancing for the cafe application, where the coffee VirtualServerRoute is *hostless*: it
+omits `spec.host`, so it can be referenced by any VirtualServer regardless of that VirtualServer's host. This lets the
+same route configuration be shared by several VirtualServers instead of being duplicated per host.
 
-Use this pattern when you want to share a common set of upstreams and
-subroutes (for example, a `coffee` microservice) across multiple hostnames
-without duplicating the route configuration.
+The example uses two VirtualServers, each attaching the same hostless VirtualServerRoute a different way:
 
-## Overview
+- The `coffee` VirtualServerRoute omits `spec.host` and carries the label `app: cafe`. It defines the `/coffee`
+  subroute and is attached to both VirtualServers at the same time.
+- The `cafe` VirtualServer serves `cafe.example.com` and attaches the coffee VirtualServerRoute by name, using
+  `route: default/coffee`.
+- The `cafe2` VirtualServer serves `cafe2.example.com` and attaches the same VirtualServerRoute by label, using
+  [`routeSelector`](https://docs.nginx.com/nginx-ingress-controller/configuration/virtualserver-and-virtualserverroute-resources/#routeselector).
+- The `tea` VirtualServerRoute sets `spec.host: cafe.example.com`. Unlike the coffee route, it can only be used by a
+  VirtualServer that serves the same host, so it is available to `cafe` only.
 
-The example creates:
-
-| Resource | Kind | Description |
-| --- | --- | --- |
-| `coffee` | VirtualServerRoute | **Hostless** — serves `/coffee` from the `coffee-svc` upstream |
-| `tea` | VirtualServerRoute | Host-bound to `cafe.example.com` — serves `/tea` |
-| `cafe` | VirtualServer | `cafe.example.com` — references both VSRs by name |
-| `cafe2` | VirtualServer | `cafe2.example.com` — references the hostless `coffee` VSR via a `routeSelector` |
-| `cafe3` | VirtualServer | `cafe3.example.com` — references the hostless `coffee` VSR by name |
-
-Because the `coffee` VSR has no `spec.host` field, it can be attached to
-`cafe`, `cafe2`, and `cafe3` simultaneously. Its `status.referencedBy` field
-lists all three VirtualServers.
-
-The `tea` VSR sets `spec.host: cafe.example.com` and therefore can only be
-used by VirtualServers that share that same host.
+The example is similar to the [basic configuration with VirtualServerRoute example](../basic-configuration-vsr/README.md),
+which shows `route` and `routeSelector` on a single VirtualServer. Here, both methods reference the same hostless
+VirtualServerRoute from two VirtualServers with different hosts.
 
 ## Prerequisites
 
-1. Run `make secrets` at the repository root to generate the TLS secret
-   manifest (`common-secrets/cafe-secret.yaml`) used by all three
-   VirtualServers.
-2. Follow the [installation instructions](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
-   to deploy the Ingress Controller with custom resources enabled.
-3. Save the public IP and HTTPS port of the Ingress Controller:
+1. Run `make secrets` command to generate the necessary secrets for the example.
+
+1. Follow the [installation](https://docs.nginx.com/nginx-ingress-controller/install/manifests)
+   instructions to deploy the Ingress Controller with custom resources enabled.
+
+1. Save the public IP address of the Ingress Controller into a shell variable:
 
     ```console
     IC_IP=XXX.YYY.ZZZ.III
-    IC_HTTPS_PORT=<port>
     ```
 
-## Step 1 — Deploy the applications
+1. Save the HTTPS port of the Ingress Controller into a shell variable:
 
-```console
-kubectl apply -f coffee.yaml
-kubectl apply -f tea.yaml
-```
+    ```console
+    IC_HTTPS_PORT=<port number>
+    ```
 
-## Step 2 — Create the TLS secret
+## Step 1 - Deploy the Cafe Application
 
-```console
-kubectl apply -f cafe-secret.yaml
-```
+1. Create the tea deployment and service:
 
-## Step 3 — Create the policies
+    ```console
+    kubectl create -f tea.yaml
+    ```
 
-```console
-kubectl apply -f rate-limit.yaml
-kubectl apply -f access-control-policy-allow.yaml
-```
+1. Create the coffee deployment and service:
 
-- `rate-limit-policy` is applied at the VirtualServer level on `cafe`.
-- `access-control-policy-allow` is applied at the subroute level on the
-  hostless `coffee` VSR — every VirtualServer that attaches this VSR
-  inherits the policy.
+    ```console
+    kubectl create -f coffee.yaml
+    ```
 
-## Step 4 — Create the VirtualServerRoutes
+## Step 2 - Deploy the Policies
 
-The hostless `coffee` VSR has no `spec.host`:
+1. Create the rate limit policy:
 
-```yaml
-# coffee-virtual-server-route.yaml
-apiVersion: k8s.nginx.org/v1
-kind: VirtualServerRoute
-metadata:
-  name: coffee
-  labels:
-    app: cafe          # matched by cafe2's routeSelector
-spec:
-  # spec.host is intentionally omitted — hostless mode
-  upstreams:
-  - name: coffee
-    service: coffee-svc
-    port: 80
-  subroutes:
-  - path: /coffee
-    action:
-      pass: coffee
-    policies:
-    - name: access-control-policy-allow
-```
+    ```console
+    kubectl create -f rate-limit.yaml
+    ```
 
-```console
-kubectl apply -f coffee-virtual-server-route.yaml
-kubectl apply -f tea-virtual-server-route.yaml
-```
+    The `rate-limit-policy` allows only 1 request per second coming from a single IP address. It is referenced by the
+    `cafe` VirtualServer, so it applies to `cafe.example.com` only. The `cafe2` VirtualServer does not reference it.
 
-At this point neither VSR has a referencing VirtualServer, so both will
-show a `NoVirtualServerFound` warning event. This is expected.
+1. Create the access control policy:
 
-## Step 5 — Create the VirtualServers
+    ```console
+    kubectl create -f access-control-policy-allow.yaml
+    ```
 
-```console
-kubectl apply -f cafe-virtual-server.yaml    # references tea + coffee by name
-kubectl apply -f cafe2-virtual-server.yaml   # references coffee via routeSelector
-kubectl apply -f cafe3-virtual-server.yaml   # references coffee by name
-```
+    The `access-control-policy-allow` policy allows requests from the `10.0.0.0/8` subnet only. It is referenced by the
+    `/coffee` subroute of the hostless coffee VirtualServerRoute, so it travels with that route to every VirtualServer
+    that attaches it. See [Apply policies to
+    resources](https://docs.nginx.com/nginx-ingress-controller/configuration/policy-resource/applying-policies/) for
+    more details on where policies can be attached.
 
-## Step 6 — Verify
+## Step 3 - Configure Load Balancing and TLS Termination
 
-Inspect the shared hostless VSR:
+1. Create the secret with the TLS certificate and key:
 
-```console
-kubectl describe virtualserverroute coffee
-```
+    ```console
+    kubectl create -f cafe-secret.yaml
+    ```
 
-The `status.referencedBy` field should list all three VirtualServers:
+    Both VirtualServers reference this secret. The certificate generated by `make secrets` is valid for
+    `cafe.example.com` and `*.example.com`, which covers `cafe2.example.com` as well.
 
-```text
-Status:
-  Referenced By:  default/cafe, default/cafe2, default/cafe3
-  State:          Valid
-```
+1. Create the hostless VirtualServerRoute resource for coffee:
 
-Send traffic to each hostname:
+    ```console
+    kubectl create -f coffee-virtual-server-route.yaml
+    ```
 
-```console
-# cafe — hostless coffee VSR + host-bound tea VSR
-curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP \
-  https://cafe.example.com:$IC_HTTPS_PORT/coffee --insecure
-curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP \
-  https://cafe.example.com:$IC_HTTPS_PORT/tea --insecure
+    Note that this resource does not set `spec.host` and that it defines the label `app: cafe`, which is what the
+    `cafe2` VirtualServer matches on with its `routeSelector`.
 
-# cafe2 — hostless coffee VSR attached via routeSelector
-curl --resolve cafe2.example.com:$IC_HTTPS_PORT:$IC_IP \
-  https://cafe2.example.com:$IC_HTTPS_PORT/coffee --insecure
+1. Create the VirtualServerRoute resource for tea:
 
-# cafe3 — hostless coffee VSR attached by name
-curl --resolve cafe3.example.com:$IC_HTTPS_PORT:$IC_IP \
-  https://cafe3.example.com:$IC_HTTPS_PORT/coffee --insecure
-```
+    ```console
+    kubectl create -f tea-virtual-server-route.yaml
+    ```
 
-All three `/coffee` requests are served by the same `coffee` VSR and share
-the `access-control-policy-allow` policy defined on its subroute.
+    Note that this resource sets `spec.host: cafe.example.com`.
 
-## Transition: making a hostless VSR host-bound
+1. Create the VirtualServer resource for the cafe app:
 
-Setting `spec.host` on the `coffee` VSR restricts it to a single host:
+    ```console
+    kubectl create -f cafe-virtual-server.yaml
+    ```
 
-```console
-kubectl patch virtualserverroute coffee --type=merge \
-  -p '{"spec":{"host":"cafe.example.com"}}'
-```
+    This VirtualServer references the `rate-limit-policy` policy created in Step 2, the tea VirtualServerRoute with
+    `route: default/tea` and the hostless coffee VirtualServerRoute with `route: default/coffee`.
 
-- `cafe` keeps the route (host matches).
-- `cafe2` and `cafe3` drop the route and emit an
-  `AddedOrUpdatedWithWarning` event — the VSR's host no longer matches
-  theirs.
+1. Create the second VirtualServer resource, which serves a different host:
 
-Removing `spec.host` again restores hostless behaviour and re-attaches the
-VSR to all three VirtualServers.
+    ```console
+    kubectl create -f cafe2-virtual-server.yaml
+    ```
+
+    This VirtualServer attaches the same hostless coffee VirtualServerRoute using a `routeSelector` that matches the
+    `app: cafe` label.
+
+    Until a VirtualServer references them, the VirtualServerRoutes report a `NoVirtualServerFound` warning event with
+    the message `VirtualServer is invalid or doesn't exist`. This is expected when the VirtualServerRoutes are created
+    first.
+
+## Step 4 - Test the Configuration
+
+1. Check that the configuration has been successfully applied by inspecting the events and the status of the hostless
+   coffee VirtualServerRoute:
+
+    ```console
+    kubectl describe virtualserverroute coffee
+    ```
+
+    ```text
+    Name:         coffee
+    Namespace:    default
+    Labels:       app=cafe
+    API Version:  k8s.nginx.org/v1
+    Kind:         VirtualServerRoute
+    . . .
+    Spec:
+      Subroutes:
+        . . .
+      Upstreams:
+        . . .
+    Status:
+      Referenced By:  default/cafe, default/cafe2
+      State:          Valid
+    Events:
+      Type     Reason                 Age   From                      Message
+      ----     ------                 ----  ----                      -------
+      Normal   AddedOrUpdated         1m    nginx-ingress-controller  Configuration for default/coffee was added or updated
+    ```
+
+    Note that the `Spec` section has no `Host` field, because the resource does not define one. This is what makes the
+    VirtualServerRoute hostless.
+
+    The `referencedBy` status field lists both VirtualServers, because the hostless VirtualServerRoute is attached to
+    both. It is not shown by `kubectl get`, so you can also read it directly:
+
+    ```console
+    kubectl get virtualserverroute coffee -o jsonpath='{.status.referencedBy}'
+    ```
+
+    ```text
+    default/cafe, default/cafe2
+    ```
+
+1. Compare both VirtualServerRoutes:
+
+    ```console
+    kubectl get virtualserverroutes
+    ```
+
+    ```text
+    NAME     STATE   HOST               IP    PORTS   AGE
+    coffee   Valid                                    1m
+    tea      Valid   cafe.example.com                 1m
+    ```
+
+    The `HOST` column is empty for the hostless coffee VirtualServerRoute and populated for the tea VirtualServerRoute.
+
+1. Inspect the status of the tea VirtualServerRoute, which is bound to `cafe.example.com`:
+
+    ```console
+    kubectl get virtualserverroute tea -o jsonpath='{.status.referencedBy}'
+    ```
+
+    ```text
+    default/cafe
+    ```
+
+    Only the `cafe` VirtualServer can reference it, because its host matches.
+
+1. Check the events of both VirtualServers:
+
+    ```console
+    kubectl describe virtualserver cafe
+    ```
+
+    ```text
+    . . .
+    Events:
+      Type    Reason          Age   From                      Message
+      ----    ------          ----  ----                      -------
+      Normal  AddedOrUpdated  1m    nginx-ingress-controller  Configuration for default/cafe was added or updated
+    ```
+
+    ```console
+    kubectl describe virtualserver cafe2
+    ```
+
+    ```text
+    . . .
+    Events:
+      Type    Reason          Age   From                      Message
+      ----    ------          ----  ----                      -------
+      Normal  AddedOrUpdated  1m    nginx-ingress-controller  Configuration for default/cafe2 was added or updated
+    ```
+
+1. Access the application using curl. We'll use curl's `--insecure` option to turn off certificate verification of our
+   self-signed certificate and `--resolve` option to set the IP address and HTTPS port of the Ingress Controller to the
+   domain name of the cafe application:
+
+    To get tea from `cafe.example.com`, which is served by the host-bound tea VirtualServerRoute:
+
+    ```console
+    curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/tea --insecure
+    ```
+
+    ```text
+    Server address: 10.16.0.149:80
+    Server name: tea-7d57856c44-zlftd
+    ...
+    ```
+
+    Because the `rate-limit-policy` applies to `cafe.example.com`, a second request to `/tea` within the same second is
+    rejected with a `503` response.
+
+    To get coffee from `cafe.example.com`, which is served by the hostless coffee VirtualServerRoute:
+
+    ```console
+    curl --resolve cafe.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe.example.com:$IC_HTTPS_PORT/coffee --insecure
+    ```
+
+    ```text
+    Server address: 10.16.1.182:80
+    Server name: coffee-7dbb5795f6-tnbtq
+    ...
+    ```
+
+    To get coffee from `cafe2.example.com`, which is served by the same hostless coffee VirtualServerRoute:
+
+    ```console
+    curl --resolve cafe2.example.com:$IC_HTTPS_PORT:$IC_IP https://cafe2.example.com:$IC_HTTPS_PORT/coffee --insecure
+    ```
+
+    ```text
+    Server address: 10.16.1.182:80
+    Server name: coffee-7dbb5795f6-tnbtq
+    ...
+    ```
+
+    Both hosts serve `/coffee` from the same VirtualServerRoute, using the same upstream and the same
+    `access-control-policy-allow` policy. If the source IP address of your client is outside the `10.0.0.0/8` subnet
+    allowed by that policy, both requests are rejected with a `403` response instead:
+
+    ```text
+    <html>
+    <head><title>403 Forbidden</title></head>
+    <body>
+    <center><h1>403 Forbidden</h1></center>
+    </body>
+    </html>
+    ```
+
+    Getting the same response from both hosts is itself the point of the example: the policy is defined once, on the
+    shared hostless VirtualServerRoute. To get a `200` response from outside the cluster network, change the `allow`
+    field in `access-control-policy-allow.yaml` to a subnet that includes your client.
