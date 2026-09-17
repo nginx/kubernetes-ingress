@@ -660,6 +660,14 @@ func (c *Configuration) DeleteVirtualServer(key string) ([]ResourceChange, []Con
 	return c.rebuildHosts()
 }
 
+// GetVirtualServer returns the last-applied VirtualServer with the given key,
+// or nil if none is tracked. Safe to call from any goroutine.
+func (c *Configuration) GetVirtualServer(key string) *conf_v1.VirtualServer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualServers[key]
+}
+
 // AddOrUpdateVirtualServerRoute adds or updates the VirtualServerRoute.
 func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServerRoute) ([]ResourceChange, []ConfigurationProblem) {
 	c.lock.Lock()
@@ -726,6 +734,14 @@ func (c *Configuration) DeleteVirtualServerRoute(key string) ([]ResourceChange, 
 	}
 
 	return c.rebuildHosts()
+}
+
+// GetVirtualServerRoute returns the last-applied VirtualServerRoute with the given key,
+// or nil if none is tracked. Safe to call from any goroutine.
+func (c *Configuration) GetVirtualServerRoute(key string) *conf_v1.VirtualServerRoute {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualServerRoutes[key]
 }
 
 // AddOrUpdateGlobalConfiguration adds or updates the GlobalConfiguration.
@@ -1901,6 +1917,12 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 		vsrSelectors[selectorStr] = make([]string, 0)
 	}
 
+	type matchedVSR struct {
+		key string
+		vsr *conf_v1.VirtualServerRoute
+	}
+	var matched []matchedVSR
+
 	for vsrKey, vsr := range c.virtualServerRoutes {
 		if sel.Matches(labels.Set(vsr.Labels)) {
 			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
@@ -1909,14 +1931,28 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 				warnings = append(warnings, warning)
 				continue
 			}
-			vsrs = append(vsrs, vsr)
-
-			// Add to selectors map
-			vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
+			matched = append(matched, matchedVSR{key: vsrKey, vsr: vsr})
 		}
 	}
 
-	sort.Strings(vsrSelectors[selectorStr])
+	// Sort before building the output slices.  The vsrs slice ends up as
+	// VirtualServerConfiguration.VirtualServerRoutes, which
+	// GenerateVirtualServerConfig walks in order to assign split_clients
+	// indices, upstream names and location ordering, and which
+	// VirtualServerConfiguration.IsEqual compares positionally.  The loop above
+	// ranges over a map, and Go randomizes map iteration order by design, so
+	// this is the only place that ordering guarantee can be established.
+	// Without it, an unchanged VirtualServer compares as changed and gets
+	// needlessly re-rendered and reloaded.
+	sort.Slice(matched, func(i, j int) bool { return matched[i].key < matched[j].key })
+
+	for _, m := range matched {
+		vsrs = append(vsrs, m.vsr)
+		// Built in sorted order, so no separate sort of the tracking map is
+		// needed.
+		vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], m.key)
+	}
+
 	return vsrs, vsrSelectors, warnings
 }
 

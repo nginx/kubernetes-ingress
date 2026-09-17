@@ -7,7 +7,7 @@ package v1
 //
 // ErrorPageReturn defines a return for an ErrorPage.
 type ErrorPageReturnApplyConfiguration struct {
-	ActionReturnApplyConfiguration `json:",inline"`
+	ActionReturnApplyConfiguration `json:""`
 }
 
 // ErrorPageReturnApplyConfiguration constructs a declarative configuration of the ErrorPageReturn type for use with

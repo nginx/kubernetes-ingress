@@ -168,6 +168,14 @@ controller:
         capabilities:
           drop:
             - all
+      ## The resources of the App Protect WAF v5 IP Intelligence container.
+      resources: {}
+      #  requests:
+      #    cpu: 100m
+      #    memory: 128Mi
+      #  limits:
+      #    cpu: 500m
+      #    memory: 512Mi
 
   ## Support for App Protect DoS
   appprotectdos:
@@ -233,7 +241,7 @@ controller:
     repository: nginx/nginx-ingress
 
     ## The tag of the Ingress Controller image. If not specified the appVersion from Chart.yaml is used as a tag.
-    # tag: "5.6.0"
+    # tag: "5.6.3"
     ## The digest of the Ingress Controller image.
     ## If digest is specified it has precedence over tag and will be used instead
     # digest: "sha256:CHANGEME"

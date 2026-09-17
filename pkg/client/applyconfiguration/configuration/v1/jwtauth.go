@@ -19,7 +19,7 @@ type JWTAuthApplyConfiguration struct {
 	KeyCache *string `json:"keyCache,omitempty"`
 	// Enables SNI (Server Name Indication) for the JWT policy. This is useful when the remote server requires SNI to serve the correct certificate.
 	SNIEnabled *bool `json:"sniEnabled,omitempty"`
-	// The SNI name to use when connecting to the remote server. If not set, the hostname from the “jwksURI“ will be used.
+	// The SNI name to use when connecting to the remote server. If not set, the hostname from the ``jwksURI`` will be used.
 	SNIName *string `json:"sniName,omitempty"`
 	// Enables verification of the JWKS server SSL certificate. Default is false.
 	SSLVerify *bool `json:"sslVerify,omitempty"`
