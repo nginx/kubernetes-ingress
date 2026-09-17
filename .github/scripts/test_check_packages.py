@@ -195,6 +195,22 @@ class TestTableFormatting(unittest.TestCase):
         dep.oses = None
         self.assertEqual(cp.matrix_cell(dep, "alpine", "3.24", targets), "?")
 
+    def test_target_and_matrix_cell_no_green_color(self):
+        cp._COLOR = True
+        dep = cp.Dependency("test-pkg", {"host": "example.com", "uri": "/test"})
+        dep.required_targets_cache = {("alpine", "3.24", "x86")}
+        dep.oses = {("alpine", "3.24", "x86")}
+        targets = {("alpine", "3.24", "x86")}
+
+        # Architectures should not have green color ANSI sequences
+        self.assertEqual(cp.target_cell(dep, "alpine", "3.24"), "x86")
+        self.assertEqual(cp.matrix_cell(dep, "alpine", "3.24", targets), "x86")
+
+        # But missing / incomplete still get colored
+        dep.oses = set()
+        self.assertEqual(cp.target_cell(dep, "alpine", "3.24"), f"\033[{cp.RED}mMISSING\033[0m")
+        self.assertEqual(cp.matrix_cell(dep, "alpine", "3.24", targets), f"\033[{cp.RED}mMISSING\033[0m")
+
 
 class TestMatrixResolution(unittest.TestCase):
     def test_parse_matrix_file(self):

@@ -284,7 +284,7 @@ def load_registry_jwt(path):
     """
     if not path or not os.path.exists(path):
         return None
-    with open(path, "r") as f:
+    with open(path) as f:
         token = f.read().strip()
     return token or None
 
@@ -394,7 +394,7 @@ def fetch_image_tags(host, repository, cert_file=None, key_file=None, jwt=None):
 
 def parse_chart_appversion(path):
     """Read appVersion from Chart.yaml -- the default tag for the NIC image."""
-    with open(path, "r") as f:
+    with open(path) as f:
         for line in f:
             m = re.match(r"^appVersion:\s*[\"']?([^\"'\s]+)", line)
             if m:
@@ -410,7 +410,7 @@ def parse_chart_image_tag(path, repository):
     omitted, which is how the chart expresses "fall back to appVersion"
     (charts/nginx-ingress/templates/_helpers.tpl:164-166).
     """
-    with open(path, "r") as f:
+    with open(path) as f:
         lines = f.readlines()
 
     for i, line in enumerate(lines):
@@ -506,9 +506,7 @@ def parse_rpm_primary(body):
         v_el = pkg.find(f"{COMMON_NS}version")
         version = v_el.get("ver", "") if v_el is not None else ""
         requires = [
-            e.get("name")
-            for e in pkg.findall(f"{COMMON_NS}format/{RPM_NS}requires/{RPM_NS}entry")
-            if e.get("name")
+            e.get("name") for e in pkg.findall(f"{COMMON_NS}format/{RPM_NS}requires/{RPM_NS}entry") if e.get("name")
         ]
         out.setdefault(name, []).append((version, requires))
     return out
@@ -550,7 +548,7 @@ def parse_yaml_image_tag(path, repository):
     from a sibling image that happens to share a release train.
     """
     pattern = re.compile(r"^\s*-?\s*image:\s*[\"']?" + re.escape(repository) + r":([^\"'\s]+)")
-    with open(path, "r") as f:
+    with open(path) as f:
         for line in f:
             m = pattern.match(line)
             if m:
@@ -566,7 +564,7 @@ def parse_dockerfile_args(path):
     Quotes and inline comments are cleanly stripped.
     """
     args = {}
-    with open(path, "r") as f:
+    with open(path) as f:
         for line in f:
             m = re.match(r"^ARG\s+([A-Za-z_][A-Za-z0-9_]*)=(.*?)\s*$", line)
             if m:
@@ -585,7 +583,7 @@ def resolve_distro_versions(path):
     Returns {distro: [versions]}. More than one version is legitimate mid
     migration, in which case every one of them must carry the dependency.
     """
-    with open(path, "r") as f:
+    with open(path) as f:
         text = f.read()
 
     alpine = sorted(set(re.findall(r"^FROM\s+alpine:(\d+\.\d+)", text, re.M)), key=parse_semver_key)
@@ -617,7 +615,7 @@ def parse_matrix_file(path):
         return {}, []
 
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
         raise RuntimeError(f"could not parse matrix file '{path}': {e}")
@@ -1045,7 +1043,7 @@ def target_cell(dep, distro, dver):
         return paint("MISSING", RED)
     if required - set(found):
         return paint("+".join(found) + "!", YELLOW)
-    return paint("+".join(found), GREEN)
+    return "+".join(found)
 
 
 def build_targets(distro_versions):
@@ -1086,7 +1084,7 @@ def print_image_results(deps):
         if d.platforms_found:
             missing = [p for p in d.platforms if p not in d.platforms_found]
             cell = ", ".join(d.platforms_found)
-            cell = paint(cell + " !", YELLOW) if missing else paint(cell, GREEN)
+            cell = paint(cell + " !", YELLOW) if missing else cell
         elif d.resolved:
             cell = paint("single-arch", GREY)
         else:
@@ -1132,9 +1130,7 @@ def select_metadata_entry(dep, entries, want):
     would union the dependencies of every release ever shipped -- which showed
     up as fourteen different nginx-rX.Y.Z ABI pins instead of one.
     """
-    matches = [
-        (raw, deps) for raw, deps in entries if normalize_version(dep.scheme, raw) == want
-    ]
+    matches = [(raw, deps) for raw, deps in entries if normalize_version(dep.scheme, raw) == want]
     if not matches:
         return None
     matches.sort(key=lambda pair: parse_semver_key(pair[0]))
@@ -1282,13 +1278,11 @@ def matrix_cell(dep, distro, dver, targets):
         return paint("?", BRIGHT_RED)
     arches = sorted(a for dd, vv, a in dep.oses if (dd, vv) == (distro, dver))
     required = {a for dd, vv, a in targets if (dd, vv) == (distro, dver)}
-    # Only rows NIC actually builds on are coloured, so target rows stand out.
+    # Target rows with missing/incomplete arches stand out with warning colors.
     if arches:
         cell = "+".join(arches)
         if required - set(arches):
             return paint(cell + "!", YELLOW)
-        if required:
-            return paint(cell, GREEN)
         return cell
     if required:
         return paint("MISSING", RED)
@@ -1509,9 +1503,7 @@ def run(args):
         )
     if stale:
         print(
-            paint(f"WARN: {len(stale)} newer version(s) available:", YELLOW)
-            + "\n"
-            + wrap_names(d.name for d in stale)
+            paint(f"WARN: {len(stale)} newer version(s) available:", YELLOW) + "\n" + wrap_names(d.name for d in stale)
         )
     if not blocking and not stale:
         print(paint("PASS: all dependencies published and up to date", f"{BOLD};{GREEN}"))
@@ -1587,8 +1579,7 @@ def main():
         "--deps-arch",
         choices=("x86", "arm"),
         default="x86",
-        help="Architecture for --deps (default: x86). Dependencies differ by arch because "
-        "sonames are arch-specific",
+        help="Architecture for --deps (default: x86). Dependencies differ by arch because " "sonames are arch-specific",
     )
     parser.add_argument(
         "--matrix",
