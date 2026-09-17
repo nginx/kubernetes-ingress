@@ -3201,7 +3201,7 @@ func TestValidateCORS(t *testing.T) {
 				AllowOrigin: []string{"https://example.com:99999"},
 			},
 			expectErr: true,
-			errMsg:    "port must be in the range 1-65535",
+			errMsg:    "port number out of range: must be between 1 and 65535, inclusive",
 		},
 		{
 			name: "Invalid wildcard origin - out-of-range port",
@@ -3209,7 +3209,7 @@ func TestValidateCORS(t *testing.T) {
 				AllowOrigin: []string{"https://*.example.com:99999"},
 			},
 			expectErr: true,
-			errMsg:    "port must be in the range 1-65535",
+			errMsg:    "port number out of range: must be between 1 and 65535, inclusive",
 		},
 		{
 			name: "Invalid header name - non-RFC compliant",

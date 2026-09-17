@@ -1158,8 +1158,10 @@ func validateOriginPort(port, origin string) error {
 	if err != nil {
 		return fmt.Errorf("port must be numeric (invalid: %s)", origin)
 	}
-	if portNum < 1 || portNum > 65535 {
-		return fmt.Errorf("port must be in the range 1-65535 (invalid: %s)", origin)
+
+	errs := validation.IsValidPortNum(portNum)
+	if len(errs) > 0 {
+		return fmt.Errorf("port number out of range: %s", errs[0])
 	}
 
 	return nil
