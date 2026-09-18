@@ -1513,7 +1513,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		inputTLS         *conf_v1.TLS
-		inputSecretRefs  map[string]*secrets.SecretReference
+		inputSecretRefs  map[secrets.SecretRefKey]*secrets.SecretReference
 		inputCfgParams   *ConfigParams
 		wildcard         bool
 		expectedSSL      *version2.SSL
@@ -1522,7 +1522,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 	}{
 		{
 			inputTLS:         nil,
-			inputSecretRefs:  map[string]*secrets.SecretReference{},
+			inputSecretRefs:  map[secrets.SecretRefKey]*secrets.SecretReference{},
 			inputCfgParams:   &ConfigParams{Context: context.Background()},
 			wildcard:         false,
 			expectedSSL:      nil,
@@ -1533,7 +1533,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 			inputTLS: &conf_v1.TLS{
 				Secret: "",
 			},
-			inputSecretRefs:  map[string]*secrets.SecretReference{},
+			inputSecretRefs:  map[secrets.SecretRefKey]*secrets.SecretReference{},
 			inputCfgParams:   &ConfigParams{Context: context.Background()},
 			wildcard:         false,
 			expectedSSL:      nil,
@@ -1544,7 +1544,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 			inputTLS: &conf_v1.TLS{
 				Secret: "",
 			},
-			inputSecretRefs: map[string]*secrets.SecretReference{},
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			inputCfgParams:  &ConfigParams{Context: context.Background()},
 			wildcard:        true,
 			expectedSSL: &version2.SSL{
@@ -1562,8 +1562,8 @@ func TestGenerateSSLConfig(t *testing.T) {
 			},
 			inputCfgParams: &ConfigParams{Context: context.Background()},
 			wildcard:       false,
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/missing": {
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/missing", secrets.RoleTLS): {
 					Error: errors.New("missing doesn't exist"),
 				},
 			},
@@ -1582,32 +1582,31 @@ func TestGenerateSSLConfig(t *testing.T) {
 			},
 			inputCfgParams: &ConfigParams{Context: context.Background()},
 			wildcard:       false,
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/mistyped": {
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/mistyped", secrets.RoleTLS): {
 					Secret: &api_v1.Secret{
 						Type: secrets.SecretTypeCA,
 					},
+					Path: "mistyped.pem",
 				},
 			},
 			expectedSSL: &version2.SSL{
 				HTTP2:           false,
-				RejectHandshake: true,
+				Certificate:     "mistyped.pem",
+				CertificateKey:  "mistyped.pem",
+				RejectHandshake: false,
 			},
-			expectedWarnings: Warnings{
-				nil: []string{"TLS secret mistyped is of a wrong type 'nginx.org/ca', must be 'kubernetes.io/tls'"},
-			},
-			msg: "wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "secret with an unrecognized type is accepted",
 		},
 		{
 			inputTLS: &conf_v1.TLS{
 				Secret: "secret",
 			},
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/secret": {
-					Secret: &api_v1.Secret{
-						Type: api_v1.SecretTypeTLS,
-					},
-					Path: "secret.pem",
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/secret", secrets.RoleTLS): {
+					Secret: &api_v1.Secret{},
+					Path:   "secret.pem",
 				},
 			},
 			inputCfgParams: &ConfigParams{Context: context.Background()},

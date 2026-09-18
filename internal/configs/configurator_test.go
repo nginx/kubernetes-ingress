@@ -119,7 +119,7 @@ func createHostlessCafeIngressEx() IngressEx {
 	ingEx.Ingress.Spec.TLS = nil
 	ingEx.Ingress.Spec.Rules[0].Host = ""
 	ingEx.ValidHosts = map[string]bool{"": true}
-	ingEx.SecretRefs = map[string]*secrets.SecretReference{}
+	ingEx.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{}
 	return ingEx
 }
 
@@ -128,7 +128,7 @@ func createHostlessMergeableCafeIngress() *MergeableIngresses {
 	mergeableIngress.Master.Ingress.Spec.TLS = nil
 	mergeableIngress.Master.Ingress.Spec.Rules[0].Host = ""
 	mergeableIngress.Master.ValidHosts = map[string]bool{"": true}
-	mergeableIngress.Master.SecretRefs = map[string]*secrets.SecretReference{}
+	mergeableIngress.Master.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{}
 
 	for _, minion := range mergeableIngress.Minions {
 		minion.Ingress.Spec.Rules[0].Host = ""
@@ -2418,12 +2418,10 @@ func TestGenerateApDosAllowListFileContent(t *testing.T) {
 
 func createTransportServerExWithHostNoTLSPassthrough() TransportServerEx {
 	return TransportServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/echo-secret": {
-				Secret: &api_v1.Secret{
-					Type: api_v1.SecretTypeTLS,
-				},
-				Path: "secret.pem",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/echo-secret", secrets.RoleTLS): {
+				Secret: &api_v1.Secret{},
+				Path:   "secret.pem",
 			},
 		},
 		TransportServer: &conf_v1.TransportServer{
@@ -3878,10 +3876,9 @@ func createOIDCVirtualServerEx() *VirtualServerEx {
 		Endpoints: map[string][]string{
 			"default/tea-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -4234,5 +4231,146 @@ func TestBuildFilenameToErrorKey_MultipleEmptyHostIngressesAllMap(t *testing.T) 
 		if _, ok := want[key]; !ok {
 			t.Errorf("unexpected entry %q in m[%q]; want any of %v", key, DefaultServerConfigName, want)
 		}
+	}
+}
+
+func TestAddOrUpdateSecretMaterialization(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+
+	tests := []struct {
+		name        string
+		secret      *api_v1.Secret
+		role        secrets.SecretRole
+		wantPath    string
+		wantCRLPath string
+	}{
+		{
+			name: "TLS secret produces ssl_keypair_ prefix with .pem",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "my-tls"},
+				Data: map[string][]byte{
+					api_v1.TLSCertKey:       []byte("cert"),
+					api_v1.TLSPrivateKeyKey: []byte("key"),
+				},
+			},
+			role:     secrets.RoleTLS,
+			wantPath: "/etc/nginx/secrets/ssl_keypair_default_my-tls.pem",
+		},
+		{
+			name: "CA secret with CRL produces cert_bundle_ (.crt) and crl_bundle_ (.pem)",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "prod", Name: "root-ca"},
+				Data: map[string][]byte{
+					secrets.CAKey:    []byte("ca-cert"),
+					secrets.CACrlKey: []byte("ca-crl"),
+				},
+			},
+			role:        secrets.RoleCA,
+			wantPath:    "/etc/nginx/secrets/cert_bundle_prod_root-ca.crt",
+			wantCRLPath: "/etc/nginx/secrets/crl_bundle_prod_root-ca.pem",
+		},
+		{
+			name: "CA secret without CRL produces only cert_bundle_",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "prod", Name: "ca-only"},
+				Data: map[string][]byte{
+					secrets.CAKey: []byte("ca-cert"),
+				},
+			},
+			role:        secrets.RoleCA,
+			wantPath:    "/etc/nginx/secrets/cert_bundle_prod_ca-only.crt",
+			wantCRLPath: "",
+		},
+		{
+			name: "JWK secret produces jwt_key_ prefix without extension",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "auth", Name: "jwk-keys"},
+				Data: map[string][]byte{
+					secrets.JWTKeyKey: []byte(`{"keys":[]}`),
+				},
+			},
+			role:     secrets.RoleJWK,
+			wantPath: "/etc/nginx/secrets/jwt_key_auth_jwk-keys",
+		},
+		{
+			name: "BasicAuth htpasswd secret produces basic_auth_ prefix without extension",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "secure", Name: "creds"},
+				Data: map[string][]byte{
+					secrets.HtpasswdFileKey: []byte("user:pass"),
+				},
+			},
+			role:     secrets.RoleHtpasswd,
+			wantPath: "/etc/nginx/secrets/basic_auth_secure_creds",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := cnf.AddOrUpdateSecret(tc.secret, tc.role)
+			if got.Path != tc.wantPath {
+				t.Errorf("AddOrUpdateSecret().Path = %q, want %q", got.Path, tc.wantPath)
+			}
+			if got.CRLPath != tc.wantCRLPath {
+				t.Errorf("AddOrUpdateSecret().CRLPath = %q, want %q", got.CRLPath, tc.wantCRLPath)
+			}
+
+			key := generateNamespaceNameKey(&tc.secret.ObjectMeta)
+			dryRun := cnf.SecretPaths(key, tc.role)
+			if dryRun.Path != tc.wantPath {
+				t.Errorf("SecretPaths().Path = %q, want %q", dryRun.Path, tc.wantPath)
+			}
+		})
+	}
+}
+
+func TestDualResolutionNoCollision(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+
+	// Single secret holding both TLS and CA data
+	secret := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Namespace: "default",
+			Name:      "dual-role-secret",
+		},
+		Data: map[string][]byte{
+			api_v1.TLSCertKey:       []byte("tls-cert"),
+			api_v1.TLSPrivateKeyKey: []byte("tls-key"),
+			secrets.CAKey:           []byte("ca-cert"),
+			secrets.CACrlKey:        []byte("ca-crl"),
+		},
+	}
+
+	tlsMat := cnf.AddOrUpdateSecret(secret, secrets.RoleTLS)
+	caMat := cnf.AddOrUpdateSecret(secret, secrets.RoleCA)
+
+	wantTLSPath := "/etc/nginx/secrets/ssl_keypair_default_dual-role-secret.pem"
+	wantCAPath := "/etc/nginx/secrets/cert_bundle_default_dual-role-secret.crt"
+	wantCRLPath := "/etc/nginx/secrets/crl_bundle_default_dual-role-secret.pem"
+
+	if tlsMat.Path != wantTLSPath {
+		t.Errorf("TLS path = %q, want %q", tlsMat.Path, wantTLSPath)
+	}
+	if caMat.Path != wantCAPath {
+		t.Errorf("CA cert path = %q, want %q", caMat.Path, wantCAPath)
+	}
+	if caMat.CRLPath != wantCRLPath {
+		t.Errorf("CA CRL path = %q, want %q", caMat.CRLPath, wantCRLPath)
+	}
+
+	// Verify paths are completely distinct (no collisions)
+	allPaths := []string{tlsMat.Path, caMat.Path, caMat.CRLPath}
+	seen := make(map[string]bool)
+	for _, p := range allPaths {
+		if seen[p] {
+			t.Errorf("collision detected on path %q", p)
+		}
+		seen[p] = true
 	}
 }

@@ -263,6 +263,23 @@ func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames ma
 			filenames[symlink] = struct{}{}
 		}
 
+		// generate bundle opaque ca cert file and symlinks
+		if bundle.CaOpaque.FileName != "" {
+			if _, ok := filenames[bundle.CaOpaque.FileName]; ok {
+				return nil, fmt.Errorf("bundle opaque ca contains duplicated files: %v", bundle.CaOpaque.FileName)
+			}
+
+			filenames[bundle.CaOpaque.FileName] = struct{}{}
+
+			for _, symlink := range bundle.CaOpaque.Symlinks {
+				if _, ok := filenames[symlink]; ok {
+					return nil, fmt.Errorf("bundle opaque ca contains duplicated symlink for file %s: %s", bundle.CaOpaque.FileName, symlink)
+				}
+
+				filenames[symlink] = struct{}{}
+			}
+		}
+
 		// generate bundle client cert file and symlinks
 		if _, ok := filenames[bundle.Client.FileName]; ok {
 			return nil, fmt.Errorf("bundle client contains duplicated files: %v", bundle.Client.FileName)
@@ -277,6 +294,23 @@ func generateMTLSBundles(logger *slog.Logger, secrets []mtlsBundle, filenames ma
 			}
 
 			filenames[symlink] = struct{}{}
+		}
+
+		// generate bundle opaque client cert file and symlinks
+		if bundle.ClientOpaque.FileName != "" {
+			if _, ok := filenames[bundle.ClientOpaque.FileName]; ok {
+				return nil, fmt.Errorf("bundle opaque client contains duplicated files: %v", bundle.ClientOpaque.FileName)
+			}
+
+			filenames[bundle.ClientOpaque.FileName] = struct{}{}
+
+			for _, symlink := range bundle.ClientOpaque.Symlinks {
+				if _, ok := filenames[symlink]; ok {
+					return nil, fmt.Errorf("bundle opaque client contains duplicated symlink for file %s: %s", bundle.ClientOpaque.FileName, symlink)
+				}
+
+				filenames[symlink] = struct{}{}
+			}
 		}
 
 		// generate bundle server cert file and symlinks
@@ -481,7 +515,8 @@ func createOpaqueSecretYaml(secret TLSSecret, isValid bool, keyPair *JITTLSKey, 
 
 // createYamlCA takes in the generated TLS key in generateTLSKeyPair, and marshals it
 // into a yaml file contents and returns that as a byteslice.
-func createYamlCA(secretName string, tlsKeys *JITTLSKey, crl []byte) ([]byte, error) {
+// secretType overrides the default nginx.org/ca when set.
+func createYamlCA(secretName string, secretType v1.SecretType, tlsKeys *JITTLSKey, crl []byte) ([]byte, error) {
 	s := v1.Secret{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Secret",
@@ -494,6 +529,10 @@ func createYamlCA(secretName string, tlsKeys *JITTLSKey, crl []byte) ([]byte, er
 			configs.CACrtKey: tlsKeys.cert,
 		},
 		Type: secrets.SecretTypeCA,
+	}
+
+	if secretType != "" {
+		s.Type = secretType
 	}
 
 	if crl != nil {

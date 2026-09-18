@@ -1188,18 +1188,16 @@ func TestGenerateVirtualServerConfigAPIKeyPolicy(t *testing.T) {
 	t.Parallel()
 
 	virtualServerEx := VirtualServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/api-key-secret-spec": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"clientSpec": []byte("password"),
 					},
 				},
 			},
-			"default/api-key-secret-route": {
+			secrets.RefKey("default/api-key-secret-route", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"clientRoute": []byte("password2"),
 					},
@@ -1450,18 +1448,16 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 	t.Parallel()
 
 	virtualServerEx := VirtualServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/api-key-secret-1": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/api-key-secret-1", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client1": []byte("password"),
 					},
 				},
 			},
-			"default/api-key-secret-2": {
+			secrets.RefKey("default/api-key-secret-2", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client2": []byte("password2"),
 					},
@@ -2895,10 +2891,9 @@ func TestGenerateVirtualServerConfigWithOIDCTLSVerifyOn(t *testing.T) {
 						"10.0.0.30:80",
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/example-client-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("c2VjcmV0"),
 							},
@@ -3111,18 +3106,16 @@ func TestGenerateVirtualServerConfigWithOIDCTLSCASecret(t *testing.T) {
 						"10.0.0.30:80",
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/example-client-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("c2VjcmV0"),
 							},
 						},
 					},
-					"default/example-ca-secret": {
+					secrets.RefKey("default/example-ca-secret", secrets.RoleCA): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
 							Data: map[string][]byte{
 								"ca.crt": []byte("ca-certificate-data"),
 							},
@@ -3322,10 +3315,9 @@ func TestGenerateVirtualServerConfigOIDCRouteDoesNotLeakToSubsequentRoutes(t *te
 		Endpoints: map[string][]string{
 			"default/app-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3447,10 +3439,9 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 			"default/tea-svc:80":    {"10.0.0.20:80"},
 			"default/coffee-svc:80": {"10.0.0.30:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3548,10 +3539,9 @@ func TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy(t *testing.
 		Endpoints: map[string][]string{
 			"default/app-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3907,10 +3897,9 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 						},
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"cafe/api-key-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("cafe/api-key-secret", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"clientSpec": []byte("password"),
 							},

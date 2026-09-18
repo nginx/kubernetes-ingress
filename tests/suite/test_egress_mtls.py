@@ -10,8 +10,10 @@ std_vsr_src = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
 std_vs_vsr_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
 
 mtls_sec_valid_src = f"{TEST_DATA}/egress-mtls/secret/egress-mtls-secret.yaml"
+mtls_sec_valid_opaque_src = f"{TEST_DATA}/egress-mtls/secret/egress-mtls-secret-opaque.yaml"
 mtls_sec_valid_crl_src = f"{TEST_DATA}/egress-mtls/secret/egress-mtls-secret-crl.yaml"
 tls_sec_valid_src = f"{TEST_DATA}/egress-mtls/secret/tls-secret.yaml"
+tls_sec_valid_opaque_src = f"{TEST_DATA}/egress-mtls/secret/tls-secret-opaque.yaml"
 
 mtls_pol_valid_src = f"{TEST_DATA}/egress-mtls/policies/egress-mtls.yaml"
 mtls_pol_invalid_src = f"{TEST_DATA}/egress-mtls/policies/egress-mtls-invalid.yaml"
@@ -64,12 +66,13 @@ def teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret
 )
 class TestEgressMtlsPolicyVS:
     @pytest.mark.parametrize(
-        "policy_src, vs_src, mtls_ca_secret, expected_code, expected_text, vs_message, vs_state, test_description",
+        "policy_src, vs_src, mtls_ca_secret, tls_secret, expected_code, expected_text, vs_message, vs_state, test_description",
         [
             (
                 mtls_pol_valid_src,
                 mtls_vs_spec_src,
                 mtls_sec_valid_src,
+                tls_sec_valid_src,
                 200,
                 "hello from pod secure-app",
                 "was added or updated",
@@ -80,6 +83,7 @@ class TestEgressMtlsPolicyVS:
                 mtls_pol_valid_src,
                 mtls_vs_route_src,
                 mtls_sec_valid_src,
+                tls_sec_valid_src,
                 200,
                 "hello from pod secure-app",
                 "was added or updated",
@@ -90,6 +94,7 @@ class TestEgressMtlsPolicyVS:
                 mtls_pol_valid_src,
                 mtls_vs_spec_src,
                 mtls_sec_valid_crl_src,
+                tls_sec_valid_src,
                 200,
                 "hello from pod secure-app",
                 "was added or updated",
@@ -97,9 +102,32 @@ class TestEgressMtlsPolicyVS:
                 "Test valid EgressMTLS policy applied to a VirtualServer with a CRL",
             ),
             (
+                mtls_pol_valid_src,
+                mtls_vs_spec_src,
+                mtls_sec_valid_opaque_src,
+                tls_sec_valid_src,
+                200,
+                "hello from pod secure-app",
+                "was added or updated",
+                "Valid",
+                "Test valid EgressMTLS policy with the CA in an Opaque secret",
+            ),
+            (
+                mtls_pol_valid_src,
+                mtls_vs_spec_src,
+                mtls_sec_valid_src,
+                tls_sec_valid_opaque_src,
+                200,
+                "hello from pod secure-app",
+                "was added or updated",
+                "Valid",
+                "Test valid EgressMTLS policy with the client cert in an Opaque secret",
+            ),
+            (
                 mtls_pol_invalid_src,
                 mtls_vs_spec_src,
                 mtls_sec_valid_src,
+                tls_sec_valid_src,
                 500,
                 "Internal Server Error",
                 "is missing or invalid",
@@ -117,6 +145,7 @@ class TestEgressMtlsPolicyVS:
         policy_src,
         vs_src,
         mtls_ca_secret,
+        tls_secret,
         expected_code,
         expected_text,
         vs_message,
@@ -132,7 +161,7 @@ class TestEgressMtlsPolicyVS:
             kube_apis,
             test_namespace,
             mtls_ca_secret,
-            tls_sec_valid_src,
+            tls_secret,
             policy_src,
         )
 

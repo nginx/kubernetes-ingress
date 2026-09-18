@@ -376,3 +376,107 @@ func TestCreateTransportServerHandlersDeleteFunc(t *testing.T) {
 
 	runDeleteFuncTests(t, tests, createTransportServerHandlers)
 }
+
+func TestCreateSecretHandlersUpdateFunc(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		mutate      func(*api_v1.Secret)
+		wantEnqueue bool
+	}{
+		{
+			name:        "identical Secret",
+			mutate:      func(*api_v1.Secret) {},
+			wantEnqueue: false,
+		},
+		{
+			name: "resource version changed",
+			mutate: func(secret *api_v1.Secret) {
+				secret.ResourceVersion = "2"
+			},
+			wantEnqueue: false,
+		},
+		{
+			name: "labels and annotations changed",
+			mutate: func(secret *api_v1.Secret) {
+				secret.Labels = map[string]string{"example": "label"}
+				secret.Annotations = map[string]string{"example": "annotation"}
+			},
+			wantEnqueue: false,
+		},
+		{
+			name: "Secret type changed",
+			mutate: func(secret *api_v1.Secret) {
+				secret.Type = api_v1.SecretTypeTLS
+			},
+			wantEnqueue: false,
+		},
+		{
+			name: "Data value changed",
+			mutate: func(secret *api_v1.Secret) {
+				secret.Data["jwk"] = []byte(`{"keys":[]}`)
+			},
+			wantEnqueue: true,
+		},
+		{
+			name: "Data key added",
+			mutate: func(secret *api_v1.Secret) {
+				secret.Data["extra"] = []byte("value")
+			},
+			wantEnqueue: true,
+		},
+		{
+			name: "Data key removed",
+			mutate: func(secret *api_v1.Secret) {
+				delete(secret.Data, "jwk")
+			},
+			wantEnqueue: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := slog.New(nic_glog.New(
+				io.Discard,
+				&nic_glog.Options{Level: levels.LevelInfo},
+			))
+
+			lbc := &LoadBalancerController{
+				Logger:    logger,
+				syncQueue: newTaskQueue(logger, func(task) {}),
+			}
+			defer lbc.syncQueue.queue.ShutDown()
+
+			oldSecret := &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:            "test-secret",
+					Namespace:       "default",
+					ResourceVersion: "1",
+				},
+				Type: api_v1.SecretTypeOpaque,
+				Data: map[string][]byte{
+					"jwk": []byte("{}"),
+				},
+			}
+
+			currentSecret := oldSecret.DeepCopy()
+			test.mutate(currentSecret)
+
+			handlers := createSecretHandlers(lbc)
+			handlers.UpdateFunc(oldSecret, currentSecret)
+
+			wantLength := 0
+			if test.wantEnqueue {
+				wantLength = 1
+			}
+
+			if got := lbc.syncQueue.Len(); got != wantLength {
+				t.Errorf("sync queue length = %d, want %d", got, wantLength)
+			}
+		})
+	}
+}
