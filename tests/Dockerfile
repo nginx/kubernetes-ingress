@@ -3,9 +3,16 @@ FROM python:3.14-trixie@sha256:3df083612dec28cf1456da4f38064469561fc2e55da4ebf47
 ARG ARCH=amd64
 
 ENV PYTHONUNBUFFERED=1
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
-RUN apt-get update \
+RUN --mount=type=secret,id=corp-ca,dst=/tmp/corp-ca,required=false \
+	if [ -s /tmp/corp-ca ]; then \
+		cp /tmp/corp-ca /usr/local/share/ca-certificates/corp-ca.crt; \
+	fi \
+	&& apt-get update \
 	&& apt-get install -y curl git apache2-utils ca-certificates \
+	&& update-ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/tests
