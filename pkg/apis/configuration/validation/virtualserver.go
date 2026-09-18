@@ -664,7 +664,7 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 		allErrs = append(allErrs, validateQueue(u.Queue, idxPath.Child("queue"))...)
 		allErrs = append(allErrs, validateSessionCookie(u.SessionCookie, idxPath.Child("sessionCookie"))...)
 		allErrs = append(allErrs, validateUpstreamType(u.Type, idxPath.Child("type"))...)
-		allErrs = append(allErrs, validateUpstreamProxyHTTPVersion(u.ProxyHTTPVersion, idxPath.Child("proxy-http-version"))...)
+		allErrs = append(allErrs, ValidateProxyHTTPVersion(u.ProxyHTTPVersion, idxPath.Child("proxy-http-version"))...)
 
 		for _, msg := range validation.IsValidPortNum(int(u.Port)) {
 			allErrs = append(allErrs, field.Invalid(idxPath.Child("port"), u.Port, msg))
@@ -678,14 +678,23 @@ func (vsv *VirtualServerValidator) validateUpstreams(upstreams []v1.Upstream, fi
 	return allErrs, upstreamNames
 }
 
-func validateUpstreamProxyHTTPVersion(version string, fieldPath *field.Path) field.ErrorList {
+// ValidateProxyHTTPVersion validates the HTTP protocol version used for connections to
+// upstream servers. An empty value means "unset" and is valid: the version is then inferred
+// from the Service appProtocol, falling back to NGINX's own default.
+//
+// The accepted values mirror the ones supported by the proxy_http_version directive.
+// Ref.: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_http_version
+func ValidateProxyHTTPVersion(version string, fieldPath *field.Path) field.ErrorList {
 	if version == "" {
 		return nil
 	}
-	if version != "1.0" && version != "1.1" && version != "2" {
+
+	switch version {
+	case "1.0", "1.1", "2":
+		return nil
+	default:
 		return field.ErrorList{field.Invalid(fieldPath, version, "must be one of `1.0`, `1.1` or `2`")}
 	}
-	return nil
 }
 
 // validateBackup validates backup service name and port semantics and business logic.

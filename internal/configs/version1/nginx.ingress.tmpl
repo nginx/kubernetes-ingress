@@ -343,13 +343,19 @@ server {
 		grpc_pass grpc://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- end}}
 		{{- else}}
-		proxy_http_version {{ $location.ProxyHTTPVersion }};
+		{{- if $location.ProxyHTTPVersion}}
+		proxy_http_version {{$location.ProxyHTTPVersion}};
+		{{- end}}
+		{{- /* HTTP/2 forbids the hop-by-hop Connection and Upgrade headers (RFC 9113 8.2.2),
+		       so they are omitted when proxying over HTTP/2. */}}
+		{{- if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
+		{{- end}}
 		{{- end}}
 		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}

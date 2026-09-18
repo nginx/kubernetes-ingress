@@ -4,7 +4,6 @@ metadata:
   name: hsts-ingress-master
   annotations:
     kubernetes.io/ingress.class: "nginx"
-
     nginx.org/mergeable-ingress-type: "master"
     nginx.org/hsts: "True"
 spec:

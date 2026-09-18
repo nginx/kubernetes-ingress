@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -6621,5 +6622,176 @@ func TestGenerateNginxCfgForMergeableIngressesWithExternalAuthAndProxySetHeaders
 
 	if len(warnings) != 0 {
 		t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+	}
+}
+
+// TestGenerateNginxCfgProxyHTTPVersion asserts the precedence documented for the
+// nginx.org/proxy-http-version annotation: annotation > Service appProtocol > unset.
+func TestGenerateNginxCfgProxyHTTPVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		annotation          string
+		serviceAppProtocols map[string]string
+		want                string
+	}{
+		{
+			name: "nothing configured leaves the directive unset",
+			want: "",
+		},
+		{
+			name:                "h2c appProtocol infers HTTP/2",
+			serviceAppProtocols: map[string]string{"coffee-svc80": "kubernetes.io/h2c", "tea-svc80": "kubernetes.io/h2c"},
+			want:                "2",
+		},
+		{
+			name:                "non-h2c appProtocol is ignored",
+			serviceAppProtocols: map[string]string{"coffee-svc80": "http", "tea-svc80": "http"},
+			want:                "",
+		},
+		{
+			name:       "annotation is used",
+			annotation: "1.0",
+			want:       "1.0",
+		},
+		{
+			name:                "annotation wins over h2c appProtocol",
+			annotation:          "1.1",
+			serviceAppProtocols: map[string]string{"coffee-svc80": "kubernetes.io/h2c", "tea-svc80": "kubernetes.io/h2c"},
+			want:                "1.1",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := createCafeIngressEx()
+			ingEx.ServiceAppProtocols = test.serviceAppProtocols
+			if test.annotation != "" {
+				ingEx.Ingress.Annotations[ProxyHTTPVersionAnnotation] = test.annotation
+			}
+
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:  &StaticConfigParams{},
+				ingEx:         &ingEx,
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+			})
+			if len(warnings) != 0 {
+				t.Errorf("generateNginxCfg() returned unexpected warnings: %v", warnings)
+			}
+
+			if len(result.Servers[0].Locations) == 0 {
+				t.Fatal("generateNginxCfg() generated no locations")
+			}
+			for _, loc := range result.Servers[0].Locations {
+				if loc.ProxyHTTPVersion != test.want {
+					t.Errorf("location %q: ProxyHTTPVersion = %q, want %q", loc.Path, loc.ProxyHTTPVersion, test.want)
+				}
+			}
+		})
+	}
+}
+
+// TestGenerateNginxCfgProxyHTTPVersionPerService asserts that the appProtocol is applied per
+// backend rather than per Ingress: only the h2c-backed location is upgraded to HTTP/2.
+func TestGenerateNginxCfgProxyHTTPVersionPerService(t *testing.T) {
+	t.Parallel()
+
+	ingEx := createCafeIngressEx()
+	ingEx.ServiceAppProtocols = map[string]string{"coffee-svc80": "kubernetes.io/h2c"}
+
+	result, _ := generateNginxCfg(NginxCfgParams{
+		staticParams:  &StaticConfigParams{},
+		ingEx:         &ingEx,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+	})
+
+	want := map[string]string{
+		"/coffee": "2",
+		"/tea":    "",
+	}
+	for _, loc := range result.Servers[0].Locations {
+		if got := loc.ProxyHTTPVersion; got != want[loc.Path] {
+			t.Errorf("location %q: ProxyHTTPVersion = %q, want %q", loc.Path, got, want[loc.Path])
+		}
+	}
+}
+
+// TestGenerateNginxCfgProxyHTTPVersionConflicts asserts the warnings for configurations that
+// validation accepts but NGINX cannot honor.
+func TestGenerateNginxCfgProxyHTTPVersionConflicts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		annotations         map[string]string
+		serviceAppProtocols map[string]string
+		wantWarning         string
+		wantVersion         string
+	}{
+		{
+			name: "gRPC service with the annotation is warned about and left unset",
+			annotations: map[string]string{
+				ProxyHTTPVersionAnnotation: "1.1",
+				"nginx.org/grpc-services":  "coffee-svc",
+			},
+			wantWarning: `nginx.org/proxy-http-version is ignored for gRPC service "coffee-svc"; gRPC locations always use HTTP/2`,
+			wantVersion: "",
+		},
+		{
+			name: "websocket service over HTTP/2 is warned about",
+			annotations: map[string]string{
+				ProxyHTTPVersionAnnotation:     "2",
+				"nginx.org/websocket-services": "coffee-svc",
+			},
+			wantWarning: `service "coffee-svc" is configured for WebSocket but resolves to an HTTP/2 upstream connection; WebSocket requires HTTP/1.1`,
+			wantVersion: "2",
+		},
+		{
+			name: "websocket service over inferred HTTP/2 is warned about",
+			annotations: map[string]string{
+				"nginx.org/websocket-services": "coffee-svc",
+			},
+			serviceAppProtocols: map[string]string{"coffee-svc80": "kubernetes.io/h2c"},
+			wantWarning:         `service "coffee-svc" is configured for WebSocket but resolves to an HTTP/2 upstream connection; WebSocket requires HTTP/1.1`,
+			wantVersion:         "2",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := createCafeIngressEx()
+			ingEx.ServiceAppProtocols = test.serviceAppProtocols
+			for name, value := range test.annotations {
+				ingEx.Ingress.Annotations[name] = value
+			}
+
+			// nginx.org/grpc-services is only honored when HTTP/2 is enabled.
+			cfgParams := NewDefaultConfigParams(context.Background(), false)
+			cfgParams.HTTP2 = true
+
+			result, warnings := generateNginxCfg(NginxCfgParams{
+				staticParams:  &StaticConfigParams{},
+				ingEx:         &ingEx,
+				BaseCfgParams: cfgParams,
+			})
+
+			if !slices.Contains(warnings[ingEx.Ingress], test.wantWarning) {
+				t.Errorf("generateNginxCfg() warnings %v do not contain %q", warnings[ingEx.Ingress], test.wantWarning)
+			}
+
+			for _, loc := range result.Servers[0].Locations {
+				if loc.Path != "/coffee" {
+					continue
+				}
+				if loc.ProxyHTTPVersion != test.wantVersion {
+					t.Errorf("location %q: ProxyHTTPVersion = %q, want %q", loc.Path, loc.ProxyHTTPVersion, test.wantVersion)
+				}
+			}
+		})
 	}
 }

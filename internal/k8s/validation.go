@@ -445,6 +445,7 @@ var (
 			validateSSLCiphersAnnotation,
 		},
 		configs.ProxyHTTPVersionAnnotation: {
+			validateRequiredAnnotation,
 			validateProxyHTTPVersionAnnotation,
 		},
 	}
@@ -811,12 +812,12 @@ func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) f
 	return allErrs
 }
 
+// validateProxyHTTPVersionAnnotation validates the nginx.org/proxy-http-version annotation.
+// It shares the accepted value set with the VirtualServer upstream proxy-http-version field so
+// that the two surfaces cannot drift apart. Unlike the CRD field, an empty value is rejected
+// here: an annotation that is present but blank is a mistake, not "unset".
 func validateProxyHTTPVersionAnnotation(context *annotationValidationContext) field.ErrorList {
-	validVersions := sets.NewString("1.0", "1.1", "2")
-	if !validVersions.Has(context.value) {
-		return field.ErrorList{field.Invalid(context.fieldPath, context.value, fmt.Sprintf("must be one of the following values: %s", strings.Join(validVersions.List(), ", ")))}
-	}
-	return nil
+	return common_validation.ValidateProxyHTTPVersion(context.value, context.fieldPath)
 }
 
 func sortedAnnotationNames(annotationValidations annotationValidationConfig) []string {

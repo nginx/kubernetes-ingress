@@ -135,12 +135,16 @@ type Upstream struct {
 	// The maximum number of simultaneous active connections to an upstream server. By default there is no limit. Note: if keepalive connections are enabled, the total number of active and idle keepalive connections to an upstream server may exceed the max_conns value.
 	MaxConns *int `json:"max-conns"`
 	// Configures the cache for connections to upstream servers. The value 0 disables the cache. The default is set in the keepalive ConfigMap key.
-	Keepalive *int `json:"keepalive"` // +kubebuilder:validation:Optional
+	Keepalive *int `json:"keepalive"`
+	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Enum="1.0";"1.1";"2"
 	// Sets the HTTP protocol version used for connections to the upstream servers.
-	// Supported values are "1.0", "1.1" and "2.0". If unset, the appProtocol of the
-	// backing Service is used ("kubernetes.io/h2c" implies "2"), otherwise "1.1".
-	// Note: "2" is ignored for upstreams with type "grpc". Requires NGINX 1.29.4+.
+	// Supported values are "1.0", "1.1" and "2". If unset, the appProtocol of the backing
+	// Service port is used ("kubernetes.io/h2c" implies "2"); otherwise the directive is
+	// omitted and NGINX applies its own default, which is 1.1 as of NGINX 1.29.7.
+	// Note: this field is ignored for upstreams with type "grpc", where grpc_pass always
+	// uses HTTP/2, and it cannot be used with WebSocket, which requires HTTP/1.1.
+	// The value "2" requires NGINX 1.29.4 or later.
 	ProxyHTTPVersion string `json:"proxy-http-version"`
 	// The timeout for establishing a connection with an upstream server. The default is specified in the proxy-connect-timeout ConfigMap key.
 	ProxyConnectTimeout string `json:"connect-timeout"`

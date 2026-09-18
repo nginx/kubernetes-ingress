@@ -910,9 +910,13 @@ server {
                 {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
-        proxy_http_version 1.1;
+        {{- if $l.ProxyHTTPVersion }}
+        proxy_http_version {{ $l.ProxyHTTPVersion }};
+        {{- end }}
+        {{- if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
+        {{- end }}
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
             {{- end }}
 
