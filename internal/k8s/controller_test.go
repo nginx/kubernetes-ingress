@@ -43,6 +43,7 @@ type testNginxManager struct {
 	FailCreateForName  string
 	FailCreateOnCall   int
 	CreateCalls        int
+	KeyValUpdates      []configs.WeightUpdate
 }
 
 func newTestNginxManager() *testNginxManager {
@@ -75,6 +76,11 @@ func (fakeSecretFileManager) DeleteSecret(string, secrets.SecretRole) {}
 
 func (fakeSecretFileManager) SecretPaths(key string, role secrets.SecretRole) secrets.Materialized {
 	return secrets.Materialized{Path: fmt.Sprintf("/etc/nginx/secrets/%s_%s", role, key)}
+// UpsertSplitClientsKeyVal records the keyval writes the weight-change fast
+// lane makes, so tests can assert on them without a real NGINX process.
+func (m *testNginxManager) UpsertSplitClientsKeyVal(zoneName, key, value string) {
+	m.KeyValUpdates = append(m.KeyValUpdates, configs.WeightUpdate{Zone: zoneName, Key: key, Value: value})
+	m.FakeManager.UpsertSplitClientsKeyVal(zoneName, key, value)
 }
 
 // fakeStore wraps FakeCustomStore to satisfy the cache.Store interface, which gained
