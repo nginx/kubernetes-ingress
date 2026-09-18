@@ -9,3 +9,4 @@ data:
   otel-exporter-header-name: "x-otel-header"
   otel-exporter-header-value: "otel-header-value"
   # otel-trace-in-http: "true" # Uncomment to enable tracing at the HTTP level
+  # otel-trace-context: "propagate" # Uncomment to control W3C trace-context header propagation (extract|inject|propagate|ignore)
