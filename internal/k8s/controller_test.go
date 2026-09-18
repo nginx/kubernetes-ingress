@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -66,6 +67,22 @@ func (m *testNginxManager) CreateSecret(name string, content []byte, mode os.Fil
 	return m.FakeManager.CreateSecret(name, content, mode)
 }
 
+type secretReconciliationNginxManager struct {
+	*testNginxManager
+	reloadCalls int
+}
+
+func newSecretReconciliationNginxManager() *secretReconciliationNginxManager {
+	return &secretReconciliationNginxManager{
+		testNginxManager: newTestNginxManager(),
+	}
+}
+
+func (m *secretReconciliationNginxManager) Reload(isEndpointsUpdate bool) error {
+	m.reloadCalls++
+	return m.FakeManager.Reload(isEndpointsUpdate)
+}
+
 type fakeSecretFileManager struct{}
 
 func (fakeSecretFileManager) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.SecretRole) secrets.Materialized {
@@ -76,6 +93,8 @@ func (fakeSecretFileManager) DeleteSecret(string, secrets.SecretRole) {}
 
 func (fakeSecretFileManager) SecretPaths(key string, role secrets.SecretRole) secrets.Materialized {
 	return secrets.Materialized{Path: fmt.Sprintf("/etc/nginx/secrets/%s_%s", role, key)}
+}
+
 // UpsertSplitClientsKeyVal records the keyval writes the weight-change fast
 // lane makes, so tests can assert on them without a real NGINX process.
 func (m *testNginxManager) UpsertSplitClientsKeyVal(zoneName, key, value string) {
@@ -3002,269 +3021,296 @@ func TestRemoveDuplicateResources(t *testing.T) {
 	}
 }
 
-func TestFindPoliciesForSecret(t *testing.T) {
+func TestPolicySecretIndexFunc(t *testing.T) {
 	t.Parallel()
-	jwtPol1 := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "jwt-policy",
-			Namespace: "default",
-		},
-		Spec: conf_v1.PolicySpec{
-			JWTAuth: &conf_v1.JWTAuth{
-				Secret: "jwk-secret",
-			},
-		},
-	}
 
-	jwtPol2 := &conf_v1.Policy{
+	policy := &conf_v1.Policy{
 		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "jwt-policy",
-			Namespace: "ns-1",
-		},
-		Spec: conf_v1.PolicySpec{
-			JWTAuth: &conf_v1.JWTAuth{
-				Secret: "jwk-secret",
-			},
-		},
-	}
-
-	basicPol1 := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "basic-auth-policy",
-			Namespace: "default",
-		},
-		Spec: conf_v1.PolicySpec{
-			BasicAuth: &conf_v1.BasicAuth{
-				Secret: "basic-auth-secret",
-			},
-		},
-	}
-
-	basicPol2 := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "basic-auth-policy",
-			Namespace: "ns-1",
-		},
-		Spec: conf_v1.PolicySpec{
-			BasicAuth: &conf_v1.BasicAuth{
-				Secret: "basic-auth-secret",
-			},
-		},
-	}
-
-	ingTLSPol := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "ingress-mtls-policy",
+			Name:      "policy",
 			Namespace: "default",
 		},
 		Spec: conf_v1.PolicySpec{
 			IngressMTLS: &conf_v1.IngressMTLS{
-				ClientCertSecret: "ingress-mtls-secret",
+				ClientCertSecret: "shared-secret",
 			},
-		},
-	}
-	egTLSPol := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "egress-mtls-policy",
-			Namespace: "default",
-		},
-		Spec: conf_v1.PolicySpec{
+			JWTAuth: &conf_v1.JWTAuth{
+				Secret:            "shared-secret",
+				TrustedCertSecret: "jwt-ca",
+			},
+			BasicAuth: &conf_v1.BasicAuth{
+				Secret: "shared-secret",
+			},
 			EgressMTLS: &conf_v1.EgressMTLS{
-				TLSSecret: "egress-mtls-secret",
+				TLSSecret:         "egress-tls",
+				TrustedCertSecret: "egress-ca",
 			},
-		},
-	}
-	egTLSPol2 := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "egress-trusted-policy",
-			Namespace: "default",
-		},
-		Spec: conf_v1.PolicySpec{
-			EgressMTLS: &conf_v1.EgressMTLS{
-				TrustedCertSecret: "egress-trusted-secret",
-			},
-		},
-	}
-	oidcPol := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "oidc-policy",
-			Namespace: "default",
-		},
-		Spec: conf_v1.PolicySpec{
 			OIDC: &conf_v1.OIDC{
-				ClientSecret: "oidc-secret",
+				ClientSecret:      "oidc-client",
+				TrustedCertSecret: "oidc-ca",
 			},
-		},
-	}
-	extAuthPol := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "external-auth-policy",
-			Namespace: "default",
-		},
-		Spec: conf_v1.PolicySpec{
-			ExternalAuth: &conf_v1.ExternalAuth{
-				TrustedCertSecret: "ext-auth-secret",
+			OIDCNative: &conf_v1.OIDCNative{
+				ClientSecret:      "native-client",
+				TrustedCertSecret: "native-ca",
 			},
-		},
-	}
-	extAuthCrossNsPol := &conf_v1.Policy{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "external-auth-cross-ns-policy",
-			Namespace: "default",
-		},
-		Spec: conf_v1.PolicySpec{
+			APIKey: &conf_v1.APIKey{
+				ClientSecret: "api-key",
+			},
 			ExternalAuth: &conf_v1.ExternalAuth{
-				TrustedCertSecret: "other-ns/ext-auth-secret",
+				TrustedCertSecret: "other-ns/external-ca",
+			},
+			WAF: &conf_v1.WAF{
+				ApBundleSource: &conf_v1.BundleSource{
+					Secret:            "waf-client",
+					TrustedCertSecret: "waf-ca",
+				},
+				SecurityLog: &conf_v1.SecurityLog{
+					ApLogBundleSource: &conf_v1.BundleSource{
+						Secret:            "legacy-log-client",
+						TrustedCertSecret: "legacy-log-ca",
+					},
+				},
+				SecurityLogs: []*conf_v1.SecurityLog{
+					nil,
+					{
+						ApLogBundleSource: &conf_v1.BundleSource{
+							Secret:            "log-client",
+							TrustedCertSecret: "log-ca",
+						},
+					},
+					{
+						// Duplicate reference must only produce one index key.
+						ApLogBundleSource: &conf_v1.BundleSource{
+							Secret: "shared-secret",
+						},
+					},
+				},
 			},
 		},
 	}
 
-	tests := []struct {
-		policies        []*conf_v1.Policy
-		secretNamespace string
-		secretName      string
-		expected        []*conf_v1.Policy
-		msg             string
-	}{
-		{
-			policies:        []*conf_v1.Policy{jwtPol1},
-			secretNamespace: "default",
-			secretName:      "jwk-secret",
-			expected:        []*conf_v1.Policy{jwtPol1},
-			msg:             "Find policy in default ns",
+	want := []string{
+		"default/api-key",
+		"default/egress-ca",
+		"default/egress-tls",
+		"default/jwt-ca",
+		"default/legacy-log-ca",
+		"default/legacy-log-client",
+		"default/log-ca",
+		"default/log-client",
+		"default/native-ca",
+		"default/native-client",
+		"default/oidc-ca",
+		"default/oidc-client",
+		"default/shared-secret",
+		"default/waf-ca",
+		"default/waf-client",
+		"other-ns/external-ca",
+	}
+	slices.Sort(want)
+
+	got, err := policySecretIndexFunc(policy)
+	if err != nil {
+		t.Fatalf("policySecretIndexFunc() returned error: %v", err)
+	}
+	slices.Sort(got)
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("Policy Secret index keys mismatch (-want +got):\n%s", diff)
+	}
+
+	if _, err := policySecretIndexFunc(&api_v1.Secret{}); err == nil {
+		t.Error("policySecretIndexFunc() expected an error for a non-Policy object")
+	}
+}
+
+func TestGetPoliciesForSecret(t *testing.T) {
+	t.Parallel()
+
+	newIndexer := func(t *testing.T, policies ...*conf_v1.Policy) cache.Indexer {
+		t.Helper()
+
+		indexer := cache.NewIndexer(
+			cache.MetaNamespaceKeyFunc,
+			cache.Indexers{
+				policySecretIndex: policySecretIndexFunc,
+			},
+		)
+
+		for _, policy := range policies {
+			if err := indexer.Add(policy); err != nil {
+				t.Fatalf("failed to add Policy %s/%s: %v", policy.Namespace, policy.Name, err)
+			}
+		}
+
+		return indexer
+	}
+
+	validPolicyA := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "external-auth",
+			Namespace: "team-a",
 		},
-		{
-			policies:        []*conf_v1.Policy{jwtPol2},
-			secretNamespace: "default",
-			secretName:      "jwk-secret",
-			expected:        nil,
-			msg:             "Ignore policies in other namespaces",
-		},
-		{
-			policies:        []*conf_v1.Policy{jwtPol1, jwtPol2},
-			secretNamespace: "default",
-			secretName:      "jwk-secret",
-			expected:        []*conf_v1.Policy{jwtPol1},
-			msg:             "Find policy in default ns, ignore other",
-		},
-		{
-			policies:        []*conf_v1.Policy{basicPol1},
-			secretNamespace: "default",
-			secretName:      "basic-auth-secret",
-			expected:        []*conf_v1.Policy{basicPol1},
-			msg:             "Find policy in default ns",
-		},
-		{
-			policies:        []*conf_v1.Policy{basicPol2},
-			secretNamespace: "default",
-			secretName:      "basic-auth-secret",
-			expected:        nil,
-			msg:             "Ignore policies in other namespaces",
-		},
-		{
-			policies:        []*conf_v1.Policy{basicPol1, basicPol2},
-			secretNamespace: "default",
-			secretName:      "basic-auth-secret",
-			expected:        []*conf_v1.Policy{basicPol1},
-			msg:             "Find policy in default ns, ignore other",
-		},
-		{
-			policies:        []*conf_v1.Policy{ingTLSPol},
-			secretNamespace: "default",
-			secretName:      "ingress-mtls-secret",
-			expected:        []*conf_v1.Policy{ingTLSPol},
-			msg:             "Find policy in default ns",
-		},
-		{
-			policies:        []*conf_v1.Policy{jwtPol1, ingTLSPol},
-			secretNamespace: "default",
-			secretName:      "ingress-mtls-secret",
-			expected:        []*conf_v1.Policy{ingTLSPol},
-			msg:             "Find policy in default ns, ignore other types",
-		},
-		{
-			policies:        []*conf_v1.Policy{egTLSPol},
-			secretNamespace: "default",
-			secretName:      "egress-mtls-secret",
-			expected:        []*conf_v1.Policy{egTLSPol},
-			msg:             "Find policy in default ns",
-		},
-		{
-			policies:        []*conf_v1.Policy{jwtPol1, egTLSPol},
-			secretNamespace: "default",
-			secretName:      "egress-mtls-secret",
-			expected:        []*conf_v1.Policy{egTLSPol},
-			msg:             "Find policy in default ns, ignore other types",
-		},
-		{
-			policies:        []*conf_v1.Policy{egTLSPol2},
-			secretNamespace: "default",
-			secretName:      "egress-trusted-secret",
-			expected:        []*conf_v1.Policy{egTLSPol2},
-			msg:             "Find policy in default ns",
-		},
-		{
-			policies:        []*conf_v1.Policy{egTLSPol, egTLSPol2},
-			secretNamespace: "default",
-			secretName:      "egress-trusted-secret",
-			expected:        []*conf_v1.Policy{egTLSPol2},
-			msg:             "Find policy in default ns, ignore other types",
-		},
-		{
-			policies:        []*conf_v1.Policy{oidcPol},
-			secretNamespace: "default",
-			secretName:      "oidc-secret",
-			expected:        []*conf_v1.Policy{oidcPol},
-			msg:             "Find policy in default ns",
-		},
-		{
-			policies:        []*conf_v1.Policy{ingTLSPol, oidcPol},
-			secretNamespace: "default",
-			secretName:      "oidc-secret",
-			expected:        []*conf_v1.Policy{oidcPol},
-			msg:             "Find policy in default ns, ignore other types",
-		},
-		{
-			policies:        []*conf_v1.Policy{extAuthPol},
-			secretNamespace: "default",
-			secretName:      "ext-auth-secret",
-			expected:        []*conf_v1.Policy{extAuthPol},
-			msg:             "Find external auth policy in same namespace",
-		},
-		{
-			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
-			secretNamespace: "other-ns",
-			secretName:      "ext-auth-secret",
-			expected:        []*conf_v1.Policy{extAuthCrossNsPol},
-			msg:             "Find external auth policy with cross-namespace secret reference",
-		},
-		{
-			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
-			secretNamespace: "default",
-			secretName:      "ext-auth-secret",
-			expected:        nil,
-			msg:             "Ignore external auth policy when secret namespace does not match cross-namespace reference",
-		},
-		{
-			policies:        []*conf_v1.Policy{extAuthCrossNsPol},
-			secretNamespace: "other-ns",
-			secretName:      "different-secret",
-			expected:        nil,
-			msg:             "Ignore external auth policy when secret name does not match",
-		},
-		{
-			policies:        []*conf_v1.Policy{jwtPol1, extAuthCrossNsPol},
-			secretNamespace: "other-ns",
-			secretName:      "ext-auth-secret",
-			expected:        []*conf_v1.Policy{extAuthCrossNsPol},
-			msg:             "Find cross-namespace external auth policy, ignore other types",
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-service",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "shared-ns/ca-secret",
+			},
 		},
 	}
-	for _, test := range tests {
-		result := findPoliciesForSecret(test.policies, test.secretNamespace, test.secretName)
-		if diff := cmp.Diff(test.expected, result); diff != "" {
-			t.Errorf("findPoliciesForSecret() '%v' mismatch (-want +got):\n%s", test.msg, diff)
-		}
+
+	validPolicyB := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "external-auth",
+			Namespace: "team-b",
+		},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				AuthURI:           "/auth",
+				AuthServiceName:   "auth-service",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "shared-ns/ca-secret",
+			},
+		},
+	}
+
+	invalidPolicy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "invalid-external-auth",
+			Namespace: "team-a",
+		},
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{
+				// Missing AuthServiceName makes the Policy invalid.
+				AuthURI:           "/auth",
+				SSLEnabled:        true,
+				SSLVerify:         true,
+				TrustedCertSecret: "shared-ns/ca-secret",
+			},
+		},
+	}
+
+	unrelatedPolicy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "unrelated",
+			Namespace: "team-b",
+		},
+		Spec: conf_v1.PolicySpec{
+			IngressMTLS: &conf_v1.IngressMTLS{
+				ClientCertSecret: "another-secret",
+			},
+		},
+	}
+
+	teamAIndexer := newIndexer(t, validPolicyA, invalidPolicy)
+	teamBIndexer := newIndexer(t, validPolicyA, validPolicyB, unrelatedPolicy)
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{
+			"team-a": {
+				policySecretIndexer: teamAIndexer,
+			},
+			"team-b": {
+				policySecretIndexer: teamBIndexer,
+			},
+			"secrets-only": {
+				// A Secret-only informer legitimately has no Policy indexer.
+				policySecretIndexer: nil,
+			},
+		},
+		Logger: nl.LoggerFromContext(context.Background()),
+	}
+
+	got, err := lbc.getPoliciesForSecret("shared-ns", "ca-secret")
+	if err != nil {
+		t.Fatalf("getPoliciesForSecret() returned error: %v", err)
+	}
+
+	// validPolicy appears in two indexers but must only be returned once.
+	want := []*conf_v1.Policy{validPolicyA, validPolicyB}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("getPoliciesForSecret() mismatch (-want +got):\n%s", diff)
+	}
+
+	got, err = lbc.getPoliciesForSecret("shared-ns", "unrelated")
+	if err != nil {
+		t.Fatalf("getPoliciesForSecret() returned error: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("getPoliciesForSecret() returned %v for an unrelated Secret", got)
+	}
+}
+
+func TestPolicySecretIndexerLifecycle(t *testing.T) {
+	t.Parallel()
+
+	indexer := cache.NewIndexer(
+		cache.MetaNamespaceKeyFunc,
+		cache.Indexers{
+			policySecretIndex: policySecretIndexFunc,
+		},
+	)
+
+	policy := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "mtls",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			IngressMTLS: &conf_v1.IngressMTLS{
+				ClientCertSecret: "secret-a",
+			},
+		},
+	}
+
+	if err := indexer.Add(policy); err != nil {
+		t.Fatalf("failed to add Policy: %v", err)
+	}
+
+	got, err := indexer.ByIndex(policySecretIndex, "default/secret-a")
+	if err != nil {
+		t.Fatalf("failed to query secret-a: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("secret-a matches = %d, want 1", len(got))
+	}
+
+	updated := policy.DeepCopy()
+	updated.Spec.IngressMTLS.ClientCertSecret = "secret-b"
+
+	if err := indexer.Update(updated); err != nil {
+		t.Fatalf("failed to update Policy: %v", err)
+	}
+
+	got, err = indexer.ByIndex(policySecretIndex, "default/secret-a")
+	if err != nil {
+		t.Fatalf("failed to query old Secret: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("secret-a matches after update = %d, want 0", len(got))
+	}
+
+	got, err = indexer.ByIndex(policySecretIndex, "default/secret-b")
+	if err != nil {
+		t.Fatalf("failed to query new Secret: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("secret-b matches after update = %d, want 1", len(got))
+	}
+
+	if err := indexer.Delete(updated); err != nil {
+		t.Fatalf("failed to delete Policy: %v", err)
+	}
+
+	got, err = indexer.ByIndex(policySecretIndex, "default/secret-b")
+	if err != nil {
+		t.Fatalf("failed to query deleted Policy: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("secret-b matches after deletion = %d, want 0", len(got))
 	}
 }
 
@@ -3395,12 +3441,12 @@ func TestAddJWTSecrets(t *testing.T) {
 	}
 
 	lbc := LoadBalancerController{
-		secretStore: secrets.NewFakeSecretsStore(map[string]*secrets.SecretReference{
-			"default/valid-jwk-secret": {
+		secretStore: secrets.NewFakeSecretsStore(map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/valid-jwk-secret", secrets.RoleJWK): {
 				Secret: validJWKSecret,
 				Path:   "/etc/nginx/secrets/default-valid-jwk-secret",
 			},
-			"default/invalid-jwk-secret": {
+			secrets.RefKey("default/invalid-jwk-secret", secrets.RoleJWK): {
 				Secret: invalidJWKSecret,
 				Error:  invalidErr,
 			},
@@ -3521,12 +3567,12 @@ func TestAddBasicSecrets(t *testing.T) {
 	}
 
 	lbc := LoadBalancerController{
-		secretStore: secrets.NewFakeSecretsStore(map[string]*secrets.SecretReference{
-			"default/valid-basic-auth-secret": {
+		secretStore: secrets.NewFakeSecretsStore(map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/valid-basic-auth-secret", secrets.RoleHtpasswd): {
 				Secret: validBasicSecret,
 				Path:   "/etc/nginx/secrets/default-valid-basic-auth-secret",
 			},
-			"default/invalid-basic-auth-secret": {
+			secrets.RefKey("default/invalid-basic-auth-secret", secrets.RoleHtpasswd): {
 				Secret: invalidBasicSecret,
 				Error:  invalidErr,
 			},
@@ -3645,12 +3691,12 @@ func TestAddIngressMTLSSecret(t *testing.T) {
 	}
 
 	lbc := LoadBalancerController{
-		secretStore: secrets.NewFakeSecretsStore(map[string]*secrets.SecretReference{
-			"default/valid-ingress-mtls-secret": {
+		secretStore: secrets.NewFakeSecretsStore(map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/valid-ingress-mtls-secret", secrets.RoleCA): {
 				Secret: validSecret,
 				Path:   "/etc/nginx/secrets/default-valid-ingress-mtls-secret",
 			},
-			"default/invalid-ingress-mtls-secret": {
+			secrets.RefKey("default/invalid-ingress-mtls-secret", secrets.RoleCA): {
 				Secret: invalidSecret,
 				Error:  invalidErr,
 			},
@@ -3857,20 +3903,20 @@ func TestAddEgressMTLSSecrets(t *testing.T) {
 	}
 
 	lbc := LoadBalancerController{
-		secretStore: secrets.NewFakeSecretsStore(map[string]*secrets.SecretReference{
-			"default/valid-egress-mtls-secret": {
+		secretStore: secrets.NewFakeSecretsStore(map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/valid-egress-mtls-secret", secrets.RoleTLS): {
 				Secret: validMTLSSecret,
 				Path:   "/etc/nginx/secrets/default-valid-egress-mtls-secret",
 			},
-			"default/valid-egress-trusted-secret": {
+			secrets.RefKey("default/valid-egress-trusted-secret", secrets.RoleCA): {
 				Secret: validTrustedSecret,
 				Path:   "/etc/nginx/secrets/default-valid-egress-trusted-secret",
 			},
-			"default/invalid-egress-mtls-secret": {
+			secrets.RefKey("default/invalid-egress-mtls-secret", secrets.RoleTLS): {
 				Secret: invalidMTLSSecret,
 				Error:  invalidErr,
 			},
-			"default/invalid-egress-trusted-secret": {
+			secrets.RefKey("default/invalid-egress-trusted-secret", secrets.RoleCA): {
 				Secret: invalidTrustedSecret,
 				Error:  invalidErr,
 			},
@@ -3990,11 +4036,11 @@ func TestAddOidcSecret(t *testing.T) {
 	}
 
 	lbc := LoadBalancerController{
-		secretStore: secrets.NewFakeSecretsStore(map[string]*secrets.SecretReference{
-			"default/valid-oidc-secret": {
+		secretStore: secrets.NewFakeSecretsStore(map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/valid-oidc-secret", secrets.RoleOIDC): {
 				Secret: validSecret,
 			},
-			"default/invalid-oidc-secret": {
+			secrets.RefKey("default/invalid-oidc-secret", secrets.RoleOIDC): {
 				Secret: invalidSecret,
 				Error:  invalidErr,
 			},
@@ -4018,46 +4064,167 @@ func TestAddOidcSecret(t *testing.T) {
 
 func TestPreSyncSecrets(t *testing.T) {
 	t.Parallel()
-	secretLister := &fakeStore{cache.FakeCustomStore{
-		ListFunc: func() []interface{} {
-			return []interface{}{
-				&api_v1.Secret{
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name:      "jwk-secret",
-						Namespace: "default",
-					},
-					Type: api_v1.SecretTypeOpaque,
-					Data: map[string][]byte{
-						"jwk": []byte("{}"),
-					},
+
+	newSecretLister := func(secret *api_v1.Secret) cache.Store {
+		return &fakeStore{
+			FakeCustomStore: cache.FakeCustomStore{
+				ListFunc: func() []interface{} {
+					return []interface{}{secret}
 				},
-			}
+			},
+		}
+	}
+
+	secretA := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "jwk-a",
+			Namespace: "namespace-a",
 		},
-	}}
-	nsi := make(map[string]*namespacedInformer)
-	nsi[""] = &namespacedInformer{secretLister: secretLister, isSecretsEnabledNamespace: true}
+		Type: api_v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			secrets.JWTKeyKey: []byte("{}"),
+		},
+	}
+
+	secretB := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "jwk-b",
+			Namespace: "namespace-b",
+		},
+		Type: api_v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			secrets.JWTKeyKey: []byte("{}"),
+		},
+	}
+
+	disabledLister := &fakeStore{
+		FakeCustomStore: cache.FakeCustomStore{
+			ListFunc: func() []interface{} {
+				panic("disabled Secret lister must not be called")
+			},
+		},
+	}
+
+	secretStore := secrets.NewLocalSecretStore(fakeSecretFileManager{})
 
 	lbc := LoadBalancerController{
-		isNginxPlus:         true,
-		secretStore:         secrets.NewLocalSecretStore(fakeSecretFileManager{}),
-		namespacedInformers: nsi,
-		Logger:              nl.LoggerFromContext(context.Background()),
+		secretStore: secretStore,
+		namespacedInformers: map[string]*namespacedInformer{
+			"namespace-a": {
+				secretLister:              newSecretLister(secretA),
+				isSecretsEnabledNamespace: true,
+			},
+			"disabled": {
+				secretLister:              disabledLister,
+				isSecretsEnabledNamespace: false,
+			},
+			"namespace-b": {
+				secretLister:              newSecretLister(secretB),
+				isSecretsEnabledNamespace: true,
+			},
+		},
+		Logger: nl.LoggerFromContext(context.Background()),
 	}
 
 	lbc.preSyncSecrets()
 
-	const key = "default/jwk-secret"
-
-	if ref := lbc.secretStore.GetSecret(key, secrets.RoleJWK); ref.Error != nil {
-		t.Errorf("GetSecret(%q, RoleJWK) returned an unexpected error: %v", key, ref.Error)
+	if got := secretStore.SecretCount(); got != 0 {
+		t.Errorf("SecretCount() before resolution = %d, want 0", got)
 	}
 
-	if ref := lbc.secretStore.GetSecret(key, secrets.RoleTLS); ref.Error == nil {
-		t.Errorf("GetSecret(%q, RoleTLS) expected an error for a Secret with no jwk key", key)
+	tests := []struct {
+		key string
+	}{
+		{key: "namespace-a/jwk-a"},
+		{key: "namespace-b/jwk-b"},
 	}
 
-	if ref := lbc.secretStore.GetSecret("default/nope", secrets.RoleJWK); ref.Error == nil {
-		t.Error(`GetSecret("default/nope", RoleJWK) expected an error for an absent Secret`)
+	for _, test := range tests {
+		ref := secretStore.GetSecret(test.key, secrets.RoleJWK)
+		if ref.Error != nil {
+			t.Errorf("GetSecret(%q, RoleJWK) returned error: %v", test.key, ref.Error)
+		}
+	}
+
+	if ref := secretStore.GetSecret("disabled/sentinel", secrets.RoleJWK); ref.Error == nil {
+		t.Error("disabled namespace Secret unexpectedly existed in the store")
+	}
+
+	if got := secretStore.SecretCount(); got != 2 {
+		t.Errorf("SecretCount() after resolving enabled Secrets = %d, want 2", got)
+	}
+}
+
+func TestSyncSecretUnreferencedDoesNotMaterializeOrReload(t *testing.T) {
+	t.Parallel()
+
+	manager := newSecretReconciliationNginxManager()
+	lbc := newBatchTestLBC(t, manager)
+
+	secretCache := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	secretObj := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "unreferenced",
+			Namespace: "default",
+		},
+		Type: api_v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			secrets.JWTKeyKey: []byte("{}"),
+		},
+	}
+
+	if err := secretCache.Add(secretObj); err != nil {
+		t.Fatalf("failed to add Secret to cache: %v", err)
+	}
+
+	lbc.namespacedInformers["default"].secretLister = secretCache
+	lbc.secretStore = secrets.NewLocalSecretStore(lbc.configurator)
+	lbc.areCustomResourcesEnabled = false
+	lbc.plmEnabled = false
+
+	assertInert := func(stage string) {
+		t.Helper()
+
+		if got := lbc.secretStore.SecretCount(); got != 0 {
+			t.Errorf("%s: SecretCount() = %d, want 0", stage, got)
+		}
+		if got := len(manager.CreatedSecretNames); got != 0 {
+			t.Errorf("%s: created %d Secret files, want 0", stage, got)
+		}
+		if got := len(manager.CreatedConfigNames); got != 0 {
+			t.Errorf("%s: created %d configuration files, want 0", stage, got)
+		}
+		if manager.reloadCalls != 0 {
+			t.Errorf("%s: reload count = %d, want 0", stage, manager.reloadCalls)
+		}
+	}
+
+	key := "default/unreferenced"
+	lbc.syncSecret(task{
+		Kind: secret,
+		Key:  key,
+	})
+	assertInert("initial sync")
+
+	updatedSecret := secretObj.DeepCopy()
+	updatedSecret.Data[secrets.JWTKeyKey] = []byte(`{"keys":[]}`)
+
+	if err := secretCache.Update(updatedSecret); err != nil {
+		t.Fatalf("failed to update Secret in cache: %v", err)
+	}
+
+	lbc.syncSecret(task{
+		Kind: secret,
+		Key:  key,
+	})
+	assertInert("updated sync")
+
+	ref := lbc.secretStore.GetSecret(key, secrets.RoleJWK)
+	if ref.Error != nil {
+		t.Fatalf("cached Secret could not be resolved: %v", ref.Error)
+	}
+	if got := string(ref.Secret.Data[secrets.JWTKeyKey]); got != `{"keys":[]}` {
+		t.Errorf("cached JWK = %q, want updated value", got)
 	}
 }
 
@@ -4080,6 +4247,7 @@ func TestWriteSpecialSecretsDispatch(t *testing.T) {
 	tests := []struct {
 		name               string
 		secretNsName       string
+		special            *specialSecrets
 		data               map[string][]byte
 		specialTLSSecrets  []string
 		wantCreatedSecrets []string
@@ -4126,6 +4294,54 @@ func TestWriteSpecialSecretsDispatch(t *testing.T) {
 			wantOK:             true,
 		},
 		{
+			name:         "overlapping default server TLS and management client auth writes both representations",
+			secretNsName: "nginx-ingress/shared-secret",
+			special: &specialSecrets{
+				defaultServerSecret: "nginx-ingress/shared-secret",
+				clientAuthSecret:    "nginx-ingress/shared-secret",
+			},
+			data: tlsData,
+			wantCreatedSecrets: []string{
+				"default",
+				"mgmt/client",
+			},
+			wantOK: true,
+		},
+		{
+			name:         "overlapping TLS and trusted cert writes all representations",
+			secretNsName: "nginx-ingress/shared-secret",
+			special: &specialSecrets{
+				defaultServerSecret: "nginx-ingress/shared-secret",
+				trustedCertSecret:   "nginx-ingress/shared-secret",
+			},
+			data: map[string][]byte{
+				"tls.crt":        []byte("cert"),
+				"tls.key":        []byte("key"),
+				secrets.CAKey:    []byte("ca-cert"),
+				secrets.CACrlKey: []byte("ca-crl"),
+			},
+			wantCreatedSecrets: []string{
+				"default",
+				"mgmt/ca.crt",
+				"mgmt/ca.crl",
+			},
+			wantOK: true,
+		},
+		{
+			name:         "overlapping TLS and wildcard TLS writes both representations",
+			secretNsName: "nginx-ingress/shared-secret",
+			special: &specialSecrets{
+				defaultServerSecret: "nginx-ingress/shared-secret",
+				wildcardTLSSecret:   "nginx-ingress/shared-secret",
+			},
+			data: tlsData,
+			wantCreatedSecrets: []string{
+				"default",
+				"wildcard",
+			},
+			wantOK: true,
+		},
+		{
 			name:               "secret that is not special writes nothing",
 			secretNsName:       "default/some-other-secret",
 			data:               tlsData,
@@ -4145,6 +4361,11 @@ func TestWriteSpecialSecretsDispatch(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			secCfg := special
+			if test.special != nil {
+				secCfg = *test.special
+			}
+
 			ns, name, found := strings.Cut(test.secretNsName, "/")
 			if !found {
 				t.Fatalf("malformed test fixture %q, want <namespace>/<name>", test.secretNsName)
@@ -4154,7 +4375,7 @@ func TestWriteSpecialSecretsDispatch(t *testing.T) {
 			lbc := LoadBalancerController{
 				configurator:   createTestPolicySyncConfigurator(t, manager),
 				recorder:       record.NewFakeRecorder(100),
-				specialSecrets: special,
+				specialSecrets: secCfg,
 				metadata: controllerMetadata{
 					pod: &api_v1.Pod{
 						ObjectMeta: meta_v1.ObjectMeta{Name: "nginx-ingress", Namespace: "nginx-ingress"},
@@ -4168,13 +4389,62 @@ func TestWriteSpecialSecretsDispatch(t *testing.T) {
 				Data:       test.data,
 			}
 
-			got := lbc.writeSpecialSecrets(lbc.Logger, secret, test.specialTLSSecrets)
+			update := lbc.specialSecrets.updateFor(
+				test.secretNsName,
+				lbc.configurator.DynamicSSLReloadEnabled(),
+			)
+
+			got := lbc.writeSpecialSecrets(lbc.Logger, secret, update)
 
 			if got != test.wantOK {
 				t.Errorf("writeSpecialSecrets() = %v, want %v", got, test.wantOK)
 			}
 			if diff := cmp.Diff(test.wantCreatedSecrets, manager.CreatedSecretNames); diff != "" {
 				t.Errorf("writeSpecialSecrets() secret files (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestValidateSpecialSecretMultiRole(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		roles   []specialSecretRole
+		data    map[string][]byte
+		wantErr bool
+	}{
+		{
+			name:  "valid license with invalid TLS faild",
+			roles: []specialSecretRole{specialLicense, specialDefaultTLS},
+			data: map[string][]byte{
+				configs.LicenseSecretFileName: []byte("jwt-token"),
+				"tls.crt":                     []byte("invalid"),
+			},
+			wantErr: true,
+		},
+		{
+			name:  "trusted CA missing ca.crt fails even if other roles pass",
+			roles: []specialSecretRole{specialDefaultTLS, specialMGMTTrustedCA},
+			data: map[string][]byte{
+				"tls.crt": []byte("cert"),
+				"tls.key": []byte("key"),
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			secret := &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "shared", Namespace: "nginx-ingress"},
+				Data:       tc.data,
+			}
+			err := validateSpecialSecret(secret, tc.roles)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("validateSpecialSecret() error = %v, wantErr %v", err, tc.wantErr)
 			}
 		})
 	}

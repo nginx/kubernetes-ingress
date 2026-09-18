@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 
 	api_v1 "k8s.io/api/core/v1"
@@ -95,22 +96,27 @@ func (s *LocalSecretStore) AddOrUpdateSecret(secret *api_v1.Secret) {
 			continue
 		}
 
-		entry.ref.Secret = secret
-		entry.ref.Error = ValidateSecretForRole(secret, refKey.role)
-
+		err := ValidateSecretForRole(secret, refKey.role)
 		paths := s.manager.SecretPaths(key, refKey.role)
-		entry.ref.setPaths(paths)
+		materialized := entry.materialized
 
-		if entry.ref.Error != nil {
-			if entry.materialized {
+		if err != nil {
+			if materialized {
 				s.manager.DeleteSecret(key, refKey.role)
-				entry.materialized = false
+				materialized = false
 			}
-			continue
+		} else {
+			paths = s.manager.AddOrUpdateSecret(secret, refKey.role)
+			materialized = true
 		}
-		paths = s.manager.AddOrUpdateSecret(secret, refKey.role)
-		entry.ref.setPaths(paths)
-		entry.materialized = true
+
+		entry.ref = &SecretReference{
+			Secret:  secret,
+			Path:    paths.Path,
+			CRLPath: paths.CRLPath,
+			Error:   err,
+		}
+		entry.materialized = materialized
 	}
 }
 
@@ -193,15 +199,14 @@ func (s *LocalSecretStore) ResolvedRoles(key string) []SecretRole {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	roles := []SecretRole{}
+	var roles []SecretRole
 	for refKey, entry := range s.refs {
-		if refKey.secret != key {
-			continue
-		}
-		if entry.ref.Error == nil {
+		if refKey.secret == key && entry.ref.Error == nil {
 			roles = append(roles, refKey.role)
 		}
 	}
+
+	slices.Sort(roles)
 	return roles
 }
 
@@ -222,58 +227,160 @@ func RefKey(key string, role SecretRole) SecretRefKey {
 
 // FakeSecretStore is a fake implementation of SecretStore.
 type FakeSecretStore struct {
-	secrets map[string]*SecretReference
+	secrets map[string]*api_v1.Secret
+	refs    map[SecretRefKey]*SecretReference
+	lock    sync.RWMutex
 }
 
 // NewFakeSecretsStore creates a new FakeSecretStore.
-func NewFakeSecretsStore(secrets map[string]*SecretReference) *FakeSecretStore {
-	return &FakeSecretStore{
-		secrets: secrets,
+func NewFakeSecretsStore(refs map[SecretRefKey]*SecretReference) *FakeSecretStore {
+	store := &FakeSecretStore{
+		secrets: make(map[string]*api_v1.Secret),
+		refs:    make(map[SecretRefKey]*SecretReference),
 	}
+
+	for key, ref := range refs {
+		clone := *ref
+		store.refs[key] = &clone
+
+		if ref.Secret != nil {
+			store.secrets[key.Key] = ref.Secret
+		}
+	}
+
+	return store
 }
 
 // NewEmptyFakeSecretsStore creates a new empty FakeSecretStore.
 func NewEmptyFakeSecretsStore() *FakeSecretStore {
-	return &FakeSecretStore{
-		secrets: make(map[string]*SecretReference),
-	}
+	return NewFakeSecretsStore(nil)
 }
 
 // AddOrUpdateSecret is a fake implementation of AddOrUpdateSecret.
 func (s *FakeSecretStore) AddOrUpdateSecret(secret *api_v1.Secret) {
-	secretRef, exists := s.secrets[getResourceKey(&secret.ObjectMeta)]
-	if !exists {
-		secretRef = &SecretReference{Secret: secret}
-	} else {
-		secretRef.Secret = secret
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	key := getResourceKey(&secret.ObjectMeta)
+	s.secrets[key] = secret
+
+	for refKey, oldRef := range s.refs {
+		if refKey.Key != key {
+			continue
+		}
+
+		err := ValidateSecretForRole(secret, refKey.Role)
+		paths := defaultFakeSecretPaths(key, refKey.Role)
+
+		if oldRef.Path != "" {
+			paths.Path = oldRef.Path
+		}
+
+		if err == nil && refKey.Role == RoleCA {
+			if _, hasCRL := secret.Data[CACrlKey]; hasCRL {
+				if oldRef.CRLPath != "" {
+					paths.CRLPath = oldRef.CRLPath
+				} else {
+					paths.CRLPath = paths.Path + ".crl"
+				}
+			}
+		}
+
+		// Replace the published reference rather than mutating it.
+		s.refs[refKey] = &SecretReference{
+			Secret:  secret,
+			Path:    paths.Path,
+			CRLPath: paths.CRLPath,
+			Error:   err,
+		}
 	}
-	s.secrets[getResourceKey(&secret.ObjectMeta)] = secretRef
 }
 
 // DeleteSecret is a fake implementation of DeleteSecret.
-func (s *FakeSecretStore) DeleteSecret(_ string) {
+func (s *FakeSecretStore) DeleteSecret(key string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	delete(s.secrets, key)
+
+	for refKey := range s.refs {
+		if refKey.Key == key {
+			delete(s.refs, refKey)
+		}
+	}
 }
 
 // GetSecret is a fake implementation of GetSecret.
-func (s *FakeSecretStore) GetSecret(key string, _ SecretRole) *SecretReference {
-	secretRef, exists := s.secrets[key]
-	if !exists {
-		return &SecretReference{
-			Error: fmt.Errorf("secret doesn't exist"),
-		}
+func (s *FakeSecretStore) GetSecret(key string, role SecretRole) *SecretReference {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	refKey := RefKey(key, role)
+	if ref, exists := s.refs[refKey]; exists {
+		return ref
 	}
 
-	return secretRef
+	paths := defaultFakeSecretPaths(key, role)
+	secret, exists := s.secrets[key]
+	if !exists {
+		ref := &SecretReference{
+			Path:    paths.Path,
+			CRLPath: paths.CRLPath,
+			Error:   fmt.Errorf("secret %s doesn't exist", key),
+		}
+		s.refs[refKey] = ref
+		return ref
+	}
+
+	ref := &SecretReference{
+		Secret:  secret,
+		Error:   ValidateSecretForRole(secret, role),
+		Path:    paths.Path,
+		CRLPath: paths.CRLPath,
+	}
+	s.refs[refKey] = ref
+
+	return ref
 }
 
 // SecretCount returns the number of secrets in the store.
 func (s *FakeSecretStore) SecretCount() int {
-	return len(s.secrets)
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	resolved := make(map[string]struct{})
+	for key, ref := range s.refs {
+		if ref.Error == nil {
+			resolved[key.Key] = struct{}{}
+		}
+	}
+
+	return len(resolved)
 }
 
-// ResolvedRoles is a fake implementation of ResolvedRoles. The fake store is not
-// role-aware, so it reports no roles: callers then treat the update conservatively
-// and force a reload. Per-role behavior is covered by LocalSecretStore tests.
-func (s *FakeSecretStore) ResolvedRoles(_ string) []SecretRole {
-	return nil
+// ResolvedRoles is a fake implementation of ResolvedRoles.
+func (s *FakeSecretStore) ResolvedRoles(key string) []SecretRole {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	var roles []SecretRole
+	for refKey, ref := range s.refs {
+		if refKey.Key == key && ref.Error == nil {
+			roles = append(roles, refKey.Role)
+		}
+	}
+
+	slices.Sort(roles)
+	return roles
+}
+
+func defaultFakeSecretPaths(key string, role SecretRole) Materialized {
+	switch role {
+	case RoleTLS, RoleCA, RoleJWK, RoleHtpasswd:
+		return Materialized{
+			Path: fmt.Sprintf("/fake/secrets/%s/%s", role, key),
+		}
+	default:
+		return Materialized{}
+	}
 }

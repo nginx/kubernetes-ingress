@@ -5,9 +5,6 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/jinzhu/copier"
-
-	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -82,7 +79,7 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 			lbc.AddSyncQueue(secret)
 		},
 		UpdateFunc: func(old, cur interface{}) {
-			// TO EDIT A secret cannot change its type. That's why we only need to check the type of the current secret.
+			// We only need to compare the Data field of the secrets.
 			oldSecret := old.(*v1.Secret)
 			curSecret := cur.(*v1.Secret)
 			l := lbc.Logger.With(logNamespaceKey, curSecret.GetNamespace(), logKindKey, secretKind, logNameKey, curSecret.GetName())

@@ -130,7 +130,7 @@ func KnownKeys(role SecretRole) []string {
 }
 
 // requiredRoleKeys checks that each key is present in the Secret's data. Presence only,
-// deliberately not non-emptiness: five of the eight validators accept an empty
+// deliberately not non-emptiness: six of the eight validators accept an empty
 // value today, and narrowing that would reject working-if-degraded deployments
 // on upgrade.
 func requiredRoleKeys(secret *api_v1.Secret, role SecretRole) error {
@@ -289,10 +289,13 @@ func ValidateWAFBundleSecret(secret *api_v1.Secret) error {
 	_, hasUsername := secret.Data[BundleUsernameKey]
 	_, hasPassword := secret.Data[BundlePasswordKey]
 
-	if !hasToken && !hasUsername {
+	if hasToken {
+		return nil
+	}
+	if !hasUsername {
 		return fmt.Errorf("WAF bundle secret must contain 'token' or 'username'+'password'")
 	}
-	if hasUsername && !hasPassword {
+	if !hasPassword {
 		return fmt.Errorf("WAF bundle secret with 'username' must also contain 'password'")
 	}
 

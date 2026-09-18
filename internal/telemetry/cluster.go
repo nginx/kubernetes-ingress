@@ -185,7 +185,7 @@ func (c *Collector) InstallationID(ctx context.Context) (_ string, err error) {
 	return clusterInfo.GetInstallationID(ctx, c.Config.K8sClientReader, c.Config.PodNSName)
 }
 
-// Secrets returns the number of secrets watched by NIC.
+// Secrets returns the count of secrets currently referenced and resolved by active configuration.
 func (c *Collector) Secrets() (int, error) {
 	if c.Config.SecretStore == nil {
 		return 0, errors.New("nil secret store")
