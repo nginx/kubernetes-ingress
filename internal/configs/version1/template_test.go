@@ -7924,14 +7924,20 @@ func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
 
 	const signinURL = "/oauth2/start?rd=$scheme://$host$request_uri"
-	want := fmt.Sprintf(`error_page 401 = "%s";`, signinURL)
+	wants := []string{
+		fmt.Sprintf(`set $external_auth_signin_uri "%s";`, signinURL),
+		`error_page 401 = @external_auth_signin;`,
+		`location @external_auth_signin {`,
+		`return 302 $external_auth_signin_uri;`,
+	}
 
 	cases := []struct {
-		name    string
-		scope   string
-		signin  string
-		wantHit bool
-		newTmpl func(*testing.T) *template.Template
+		name             string
+		scope            string
+		signin           string
+		wantHit          bool
+		wantUnauthorized bool
+		newTmpl          func(*testing.T) *template.Template
 	}{
 		{name: "nginx/server", scope: "server", signin: signinURL, wantHit: true, newTmpl: newNGINXIngressTmpl},
 		{name: "nginx/location", scope: "location", signin: signinURL, wantHit: true, newTmpl: newNGINXIngressTmpl},
@@ -7939,7 +7945,8 @@ func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
 		{name: "nginx-plus/location", scope: "location", signin: signinURL, wantHit: true, newTmpl: newNGINXPlusIngressTmpl},
 		// Guards that ExternalAuth without SigninURL still emits `auth_request` but no `error_page 401`.
 		{name: "nginx/server/no-signin", scope: "server", signin: "", wantHit: false, newTmpl: newNGINXIngressTmpl},
-		{name: "nginx-plus/location/no-signin", scope: "location", signin: "", wantHit: false, newTmpl: newNGINXPlusIngressTmpl},
+		{name: "nginx/location/no-signin", scope: "location", signin: "", wantHit: false, wantUnauthorized: true, newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus/location/no-signin", scope: "location", signin: "", wantHit: false, wantUnauthorized: true, newTmpl: newNGINXPlusIngressTmpl},
 	}
 
 	for _, tc := range cases {
@@ -7947,7 +7954,14 @@ func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
 			t.Parallel()
 			tmpl := tc.newTmpl(t)
 			buf := &bytes.Buffer{}
-			if err := tmpl.Execute(buf, newIngressConfigWithExternalAuth(tc.scope, tc.signin)); err != nil {
+			cfg := newIngressConfigWithExternalAuth(tc.scope, tc.signin)
+			if got := cfg.Servers[0].HasExternalAuthSignin(); got != tc.wantHit {
+				t.Errorf("HasExternalAuthSignin() = %v, want %v", got, tc.wantHit)
+			}
+			if got := cfg.Servers[0].HasExternalAuthNoSignin(); got != tc.wantUnauthorized {
+				t.Errorf("HasExternalAuthNoSignin() = %v, want %v", got, tc.wantUnauthorized)
+			}
+			if err := tmpl.Execute(buf, cfg); err != nil {
 				t.Fatal(err)
 			}
 			got := buf.String()
@@ -7956,12 +7970,18 @@ func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
 				t.Errorf("want auth_request directive in rendered config\n---\n%s", got)
 			}
 
-			hasErrorPage := strings.Contains(got, want)
+			hasSigninRedirect := true
+			for _, want := range wants {
+				hasSigninRedirect = hasSigninRedirect && strings.Contains(got, want)
+			}
 			switch {
-			case tc.wantHit && !hasErrorPage:
-				t.Errorf("want %q in rendered config\n---\n%s", want, got)
-			case !tc.wantHit && strings.Contains(got, "error_page 401"):
-				t.Errorf("did not want error_page 401 when SigninURL is empty\n---\n%s", got)
+			case tc.wantHit && !hasSigninRedirect:
+				t.Errorf("want ExternalAuth signin redirect in rendered config\n---\n%s", got)
+			case !tc.wantHit && strings.Contains(got, "@external_auth_signin"):
+				t.Errorf("did not want ExternalAuth signin redirect when SigninURL is empty\n---\n%s", got)
+			}
+			if gotUnauthorized := strings.Contains(got, "error_page 401 = @external_auth_unauthorized;"); gotUnauthorized != tc.wantUnauthorized {
+				t.Errorf("external auth unauthorized handler present = %v, want %v\n---\n%s", gotUnauthorized, tc.wantUnauthorized, got)
 			}
 
 			snaps.MatchSnapshot(t, got)

@@ -5957,7 +5957,8 @@ server {
         status_zone "";
         auth_request "/_external_auth/oauth2/auth";
         proxy_intercept_errors on;
-        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+        set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+        error_page 401 = @external_auth_signin;
         proxy_http_version 1.1;
 
         proxy_connect_timeout ;
@@ -5975,6 +5976,10 @@ server {
         
     }
     
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
 }
 
 ---
@@ -6006,6 +6011,7 @@ server {
         set $service "";
         status_zone "";
         auth_request "/_external_auth/oauth2/auth";
+        error_page 401 = @external_auth_unauthorized;
         proxy_http_version 1.1;
 
         proxy_connect_timeout ;
@@ -6023,6 +6029,10 @@ server {
         
     }
     
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
 }
 
 ---
@@ -6050,7 +6060,8 @@ server {
     
     auth_request "/_external_auth/oauth2/auth";
     proxy_intercept_errors on;
-    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+    set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+    error_page 401 = @external_auth_signin;
 
     
     location "/tea" {
@@ -6073,6 +6084,10 @@ server {
         
     }
     
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
 }
 
 ---
@@ -6099,7 +6114,8 @@ server {
         set $service "";
         auth_request "/_external_auth/oauth2/auth";
         proxy_intercept_errors on;
-        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+        set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+        error_page 401 = @external_auth_signin;
         proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -6116,6 +6132,56 @@ server {
         
     }
     
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressWithExternalAuthSigninURL/nginx/location/no-signin - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/tea" {
+        set $service "";
+        auth_request "/_external_auth/oauth2/auth";
+        error_page 401 = @external_auth_unauthorized;
+        proxy_http_version 1.1;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
 }
 
 ---
@@ -6140,7 +6206,8 @@ server {
     set $service "-";
     auth_request "/_external_auth/oauth2/auth";
     proxy_intercept_errors on;
-    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+    set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";
+    error_page 401 = @external_auth_signin;
     location "/tea" {
         set $service "";
         proxy_http_version 1.1;
@@ -6159,6 +6226,10 @@ server {
         
     }
     
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
 }
 
 ---
