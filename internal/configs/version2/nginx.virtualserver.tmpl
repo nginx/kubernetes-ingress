@@ -419,7 +419,11 @@ server {
         {{- if $l.InternalProxyPass }}
         proxy_pass {{ $l.InternalProxyPass }};
         {{- end }}
+        {{- /* HTTP/2 forbids the hop-by-hop Connection header (RFC 9113 8.2.2), so the header and
+               the variable feeding it are both omitted when proxying over HTTP/2. */}}
+        {{- if ne $l.ProxyHTTPVersion "2" }}
         set $default_connection_header {{ if $l.HasKeepalive }}""{{ else }}close{{ end }};
+        {{- end }}
         {{- if or $l.ProxyPass $l.GRPCPass }}
             {{- range $r := $l.Rewrites }}
         rewrite {{ $r }};
@@ -453,9 +457,13 @@ server {
                 {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
-        proxy_http_version 1.1;
+        {{- if $l.ProxyHTTPVersion }}
+        proxy_http_version {{ $l.ProxyHTTPVersion }};
+        {{- end }}
+        {{- if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
+        {{- end }}
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
         {{- if $l.ProxyPassRequestBody }}
         proxy_pass_request_body {{ $l.ProxyPassRequestBody }};

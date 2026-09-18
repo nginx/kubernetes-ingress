@@ -1753,3 +1753,56 @@ func TestParseAnnotationsAddHeader(t *testing.T) {
 		})
 	}
 }
+
+func TestParseAnnotationsProxyHTTPVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		annotations map[string]string
+		want        string
+	}{
+		{
+			name: "no annotation leaves ProxyHTTPVersion unset",
+			want: "",
+		},
+		{
+			name:        "annotation is copied verbatim",
+			annotations: map[string]string{ProxyHTTPVersionAnnotation: "2"},
+			want:        "2",
+		},
+		{
+			name:        "1.0 is copied verbatim",
+			annotations: map[string]string{ProxyHTTPVersionAnnotation: "1.0"},
+			want:        "1.0",
+		},
+		{
+			name:        "1.1 is copied verbatim",
+			annotations: map[string]string{ProxyHTTPVersionAnnotation: "1.1"},
+			want:        "1.1",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			ingEx := &IngressEx{
+				Ingress: &networking.Ingress{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        "test-ingress",
+						Namespace:   "default",
+						Annotations: test.annotations,
+					},
+				},
+			}
+
+			baseCfgParams := NewDefaultConfigParams(context.Background(), false)
+			result := parseAnnotations(ingEx, baseCfgParams, false, false, false, false)
+
+			if result.ProxyHTTPVersion != test.want {
+				t.Errorf("ProxyHTTPVersion: want %q, got %q", test.want, result.ProxyHTTPVersion)
+			}
+		})
+	}
+}

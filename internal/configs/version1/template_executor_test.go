@@ -833,13 +833,17 @@ server {
 		grpc_pass grpc://{{$location.Upstream.Name}};
 		{{- end}}
 		{{- else}}
-		proxy_http_version 1.1;
+		{{- if $location.ProxyHTTPVersion}}
+		proxy_http_version {{$location.ProxyHTTPVersion}};
+		{{- end}}
+		{{- if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
+		{{- end}}
 		{{- end}}
 		{{- range $value := $location.LocationSnippets}}
 		{{$value}}{{- end}}
