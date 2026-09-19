@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -47,6 +48,9 @@ const (
 	Delete Operation = iota
 	// AddOrUpdate the config of the resource
 	AddOrUpdate
+	// UpdateStatus updates resource status and events without regenerating NGINX config.
+	// Used when a VirtualServer warning set changes but the rendered configuration does not.
+	UpdateStatus
 )
 
 // Resource represents a configuration resource.
@@ -1238,6 +1242,10 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 	removedHosts, updatedHosts, addedHosts := detectChangesInHosts(c.hosts, newHosts)
 	changes := createResourceChangesForHosts(removedHosts, updatedHosts, addedHosts, c.hosts, newHosts)
 
+	// Retain the previous hosts so warning-only diffs can be detected after
+	// listener warnings are attached to newResources.
+	oldHosts := c.hosts
+
 	// safe to update hosts
 	c.hosts = newHosts
 
@@ -1258,6 +1266,11 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 	c.addProblemsForOrphanMinions(newProblems)
 	c.addProblemsForOrphanOrIgnoredVsrs(newProblems)
 	c.addWarningsForVirtualServersWithMissConfiguredListeners(newResources)
+
+	// Report VirtualServer warning-set changes even when IsEqual skipped a reload.
+	// IsEqual is the reload predicate and intentionally ignores Warnings; reporting
+	// must not depend on that predicate or rejected resources stay silently Valid.
+	changes = append(changes, createVirtualServerWarningChanges(oldHosts, newHosts, changes)...)
 
 	newOrUpdatedProblems := detectChangesInProblems(newProblems, c.hostProblems)
 
@@ -1553,6 +1566,54 @@ func createResourceChangesForHosts(removedHosts []string, updatedHosts []string,
 	// in a delete change, will be processed only after the config of the delete change is removed.
 	// That will prevent any host collisions in the NGINX config in the state between the changes.
 	return append(deleteChanges, changes...)
+}
+
+// createVirtualServerWarningChanges emits UpdateStatus changes for VirtualServers
+// whose warning set changed while IsEqual still considers the resource unchanged.
+// Resources already present in existing changes are skipped so a reload (or
+// delete) remains the single reporting path for that object.
+func createVirtualServerWarningChanges(oldHosts map[string]Resource, newHosts map[string]Resource, existing []ResourceChange) []ResourceChange {
+	alreadyChanged := make(map[string]struct{}, len(existing))
+	for _, c := range existing {
+		alreadyChanged[c.Resource.GetKeyWithKind()] = struct{}{}
+	}
+
+	var changes []ResourceChange
+	seen := make(map[string]struct{})
+
+	for _, h := range getSortedResourceKeys(newHosts) {
+		newVSC, ok := newHosts[h].(*VirtualServerConfiguration)
+		if !ok {
+			continue
+		}
+
+		key := newVSC.GetKeyWithKind()
+		if _, skip := alreadyChanged[key]; skip {
+			continue
+		}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+
+		oldR, exists := oldHosts[h]
+		if !exists {
+			continue
+		}
+		oldVSC, ok := oldR.(*VirtualServerConfiguration)
+		if !ok {
+			continue
+		}
+
+		if !slices.Equal(oldVSC.Warnings, newVSC.Warnings) {
+			changes = append(changes, ResourceChange{
+				Op:       UpdateStatus,
+				Resource: newVSC,
+			})
+			seen[key] = struct{}{}
+		}
+	}
+
+	return changes
 }
 
 func createResourceChangesForListeners(
