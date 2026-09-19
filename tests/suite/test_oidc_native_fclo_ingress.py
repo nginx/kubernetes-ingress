@@ -21,6 +21,8 @@ from suite.utils.resources_utils import (
     delete_ingress,
     delete_items_from_yaml,
     delete_secret,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     replace_configmap_from_yaml,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -42,6 +44,7 @@ ingress_two_src = f"{TEST_DATA}/oidc-native-fclo/ingress/ingress-two.yaml"
 @pytest.fixture(scope="class")
 def keycloak_ingress_fclo_setup(request, kube_apis, test_namespace, ingress_controller_endpoint):
     """Deploy Keycloak via Ingress and register two FCLO-enabled native OIDC clients."""
+    e2e_run_id = generate_e2e_run_id()
     ingress_secret_name = create_secret_from_yaml(
         kube_apis.v1, test_namespace, f"{TEST_DATA}/virtual-server-tls/tls-secret.yaml"
     )
@@ -55,9 +58,9 @@ def keycloak_ingress_fclo_setup(request, kube_apis, test_namespace, ingress_cont
         kube_apis.v1, test_namespace, f"{TEST_DATA}/oidc/keycloak-ca-secret.yaml"
     )
 
-    create_example_app(kube_apis, backend_app, test_namespace)
+    create_example_app(kube_apis, backend_app, test_namespace, e2e_run_id=e2e_run_id)
     wait_before_test()
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     keycloak_ingress_name = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, keycloak_ingress_src)
     wait_before_test()
@@ -300,6 +303,7 @@ class TestOIDCNativeFCLOIngress:
         test_namespace,
         keycloak_ingress_fclo_setup,
         crd_ingress_controller,
+        e2e_run_id,
     ):
         ingress_one_name = None
         ingress_two_name = None
@@ -319,7 +323,7 @@ class TestOIDCNativeFCLOIngress:
             configmap_replaced = True
             wait_before_test()
 
-            create_items_from_yaml(kube_apis, webapps_src, test_namespace)
+            create_items_from_yaml(kube_apis, webapps_src, test_namespace, e2e_run_id=e2e_run_id)
 
             secret_one_name = create_native_oidc_secret(
                 kube_apis, test_namespace, keycloak_ingress_fclo_setup.secret_one, "oidc-native-secret-one"
@@ -389,6 +393,7 @@ class TestOIDCNativeFCLOIngress:
         test_namespace,
         keycloak_ingress_fclo_setup,
         crd_ingress_controller,
+        e2e_run_id,
     ):
         ingress_name = None
         configmap_replaced = False
@@ -404,7 +409,7 @@ class TestOIDCNativeFCLOIngress:
             configmap_replaced = True
             wait_before_test()
 
-            create_items_from_yaml(kube_apis, webapps_src, test_namespace)
+            create_items_from_yaml(kube_apis, webapps_src, test_namespace, e2e_run_id=e2e_run_id)
             secret_name = create_native_oidc_secret(
                 kube_apis, test_namespace, keycloak_ingress_fclo_setup.secret_one, "oidc-native-secret-one"
             )

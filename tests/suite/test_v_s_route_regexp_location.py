@@ -5,6 +5,8 @@ from suite.utils.custom_assertions import assert_event, assert_vs_conf_not_exist
 from suite.utils.resources_utils import (
     create_example_app,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -107,7 +109,11 @@ class TestRegexpLocation:
     def test_flow_for_invalid_vs(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup, v_s_route_app_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         text_vs = f"{v_s_route_setup.namespace}/{v_s_route_setup.vs_name}"
         vs_event_text = (
             f"VirtualServer {text_vs} was rejected with error: "
@@ -135,7 +141,11 @@ class TestRegexpLocation:
     def test_flow_for_invalid_vsr(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, v_s_route_setup, v_s_route_app_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         text_vs = f"{v_s_route_setup.namespace}/{v_s_route_setup.vs_name}"
         text_vsr_s = f"{v_s_route_setup.route_m.namespace}/{v_s_route_setup.route_m.name}"
         vs_event_text = f"Configuration for {text_vs} was added or updated with warning(s)"
@@ -178,10 +188,11 @@ class VSRRegexpSetup:
         vs_name (str):
     """
 
-    def __init__(self, namespace, vs_host, vs_name):
+    def __init__(self, namespace, vs_host, vs_name, e2e_run_id):
         self.namespace = namespace
         self.vs_host = vs_host
         self.vs_name = vs_name
+        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -214,10 +225,11 @@ def vsr_regexp_setup(
         )
 
     print("---------------------- Deploy simple app ----------------------------")
-    create_example_app(kube_apis, "extended", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "extended", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
-    return VSRRegexpSetup(test_namespace, vs_host, vs_name)
+    return VSRRegexpSetup(test_namespace, vs_host, vs_name, e2e_run_id)
 
 
 @pytest.mark.vsr
@@ -389,7 +401,11 @@ class TestVSRSelectorRegexpLocation:
         v_s_route_selector_setup,
         v_s_route_selector_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         text_vs = f"{v_s_route_selector_setup.namespace}/{v_s_route_selector_setup.vs_name}"
         vs_event_text = (
             f"VirtualServer {text_vs} was rejected with error: "
@@ -422,7 +438,11 @@ class TestVSRSelectorRegexpLocation:
         v_s_route_selector_setup,
         v_s_route_selector_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         text_vs = f"{v_s_route_selector_setup.namespace}/{v_s_route_selector_setup.vs_name}"
         text_vsr_s = f"{v_s_route_selector_setup.route_m.namespace}/{v_s_route_selector_setup.route_m.name}"
         vs_event_text = f"Configuration for {text_vs} was added or updated with warning(s)"
@@ -470,10 +490,11 @@ class VSRRegexpSetup:
         vs_name (str):
     """
 
-    def __init__(self, namespace, vs_host, vs_name):
+    def __init__(self, namespace, vs_host, vs_name, e2e_run_id):
         self.namespace = namespace
         self.vs_host = vs_host
         self.vs_name = vs_name
+        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -508,10 +529,11 @@ def vsr_selector_regexp_setup(
         )
 
     print("---------------------- Deploy simple app ----------------------------")
-    create_example_app(kube_apis, "extended", test_namespace)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    e2e_run_id = generate_e2e_run_id()
+    create_example_app(kube_apis, "extended", test_namespace, e2e_run_id=e2e_run_id)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
-    return VSRRegexpSetup(test_namespace, vs_host, vs_name)
+    return VSRRegexpSetup(test_namespace, vs_host, vs_name, e2e_run_id)
 
 
 @pytest.mark.vsr

@@ -15,6 +15,7 @@ from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_common_app,
     delete_items_from_yaml,
+    get_e2e_run_selector,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -28,7 +29,7 @@ from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 
 
 @pytest.fixture(scope="function")
-def backend_setup(request, kube_apis, ingress_controller_prerequisites, test_namespace):
+def backend_setup(request, kube_apis, ingress_controller_prerequisites, test_namespace, e2e_run_id):
     """
     Replace the ConfigMap and deploy the secret.
 
@@ -51,8 +52,8 @@ def backend_setup(request, kube_apis, ingress_controller_prerequisites, test_nam
         create_secret_from_yaml(kube_apis.v1, test_namespace, src_sec_yaml)
         print("------------------------- Deploy App -----------------------------")
         app_name = request.param.get("app_type")
-        create_example_app(kube_apis, app_name, test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, app_name, test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     except Exception:
         print("Failed to complete setup, cleaning up..")
         delete_items_from_yaml(kube_apis, src_sec_yaml, test_namespace)
@@ -106,7 +107,11 @@ class TestVirtualServerGrpc:
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
         print("\nStep 1: assert config")
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -191,7 +196,11 @@ class TestVirtualServerGrpc:
                 print(e.details())
                 pytest.fail("RPC error was not expected during call, exiting...")
         # Assert grpc_status is in the logs. The gRPC response in a successful call is 0.
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         log_contents = kube_apis.v1.read_namespaced_pod_log(ic_pod_name, ingress_controller_prerequisites.namespace)
         retry = 0
         while '"POST /helloworld.Greeter/SayHello HTTP/2.0" 200 0' not in log_contents and retry <= 60:
@@ -215,7 +224,11 @@ class TestVirtualServerGrpc:
             except grpc.RpcError as e:
                 print(e)
         # Assert the grpc_status is also in the logs.
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         wait_before_test()
         # Need to get full log because of a race condition on the last log entry.
         log_contents = kube_apis.v1.read_namespaced_pod_log(ic_pod_name, ingress_controller_prerequisites.namespace)
@@ -248,7 +261,11 @@ class TestVirtualServerGrpc:
     def test_config_after_enable_tls(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
             virtual_server_setup.vs_name,
@@ -280,7 +297,11 @@ class TestVirtualServerGrpcHealthCheck:
     def test_config_after_enable_healthcheck(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
             virtual_server_setup.vs_name,
@@ -322,7 +343,11 @@ class TestVirtualServerGrpcHealthCheck:
             virtual_server_setup.namespace,
         )
         wait_before_test(2)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         vs_events = get_events(kube_apis.v1, virtual_server_setup.namespace)
         assert_event_starts_with_text_and_contains_errors(vs_event_text, vs_events, invalid_fields)
         assert_vs_conf_not_exists(
@@ -337,7 +362,11 @@ class TestVirtualServerGrpcHealthCheck:
     def test_grpc_healthcheck_send_hello(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(
+            kube_apis.v1,
+            ingress_controller_prerequisites.namespace,
+            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+        )
         patch_virtual_server_from_yaml(
             kube_apis.custom_objects,
             virtual_server_setup.vs_name,

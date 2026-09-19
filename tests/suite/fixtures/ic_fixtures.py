@@ -20,6 +20,7 @@ from suite.utils.resources_utils import (
     delete_ingress_controller,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
+    generate_e2e_run_id,
     get_first_pod_name,
     patch_rbac,
     replace_configmap_from_yaml,
@@ -49,7 +50,14 @@ def ingress_controller(cli_arguments, kube_apis, ingress_controller_prerequisite
         print("IC will start with CRDs disabled and without any additional cli-arguments")
         extra_args = ["-enable-custom-resources=false"]
     try:
-        name = create_ingress_controller(kube_apis.v1, kube_apis.apps_v1_api, cli_arguments, namespace, extra_args)
+        name = create_ingress_controller(
+            kube_apis.v1,
+            kube_apis.apps_v1_api,
+            cli_arguments,
+            namespace,
+            extra_args,
+            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
+        )
     except ApiException as ex:
         # Finalizer doesn't start if fixture creation was incomplete, ensure clean up here
         print(f"Failed to complete IC fixture: {ex}\nClean up the cluster as much as possible.")
@@ -97,6 +105,7 @@ def crd_ingress_controller(
             cli_arguments,
             namespace,
             request.param.get("extra_args", None),
+            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
         if request.param["type"] == "tls-passthrough-custom-port":
             orig_port = ingress_controller_endpoint.port_ssl
@@ -175,6 +184,7 @@ def crd_ingress_controller_with_ap(
             cli_arguments,
             namespace,
             request.param.get("extra_args", None),
+            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
@@ -297,6 +307,7 @@ def crd_ingress_controller_with_waf_v5(
                 "regcred",
                 request.param.get("extra_args", None),
                 True,
+                e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
             )
         else:
             name = create_ingress_controller_wafv5(
@@ -306,9 +317,14 @@ def crd_ingress_controller_with_waf_v5(
                 namespace,
                 "regcred",
                 request.param.get("extra_args", None),
+                e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
             )
         try:
-            pod_name = get_first_pod_name(kube_apis.v1, namespace)
+            pod_name = get_first_pod_name(
+                kube_apis.v1,
+                namespace,
+                f"e2e.nginx.org/run-id={ingress_controller_prerequisites.e2e_run_id}",
+            )
             dest_path = "/etc/app_protect/bundles/wafv5.tgz"
             src_path = f"{dir}/wafv5.tgz"
             result = subprocess.run(
@@ -389,6 +405,7 @@ def crd_ingress_controller_with_dos(
     """
     namespace = ingress_controller_prerequisites.namespace
     name = "nginx-ingress"
+    dos_run_id = generate_e2e_run_id()
 
     try:
         print("--------------------Create roles and bindings for AppProtect------------------------")
@@ -416,14 +433,14 @@ def crd_ingress_controller_with_dos(
 
         print("------------------------- Create syslog svc -----------------------")
         src_syslog_yaml = f"{TEST_DATA}/dos/dos-syslog.yaml"
-        create_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
+        create_items_from_yaml(kube_apis, src_syslog_yaml, namespace, dos_run_id)
 
         print("------------------------- Create accesslog svc -----------------------")
         src_accesslog_yaml = f"{TEST_DATA}/dos/dos-accesslog.yaml"
-        create_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
+        create_items_from_yaml(kube_apis, src_accesslog_yaml, namespace, dos_run_id)
 
         before = time.time()
-        wait_until_all_pods_are_ready(kube_apis.v1, namespace)
+        wait_until_all_pods_are_ready(kube_apis.v1, namespace, f"e2e.nginx.org/run-id={dos_run_id}")
         after = time.time()
         print(f"All pods came up in {int(after-before)} seconds")
         print(f"syslog and accesslog svc was created")
@@ -435,6 +452,7 @@ def crd_ingress_controller_with_dos(
             namespace,
             f"{DEPLOYMENTS}/deployment/appprotect-dos-arb.yaml",
             f"{DEPLOYMENTS}/service/appprotect-dos-arb-svc.yaml",
+            e2e_run_id=dos_run_id,
         )
 
         print("------------------------- Create IC -----------------------------------")
@@ -444,6 +462,7 @@ def crd_ingress_controller_with_dos(
             cli_arguments,
             namespace,
             request.param.get("extra_args", None),
+            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
@@ -538,6 +557,7 @@ def crd_ingress_controller_with_ed(
             cli_arguments,
             namespace,
             request.param.get("extra_args", None),
+            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
