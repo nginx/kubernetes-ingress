@@ -1922,9 +1922,15 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 		vsr *conf_v1.VirtualServerRoute
 	}
 	var matched []matchedVSR
+	// Count label matches separately from the validated result set. A selector
+	// that matches a VSR later rejected by ValidateVirtualServerRouteForVirtualServer
+	// already emits an accurate per-VSR warning; treating an empty validated
+	// set as "matched nothing" would add a spurious second warning.
+	labelMatches := 0
 
 	for vsrKey, vsr := range c.virtualServerRoutes {
 		if sel.Matches(labels.Set(vsr.Labels)) {
+			labelMatches++
 			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
 			if err != nil {
 				warning := fmt.Sprintf("VirtualServerRoute %s is invalid: %v", vsrKey, err)
@@ -1933,6 +1939,10 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 			}
 			matched = append(matched, matchedVSR{key: vsrKey, vsr: vsr})
 		}
+	}
+
+	if labelMatches == 0 {
+		warnings = append(warnings, fmt.Sprintf("VirtualServerRoute routeSelector %s matched no VirtualServerRoutes", selectorStr))
 	}
 
 	// Sort before building the output slices.  The vsrs slice ends up as
