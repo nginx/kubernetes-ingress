@@ -46,9 +46,23 @@ help: ## Show available make targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "; printf "Usage:\n\n    make \033[36m<target>\033[0m [VARIABLE=value...]\n\nTargets:\n\n"}; {printf "    \033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
 
+ifneq ($(strip $(CURL_CA_BUNDLE)),)
+VALID_CA := $(shell if [ -f "$(CURL_CA_BUNDLE)" ] && { openssl x509 -in "$(CURL_CA_BUNDLE)" -noout >/dev/null 2>&1 || grep -q -- "-----BEGIN CERTIFICATE-----" "$(CURL_CA_BUNDLE)" 2>/dev/null; }; then echo "$(CURL_CA_BUNDLE)"; fi)
+ifneq ($(VALID_CA),)
+BUILD_SECRET_ARGS := --secret id=corp-ca,src=$(VALID_CA)
+endif
+endif
+
 .PHONY: build
 build: ## Run build
-	docker build --build-arg ARCH=$(ARCH) $(if $(CA_BUNDLE),--secret id=ca-bundle$(COMMA)src="$(CA_BUNDLE)") -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
+ifneq ($(strip $(CURL_CA_BUNDLE)),)
+ifneq ($(VALID_CA),)
+	@echo "Using custom CA bundle from CURL_CA_BUNDLE: $(VALID_CA)"
+else
+	@echo "WARNING: CURL_CA_BUNDLE is set ('$(CURL_CA_BUNDLE)') but is not a valid certificate bundle file; skipping secret mount."
+endif
+endif
+	docker build $(BUILD_SECRET_ARGS) --build-arg ARCH=$(ARCH) -t $(TEST_PREFIX):$(TEST_TAG) -f $(DOCKERFILEPATH) $(ROOT_DIR)
 
 
 $(KUBE_CONFIG_FOLDER):
