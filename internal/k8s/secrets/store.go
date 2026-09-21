@@ -63,22 +63,40 @@ type SecretRefKey struct {
 	Role SecretRole
 }
 
+// SecretResolverFunc resolves a Secret by key on demand when it is missing from the store.
+type SecretResolverFunc func(key string) (*api_v1.Secret, error)
+
+// LocalSecretStoreOption configures a LocalSecretStore.
+type LocalSecretStoreOption func(*LocalSecretStore)
+
+// WithSecretResolver sets a fallback resolver used when a Secret is not in the store.
+func WithSecretResolver(resolver SecretResolverFunc) LocalSecretStoreOption {
+	return func(s *LocalSecretStore) {
+		s.resolver = resolver
+	}
+}
+
 // LocalSecretStore implements SecretStore interface.
 // It validates the secrets and manages them on the file system (via SecretFileManager).
 type LocalSecretStore struct {
-	secrets map[string]*api_v1.Secret
-	refs    map[storeKey]*secretEntry
-	manager SecretFileManager
-	lock    sync.RWMutex
+	secrets  map[string]*api_v1.Secret
+	refs     map[storeKey]*secretEntry
+	manager  SecretFileManager
+	resolver SecretResolverFunc
+	lock     sync.RWMutex
 }
 
 // NewLocalSecretStore creates a new LocalSecretStore.
-func NewLocalSecretStore(manager SecretFileManager) *LocalSecretStore {
-	return &LocalSecretStore{
+func NewLocalSecretStore(manager SecretFileManager, opts ...LocalSecretStoreOption) *LocalSecretStore {
+	s := &LocalSecretStore{
 		secrets: make(map[string]*api_v1.Secret),
 		refs:    make(map[storeKey]*secretEntry),
 		manager: manager,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // AddOrUpdateSecret adds or updates a Secret and re-validates every role it has
@@ -142,6 +160,14 @@ func (s *LocalSecretStore) DeleteSecret(key string) {
 	}
 }
 
+// HoldsSecret reports whether a Secret with the given key is currently cached in memory.
+func (s *LocalSecretStore) HoldsSecret(key string) bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	_, exists := s.secrets[key]
+	return exists
+}
+
 // GetSecret returns the SecretReference for a Secret in the given role, materializing
 // it if valid and not yet on disk. Path is set whatever the verdict so callers never
 // render an empty path; inlined roles (OIDC, API key, WAF bundle, license) have none.
@@ -159,6 +185,13 @@ func (s *LocalSecretStore) GetSecret(key string, role SecretRole) *SecretReferen
 	ref := &SecretReference{Path: paths.Path, CRLPath: paths.CRLPath}
 
 	secret, exists := s.secrets[key]
+	if !exists && s.resolver != nil {
+		if resolved, err := s.resolver(key); err == nil && resolved != nil {
+			secret = resolved
+			s.secrets[key] = secret
+			exists = true
+		}
+	}
 	if !exists {
 		ref.Error = fmt.Errorf("secret %s doesn't exist", key)
 		s.refs[refKey] = &secretEntry{ref: ref}

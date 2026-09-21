@@ -544,6 +544,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	lbc.dosConfiguration = appprotectdos.NewConfiguration(input.AppProtectDosEnabled)
 
 	lbc.secretStore = secrets.NewLocalSecretStore(lbc.configurator)
+	lbc.secretStore = secrets.NewLocalSecretStore(lbc.configurator, secrets.WithSecretResolver(lbc.getSecret))
 
 	// NIC Telemetry Reporting
 	if input.EnableTelemetryReporting {
@@ -2594,10 +2595,12 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 
 	resources := lbc.configuration.FindResourcesForSecret(namespace, name)
 
+	var secretPols []*conf_v1.Policy
 	if lbc.areCustomResourcesEnabled {
-		secretPols, err := lbc.getPoliciesForSecret(namespace, name)
-		if err != nil {
-			lbc.syncQueue.Requeue(task, err)
+		var polErr error
+		secretPols, polErr = lbc.getPoliciesForSecret(namespace, name)
+		if polErr != nil {
+			lbc.syncQueue.Requeue(task, polErr)
 			return
 		}
 		for _, pol := range secretPols {
@@ -2625,11 +2628,18 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 		return
 	}
 
-	nl.Debugf(l, "Adding / Updating Secret: %v", key)
-
 	secret := obj.(*api_v1.Secret)
 
-	lbc.secretStore.AddOrUpdateSecret(secret)
+	isReferenced := len(resources) > 0 || len(secretPols) > 0 || lbc.isSpecialSecret(key)
+	if isReferenced {
+		nl.Debugf(l, "Adding / Updating Secret: %v", key)
+		lbc.secretStore.AddOrUpdateSecret(secret)
+	} else {
+		nl.Debugf(l, "Evicting unreferenced Secret: %v", key)
+		lbc.secretStore.DeleteSecret(key)
+		lbc.enqueuePoliciesUsingPLMStorage(key)
+		return
+	}
 
 	specialUpdate := specialSecretUpdate{}
 	specialApplied := false
@@ -2747,6 +2757,29 @@ func removeDuplicateResources(resources []Resource) []Resource {
 	}
 
 	return uniqueResources
+}
+
+func (lbc *LoadBalancerController) getSecret(key string) (*api_v1.Secret, error) {
+	namespace, _, err := ParseNamespaceName(key)
+	if err != nil {
+		return nil, err
+	}
+	nsi := lbc.getNamespacedInformer(namespace)
+	if nsi == nil || nsi.secretLister == nil {
+		return nil, fmt.Errorf("secrets are not watched in namespace %s", namespace)
+	}
+	obj, exists, err := nsi.secretLister.GetByKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, fmt.Errorf("secret %s does not exist", key)
+	}
+	secret, ok := obj.(*api_v1.Secret)
+	if !ok {
+		return nil, fmt.Errorf("object %s is not a Secret", key)
+	}
+	return secret, nil
 }
 
 func (lbc *LoadBalancerController) isSpecialSecret(key string) bool {

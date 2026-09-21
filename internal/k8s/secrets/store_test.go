@@ -896,3 +896,59 @@ func TestFakeSecretStorePopulatesPathOnEveryVerdict(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalSecretStoreWithSecretResolver(t *testing.T) {
+	t.Parallel()
+
+	manager := newFakeSecretFileManager()
+	resolvedSecret := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "lazy-secret",
+			Namespace: "default",
+		},
+		Type: api_v1.SecretTypeTLS,
+		Data: map[string][]byte{
+			"tls.crt": validCert,
+			"tls.key": validKey,
+		},
+	}
+
+	resolverCalled := false
+	resolver := func(key string) (*api_v1.Secret, error) {
+		resolverCalled = true
+		if key == "default/lazy-secret" {
+			return resolvedSecret, nil
+		}
+		return nil, fmt.Errorf("secret %s not found", key)
+	}
+
+	store := NewLocalSecretStore(manager, WithSecretResolver(resolver))
+
+	key := "default/lazy-secret"
+	if store.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = true before GetSecret, want false", key)
+	}
+
+	ref := store.GetSecret(key, RoleTLS)
+	if !resolverCalled {
+		t.Error("resolver was not called on store miss")
+	}
+	if ref.Error != nil {
+		t.Fatalf("GetSecret() error = %v, want nil", ref.Error)
+	}
+	if !store.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = false after resolution, want true", key)
+	}
+	if ref.Path != fakePath(key, RoleTLS) {
+		t.Errorf("GetSecret().Path = %q, want %q", ref.Path, fakePath(key, RoleTLS))
+	}
+
+	// Non-existing secret with resolver failure
+	missingRef := store.GetSecret("default/nonexistent", RoleTLS)
+	if missingRef.Error == nil {
+		t.Error("GetSecret(nonexistent) returned nil error, want error")
+	}
+	if store.HoldsSecret("default/nonexistent") {
+		t.Error("HoldsSecret(nonexistent) = true, want false")
+	}
+}

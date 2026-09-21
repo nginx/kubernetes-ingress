@@ -4178,15 +4178,20 @@ func TestSyncSecretUnreferencedDoesNotMaterializeOrReload(t *testing.T) {
 	}
 
 	lbc.namespacedInformers["default"].secretLister = secretCache
-	lbc.secretStore = secrets.NewLocalSecretStore(lbc.configurator)
+	lbc.secretStore = secrets.NewLocalSecretStore(lbc.configurator, secrets.WithSecretResolver(lbc.getSecret))
 	lbc.areCustomResourcesEnabled = false
 	lbc.plmEnabled = false
+
+	key := "default/unreferenced"
 
 	assertInert := func(stage string) {
 		t.Helper()
 
 		if got := lbc.secretStore.SecretCount(); got != 0 {
 			t.Errorf("%s: SecretCount() = %d, want 0", stage, got)
+		}
+		if lbc.secretStore.(*secrets.LocalSecretStore).HoldsSecret(key) {
+			t.Errorf("%s: unreferenced Secret unexpectedly held in memory", stage)
 		}
 		if got := len(manager.CreatedSecretNames); got != 0 {
 			t.Errorf("%s: created %d Secret files, want 0", stage, got)
@@ -4199,7 +4204,6 @@ func TestSyncSecretUnreferencedDoesNotMaterializeOrReload(t *testing.T) {
 		}
 	}
 
-	key := "default/unreferenced"
 	lbc.syncSecret(task{
 		Kind: secret,
 		Key:  key,
@@ -4223,8 +4227,108 @@ func TestSyncSecretUnreferencedDoesNotMaterializeOrReload(t *testing.T) {
 	if ref.Error != nil {
 		t.Fatalf("cached Secret could not be resolved: %v", ref.Error)
 	}
+	if !lbc.secretStore.(*secrets.LocalSecretStore).HoldsSecret(key) {
+		t.Errorf("Secret should be held in memory after resolution")
+	}
 	if got := string(ref.Secret.Data[secrets.JWTKeyKey]); got != `{"keys":[]}` {
 		t.Errorf("cached JWK = %q, want updated value", got)
+	}
+}
+
+func TestSyncSecretReferencedLifecycle(t *testing.T) {
+	t.Parallel()
+
+	manager := newSecretReconciliationNginxManager()
+	lbc := newBatchTestLBC(t, manager)
+
+	secretCache := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	secretObj := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "test-secret",
+			Namespace: "default",
+		},
+		Type: api_v1.SecretTypeOpaque,
+		Data: map[string][]byte{
+			secrets.JWTKeyKey: []byte(`{"keys":[]}`),
+		},
+	}
+	if err := secretCache.Add(secretObj); err != nil {
+		t.Fatalf("failed to add Secret to cache: %v", err)
+	}
+
+	lbc.namespacedInformers["default"].secretLister = secretCache
+	localStore := secrets.NewLocalSecretStore(lbc.configurator, secrets.WithSecretResolver(lbc.getSecret))
+	lbc.secretStore = localStore
+	lbc.areCustomResourcesEnabled = false
+	lbc.plmEnabled = false
+	lbc.configuration.CompleteStartup()
+
+	key := "default/test-secret"
+
+	// 1. Unreferenced secret sync does NOT retain the secret in LocalSecretStore.
+	lbc.syncSecret(task{Kind: secret, Key: key})
+	if localStore.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = true after unreferenced sync, want false", key)
+	}
+
+	// 2. An Ingress arrives and references the secret. GetSecret lazily resolves from Informer.
+	ref := lbc.secretStore.GetSecret(key, secrets.RoleJWK)
+	if ref.Error != nil {
+		t.Fatalf("GetSecret(%q, RoleJWK) error = %v, want nil", key, ref.Error)
+	}
+	if !localStore.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = false after lazy resolution, want true", key)
+	}
+
+	// 3. Simulate Ingress added to configuration so the secret is now referenced.
+	ing := &networking.Ingress{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:              "test-ing",
+			Namespace:         "default",
+			CreationTimestamp: meta_v1.Now(),
+			Annotations: map[string]string{
+				"kubernetes.io/ingress.class": "nginx",
+			},
+		},
+		Spec: networking.IngressSpec{
+			TLS: []networking.IngressTLS{
+				{
+					Hosts:      []string{"example.com"},
+					SecretName: "test-secret",
+				},
+			},
+			Rules: []networking.IngressRule{
+				{
+					Host: "example.com",
+				},
+			},
+		},
+	}
+	_, problems := lbc.configuration.AddOrUpdateIngress(ing)
+	if len(problems) > 0 {
+		t.Fatalf("AddOrUpdateIngress() problems = %v", problems)
+	}
+
+	// 4. Update the secret in informer cache.
+	updatedSecret := secretObj.DeepCopy()
+	updatedSecret.Data[secrets.JWTKeyKey] = []byte(`{"keys":[{"kty":"oct"}]}`)
+	if err := secretCache.Update(updatedSecret); err != nil {
+		t.Fatalf("failed to update Secret in cache: %v", err)
+	}
+
+	// 5. syncSecret now sees the secret is referenced and updates it in LocalSecretStore.
+	lbc.syncSecret(task{Kind: secret, Key: key})
+	if !localStore.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = false after referenced sync, want true", key)
+	}
+
+	// 6. Remove Ingress from configuration. Now the secret is unreferenced again.
+	lbc.configuration.DeleteIngress("default/test-ing")
+
+	// 7. syncSecret now evicts the unreferenced secret from LocalSecretStore.
+	lbc.syncSecret(task{Kind: secret, Key: key})
+	if localStore.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = true after dereferencing, want false", key)
 	}
 }
 
