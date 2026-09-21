@@ -1418,6 +1418,7 @@ type CORS struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:XValidation:rule="self.all(origin, origin != '')",message="origin cannot be empty"
+	// +kubebuilder:validation:items:XValidation:rule="self == '*' || url(self).getPort() == '' || (url(self).getPort().matches('^[0-9]+$') && int(url(self).getPort()) >= 1 && int(url(self).getPort()) <= 65535)",message="origin port must be an integer between 1 and 65535"
 	// AllowOrigin defines the origins that are allowed to make cross-origin requests.
 	// Can be exact domains, single wildcards, or "*" for all origins.
 	// Examples: ["https://example.com", "https://*.mydomain.com", "*"]
