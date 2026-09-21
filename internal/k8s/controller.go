@@ -543,7 +543,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 	lbc.appProtectConfiguration = appprotect.NewConfiguration(lbc.Logger)
 	lbc.dosConfiguration = appprotectdos.NewConfiguration(input.AppProtectDosEnabled)
 
-	lbc.secretStore = secrets.NewLocalSecretStore(lbc.configurator)
 	lbc.secretStore = secrets.NewLocalSecretStore(lbc.configurator, secrets.WithSecretResolver(lbc.getSecret))
 
 	// NIC Telemetry Reporting

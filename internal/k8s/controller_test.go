@@ -4330,6 +4330,36 @@ func TestSyncSecretReferencedLifecycle(t *testing.T) {
 	if localStore.HoldsSecret(key) {
 		t.Fatalf("HoldsSecret(%q) = true after dereferencing, want false", key)
 	}
+
+	// 8. Delete the secret from cache to simulate secret deletion in K8s.
+	if err := secretCache.Delete(secretObj); err != nil {
+		t.Fatalf("failed to delete Secret from cache: %v", err)
+	}
+
+	// 9. Query the deleted secret: returns error, but does NOT poison refs with negative cache.
+	missingRef := lbc.secretStore.GetSecret(key, secrets.RoleJWK)
+	if missingRef.Error == nil {
+		t.Fatal("expected error on deleted secret, got nil")
+	}
+
+	// 10. Re-create the secret in K8s cache BEFORE the referencing Ingress is created.
+	if err := secretCache.Add(secretObj); err != nil {
+		t.Fatalf("failed to add recreated Secret to cache: %v", err)
+	}
+	// syncSecret runs while still unreferenced -> evicts, but does NOT leave stale negative refs.
+	lbc.syncSecret(task{Kind: secret, Key: key})
+	if localStore.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = true after unreferenced sync, want false", key)
+	}
+
+	// 11. Now Ingress arrives and requests the secret. GetSecret lazily resolves from Informer.
+	refAfterRecreate := lbc.secretStore.GetSecret(key, secrets.RoleJWK)
+	if refAfterRecreate.Error != nil {
+		t.Fatalf("GetSecret(%q, RoleJWK) error after recreation = %v, want nil", key, refAfterRecreate.Error)
+	}
+	if !localStore.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = false after lazy resolution of recreated secret, want true", key)
+	}
 }
 
 func TestWriteSpecialSecretsDispatch(t *testing.T) {

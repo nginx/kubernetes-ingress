@@ -951,4 +951,153 @@ func TestLocalSecretStoreWithSecretResolver(t *testing.T) {
 	if store.HoldsSecret("default/nonexistent") {
 		t.Error("HoldsSecret(nonexistent) = true, want false")
 	}
+	if store.HasRef("default/nonexistent") {
+		t.Error("HasRef(nonexistent) = true, want false")
+	}
+}
+
+func TestLocalSecretStore_NoNegativeLookupCaching(t *testing.T) {
+	t.Parallel()
+
+	manager := newFakeSecretFileManager()
+	secretInK8s := false
+	resolverCallCount := 0
+
+	resolver := func(key string) (*api_v1.Secret, error) {
+		resolverCallCount++
+		if secretInK8s && key == "default/dynamic-secret" {
+			return validSecret.DeepCopy(), nil
+		}
+		return nil, fmt.Errorf("secret %s not found", key)
+	}
+
+	store := NewLocalSecretStore(manager, WithSecretResolver(resolver))
+	key := "default/dynamic-secret"
+
+	// 1. Initial lookup fails because secret is not yet in K8s.
+	ref1 := store.GetSecret(key, RoleTLS)
+	if ref1.Error == nil {
+		t.Fatal("expected error on missing secret, got nil")
+	}
+	if resolverCallCount != 1 {
+		t.Fatalf("expected 1 resolver call, got %d", resolverCallCount)
+	}
+	if store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = true after missing lookup, want false", key)
+	}
+
+	// 2. Second lookup still missing - resolver should be called again because negative result was NOT cached.
+	ref2 := store.GetSecret(key, RoleTLS)
+	if ref2.Error == nil {
+		t.Fatal("expected error on second missing lookup, got nil")
+	}
+	if resolverCallCount != 2 {
+		t.Fatalf("expected 2 resolver calls (no negative caching), got %d", resolverCallCount)
+	}
+
+	// 3. Secret is now created in K8s.
+	secretInK8s = true
+
+	// 4. Third lookup should succeed and materialize without cache poisoning.
+	ref3 := store.GetSecret(key, RoleTLS)
+	if ref3.Error != nil {
+		t.Fatalf("expected secret to resolve successfully once present in K8s, got %v", ref3.Error)
+	}
+	if resolverCallCount != 3 {
+		t.Fatalf("expected 3 resolver calls, got %d", resolverCallCount)
+	}
+	if !store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = false after successful resolution, want true", key)
+	}
+	if !store.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = false after successful resolution, want true", key)
+	}
+
+	// 5. Fourth lookup should hit the positive cache (no new resolver call).
+	ref4 := store.GetSecret(key, RoleTLS)
+	if ref4.Error != nil {
+		t.Fatalf("unexpected error on cached lookup: %v", ref4.Error)
+	}
+	if resolverCallCount != 3 {
+		t.Fatalf("expected resolver count to stay 3 on cache hit, got %d", resolverCallCount)
+	}
+
+	// 6. DeleteSecret clears the reference and memory cache.
+	store.DeleteSecret(key)
+	if store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = true after DeleteSecret, want false", key)
+	}
+	if store.HoldsSecret(key) {
+		t.Fatalf("HoldsSecret(%q) = true after DeleteSecret, want false", key)
+	}
+}
+
+func TestLocalSecretStore_DeleteSecretClearsRefsEvenWhenSecretNotInMemory(t *testing.T) {
+	t.Parallel()
+
+	manager := newFakeSecretFileManager()
+	store := NewLocalSecretStore(manager)
+	key := "default/tls-secret"
+
+	// Add a secret and resolve it so it exists in refs and secrets.
+	store.AddOrUpdateSecret(validSecret)
+	ref := store.GetSecret(key, RoleTLS)
+	if ref.Error != nil {
+		t.Fatalf("GetSecret failed: %v", ref.Error)
+	}
+	if !store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = false, want true", key)
+	}
+
+	// Manually simulate a state where secrets map does not hold the secret (e.g. evicted),
+	// but refs still has it. DeleteSecret must still purge refs and clean up files.
+	delete(store.secrets, key)
+
+	store.DeleteSecret(key)
+	if store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = true after DeleteSecret without in-memory secret, want false", key)
+	}
+	if !manager.Deleted[RefKey(key, RoleTLS)] {
+		t.Fatal("DeleteSecret was not called on manager")
+	}
+}
+
+func TestFakeSecretStore_NoNegativeLookupCaching(t *testing.T) {
+	t.Parallel()
+
+	store := NewEmptyFakeSecretsStore()
+	key := "default/fake-secret"
+
+	ref1 := store.GetSecret(key, RoleTLS)
+	if ref1.Error == nil {
+		t.Fatal("expected error on missing fake secret, got nil")
+	}
+	if store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = true after missing lookup on FakeSecretStore, want false", key)
+	}
+
+	store.AddOrUpdateSecret(&api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "fake-secret",
+			Namespace: "default",
+		},
+		Type: api_v1.SecretTypeTLS,
+		Data: map[string][]byte{
+			"tls.crt": validCert,
+			"tls.key": validKey,
+		},
+	})
+
+	ref2 := store.GetSecret(key, RoleTLS)
+	if ref2.Error != nil {
+		t.Fatalf("expected fake secret to resolve after being added, got %v", ref2.Error)
+	}
+	if !store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = false after successful fake resolution, want true", key)
+	}
+
+	store.DeleteSecret(key)
+	if store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = true after DeleteSecret on FakeSecretStore, want false", key)
+	}
 }

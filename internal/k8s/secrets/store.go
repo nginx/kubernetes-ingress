@@ -36,6 +36,7 @@ type SecretStore interface {
 	AddOrUpdateSecret(secret *api_v1.Secret)
 	DeleteSecret(key string)
 	GetSecret(key string, role SecretRole) *SecretReference
+	HasRef(key string) bool
 	ResolvedRoles(key string) []SecretRole
 	SecretCount() int
 }
@@ -144,9 +145,6 @@ func (s *LocalSecretStore) DeleteSecret(key string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if _, exists := s.secrets[key]; !exists {
-		return
-	}
 	delete(s.secrets, key)
 
 	for refKey, entry := range s.refs {
@@ -166,6 +164,18 @@ func (s *LocalSecretStore) HoldsSecret(key string) bool {
 	defer s.lock.RUnlock()
 	_, exists := s.secrets[key]
 	return exists
+}
+
+// HasRef reports whether any active reference for the secret is held in the store.
+func (s *LocalSecretStore) HasRef(key string) bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	for refKey := range s.refs {
+		if refKey.secret == key {
+			return true
+		}
+	}
+	return false
 }
 
 // GetSecret returns the SecretReference for a Secret in the given role, materializing
@@ -194,7 +204,6 @@ func (s *LocalSecretStore) GetSecret(key string, role SecretRole) *SecretReferen
 	}
 	if !exists {
 		ref.Error = fmt.Errorf("secret %s doesn't exist", key)
-		s.refs[refKey] = &secretEntry{ref: ref}
 		return ref
 	}
 
@@ -356,13 +365,11 @@ func (s *FakeSecretStore) GetSecret(key string, role SecretRole) *SecretReferenc
 	paths := defaultFakeSecretPaths(key, role)
 	secret, exists := s.secrets[key]
 	if !exists {
-		ref := &SecretReference{
+		return &SecretReference{
 			Path:    paths.Path,
 			CRLPath: paths.CRLPath,
 			Error:   fmt.Errorf("secret %s doesn't exist", key),
 		}
-		s.refs[refKey] = ref
-		return ref
 	}
 
 	ref := &SecretReference{
@@ -405,6 +412,18 @@ func (s *FakeSecretStore) ResolvedRoles(key string) []SecretRole {
 
 	slices.Sort(roles)
 	return roles
+}
+
+// HasRef reports whether any active reference for the secret is held in the store.
+func (s *FakeSecretStore) HasRef(key string) bool {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	for refKey := range s.refs {
+		if refKey.Key == key {
+			return true
+		}
+	}
+	return false
 }
 
 func defaultFakeSecretPaths(key string, role SecretRole) Materialized {
