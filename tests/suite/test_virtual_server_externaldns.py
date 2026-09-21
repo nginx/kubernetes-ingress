@@ -4,8 +4,10 @@ from suite.utils.custom_assertions import assert_event, assert_event_not_present
 from suite.utils.custom_resources_utils import is_dnsendpoint_present, read_custom_resource
 from suite.utils.resources_utils import (
     get_events,
+    get_first_pod_name,
     patch_namespace_with_label,
     wait_before_test,
+    wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 from suite.utils.yaml_utils import get_name_from_yaml, get_namespace_from_yaml
@@ -43,7 +45,8 @@ class TestExternalDNSVirtualServer:
         assert dep is True
         print("\nStep 2: Verify external-dns picked up the record")
         pod_ns = get_namespace_from_yaml(f"{TEST_DATA}/virtual-server-external-dns/external-dns.yaml")
-        pod_name = kube_apis.v1.list_namespaced_pod(pod_ns).items[0].metadata.name
+        wait_until_all_pods_are_ready(kube_apis.v1, pod_ns, "app=external-dns")
+        pod_name = get_first_pod_name(kube_apis.v1, pod_ns, "app=external-dns")
         log_contents = kube_apis.v1.read_namespaced_pod_log(pod_name, pod_ns)
         wanted_string = "CREATE: virtual-server.example.com 0 IN A"
         retry = 0
@@ -144,7 +147,8 @@ class TestExternalDNSVirtualServerWatchLabel:
         assert dep is True
         print("\nStep 2: Verify external-dns picked up the record")
         pod_ns = get_namespace_from_yaml(f"{TEST_DATA}/virtual-server-external-dns/external-dns.yaml")
-        pod_name = kube_apis.v1.list_namespaced_pod(pod_ns).items[0].metadata.name
+        wait_until_all_pods_are_ready(kube_apis.v1, pod_ns, "app=external-dns")
+        pod_name = get_first_pod_name(kube_apis.v1, pod_ns, "app=external-dns")
         log_contents = kube_apis.v1.read_namespaced_pod_log(pod_name, pod_ns)
         wanted_string = "CREATE: virtual-server.example.com 0 IN A"
         retry = 0

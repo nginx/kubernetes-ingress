@@ -360,7 +360,7 @@ class TestEmptyHostIngressStartupProtection:
             cli_arguments,
             ingress_controller_prerequisites.namespace,
             extra_args,
-            e2e_run_id=e2e_run_id,
+            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
 
         def fin():

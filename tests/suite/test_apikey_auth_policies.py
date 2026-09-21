@@ -10,9 +10,7 @@ from suite.utils.resources_utils import (
     delete_secret,
     get_apikey_auth_secrets_from_yaml,
     get_apikey_policy_details_from_yaml,
-    get_e2e_run_selector,
     wait_before_test,
-    wait_until_all_pods_are_ready,
 )
 from suite.utils.vs_vsr_resources_utils import create_v_s_route_from_yaml, delete_and_create_vs_from_yaml
 
@@ -110,7 +108,6 @@ class TestAPIKeyAuthPolicies:
 
         host = apikey_policy_details.vs_host
 
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         wait_before_test()
 
         # /undefined path (is not a route defined in the VirtualServer)
@@ -293,7 +290,7 @@ class TestAPIKeyAuthPolicies:
             assert response.status_code == 200
 
     def test_apikey_auth_policy_vs_and_vsr(
-        self, kube_apis, crd_ingress_controller, virtual_server_setup, test_namespace, e2e_run_id
+        self, kube_apis, crd_ingress_controller, virtual_server_setup, test_namespace
     ):
         apikey_policy_details_server = self.setup_single_policy(
             kube_apis,
@@ -321,7 +318,6 @@ class TestAPIKeyAuthPolicies:
         create_v_s_route_from_yaml(kube_apis.custom_objects, vsr_2_src, virtual_server_setup.namespace)
 
         host = virtual_server_setup.vs_host
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         wait_before_test(5)
 
         # /undefined path (is not a route defined in the VirtualServer)

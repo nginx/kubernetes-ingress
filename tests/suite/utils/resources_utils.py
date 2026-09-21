@@ -378,9 +378,12 @@ def get_first_pod_name(v1: CoreV1Api, namespace, label_selector=None) -> str:
 
     :param v1: CoreV1Api
     :param namespace:
+    :param label_selector:
     :return: str
     """
     resp = v1.list_namespaced_pod(namespace, label_selector=label_selector)
+    if not resp.items:
+        raise IndexError(f"No pods found in namespace '{namespace}' matching selector '{label_selector}'")
     return resp.items[0].metadata.name
 
 
