@@ -960,6 +960,41 @@ func TestLocalSecretStore_NoNegativeLookupCaching(t *testing.T) {
 	t.Parallel()
 
 	manager := newFakeSecretFileManager()
+	resolverCallCount := 0
+
+	resolver := func(key string) (*api_v1.Secret, error) {
+		resolverCallCount++
+		return nil, fmt.Errorf("secret %s not found", key)
+	}
+
+	store := NewLocalSecretStore(manager, WithSecretResolver(resolver))
+	key := "default/dynamic-secret"
+
+	ref1 := store.GetSecret(key, RoleTLS)
+	if ref1.Error == nil {
+		t.Fatal("expected error on missing secret, got nil")
+	}
+	if resolverCallCount != 1 {
+		t.Fatalf("expected 1 resolver call, got %d", resolverCallCount)
+	}
+	if store.HasRef(key) {
+		t.Fatalf("HasRef(%q) = true after missing lookup, want false", key)
+	}
+
+	// Second lookup must invoke resolver again because negative result was NOT cached.
+	ref2 := store.GetSecret(key, RoleTLS)
+	if ref2.Error == nil {
+		t.Fatal("expected error on second missing lookup, got nil")
+	}
+	if resolverCallCount != 2 {
+		t.Fatalf("expected 2 resolver calls (no negative caching), got %d", resolverCallCount)
+	}
+}
+
+func TestLocalSecretStore_RecreatedSecretResolvesAfterNegativeLookup(t *testing.T) {
+	t.Parallel()
+
+	manager := newFakeSecretFileManager()
 	secretInK8s := false
 	resolverCallCount := 0
 
@@ -975,60 +1010,35 @@ func TestLocalSecretStore_NoNegativeLookupCaching(t *testing.T) {
 	key := "default/dynamic-secret"
 
 	// 1. Initial lookup fails because secret is not yet in K8s.
-	ref1 := store.GetSecret(key, RoleTLS)
-	if ref1.Error == nil {
+	if ref := store.GetSecret(key, RoleTLS); ref.Error == nil {
 		t.Fatal("expected error on missing secret, got nil")
 	}
-	if resolverCallCount != 1 {
-		t.Fatalf("expected 1 resolver call, got %d", resolverCallCount)
-	}
-	if store.HasRef(key) {
-		t.Fatalf("HasRef(%q) = true after missing lookup, want false", key)
-	}
 
-	// 2. Second lookup still missing - resolver should be called again because negative result was NOT cached.
-	ref2 := store.GetSecret(key, RoleTLS)
-	if ref2.Error == nil {
-		t.Fatal("expected error on second missing lookup, got nil")
+	// 2. Secret is now created in K8s. Lookup should succeed without cache poisoning.
+	secretInK8s = true
+	ref := store.GetSecret(key, RoleTLS)
+	if ref.Error != nil {
+		t.Fatalf("expected secret to resolve successfully once present in K8s, got %v", ref.Error)
 	}
 	if resolverCallCount != 2 {
-		t.Fatalf("expected 2 resolver calls (no negative caching), got %d", resolverCallCount)
+		t.Fatalf("expected 2 resolver calls, got %d", resolverCallCount)
+	}
+	if !store.HasRef(key) || !store.HoldsSecret(key) {
+		t.Fatalf("expected HasRef and HoldsSecret to be true, got HasRef=%v, HoldsSecret=%v", store.HasRef(key), store.HoldsSecret(key))
 	}
 
-	// 3. Secret is now created in K8s.
-	secretInK8s = true
-
-	// 4. Third lookup should succeed and materialize without cache poisoning.
-	ref3 := store.GetSecret(key, RoleTLS)
-	if ref3.Error != nil {
-		t.Fatalf("expected secret to resolve successfully once present in K8s, got %v", ref3.Error)
+	// 3. Subsequent lookup hits positive cache.
+	if refCached := store.GetSecret(key, RoleTLS); refCached.Error != nil {
+		t.Fatalf("unexpected error on cached lookup: %v", refCached.Error)
 	}
-	if resolverCallCount != 3 {
-		t.Fatalf("expected 3 resolver calls, got %d", resolverCallCount)
-	}
-	if !store.HasRef(key) {
-		t.Fatalf("HasRef(%q) = false after successful resolution, want true", key)
-	}
-	if !store.HoldsSecret(key) {
-		t.Fatalf("HoldsSecret(%q) = false after successful resolution, want true", key)
+	if resolverCallCount != 2 {
+		t.Fatalf("expected resolver count to stay 2 on cache hit, got %d", resolverCallCount)
 	}
 
-	// 5. Fourth lookup should hit the positive cache (no new resolver call).
-	ref4 := store.GetSecret(key, RoleTLS)
-	if ref4.Error != nil {
-		t.Fatalf("unexpected error on cached lookup: %v", ref4.Error)
-	}
-	if resolverCallCount != 3 {
-		t.Fatalf("expected resolver count to stay 3 on cache hit, got %d", resolverCallCount)
-	}
-
-	// 6. DeleteSecret clears the reference and memory cache.
+	// 4. DeleteSecret clears references and memory cache.
 	store.DeleteSecret(key)
-	if store.HasRef(key) {
-		t.Fatalf("HasRef(%q) = true after DeleteSecret, want false", key)
-	}
-	if store.HoldsSecret(key) {
-		t.Fatalf("HoldsSecret(%q) = true after DeleteSecret, want false", key)
+	if store.HasRef(key) || store.HoldsSecret(key) {
+		t.Fatalf("expected HasRef and HoldsSecret to be false after DeleteSecret, got HasRef=%v, HoldsSecret=%v", store.HasRef(key), store.HoldsSecret(key))
 	}
 }
 
