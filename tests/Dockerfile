@@ -5,6 +5,7 @@ ARG ARCH=amd64
 ENV PYTHONUNBUFFERED=1
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 RUN --mount=type=secret,id=corp-ca,dst=/tmp/corp-ca,required=false \
 	if [ -s /tmp/corp-ca ]; then \
