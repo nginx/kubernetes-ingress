@@ -269,8 +269,9 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     :return: original: int the original amount of replicas
     """
     deployment = apps_v1_api.read_namespaced_deployment(name, namespace)
-    e2e_run_id = deployment.spec.template.metadata.labels[E2E_RUN_ID_LABEL]
-    selector = get_e2e_run_selector(e2e_run_id)
+    labels = deployment.spec.template.metadata.labels or {}
+    e2e_run_id = labels.get(E2E_RUN_ID_LABEL)
+    selector = get_e2e_run_selector(e2e_run_id) if e2e_run_id else None
     body = apps_v1_api.read_namespaced_deployment_scale(name, namespace)
     original = body.spec.replicas
     print(f"Original number of replicas is {original}")

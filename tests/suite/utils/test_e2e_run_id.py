@@ -15,6 +15,7 @@ from suite.utils.resources_utils import (
     create_stateful_set,
     generate_e2e_run_id,
     get_e2e_run_selector,
+    scale_deployment,
 )
 
 
@@ -113,3 +114,24 @@ def test_ready_check_ignores_terminating_pods_and_uses_the_run_selector():
 
     assert are_all_pods_in_ready_state(v1, "test-namespace", "e2e.nginx.org/run-id=run-id")
     v1.list_namespaced_pod.assert_called_once_with("test-namespace", label_selector="e2e.nginx.org/run-id=run-id")
+
+
+@pytest.mark.parametrize(
+    ("run_id", "expected_selector"),
+    [("test-run-id", "e2e.nginx.org/run-id=test-run-id"), (None, None)],
+)
+def test_scale_deployment_uses_run_selector_when_present(run_id, expected_selector):
+    labels = {E2E_RUN_ID_LABEL: run_id} if run_id else {}
+    deployment = SimpleNamespace(
+        spec=SimpleNamespace(template=SimpleNamespace(metadata=SimpleNamespace(labels=labels)))
+    )
+    scale_obj = SimpleNamespace(spec=SimpleNamespace(replicas=1))
+    apps_v1_api = Mock()
+    apps_v1_api.read_namespaced_deployment.return_value = deployment
+    apps_v1_api.read_namespaced_deployment_scale.return_value = scale_obj
+    v1 = Mock()
+
+    with patch("suite.utils.resources_utils.wait_until_all_pods_are_ready") as wait_mock:
+        original = scale_deployment(v1, apps_v1_api, "test-dep", "test-ns", 2)
+        assert original == 1
+        wait_mock.assert_called_once_with(v1, "test-ns", expected_selector)
