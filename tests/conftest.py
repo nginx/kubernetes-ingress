@@ -246,12 +246,16 @@ def pytest_runtest_makereport(item) -> None:
             pod_name = get_first_pod_name(item.funcargs["kube_apis"].v1, pod_namespace, selector)
             print("\n::group::NGINX Ingress Controller Pod Logs")
             count = 0
-            while (not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace, selector)) and count < 10:
+            while (
+                not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace, selector)
+            ) and count < 10:
                 count += 1
                 wait_before_test()
             pod = item.funcargs["kube_apis"].v1.read_namespaced_pod(pod_name, pod_namespace)
             container_name = pod.spec.containers[0].name
-            print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace, container=container_name))
+            print(
+                item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace, container=container_name)
+            )
             print("::endgroup::")
         except Exception as e:
             print(f"\nFailed to retrieve NGINX Ingress Controller Pod Logs: {e}")

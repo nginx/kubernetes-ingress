@@ -84,9 +84,7 @@ class TestAPIKeyAuthPolicies:
             apikeys=apikeys,
         )
 
-    def test_apikey_auth_policy_vs(
-        self, kube_apis, crd_ingress_controller, virtual_server_setup, test_namespace, e2e_run_id
-    ):
+    def test_apikey_auth_policy_vs(self, kube_apis, crd_ingress_controller, virtual_server_setup, test_namespace):
         apikey_policy_details = self.setup_single_policy(
             kube_apis,
             virtual_server_setup.namespace,
