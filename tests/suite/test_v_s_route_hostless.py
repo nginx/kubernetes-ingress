@@ -113,20 +113,12 @@ class TestVirtualServerRouteHostless:
             vsr_name,
             "Valid",
             expected_reason="AddedOrUpdated",
-            **{
-                "referencedBy": (
-                    f"foreign-vs/virtual-server-route-2, "
-                    f"{test_namespace}/virtual-server-route"
-                )
-            },
+            **{"referencedBy": (f"foreign-vs/virtual-server-route-2, " f"{test_namespace}/virtual-server-route")},
         )
 
-        req_url = (
-            f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
-        )
+        req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
         wait_and_assert_status_code(200, req_url, "virtual-server-route.example.com")
         wait_and_assert_status_code(200, req_url, "virtual-server-route-2.example.com")
-
 
     def test_status_valid_two_vs_route_selector(
         self,
@@ -162,20 +154,12 @@ class TestVirtualServerRouteHostless:
             vsr_name,
             "Valid",
             expected_reason="AddedOrUpdated",
-            **{
-                "referencedBy": (
-                    f"foreign-vs/virtual-server-route-2, "
-                    f"{test_namespace}/virtual-server-route"
-                )
-            },
+            **{"referencedBy": (f"foreign-vs/virtual-server-route-2, " f"{test_namespace}/virtual-server-route")},
         )
 
-        req_url = (
-            f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
-        )
+        req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
         wait_and_assert_status_code(200, req_url, "virtual-server-route.example.com")
         wait_and_assert_status_code(200, req_url, "virtual-server-route-2.example.com")
-
 
     def test_status_referenced_by_add_vs(
         self,
@@ -218,14 +202,8 @@ class TestVirtualServerRouteHostless:
             vsr_name,
             "Valid",
             expected_reason="AddedOrUpdated",
-            **{
-                "referencedBy": (
-                    f"foreign-vs/virtual-server-route-2, "
-                    f"{test_namespace}/virtual-server-route"
-                )
-            },
+            **{"referencedBy": (f"foreign-vs/virtual-server-route-2, " f"{test_namespace}/virtual-server-route")},
         )
-
 
     def test_status_remove_vs(
         self,
@@ -259,12 +237,7 @@ class TestVirtualServerRouteHostless:
             vsr_name,
             "Valid",
             expected_reason="AddedOrUpdated",
-            **{
-                "referencedBy": (
-                    f"foreign-vs/virtual-server-route-2, "
-                    f"{test_namespace}/virtual-server-route"
-                )
-            },
+            **{"referencedBy": (f"foreign-vs/virtual-server-route-2, " f"{test_namespace}/virtual-server-route")},
         )
 
         delete_virtual_server(kube_apis.custom_objects, "virtual-server-route-2", foreign_namespace_setup.namespace)
@@ -277,7 +250,6 @@ class TestVirtualServerRouteHostless:
             expected_reason="AddedOrUpdated",
             **{"referencedBy": f"{test_namespace}/virtual-server-route"},
         )
-
 
     def test_status_remove_vs_route_selector(
         self,
@@ -311,12 +283,7 @@ class TestVirtualServerRouteHostless:
             vsr_name,
             "Valid",
             expected_reason="AddedOrUpdated",
-            **{
-                "referencedBy": (
-                    f"foreign-vs/virtual-server-route-2, "
-                    f"{test_namespace}/virtual-server-route"
-                )
-            },
+            **{"referencedBy": (f"foreign-vs/virtual-server-route-2, " f"{test_namespace}/virtual-server-route")},
         )
 
         delete_virtual_server(kube_apis.custom_objects, "virtual-server-route-2", foreign_namespace_setup.namespace)
@@ -329,7 +296,6 @@ class TestVirtualServerRouteHostless:
             expected_reason="AddedOrUpdated",
             **{"referencedBy": f"{test_namespace}/virtual-server-route"},
         )
-
 
     def test_status_invalid_after_vsr_removed(
         self,
@@ -363,12 +329,7 @@ class TestVirtualServerRouteHostless:
             vsr_name,
             "Valid",
             expected_reason="AddedOrUpdated",
-            **{
-                "referencedBy": (
-                    f"foreign-vs/virtual-server-route-2, "
-                    f"{test_namespace}/virtual-server-route"
-                )
-            },
+            **{"referencedBy": (f"foreign-vs/virtual-server-route-2, " f"{test_namespace}/virtual-server-route")},
         )
 
         delete_v_s_route(kube_apis.custom_objects, vsr_name, foreign_namespace_setup.namespace)
