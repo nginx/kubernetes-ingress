@@ -37,13 +37,13 @@ kubectl apply -f webapp.yaml
 
 ## Step 2 - Create the Credentials Secret
 
-NIC authenticates with the management plane using a Kubernetes Secret of type `nginx.com/waf-bundle`.
+NIC authenticates with the management plane using a Kubernetes Secret of type `Opaque` (or legacy `nginx.com/waf-bundle`).
 
 For NIM, create a secret with a bearer token:
 
 ```console
 kubectl create secret generic nim-credentials \
-  --type=nginx.com/waf-bundle \
+  --type=Opaque \
   --from-literal=token=<YOUR_NIM_TOKEN>
 ```
 
@@ -51,7 +51,7 @@ NIM also supports basic auth. To use username and password instead:
 
 ```console
 kubectl create secret generic nim-credentials \
-  --type=nginx.com/waf-bundle \
+  --type=Opaque \
   --from-literal=username=<YOUR_USERNAME> \
   --from-literal=password=<YOUR_PASSWORD>
 ```
@@ -62,7 +62,7 @@ Generate an API token from the [F5 Distributed Cloud Console](https://console.ve
 
 ```console
 kubectl create secret generic n1c-credentials \
-  --type=nginx.com/waf-bundle \
+  --type=Opaque \
   --from-literal=token=<YOUR_N1C_API_TOKEN>
 ```
 

@@ -48,7 +48,7 @@ kubectl apply -f rate-limits.yaml
 
 ## Deploy the API key authentication Secret
 
-Create a Secret of type `nginx.org/apikey` with the name `api-key-client-secret` that will be used for authorization on the server level.
+Create a Secret of type `Opaque` (or legacy `nginx.org/apikey`) with the name `api-key-client-secret` that will be used for authorization on the server level.
 
 This Secret will contain a mapping of client names to base64 encoded API Keys.
 
