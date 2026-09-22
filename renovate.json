@@ -56,6 +56,24 @@
       ]
     },
     {
+      "description": "Batch container digest bumps into a single weekly PR per base branch. Placed before the package-specific docker groups below so those keep precedence for their own images.",
+      "groupName": "container digests",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchUpdateTypes": [
+        "digest",
+        "pinDigest"
+      ],
+      "addLabels": [
+        "docker",
+        "skip changelog"
+      ],
+      "schedule": [
+        "before 6am on monday"
+      ]
+    },
+    {
       "addLabels": [
         "helm"
       ],
@@ -259,6 +277,21 @@
         "go",
         "dependencies"
       ]
+    },
+    {
+      "description": "Maintenance branches only receive updates that can reach a released artifact. Dev tooling, the pytest suite, test fixtures, examples and docs cannot, so skip them there. Deliberately does NOT skip .github/** - that is release infrastructure (image copying in .github/scripts/copy-images.sh, chart publishing in publish-helm.yml, and pinned Action digests) and release-2026-lts must still be able to build and publish for three years. Regex rather than a literal branch list because the current-stable entry in baseBranchPatterns is replaced at each release.",
+      "matchBaseBranches": [
+        "/^release-/"
+      ],
+      "matchFileNames": [
+        ".pre-commit-config.yaml",
+        "pyproject.toml",
+        "tests/**",
+        "examples/**",
+        "docs/**",
+        "**/*.md"
+      ],
+      "enabled": false
     }
   ],
   "kubernetes": {
