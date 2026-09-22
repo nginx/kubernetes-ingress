@@ -260,6 +260,11 @@ func (p *policiesCfg) addJWTAuthConfig(
 	if jwtAuth.Secret != "" {
 		jwtSecretKey := fmt.Sprintf("%v/%v", polNamespace, jwtAuth.Secret)
 		secretRef := secretRefs[secrets.RefKey(jwtSecretKey, secrets.RoleJWK)]
+		if secretRef == nil {
+			res.addWarningf("JWT policy %s references a secret %s that could not be resolved", polKey, jwtSecretKey)
+			res.isError = true
+			return res
+		}
 		if secretRef.Error != nil {
 			res.addWarningf("JWT policy %s references an invalid secret %s: %v", polKey, jwtSecretKey, secretRef.Error)
 			res.isError = true
@@ -452,6 +457,11 @@ func (p *policiesCfg) addBasicAuthConfig(
 
 	basicSecretKey := fmt.Sprintf("%v/%v", polNamespace, basicAuth.Secret)
 	secretRef := secretRefs[secrets.RefKey(basicSecretKey, secrets.RoleHtpasswd)]
+	if secretRef == nil {
+		res.addWarningf("Basic Auth policy %s references a secret %s that could not be resolved", polKey, basicSecretKey)
+		res.isError = true
+		return res
+	}
 	if secretRef.Error != nil {
 		res.addWarningf("Basic Auth policy %s references an invalid secret %s: %v", polKey, basicSecretKey, secretRef.Error)
 		res.isError = true
@@ -1040,6 +1050,11 @@ func (p *policiesCfg) addAPIKeyConfig(
 
 	secretKey := fmt.Sprintf("%v/%v", polNamespace, apiKey.ClientSecret)
 	secretRef := secretRefs[secrets.RefKey(secretKey, secrets.RoleAPIKey)]
+	if secretRef == nil {
+		res.addWarningf("API Key %s references a secret %s that could not be resolved", polKey, secretKey)
+		res.isError = true
+		return res
+	}
 	if secretRef.Error != nil {
 		res.addWarningf("API Key %s references an invalid secret %s: %v", polKey, secretKey, secretRef.Error)
 		res.isError = true

@@ -970,7 +970,7 @@ func (cnf *Configurator) AddOrUpdateCASecret(secret *api_v1.Secret, crtFileName,
 	return fmt.Sprintf("%s %s", crtFilePath, crlFilePath)
 }
 
-// addOrUpdateCASecretForRole writes a RoleCA Secret under its role-derived file names
+// addOrUpdateCASecretForRole writes a RoleCA Secret under its role-derived file names.
 func (cnf *Configurator) addOrUpdateCASecretForRole(secret *api_v1.Secret, key string) secrets.Materialized {
 	crtData, crlData := GenerateCAFileContent(secret)
 

@@ -3059,6 +3059,48 @@ func TestGeneratePoliciesFails(t *testing.T) {
 		{
 			policyRefs: []conf_v1.PolicyReference{
 				{
+					Name:      "jwt-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/jwt-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "jwt-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:  "test",
+							Secret: "jwt-secret-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; jwt-secret-2 has no map entry
+					secrets.RefKey("default/jwt-secret-1", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
+					},
+				},
+			},
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`JWT policy default/jwt-policy-2 references a secret default/jwt-secret-2 that could not be resolved`,
+				},
+			},
+			msg: "jwt earlier invalid policy stops reference collection and later policy has no map entry",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
 					Name:      "jwt-policy",
 					Namespace: "default",
 				},
@@ -3201,6 +3243,48 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "basic auth reference missing secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "basic-auth-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/basic-auth-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "basic-auth-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Realm:  "test",
+							Secret: "htpasswd-secret-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; htpasswd-secret-2 has no map entry
+					secrets.RefKey("default/htpasswd-secret-1", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
+					},
+				},
+			},
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Basic Auth policy default/basic-auth-policy-2 references a secret default/htpasswd-secret-2 that could not be resolved`,
+				},
+			},
+			msg: "basic auth earlier invalid policy stops reference collection and later policy has no map entry",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -4440,6 +4524,50 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "api key secret whose keys are all reserved",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "api-key-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/api-key-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "api-key-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						APIKey: &conf_v1.APIKey{
+							SuppliedIn: &conf_v1.SuppliedIn{
+								Header: []string{"X-API-Key"},
+							},
+							ClientSecret: "api-key-secret-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; api-key-secret-2 has no map entry
+					secrets.RefKey("default/api-key-secret-1", secrets.RoleAPIKey): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
+					},
+				},
+			},
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`API Key default/api-key-policy-2 references a secret default/api-key-secret-2 that could not be resolved`,
+				},
+			},
+			msg: "api key earlier invalid policy stops reference collection and later policy has no map entry",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{

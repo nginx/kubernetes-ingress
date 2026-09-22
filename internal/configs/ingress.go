@@ -861,9 +861,15 @@ func generateJWTConfig(
 ) (*version1.JWTAuth, *version1.JWTRedirectLocation, Warnings) {
 	warnings := newWarnings()
 
+	var keyPath string
 	secretRef := secretRefs[secrets.RefKey(namespace+"/"+cfgParams.JWTKey, secrets.RoleJWK)]
-	if secretRef.Error != nil {
-		warnings.AddWarningf(owner, "JWK secret %s is invalid: %v", cfgParams.JWTKey, secretRef.Error)
+	if secretRef != nil {
+		if secretRef.Error != nil {
+			warnings.AddWarningf(owner, "JWK secret %s is invalid: %v", cfgParams.JWTKey, secretRef.Error)
+		}
+		keyPath = secretRef.Path
+	} else {
+		warnings.AddWarningf(owner, "JWK secret %s is missing from secret references", cfgParams.JWTKey)
 	}
 
 	// Key is configured even when the secret is missing or invalid. auth_jwt_key_file is
@@ -871,7 +877,7 @@ func generateJWTConfig(
 	// URLs rather than a configuration load failure. Rendering an empty path here would
 	// produce "auth_jwt_key_file ;" and NGINX would reject the entire configuration.
 	jwtAuth := &version1.JWTAuth{
-		Key:   secretRef.Path,
+		Key:   keyPath,
 		Realm: cfgParams.JWTRealm,
 		Token: cfgParams.JWTToken,
 	}
@@ -892,13 +898,19 @@ func generateJWTConfig(
 func generateBasicAuthConfig(owner runtime.Object, namespace string, secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams) (*version1.BasicAuth, Warnings) {
 	warnings := newWarnings()
 
+	var secretPath string
 	secretRef := secretRefs[secrets.RefKey(namespace+"/"+cfgParams.BasicAuthSecret, secrets.RoleHtpasswd)]
-	if secretRef.Error != nil {
-		warnings.AddWarningf(owner, "Basic auth secret %s is invalid: %v", cfgParams.BasicAuthSecret, secretRef.Error)
+	if secretRef != nil {
+		if secretRef.Error != nil {
+			warnings.AddWarningf(owner, "Basic auth secret %s is invalid: %v", cfgParams.BasicAuthSecret, secretRef.Error)
+		}
+		secretPath = secretRef.Path
+	} else {
+		warnings.AddWarningf(owner, "Basic auth secret %s is missing from secret references", cfgParams.BasicAuthSecret)
 	}
 
 	basicAuth := &version1.BasicAuth{
-		Secret: secretRef.Path,
+		Secret: secretPath,
 		Realm:  cfgParams.BasicAuthRealm,
 	}
 
@@ -1080,11 +1092,14 @@ func addSSLConfig(server *version1.Server, owner runtime.Object, namespace strin
 
 	if tlsSecret != "" {
 		secretRef := secretRefs[secrets.RefKey(namespace+"/"+tlsSecret, secrets.RoleTLS)]
-		if secretRef.Error != nil {
+		if secretRef != nil && secretRef.Error != nil {
 			rejectHandshake = true
 			warnings.AddWarningf(owner, "TLS secret %s is invalid: %v", tlsSecret, secretRef.Error)
-		} else {
+		} else if secretRef != nil {
 			pemFile = secretRef.Path
+		} else {
+			rejectHandshake = true
+			warnings.AddWarningf(owner, "TLS secret %s is missing from secret references", tlsSecret)
 		}
 	} else if isWildcardEnabled {
 		pemFile = pemFileNameForWildcardTLSSecret

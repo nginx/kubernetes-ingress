@@ -3447,6 +3447,42 @@ func TestAddJWTSecrets(t *testing.T) {
 			wantErr: true,
 			msg:     "test getting invalid secret",
 		},
+		{
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "jwt-policy-invalid",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Secret: "invalid-jwk-secret",
+							Realm:  "My API",
+						},
+					},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "jwt-policy-valid",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Secret: "valid-jwk-secret",
+							Realm:  "My API",
+						},
+					},
+				},
+			},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-jwk-secret", secrets.RoleJWK): {
+					Secret: invalidJWKSecret,
+					Error:  invalidErr,
+				},
+			},
+			wantErr: true,
+			msg:     "earlier invalid same-type policy stops reference collection",
+		},
 	}
 
 	lbc := LoadBalancerController{
@@ -3573,6 +3609,42 @@ func TestAddBasicSecrets(t *testing.T) {
 			wantErr: true,
 			msg:     "test getting invalid secret",
 		},
+		{
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "basic-auth-policy-invalid",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Secret: "invalid-basic-auth-secret",
+							Realm:  "My API",
+						},
+					},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "basic-auth-policy-valid",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Secret: "valid-basic-auth-secret",
+							Realm:  "My API",
+						},
+					},
+				},
+			},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-basic-auth-secret", secrets.RoleHtpasswd): {
+					Secret: invalidBasicSecret,
+					Error:  invalidErr,
+				},
+			},
+			wantErr: true,
+			msg:     "earlier invalid same-type policy stops reference collection",
+		},
 	}
 
 	lbc := LoadBalancerController{
@@ -3599,6 +3671,119 @@ func TestAddBasicSecrets(t *testing.T) {
 
 		if diff := cmp.Diff(test.expectedSecretRefs, result, cmp.Comparer(errorComparer)); diff != "" {
 			t.Errorf("addBasicSecretRefs() '%v' mismatch (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}
+
+func TestAddAPIKeySecrets(t *testing.T) {
+	t.Parallel()
+	invalidErr := errors.New("invalid")
+	validAPIKeySecret := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "valid-api-key-secret",
+			Namespace: "default",
+		},
+		Data: map[string][]byte{
+			"client": []byte("key"),
+		},
+	}
+	invalidAPIKeySecret := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "invalid-api-key-secret",
+			Namespace: "default",
+		},
+		Data: map[string][]byte{},
+	}
+
+	tests := []struct {
+		policies           []*conf_v1.Policy
+		expectedSecretRefs map[secrets.SecretRefKey]*secrets.SecretReference
+		wantErr            bool
+		msg                string
+	}{
+		{
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "api-key-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						APIKey: &conf_v1.APIKey{
+							ClientSecret: "valid-api-key-secret",
+						},
+					},
+				},
+			},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/valid-api-key-secret", secrets.RoleAPIKey): {
+					Secret: validAPIKeySecret,
+					Path:   "/etc/nginx/secrets/default-valid-api-key-secret",
+				},
+			},
+			wantErr: false,
+			msg:     "test getting valid secret",
+		},
+		{
+			policies: []*conf_v1.Policy{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "api-key-policy-invalid",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						APIKey: &conf_v1.APIKey{
+							ClientSecret: "invalid-api-key-secret",
+						},
+					},
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "api-key-policy-valid",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						APIKey: &conf_v1.APIKey{
+							ClientSecret: "valid-api-key-secret",
+						},
+					},
+				},
+			},
+			expectedSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/invalid-api-key-secret", secrets.RoleAPIKey): {
+					Secret: invalidAPIKeySecret,
+					Error:  invalidErr,
+				},
+			},
+			wantErr: true,
+			msg:     "earlier invalid same-type policy stops reference collection",
+		},
+	}
+
+	lbc := LoadBalancerController{
+		secretStore: secrets.NewFakeSecretsStore(map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/valid-api-key-secret", secrets.RoleAPIKey): {
+				Secret: validAPIKeySecret,
+				Path:   "/etc/nginx/secrets/default-valid-api-key-secret",
+			},
+			secrets.RefKey("default/invalid-api-key-secret", secrets.RoleAPIKey): {
+				Secret: invalidAPIKeySecret,
+				Error:  invalidErr,
+			},
+		}),
+		Logger: nl.LoggerFromContext(context.Background()),
+	}
+
+	for _, test := range tests {
+		result := make(map[secrets.SecretRefKey]*secrets.SecretReference)
+
+		err := lbc.addAPIKeySecretRefs(result, test.policies)
+		if (err != nil) != test.wantErr {
+			t.Errorf("addAPIKeySecretRefs() returned %v, for the case of %v", err, test.msg)
+		}
+
+		if diff := cmp.Diff(test.expectedSecretRefs, result, cmp.Comparer(errorComparer)); diff != "" {
+			t.Errorf("addAPIKeySecretRefs() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 		}
 	}
 }

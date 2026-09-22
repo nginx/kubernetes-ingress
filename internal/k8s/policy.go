@@ -960,15 +960,12 @@ func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSour
 func (lbc *LoadBalancerController) resolveWAFTrustedCert(secretName, namespace string, auth *wafbundle.BundleAuth) error {
 	caSecretKey := namespace + "/" + secretName
 	caRef := lbc.secretStore.GetSecret(caSecretKey, secrets.RoleCA)
-	if caRef == nil || caRef.Error != nil {
+	if caRef == nil || caRef.Error != nil || caRef.Secret == nil {
 		var msg string
-		if caRef != nil {
+		if caRef != nil && caRef.Error != nil {
 			msg = caRef.Error.Error()
 		}
 		return fmt.Errorf("trusted cert secret %s not found or invalid: %s", caSecretKey, msg)
-	}
-	if err := secrets.ValidateCASecret(caRef.Secret); err != nil {
-		return fmt.Errorf("trusted cert secret %s: %w", caSecretKey, err)
 	}
 	auth.TLSCA = caRef.Secret.Data[secrets.CAKey]
 	return nil

@@ -156,9 +156,16 @@ func generateSSLConfig(ts *conf_v1.TransportServer, tls *conf_v1.TransportServer
 	sslEnabled := true
 
 	secretRef := secretRefs[secrets.RefKey(fmt.Sprintf("%s/%s", namespace, tls.Secret), secrets.RoleTLS)]
-	name := secretRef.Path
-	if secretRef.Error != nil {
-		errMsg := fmt.Sprintf("TLS secret %s is invalid: %v. SSL termination will not be enabled for this server.", tls.Secret, secretRef.Error)
+	var name string
+	if secretRef != nil {
+		name = secretRef.Path
+		if secretRef.Error != nil {
+			errMsg := fmt.Sprintf("TLS secret %s is invalid: %v. SSL termination will not be enabled for this server.", tls.Secret, secretRef.Error)
+			warnings.AddWarning(ts, errMsg)
+			sslEnabled = false
+		}
+	} else {
+		errMsg := fmt.Sprintf("TLS secret %s is missing from secret references. SSL termination will not be enabled for this server.", tls.Secret)
 		warnings.AddWarning(ts, errMsg)
 		sslEnabled = false
 	}
