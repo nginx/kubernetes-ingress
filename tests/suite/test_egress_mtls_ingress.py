@@ -1,5 +1,4 @@
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, create_policy_from_yaml, delete_policy
@@ -13,6 +12,7 @@ from suite.utils.resources_utils import (
     ensure_connection_to_public_endpoint,
     get_e2e_run_selector,
     get_reload_count,
+    retry_get_until_status_code,
     wait_before_test,
     wait_for_reload,
     wait_until_all_pods_are_ready,
@@ -167,7 +167,7 @@ class TestEgressMTLSPoliciesIngress:
                 ingress_controller_endpoint.port_ssl,
             )
             # Exercise the active ingress variant through the public endpoint.
-            resp = requests.get(ingress_setup.request_url, headers={"host": ingress_setup.ingress_host})
+            resp = retry_get_until_status_code(ingress_setup.request_url, ingress_setup.ingress_host, 200)
 
             # Valid egress mTLS policies should allow requests to reach the secure backend.
             assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
@@ -205,7 +205,7 @@ class TestEgressMTLSPoliciesIngress:
                 ingress_controller_endpoint.port_ssl,
             )
             # Exercise the active ingress variant and read the rejected Policy status.
-            resp = requests.get(ingress_setup.request_url, headers={"host": ingress_setup.ingress_host})
+            resp = retry_get_until_status_code(ingress_setup.request_url, ingress_setup.ingress_host, 500)
             policy_info = read_custom_resource(
                 kube_apis.custom_objects, test_namespace, "policies", "egress-mtls-policy"
             )
