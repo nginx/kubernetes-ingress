@@ -15,6 +15,7 @@ cm_header_only_name = f"{TEST_DATA}/otel/configmap-with-only-header-name.yaml"
 cm_header_only_value = f"{TEST_DATA}/otel/configmap-with-only-header-value.yaml"
 cm_service_name = f"{TEST_DATA}/otel/configmap-with-service-name.yaml"
 cm_otel_trace = f"{TEST_DATA}/otel/configmap-with-otel-trace.yaml"
+cm_otel_trace_context = f"{TEST_DATA}/otel/configmap-with-otel-trace-context.yaml"
 cm_all = f"{TEST_DATA}/otel/configmap-with-all.yaml"
 cm_all_except_endpoint = f"{TEST_DATA}/otel/configmap-with-all-except-endpoint.yaml"
 otel_module = "modules/ngx_otel_module.so"
@@ -362,6 +363,54 @@ class TestOtel:
         )
         wait_before_test(WAIT_TIME)
 
+    def test_otel_trace_context(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        ingress_controller,
+    ):
+        """
+        Test:
+        1. NIC starts with otel endpoint and trace-context configured in the `nginx-config`
+        2. Ensure that the `ngx_otel_module.so` is loaded in the nginx.conf
+        3. Ensure that the `otel_exporter` is enabled in the nginx.conf
+        4. Ensure that `otel_trace_context` is configured in the nginx.conf
+        """
+        configmap_name = "nginx-config"
+
+        print("Step 1: apply nginx-config map")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            cm_otel_trace_context,
+        )
+
+        wait_before_test(WAIT_TIME)
+        nginx_config = get_nginx_template_conf(
+            kube_apis.v1, ingress_controller_prerequisites.namespace, print_log=False
+        )
+
+        print("Step 2: Ensure that the otel module is loaded")
+        assert otel_module in (nginx_config)
+
+        exporter_block = extract_block(nginx_config, "otel_exporter")
+
+        print("Step 3: Ensure that the otel_exporter is enabled")
+        assert "otel_exporter" in (exporter_block)
+
+        print("Step 4: Ensure that otel_trace_context is configured")
+        assert "otel_trace_context propagate;" in (nginx_config)
+
+        print("Step 5: reset the configmap to default")
+        replace_configmap_from_yaml(
+            kube_apis.v1,
+            configmap_name,
+            ingress_controller_prerequisites.namespace,
+            cm_default,
+        )
+        wait_before_test(WAIT_TIME)
+
     def test_otel_all(
         self,
         kube_apis,
@@ -413,7 +462,10 @@ class TestOtel:
         print("Step 7: Ensure that otel_trace is configured")
         assert "otel_trace on;" in (nginx_config)
 
-        print("Step 8: reset the configmap to default")
+        print("Step 8: Ensure that otel_trace_context is correctly configured")
+        assert "otel_trace_context propagate;" in (nginx_config)
+
+        print("Step 9: reset the configmap to default")
         replace_configmap_from_yaml(
             kube_apis.v1,
             configmap_name,
