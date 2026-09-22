@@ -364,11 +364,6 @@ spec:
                       The server must specify explicit origins for credentialed requests.
                     items:
                       type: string
-                      x-kubernetes-validations:
-                      - message: origin port must be an integer between 1 and 65535
-                        rule: self == '*' || url(self).getPort() == '' || (url(self).getPort().matches('^[0-9]+$')
-                          && int(url(self).getPort()) >= 1 && int(url(self).getPort())
-                          <= 65535)
                     minItems: 1
                     type: array
                     x-kubernetes-validations:
