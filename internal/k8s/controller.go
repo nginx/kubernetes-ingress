@@ -1131,15 +1131,17 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	mgmtCfgParams := configs.NewDefaultMGMTConfigParams(ctx)
 	var isNGINXConfigValid bool
 	var mgmtConfigHasWarnings bool
-	var mgmtErr error
 
 	if lbc.configMap != nil {
 		cfgParams, isNGINXConfigValid = configs.ParseConfigMap(ctx, lbc.configMap, lbc.isNginxPlus, lbc.appProtectEnabled, lbc.appProtectDosEnabled, lbc.configuration.isTLSPassthroughEnabled, lbc.configuration.isDirectiveAutoadjustEnabled, lbc.configuration.snippetsEnabled, lbc.recorder)
 	}
 	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
-		mgmtCfgParams, mgmtConfigHasWarnings, mgmtErr = configs.ParseMGMTConfigMap(ctx, lbc.mgmtConfigMap, lbc.recorder)
-		if mgmtErr != nil {
-			nl.Errorf(lbc.Logger, "configmap %s/%s: %v", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName(), mgmtErr)
+		parsedMGMTParams, hasWarnings, err := configs.ParseMGMTConfigMap(ctx, lbc.mgmtConfigMap, lbc.recorder)
+		mgmtConfigHasWarnings = hasWarnings
+		if err != nil {
+			nl.Errorf(lbc.Logger, "configmap %s/%s: %v", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName(), err)
+		} else {
+			mgmtCfgParams = parsedMGMTParams
 		}
 	}
 
@@ -1148,14 +1150,31 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	cfgParams.ZoneSync.Domain = lbc.createCombinedDeploymentHeadlessServiceName()
 
 	// update special secrets in mgmtConfigParams
-	if lbc.mgmtConfigMap != nil && lbc.isNginxPlus {
-		lbc.syncMGMTSecrets(mgmtCfgParams)
+	var preparedMGMTSecrets []*api_v1.Secret
+	if lbc.isNginxPlus {
+		preparedMGMTSecrets = lbc.syncMGMTSecrets(mgmtCfgParams)
 	}
 
 	resources := lbc.configuration.GetResources()
 	nl.Debugf(lbc.Logger, "Updating %v resources", len(resources))
 	resourceExes := lbc.createExtendedResources(resources)
 	warnings, resourceErrors, updateErr := lbc.configurator.UpdateConfig(resourceExes)
+
+	for _, secret := range preparedMGMTSecrets {
+		if updateErr != nil {
+			lbc.recorder.Eventf(
+				lbc.metadata.pod,
+				api_v1.EventTypeWarning,
+				nl.EventReasonUpdatedWithError,
+				"the special Secret %v was updated, but not applied: %v",
+				generateSecretNSName(secret),
+				updateErr,
+			)
+			continue
+		}
+
+		lbc.recordSpecialSecretUpdated(secret)
+	}
 
 	// Config safety self-healing: when the startup ready-flip branch below held
 	// the pod Not Ready because every resource was excluded (shared-input
@@ -1195,10 +1214,15 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 	}
 
 	if lbc.mgmtConfigMap != nil {
-		if !mgmtConfigHasWarnings {
-			lbc.recorder.Eventf(lbc.mgmtConfigMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, "MGMT ConfigMap %s/%s updated without error", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName())
-		} else {
+		switch {
+		case updateErr != nil:
+			lbc.recorder.Eventf(lbc.mgmtConfigMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "MGMT ConfigMap %s/%s was updated but not applied: %v", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName(), updateErr)
+
+		case mgmtConfigHasWarnings:
 			lbc.recorder.Eventf(lbc.mgmtConfigMap, api_v1.EventTypeWarning, nl.EventReasonUpdatedWithError, "MGMT ConfigMap %s/%s updated with errors. Ignoring invalid values", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName())
+
+		default:
+			lbc.recorder.Eventf(lbc.mgmtConfigMap, api_v1.EventTypeNormal, nl.EventReasonUpdated, "MGMT ConfigMap %s/%s updated without error", lbc.mgmtConfigMap.GetNamespace(), lbc.mgmtConfigMap.GetName())
 		}
 	}
 
@@ -2677,7 +2701,7 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 	lbc.enqueuePoliciesUsingPLMStorage(key)
 }
 
-func (lbc *LoadBalancerController) syncMGMTSecrets(params *configs.MGMTConfigParams) {
+func (lbc *LoadBalancerController) syncMGMTSecrets(params *configs.MGMTConfigParams) []*api_v1.Secret {
 	namespace := lbc.metadata.namespace
 
 	lbc.specialSecrets.licenseSecret = namespacedSecretName(namespace, params.Secrets.License)
@@ -2692,6 +2716,7 @@ func (lbc *LoadBalancerController) syncMGMTSecrets(params *configs.MGMTConfigPar
 		lbc.specialSecrets.clientAuthSecret,
 	}
 	processed := make(map[string]struct{})
+	var prepared []*api_v1.Secret
 
 	for _, key := range orderedKeys {
 		if key == "" {
@@ -2733,8 +2758,10 @@ func (lbc *LoadBalancerController) syncMGMTSecrets(params *configs.MGMTConfigPar
 			}
 		}
 
-		lbc.recordSpecialSecretUpdated(secret)
+		prepared = append(prepared, secret)
 	}
+
+	return prepared
 }
 
 func namespacedSecretName(namespace, name string) string {

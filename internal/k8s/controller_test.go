@@ -34,6 +34,7 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/cert"
 )
 
 type testNginxManager struct {
@@ -70,6 +71,8 @@ func (m *testNginxManager) CreateSecret(name string, content []byte, mode os.Fil
 type secretReconciliationNginxManager struct {
 	*testNginxManager
 	reloadCalls int
+	reloadErr   error
+	onReload    func()
 }
 
 func newSecretReconciliationNginxManager() *secretReconciliationNginxManager {
@@ -80,6 +83,12 @@ func newSecretReconciliationNginxManager() *secretReconciliationNginxManager {
 
 func (m *secretReconciliationNginxManager) Reload(isEndpointsUpdate bool) error {
 	m.reloadCalls++
+	if m.onReload != nil {
+		m.onReload()
+	}
+	if m.reloadErr != nil {
+		return m.reloadErr
+	}
 	return m.FakeManager.Reload(isEndpointsUpdate)
 }
 
@@ -4582,6 +4591,581 @@ func TestValidateSpecialSecretMultiRole(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSpecialSecretAllRoles(t *testing.T) {
+	t.Parallel()
+
+	secret := newSharedMGMTSecret(t, true)
+	key := secret.Namespace + "/" + secret.Name
+
+	manager := newTestNginxManager()
+	lbc := &LoadBalancerController{
+		configurator: createTestPolicySyncConfigurator(t, manager),
+		recorder:     record.NewFakeRecorder(100),
+		specialSecrets: specialSecrets{
+			defaultServerSecret: key,
+			wildcardTLSSecret:   key,
+			licenseSecret:       key,
+			clientAuthSecret:    key,
+			trustedCertSecret:   key,
+		},
+		metadata: controllerMetadata{
+			pod: &api_v1.Pod{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "nginx-ingress",
+					Namespace: "nginx-ingress",
+				},
+			},
+		},
+		Logger: nl.LoggerFromContext(context.Background()),
+	}
+
+	update, ok := lbc.prepareSpecialSecretUpdate(lbc.Logger, secret)
+	if !ok {
+		t.Fatal("prepareSpecialSecretUpdate() rejected a valid all-role Secret")
+	}
+
+	if update.reload != specialReloadAllConfigs {
+		t.Errorf("reload action = %v, want specialReloadAllConfigs", update.reload)
+	}
+
+	wantRoles := []specialSecretRole{
+		specialDefaultTLS,
+		specialWildcardTLS,
+		specialLicense,
+		specialMGMTClientAuth,
+		specialMGMTTrustedCA,
+	}
+	if diff := cmp.Diff(wantRoles, update.roles); diff != "" {
+		t.Errorf("special roles mismatch (-want +got):\n%s", diff)
+	}
+
+	wantFiles := []string{
+		configs.LicenseSecretFileName,
+		configs.DefaultServerSecretFileName,
+		configs.WildcardSecretFileName,
+		fmt.Sprintf("mgmt/%s", configs.ClientAuthCertSecretFileName),
+		fmt.Sprintf("mgmt/%s", configs.CACrtKey),
+		fmt.Sprintf("mgmt/%s", configs.CACrlKey),
+	}
+	if diff := cmp.Diff(wantFiles, manager.CreatedSecretNames); diff != "" {
+		t.Errorf("created Secret files mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestSyncMGMTSecretsSharedSecret(t *testing.T) {
+	t.Parallel()
+
+	secret := newSharedMGMTSecret(t, true)
+	client := fake.NewClientset(secret)
+	lbc, manager, _ := newMGMTTestController(t, client)
+
+	params := configs.NewDefaultMGMTConfigParams(context.Background())
+	params.Secrets.License = secret.Name
+	params.Secrets.ClientAuth = secret.Name
+	params.Secrets.TrustedCert = secret.Name
+
+	prepared := lbc.syncMGMTSecrets(params)
+
+	if got := countSecretGetActions(client); got != 1 {
+		t.Errorf("Secret GET count = %d, want 1", got)
+	}
+
+	wantFiles := []string{
+		configs.LicenseSecretFileName,
+		fmt.Sprintf("mgmt/%s", configs.ClientAuthCertSecretFileName),
+		fmt.Sprintf("mgmt/%s", configs.CACrtKey),
+		fmt.Sprintf("mgmt/%s", configs.CACrlKey),
+	}
+	if diff := cmp.Diff(wantFiles, manager.CreatedSecretNames); diff != "" {
+		t.Errorf("created Secret files mismatch (-want +got):\n%s", diff)
+	}
+
+	if len(prepared) != 1 || prepared[0].Name != secret.Name {
+		t.Errorf("prepared Secrets = %v, want one shared Secret", prepared)
+	}
+
+	if params.Secrets.TrustedCRL != secret.Name {
+		t.Errorf(
+			"TrustedCRL = %q, want %q",
+			params.Secrets.TrustedCRL,
+			secret.Name,
+		)
+	}
+
+	key := secret.Namespace + "/" + secret.Name
+	if lbc.specialSecrets.licenseSecret != key {
+		t.Errorf("license Secret key = %q, want %q", lbc.specialSecrets.licenseSecret, key)
+	}
+	if lbc.specialSecrets.clientAuthSecret != key {
+		t.Errorf("client-auth Secret key = %q, want %q", lbc.specialSecrets.clientAuthSecret, key)
+	}
+	if lbc.specialSecrets.trustedCertSecret != key {
+		t.Errorf("trusted-CA Secret key = %q, want %q", lbc.specialSecrets.trustedCertSecret, key)
+	}
+}
+
+func TestSyncMGMTSecretsClearsStaleCRL(t *testing.T) {
+	t.Parallel()
+
+	secret := newSharedMGMTSecret(t, false)
+	client := fake.NewClientset(secret)
+	lbc, _, _ := newMGMTTestController(t, client)
+
+	params := configs.NewDefaultMGMTConfigParams(context.Background())
+	params.Secrets.TrustedCert = secret.Name
+	params.Secrets.TrustedCRL = "old-crl"
+
+	prepared := lbc.syncMGMTSecrets(params)
+
+	if params.Secrets.TrustedCRL != "" {
+		t.Errorf("TrustedCRL = %q, want empty", params.Secrets.TrustedCRL)
+	}
+	if len(prepared) != 1 {
+		t.Errorf("prepared Secret count = %d, want 1", len(prepared))
+	}
+}
+
+func TestSyncMGMTSecretsMissingSecret(t *testing.T) {
+	t.Parallel()
+
+	client := fake.NewClientset()
+	lbc, manager, recorder := newMGMTTestController(t, client)
+
+	params := configs.NewDefaultMGMTConfigParams(context.Background())
+	params.Secrets.License = "missing"
+	params.Secrets.ClientAuth = "missing"
+	params.Secrets.TrustedCert = "missing"
+
+	prepared := lbc.syncMGMTSecrets(params)
+
+	if got := countSecretGetActions(client); got != 1 {
+		t.Errorf("Secret GET count = %d, want 1", got)
+	}
+	if len(prepared) != 0 {
+		t.Errorf("prepared Secret count = %d, want 0", len(prepared))
+	}
+	if len(manager.CreatedSecretNames) != 0 {
+		t.Errorf("created Secret files = %v, want none", manager.CreatedSecretNames)
+	}
+	if events := drainRecorderEvents(recorder); len(events) != 0 {
+		t.Errorf("events = %v, want none", events)
+	}
+
+	key := "nginx-ingress/missing"
+	if lbc.specialSecrets.licenseSecret != key ||
+		lbc.specialSecrets.clientAuthSecret != key ||
+		lbc.specialSecrets.trustedCertSecret != key {
+		t.Error("configured missing Secret names were not retained")
+	}
+}
+
+func TestSyncMGMTSecretsRejectsInvalidSharedSecret(t *testing.T) {
+	t.Parallel()
+
+	secret := newSharedMGMTSecret(t, true)
+	delete(secret.Data, secrets.LicenseKey)
+
+	client := fake.NewClientset(secret)
+	lbc, manager, recorder := newMGMTTestController(t, client)
+
+	params := configs.NewDefaultMGMTConfigParams(context.Background())
+	params.Secrets.License = secret.Name
+	params.Secrets.ClientAuth = secret.Name
+	params.Secrets.TrustedCert = secret.Name
+
+	prepared := lbc.syncMGMTSecrets(params)
+
+	if got := countSecretGetActions(client); got != 1 {
+		t.Errorf("Secret GET count = %d, want 1", got)
+	}
+	if len(prepared) != 0 {
+		t.Errorf("prepared Secret count = %d, want 0", len(prepared))
+	}
+	if len(manager.CreatedSecretNames) != 0 {
+		t.Errorf("created Secret files = %v, want none", manager.CreatedSecretNames)
+	}
+
+	events := drainRecorderEvents(recorder)
+	rejected := 0
+	updated := 0
+	for _, event := range events {
+		if strings.Contains(event, nl.EventReasonRejected) {
+			rejected++
+		}
+		if strings.Contains(event, nl.EventReasonSecretUpdated) {
+			updated++
+		}
+	}
+	if rejected != 1 {
+		t.Errorf("Rejected event count = %d, want 1; events=%v", rejected, events)
+	}
+	if updated != 0 {
+		t.Errorf("SecretUpdated event count = %d, want 0; events=%v", updated, events)
+	}
+}
+
+func TestSyncMGMTSecretsClearsOldNames(t *testing.T) {
+	t.Parallel()
+
+	client := fake.NewClientset()
+	lbc, _, _ := newMGMTTestController(t, client)
+
+	lbc.specialSecrets.licenseSecret = "nginx-ingress/old-license"
+	lbc.specialSecrets.clientAuthSecret = "nginx-ingress/old-client"
+	lbc.specialSecrets.trustedCertSecret = "nginx-ingress/old-ca"
+
+	params := configs.NewDefaultMGMTConfigParams(context.Background())
+	prepared := lbc.syncMGMTSecrets(params)
+
+	if len(prepared) != 0 {
+		t.Errorf("prepared Secret count = %d, want 0", len(prepared))
+	}
+	if got := countSecretGetActions(client); got != 0 {
+		t.Errorf("Secret GET count = %d, want 0", got)
+	}
+	if lbc.specialSecrets.licenseSecret != "" {
+		t.Errorf("license Secret = %q, want empty", lbc.specialSecrets.licenseSecret)
+	}
+	if lbc.specialSecrets.clientAuthSecret != "" {
+		t.Errorf("client-auth Secret = %q, want empty", lbc.specialSecrets.clientAuthSecret)
+	}
+	if lbc.specialSecrets.trustedCertSecret != "" {
+		t.Errorf("trusted-CA Secret = %q, want empty", lbc.specialSecrets.trustedCertSecret)
+	}
+}
+
+func newMGMTTestController(
+	t *testing.T,
+	client *fake.Clientset,
+) (*LoadBalancerController, *testNginxManager, *record.FakeRecorder) {
+	t.Helper()
+
+	manager := newTestNginxManager()
+	recorder := record.NewFakeRecorder(100)
+
+	lbc := &LoadBalancerController{
+		client:       client,
+		configurator: createTestPolicySyncConfigurator(t, manager),
+		recorder:     recorder,
+		metadata: controllerMetadata{
+			namespace: "nginx-ingress",
+			pod: &api_v1.Pod{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "nginx-ingress",
+					Namespace: "nginx-ingress",
+				},
+			},
+		},
+		Logger: nl.LoggerFromContext(context.Background()),
+	}
+
+	return lbc, manager, recorder
+}
+
+func runMGMTSecretReloadTest(t *testing.T, reloadErr error) (eventsAtReload []string, events []string, reloadCalls int, filesAtReload int) {
+	t.Helper()
+
+	secret := newSharedMGMTSecret(t, true)
+	manager := newSecretReconciliationNginxManager()
+	manager.reloadErr = reloadErr
+
+	lbc := newBatchTestLBC(t, manager)
+	recorder := record.NewFakeRecorder(100)
+
+	lbc.recorder = recorder
+	lbc.isNginxPlus = true
+	lbc.client = fake.NewClientset(secret)
+	lbc.metadata.namespace = "nginx-ingress"
+	lbc.metadata.pod.Name = "nginx-ingress"
+	lbc.metadata.pod.Namespace = "nginx-ingress"
+	lbc.mgmtConfigMap = &api_v1.ConfigMap{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "mgmt",
+			Namespace: "nginx-ingress",
+		},
+		Data: map[string]string{
+			"license-token-secret-name":           secret.Name,
+			"ssl-certificate-secret-name":         secret.Name,
+			"ssl-trusted-certificate-secret-name": secret.Name,
+		},
+	}
+
+	manager.onReload = func() {
+		eventsAtReload = drainRecorderEvents(recorder)
+		filesAtReload = len(manager.CreatedSecretNames)
+	}
+
+	lbc.configurator.EnableReloads()
+	lbc.updateAllConfigs()
+
+	reloadCalls = manager.reloadCalls
+	events = append(
+		eventsAtReload,
+		drainRecorderEvents(recorder)...,
+	)
+
+	return eventsAtReload, events, reloadCalls, filesAtReload
+}
+
+func TestUpdateAllConfigsClearsMGMTSecretNames(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		mgmtConfigMap *api_v1.ConfigMap
+	}{
+		{
+			name:          "deleted MGMT ConfigMap",
+			mgmtConfigMap: nil,
+		},
+		{
+			name: "invalid empty MGMT ConfigMap",
+			mgmtConfigMap: &api_v1.ConfigMap{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "mgmt",
+					Namespace: "nginx-ingress",
+				},
+				Data: map[string]string{},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager := newSecretReconciliationNginxManager()
+			lbc := newBatchTestLBC(t, manager)
+
+			lbc.isNginxPlus = true
+			lbc.client = fake.NewClientset()
+			lbc.mgmtConfigMap = test.mgmtConfigMap
+			lbc.metadata.namespace = "nginx-ingress"
+
+			lbc.specialSecrets = specialSecrets{
+				defaultServerSecret: "nginx-ingress/default",
+				wildcardTLSSecret:   "nginx-ingress/wildcard",
+				licenseSecret:       "nginx-ingress/old-license",
+				clientAuthSecret:    "nginx-ingress/old-client",
+				trustedCertSecret:   "nginx-ingress/old-ca",
+			}
+
+			lbc.updateAllConfigs()
+
+			if lbc.specialSecrets.licenseSecret != "" {
+				t.Errorf("license Secret = %q, want empty", lbc.specialSecrets.licenseSecret)
+			}
+			if lbc.specialSecrets.clientAuthSecret != "" {
+				t.Errorf("client-auth Secret = %q, want empty", lbc.specialSecrets.clientAuthSecret)
+			}
+			if lbc.specialSecrets.trustedCertSecret != "" {
+				t.Errorf("trusted-CA Secret = %q, want empty", lbc.specialSecrets.trustedCertSecret)
+			}
+
+			if got := lbc.specialSecrets.defaultServerSecret; got != "nginx-ingress/default" {
+				t.Errorf("default-server Secret = %q, want unchanged", got)
+			}
+			if got := lbc.specialSecrets.wildcardTLSSecret; got != "nginx-ingress/wildcard" {
+				t.Errorf("wildcard Secret = %q, want unchanged", got)
+			}
+
+			if lbc.configurator.MgmtCfgParams == nil {
+				t.Error("Configurator MGMT parameters must not be nil")
+			}
+		})
+	}
+}
+
+func TestUpdateAllConfigsMGMTSecretEventsAfterSuccessfulReload(t *testing.T) {
+	t.Parallel()
+
+	eventsAtReload, events, reloadCalls, filesAtReload := runMGMTSecretReloadTest(t, nil)
+
+	got := map[string]int{
+		"reloads":       reloadCalls,
+		"filesAtReload": filesAtReload,
+		"earlyEvents": countEventsContaining(
+			eventsAtReload,
+			"the special Secret",
+		),
+		"specialNormal": countEventsContaining(
+			events,
+			"the special Secret",
+			api_v1.EventTypeNormal+" "+nl.EventReasonSecretUpdated,
+		),
+		"specialFailed": countEventsContaining(
+			events,
+			"the special Secret",
+			api_v1.EventTypeWarning+" "+nl.EventReasonUpdatedWithError,
+		),
+		"mgmtNormal": countEventsContaining(
+			events,
+			"MGMT ConfigMap",
+			api_v1.EventTypeNormal+" "+nl.EventReasonUpdated,
+		),
+		"mgmtFailed": countEventsContaining(
+			events,
+			"MGMT ConfigMap",
+			api_v1.EventTypeWarning+" "+nl.EventReasonUpdatedWithError,
+		),
+		"earlyMGMTEvents": countEventsContaining(
+			eventsAtReload,
+			"MGMT ConfigMap",
+		),
+	}
+
+	want := map[string]int{
+		"reloads":         1,
+		"filesAtReload":   4,
+		"earlyEvents":     0,
+		"specialNormal":   1,
+		"specialFailed":   0,
+		"mgmtNormal":      1,
+		"mgmtFailed":      0,
+		"earlyMGMTEvents": 0,
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("reload result mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestUpdateAllConfigsMGMTSecretEventsAfterFailedReload(t *testing.T) {
+	t.Parallel()
+
+	reloadErr := errors.New("injected reload failure")
+	eventsAtReload, events, reloadCalls, filesAtReload := runMGMTSecretReloadTest(t, reloadErr)
+
+	got := map[string]int{
+		"reloads":       reloadCalls,
+		"filesAtReload": filesAtReload,
+		"earlyEvents": countEventsContaining(
+			eventsAtReload,
+			"the special Secret",
+		),
+		"specialNormal": countEventsContaining(
+			events,
+			"the special Secret",
+			api_v1.EventTypeNormal+" "+nl.EventReasonSecretUpdated,
+		),
+		"specialFailed": countEventsContaining(
+			events,
+			"the special Secret",
+			api_v1.EventTypeWarning+" "+nl.EventReasonUpdatedWithError,
+		),
+		"mgmtNormal": countEventsContaining(
+			events,
+			"MGMT ConfigMap",
+			api_v1.EventTypeNormal+" "+nl.EventReasonUpdated,
+		),
+		"mgmtFailed": countEventsContaining(
+			events,
+			"MGMT ConfigMap",
+			api_v1.EventTypeWarning+" "+nl.EventReasonUpdatedWithError,
+		),
+		"errorEvents": countEventsContaining(
+			events,
+			reloadErr.Error(),
+		),
+		"earlyMGMTEvents": countEventsContaining(
+			eventsAtReload,
+			"MGMT ConfigMap",
+		),
+	}
+
+	want := map[string]int{
+		"reloads":         1,
+		"filesAtReload":   4,
+		"earlyEvents":     0,
+		"specialNormal":   0,
+		"specialFailed":   1,
+		"mgmtNormal":      0,
+		"mgmtFailed":      1,
+		"errorEvents":     2,
+		"earlyMGMTEvents": 0,
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("reload result mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func newSharedMGMTSecret(t *testing.T, withCRL bool) *api_v1.Secret {
+	t.Helper()
+
+	certPEM, keyPEM, err := cert.GenerateSelfSignedCertKey(
+		"localhost",
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("failed to generate certificate: %v", err)
+	}
+
+	data := map[string][]byte{
+		api_v1.TLSCertKey:       certPEM,
+		api_v1.TLSPrivateKeyKey: keyPEM,
+		secrets.CAKey:           certPEM,
+		secrets.LicenseKey:      []byte("license"),
+	}
+	if withCRL {
+		data[secrets.CACrlKey] = []byte("crl")
+	}
+
+	return &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "shared",
+			Namespace: "nginx-ingress",
+		},
+		Type: api_v1.SecretTypeOpaque,
+		Data: data,
+	}
+}
+
+func countSecretGetActions(client *fake.Clientset) int {
+	count := 0
+	for _, action := range client.Actions() {
+		if action.GetVerb() == "get" &&
+			action.GetResource().Resource == "secrets" {
+			count++
+		}
+	}
+	return count
+}
+
+func drainRecorderEvents(recorder *record.FakeRecorder) []string {
+	var events []string
+
+	for {
+		select {
+		case event := <-recorder.Events:
+			events = append(events, event)
+		default:
+			return events
+		}
+	}
+}
+
+func countEventsContaining(events []string, values ...string) int {
+	count := 0
+
+	for _, event := range events {
+		matches := true
+		for _, value := range values {
+			if !strings.Contains(event, value) {
+				matches = false
+				break
+			}
+		}
+		if matches {
+			count++
+		}
+	}
+
+	return count
 }
 
 func TestNewTelemetryCollector(t *testing.T) {
