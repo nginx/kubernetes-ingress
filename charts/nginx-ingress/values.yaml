@@ -39,7 +39,7 @@ controller:
     #     - kube-dns.kube-system.svc.cluster.local
 
     ## Secret containing TLS client certificate
-    # sslCertificateSecretName: ssl-certificate # kubernetes.io/tls secret type
+    # sslCertificateSecretName: ssl-certificate # kubernetes.io/tls or Opaque secret type
 
     ## Secret containing trusted CA certificate
     # sslTrustedCertificateSecretName: ssl-trusted-cert
@@ -827,9 +827,9 @@ nginxAgent:
     tls:
       enabled: true
       skipVerify: false
-      ## kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager
+      ## kubernetes.io/tls or Opaque secret with a TLS certificate and key for using mTLS between NGINX Agent and Instance Manager
       secret: ""
-      ## nginx.org/ca secret for verification of Instance Manager TLS
+      ## Opaque secret for verification of Instance Manager TLS
       caSecret: ""
     sni: ""
   ## Syslog listener which NGINX Agent uses to accept messages from App Protect WAF

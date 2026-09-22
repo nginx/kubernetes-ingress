@@ -830,7 +830,7 @@ func TestValidateSecretForRole(t *testing.T) {
 	for _, test := range tests {
 		err := ValidateSecretForRole(test.secret, test.role)
 		if err != nil {
-			t.Errorf("ValidateSecret() returned error %v for the case of %s", err, test.msg)
+			t.Errorf("ValidateSecretForRole() returned error %v for the case of %s", err, test.msg)
 		}
 	}
 }

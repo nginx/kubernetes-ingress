@@ -11,7 +11,7 @@ type OIDCNativeApplyConfiguration struct {
 	Issuer *string `json:"issuer,omitempty"`
 	// The client ID provided by your OpenID Connect provider.
 	ClientID *string `json:"clientID,omitempty"`
-	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the OIDC role and must store the client secret under the client-secret key.
 	ClientSecret *string `json:"clientSecret,omitempty"`
 	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
 	ConfigURL *string `json:"configURL,omitempty"`
@@ -37,7 +37,7 @@ type OIDCNativeApplyConfiguration struct {
 	SessionTimeout *string `json:"sessionTimeout,omitempty"`
 	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables.
 	UserInfoEnable *bool `json:"userInfoEnable,omitempty"`
-	// The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. Must be of type nginx.org/ca with the certificate stored under key ca.crt.
+	// The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure).
 	SSLVerify *bool `json:"sslVerify,omitempty"`

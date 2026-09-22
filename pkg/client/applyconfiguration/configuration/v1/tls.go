@@ -7,7 +7,7 @@ package v1
 //
 // TLS defines TLS configuration for a VirtualServer.
 type TLSApplyConfiguration struct {
-	// The name of a secret with a TLS certificate and key. The secret must belong to the same namespace as the VirtualServer. The secret must be of the type kubernetes.io/tls and contain keys named tls.crt and tls.key that contain the certificate and private key as described here. If the secret doesn’t exist or is invalid, NGINX will break any attempt to establish a TLS connection to the host of the VirtualServer. If the secret is not specified but wildcard TLS secret is configured, NGINX will use the wildcard secret for TLS termination.
+	// The name of a secret with a TLS certificate and key. The secret must belong to the same namespace as the VirtualServer. A secret of the type kubernetes.io/tls or Opaque is recommended. The secret is resolved with the TLS role and must store the certificate chain under tls.crt and the matching private key under tls.key. If the secret doesn’t exist or is invalid, NGINX will break any attempt to establish a TLS connection to the host of the VirtualServer. If the secret is not specified but wildcard TLS secret is configured, NGINX will use the wildcard secret for TLS termination.
 	Secret *string `json:"secret,omitempty"`
 	// The redirect configuration of the TLS for a VirtualServer.
 	Redirect *TLSRedirectApplyConfiguration `json:"redirect,omitempty"`

@@ -7,7 +7,7 @@ package v1
 //
 // The IngressMTLS policy configures client certificate verification.
 type IngressMTLSApplyConfiguration struct {
-	// The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. A secret of type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	ClientCertSecret *string `json:"clientCertSecret,omitempty"`
 	// The file name of the Certificate Revocation List. NGINX Ingress Controller will look for this file in /etc/nginx/secrets
 	CrlFileName *string `json:"crlFileName,omitempty"`

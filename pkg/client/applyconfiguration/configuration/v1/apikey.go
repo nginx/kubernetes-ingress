@@ -9,7 +9,7 @@ package v1
 type APIKeyApplyConfiguration struct {
 	// The location of the API Key. For example, $http_auth, $arg_apikey, $cookie_auth. Accepted variables are $http_, $arg_, $cookie_.
 	SuppliedIn *SuppliedInApplyConfiguration `json:"suppliedIn,omitempty"`
-	// The key to which the API key is applied. Can contain text, variables, or a combination of them. Accepted variables are $http_, $arg_, $cookie_.
+	// The name of a Kubernetes secret in the Policy namespace. A secret of the type Opaque is recommended. The secret is resolved with the APIKey role; each data key is a client ID and its value is that client API key. Can contain text, variables, or a combination of them. Accepted variables are $http_, $arg_, $cookie_.
 	ClientSecret *string `json:"clientSecret,omitempty"`
 }
 
