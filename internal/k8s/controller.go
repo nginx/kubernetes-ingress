@@ -2881,6 +2881,27 @@ func getStatusFromEventTitle(eventTitle string) string {
 	return ""
 }
 
+// latestEventEmittedByIngressController returns the most recent event reported by this Ingress Controller.
+// Events from other reporting controllers are ignored, so found is false when none of them are ours.
+// Recurrences are patched onto the existing event object, so LastTimestamp is the occurrence time and
+// CreationTimestamp only tracks the first one.
+func latestEventEmittedByIngressController(events []api_v1.Event) (api_v1.Event, bool) {
+	var latestEvent api_v1.Event
+	var found bool
+
+	for _, event := range events {
+		if event.ReportingController != EventReporterName {
+			continue
+		}
+		if !found || event.LastTimestamp.After(latestEvent.LastTimestamp.Time) {
+			latestEvent = event
+			found = true
+		}
+	}
+
+	return latestEvent, found
+}
+
 func (lbc *LoadBalancerController) updateVirtualServersStatusFromEvents() error {
 	var allErrs []error
 	for _, nsi := range lbc.namespacedInformers {
@@ -2899,17 +2920,9 @@ func (lbc *LoadBalancerController) updateVirtualServersStatusFromEvents() error 
 				break
 			}
 
-			if len(events.Items) == 0 {
+			latestEvent, found := latestEventEmittedByIngressController(events.Items)
+			if !found {
 				continue
-			}
-
-			var timestamp time.Time
-			var latestEvent api_v1.Event
-			for _, event := range events.Items {
-				if event.CreationTimestamp.After(timestamp) && event.ReportingController == EventReporterName {
-					timestamp = event.CreationTimestamp.Time
-					latestEvent = event
-				}
 			}
 
 			err = lbc.statusUpdater.UpdateVirtualServerStatus(vs, getStatusFromEventTitle(latestEvent.Reason), latestEvent.Reason, latestEvent.Message)
@@ -2944,17 +2957,9 @@ func (lbc *LoadBalancerController) updateVirtualServerRoutesStatusFromEvents() e
 				break
 			}
 
-			if len(events.Items) == 0 {
+			latestEvent, found := latestEventEmittedByIngressController(events.Items)
+			if !found {
 				continue
-			}
-
-			var timestamp time.Time
-			var latestEvent api_v1.Event
-			for _, event := range events.Items {
-				if event.CreationTimestamp.After(timestamp) && event.ReportingController == EventReporterName {
-					timestamp = event.CreationTimestamp.Time
-					latestEvent = event
-				}
 			}
 
 			err = lbc.statusUpdater.UpdateVirtualServerRouteStatus(vsr, getStatusFromEventTitle(latestEvent.Reason), latestEvent.Reason, latestEvent.Message)

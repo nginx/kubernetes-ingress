@@ -2111,6 +2111,84 @@ func TestGetStatusFromEventTitle(t *testing.T) {
 	}
 }
 
+func TestLatestEventEmittedByIngressController(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	event := func(name string, reportingController string, created time.Time, lastSeen time.Time) api_v1.Event {
+		return api_v1.Event{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:              name,
+				CreationTimestamp: meta_v1.NewTime(created),
+			},
+			LastTimestamp:       meta_v1.NewTime(lastSeen),
+			Reason:              "AddedOrUpdated",
+			ReportingController: reportingController,
+		}
+	}
+
+	tests := []struct {
+		name          string
+		events        []api_v1.Event
+		expectedName  string
+		expectedFound bool
+	}{
+		{
+			name:          "no events",
+			events:        nil,
+			expectedFound: false,
+		},
+		{
+			name:          "only third-party events",
+			events:        []api_v1.Event{event("kyverno", "kyverno-admission", baseTime, baseTime)},
+			expectedFound: false,
+		},
+		{
+			name: "third-party event is the most recent",
+			events: []api_v1.Event{
+				event("nic", EventReporterName, baseTime.Add(-10*time.Hour), baseTime.Add(-10*time.Hour)),
+				event("kyverno", "kyverno-admission", baseTime, baseTime),
+			},
+			expectedName:  "nic",
+			expectedFound: true,
+		},
+		{
+			name: "several NIC events",
+			events: []api_v1.Event{
+				event("nic-old", EventReporterName, baseTime.Add(-2*time.Minute), baseTime.Add(-2*time.Minute)),
+				event("nic-new", EventReporterName, baseTime, baseTime),
+				event("nic-mid", EventReporterName, baseTime.Add(-1*time.Minute), baseTime.Add(-1*time.Minute)),
+			},
+			expectedName:  "nic-new",
+			expectedFound: true,
+		},
+		{
+			name: "re-emitted NIC event created before a newer NIC event",
+			events: []api_v1.Event{
+				event("nic-valid", EventReporterName, baseTime.Add(-10*time.Minute), baseTime),
+				event("nic-error", EventReporterName, baseTime.Add(-5*time.Minute), baseTime.Add(-5*time.Minute)),
+			},
+			expectedName:  "nic-valid",
+			expectedFound: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			latestEvent, found := latestEventEmittedByIngressController(tc.events)
+			if found != tc.expectedFound {
+				t.Fatalf("expected found %v, got %v", tc.expectedFound, found)
+			}
+			if found && latestEvent.Name != tc.expectedName {
+				t.Errorf("expected event %q, got %q", tc.expectedName, latestEvent.Name)
+			}
+		})
+	}
+}
+
 func TestGetPoliciesGlobalWatch(t *testing.T) {
 	t.Parallel()
 	validPolicy := &conf_v1.Policy{
@@ -5038,6 +5116,7 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 						Name: vsName,
 						UID:  "test-vs-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
 					Reason:              "AddedOrUpdated",
 					Message:             "Configuration for VirtualServer was added or updated",
 					ReportingController: EventReporterName,
@@ -5059,6 +5138,7 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 						Name: vsName,
 						UID:  "test-vs-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-1 * time.Minute)),
 					Reason:              "AddedOrUpdated",
 					Message:             "Configuration for VirtualServer was added or updated",
 					ReportingController: EventReporterName,
@@ -5073,6 +5153,7 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 						Name: vsName,
 						UID:  "test-vs-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
 					Reason:              "PolicyViolation",
 					Message:             "policy ns-policy/require-labels: validation error",
 					ReportingController: "kyverno-admission",
@@ -5082,7 +5163,7 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 			expectedReason: "AddedOrUpdated",
 		},
 		{
-			name: "only third-party events - should not update status (empty state)",
+			name: "only third-party events - should leave the existing status untouched",
 			events: []api_v1.Event{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -5094,13 +5175,14 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 						Name: vsName,
 						UID:  "test-vs-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
 					Reason:              "PolicyViolation",
 					Message:             "policy ns-policy/require-labels: validation error",
 					ReportingController: "kyverno-admission",
 				},
 			},
-			expectedState:  "",
-			expectedReason: "",
+			expectedState:  conf_v1.StateWarning,
+			expectedReason: "AddedOrUpdatedWithWarning",
 		},
 		{
 			name: "multiple NIC events - should use latest NIC event",
@@ -5115,6 +5197,7 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 						Name: vsName,
 						UID:  "test-vs-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-2 * time.Minute)),
 					Reason:              "AddedOrUpdatedWithError",
 					Message:             "Configuration was rejected",
 					ReportingController: EventReporterName,
@@ -5129,8 +5212,47 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 						Name: vsName,
 						UID:  "test-vs-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
 					Reason:              "AddedOrUpdated",
 					Message:             "Configuration for VirtualServer was added or updated",
+					ReportingController: EventReporterName,
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+		{
+			name: "NIC event re-emitted after a newer NIC event - should use the re-emitted event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-valid",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-10 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Count:               2,
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServer was added or updated",
+					ReportingController: EventReporterName,
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-error",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-5 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-5 * time.Minute)),
+					Reason:              "AddedOrUpdatedWithError",
+					Message:             "Configuration was rejected",
 					ReportingController: EventReporterName,
 				},
 			},
@@ -5153,9 +5275,9 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 					Host: "test.example.com",
 				},
 				Status: conf_v1.VirtualServerStatus{
-					State:   "initial",
-					Reason:  "initial",
-					Message: "initial",
+					State:   conf_v1.StateWarning,
+					Reason:  "AddedOrUpdatedWithWarning",
+					Message: "Configuration for VirtualServer was added or updated with warning",
 				},
 			}
 
@@ -5246,6 +5368,7 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 						Name: vsrName,
 						UID:  "test-vsr-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
 					Reason:              "AddedOrUpdated",
 					Message:             "Configuration for VirtualServerRoute was added or updated",
 					ReportingController: EventReporterName,
@@ -5267,6 +5390,7 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 						Name: vsrName,
 						UID:  "test-vsr-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-1 * time.Minute)),
 					Reason:              "AddedOrUpdated",
 					Message:             "Configuration for VirtualServerRoute was added or updated",
 					ReportingController: EventReporterName,
@@ -5281,6 +5405,7 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 						Name: vsrName,
 						UID:  "test-vsr-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
 					Reason:              "PolicyViolation",
 					Message:             "policy ns-policy/require-labels: validation error",
 					ReportingController: "kyverno-admission",
@@ -5290,7 +5415,7 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 			expectedReason: "AddedOrUpdated",
 		},
 		{
-			name: "only third-party events - should not update status (empty state)",
+			name: "only third-party events - should leave the existing status untouched",
 			events: []api_v1.Event{
 				{
 					ObjectMeta: meta_v1.ObjectMeta{
@@ -5302,13 +5427,14 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 						Name: vsrName,
 						UID:  "test-vsr-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
 					Reason:              "PolicyViolation",
 					Message:             "policy ns-policy/require-labels: validation error",
 					ReportingController: "kyverno-admission",
 				},
 			},
-			expectedState:  "",
-			expectedReason: "",
+			expectedState:  conf_v1.StateWarning,
+			expectedReason: "AddedOrUpdatedWithWarning",
 		},
 		{
 			name: "multiple NIC events - should use latest NIC event",
@@ -5323,6 +5449,7 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 						Name: vsrName,
 						UID:  "test-vsr-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-2 * time.Minute)),
 					Reason:              "AddedOrUpdatedWithError",
 					Message:             "Configuration was rejected",
 					ReportingController: EventReporterName,
@@ -5337,8 +5464,47 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 						Name: vsrName,
 						UID:  "test-vsr-uid",
 					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
 					Reason:              "AddedOrUpdated",
 					Message:             "Configuration for VirtualServerRoute was added or updated",
+					ReportingController: EventReporterName,
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+		{
+			name: "NIC event re-emitted after a newer NIC event - should use the re-emitted event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-valid",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-10 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Count:               2,
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServerRoute was added or updated",
+					ReportingController: EventReporterName,
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-error",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-5 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-5 * time.Minute)),
+					Reason:              "AddedOrUpdatedWithError",
+					Message:             "Configuration was rejected",
 					ReportingController: EventReporterName,
 				},
 			},
@@ -5361,9 +5527,9 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 					Host: "test.example.com",
 				},
 				Status: conf_v1.VirtualServerRouteStatus{
-					State:   "initial",
-					Reason:  "initial",
-					Message: "initial",
+					State:   conf_v1.StateWarning,
+					Reason:  "AddedOrUpdatedWithWarning",
+					Message: "Configuration for VirtualServerRoute was added or updated with warning",
 				},
 			}
 
