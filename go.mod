@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.5
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.5
 	github.com/aws/aws-sdk-go-v2/service/marketplacemetering v1.45.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.113.2
 	github.com/cert-manager/cert-manager v1.21.2
 	github.com/dlclark/regexp2/v2 v2.8.0
 	github.com/gkampitakis/go-snaps v0.5.23
