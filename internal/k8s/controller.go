@@ -2893,7 +2893,7 @@ func latestEventEmittedByIngressController(events []api_v1.Event) (api_v1.Event,
 		if event.ReportingController != EventReporterName {
 			continue
 		}
-		if !found || event.LastTimestamp.After(latestEvent.LastTimestamp.Time) {
+		if !found || !event.LastTimestamp.Before(&latestEvent.LastTimestamp) {
 			latestEvent = event
 			found = true
 		}
