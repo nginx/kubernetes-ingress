@@ -2172,6 +2172,15 @@ func TestLatestEventEmittedByIngressController(t *testing.T) {
 			expectedName:  "nic-valid",
 			expectedFound: true,
 		},
+		{
+			name: "two NIC events in the same second",
+			events: []api_v1.Event{
+				event("nic-warning", EventReporterName, baseTime, baseTime),
+				event("nic-valid", EventReporterName, baseTime, baseTime),
+			},
+			expectedName:  "nic-valid",
+			expectedFound: true,
+		},
 	}
 
 	for _, tc := range tests {
