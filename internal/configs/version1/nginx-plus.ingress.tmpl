@@ -539,13 +539,13 @@ server {
 		grpc_connect_timeout {{$location.ProxyConnectTimeout}};
 		grpc_read_timeout {{$location.ProxyReadTimeout}};
 		grpc_send_timeout {{$location.ProxySendTimeout}};
-		grpc_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else}}$host{{end}};
+		grpc_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else if $location.UseForwardedHeaders}}$forwarded_host{{else}}$host{{end}};
 		grpc_set_header X-Real-IP $remote_addr;
 		{{- if not $location.DisableForwardedHeaders }}
 		grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-		grpc_set_header X-Forwarded-Host $host;
-		grpc_set_header X-Forwarded-Port $server_port;
-		grpc_set_header X-Forwarded-Proto $scheme;
+		grpc_set_header X-Forwarded-Host {{if $location.UseForwardedHeaders}}$forwarded_host{{else}}$host{{end}};
+		grpc_set_header X-Forwarded-Port {{if $location.UseForwardedHeaders}}$forwarded_port{{else}}$server_port{{end}};
+		grpc_set_header X-Forwarded-Proto {{if $location.UseForwardedHeaders}}$forwarded_proto{{else}}$scheme{{end}};
 		{{- end}}
 
 		{{- if $location.ProxyBufferSize}}
@@ -601,13 +601,13 @@ server {
 		{{- range $header := $location.ProxySetHeaders}}
 		proxy_set_header {{ $header.Name }} {{ printf "%q" $header.Value }};
 		{{- end}}
-		proxy_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else}}$host{{end}};
+		proxy_set_header Host {{if $location.UpstreamVhost}}{{ $location.UpstreamVhost }}{{else if $location.UseForwardedHeaders}}$forwarded_host{{else}}$host{{end}};
 		proxy_set_header X-Real-IP $remote_addr;
 		{{- if not $location.DisableForwardedHeaders }}
 		proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-		proxy_set_header X-Forwarded-Host $host;
-		proxy_set_header X-Forwarded-Port $server_port;
-		proxy_set_header X-Forwarded-Proto {{if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
+		proxy_set_header X-Forwarded-Host {{if $location.UseForwardedHeaders}}$forwarded_host{{else}}$host{{end}};
+		proxy_set_header X-Forwarded-Port {{if $location.UseForwardedHeaders}}$forwarded_port{{else}}$server_port{{end}};
+		proxy_set_header X-Forwarded-Proto {{if $location.UseForwardedHeaders}}$forwarded_proto{{else if $server.RedirectToHTTPS}}https{{else}}$scheme{{end}};
 		{{- end}}
 		proxy_buffering {{if $location.ProxyBuffering}}on{{else}}off{{end}};
 		{{- if $location.ProxyBuffers}}

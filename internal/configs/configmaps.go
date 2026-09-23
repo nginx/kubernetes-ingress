@@ -128,6 +128,24 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 		}
 	}
 
+	if useForwardedHeaders, exists, err := GetMapKeyAsBool(cfgm.Data, "use-forwarded-headers", cfgm); exists {
+		if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			configOk = false
+		} else {
+			cfgParams.UseForwardedHeaders = useForwardedHeaders
+		}
+	}
+
+	if cfgParams.UseForwardedHeaders && cfgParams.DisableForwardedHeaders {
+		errorText := fmt.Sprintf("ConfigMap %s/%s: 'use-forwarded-headers' and 'disable-forwarded-headers' are mutually exclusive, ignoring 'use-forwarded-headers'", cfgm.GetNamespace(), cfgm.GetName())
+		nl.Error(l, errorText)
+		eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+		cfgParams.UseForwardedHeaders = false
+		configOk = false
+	}
+
 	if clientMaxBodySize, exists := cfgm.Data["client-max-body-size"]; exists {
 		cfgParams.ClientMaxBodySize = clientMaxBodySize
 	}
@@ -1286,6 +1304,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		WorkerRlimitNofile:                 config.MainWorkerRlimitNofile,
 		VariablesHashBucketSize:            config.VariablesHashBucketSize,
 		VariablesHashMaxSize:               config.VariablesHashMaxSize,
+		UseForwardedHeaders:                config.UseForwardedHeaders,
 		AppProtectLoadModule:               staticCfgParams.MainAppProtectLoadModule,
 		AppProtectV5LoadModule:             staticCfgParams.MainAppProtectV5LoadModule,
 		AppProtectDosLoadModule:            staticCfgParams.MainAppProtectDosLoadModule,

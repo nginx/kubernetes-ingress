@@ -4302,6 +4302,93 @@ func TestExecuteTemplate_ForIngressWithDisableForwardedHeaders(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteMainTemplate_WithUseForwardedHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXMainTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusMainTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := mainCfg
+			cfg.UseForwardedHeaders = true
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+			if err := tmpl.Execute(buf, cfg); err != nil {
+				t.Fatal(err)
+			}
+
+			out := buf.String()
+			wantDirectives := []string{
+				"map $http_x_forwarded_host $forwarded_host",
+				"map $http_x_forwarded_port $forwarded_port",
+				"map $http_x_forwarded_proto $forwarded_proto",
+			}
+
+			for _, want := range wantDirectives {
+				if !strings.Contains(out, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+
+			snaps.MatchSnapshot(t, out)
+		})
+	}
+}
+
+func TestExecuteTemplate_ForIngressWithUseForwardedHeaders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			err := tmpl.Execute(buf, ingressCfgForwardedHeaderUsed)
+			t.Log(buf.String())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			wantDirectives := []string{
+				"proxy_set_header Host $forwarded_host;",
+				"proxy_set_header X-Forwarded-Host $forwarded_host;",
+				"proxy_set_header X-Forwarded-Port $forwarded_port;",
+				"proxy_set_header X-Forwarded-Proto $forwarded_proto;",
+				"proxy_set_header Host coffee.internal;",
+			}
+
+			rendered := buf.String()
+			for _, want := range wantDirectives {
+				if !strings.Contains(rendered, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 var (
 	// Ingress Config example without added annotations
 	ingressCfg = IngressNginxConfig{
@@ -4714,6 +4801,55 @@ var (
 							Namespace: "default",
 						},
 						ProxyPass: "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	ingressCfgForwardedHeaderUsed = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						UseForwardedHeaders: true,
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						MinionIngress: &Ingress{
+							Name:      "tea-minion",
+							Namespace: "default",
+						},
+						ProxyPass: "http://test",
+					},
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						UseForwardedHeaders: true,
+						UpstreamVhost:       "coffee.internal",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						ClientMaxBodySize:   "2m",
+						ProxyPass:           "http://test",
 					},
 				},
 			},
