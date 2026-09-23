@@ -9,7 +9,7 @@ spec:
       http:
         paths:
           # coffee-svc has no appProtocol, so no proxy_http_version is rendered and NGINX
-          # uses its own default (HTTP/1.1 as of NGINX 1.29.7).
+          # uses HTTP/1.1.
           - path: /coffee
             pathType: Prefix
             backend:

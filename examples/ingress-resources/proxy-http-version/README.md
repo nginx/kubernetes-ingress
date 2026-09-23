@@ -19,21 +19,18 @@ Precedence, highest first:
 
 1. The `nginx.org/proxy-http-version` annotation
 2. The `appProtocol` of the backing Service port (`kubernetes.io/h2c` implies `"2"`)
-3. Unset: the directive is not rendered and NGINX applies its own default, which is
-   HTTP/1.1 as of NGINX 1.29.7
+3. Unset: the directive is not rendered and NGINX uses HTTP/1.1
 
 ## Requirements and limitations
 
-- The value `"2"` requires NGINX 1.29.4 or later, which every supported NGINX Ingress
-  Controller image satisfies.
 - HTTP/2 forbids the hop-by-hop `Connection` and `Upgrade` headers
   ([RFC 9113 8.2.2](https://www.rfc-editor.org/rfc/rfc9113#section-8.2.2)), so NGINX Ingress
   Controller omits them for locations that proxy over HTTP/2. As a consequence, WebSocket
   (`nginx.org/websocket-services`) cannot be used together with HTTP/2 upstreams. A warning
   event is emitted if you configure both.
 - HTTP/1.0 has no persistent connections or `Upgrade` mechanism, so locations that proxy over
-  HTTP/1.0 send `Connection: close` to the upstream, as recommended in
-  [Keep-alive to upstreams is now default in NGINX 1.29.7](https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7).
+  HTTP/1.0 send `Connection: close` to the upstream, as
+  [recommended by NGINX](https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7).
   WebSocket cannot be used together with HTTP/1.0 upstreams either, and a warning event is
   emitted if you configure both.
 - Services listed in `nginx.org/grpc-services` are proxied with `grpc_pass`, which always
@@ -60,12 +57,17 @@ IC_HTTP_PORT=<port number>
 
 ## 2. Deploy the Cafe Application
 
-Create the coffee and tea deployments and services. `tea-svc` declares
-`appProtocol: kubernetes.io/h2c`, `coffee-svc` declares no `appProtocol`:
+Create the coffee and tea deployments and services:
 
 ```console
 kubectl apply -f cafe.yaml
 ```
+
+Both applications run `nginx:alpine` with HTTP/2 enabled on a cleartext listener, so they
+accept HTTP/1.0, HTTP/1.1 and cleartext HTTP/2 (h2c) connections on the same port. Every
+response reports the protocol and the `Connection` header of the request received from the
+Ingress Controller. `tea-svc` declares `appProtocol: kubernetes.io/h2c`; `coffee-svc`
+declares no `appProtocol`.
 
 ## 3. Configure the upstream HTTP version with the annotation
 
@@ -73,33 +75,68 @@ kubectl apply -f cafe.yaml
 kubectl apply -f cafe-ingress-annotation.yaml
 ```
 
-Both locations now render `proxy_http_version 1.0;` and `proxy_set_header Connection close;`,
-because the annotation takes precedence over the `appProtocol` of `tea-svc`:
+The annotation sets HTTP/1.0 for every location and takes precedence over the `appProtocol`
+of `tea-svc`. Send a request to each location:
 
 ```console
-kubectl exec -it <nginx-ingress-pod> -- grep -A1 'location /' /etc/nginx/conf.d/default-cafe-ingress.conf
+curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee
 ```
 
+```text
+Server name: coffee-7586895968-r26zn
+URI: /coffee
+Upstream protocol: HTTP/1.0
+Connection header: close
+```
+
+```console
+curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/tea
+```
+
+```text
+Server name: tea-5c457db9-4dzrk
+URI: /tea
+Upstream protocol: HTTP/1.0
+Connection header: close
+```
+
+Both backends received an HTTP/1.0 request with `Connection: close`.
+
 ## 4. Configure the upstream HTTP version with appProtocol
+
+Replace the Ingress with one that has no annotation:
 
 ```console
 kubectl delete -f cafe-ingress-annotation.yaml
 kubectl apply -f cafe-ingress-app-protocol.yaml
 ```
 
-With no annotation, each location is resolved from its own backing Service:
-
-- `/coffee` renders no `proxy_http_version` directive, so NGINX uses its default (HTTP/1.1)
-- `/tea` renders `proxy_http_version 2;`, inferred from `appProtocol: kubernetes.io/h2c`
-
-## 5. Test the Application
+Each location is now resolved from its own backing Service:
 
 ```console
 curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/coffee
+```
+
+```text
+Server name: coffee-7586895968-r26zn
+URI: /coffee
+Upstream protocol: HTTP/1.1
+Connection header:
+```
+
+`coffee-svc` has no `appProtocol`, so no `proxy_http_version` directive is rendered and NGINX
+uses HTTP/1.1.
+
+```console
 curl --resolve cafe.example.com:$IC_HTTP_PORT:$IC_IP http://cafe.example.com:$IC_HTTP_PORT/tea
 ```
 
-> [!NOTE]
-> `nginxdemos/nginx-hello` does not serve cleartext HTTP/2. The `/tea` request in step 4 is
-> expected to fail against it; replace `tea` with an h2c-capable backend to exercise the
-> HTTP/2 upstream path end to end.
+```text
+Server name: tea-5c457db9-4dzrk
+URI: /tea
+Upstream protocol: HTTP/2.0
+Connection header:
+```
+
+`tea-svc` declares `appProtocol: kubernetes.io/h2c`, so `proxy_http_version 2;` is inferred
+and the request reaches the backend over cleartext HTTP/2, without a `Connection` header.

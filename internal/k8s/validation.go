@@ -814,8 +814,9 @@ func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) f
 
 // validateProxyHTTPVersionAnnotation validates the nginx.org/proxy-http-version annotation.
 // It shares the accepted value set with the VirtualServer upstream proxy-http-version field so
-// that the two surfaces cannot drift apart. Unlike the CRD field, an empty value is rejected
-// here: an annotation that is present but blank is a mistake, not "unset".
+// that the two surfaces cannot drift apart. The shared validator accepts an empty value as
+// "unset"; an annotation that is present but blank is rejected earlier in the validation
+// chain by validateRequiredAnnotation.
 func validateProxyHTTPVersionAnnotation(context *annotationValidationContext) field.ErrorList {
 	return common_validation.ValidateProxyHTTPVersion(context.value, context.fieldPath)
 }

@@ -27,12 +27,10 @@ type UpstreamApplyConfiguration struct {
 	Keepalive *int `json:"keepalive,omitempty"`
 	// Sets the HTTP protocol version used for connections to the upstream servers.
 	// Supported values are "1.0", "1.1" and "2". If unset, the appProtocol of the backing
-	// Service port is used ("kubernetes.io/h2c" implies "2"); otherwise the directive is
-	// omitted and NGINX applies its own default, which is 1.1 as of NGINX 1.29.7.
+	// Service port is used ("kubernetes.io/h2c" implies "2"); otherwise NGINX uses HTTP/1.1.
 	// Note: this field is ignored for upstreams with type "grpc", where grpc_pass always
 	// uses HTTP/2, and the values "1.0" and "2" cannot be used with WebSocket, which requires
 	// HTTP/1.1. With "1.0", the "Connection: close" request header is sent to the upstream.
-	// The value "2" requires NGINX 1.29.4 or later.
 	ProxyHTTPVersion *string `json:"proxy-http-version,omitempty"`
 	// The timeout for establishing a connection with an upstream server. The default is specified in the proxy-connect-timeout ConfigMap key.
 	ProxyConnectTimeout *string `json:"connect-timeout,omitempty"`
