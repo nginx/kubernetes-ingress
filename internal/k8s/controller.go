@@ -77,7 +77,7 @@ const (
 	ingressClassKey = "kubernetes.io/ingress.class"
 	// IngressControllerName holds Ingress Controller name
 	IngressControllerName = "nginx.org/ingress-controller"
-	// EventReporterName
+	// EventReporterName holds the Event.ReportingController Name
 	EventReporterName = "nginx-ingress-controller"
 
 	typeKeyword     = "type"
