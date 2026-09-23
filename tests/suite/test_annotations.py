@@ -272,6 +272,7 @@ class TestAnnotations:
                     " 124k;",
                     'proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";',
                     "proxy_http_version 1.0;",
+                    "proxy_set_header Connection close;",
                 ],
                 ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;", "proxy_http_version 1.1;"],
             )

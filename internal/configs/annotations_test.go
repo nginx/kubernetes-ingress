@@ -211,6 +211,7 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 		AddHeaderInheritAnnotation:        addHeaderInheritOn,
 		JWTTokenAnnotation:                "$cookie_auth_token",
 		UpstreamVhostAnnotation:           "master.example.com",
+		ProxyHTTPVersionAnnotation:        "1.0",
 	}
 	minionAnnotations := map[string]string{
 		"nginx.org/client-max-body-size":  "2m",
@@ -225,6 +226,7 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 		"nginx.org/client-max-body-size":  "2m",
 		"nginx.org/proxy-connect-timeout": "20s",
 		UpstreamVhostAnnotation:           "master.example.com",
+		ProxyHTTPVersionAnnotation:        "1.0",
 	}
 	if !reflect.DeepEqual(expectedMergedAnnotations, minionAnnotations) {
 		t.Errorf("mergeMasterAnnotationsIntoMinion returned %v, but expected %v", minionAnnotations, expectedMergedAnnotations)
@@ -247,6 +249,27 @@ func TestMergeMasterAnnotationsIntoMinionUpstreamVhostOverride(t *testing.T) {
 
 	expectedMergedAnnotations := map[string]string{
 		UpstreamVhostAnnotation: "minion.example.com",
+	}
+	if !reflect.DeepEqual(expectedMergedAnnotations, minionAnnotations) {
+		t.Errorf("mergeMasterAnnotationsIntoMinion returned %v, but expected %v", minionAnnotations, expectedMergedAnnotations)
+	}
+}
+
+// TestMergeMasterAnnotationsIntoMinionProxyHTTPVersionOverride verifies that a
+// nginx.org/proxy-http-version value set on the minion takes priority over the master's
+// value and is not overwritten by inheritance.
+func TestMergeMasterAnnotationsIntoMinionProxyHTTPVersionOverride(t *testing.T) {
+	t.Parallel()
+	masterAnnotations := map[string]string{
+		ProxyHTTPVersionAnnotation: "1.0",
+	}
+	minionAnnotations := map[string]string{
+		ProxyHTTPVersionAnnotation: "2",
+	}
+	mergeMasterAnnotationsIntoMinion(minionAnnotations, masterAnnotations)
+
+	expectedMergedAnnotations := map[string]string{
+		ProxyHTTPVersionAnnotation: "2",
 	}
 	if !reflect.DeepEqual(expectedMergedAnnotations, minionAnnotations) {
 		t.Errorf("mergeMasterAnnotationsIntoMinion returned %v, but expected %v", minionAnnotations, expectedMergedAnnotations)

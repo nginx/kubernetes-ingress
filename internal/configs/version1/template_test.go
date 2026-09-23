@@ -8165,9 +8165,11 @@ func TestExecuteTemplate_ForIngressWithBackslashPath(t *testing.T) {
 }
 
 // ingressCfgProxyHTTPVersion exercises every rendering branch of proxy_http_version in one
-// server: unset (directive omitted), 1.0, 1.1, 2 (hop-by-hop headers suppressed), a websocket
+// server: unset (directive omitted), 1.0 ("Connection: close"), 1.1, 2 (hop-by-hop headers
+// suppressed), a websocket location on HTTP/1.0 ("Connection: close" only), a websocket
 // location on HTTP/1.1 (Upgrade/Connection emitted) and a websocket location on HTTP/2
-// (suppressed).
+// (suppressed). Keepalive is set so that the 1.0 locations would otherwise render the
+// keep-alive `Connection ""` header.
 var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 	Servers: []Server{
 		{
@@ -8213,6 +8215,17 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 					ClientMaxBodySize:   "2m",
 					ProxyPass:           "http://test",
 					ProxyHTTPVersion:    "2",
+				},
+				{
+					Path:                "/websocket-http-1-0",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					ProxyHTTPVersion:    "1.0",
+					Websocket:           true,
 				},
 				{
 					Path:                "/websocket-http-1-1",
@@ -8323,6 +8336,20 @@ func assertProxyHTTPVersionRendering(t *testing.T, conf string) {
 		for _, unwanted := range []string{"proxy_set_header Connection", "proxy_set_header Upgrade"} {
 			if strings.Contains(block, unwanted) {
 				t.Errorf("%s must not contain %q over HTTP/2, got:\n%s", path, unwanted, block)
+			}
+		}
+	}
+
+	// HTTP/1.0 has no keep-alive or Upgrade, so the connection is closed explicitly and nothing
+	// else is sent, even for keepalive upstreams and websocket services.
+	for _, path := range []string{`location "/http-1-0"`, `location "/websocket-http-1-0"`} {
+		block := locationBlock(t, conf, path)
+		if !strings.Contains(block, "proxy_set_header Connection close;") {
+			t.Errorf("%s must contain %q over HTTP/1.0, got:\n%s", path, "proxy_set_header Connection close;", block)
+		}
+		for _, unwanted := range []string{`proxy_set_header Connection "";`, "proxy_set_header Upgrade", "$connection_upgrade"} {
+			if strings.Contains(block, unwanted) {
+				t.Errorf("%s must not contain %q over HTTP/1.0, got:\n%s", path, unwanted, block)
 			}
 		}
 	}

@@ -30,6 +30,10 @@ Precedence, highest first:
   ([RFC 9113 8.2.2](https://www.rfc-editor.org/rfc/rfc9113#section-8.2.2)), so NGINX Ingress
   Controller omits them for locations that proxy over HTTP/2. WebSocket connections
   therefore cannot be served through an HTTP/2 upstream.
+- HTTP/1.0 has no persistent connections or `Upgrade` mechanism, so locations that proxy over
+  HTTP/1.0 send `Connection: close` to the upstream (and no `Upgrade` header), as recommended in
+  [Keep-alive to upstreams is now default in NGINX 1.29.7](https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7).
+  WebSocket connections therefore cannot be served through an HTTP/1.0 upstream either.
 - Upstreams with `type: grpc` are proxied with `grpc_pass`, which always uses HTTP/2. The
   field is ignored for them and a warning is reported in the VirtualServer status.
 
@@ -69,7 +73,8 @@ kubectl apply -f cafe-virtual-server.yaml
 
 The generated configuration renders:
 
-- `proxy_http_version 1.0;` for the `coffee` upstream, from the explicit field
+- `proxy_http_version 1.0;` and `proxy_set_header Connection close;` for the `coffee` upstream,
+  from the explicit field
 - `proxy_http_version 2;` for the `tea` upstream, inferred from its Service `appProtocol`
 
 ```console

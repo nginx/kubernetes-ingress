@@ -1,6 +1,11 @@
 package configs
 
 const (
+	// proxyHTTPVersion10 selects HTTP/1.0 for upstream connections. HTTP/1.0 has no persistent
+	// connections or Upgrade mechanism, so the templates send "Connection: close" for it.
+	// Ref.: https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7
+	proxyHTTPVersion10 = "1.0"
+
 	// proxyHTTPVersion2 selects HTTP/2 for upstream connections. The proxy_http_version
 	// directive accepts this value from NGINX 1.29.4 onwards.
 	// Ref.: https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_http_version

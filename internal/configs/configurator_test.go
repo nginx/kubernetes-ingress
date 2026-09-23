@@ -2915,7 +2915,9 @@ server {
 		{{- if $location.ProxyHTTPVersion}}
 		proxy_http_version {{$location.ProxyHTTPVersion}};
 		{{- end}}
-		{{- if ne $location.ProxyHTTPVersion "2"}}
+		{{- if eq $location.ProxyHTTPVersion "1.0"}}
+		proxy_set_header Connection close;
+		{{- else if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
@@ -3593,7 +3595,9 @@ server {
         {{- if $l.ProxyHTTPVersion }}
         proxy_http_version {{ $l.ProxyHTTPVersion }};
         {{- end }}
-        {{- if ne $l.ProxyHTTPVersion "2" }}
+        {{- if eq $l.ProxyHTTPVersion "1.0" }}
+        proxy_set_header Connection close;
+        {{- else if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         {{- end }}

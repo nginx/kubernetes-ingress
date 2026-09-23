@@ -6750,6 +6750,15 @@ func TestGenerateNginxCfgProxyHTTPVersionConflicts(t *testing.T) {
 			wantVersion: "2",
 		},
 		{
+			name: "websocket service over HTTP/1.0 is warned about",
+			annotations: map[string]string{
+				ProxyHTTPVersionAnnotation:     "1.0",
+				"nginx.org/websocket-services": "coffee-svc",
+			},
+			wantWarning: `service "coffee-svc" is configured for WebSocket but resolves to an HTTP/1.0 upstream connection; WebSocket requires HTTP/1.1`,
+			wantVersion: "1.0",
+		},
+		{
 			name: "websocket service over inferred HTTP/2 is warned about",
 			annotations: map[string]string{
 				"nginx.org/websocket-services": "coffee-svc",
@@ -6790,6 +6799,121 @@ func TestGenerateNginxCfgProxyHTTPVersionConflicts(t *testing.T) {
 				}
 				if loc.ProxyHTTPVersion != test.wantVersion {
 					t.Errorf("location %q: ProxyHTTPVersion = %q, want %q", loc.Path, loc.ProxyHTTPVersion, test.wantVersion)
+				}
+			}
+		})
+	}
+}
+
+// TestGenerateNginxCfgForMergeableIngressesProxyHTTPVersion asserts that
+// nginx.org/proxy-http-version is inherited by minions from the master, that a minion
+// annotation overrides the inherited value, and that the inherited value is treated as the
+// minion's explicit configuration: it takes precedence over the minion Service appProtocol.
+func TestGenerateNginxCfgForMergeableIngressesProxyHTTPVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                      string
+		masterAnnotations         map[string]string
+		coffeeAnnotations         map[string]string
+		coffeeServiceAppProtocols map[string]string
+		wantVersions              map[string]string
+		wantCoffeeWarning         string
+	}{
+		{
+			name:              "master annotation is inherited by every minion",
+			masterAnnotations: map[string]string{ProxyHTTPVersionAnnotation: "1.0"},
+			wantVersions:      map[string]string{"/coffee": "1.0", "/tea": "1.0"},
+		},
+		{
+			name:              "minion annotation overrides the master annotation",
+			masterAnnotations: map[string]string{ProxyHTTPVersionAnnotation: "1.0"},
+			coffeeAnnotations: map[string]string{ProxyHTTPVersionAnnotation: "2"},
+			wantVersions:      map[string]string{"/coffee": "2", "/tea": "1.0"},
+		},
+		{
+			name:              "minion-only annotation does not leak into other minions",
+			coffeeAnnotations: map[string]string{ProxyHTTPVersionAnnotation: "1.0"},
+			wantVersions:      map[string]string{"/coffee": "1.0", "/tea": ""},
+		},
+		{
+			name:                      "inherited master annotation wins over the minion h2c appProtocol",
+			masterAnnotations:         map[string]string{ProxyHTTPVersionAnnotation: "1.1"},
+			coffeeServiceAppProtocols: map[string]string{"coffee-svc80": "kubernetes.io/h2c"},
+			wantVersions:              map[string]string{"/coffee": "1.1", "/tea": "1.1"},
+		},
+		{
+			name:                      "minion h2c appProtocol applies when nothing is inherited",
+			coffeeServiceAppProtocols: map[string]string{"coffee-svc80": "kubernetes.io/h2c"},
+			wantVersions:              map[string]string{"/coffee": "2", "/tea": ""},
+		},
+		{
+			name:              "inherited HTTP/1.0 on a minion websocket service is warned about on the minion",
+			masterAnnotations: map[string]string{ProxyHTTPVersionAnnotation: "1.0"},
+			coffeeAnnotations: map[string]string{"nginx.org/websocket-services": "coffee-svc"},
+			wantVersions:      map[string]string{"/coffee": "1.0", "/tea": "1.0"},
+			wantCoffeeWarning: `service "coffee-svc" is configured for WebSocket but resolves to an HTTP/1.0 upstream connection; WebSocket requires HTTP/1.1`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			for name, value := range test.masterAnnotations {
+				mergeableIngresses.Master.Ingress.Annotations[name] = value
+			}
+
+			// generateNginxCfgForMergeableIngresses replaces each minion's Ingress with a deep
+			// copy and re-keys warnings to the original pointer, so capture it up front.
+			var coffee *IngressEx
+			for _, m := range mergeableIngresses.Minions {
+				if strings.Contains(m.Ingress.Name, "coffee") {
+					coffee = m
+					break
+				}
+			}
+			if coffee == nil {
+				t.Fatal("coffee minion not found in test fixture")
+			}
+			originalCoffee := coffee.Ingress
+			for name, value := range test.coffeeAnnotations {
+				coffee.Ingress.Annotations[name] = value
+			}
+			coffee.ServiceAppProtocols = test.coffeeServiceAppProtocols
+
+			result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs: mergeableIngresses,
+				BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+				isPlus:        false,
+				staticParams:  &StaticConfigParams{},
+			})
+
+			if test.wantCoffeeWarning == "" {
+				if len(warnings) != 0 {
+					t.Errorf("unexpected warnings: %v", warnings)
+				}
+			} else if !slices.Contains(warnings[originalCoffee], test.wantCoffeeWarning) {
+				t.Errorf("coffee minion warnings %v do not contain %q", warnings[originalCoffee], test.wantCoffeeWarning)
+			}
+
+			if len(result.Servers) != 1 {
+				t.Fatalf("expected 1 server, got %d", len(result.Servers))
+			}
+
+			got := make(map[string]string)
+			for _, loc := range result.Servers[0].Locations {
+				got[loc.Path] = loc.ProxyHTTPVersion
+			}
+			for path, want := range test.wantVersions {
+				gotVersion, ok := got[path]
+				if !ok {
+					t.Errorf("no location %q generated", path)
+					continue
+				}
+				if gotVersion != want {
+					t.Errorf("location %q: ProxyHTTPVersion = %q, want %q", path, gotVersion, want)
 				}
 			}
 		})

@@ -4179,8 +4179,9 @@ func TestVirtualServerForNginxPlusDisablesInheritedOIDCNative(t *testing.T) {
 }
 
 // virtualServerCfgProxyHTTPVersion exercises every rendering branch of proxy_http_version in
-// one server: unset (directive omitted), 1.0, 1.1, 2 (hop-by-hop headers and the
-// $default_connection_header variable suppressed) and a gRPC location (never rendered).
+// one server: unset (directive omitted), 1.0 ("Connection: close" only, even with keepalive),
+// 1.1, 2 (hop-by-hop headers and the $default_connection_header variable suppressed) and a
+// gRPC location (never rendered).
 var virtualServerCfgProxyHTTPVersion = VirtualServerConfig{
 	Server: Server{
 		ServerName: "cafe.example.com",
@@ -4195,6 +4196,7 @@ var virtualServerCfgProxyHTTPVersion = VirtualServerConfig{
 				Path:             "/http-1-0",
 				ProxyPass:        "http://test-upstream",
 				ProxyHTTPVersion: "1.0",
+				HasKeepalive:     true,
 			},
 			{
 				Path:             "/http-1-1",
@@ -4283,6 +4285,22 @@ func assertVSProxyHTTPVersionRendering(t *testing.T, conf string) {
 	grpcLocation := vsLocationBlock(t, conf, `location "/grpc" {`)
 	if strings.Contains(grpcLocation, "proxy_http_version") {
 		t.Errorf("gRPC locations must not render proxy_http_version, got:\n%s", grpcLocation)
+	}
+
+	// HTTP/1.0 has no keep-alive or Upgrade, so the connection is closed explicitly and nothing
+	// else is sent, even for keepalive upstreams.
+	http10Location := vsLocationBlock(t, conf, `location "/http-1-0" {`)
+	if !strings.Contains(http10Location, "proxy_set_header Connection close;") {
+		t.Errorf("an HTTP/1.0 location must contain %q, got:\n%s", "proxy_set_header Connection close;", http10Location)
+	}
+	for _, unwanted := range []string{
+		"proxy_set_header Upgrade",
+		"$vs_connection_header",
+		"set $default_connection_header",
+	} {
+		if strings.Contains(http10Location, unwanted) {
+			t.Errorf("an HTTP/1.0 location must not contain %q, got:\n%s", unwanted, http10Location)
+		}
 	}
 
 	http2Location := vsLocationBlock(t, conf, `location "/http-2" {`)

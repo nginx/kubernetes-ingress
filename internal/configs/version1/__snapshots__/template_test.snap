@@ -2608,7 +2608,7 @@ server {
         set $service "";
         status_zone "";
         proxy_http_version 1.0;
-        proxy_set_header Connection "";
+        proxy_set_header Connection close;
 
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -2650,6 +2650,27 @@ server {
         set $service "";
         status_zone "";
         proxy_http_version 2;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/websocket-http-1-0" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.0;
+        proxy_set_header Connection close;
 
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -4763,7 +4784,7 @@ server {
     location "/http-1-0" {
         set $service "";
         proxy_http_version 1.0;
-        proxy_set_header Connection "";
+        proxy_set_header Connection close;
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
@@ -4801,6 +4822,25 @@ server {
     location "/http-2" {
         set $service "";
         proxy_http_version 2;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/websocket-http-1-0" {
+        set $service "";
+        proxy_http_version 1.0;
+        proxy_set_header Connection close;
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;

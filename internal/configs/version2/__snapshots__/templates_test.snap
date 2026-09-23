@@ -2390,7 +2390,6 @@ server {
         set $service "";
 
         
-        set $default_connection_header close;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -2398,8 +2397,7 @@ server {
 
         proxy_buffering off;
         proxy_http_version 1.0;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $vs_connection_header;
+        proxy_set_header Connection close;
         proxy_pass_request_headers off;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -2557,7 +2555,6 @@ server {
         status_zone "";
 
         
-        set $default_connection_header close;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -2565,8 +2562,7 @@ server {
 
         proxy_buffering off;
         proxy_http_version 1.0;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $vs_connection_header;
+        proxy_set_header Connection close;
         proxy_pass_request_headers off;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;

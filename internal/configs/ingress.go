@@ -1163,7 +1163,7 @@ type locationParams struct {
 
 // warnProxyHTTPVersionConflicts reports configurations that are accepted by validation but
 // cannot work: proxy_http_version has no meaning for a gRPC backend, and WebSocket relies on
-// the Upgrade mechanism, which does not exist in HTTP/2.
+// the HTTP/1.1 Upgrade mechanism, which exists in neither HTTP/1.0 nor HTTP/2.
 func warnProxyHTTPVersionConflicts(ing *networking.Ingress, configured string, resolved string, serviceName string, isGRPC bool, isWebsocket bool) Warnings {
 	warnings := newWarnings()
 
@@ -1174,10 +1174,10 @@ func warnProxyHTTPVersionConflicts(ing *networking.Ingress, configured string, r
 		return warnings
 	}
 
-	if isWebsocket && resolved == proxyHTTPVersion2 {
+	if isWebsocket && (resolved == proxyHTTPVersion10 || resolved == proxyHTTPVersion2) {
 		warnings.AddWarningf(ing,
-			"service %q is configured for WebSocket but resolves to an HTTP/2 upstream connection; WebSocket requires HTTP/1.1",
-			serviceName)
+			"service %q is configured for WebSocket but resolves to an HTTP/%s upstream connection; WebSocket requires HTTP/1.1",
+			serviceName, resolved)
 	}
 
 	return warnings

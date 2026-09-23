@@ -143,7 +143,8 @@ type Upstream struct {
 	// Service port is used ("kubernetes.io/h2c" implies "2"); otherwise the directive is
 	// omitted and NGINX applies its own default, which is 1.1 as of NGINX 1.29.7.
 	// Note: this field is ignored for upstreams with type "grpc", where grpc_pass always
-	// uses HTTP/2, and it cannot be used with WebSocket, which requires HTTP/1.1.
+	// uses HTTP/2, and the values "1.0" and "2" cannot be used with WebSocket, which requires
+	// HTTP/1.1. With "1.0", the "Connection: close" request header is sent to the upstream.
 	// The value "2" requires NGINX 1.29.4 or later.
 	ProxyHTTPVersion string `json:"proxy-http-version"`
 	// The timeout for establishing a connection with an upstream server. The default is specified in the proxy-connect-timeout ConfigMap key.

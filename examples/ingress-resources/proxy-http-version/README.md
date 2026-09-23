@@ -31,6 +31,11 @@ Precedence, highest first:
   Controller omits them for locations that proxy over HTTP/2. As a consequence, WebSocket
   (`nginx.org/websocket-services`) cannot be used together with HTTP/2 upstreams. A warning
   event is emitted if you configure both.
+- HTTP/1.0 has no persistent connections or `Upgrade` mechanism, so locations that proxy over
+  HTTP/1.0 send `Connection: close` to the upstream, as recommended in
+  [Keep-alive to upstreams is now default in NGINX 1.29.7](https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7).
+  WebSocket cannot be used together with HTTP/1.0 upstreams either, and a warning event is
+  emitted if you configure both.
 - Services listed in `nginx.org/grpc-services` are proxied with `grpc_pass`, which always
   uses HTTP/2. The annotation is ignored for them and a warning event is emitted.
 
@@ -68,8 +73,8 @@ kubectl apply -f cafe.yaml
 kubectl apply -f cafe-ingress-annotation.yaml
 ```
 
-Both locations now render `proxy_http_version 1.0;`, because the annotation takes precedence
-over the `appProtocol` of `tea-svc`:
+Both locations now render `proxy_http_version 1.0;` and `proxy_set_header Connection close;`,
+because the annotation takes precedence over the `appProtocol` of `tea-svc`:
 
 ```console
 kubectl exec -it <nginx-ingress-pod> -- grep -A1 'location /' /etc/nginx/conf.d/default-cafe-ingress.conf

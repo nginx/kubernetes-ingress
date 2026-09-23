@@ -123,7 +123,7 @@ class TestVirtualServerUpstreamOptions:
             ),
             (
                 {"proxy-http-version": "1.0"},
-                ["proxy_http_version 1.0;"],
+                ["proxy_http_version 1.0;", "proxy_set_header Connection close;"],
             ),
             (
                 {"proxy-http-version": "1.1"},
