@@ -79,7 +79,10 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 			lbc.AddSyncQueue(secret)
 		},
 		UpdateFunc: func(old, cur interface{}) {
-			// We only need to compare the Data field of the secrets.
+			// We only compare .Data: Secret.Type is irrelevant under role-based
+			// validation, and metadata-only changes (labels, annotations,
+			// resourceVersion, managedFields) do not affect NGINX configuration.
+			// This avoids reconciliation storms from noisy metadata churn.
 			oldSecret := old.(*v1.Secret)
 			curSecret := cur.(*v1.Secret)
 			l := lbc.Logger.With(logNamespaceKey, curSecret.GetNamespace(), logKindKey, secretKind, logNameKey, curSecret.GetName())

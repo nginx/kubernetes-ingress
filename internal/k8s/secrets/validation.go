@@ -245,7 +245,9 @@ func ValidateAPIKeySecret(secret *api_v1.Secret) error {
 }
 
 // rejectReservedAPIKeyClientIDs rejects a Secret whose keys are all reserved by
-// another feature, when it carries two or more of them.
+// another feature, when it carries two or more of them. A single-key Secret is
+// always accepted: one reserved key (e.g. "tls.crt") is a plausible client ID,
+// while two or more strongly suggest the user referenced the wrong Secret.
 func rejectReservedAPIKeyClientIDs(secret *api_v1.Secret) error {
 	if len(secret.Data) < 2 {
 		return nil

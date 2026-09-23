@@ -1254,6 +1254,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 // As a result, the IC will generate configuration for that resource assuming that the Secret is missing and
 // it will report warnings. (See https://github.com/nginx/kubernetes-ingress/issues/1448 )
 func (lbc *LoadBalancerController) preSyncSecrets() {
+	var totalSecrets int
 	for _, ni := range lbc.namespacedInformers {
 		if !ni.isSecretsEnabledNamespace {
 			continue
@@ -1267,7 +1268,10 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 			nl.Debugf(lbc.Logger, "Adding Secret: %s/%s", secret.Namespace, secret.Name)
 			lbc.secretStore.AddOrUpdateSecret(secret)
 		}
+		totalSecrets += len(objects)
 	}
+	nl.Debugf(lbc.Logger, "PreSync complete: primed %d Secrets. Unreferenced Secrets will be evicted during the first sync cycle",
+		totalSecrets)
 }
 
 func (lbc *LoadBalancerController) sync(task task) {
