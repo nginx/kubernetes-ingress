@@ -2698,6 +2698,37 @@ func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddress
 func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 	t.Parallel()
 
+	tmpl := newNGINXMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithOTel)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	wantDirectives := []string{
+		"otel_exporter {",
+		"endpoint https://otel-collector:4317;",
+		"header X-Custom-Header \"custom-value\";",
+		"otel_service_name nginx-ingress-controller:nginx;",
+		"otel_trace on;",
+		"otel_trace_context inject;",
+	}
+
+	mainConf := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(mainConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXPlusWithOtel(t *testing.T) {
+	t.Parallel()
+
 	tmpl := newNGINXPlusMainTmpl(t)
 	buf := &bytes.Buffer{}
 
@@ -2714,6 +2745,7 @@ func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 		"header X-Custom-Header \"custom-value\";",
 		"otel_service_name nginx-ingress-controller:nginx;",
 		"otel_trace on;",
+		"otel_trace_context inject;",
 	}
 
 	mainConf := buf.String()
@@ -2721,6 +2753,52 @@ func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 		if !strings.Contains(mainConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXWithOtelTraceContextModuleDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithOTelTraceContextModuleDisabled)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	mainConf := buf.String()
+	if strings.Contains(mainConf, "load_module modules/ngx_otel_module.so;") {
+		t.Errorf("did not want load_module directive in generated config when otel module is disabled")
+	}
+	if strings.Contains(mainConf, "otel_trace_context") {
+		t.Errorf("did not want otel_trace_context directive in generated config when otel module is disabled")
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXPlusWithOtelTraceContextModuleDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithOTelTraceContextModuleDisabled)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	mainConf := buf.String()
+	if strings.Contains(mainConf, "load_module modules/ngx_otel_module.so;") {
+		t.Errorf("did not want load_module directive in generated config when otel module is disabled")
+	}
+	if strings.Contains(mainConf, "otel_trace_context") {
+		t.Errorf("did not want otel_trace_context directive in generated config when otel module is disabled")
 	}
 	snaps.MatchSnapshot(t, buf.String())
 }
@@ -5497,6 +5575,11 @@ var (
 		MainOtelExporterHeaderName:  "X-Custom-Header",
 		MainOtelExporterHeaderValue: "custom-value",
 		MainOtelServiceName:         "nginx-ingress-controller:nginx",
+		MainOtelTraceContext:        "inject",
+	}
+
+	mainCfgWithOTelTraceContextModuleDisabled = MainConfig{
+		MainOtelTraceContext: "propagate",
 	}
 
 	mainCfgWithOIDCTimeoutDefault = MainConfig{

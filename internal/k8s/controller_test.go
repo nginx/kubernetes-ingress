@@ -24,6 +24,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/metrics/collectors"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
+	fake_versioned "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	api_v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2107,6 +2108,93 @@ func TestGetStatusFromEventTitle(t *testing.T) {
 		if result != test.expected {
 			t.Errorf("getStatusFromEventTitle(%v) returned %v but expected %v", test.eventTitle, result, test.expected)
 		}
+	}
+}
+
+func TestLatestEventEmittedByIngressController(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	event := func(name string, reportingController string, created time.Time, lastSeen time.Time) api_v1.Event {
+		return api_v1.Event{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:              name,
+				CreationTimestamp: meta_v1.NewTime(created),
+			},
+			LastTimestamp:       meta_v1.NewTime(lastSeen),
+			Reason:              "AddedOrUpdated",
+			ReportingController: reportingController,
+		}
+	}
+
+	tests := []struct {
+		name          string
+		events        []api_v1.Event
+		expectedName  string
+		expectedFound bool
+	}{
+		{
+			name:          "no events",
+			events:        nil,
+			expectedFound: false,
+		},
+		{
+			name:          "only third-party events",
+			events:        []api_v1.Event{event("kyverno", "kyverno-admission", baseTime, baseTime)},
+			expectedFound: false,
+		},
+		{
+			name: "third-party event is the most recent",
+			events: []api_v1.Event{
+				event("nic", EventReporterName, baseTime.Add(-10*time.Hour), baseTime.Add(-10*time.Hour)),
+				event("kyverno", "kyverno-admission", baseTime, baseTime),
+			},
+			expectedName:  "nic",
+			expectedFound: true,
+		},
+		{
+			name: "several NIC events",
+			events: []api_v1.Event{
+				event("nic-old", EventReporterName, baseTime.Add(-2*time.Minute), baseTime.Add(-2*time.Minute)),
+				event("nic-new", EventReporterName, baseTime, baseTime),
+				event("nic-mid", EventReporterName, baseTime.Add(-1*time.Minute), baseTime.Add(-1*time.Minute)),
+			},
+			expectedName:  "nic-new",
+			expectedFound: true,
+		},
+		{
+			name: "re-emitted NIC event created before a newer NIC event",
+			events: []api_v1.Event{
+				event("nic-valid", EventReporterName, baseTime.Add(-10*time.Minute), baseTime),
+				event("nic-error", EventReporterName, baseTime.Add(-5*time.Minute), baseTime.Add(-5*time.Minute)),
+			},
+			expectedName:  "nic-valid",
+			expectedFound: true,
+		},
+		{
+			name: "two NIC events in the same second",
+			events: []api_v1.Event{
+				event("nic-warning", EventReporterName, baseTime, baseTime),
+				event("nic-valid", EventReporterName, baseTime, baseTime),
+			},
+			expectedName:  "nic-valid",
+			expectedFound: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			latestEvent, found := latestEventEmittedByIngressController(tc.events)
+			if found != tc.expectedFound {
+				t.Fatalf("expected found %v, got %v", tc.expectedFound, found)
+			}
+			if found && latestEvent.Name != tc.expectedName {
+				t.Errorf("expected event %q, got %q", tc.expectedName, latestEvent.Name)
+			}
+		})
 	}
 }
 
@@ -5093,6 +5181,510 @@ func TestGetAppProtocolForServiceBackend(t *testing.T) {
 			got := lbc.getAppProtocolForServiceBackend(test.svc, test.backendPort)
 			if got != test.want {
 				t.Errorf("getAppProtocolForServiceBackend() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController(t *testing.T) {
+	t.Parallel()
+
+	vsName := "test-vs"
+	vsNamespace := "default"
+
+	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name           string
+		events         []api_v1.Event
+		expectedState  string
+		expectedReason string
+	}{
+		{
+			name: "only NIC event - should use NIC event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServer was added or updated",
+					ReportingController: EventReporterName,
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+		{
+			name: "third-party event newer than NIC event - should ignore third-party and use NIC event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-1 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-1 * time.Minute)),
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServer was added or updated",
+					ReportingController: EventReporterName,
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-kyverno",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Reason:              "PolicyViolation",
+					Message:             "policy ns-policy/require-labels: validation error",
+					ReportingController: "kyverno-admission",
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+		{
+			name: "only third-party events - should leave the existing status untouched",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-kyverno",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Reason:              "PolicyViolation",
+					Message:             "policy ns-policy/require-labels: validation error",
+					ReportingController: "kyverno-admission",
+				},
+			},
+			expectedState:  conf_v1.StateWarning,
+			expectedReason: "AddedOrUpdatedWithWarning",
+		},
+		{
+			name: "multiple NIC events - should use latest NIC event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-old",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-2 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-2 * time.Minute)),
+					Reason:              "AddedOrUpdatedWithError",
+					Message:             "Configuration was rejected",
+					ReportingController: EventReporterName,
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-new",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServer was added or updated",
+					ReportingController: EventReporterName,
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+		{
+			name: "NIC event re-emitted after a newer NIC event - should use the re-emitted event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-valid",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-10 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Count:               2,
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServer was added or updated",
+					ReportingController: EventReporterName,
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-error",
+						Namespace:         vsNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-5 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsName,
+						UID:  "test-vs-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-5 * time.Minute)),
+					Reason:              "AddedOrUpdatedWithError",
+					Message:             "Configuration was rejected",
+					ReportingController: EventReporterName,
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vs := &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      vsName,
+					Namespace: vsNamespace,
+					UID:       "test-vs-uid",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Host: "test.example.com",
+				},
+				Status: conf_v1.VirtualServerStatus{
+					State:   conf_v1.StateWarning,
+					Reason:  "AddedOrUpdatedWithWarning",
+					Message: "Configuration for VirtualServer was added or updated with warning",
+				},
+			}
+
+			var runtimeObjects []runtime.Object
+			for i := range tc.events {
+				runtimeObjects = append(runtimeObjects, &tc.events[i])
+			}
+			fakeK8sClient := fake.NewClientset(runtimeObjects...)
+
+			fakeConfClient := fake_versioned.NewSimpleClientset(
+				&conf_v1.VirtualServerList{
+					Items: []conf_v1.VirtualServer{*vs},
+				},
+			)
+
+			vsLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+			err := vsLister.Add(vs)
+			if err != nil {
+				t.Fatalf("Error adding VirtualServer to lister: %v", err)
+			}
+
+			nsi := map[string]*namespacedInformer{
+				vsNamespace: {
+					virtualServerLister:       vsLister,
+					areCustomResourcesEnabled: true,
+				},
+			}
+
+			su := &statusUpdater{
+				namespacedInformers: nsi,
+				confClient:          fakeConfClient,
+				keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+				logger:              nl.LoggerFromContext(context.Background()),
+			}
+
+			lbc := &LoadBalancerController{
+				client:              fakeK8sClient,
+				ingressClass:        "nginx",
+				namespacedInformers: nsi,
+				statusUpdater:       su,
+				Logger:              nl.LoggerFromContext(context.Background()),
+			}
+
+			err = lbc.updateVirtualServersStatusFromEvents()
+			if err != nil {
+				t.Fatalf("updateVirtualServersStatusFromEvents() returned error: %v", err)
+			}
+
+			updatedVs, err := fakeConfClient.K8sV1().VirtualServers(vsNamespace).Get(context.TODO(), vsName, meta_v1.GetOptions{})
+			if err != nil {
+				t.Fatalf("Error getting VirtualServer: %v", err)
+			}
+
+			if updatedVs.Status.State != tc.expectedState {
+				t.Errorf("expected state %q, got %q", tc.expectedState, updatedVs.Status.State)
+			}
+			if updatedVs.Status.Reason != tc.expectedReason {
+				t.Errorf("expected reason %q, got %q", tc.expectedReason, updatedVs.Status.Reason)
+			}
+		})
+	}
+}
+
+func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingController(t *testing.T) {
+	t.Parallel()
+
+	vsrName := "test-vsr"
+	vsrNamespace := "default"
+
+	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name           string
+		events         []api_v1.Event
+		expectedState  string
+		expectedReason string
+	}{
+		{
+			name: "only NIC event - should use NIC event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServerRoute was added or updated",
+					ReportingController: EventReporterName,
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+		{
+			name: "third-party event newer than NIC event - should ignore third-party and use NIC event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-1 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-1 * time.Minute)),
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServerRoute was added or updated",
+					ReportingController: EventReporterName,
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-kyverno",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Reason:              "PolicyViolation",
+					Message:             "policy ns-policy/require-labels: validation error",
+					ReportingController: "kyverno-admission",
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+		{
+			name: "only third-party events - should leave the existing status untouched",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-kyverno",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Reason:              "PolicyViolation",
+					Message:             "policy ns-policy/require-labels: validation error",
+					ReportingController: "kyverno-admission",
+				},
+			},
+			expectedState:  conf_v1.StateWarning,
+			expectedReason: "AddedOrUpdatedWithWarning",
+		},
+		{
+			name: "multiple NIC events - should use latest NIC event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-old",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-2 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-2 * time.Minute)),
+					Reason:              "AddedOrUpdatedWithError",
+					Message:             "Configuration was rejected",
+					ReportingController: EventReporterName,
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-new",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServerRoute was added or updated",
+					ReportingController: EventReporterName,
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+		{
+			name: "NIC event re-emitted after a newer NIC event - should use the re-emitted event",
+			events: []api_v1.Event{
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-valid",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-10 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime),
+					Count:               2,
+					Reason:              "AddedOrUpdated",
+					Message:             "Configuration for VirtualServerRoute was added or updated",
+					ReportingController: EventReporterName,
+				},
+				{
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:              "event-nic-error",
+						Namespace:         vsrNamespace,
+						CreationTimestamp: meta_v1.NewTime(baseTime.Add(-5 * time.Minute)),
+					},
+					InvolvedObject: api_v1.ObjectReference{
+						Name: vsrName,
+						UID:  "test-vsr-uid",
+					},
+					LastTimestamp:       meta_v1.NewTime(baseTime.Add(-5 * time.Minute)),
+					Reason:              "AddedOrUpdatedWithError",
+					Message:             "Configuration was rejected",
+					ReportingController: EventReporterName,
+				},
+			},
+			expectedState:  conf_v1.StateValid,
+			expectedReason: "AddedOrUpdated",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vsr := &conf_v1.VirtualServerRoute{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      vsrName,
+					Namespace: vsrNamespace,
+					UID:       "test-vsr-uid",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Host: "test.example.com",
+				},
+				Status: conf_v1.VirtualServerRouteStatus{
+					State:   conf_v1.StateWarning,
+					Reason:  "AddedOrUpdatedWithWarning",
+					Message: "Configuration for VirtualServerRoute was added or updated with warning",
+				},
+			}
+
+			var runtimeObjects []runtime.Object
+			for i := range tc.events {
+				runtimeObjects = append(runtimeObjects, &tc.events[i])
+			}
+			fakeK8sClient := fake.NewClientset(runtimeObjects...)
+
+			fakeConfClient := fake_versioned.NewSimpleClientset(
+				&conf_v1.VirtualServerRouteList{
+					Items: []conf_v1.VirtualServerRoute{*vsr},
+				},
+			)
+
+			vsrLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+			err := vsrLister.Add(vsr)
+			if err != nil {
+				t.Fatalf("Error adding VirtualServerRoute to lister: %v", err)
+			}
+
+			nsi := map[string]*namespacedInformer{
+				vsrNamespace: {
+					virtualServerRouteLister:  vsrLister,
+					areCustomResourcesEnabled: true,
+				},
+			}
+
+			su := &statusUpdater{
+				namespacedInformers: nsi,
+				confClient:          fakeConfClient,
+				keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+				logger:              nl.LoggerFromContext(context.Background()),
+			}
+
+			lbc := &LoadBalancerController{
+				client:              fakeK8sClient,
+				ingressClass:        "nginx",
+				namespacedInformers: nsi,
+				statusUpdater:       su,
+				Logger:              nl.LoggerFromContext(context.Background()),
+			}
+
+			err = lbc.updateVirtualServerRoutesStatusFromEvents()
+			if err != nil {
+				t.Fatalf("updateVirtualServerRoutesStatusFromEvents() returned error: %v", err)
+			}
+
+			updatedVsr, err := fakeConfClient.K8sV1().VirtualServerRoutes(vsrNamespace).Get(context.TODO(), vsrName, meta_v1.GetOptions{})
+			if err != nil {
+				t.Fatalf("Error getting VirtualServerRoute: %v", err)
+			}
+
+			if updatedVsr.Status.State != tc.expectedState {
+				t.Errorf("expected state %q, got %q", tc.expectedState, updatedVsr.Status.State)
+			}
+			if updatedVsr.Status.Reason != tc.expectedReason {
+				t.Errorf("expected reason %q, got %q", tc.expectedReason, updatedVsr.Status.Reason)
 			}
 		})
 	}
