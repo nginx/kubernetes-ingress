@@ -887,15 +887,15 @@ server {
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Host") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host $host;
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host {{ if $l.UseForwardedHeaders }}$forwarded_host{{ else }}$host{{ end }};
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Port") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port $server_port;
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port {{ if $l.UseForwardedHeaders }}$forwarded_port{{ else }}$server_port{{ end }};
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Proto") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }};
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ if $l.UseForwardedHeaders }}$forwarded_proto{{ else }}{{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }}{{ end }};
         {{- end }}
         {{- end }}
 
