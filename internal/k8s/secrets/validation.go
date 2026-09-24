@@ -252,20 +252,20 @@ func rejectReservedAPIKeyClientIDs(secret *api_v1.Secret) error {
 	if len(secret.Data) < 2 {
 		return nil
 	}
-	clientIDs := make([]string, 0, len(secret.Data))
+	rejectedKeys := make([]string, 0, len(secret.Data))
 
 	reserved := reservedKeys()
 	for key := range secret.Data {
 		if _, isReserved := reserved[key]; !isReserved {
 			return nil
 		}
-		clientIDs = append(clientIDs, key)
+		rejectedKeys = append(rejectedKeys, key)
 	}
-	slices.Sort(clientIDs)
+	slices.Sort(rejectedKeys)
 
 	return fmt.Errorf("secret cannot be used for API key authentication: "+
 		"every data key (%s) is reserved by another NGINX Ingress Controller feature",
-		strings.Join(clientIDs, ", "))
+		strings.Join(rejectedKeys, ", "))
 }
 
 // ValidateHtpasswdSecret validates the secret. If it is valid, the function returns nil.
