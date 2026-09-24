@@ -116,6 +116,29 @@ type Server struct {
 	AddHeaderInherit          string
 }
 
+// HasExternalAuthSignin reports whether the server needs the shared signin redirect location.
+func (s Server) HasExternalAuthSignin() bool {
+	if s.ExternalAuth != nil && s.ExternalAuth.SigninURL != "" {
+		return true
+	}
+	for _, location := range s.Locations {
+		if location.ExternalAuth != nil && location.ExternalAuth.SigninURL != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// HasExternalAuthNoSignin reports whether a location needs an explicit 401 handler.
+func (s Server) HasExternalAuthNoSignin() bool {
+	for _, location := range s.Locations {
+		if location.ExternalAuth != nil && location.ExternalAuth.SigninURL == "" {
+			return true
+		}
+	}
+	return false
+}
+
 // SSL defines SSL configuration for a server.
 type SSL struct {
 	HTTP2           bool
@@ -280,12 +303,6 @@ type Return struct {
 	Code int
 	Text string
 }
-
-// ErrorPageResponseCodeInherit is the sentinel ResponseCode value that makes the
-// virtualserver template emit `error_page <codes> = "<name>";` with no explicit
-// response code, so nginx forwards the target URI's status (e.g. oauth2-proxy's
-// 302) to the client instead of the original error code.
-const ErrorPageResponseCodeInherit = -1
 
 // ErrorPage defines an error_page of a location.
 type ErrorPage struct {

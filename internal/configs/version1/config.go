@@ -169,6 +169,29 @@ type Server struct {
 	AppRoot string
 }
 
+// HasExternalAuthSignin reports whether the server needs the shared signin redirect location.
+func (s Server) HasExternalAuthSignin() bool {
+	if s.ExternalAuth != nil && s.ExternalAuth.SigninURL != "" {
+		return true
+	}
+	for _, location := range s.Locations {
+		if location.ExternalAuth != nil && location.ExternalAuth.SigninURL != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// HasExternalAuthNoSignin reports whether a location needs an explicit 401 handler.
+func (s Server) HasExternalAuthNoSignin() bool {
+	for _, location := range s.Locations {
+		if location.ExternalAuth != nil && location.ExternalAuth.SigninURL == "" {
+			return true
+		}
+	}
+	return false
+}
+
 // JWTRedirectLocation describes a location for redirecting client requests to a login URL for JWT Authentication.
 type JWTRedirectLocation struct {
 	Name     string
