@@ -4701,7 +4701,7 @@ func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *networki
 
 	nsi := lbc.getNamespacedInformer(namespace)
 	if nsi == nil {
-		return nil, fmt.Errorf("service %s doesn't exist", svcKey)
+		return nil, fmt.Errorf("namespace %s is not watched", namespace)
 	}
 	svcObj, svcExists, err = nsi.svcLister.GetByKey(svcKey)
 	if err != nil {
@@ -4720,7 +4720,7 @@ func (lbc *LoadBalancerController) getServiceForIngressBackend(backend *networki
 func (lbc *LoadBalancerController) getServiceFromInformer(namespace, serviceName string) (*api_v1.Service, error) {
 	nsi := lbc.getNamespacedInformer(namespace)
 	if nsi == nil {
-		return nil, fmt.Errorf("namespace %s is not being watched", namespace)
+		return nil, fmt.Errorf("namespace %s is not watched", namespace)
 	}
 
 	svcKey := namespace + "/" + serviceName
