@@ -3263,6 +3263,7 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 	}
 
 	ingEx.Endpoints = make(map[string][]string)
+	ingEx.ServiceAppProtocols = make(map[string]string)
 	ingEx.HealthChecks = make(map[string]*api_v1.Probe)
 	ingEx.ExternalNameSvcs = make(map[string]bool)
 	ingEx.Policies = createPolicyMap(policies)
@@ -3302,6 +3303,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 		// endps is empty if there was any error before this point
 		ingEx.Endpoints[ing.Spec.DefaultBackend.Service.Name+configs.GetBackendPortAsString(ing.Spec.DefaultBackend.Service.Port)] = endps
+
+		if appProtocol := lbc.getAppProtocolForServiceBackend(svc, ing.Spec.DefaultBackend.Service.Port); appProtocol != "" {
+			ingEx.ServiceAppProtocols[ing.Spec.DefaultBackend.Service.Name+configs.GetBackendPortAsString(ing.Spec.DefaultBackend.Service.Port)] = appProtocol
+		}
 
 		if lbc.isNginxPlus && lbc.isHealthCheckEnabled(ing) {
 			healthCheck := lbc.getHealthChecksForIngressBackend(ing.Spec.DefaultBackend, ing.Namespace)
@@ -3370,6 +3375,10 @@ func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, vali
 
 			// endps is empty if there was any error before this point
 			ingEx.Endpoints[path.Backend.Service.Name+configs.GetBackendPortAsString(path.Backend.Service.Port)] = endps
+
+			if appProtocol := lbc.getAppProtocolForServiceBackend(svc, path.Backend.Service.Port); appProtocol != "" {
+				ingEx.ServiceAppProtocols[path.Backend.Service.Name+configs.GetBackendPortAsString(path.Backend.Service.Port)] = appProtocol
+			}
 
 			// Pull active health checks from k8 api
 			if lbc.isNginxPlus && lbc.isHealthCheckEnabled(ing) {
@@ -3498,6 +3507,7 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 	}
 
 	endpoints := make(map[string][]string)
+	serviceAppProtocols := make(map[string]string)
 	externalNameSvcs := make(map[string]bool)
 	podsByIP := make(map[string]configs.PodInfo)
 
@@ -3566,6 +3576,10 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 
 		generateBackupEndpoints(endpoints, u)
 		endpoints[endpointsKey] = endps
+
+		if appProtocol := lbc.getAppProtocolForUpstream(serviceNamespace, serviceName, u.Port); appProtocol != "" {
+			serviceAppProtocols[endpointsKey] = appProtocol
+		}
 	}
 
 	for _, r := range virtualServer.Spec.Routes {
@@ -3752,12 +3766,17 @@ func (lbc *LoadBalancerController) createVirtualServerEx(virtualServer *conf_v1.
 
 			generateBackupEndpoints(endpoints, u)
 			endpoints[endpointsKey] = endps
+
+			if appProtocol := lbc.getAppProtocolForUpstream(serviceNamespace, serviceName, u.Port); appProtocol != "" {
+				serviceAppProtocols[endpointsKey] = appProtocol
+			}
 		}
 	}
 
 	lbc.generateExternalAuthEndpoints(policies, endpoints)
 
 	virtualServerEx.Endpoints = endpoints
+	virtualServerEx.ServiceAppProtocols = serviceAppProtocols
 	virtualServerEx.VirtualServerRoutes = virtualServerRoutes
 	virtualServerEx.ExternalNameSvcs = externalNameSvcs
 	virtualServerEx.Policies = createPolicyMap(policies)
@@ -4571,6 +4590,30 @@ func (lbc *LoadBalancerController) getServicePortForIngressPort(backendPort netw
 		}
 	}
 	return nil
+}
+
+// getAppProtocolForServiceBackend returns the appProtocol of the Service port selected by
+// backendPort, or "" when the Service is nil, the port does not exist, or appProtocol is unset.
+// The value is used to infer the upstream HTTP version: "kubernetes.io/h2c" implies HTTP/2.
+func (lbc *LoadBalancerController) getAppProtocolForServiceBackend(svc *api_v1.Service, backendPort networking.ServiceBackendPort) string {
+	if svc == nil {
+		return ""
+	}
+	svcPort := lbc.getServicePortForIngressPort(backendPort, svc)
+	if svcPort == nil || svcPort.AppProtocol == nil {
+		return ""
+	}
+	return *svcPort.AppProtocol
+}
+
+// getAppProtocolForUpstream returns the appProtocol of the Service port backing a
+// VirtualServer or VirtualServerRoute upstream, or "" when it cannot be determined.
+func (lbc *LoadBalancerController) getAppProtocolForUpstream(namespace string, serviceName string, port uint16) string {
+	svc, err := lbc.getServiceForUpstream(namespace, serviceName, port)
+	if err != nil {
+		return ""
+	}
+	return lbc.getAppProtocolForServiceBackend(svc, networking.ServiceBackendPort{Number: int32(port)})
 }
 
 func (lbc *LoadBalancerController) getTargetPort(svcPort api_v1.ServicePort, svc *api_v1.Service) (int32, error) {

@@ -67,7 +67,9 @@ class TestVSRouteUpstreamOptions:
         assert "set $default_connection_header close;" in config
         assert "proxy_set_header Upgrade $http_upgrade;" in config
         assert "proxy_set_header Connection $vs_connection_header;" in config
-        assert "proxy_http_version 1.1;" in config
+        # No upstream HTTP version is configured, so the directive is omitted and NGINX
+        # applies its own default.
+        assert "proxy_http_version" not in config
 
         assert "proxy_next_upstream error timeout;" in config
         assert "proxy_next_upstream_timeout 0s;" in config
@@ -118,6 +120,14 @@ class TestVSRouteUpstreamOptions:
             (
                 {"lb-method": "ip_hash", "connect-timeout": "75", "read-timeout": "15", "send-timeout": "1h"},
                 ["ip_hash;", "proxy_connect_timeout 75s;", "proxy_read_timeout 15s;", "proxy_send_timeout 1h;"],
+            ),
+            (
+                {"proxy-http-version": "1.0"},
+                ["proxy_http_version 1.0;", "proxy_set_header Connection close;"],
+            ),
+            (
+                {"proxy-http-version": "1.1"},
+                ["proxy_http_version 1.1;"],
             ),
             (
                 {"connect-timeout": "1m", "read-timeout": "1m", "send-timeout": "1s"},
@@ -549,6 +559,7 @@ class TestVSRouteUpstreamOptionsValidation:
             "buffer-size",
             "buffering",
             "tls",
+            "proxy-http-version",
             "sessionCookie.name",
             "sessionCookie.path",
             "sessionCookie.expires",

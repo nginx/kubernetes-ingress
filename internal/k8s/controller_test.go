@@ -5098,6 +5098,94 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 	}
 }
 
+func TestGetAppProtocolForServiceBackend(t *testing.T) {
+	t.Parallel()
+
+	lbc := LoadBalancerController{
+		Logger: nl.LoggerFromContext(context.Background()),
+	}
+
+	svc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "coffee-svc",
+			Namespace: "default",
+		},
+		Spec: api_v1.ServiceSpec{
+			Ports: []api_v1.ServicePort{
+				{
+					Name:        "h2c",
+					Port:        80,
+					AppProtocol: new("kubernetes.io/h2c"),
+				},
+				{
+					Name: "plain",
+					Port: 8080,
+				},
+				{
+					Name:        "named-only",
+					Port:        9090,
+					AppProtocol: new("http"),
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		svc         *api_v1.Service
+		backendPort networking.ServiceBackendPort
+		want        string
+	}{
+		{
+			name:        "port number match returns appProtocol",
+			svc:         svc,
+			backendPort: networking.ServiceBackendPort{Number: 80},
+			want:        "kubernetes.io/h2c",
+		},
+		{
+			name:        "port name match returns appProtocol",
+			svc:         svc,
+			backendPort: networking.ServiceBackendPort{Name: "h2c"},
+			want:        "kubernetes.io/h2c",
+		},
+		{
+			name:        "port without appProtocol returns empty",
+			svc:         svc,
+			backendPort: networking.ServiceBackendPort{Number: 8080},
+			want:        "",
+		},
+		{
+			name:        "non-h2c appProtocol is returned verbatim",
+			svc:         svc,
+			backendPort: networking.ServiceBackendPort{Number: 9090},
+			want:        "http",
+		},
+		{
+			name:        "unknown port returns empty",
+			svc:         svc,
+			backendPort: networking.ServiceBackendPort{Number: 1234},
+			want:        "",
+		},
+		{
+			name:        "nil service returns empty",
+			svc:         nil,
+			backendPort: networking.ServiceBackendPort{Number: 80},
+			want:        "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := lbc.getAppProtocolForServiceBackend(test.svc, test.backendPort)
+			if got != test.want {
+				t.Errorf("getAppProtocolForServiceBackend() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController(t *testing.T) {
 	t.Parallel()
 
