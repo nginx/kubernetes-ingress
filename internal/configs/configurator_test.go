@@ -2244,6 +2244,44 @@ func TestGetVitualServerCountsNotExistingVS(t *testing.T) {
 	}
 }
 
+func TestGetVirtualServerCountsSharedVSRCountedOnce(t *testing.T) {
+	t.Parallel()
+
+	tcnf := createTestConfigurator(t)
+
+	// A hostless VirtualServerRoute referenced by two distinct VirtualServers
+	// must be counted once in the VSR total, not twice.
+	sharedVSR := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "coffee",
+			Namespace: "default",
+		},
+	}
+	tcnf.virtualServers = map[string]*VirtualServerEx{
+		"default/cafe": {
+			VirtualServer: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+				Spec:       conf_v1.VirtualServerSpec{Host: "cafe.example.com"},
+			},
+			VirtualServerRoutes: []*conf_v1.VirtualServerRoute{sharedVSR},
+		},
+		"default/cafe2": {
+			VirtualServer: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe2", Namespace: "default"},
+				Spec:       conf_v1.VirtualServerSpec{Host: "cafe2.example.com"},
+			},
+			VirtualServerRoutes: []*conf_v1.VirtualServerRoute{sharedVSR},
+		},
+	}
+
+	gotVS, gotVSRoutes := tcnf.GetVirtualServerCounts()
+	wantVS, wantVSRoutes := 2, 1
+
+	if gotVS != wantVS || gotVSRoutes != wantVSRoutes {
+		t.Errorf("GetVirtualServerCounts() = %d, %d, want %d, %d", gotVS, gotVSRoutes, wantVS, wantVSRoutes)
+	}
+}
+
 func TestAddOrUpdateTransportServer(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)

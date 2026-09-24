@@ -86,6 +86,7 @@ examples/custom-resources/jwks/tls-secret.yaml
 examples/custom-resources/oidc-fclo/tls-secret.yaml
 examples/custom-resources/oidc/tls-secret.yaml
 examples/custom-resources/oidc-native/tls-secret.yaml
+examples/custom-resources/vsr-hostless/cafe-secret.yaml
 examples/ingress-resources/oidc-native/tls-secret.yaml
 examples/custom-resources/rate-limit-tiered-jwt-claim/cafe-secret.yaml
 examples/custom-resources/tls-passthrough/app-tls-secret.yaml

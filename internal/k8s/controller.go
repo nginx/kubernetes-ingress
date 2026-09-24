@@ -1649,6 +1649,8 @@ func vsSelfRejected(changes []ResourceChange, vs *conf_v1.VirtualServer) bool {
 // haltIfVSConfigInvalid. Rendering it would add a second reload to this
 // path, which is a real behavior change out of scope for this refactor.
 func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceChange) {
+	lbc.refreshStaleVSRReferences()
+
 	for _, c := range changes {
 		impl, ok := c.Resource.(*VirtualServerConfiguration)
 		if !ok {
@@ -1659,6 +1661,44 @@ func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceCh
 			continue
 		}
 		lbc.processDelete(c)
+	}
+}
+
+// refreshStaleVSRReferences writes Status.ReferencedBy for every
+// VirtualServerRoute whose set of referencing VirtualServers changed in the
+// most recent rebuildHosts() pass (Configuration.GetVirtualServerRoutesWithChangedReferences).
+//
+// This exists because a VS being added, deleted, or edited to no longer
+// select a hostless VSR does not necessarily change the *other* VSs that
+// still reference that VSR -- so nothing else re-renders them, and nothing
+// else would otherwise refresh the now-stale referencedBy list. See
+// vsrsWithChangedRefs for the full rationale.
+//
+// It must run before the caller processes changes/problems for this batch:
+// UpdateVirtualServerRouteReferencedBy only touches the referencedBy field
+// and leaves state/reason/message untouched, so if a VS that still
+// references the VSR is also being re-rendered in this same batch, that
+// render's full status write (which reflects the current, authoritative
+// state) must be free to happen afterwards without being reverted by a
+// stale read here.
+//
+// A no-op during startup: reportCustomResourceStatusEnabled gates all VS/VSR
+// status writes, and isNginxReady gates this specifically because
+// CompleteStartup's exhaustive per-VS status pass (see updateAllConfigs via
+// updateResourcesStatusAndEvents) already writes referencedBy for every VSR
+// from a definitive post-startup snapshot; replaying the startup diff here
+// would only add redundant API calls (see the CompleteStartup comment).
+func (lbc *LoadBalancerController) refreshStaleVSRReferences() {
+	if !lbc.reportCustomResourceStatusEnabled() || !lbc.isNginxReady {
+		return
+	}
+
+	for _, vsr := range lbc.configuration.GetVirtualServerRoutesWithChangedReferences() {
+		vss := lbc.configuration.GetVirtualServersForVirtualServerRoute(vsr)
+		if err := lbc.statusUpdater.UpdateVirtualServerRouteReferencedBy(vsr, vss); err != nil {
+			l := lbc.Logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
+			nl.Errorf(l, "Error when refreshing referencedBy status for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+		}
 	}
 }
 
@@ -1739,6 +1779,8 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 
 func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 	nl.Debugf(lbc.Logger, "Processing %v changes", len(changes))
+
+	lbc.refreshStaleVSRReferences()
 
 	for _, c := range changes {
 		if c.Op == AddOrUpdate {
@@ -2149,7 +2191,22 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 		l := lbc.Logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 
 		if lbc.reportCustomResourceStatusEnabled() {
-			vss := []*conf_v1.VirtualServer{vsConfig.VirtualServer}
+			// Collect every VS that currently accepts this VSR (includes both
+			// host-based and hostless VSRs shared across multiple VirtualServers).
+			// The slice is returned in deterministic sorted order by VS key.
+			vss := lbc.configuration.GetVirtualServersForVirtualServerRoute(vsr)
+			if len(vss) == 0 {
+				// This should be unreachable: vsr came from vsConfig's own
+				// accepted route set (vsConfig.VirtualServerRoutes), built by
+				// the same rebuildHosts() pass that populates the reverse
+				// index GetVirtualServersForVirtualServerRoute reads from, so
+				// vsConfig.VirtualServer is always expected to be in the
+				// result. Log rather than fabricate a single-entry list, so
+				// referencedBy reflects the (inconsistent) index honestly
+				// instead of masking a bug in it.
+				nl.Debugf(l, "VirtualServerRoute %v/%v has no entries in the VS reverse index despite being in VirtualServer %v/%v's accepted route set",
+					vsr.Namespace, vsr.Name, vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name)
+			}
 			// Defer VSR status updates during startup. See flushPendingStatusesAsync().
 			if !lbc.isNginxReady {
 				lbc.pendingStatusVSRs = append(lbc.pendingStatusVSRs, pendingVSRStatus{
@@ -3104,7 +3161,7 @@ func (lbc *LoadBalancerController) createMergeableIngresses(ingConfig *IngressCo
 	}
 }
 
-//nolint:gocyclo complexity is pre-existing; refactoring planned as a follow-up
+//nolint:gocyclo // complexity is pre-existing; refactoring planned as a follow-up
 func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, validHosts map[string]bool, validMinionPaths map[string]bool) *configs.IngressEx {
 	var endps []string
 	ingEx := &configs.IngressEx{

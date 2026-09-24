@@ -786,12 +786,52 @@ func TestHasVsrStatusChanged(t *testing.T) {
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			changed := su.hasVsrStatusChanged(&test.vsr, state, reason, msg, referencedBy)
+			changed := su.hasVsrStatusChanged(&test.vsr, state, reason, msg, &referencedBy)
 
 			if changed != test.expected {
 				t.Errorf("hasVsrStatusChanged(%v, %v, %v, %v) returned %v but expected %v for test: %s", test.vsr, state, reason, msg, changed, test.expected, test.desc)
 			}
 		})
+	}
+}
+
+// TestHasVsrStatusChangedReferencedByPointerSemantics verifies that a nil
+// referencedBy pointer excludes the field from the comparison (so
+// UpdateVirtualServerRouteStatus, which does not manage referencedBy, cannot
+// spuriously trigger or suppress a write based on it), while a non-nil
+// pointer to an empty string is compared like any other value (so
+// UpdateVirtualServerRouteStatusWithReferencedBy can clear a stale value down
+// to empty).
+func TestHasVsrStatusChangedReferencedByPointerSemantics(t *testing.T) {
+	t.Parallel()
+
+	state := "Valid"
+	reason := "AddedOrUpdated"
+	msg := "Configuration was added or updated"
+
+	su := &statusUpdater{}
+
+	vsr := &conf_v1.VirtualServerRoute{
+		Status: conf_v1.VirtualServerRouteStatus{
+			State:        state,
+			Reason:       reason,
+			Message:      msg,
+			ReferencedBy: "default/vs-a, default/vs-b",
+		},
+	}
+
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, nil); changed {
+		t.Errorf("hasVsrStatusChanged with nil referencedBy = true, want false (field must be ignored)")
+	}
+
+	empty := ""
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, &empty); !changed {
+		t.Errorf("hasVsrStatusChanged with &\"\" referencedBy against a non-empty stored value = false, want true (must detect the shrink-to-empty case)")
+	}
+
+	same := "default/vs-a, default/vs-b"
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, &same); changed {
+		t.Errorf("hasVsrStatusChanged with an unchanged referencedBy pointer = true, want false")
 	}
 }
 
@@ -944,5 +984,82 @@ func TestHasPolicyStatusChanged(t *testing.T) {
 		if changed != test.expected {
 			t.Errorf("hasPolicyStatusChanged(%v, %v, %v, %v) returned %v but expected %v.", test.pol, state, reason, msg, changed, test.expected)
 		}
+	}
+}
+
+func TestFormatReferencedBy(t *testing.T) {
+	t.Parallel()
+
+	vs := func(ns, name string) *conf_v1.VirtualServer {
+		return &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Namespace: ns, Name: name},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		input    []*conf_v1.VirtualServer
+		expected string
+	}{
+		{
+			name:     "nil slice",
+			input:    nil,
+			expected: "",
+		},
+		{
+			name:     "empty slice",
+			input:    []*conf_v1.VirtualServer{},
+			expected: "",
+		},
+		{
+			name:     "single VS",
+			input:    []*conf_v1.VirtualServer{vs("default", "cafe")},
+			expected: "default/cafe",
+		},
+		{
+			name: "two VSes",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				vs("default", "cafe2"),
+			},
+			expected: "default/cafe, default/cafe2",
+		},
+		{
+			name: "three VSes preserves input order",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				vs("default", "cafe2"),
+				vs("default", "cafe3"),
+			},
+			expected: "default/cafe, default/cafe2, default/cafe3",
+		},
+		{
+			name: "VSes across namespaces",
+			input: []*conf_v1.VirtualServer{
+				vs("ns-a", "cafe"),
+				vs("ns-b", "cafe"),
+			},
+			expected: "ns-a/cafe, ns-b/cafe",
+		},
+		{
+			name: "nil entries are skipped",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				nil,
+				vs("default", "cafe2"),
+			},
+			expected: "default/cafe, default/cafe2",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := formatReferencedBy(tc.input)
+			if got != tc.expected {
+				t.Errorf("formatReferencedBy() = %q, want %q", got, tc.expected)
+			}
+		})
 	}
 }
