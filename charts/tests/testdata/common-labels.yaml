@@ -1,0 +1,7 @@
+commonLabels:
+  team: platform
+  environment: production
+  cost-center: "12345"
+
+controller:
+  kind: deployment
