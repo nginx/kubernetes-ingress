@@ -20,10 +20,12 @@ type IngressNginxConfig struct {
 	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
+	OIDCProviders           []version2.OIDCProvider
 	Ingress                 Ingress
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
+	KeyValZones             []version2.KeyValZone
 	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
 	// templates can safely emit app_protect_enable off; in internal sub-request
 	// locations only when the WAF module is actually loaded.
@@ -119,6 +121,7 @@ type Server struct {
 	AddHeaders             []version2.AddHeader
 	Allow                  []string
 	Deny                   []string
+	OIDCProviderName       string
 	PoliciesErrorReturn    *version2.Return
 
 	HealthChecks map[string]HealthCheck
@@ -219,6 +222,7 @@ type Location struct {
 	Websocket               bool
 	Rewrite                 string
 	RewriteTarget           string
+	UpstreamVhost           string
 	SSL                     bool
 	GRPC                    bool
 	ProxyBuffering          bool
@@ -233,6 +237,7 @@ type Location struct {
 	BasicAuth               *BasicAuth
 	ServiceName             string
 	LimitReq                *LimitReq
+	DisableForwardedHeaders bool
 	CORSEnabled             bool
 
 	AuthRequestOff bool
@@ -264,6 +269,7 @@ type Location struct {
 	Deny                       []string
 	WAF                        *version2.WAF
 	EgressMTLS                 *version2.EgressMTLS
+	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
 }
 
@@ -334,6 +340,7 @@ type MainConfig struct {
 	MainOtelExporterHeaderName         string
 	MainOtelExporterHeaderValue        string
 	MainOtelServiceName                string
+	MainOtelTraceContext               string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool

@@ -31,7 +31,7 @@
     }
 
     set $redir_location "/_codexch";
-    location = /_codexch {
+    location = "/_codexch" {
         # This location is called by the IdP after successful authentication
         status_zone "OIDC code exchange";
         js_content oidc.codeExchange;
@@ -163,7 +163,7 @@ server {
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
-    status_zone ;
+    status_zone "";
     proxy_requests 1;
     proxy_responses 2;
 
@@ -200,7 +200,7 @@ match match_udp-upstream {
 }
 server {
 
-    status_zone udp-app;
+    status_zone "udp-app";
     proxy_requests 1;
     proxy_responses 2;
 
@@ -240,7 +240,7 @@ match match_udp-upstream {
 }
 server {
 
-    status_zone udp-app;
+    status_zone "udp-app";
     proxy_requests 1;
     proxy_responses 2;
 
@@ -285,7 +285,7 @@ server {
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
-    status_zone udp-app;
+    status_zone "udp-app";
     proxy_requests 1;
     proxy_responses 2;
 
@@ -330,7 +330,7 @@ server {
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
-    status_zone udp-app;
+    status_zone "udp-app";
     proxy_requests 1;
     proxy_responses 2;
 
@@ -359,7 +359,7 @@ upstream test-upstream {
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
     keepalive 32;
     queue 10 timeout=60s;
-    sticky cookie test expires=25s path=/tea;
+    sticky cookie test expires=25s "path=/tea";
     ntlm;
 }
 
@@ -394,7 +394,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -446,10 +446,10 @@ server {
     access_log svc.dns.com:123 log_dos if=$loggable;
     app_protect_dos_monitor uri=test.example.com protocol=http timeout=30;
     # server snippet
-    location /split {
+    location "/split" {
         rewrite ^ @split_0 last;
     }
-    location /coffee {
+    location "/coffee" {
         rewrite ^ @match last;
     }
     location @hc-coffee {
@@ -458,7 +458,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         proxy_pass http://coffee-v2;
-        health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
+        health_check "uri=/"  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
     }
     location @hc-tea {
@@ -467,7 +467,7 @@ server {
         grpc_read_timeout ;
         grpc_send_timeout ;
         grpc_pass grpc://tea-v3;
-        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
+        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 "grpc_service=tea-servicev2";
 
     }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
@@ -501,7 +501,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
         internal;
@@ -520,10 +520,10 @@ server {
         proxy_ssl_verify on;
         proxy_ssl_verify_depth 1;
         proxy_ssl_protocols TLSv1.3;
-        proxy_ssl_ciphers DEFAULT;
+        proxy_ssl_ciphers "DEFAULT";
         proxy_ssl_session_reuse on;
         proxy_ssl_server_name on;
-        proxy_ssl_name ;
+        proxy_ssl_name "";
         set $header_query_value "${http_x_header_name}${http_other_header}${arg_myQuery}${arg_myOtherQuery}";
         set $default_connection_header close;
         rewrite $request_uri $request_uri;
@@ -709,7 +709,7 @@ server {
         proxy_next_upstream_timeout 5s;
         proxy_next_upstream_tries 0;
     }
-    location /return {
+    location "/return" {
         set $service "";
         status_zone "";
 
@@ -792,7 +792,7 @@ upstream test-upstream {
     server clustertwo.corp.local:8080 backup resolve;
     keepalive 32;
     queue 10 timeout=60s;
-    sticky cookie test expires=25s path=/tea;
+    sticky cookie test expires=25s "path=/tea";
     ntlm;
 }
 
@@ -827,7 +827,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -874,10 +874,10 @@ server {
     access_log svc.dns.com:123 log_dos if=$loggable;
     app_protect_dos_monitor uri=test.example.com protocol=http timeout=30;
     # server snippet
-    location /split {
+    location "/split" {
         rewrite ^ @split_0 last;
     }
-    location /coffee {
+    location "/coffee" {
         rewrite ^ @match last;
     }
     location @hc-coffee {
@@ -886,7 +886,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         proxy_pass http://coffee-v2;
-        health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
+        health_check "uri=/"  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
     }
     location @hc-tea {
@@ -895,7 +895,7 @@ server {
         grpc_read_timeout ;
         grpc_send_timeout ;
         grpc_pass grpc://tea-v3;
-        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
+        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 "grpc_service=tea-servicev2";
 
     }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
@@ -929,7 +929,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
         internal;
@@ -948,10 +948,10 @@ server {
         proxy_ssl_verify on;
         proxy_ssl_verify_depth 1;
         proxy_ssl_protocols TLSv1.3;
-        proxy_ssl_ciphers DEFAULT;
+        proxy_ssl_ciphers "DEFAULT";
         proxy_ssl_session_reuse on;
         proxy_ssl_server_name on;
-        proxy_ssl_name ;
+        proxy_ssl_name "";
         set $default_connection_header close;
         rewrite $request_uri $request_uri;
         rewrite $request_uri $request_uri;
@@ -1131,7 +1131,7 @@ server {
         proxy_next_upstream_timeout 5s;
         proxy_next_upstream_tries 0;
     }
-    location /return {
+    location "/return" {
         set $service "";
         status_zone "";
 
@@ -1231,7 +1231,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -1251,7 +1251,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -1317,7 +1317,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
 
         
@@ -1365,7 +1365,7 @@ server {
 
 
     server_name extended.example.com;
-    status_zone extended.example.com;
+    status_zone "extended.example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -1390,7 +1390,7 @@ server {
     
 
     
-    location /api {
+    location "/api" {
         set $service "";
         status_zone "";
 
@@ -1441,7 +1441,7 @@ server {
 
 
     server_name cafe.example.com;
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "virtualserver";
     set $resource_name "cafe";
     set $resource_namespace "default";
@@ -1457,7 +1457,7 @@ server {
         proxy_method GET;
         proxy_set_header Content-Length "";
         proxy_ssl_server_name on;
-        proxy_ssl_name sni.idp.spec.example.com;
+        proxy_ssl_name "sni.idp.spec.example.com";
         proxy_ssl_verify off;
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
@@ -1470,7 +1470,7 @@ server {
         proxy_method GET;
         proxy_set_header Content-Length "";
         proxy_ssl_server_name on;
-        proxy_ssl_name sni.idp.spec.example.com;
+        proxy_ssl_name "sni.idp.spec.example.com";
         proxy_ssl_verify off;
         proxy_pass_request_headers off;
         proxy_pass_request_body off;
@@ -1482,7 +1482,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "tea-svc";
         status_zone "tea-svc";
         auth_jwt "Route Realm API" token=$http_token;
@@ -1512,7 +1512,7 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-    location /coffee {
+    location "/coffee" {
         set $service "coffee-svc";
         status_zone "coffee-svc";
         auth_jwt "Route Realm API" token=$http_token;
@@ -1567,7 +1567,7 @@ server {
 
 
     server_name cafe.example.com;
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "virtualserver";
     set $resource_name "cafe";
     set $resource_namespace "default";
@@ -1604,7 +1604,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "tea-svc";
         status_zone "tea-svc";
         auth_jwt "Route Realm API";
@@ -1634,7 +1634,7 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-    location /coffee {
+    location "/coffee" {
         set $service "coffee-svc";
         status_zone "coffee-svc";
         auth_jwt "Route Realm API";
@@ -1679,7 +1679,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "exampleVS";
     set $resource_namespace "default";
@@ -1707,7 +1707,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -1729,7 +1729,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "exampleVS";
     set $resource_namespace "default";
@@ -1756,7 +1756,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -1778,7 +1778,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "exampleVS";
     set $resource_namespace "default";
@@ -1805,7 +1805,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -1830,7 +1830,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -1863,7 +1863,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "svc";
         status_zone "svc";
 
@@ -1890,7 +1890,7 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-    location /_external_auth/authsvc {
+    location "/_external_auth/authsvc" {
         set $service "authsvc";
         status_zone "authsvc";
         internal;
@@ -1959,7 +1959,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
 
         
@@ -2028,7 +2028,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
 
         
@@ -2066,7 +2066,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
 
         
@@ -2107,7 +2107,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
 
         
@@ -2143,7 +2143,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
 
         
@@ -2180,7 +2180,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
 
         
@@ -2263,7 +2263,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2286,7 +2286,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2334,7 +2334,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2357,7 +2357,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2379,7 +2379,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2397,7 +2397,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2417,7 +2417,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2440,7 +2440,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2462,7 +2462,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2478,7 +2478,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2500,7 +2500,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2517,7 +2517,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2596,7 +2596,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2607,7 +2607,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2647,7 +2647,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2664,7 +2664,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2743,7 +2743,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2758,7 +2758,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2837,7 +2837,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2852,7 +2852,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2931,7 +2931,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2942,7 +2942,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -2960,7 +2960,7 @@ server {
     
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -2977,7 +2977,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -3054,7 +3054,7 @@ server {
     
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -3071,7 +3071,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -3148,7 +3148,7 @@ server {
     
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -3165,7 +3165,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -3244,7 +3244,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -3261,7 +3261,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -3331,6 +3331,52 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_RendersTemplateWithDisableForwardedHeadersTrue - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersTemplateWithRateLimitJWTClaim - 1]
 
 auth_jwt_claim_set $jwt_default_webapp_group_consumer_group_type consumer_group type;
@@ -3361,7 +3407,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -3408,7 +3454,7 @@ server {
 
 
     server_name cafe.example.com;
-    status_zone cafe.example.com;
+    status_zone "cafe.example.com";
     set $resource_type "virtualserver";
     set $resource_name "cafe";
     set $resource_namespace "default";
@@ -3428,7 +3474,7 @@ server {
     
 
     
-    location /tea {
+    location "/tea" {
         set $service "tea-svc";
         status_zone "tea-svc";
         limit_req_log_level error;
@@ -3460,7 +3506,7 @@ server {
         proxy_next_upstream_timeout 0s;
         proxy_next_upstream_tries 0;
     }
-    location /coffee {
+    location "/coffee" {
         set $service "coffee-svc";
         status_zone "coffee-svc";
 
@@ -3501,7 +3547,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -3512,7 +3558,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -3532,7 +3578,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -3543,7 +3589,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -3564,7 +3610,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -3575,7 +3621,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -3591,7 +3637,7 @@ server {
 upstream test-upstream {
     zone test-upstream ;
     server 10.0.0.20:8001 max_fails=0 fail_timeout= max_conns=0;
-    sticky cookie test expires=25s samesite=strict path=/tea;
+    sticky cookie test expires=25s samesite=strict "path=/tea";
 }
 
 
@@ -3601,7 +3647,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -3612,7 +3658,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -3654,7 +3700,7 @@ server {
     }
 
     set $redir_location "/custom-location";
-    location = /custom-location {
+    location = "/custom-location" {
         # This location is called by the IdP after successful authentication
         status_zone "OIDC code exchange";
         js_content oidc.codeExchange;
@@ -3776,7 +3822,7 @@ server {
     }
 
     set $redir_location "/_codexch";
-    location = /_codexch {
+    location = "/_codexch" {
         # This location is called by the IdP after successful authentication
         status_zone "OIDC code exchange";
         js_content oidc.codeExchange;
@@ -3923,7 +3969,7 @@ server {
     ssl_certificate cafe-secret.pem;
     ssl_certificate_key cafe-secret.pem;
 
-    status_zone udp-app;
+    status_zone "udp-app";
     proxy_requests 1;
     proxy_responses 2;
 
@@ -3944,6 +3990,118 @@ server {
 
 ---
 
+[TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs/nginx - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name path-types.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/images/" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location = "/images/logo.jpg" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ^~ "/images/static/" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~ "\.jpg$" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~* "\.png$" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
+[TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs/nginx-plus - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name path-types.example.com;
+    status_zone "path-types.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+
+    
+
+    
+    location "/images/" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+    location = "/images/logo.jpg" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+    location ^~ "/images/static/" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~ "\.jpg$" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+    location ~* "\.png$" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
 [TestVirtualServerForNginx - 1]
 
 upstream test-upstream {
@@ -3951,7 +4109,7 @@ upstream test-upstream {
     random;
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
     keepalive 32;
-    sticky cookie test expires=25s path=/tea;
+    sticky cookie test expires=25s "path=/tea";
 }
 
 upstream coffee-v1 {
@@ -4014,10 +4172,10 @@ server {
     limit_req_status 503;
     limit_req zone=pol_rl_test_test_test burst=5 delay=10;
     # server snippet
-    location /split {
+    location "/split" {
         rewrite ^ @split_0 last;
     }
-    location /coffee {
+    location "/coffee" {
         rewrite ^ @match last;
     }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
@@ -4051,7 +4209,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         internal;
         # location snippet
@@ -4069,10 +4227,10 @@ server {
         proxy_ssl_verify on;
         proxy_ssl_verify_depth 1;
         proxy_ssl_protocols TLSv1.3;
-        proxy_ssl_ciphers DEFAULT;
+        proxy_ssl_ciphers "DEFAULT";
         proxy_ssl_session_reuse on;
         proxy_ssl_server_name on;
-        proxy_ssl_name ;
+        proxy_ssl_name "";
         set $default_connection_header close;
         rewrite $request_uri $request_uri;
         rewrite $request_uri $request_uri;
@@ -4247,7 +4405,7 @@ server {
         proxy_next_upstream_timeout 5s;
         proxy_next_upstream_tries 0;
     }
-    location /return {
+    location "/return" {
         set $service "";
 
         
@@ -4327,7 +4485,7 @@ upstream test-upstream {
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
     keepalive 32;
     queue 10 timeout=60s;
-    sticky cookie test expires=25s path=/tea;
+    sticky cookie test expires=25s "path=/tea";
     ntlm;
 }
 
@@ -4362,7 +4520,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -4399,10 +4557,10 @@ server {
     app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
     
     # server snippet
-    location /split {
+    location "/split" {
         rewrite ^ @split_0 last;
     }
-    location /coffee {
+    location "/coffee" {
         rewrite ^ @match last;
     }
     location @hc-coffee {
@@ -4411,7 +4569,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         proxy_pass http://coffee-v2;
-        health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
+        health_check "uri=/"  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
     }
     location @hc-tea {
@@ -4420,7 +4578,7 @@ server {
         grpc_read_timeout ;
         grpc_send_timeout ;
         grpc_pass grpc://tea-v3;
-        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
+        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 "grpc_service=tea-servicev2";
 
     }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
@@ -4454,7 +4612,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
         internal;
@@ -4473,10 +4631,10 @@ server {
         proxy_ssl_verify on;
         proxy_ssl_verify_depth 1;
         proxy_ssl_protocols TLSv1.3;
-        proxy_ssl_ciphers DEFAULT;
+        proxy_ssl_ciphers "DEFAULT";
         proxy_ssl_session_reuse on;
         proxy_ssl_server_name on;
-        proxy_ssl_name ;
+        proxy_ssl_name "";
         set $default_connection_header close;
         rewrite $request_uri $request_uri;
         rewrite $request_uri $request_uri;
@@ -4656,7 +4814,7 @@ server {
         proxy_next_upstream_timeout 5s;
         proxy_next_upstream_tries 0;
     }
-    location /return {
+    location "/return" {
         set $service "";
         status_zone "";
 
@@ -4729,6 +4887,200 @@ server {
 
 ---
 
+[TestVirtualServerForNginxPlusWithExternalAuthSigninURL - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_exauth_default_external-auth-policy {
+    zone vs_exauth_default_external-auth-policy ;
+    server 10.0.0.40:4180 max_fails=0 fail_timeout= max_conns=0;
+}
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    auth_request "/_external_auth/oauth2/auth";
+    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+
+    
+
+    
+    location "/tea" {
+        set $service "tea-svc";
+        status_zone "tea-svc";
+        auth_request "/_external_auth/oauth2/auth";
+
+        
+        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+        proxy_intercept_errors on;
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
+[TestVirtualServerForNginxPlusWithOIDCNative - 1]
+
+upstream test-upstream {
+    zone test-upstream 256k;
+    server 10.0.0.20:8001 max_fails=1 fail_timeout=10s max_conns=0;
+}
+
+keyval_zone zone=oidc_sessions_oidc_default_my_provider_default_cafe:10m timeout=4h sync;
+oidc_provider oidc_default_my_provider_default_cafe {
+    issuer "https://accounts.google.com";
+    client_id "my-client-id";
+    client_secret "my-resolved-secret";
+    config_url "https://accounts.google.com/.well-known/openid-configuration";
+    scope openid profile;
+    redirect_uri "/callback";
+    logout_uri "/logout";
+    post_logout_uri "/logged_out";
+    frontchannel_logout_uri "/frontchannel_logout";
+    cookie_name "MY_SESSION";
+    extra_auth_args "prompt=login";
+    pkce on;
+    logout_token_hint on;
+    session_store oidc_sessions_oidc_default_my_provider_default_cafe;
+    session_timeout 4h;
+    ssl_crl /etc/nginx/secrets/default-google-ca-secret-ca.crl;
+    ssl_trusted_certificate /etc/nginx/secrets/default-google-ca-secret;
+    userinfo on;
+    proxy_location /_oidc_idp_oidc_default_my_provider_default_cafe;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+    status_zone "cafe.example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "cafe";
+    set $resource_namespace "default";
+    set $service "-";
+    auth_oidc oidc_default_my_provider_default_cafe;
+
+    server_tokens "";
+
+    
+    location = /callback {
+        auth_oidc oidc_default_my_provider_default_cafe;
+    }
+    location = /logged_out {
+        auth_oidc off;
+        default_type text/plain;
+        return 200 "You have been logged out.\n";
+    }
+    location = /_oidc_idp_oidc_default_my_provider_default_cafe {
+        internal;
+        auth_oidc off;
+        client_max_body_size 0;
+        proxy_pass $oidc_idp_request_uri;
+        proxy_ssl_server_name on;
+        proxy_ssl_name "accounts.google.com";
+        proxy_set_header Host "accounts.google.com";
+        proxy_ssl_verify on;
+        proxy_ssl_verify_depth 3;
+        proxy_ssl_trusted_certificate /etc/nginx/secrets/default-google-ca-secret;
+        proxy_buffers 8 16k;
+        proxy_buffer_size 16k;
+        proxy_busy_buffers_size 16k;
+        subrequest_output_buffer_size 64k;
+    }
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        auth_oidc oidc_default_my_provider_default_cafe;
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+    location "/public" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://test-upstream;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxPlusWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {
@@ -4737,7 +5089,7 @@ upstream test-upstream {
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s slow_start=10s max_conns=31;
     keepalive 32;
     queue 10 timeout=60s;
-    sticky cookie test expires=25s path=/tea;
+    sticky cookie test expires=25s "path=/tea";
     ntlm;
 }
 
@@ -4772,7 +5124,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -4809,10 +5161,10 @@ server {
     app_protect_security_log /etc/nginx/waf/nac-logconfs/default-logconf;
     
     # server snippet
-    location /split {
+    location "/split" {
         rewrite ^ @split_0 last;
     }
-    location /coffee {
+    location "/coffee" {
         rewrite ^ @match last;
     }
     location @hc-coffee {
@@ -4821,7 +5173,7 @@ server {
         proxy_read_timeout ;
         proxy_send_timeout ;
         proxy_pass http://coffee-v2;
-        health_check uri=/  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
+        health_check "uri=/"  port=50 interval=5s jitter=0s fails=1 passes=1 mandatory  persistent  keepalive_time=60s;
 
     }
     location @hc-tea {
@@ -4830,7 +5182,7 @@ server {
         grpc_read_timeout ;
         grpc_send_timeout ;
         grpc_pass grpc://tea-v3;
-        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 grpc_service=tea-servicev2;
+        health_check port=50 interval=5s jitter=0s fails=1 passes=1 type=grpc grpc_status=12 "grpc_service=tea-servicev2";
 
     }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
@@ -4864,7 +5216,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
         internal;
@@ -4883,10 +5235,10 @@ server {
         proxy_ssl_verify on;
         proxy_ssl_verify_depth 1;
         proxy_ssl_protocols TLSv1.3;
-        proxy_ssl_ciphers DEFAULT;
+        proxy_ssl_ciphers "DEFAULT";
         proxy_ssl_session_reuse on;
         proxy_ssl_server_name on;
-        proxy_ssl_name ;
+        proxy_ssl_name "";
         set $default_connection_header close;
         rewrite $request_uri $request_uri;
         rewrite $request_uri $request_uri;
@@ -5066,7 +5418,7 @@ server {
         proxy_next_upstream_timeout 5s;
         proxy_next_upstream_tries 0;
     }
-    location /return {
+    location "/return" {
         set $service "";
         status_zone "";
 
@@ -5148,7 +5500,7 @@ server {
 
 
     server_name example.com;
-    status_zone example.com;
+    status_zone "example.com";
     set $resource_type "virtualserver";
     set $resource_name "";
     set $resource_namespace "";
@@ -5164,7 +5516,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         status_zone "";
 
@@ -5194,19 +5546,19 @@ server {
     
 
     
-    location /images/ {
+    location "/images/" {
         set $service "";
 
         
         set $default_connection_header close;
     }
-    location =/images/logo.jpg {
+    location = "/images/logo.jpg" {
         set $service "";
 
         
         set $default_connection_header close;
     }
-    location ^~ /images/static/ {
+    location ^~ "/images/static/" {
         set $service "";
 
         
@@ -5228,6 +5580,69 @@ server {
 
 ---
 
+[TestVirtualServerForNginxWithExternalAuthSigninURL - 1]
+
+upstream vs_default_cafe_tea {
+    zone vs_default_cafe_tea ;
+    server 10.0.0.20:80 max_fails=0 fail_timeout= max_conns=0;
+}
+
+upstream vs_exauth_default_external-auth-policy {
+    zone vs_exauth_default_external-auth-policy ;
+    server 10.0.0.40:4180 max_fails=0 fail_timeout= max_conns=0;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name cafe.example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+
+    server_tokens "";
+    auth_request "/_external_auth/oauth2/auth";
+    error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+
+    
+
+    
+    location "/tea" {
+        set $service "tea-svc";
+        auth_request "/_external_auth/oauth2/auth";
+
+        
+        error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
+        proxy_intercept_errors on;
+        set $default_connection_header close;
+        proxy_connect_timeout ;
+        proxy_read_timeout ;
+        proxy_send_timeout ;
+        client_max_body_size ;
+
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $vs_connection_header;
+        proxy_pass_request_headers off;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://vs_default_cafe_tea;
+        proxy_next_upstream ;
+        proxy_next_upstream_timeout ;
+        proxy_next_upstream_tries 0;
+    }
+}
+
+---
+
 [TestVirtualServerForNginxWithServiceBeforeRedirect - 1]
 
 upstream test-upstream {
@@ -5235,7 +5650,7 @@ upstream test-upstream {
     random;
     server 10.0.0.20:8001 max_fails=4 fail_timeout=10s max_conns=31;
     keepalive 32;
-    sticky cookie test expires=25s path=/tea;
+    sticky cookie test expires=25s "path=/tea";
 }
 
 upstream coffee-v1 {
@@ -5298,10 +5713,10 @@ server {
     limit_req_status 503;
     limit_req zone=pol_rl_test_test_test burst=5 delay=10;
     # server snippet
-    location /split {
+    location "/split" {
         rewrite ^ @split_0 last;
     }
-    location /coffee {
+    location "/coffee" {
         rewrite ^ @match last;
     }
     location @vs_cafe_cafe_vsr_tea_tea_tea__tea_error_page_0 {
@@ -5335,7 +5750,7 @@ server {
     
 
     
-    location / {
+    location "/" {
         set $service "";
         internal;
         # location snippet
@@ -5353,10 +5768,10 @@ server {
         proxy_ssl_verify on;
         proxy_ssl_verify_depth 1;
         proxy_ssl_protocols TLSv1.3;
-        proxy_ssl_ciphers DEFAULT;
+        proxy_ssl_ciphers "DEFAULT";
         proxy_ssl_session_reuse on;
         proxy_ssl_server_name on;
-        proxy_ssl_name ;
+        proxy_ssl_name "";
         set $default_connection_header close;
         rewrite $request_uri $request_uri;
         rewrite $request_uri $request_uri;
@@ -5531,7 +5946,7 @@ server {
         proxy_next_upstream_timeout 5s;
         proxy_next_upstream_tries 0;
     }
-    location /return {
+    location "/return" {
         set $service "";
 
         

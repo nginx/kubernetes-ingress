@@ -18,11 +18,39 @@ import (
 )
 
 // VirtualServerRouteInformer provides access to a shared informer and lister for
-// VirtualServerRoutes.
+// VirtualServerRoutes. Prefer using the type-safe variant (see [TypedVirtualServerRouteInformer]).
 type VirtualServerRouteInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() configurationv1.VirtualServerRouteLister
 }
+
+// TypedVirtualServerRouteInformer provides access to a shared informer and lister for
+// VirtualServerRoutes, including the type-safe TypedInformer variant.
+// It is a superset of VirtualServerRouteInformer.
+type TypedVirtualServerRouteInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() VirtualServerRouteIndexInformer
+	Lister() configurationv1.VirtualServerRouteLister
+}
+
+// VirtualServerRouteIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type VirtualServerRouteIndexInformer cache.TypedSharedIndexInformer[*apisconfigurationv1.VirtualServerRoute]
+
+// VirtualServerRouteHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for VirtualServerRoute.
+type VirtualServerRouteHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apisconfigurationv1.VirtualServerRoute]
+
+// VirtualServerRouteDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for VirtualServerRoute.
+type VirtualServerRouteDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apisconfigurationv1.VirtualServerRoute]
+
+// VirtualServerRouteFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for VirtualServerRoute.
+type VirtualServerRouteFilteringHandler = cache.TypedFilteringResourceEventHandler[*apisconfigurationv1.VirtualServerRoute]
+
+// VirtualServerRouteIndexers is a specialization of [cache.TypedIndexers] for VirtualServerRoute.
+type VirtualServerRouteIndexers = cache.TypedIndexers[*apisconfigurationv1.VirtualServerRoute]
+
+// DeletedVirtualServerRoute is a specialization of [cache.DeletedObject] for VirtualServerRoute.
+type DeletedVirtualServerRoute = cache.DeletedObject[*apisconfigurationv1.VirtualServerRoute]
 
 type virtualServerRouteInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -33,25 +61,49 @@ type virtualServerRouteInformer struct {
 // NewVirtualServerRouteInformer constructs a new informer for VirtualServerRoute type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedVirtualServerRouteInformer]).
 func NewVirtualServerRouteInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewVirtualServerRouteInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedVirtualServerRouteInformer constructs a new informer for VirtualServerRoute type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedVirtualServerRouteInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers VirtualServerRouteIndexers) VirtualServerRouteIndexInformer {
+	return NewTypedVirtualServerRouteInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredVirtualServerRouteInformer constructs a new informer for VirtualServerRoute type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredVirtualServerRouteInformer]).
 func NewFilteredVirtualServerRouteInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewVirtualServerRouteInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedVirtualServerRouteInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredVirtualServerRouteInformer constructs a new informer for VirtualServerRoute type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredVirtualServerRouteInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers VirtualServerRouteIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) VirtualServerRouteIndexInformer {
+	return NewTypedVirtualServerRouteInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewVirtualServerRouteInformerWithOptions constructs a new informer for VirtualServerRoute type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedVirtualServerRouteInformerWithOptions]).
 func NewVirtualServerRouteInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedVirtualServerRouteInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedVirtualServerRouteInformerWithOptions constructs a new informer for VirtualServerRoute type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedVirtualServerRouteInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) VirtualServerRouteIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "virtualserverroutes"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.VirtualServerRoute](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -84,17 +136,57 @@ func NewVirtualServerRouteInformerWithOptions(client versioned.Interface, namesp
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *virtualServerRouteInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewVirtualServerRouteInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedVirtualServerRouteInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *virtualServerRouteInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apisconfigurationv1.VirtualServerRoute{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *virtualServerRouteInformer) TypedInformer() VirtualServerRouteIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.VirtualServerRoute](f.factory.InformerFor(&apisconfigurationv1.VirtualServerRoute{}, f.defaultInformer))
 }
 
 func (f *virtualServerRouteInformer) Lister() configurationv1.VirtualServerRouteLister {
 	return configurationv1.NewVirtualServerRouteLister(f.Informer().GetIndexer())
+}
+
+// ToTypedVirtualServerRouteInformer converts an untyped informer into a TypedVirtualServerRouteInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *VirtualServerRoute. If that is not the case, calling type-safe methods of the returned
+// TypedVirtualServerRouteInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedVirtualServerRouteInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedVirtualServerRouteInformer(informer VirtualServerRouteInformer) TypedVirtualServerRouteInformer {
+	if informer, ok := informer.(TypedVirtualServerRouteInformer); ok {
+		return informer
+	}
+	return &virtualServerRouteTypedInformerAdapter{informer}
+}
+
+type virtualServerRouteTypedInformerAdapter struct {
+	VirtualServerRouteInformer
+}
+
+func (a *virtualServerRouteTypedInformerAdapter) TypedInformer() VirtualServerRouteIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.VirtualServerRoute](a.Informer())
+}
+
+// ToVirtualServerRouteIndexInformer converts an untyped informer into a VirtualServerRouteIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *VirtualServerRoute. If that is not the case, calling type-safe methods of the returned
+// VirtualServerRouteIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a VirtualServerRouteIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToVirtualServerRouteIndexInformer(informer cache.SharedIndexInformer) VirtualServerRouteIndexInformer {
+	if informer, ok := informer.(VirtualServerRouteIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.VirtualServerRoute](informer)
 }

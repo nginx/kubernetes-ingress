@@ -6,6 +6,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -209,6 +210,7 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 		"nginx.org/proxy-connect-timeout": "50s",
 		AddHeaderInheritAnnotation:        addHeaderInheritOn,
 		JWTTokenAnnotation:                "$cookie_auth_token",
+		UpstreamVhostAnnotation:           "master.example.com",
 	}
 	minionAnnotations := map[string]string{
 		"nginx.org/client-max-body-size":  "2m",
@@ -222,6 +224,29 @@ func TestMergeMasterAnnotationsIntoMinion(t *testing.T) {
 		"nginx.org/proxy-buffer-size":     "8k",
 		"nginx.org/client-max-body-size":  "2m",
 		"nginx.org/proxy-connect-timeout": "20s",
+		UpstreamVhostAnnotation:           "master.example.com",
+	}
+	if !reflect.DeepEqual(expectedMergedAnnotations, minionAnnotations) {
+		t.Errorf("mergeMasterAnnotationsIntoMinion returned %v, but expected %v", minionAnnotations, expectedMergedAnnotations)
+	}
+}
+
+// TestMergeMasterAnnotationsIntoMinionUpstreamVhostOverride verifies that
+// nginx.org/upstream-vhost follows the same master-default/minion-override
+// semantics as nginx.org/proxy-set-headers: a value set on the minion takes
+// priority over the master's value, and is not overwritten by inheritance.
+func TestMergeMasterAnnotationsIntoMinionUpstreamVhostOverride(t *testing.T) {
+	t.Parallel()
+	masterAnnotations := map[string]string{
+		UpstreamVhostAnnotation: "master.example.com",
+	}
+	minionAnnotations := map[string]string{
+		UpstreamVhostAnnotation: "minion.example.com",
+	}
+	mergeMasterAnnotationsIntoMinion(minionAnnotations, masterAnnotations)
+
+	expectedMergedAnnotations := map[string]string{
+		UpstreamVhostAnnotation: "minion.example.com",
 	}
 	if !reflect.DeepEqual(expectedMergedAnnotations, minionAnnotations) {
 		t.Errorf("mergeMasterAnnotationsIntoMinion returned %v, but expected %v", minionAnnotations, expectedMergedAnnotations)
@@ -248,6 +273,69 @@ func TestParseAnnotationsAddHeaderInherit(t *testing.T) {
 
 	if result.AddHeaderInherit != addHeaderInheritMerge {
 		t.Errorf("Expected AddHeaderInherit %q, got %q", addHeaderInheritMerge, result.AddHeaderInherit)
+	}
+}
+
+// TestParseAnnotationsHeaderListsAreNormalized pins that the header names
+// configured into NGINX are the ones admission validation judged. The validator
+// trims each comma-separated entry, so the applier has to trim as well; reading
+// the raw annotation back apart here would configure " X-B" from "X-A, X-B" and
+// the applied value would differ from the validated one.
+func TestParseAnnotationsHeaderListsAreNormalized(t *testing.T) {
+	t.Parallel()
+
+	ingEx := &IngressEx{
+		Ingress: &networking.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ingress",
+				Namespace: "default",
+				Annotations: map[string]string{
+					"nginx.org/proxy-hide-headers": "X-Accel-Redirect, X-Custom-Header",
+					"nginx.org/proxy-pass-headers": "X-Accel-Expires,\tX-Accel-Limit-Rate",
+				},
+			},
+		},
+	}
+
+	result := parseAnnotations(ingEx, NewDefaultConfigParams(context.Background(), false), false, false, false, false)
+
+	wantHide := []string{"X-Accel-Redirect", "X-Custom-Header"}
+	if diff := cmp.Diff(wantHide, result.ProxyHideHeaders); diff != "" {
+		t.Errorf("ProxyHideHeaders mismatch (-want +got):\n%s", diff)
+	}
+	wantPass := []string{"X-Accel-Expires", "X-Accel-Limit-Rate"}
+	if diff := cmp.Diff(wantPass, result.ProxyPassHeaders); diff != "" {
+		t.Errorf("ProxyPassHeaders mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestParseAnnotationsInvalidHeaderListsAreIgnored covers the defensive path in
+// the applier. Admission validation rejects these annotations, so this only
+// happens for an Ingress that was admitted before the validation existed; the
+// defaults must survive rather than an invalid name reaching the config.
+func TestParseAnnotationsInvalidHeaderListsAreIgnored(t *testing.T) {
+	t.Parallel()
+
+	ingEx := &IngressEx{
+		Ingress: &networking.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ingress",
+				Namespace: "default",
+				Annotations: map[string]string{
+					"nginx.org/proxy-hide-headers": "X-Good,X-Bad; return 200",
+					"nginx.org/proxy-pass-headers": "X-Good,$header",
+				},
+			},
+		},
+	}
+
+	result := parseAnnotations(ingEx, NewDefaultConfigParams(context.Background(), false), false, false, false, false)
+
+	if result.ProxyHideHeaders != nil {
+		t.Errorf("ProxyHideHeaders = %v, want nil", result.ProxyHideHeaders)
+	}
+	if result.ProxyPassHeaders != nil {
+		t.Errorf("ProxyPassHeaders = %v, want nil", result.ProxyPassHeaders)
 	}
 }
 
@@ -951,6 +1039,58 @@ func TestGetRewriteTargetWithComplexValues(t *testing.T) {
 
 			if value != tt.expected {
 				t.Errorf("Test %q: expected %q, got %q", tt.name, tt.expected, value)
+			}
+		})
+	}
+}
+
+func TestGetUpstreamVhost(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		annotations   map[string]string
+		expectedValue string
+		description   string
+	}{
+		{
+			name: "upstream-vhost set",
+			annotations: map[string]string{
+				"nginx.org/upstream-vhost": "example.internal",
+			},
+			expectedValue: "example.internal",
+			description:   "Should return the upstream-vhost value when the annotation is present",
+		},
+		{
+			name:          "no upstream-vhost annotation",
+			annotations:   map[string]string{},
+			expectedValue: "",
+			description:   "Should return empty string when the annotation is not present",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ingress := &networking.Ingress{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "test-ingress",
+					Namespace:   "default",
+					Annotations: tt.annotations,
+				},
+			}
+
+			ingEx := &IngressEx{
+				Ingress: ingress,
+			}
+
+			value, warnings := getUpstreamVhost(ingEx)
+
+			if value != tt.expectedValue {
+				t.Errorf("Test %q: expected value %q, got %q. %s", tt.name, tt.expectedValue, value, tt.description)
+			}
+
+			if len(warnings) != 0 {
+				t.Errorf("Test %q: expected no warnings, got %d warnings. %s", tt.name, len(warnings), tt.description)
 			}
 		})
 	}

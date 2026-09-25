@@ -1,0 +1,56 @@
+# Test 10: Cross-namespace policy reference via annotation.
+#
+# Verify:
+#   - NGINX config shows the oidc_provider block from the cross-namespace policy.
+#   - / redirects to Keycloak.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oidc-policies
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oidcnative-secret
+  namespace: oidc-policies
+type: nginx.org/oidc
+data:
+  client-secret: <insert-secret-here>
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cross-ns-policy
+  namespace: oidc-policies
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus
+    clientSecret: oidcnative-secret
+    scope: openid profile email
+    sslVerify: false
+    postLogoutRedirectURI: /_logout
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp
+  annotations:
+    nginx.com/policies: "oidc-policies/cross-ns-policy"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - webapp.example.com
+      secretName: tls-secret
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80

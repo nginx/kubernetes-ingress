@@ -93,3 +93,52 @@ func TestGlogHigherLevel(t *testing.T) {
 		t.Errorf("got buf.Len() = %d, want 0", got)
 	}
 }
+
+func TestGlogRecordAttrs(t *testing.T) {
+	var buf bytes.Buffer
+	l := slog.New(New(&buf, &Options{Level: levels.LevelError}))
+	l.Log(context.Background(), levels.LevelError, "something failed", "resource_namespace", "my-namespace")
+	got := buf.String()
+	wantre := `resource_namespace=my-namespace something failed`
+	re := regexp.MustCompile(wantre)
+	if !re.MatchString(got) {
+		t.Errorf("\ngot:\n%q\nwant match:\n%q", got, wantre)
+	}
+}
+
+func TestGlogWithAttrsChaining(t *testing.T) {
+	var buf bytes.Buffer
+	h := New(&buf, &Options{Level: levels.LevelInfo})
+	h2 := h.WithAttrs([]slog.Attr{slog.String("a", "1")})
+	h3 := h2.WithAttrs([]slog.Attr{slog.String("b", "2")})
+	l := slog.New(h3)
+	l.Log(context.Background(), levels.LevelInfo, "chained")
+	got := buf.String()
+	wantre := `a=1 b=2 chained`
+	re := regexp.MustCompile(wantre)
+	if !re.MatchString(got) {
+		t.Errorf("\ngot:\n%q\nwant match:\n%q", got, wantre)
+	}
+	buf.Reset()
+	l2 := slog.New(h)
+	l2.Log(context.Background(), levels.LevelInfo, "original")
+	got = buf.String()
+	re = regexp.MustCompile(`a=1|b=2`)
+	if re.MatchString(got) {
+		t.Errorf("original handler should not have attrs, got: %q", got)
+	}
+}
+
+func TestGlogHandlerAndRecordAttrsCombined(t *testing.T) {
+	var buf bytes.Buffer
+	h := New(&buf, &Options{Level: levels.LevelError})
+	h2 := h.WithAttrs([]slog.Attr{slog.String("handler_key", "handler_val")})
+	l := slog.New(h2)
+	l.Log(context.Background(), levels.LevelError, "combined", "record_key", "record_val")
+	got := buf.String()
+	wantre := `handler_key=handler_val record_key=record_val combined`
+	re := regexp.MustCompile(wantre)
+	if !re.MatchString(got) {
+		t.Errorf("\ngot:\n%q\nwant match:\n%q", got, wantre)
+	}
+}

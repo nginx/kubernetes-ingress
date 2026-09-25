@@ -41,6 +41,7 @@ type testNginxManager struct {
 	FailCreateForName  string
 	FailCreateOnCall   int
 	CreateCalls        int
+	KeyValUpdates      []configs.WeightUpdate
 }
 
 func newTestNginxManager() *testNginxManager {
@@ -56,6 +57,13 @@ func (m *testNginxManager) CreateConfig(name string, content []byte) (bool, erro
 	}
 
 	return m.FakeManager.CreateConfig(name, content)
+}
+
+// UpsertSplitClientsKeyVal records the keyval writes the weight-change fast
+// lane makes, so tests can assert on them without a real NGINX process.
+func (m *testNginxManager) UpsertSplitClientsKeyVal(zoneName, key, value string) {
+	m.KeyValUpdates = append(m.KeyValUpdates, configs.WeightUpdate{Zone: zoneName, Key: key, Value: value})
+	m.FakeManager.UpsertSplitClientsKeyVal(zoneName, key, value)
 }
 
 // fakeStore wraps FakeCustomStore to satisfy the cache.Store interface, which gained
@@ -2188,7 +2196,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
 		errors.New("policy nginx-ingress/valid-policy doesn't exist"),
 		errors.New("failed to get policy nginx-ingress/some-policy: GetByKey error"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
@@ -2286,7 +2294,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 
 	expectedPolicies := []*conf_v1.Policy{validPolicy}
 	expectedErrors := []error{
-		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `waf`"),
+		errors.New("policy default/invalid-policy is invalid: spec: Invalid value: \"\": must specify exactly one of: `accessControl`, `rateLimit`, `ingressMTLS`, `egressMTLS`, `basicAuth`, `apiKey`, `cache`, `cors`, `externalAuth`, `hsts`, `jwt`, `oidc`, `oidcNative`, `waf`"),
 		errors.New("failed to get namespace nginx-ingress"),
 		errors.New("referenced policy default/valid-policy-ingress-class has incorrect ingress class: test-class (controller ingress class: )"),
 	}
@@ -2645,6 +2653,40 @@ func TestProcessChangesHostlessAddFailureAfterDeleteLeavesIntermediateState(t *t
 	if manager.CreateCalls < 2 {
 		t.Fatalf("expected add step to be attempted after delete step, got %d call(s)", manager.CreateCalls)
 	}
+}
+
+func TestProcessChangesDispatchesAddOrUpdate(t *testing.T) {
+	t.Parallel()
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	lbc := createIngressProcessChangesController(t, manager)
+
+	ing := createTestIngress("dispatch-test", "example.com")
+	ingConfig := NewRegularIngressConfiguration(ing)
+
+	changes := []ResourceChange{
+		{
+			Op:       AddOrUpdate,
+			Resource: ingConfig,
+		},
+	}
+
+	// Verify processChanges dispatches without error
+	lbc.processChanges(changes)
+}
+
+func TestProcessChangesDispatchesDelete(t *testing.T) {
+	t.Parallel()
+
+	manager := nginx.NewFakeManager("/etc/nginx")
+	lbc := createIngressProcessChangesController(t, manager)
+
+	ing := createTestIngress("dispatch-delete-test", "example.com")
+	ingConfig := NewRegularIngressConfiguration(ing)
+
+	lbc.processChanges([]ResourceChange{
+		{Op: Delete, Resource: ingConfig},
+	})
 }
 
 func TestGetPodOwnerTypeAndName(t *testing.T) {

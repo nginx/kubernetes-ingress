@@ -31,6 +31,7 @@ type ConfigParams struct {
 	LocationSnippets                       []string
 	MainAccessLog                          string
 	MainAddHeaders                         []version2.AddHeader
+	DisableForwardedHeaders                bool
 	MainErrorLogLevel                      string
 	MainHTTPSnippets                       []string
 	MainKeepaliveRequests                  int64
@@ -44,6 +45,7 @@ type ConfigParams struct {
 	MainOtelExporterHeaderName             string
 	MainOtelExporterHeaderValue            string
 	MainOtelServiceName                    string
+	MainOtelTraceContext                   string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string
@@ -178,6 +180,10 @@ type StaticConfigParams struct {
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
 	DefaultCABundle                string
+	// PLMEnabled reports whether WAF bundles are sourced from the F5 WAF Policy
+	// Controller. When true, apPolicy/apLogConf references resolve to PLM bundles
+	// instead of in-pod compiled App Protect resources.
+	PLMEnabled bool
 }
 
 // GlobalConfigParams holds global configuration parameters. For now, it only holds listeners.
@@ -283,6 +289,7 @@ func NewDefaultConfigParams(ctx context.Context, isPlus bool) *ConfigParams {
 		MainKeepaliveRequests:         1000,
 		VariablesHashBucketSize:       256,
 		VariablesHashMaxSize:          1024,
+		DisableForwardedHeaders:       false,
 		LimitReqKey:                   "${binary_remote_addr}",
 		LimitReqZoneSize:              "10m",
 		LimitReqLogLevel:              "error",

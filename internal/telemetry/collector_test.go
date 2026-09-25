@@ -297,6 +297,13 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "OIDCNativePolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{oidcNativePolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -451,6 +458,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				corsPolicy,
 				externalAuthPolicy,
 				hstsPolicy,
+				oidcNativePolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -481,6 +489,7 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 		CORSPolicies:         1,
 		ExternalAuthPolicies: 1,
 		HSTSPolicies:         1,
+		OIDCNativePolicies:   1,
 	}
 
 	td := telemetry.Data{
@@ -2997,6 +3006,21 @@ var (
 			HSTS: &conf_v1.HSTS{
 				MaxAge: new(31536000),
 			},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	oidcNativePolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "oidc-native-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			OIDCNative: &conf_v1.OIDCNative{},
 		},
 		Status: conf_v1.PolicyStatus{},
 	}

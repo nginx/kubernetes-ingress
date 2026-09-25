@@ -1,0 +1,8 @@
+controller:
+  nginxplus: true
+  appprotect:
+    enable: true
+    v5: true
+    plmStorage:
+      url: ""
+      credentialsSecret: plm/seaweedfs-auth
