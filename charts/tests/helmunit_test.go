@@ -224,6 +224,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "allow-empty-ingress-host",
 			namespace:   "default",
 		},
+		"defaultListenerPortsWithoutCRs": {
+			valuesFile:  "testdata/default-listener-ports-no-crs.yaml",
+			releaseName: "default-listener-ports-no-crs",
+			namespace:   "default",
+		},
 	}
 
 	// Path to the helm chart we will test
