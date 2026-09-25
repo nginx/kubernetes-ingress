@@ -1243,7 +1243,9 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 func (lbc *LoadBalancerController) preSyncSecrets() {
 	for _, ni := range lbc.namespacedInformers {
 		if !ni.isSecretsEnabledNamespace {
-			break
+			// this namespace is watched for other resources but not for
+			// Secrets, so there is nothing to preload for it
+			continue
 		}
 		objects := ni.secretLister.List()
 		nl.Debugf(lbc.Logger, "PreSync %d Secrets", len(objects))
