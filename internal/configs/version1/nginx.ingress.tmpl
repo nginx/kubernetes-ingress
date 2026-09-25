@@ -343,13 +343,23 @@ server {
 		grpc_pass grpc://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- end}}
 		{{- else}}
-		proxy_http_version 1.1;
+		{{- if $location.ProxyHTTPVersion}}
+		proxy_http_version {{$location.ProxyHTTPVersion}};
+		{{- end}}
+		{{- /* HTTP/1.0 has no persistent connections or Upgrade mechanism, so the connection is
+		       closed explicitly (https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7).
+		       HTTP/2 forbids the hop-by-hop Connection and Upgrade headers (RFC 9113 8.2.2),
+		       so they are omitted when proxying over HTTP/2. */}}
+		{{- if eq $location.ProxyHTTPVersion "1.0"}}
+		proxy_set_header Connection close;
+		{{- else if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
+		{{- end}}
 		{{- end}}
 		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}

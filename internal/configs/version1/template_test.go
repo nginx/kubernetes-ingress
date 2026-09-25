@@ -2698,6 +2698,37 @@ func TestExecuteTemplate_ForMainForNGINXWithZoneSyncEnabledCustomResolverAddress
 func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 	t.Parallel()
 
+	tmpl := newNGINXMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithOTel)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	wantDirectives := []string{
+		"otel_exporter {",
+		"endpoint https://otel-collector:4317;",
+		"header X-Custom-Header \"custom-value\";",
+		"otel_service_name nginx-ingress-controller:nginx;",
+		"otel_trace on;",
+		"otel_trace_context inject;",
+	}
+
+	mainConf := buf.String()
+	for _, want := range wantDirectives {
+		if !strings.Contains(mainConf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXPlusWithOtel(t *testing.T) {
+	t.Parallel()
+
 	tmpl := newNGINXPlusMainTmpl(t)
 	buf := &bytes.Buffer{}
 
@@ -2714,6 +2745,7 @@ func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 		"header X-Custom-Header \"custom-value\";",
 		"otel_service_name nginx-ingress-controller:nginx;",
 		"otel_trace on;",
+		"otel_trace_context inject;",
 	}
 
 	mainConf := buf.String()
@@ -2721,6 +2753,52 @@ func TestExecuteTemplate_ForMainForNGINXWithOtel(t *testing.T) {
 		if !strings.Contains(mainConf, want) {
 			t.Errorf("want %q in generated config", want)
 		}
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXWithOtelTraceContextModuleDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithOTelTraceContextModuleDisabled)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	mainConf := buf.String()
+	if strings.Contains(mainConf, "load_module modules/ngx_otel_module.so;") {
+		t.Errorf("did not want load_module directive in generated config when otel module is disabled")
+	}
+	if strings.Contains(mainConf, "otel_trace_context") {
+		t.Errorf("did not want otel_trace_context directive in generated config when otel module is disabled")
+	}
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForMainForNGINXPlusWithOtelTraceContextModuleDisabled(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusMainTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, mainCfgWithOTelTraceContextModuleDisabled)
+	t.Log(buf.String())
+
+	if err != nil {
+		t.Fatalf("Failed to write template %v", err)
+	}
+
+	mainConf := buf.String()
+	if strings.Contains(mainConf, "load_module modules/ngx_otel_module.so;") {
+		t.Errorf("did not want load_module directive in generated config when otel module is disabled")
+	}
+	if strings.Contains(mainConf, "otel_trace_context") {
+		t.Errorf("did not want otel_trace_context directive in generated config when otel module is disabled")
 	}
 	snaps.MatchSnapshot(t, buf.String())
 }
@@ -5497,6 +5575,11 @@ var (
 		MainOtelExporterHeaderName:  "X-Custom-Header",
 		MainOtelExporterHeaderValue: "custom-value",
 		MainOtelServiceName:         "nginx-ingress-controller:nginx",
+		MainOtelTraceContext:        "inject",
+	}
+
+	mainCfgWithOTelTraceContextModuleDisabled = MainConfig{
+		MainOtelTraceContext: "propagate",
 	}
 
 	mainCfgWithOIDCTimeoutDefault = MainConfig{
@@ -8162,4 +8245,219 @@ func TestExecuteTemplate_ForIngressWithBackslashPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ingressCfgProxyHTTPVersion exercises every rendering branch of proxy_http_version in one
+// server: unset (directive omitted), 1.0 ("Connection: close"), 1.1, 2 (hop-by-hop headers
+// suppressed), a websocket location on HTTP/1.0 ("Connection: close" only), a websocket
+// location on HTTP/1.1 (Upgrade/Connection emitted) and a websocket location on HTTP/2
+// (suppressed). Keepalive is set so that the 1.0 locations would otherwise render the
+// keep-alive `Connection ""` header.
+var ingressCfgProxyHTTPVersion = IngressNginxConfig{
+	Servers: []Server{
+		{
+			Name:         "cafe.example.com",
+			ServerTokens: "off",
+			StatusZone:   "cafe.example.com",
+			Locations: []Location{
+				{
+					Path:                "/unset",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+				},
+				{
+					Path:                "/http-1-0",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					ProxyHTTPVersion:    "1.0",
+				},
+				{
+					Path:                "/http-1-1",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					ProxyHTTPVersion:    "1.1",
+				},
+				{
+					Path:                "/http-2",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					ProxyHTTPVersion:    "2",
+				},
+				{
+					Path:                "/websocket-http-1-0",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					ProxyHTTPVersion:    "1.0",
+					Websocket:           true,
+				},
+				{
+					Path:                "/websocket-http-1-1",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					ProxyHTTPVersion:    "1.1",
+					Websocket:           true,
+				},
+				{
+					Path:                "/websocket-http-2",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test",
+					ProxyHTTPVersion:    "2",
+					Websocket:           true,
+				},
+				{
+					Path:                "/grpc",
+					Upstream:            testUpstream,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					GRPC:                true,
+				},
+			},
+			HasGRPCLocations: true,
+		},
+	},
+	Upstreams: []Upstream{testUpstream},
+	Keepalive: "16",
+	Ingress: Ingress{
+		Name:      "cafe-ingress",
+		Namespace: "default",
+	},
+}
+
+func TestExecuteTemplate_ForIngressForNGINXWithProxyHTTPVersion(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	if err := tmpl.Execute(buf, ingressCfgProxyHTTPVersion); err != nil {
+		t.Fatal(err)
+	}
+	t.Log(buf.String())
+
+	assertProxyHTTPVersionRendering(t, buf.String())
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+func TestExecuteTemplate_ForIngressForNGINXPlusWithProxyHTTPVersion(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	if err := tmpl.Execute(buf, ingressCfgProxyHTTPVersion); err != nil {
+		t.Fatal(err)
+	}
+	t.Log(buf.String())
+
+	assertProxyHTTPVersionRendering(t, buf.String())
+	snaps.MatchSnapshot(t, buf.String())
+}
+
+// assertProxyHTTPVersionRendering checks the invariants that the snapshot alone would not make
+// obvious: the directive is never emitted with an empty argument, an unset version omits it
+// entirely, and HTTP/2 locations carry no hop-by-hop headers (RFC 9113 8.2.2).
+func assertProxyHTTPVersionRendering(t *testing.T, conf string) {
+	t.Helper()
+
+	if strings.Contains(conf, "proxy_http_version ;") {
+		t.Error("generated config contains proxy_http_version with an empty argument")
+	}
+
+	for _, want := range []string{
+		"proxy_http_version 1.0;",
+		"proxy_http_version 1.1;",
+		"proxy_http_version 2;",
+	} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	unsetLocation := locationBlock(t, conf, `location "/unset"`)
+	if strings.Contains(unsetLocation, "proxy_http_version") {
+		t.Errorf("an unset version must omit the directive, got:\n%s", unsetLocation)
+	}
+
+	// grpc_pass locations never render proxy_http_version at all.
+	grpcLocation := locationBlock(t, conf, `location "/grpc"`)
+	if strings.Contains(grpcLocation, "proxy_http_version") {
+		t.Errorf("gRPC locations must not render proxy_http_version, got:\n%s", grpcLocation)
+	}
+
+	for _, path := range []string{`location "/http-2"`, `location "/websocket-http-2"`} {
+		block := locationBlock(t, conf, path)
+		for _, unwanted := range []string{"proxy_set_header Connection", "proxy_set_header Upgrade"} {
+			if strings.Contains(block, unwanted) {
+				t.Errorf("%s must not contain %q over HTTP/2, got:\n%s", path, unwanted, block)
+			}
+		}
+	}
+
+	// HTTP/1.0 has no keep-alive or Upgrade, so the connection is closed explicitly and nothing
+	// else is sent, even for keepalive upstreams and websocket services.
+	for _, path := range []string{`location "/http-1-0"`, `location "/websocket-http-1-0"`} {
+		block := locationBlock(t, conf, path)
+		if !strings.Contains(block, "proxy_set_header Connection close;") {
+			t.Errorf("%s must contain %q over HTTP/1.0, got:\n%s", path, "proxy_set_header Connection close;", block)
+		}
+		for _, unwanted := range []string{`proxy_set_header Connection "";`, "proxy_set_header Upgrade", "$connection_upgrade"} {
+			if strings.Contains(block, unwanted) {
+				t.Errorf("%s must not contain %q over HTTP/1.0, got:\n%s", path, unwanted, block)
+			}
+		}
+	}
+
+	wsLocation := locationBlock(t, conf, `location "/websocket-http-1-1"`)
+	for _, want := range []string{"proxy_set_header Upgrade $http_upgrade;", "proxy_set_header Connection $connection_upgrade;"} {
+		if !strings.Contains(wsLocation, want) {
+			t.Errorf("want %q in the HTTP/1.1 websocket location, got:\n%s", want, wsLocation)
+		}
+	}
+}
+
+// locationBlock returns the text of the location block starting at header, up to the start of
+// the next location block. It is a crude but sufficient way of scoping directive assertions.
+func locationBlock(t *testing.T, conf string, header string) string {
+	t.Helper()
+
+	start := strings.Index(conf, header)
+	if start == -1 {
+		t.Fatalf("no %s in generated config", header)
+	}
+
+	rest := conf[start+len(header):]
+	if end := strings.Index(rest, "\tlocation "); end != -1 {
+		return rest[:end]
+	}
+	return rest
 }

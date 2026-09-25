@@ -89,7 +89,7 @@ func hasServiceExternalNameChanges(oldSvc, curSvc *v1.Service) bool {
 	return curSvc.Spec.Type == v1.ServiceTypeExternalName && oldSvc.Spec.ExternalName != curSvc.Spec.ExternalName
 }
 
-// hasServicePortChanges only compares ServicePort.Name and .Port.
+// hasServicePortChanges compares ServicePort.Name, .Port, and .AppProtocol.
 func hasServicePortChanges(oldServicePorts []v1.ServicePort, curServicePorts []v1.ServicePort) bool {
 	if len(oldServicePorts) != len(curServicePorts) {
 		return true
@@ -100,7 +100,8 @@ func hasServicePortChanges(oldServicePorts []v1.ServicePort, curServicePorts []v
 
 	for i := range oldServicePorts {
 		if oldServicePorts[i].Port != curServicePorts[i].Port ||
-			oldServicePorts[i].Name != curServicePorts[i].Name {
+			oldServicePorts[i].Name != curServicePorts[i].Name ||
+			!reflect.DeepEqual(oldServicePorts[i].AppProtocol, curServicePorts[i].AppProtocol) {
 			return true
 		}
 	}
@@ -210,7 +211,11 @@ func (lbc *LoadBalancerController) syncService(task task) {
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, serviceKind, logNameKey, n)
-	obj, exists, err = lbc.getNamespacedInformer(ns).svcLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, exists, err = nsi.svcLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
