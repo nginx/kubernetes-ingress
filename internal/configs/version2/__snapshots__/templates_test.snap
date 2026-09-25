@@ -1859,7 +1859,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
@@ -1888,7 +1887,6 @@ server {
         client_max_body_size ;
 
         proxy_buffering off;
-        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
         proxy_pass_request_headers off;
