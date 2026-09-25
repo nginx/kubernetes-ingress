@@ -3370,3 +3370,64 @@ func TestParseConfigMapDisableForwardedHeaders(t *testing.T) {
 		})
 	}
 }
+
+func TestParseConfigMapUseForwardedHeaders(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg            string
+		data           map[string]string
+		enableSnippets bool
+		wantUsed       bool
+		wantConfigOk   bool
+	}{
+		{
+			msg:          "use-forwarded-headers true",
+			data:         map[string]string{"use-forwarded-headers": "true"},
+			wantUsed:     true,
+			wantConfigOk: true,
+		},
+		{
+			msg:          "use-forwarded-headers false",
+			data:         map[string]string{"use-forwarded-headers": "false"},
+			wantUsed:     false,
+			wantConfigOk: true,
+		},
+		{
+			msg:          "use-forwarded-headers invalid bool",
+			data:         map[string]string{"use-forwarded-headers": "notabool"},
+			wantUsed:     false,
+			wantConfigOk: false,
+		},
+		{
+			msg: "use-forwarded-headers true and disable-forwarded-headers true mutually exclusive",
+			data: map[string]string{
+				"use-forwarded-headers":     "true",
+				"disable-forwarded-headers": "true",
+			},
+			enableSnippets: true,
+			wantUsed:       false,
+			wantConfigOk:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: tc.data,
+			}
+			recorder := makeEventLogger()
+			cfgParams, configOk := ParseConfigMap(context.Background(), cm, false, false, false, false, false, tc.enableSnippets, recorder)
+			if configOk != tc.wantConfigOk {
+				t.Errorf("configOk: want %v, got %v", tc.wantConfigOk, configOk)
+			}
+			if cfgParams.UseForwardedHeaders != tc.wantUsed {
+				t.Errorf("UseForwardedHeaders: want %v, got %v", tc.wantUsed, cfgParams.UseForwardedHeaders)
+			}
+		})
+	}
+}

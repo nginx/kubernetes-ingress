@@ -1220,6 +1220,7 @@ func createLocation(p locationParams) version1.Location {
 		ProxyBusyBuffersSize:     cfg.ProxyBusyBuffersSize,
 		ProxyMaxTempFileSize:     cfg.ProxyMaxTempFileSize,
 		DisableForwardedHeaders:  cfg.DisableForwardedHeaders,
+		UseForwardedHeaders:      cfg.UseForwardedHeaders,
 		ProxySSLName:             p.proxySSLName,
 		ProxyNextUpstream:        cfg.ProxyNextUpstream,
 		ProxyNextUpstreamTimeout: cfg.ProxyNextUpstreamTimeout,
