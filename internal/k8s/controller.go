@@ -1741,11 +1741,21 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 	nl.Debugf(lbc.Logger, "Processing %v changes", len(changes))
 
 	for _, c := range changes {
-		if c.Op == AddOrUpdate {
+		switch c.Op {
+		case AddOrUpdate:
 			lbc.processAddOrUpdate(c)
-		} else if c.Op == Delete {
+		case Delete:
 			lbc.processDelete(c)
+		case UpdateStatus:
+			lbc.processStatusUpdate(c)
 		}
+	}
+}
+
+func (lbc *LoadBalancerController) processStatusUpdate(c ResourceChange) {
+	switch impl := c.Resource.(type) {
+	case *VirtualServerConfiguration:
+		lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
 	}
 }
 

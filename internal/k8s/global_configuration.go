@@ -133,6 +133,8 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 				key := getResourceKey(&impl.VirtualServer.ObjectMeta)
 
 				deletedVSKeys = append(deletedVSKeys, key)
+			} else if c.Op == UpdateStatus {
+				updatedResources = append(updatedResources, impl)
 			}
 		case *TransportServerConfiguration:
 			if c.Op == AddOrUpdate {

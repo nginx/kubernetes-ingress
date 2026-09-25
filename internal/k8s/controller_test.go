@@ -2777,6 +2777,44 @@ func TestProcessChangesDispatchesDelete(t *testing.T) {
 	})
 }
 
+func TestProcessChangesDispatchesUpdateStatusWithoutReload(t *testing.T) {
+	t.Parallel()
+
+	manager := newTestNginxManager()
+	lbc := createIngressProcessChangesController(t, manager)
+	// Skip status API writes; this test only asserts events and that NGINX is not reloaded.
+	lbc.isLeaderElectionEnabled = true
+
+	vs := createTestVirtualServer("cafe", "cafe.example.com")
+	vsConfig := NewVirtualServerConfiguration(vs, nil, nil, []string{
+		"path /coffee has conflicting subroutes on default/coffee-b and default/coffee-a",
+	})
+
+	lbc.processChanges([]ResourceChange{
+		{Op: UpdateStatus, Resource: vsConfig},
+	})
+
+	if manager.CreateCalls != 0 {
+		t.Fatalf("UpdateStatus must not write NGINX config, got %d CreateConfig call(s)", manager.CreateCalls)
+	}
+
+	recorder, ok := lbc.recorder.(*record.FakeRecorder)
+	if !ok {
+		t.Fatal("expected FakeRecorder")
+	}
+	select {
+	case e := <-recorder.Events:
+		if !strings.Contains(e, nl.EventReasonAddedOrUpdatedWithWarning) {
+			t.Errorf("expected warning event, got %q", e)
+		}
+		if !strings.Contains(e, "conflicting subroutes") {
+			t.Errorf("expected conflict warning in event, got %q", e)
+		}
+	default:
+		t.Fatal("expected a VirtualServer warning event")
+	}
+}
+
 func TestGetPodOwnerTypeAndName(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
