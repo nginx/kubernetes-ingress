@@ -324,6 +324,7 @@ type virtualServerConfigurator struct {
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
+	appProtectLoadModule       bool
 	plmEnabled                 bool
 }
 
@@ -367,6 +368,7 @@ func newVirtualServerConfigurator(
 		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
+		appProtectLoadModule:       staticParams.MainAppProtectLoadModule,
 		plmEnabled:                 staticParams.PLMEnabled,
 	}
 }
@@ -1159,6 +1161,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 	addHSTSToLocationsWithAddHeaders(policiesCfg.HSTS, locations)
 
+	if policiesCfg.OIDC != nil {
+		policiesCfg.OIDC.AppProtectLoadModule = vsc.appProtectLoadModule
+	}
+
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
 		Maps:             removeDuplicateMaps(maps),
@@ -1226,6 +1232,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		KeyVals:                 keyVals,
 		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
+		AppProtectLoadModule:    vsc.appProtectLoadModule,
 	}
 
 	return vsCfg, vsc.warnings
@@ -1238,6 +1245,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 	loc := version2.Location{
 		Path:                    fmt.Sprintf("%q", policiesCfg.ExternalAuth.URI.InternalPath),
 		Internal:                true,
+		DisableWAF:              true,
 		Snippets:                generateSnippets(true, policiesCfg.ExternalAuth.Snippets, nil),
 		ProxyPass:               fmt.Sprintf("%q", proxyPass),
 		ProxyPassRequestHeaders: true,

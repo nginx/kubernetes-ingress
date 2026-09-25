@@ -436,6 +436,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 				{
 					Path:                    `"/_external_auth/oauth2/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy-route/oauth2/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -890,6 +891,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -4204,6 +4206,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4248,6 +4251,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4295,6 +4299,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_ns1_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_ns1_my-auth/verify"`,
 				ProxyPassRequestHeaders: true,
@@ -4338,6 +4343,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\"", "proxy_set_header X-Another \"val2\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4788,6 +4794,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy/auth"`,
 					ProxyPassRequestHeaders: true,
