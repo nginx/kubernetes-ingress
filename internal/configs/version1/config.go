@@ -250,6 +250,7 @@ type Location struct {
 	ProxyNextUpstreamTries   *uint64
 	ProxyRedirectFrom        string
 	ProxyRedirectTo          string
+	ProxyHTTPVersion         string
 	// CustomHTTPErrorCodes lists the upstream status codes to intercept at this
 	// location. When non-empty, the location renders proxy_intercept_errors on;
 	// and, when the parent Server has a non-empty CustomHTTPErrorBackend, an
