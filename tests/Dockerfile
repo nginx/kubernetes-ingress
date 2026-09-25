@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.27
-FROM python:3.14-trixie@sha256:3df083612dec28cf1456da4f38064469561fc2e55da4ebf47e9f0110c62f80e2
+FROM python:3.14-trixie@sha256:0876e54cf728d89fd9d0fdaf5837b9ee879ea5fbbd6fd0cddbe5eb0cce3f5f9e
 ARG ARCH=amd64
 
 RUN apt-get update \
