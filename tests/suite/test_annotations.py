@@ -14,8 +14,10 @@ from suite.utils.resources_utils import (
     get_events,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
+    read_service,
     replace_configmap_from_yaml,
     replace_ingress,
+    replace_service,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -235,6 +237,10 @@ class TestAnnotations:
 
         assert "Strict-Transport-Security" not in result_conf
 
+        # Without nginx.org/proxy-http-version and without a Service appProtocol, the
+        # directive is omitted and NGINX applies its own default.
+        assert "proxy_http_version" not in result_conf
+
         expected_zone_size = "256k"
         if cli_arguments["ic-type"] == "nginx-plus-ingress":
             expected_zone_size = "512k"
@@ -253,6 +259,7 @@ class TestAnnotations:
                     "nginx.org/hsts-behind-proxy": "True",
                     "nginx.org/upstream-zone-size": "124k",
                     "nginx.org/proxy-set-headers": "X-Forwarded-ABC",
+                    "nginx.org/proxy-http-version": "1.0",
                 },
                 [
                     "proxy_send_timeout 10s;",
@@ -264,8 +271,10 @@ class TestAnnotations:
                     'set $hsts_header_val "max-age=2592000; preload";',
                     " 124k;",
                     'proxy_set_header X-Forwarded-ABC "$http_x_forwarded_abc";',
+                    "proxy_http_version 1.0;",
+                    "proxy_set_header Connection close;",
                 ],
-                ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;"],
+                ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;", "proxy_http_version 1.1;"],
             )
         ],
     )
@@ -302,6 +311,62 @@ class TestAnnotations:
             assert _ in result_conf
         for _ in unexpected_strings:
             assert _ not in result_conf
+
+    def test_proxy_http_version_from_service_app_protocol(
+        self, kube_apis, annotations_setup, ingress_controller_prerequisites
+    ):
+        """A Service port with appProtocol: kubernetes.io/h2c infers HTTP/2 upstreams, and the
+        nginx.org/proxy-http-version annotation takes precedence over it."""
+        try:
+            print("Case 4: appProtocol on the Service, no annotation in Ingress")
+            replace_ingresses_from_yaml(
+                kube_apis.networking_v1, annotations_setup.namespace, annotations_setup.ingress_src_file
+            )
+            wait_before_test(1)
+
+            svc = read_service(kube_apis.v1, "backend1-svc", annotations_setup.namespace)
+            svc.spec.ports[0].app_protocol = "kubernetes.io/h2c"
+            replace_service(kube_apis.v1, "backend1-svc", annotations_setup.namespace, svc)
+            wait_before_test(1)
+
+            result_conf = get_ingress_nginx_template_conf(
+                kube_apis.v1,
+                annotations_setup.namespace,
+                annotations_setup.ingress_name,
+                annotations_setup.ingress_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            assert "proxy_http_version 2;" in result_conf
+
+            print("Case 5: appProtocol on the Service overridden by the annotation")
+            new_ing = generate_ingresses_with_annotation(
+                annotations_setup.ingress_src_file, {"nginx.org/proxy-http-version": "1.1"}
+            )
+            for ing in new_ing:
+                if ing["metadata"]["name"] == annotations_setup.ingress_name:
+                    replace_ingress(
+                        kube_apis.networking_v1, annotations_setup.ingress_name, annotations_setup.namespace, ing
+                    )
+            wait_before_test(1)
+
+            result_conf = get_ingress_nginx_template_conf(
+                kube_apis.v1,
+                annotations_setup.namespace,
+                annotations_setup.ingress_name,
+                annotations_setup.ingress_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+            assert "proxy_http_version 1.1;" in result_conf
+            assert "proxy_http_version 2;" not in result_conf
+        finally:
+            # Restore the Service and the Ingress for the remaining tests in this class.
+            svc = read_service(kube_apis.v1, "backend1-svc", annotations_setup.namespace)
+            svc.spec.ports[0].app_protocol = None
+            replace_service(kube_apis.v1, "backend1-svc", annotations_setup.namespace, svc)
+            replace_ingresses_from_yaml(
+                kube_apis.networking_v1, annotations_setup.namespace, annotations_setup.ingress_src_file
+            )
+            wait_before_test(1)
 
     @pytest.mark.parametrize(
         "configmap_file, expected_strings, unexpected_strings",

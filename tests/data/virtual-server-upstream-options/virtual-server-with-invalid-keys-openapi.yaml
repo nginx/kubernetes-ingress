@@ -25,6 +25,7 @@ spec:
       size: 10
     buffer-size: 10
     buffering: 20
+    proxy-http-version: "2.0"
     tls: "yes"
     sessionCookie:
       name: True
@@ -53,6 +54,7 @@ spec:
       size: 10
     buffer-size: 10
     buffering: "yes"
+    proxy-http-version: 2
     tls: "no"
     sessionCookie:
       name: True

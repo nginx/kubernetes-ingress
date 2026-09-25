@@ -33,3 +33,14 @@ controller:
         limits:
           cpu: 250m
           memory: 256Mi
+    ipIntelligence:
+      enable: true
+      image:
+        repository: my.private.reg/nap/waf-ip-intelligence
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 125m
+          memory: 128Mi

@@ -13,7 +13,7 @@ import (
 //
 // TransportServer defines the TransportServer resource.
 type TransportServerApplyConfiguration struct {
-	metav1.TypeMetaApplyConfiguration    `json:",inline"`
+	metav1.TypeMetaApplyConfiguration    `json:""`
 	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                                 *TransportServerSpecApplyConfiguration `json:"spec,omitempty"`
 	// The status of the TransportServer resource

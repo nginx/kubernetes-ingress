@@ -2912,13 +2912,19 @@ server {
 		grpc_pass grpc://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- end}}
 		{{- else}}
-		proxy_http_version 1.1;
+		{{- if $location.ProxyHTTPVersion}}
+		proxy_http_version {{$location.ProxyHTTPVersion}};
+		{{- end}}
+		{{- if eq $location.ProxyHTTPVersion "1.0"}}
+		proxy_set_header Connection close;
+		{{- else if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
+		{{- end}}
 		{{- end}}
 		{{- if $location.LocationSnippets}}
 		{{range $value := $location.LocationSnippets}}
@@ -3586,9 +3592,15 @@ server {
         {{ $proxyOrGRPC }}_buffer_size {{ $l.ProxyBufferSize }};
             {{- end }}
             {{- if not $l.GRPCPass }}
-        proxy_http_version 1.1;
+        {{- if $l.ProxyHTTPVersion }}
+        proxy_http_version {{ $l.ProxyHTTPVersion }};
+        {{- end }}
+        {{- if eq $l.ProxyHTTPVersion "1.0" }}
+        proxy_set_header Connection close;
+        {{- else if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
+        {{- end }}
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
             {{- end }}
 

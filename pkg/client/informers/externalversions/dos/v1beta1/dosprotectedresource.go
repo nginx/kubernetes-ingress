@@ -18,11 +18,39 @@ import (
 )
 
 // DosProtectedResourceInformer provides access to a shared informer and lister for
-// DosProtectedResources.
+// DosProtectedResources. Prefer using the type-safe variant (see [TypedDosProtectedResourceInformer]).
 type DosProtectedResourceInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() dosv1beta1.DosProtectedResourceLister
 }
+
+// TypedDosProtectedResourceInformer provides access to a shared informer and lister for
+// DosProtectedResources, including the type-safe TypedInformer variant.
+// It is a superset of DosProtectedResourceInformer.
+type TypedDosProtectedResourceInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() DosProtectedResourceIndexInformer
+	Lister() dosv1beta1.DosProtectedResourceLister
+}
+
+// DosProtectedResourceIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type DosProtectedResourceIndexInformer cache.TypedSharedIndexInformer[*apisdosv1beta1.DosProtectedResource]
+
+// DosProtectedResourceHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for DosProtectedResource.
+type DosProtectedResourceHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apisdosv1beta1.DosProtectedResource]
+
+// DosProtectedResourceDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for DosProtectedResource.
+type DosProtectedResourceDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apisdosv1beta1.DosProtectedResource]
+
+// DosProtectedResourceFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for DosProtectedResource.
+type DosProtectedResourceFilteringHandler = cache.TypedFilteringResourceEventHandler[*apisdosv1beta1.DosProtectedResource]
+
+// DosProtectedResourceIndexers is a specialization of [cache.TypedIndexers] for DosProtectedResource.
+type DosProtectedResourceIndexers = cache.TypedIndexers[*apisdosv1beta1.DosProtectedResource]
+
+// DeletedDosProtectedResource is a specialization of [cache.DeletedObject] for DosProtectedResource.
+type DeletedDosProtectedResource = cache.DeletedObject[*apisdosv1beta1.DosProtectedResource]
 
 type dosProtectedResourceInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -33,25 +61,49 @@ type dosProtectedResourceInformer struct {
 // NewDosProtectedResourceInformer constructs a new informer for DosProtectedResource type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedDosProtectedResourceInformer]).
 func NewDosProtectedResourceInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewDosProtectedResourceInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedDosProtectedResourceInformer constructs a new informer for DosProtectedResource type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedDosProtectedResourceInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers DosProtectedResourceIndexers) DosProtectedResourceIndexInformer {
+	return NewTypedDosProtectedResourceInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredDosProtectedResourceInformer constructs a new informer for DosProtectedResource type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredDosProtectedResourceInformer]).
 func NewFilteredDosProtectedResourceInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewDosProtectedResourceInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedDosProtectedResourceInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredDosProtectedResourceInformer constructs a new informer for DosProtectedResource type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredDosProtectedResourceInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers DosProtectedResourceIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) DosProtectedResourceIndexInformer {
+	return NewTypedDosProtectedResourceInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewDosProtectedResourceInformerWithOptions constructs a new informer for DosProtectedResource type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedDosProtectedResourceInformerWithOptions]).
 func NewDosProtectedResourceInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedDosProtectedResourceInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedDosProtectedResourceInformerWithOptions constructs a new informer for DosProtectedResource type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedDosProtectedResourceInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) DosProtectedResourceIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "appprotectdos.f5.com", Version: "v1beta1", Resource: "dosprotectedresources"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*apisdosv1beta1.DosProtectedResource](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -84,17 +136,57 @@ func NewDosProtectedResourceInformerWithOptions(client versioned.Interface, name
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *dosProtectedResourceInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewDosProtectedResourceInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedDosProtectedResourceInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *dosProtectedResourceInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apisdosv1beta1.DosProtectedResource{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *dosProtectedResourceInformer) TypedInformer() DosProtectedResourceIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisdosv1beta1.DosProtectedResource](f.factory.InformerFor(&apisdosv1beta1.DosProtectedResource{}, f.defaultInformer))
 }
 
 func (f *dosProtectedResourceInformer) Lister() dosv1beta1.DosProtectedResourceLister {
 	return dosv1beta1.NewDosProtectedResourceLister(f.Informer().GetIndexer())
+}
+
+// ToTypedDosProtectedResourceInformer converts an untyped informer into a TypedDosProtectedResourceInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *DosProtectedResource. If that is not the case, calling type-safe methods of the returned
+// TypedDosProtectedResourceInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedDosProtectedResourceInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedDosProtectedResourceInformer(informer DosProtectedResourceInformer) TypedDosProtectedResourceInformer {
+	if informer, ok := informer.(TypedDosProtectedResourceInformer); ok {
+		return informer
+	}
+	return &dosProtectedResourceTypedInformerAdapter{informer}
+}
+
+type dosProtectedResourceTypedInformerAdapter struct {
+	DosProtectedResourceInformer
+}
+
+func (a *dosProtectedResourceTypedInformerAdapter) TypedInformer() DosProtectedResourceIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisdosv1beta1.DosProtectedResource](a.Informer())
+}
+
+// ToDosProtectedResourceIndexInformer converts an untyped informer into a DosProtectedResourceIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *DosProtectedResource. If that is not the case, calling type-safe methods of the returned
+// DosProtectedResourceIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a DosProtectedResourceIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToDosProtectedResourceIndexInformer(informer cache.SharedIndexInformer) DosProtectedResourceIndexInformer {
+	if informer, ok := informer.(DosProtectedResourceIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apisdosv1beta1.DosProtectedResource](informer)
 }

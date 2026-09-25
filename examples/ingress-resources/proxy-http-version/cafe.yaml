@@ -1,0 +1,107 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cafe-backend-config
+data:
+  default.conf: |-
+    server {
+        listen 8080;
+
+        # With HTTP/2 enabled on a cleartext listener, NGINX detects the HTTP/2 connection
+        # preface and serves the connection as cleartext HTTP/2 (h2c); any other connection
+        # is served as HTTP/1.x. The same backend can therefore be reached over HTTP/1.0,
+        # HTTP/1.1 and HTTP/2.
+        http2 on;
+
+        # Echo the protocol and the Connection header of the request received from
+        # NGINX Ingress Controller, so the upstream HTTP version is visible to the client.
+        location / {
+            default_type text/plain;
+            return 200 "Server name: $hostname\nURI: $request_uri\nUpstream protocol: $server_protocol\nConnection header: $http_connection\n";
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coffee
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: coffee
+  template:
+    metadata:
+      labels:
+        app: coffee
+    spec:
+      containers:
+        - name: coffee
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config-volume
+          configMap:
+            name: cafe-backend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coffee-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+      # No appProtocol: the upstream HTTP version is taken from the Ingress annotation,
+      # and NGINX uses HTTP/1.1 when the annotation is absent.
+  selector:
+    app: coffee
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tea
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tea
+  template:
+    metadata:
+      labels:
+        app: tea
+    spec:
+      containers:
+        - name: tea
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/nginx/conf.d
+      volumes:
+        - name: config-volume
+          configMap:
+            name: cafe-backend-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tea-svc
+spec:
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: h2c
+      # appProtocol: kubernetes.io/h2c tells NGINX Ingress Controller that this Service
+      # speaks cleartext HTTP/2, so proxy_http_version 2 is inferred for its upstream.
+      appProtocol: kubernetes.io/h2c
+  selector:
+    app: tea

@@ -258,6 +258,7 @@ type Location struct {
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
+	ProxyHTTPVersion           string
 }
 
 // ReturnLocation defines a location for returning a fixed response.

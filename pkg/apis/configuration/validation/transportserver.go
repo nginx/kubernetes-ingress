@@ -217,11 +217,15 @@ func validateLoadBalancingMethod(method string, fieldPath *field.Path, isPlus bo
 }
 
 var nginxStreamLoadBalanceValidInput = map[string]bool{
-	"round_robin":           true,
-	"least_conn":            true,
-	"random":                true,
-	"random two":            true,
-	"random two least_conn": true,
+	"round_robin":                   true,
+	"least_conn":                    true,
+	"random":                        true,
+	"random two":                    true,
+	"random two least_conn":         true,
+	"least_time connect":            true,
+	"least_time first_byte":         true,
+	"least_time last_byte":          true,
+	"least_time last_byte inflight": true,
 }
 
 var nginxPlusStreamLoadBalanceValidInput = map[string]bool{

@@ -43,22 +43,25 @@ type AppProtectLog struct {
 
 // IngressEx holds an Ingress along with the resources that are referenced in this Ingress.
 type IngressEx struct {
-	Ingress          *networking.Ingress
-	Endpoints        map[string][]string
-	HealthChecks     map[string]*api_v1.Probe
-	Policies         map[string]*conf_v1.Policy
-	ApPolRefs        map[string]*unstructured.Unstructured
-	LogConfRefs      map[string]*unstructured.Unstructured
-	PolicyWarnings   []string
-	ExternalNameSvcs map[string]bool
-	PodsByIP         map[string]PodInfo
-	ValidHosts       map[string]bool
-	ValidMinionPaths map[string]bool
-	AppProtectPolicy *unstructured.Unstructured
-	AppProtectLogs   []AppProtectLog
-	DosEx            *DosEx
-	SecretRefs       map[string]*secrets.SecretReference
-	ZoneSync         bool
+	Ingress   *networking.Ingress
+	Endpoints map[string][]string
+	// ServiceAppProtocols holds the appProtocol of the Service port backing each configured
+	// backend, keyed identically to Endpoints. Absent or unset appProtocols are not stored.
+	ServiceAppProtocols map[string]string
+	HealthChecks        map[string]*api_v1.Probe
+	Policies            map[string]*conf_v1.Policy
+	ApPolRefs           map[string]*unstructured.Unstructured
+	LogConfRefs         map[string]*unstructured.Unstructured
+	PolicyWarnings      []string
+	ExternalNameSvcs    map[string]bool
+	PodsByIP            map[string]PodInfo
+	ValidHosts          map[string]bool
+	ValidMinionPaths    map[string]bool
+	AppProtectPolicy    *unstructured.Unstructured
+	AppProtectLogs      []AppProtectLog
+	DosEx               *DosEx
+	SecretRefs          map[string]*secrets.SecretReference
+	ZoneSync            bool
 }
 
 // DosEx holds a DosProtectedResource and the dos policy and log confs it references.
@@ -583,19 +586,23 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name])
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
+			proxyHTTPVersion := ncp.ingEx.proxyHTTPVersionForBackend(cfgParams.ProxyHTTPVersion, &path.Backend, isGRPCService)
+			allWarnings.Add(warnProxyHTTPVersionConflicts(ncp.ingEx.Ingress, cfgParams.ProxyHTTPVersion, proxyHTTPVersion,
+				path.Backend.Service.Name, isGRPCService, wsServices[path.Backend.Service.Name]))
 			loc := createLocation(locationParams{
-				path:          pathOrDefault(path.Path),
-				pathType:      path.PathType,
-				upstream:      upstreams[upsName],
-				cfg:           &cfgParams,
-				serviceName:   path.Backend.Service.Name,
-				websocket:     wsServices[path.Backend.Service.Name],
-				rewrite:       rewrites[path.Backend.Service.Name],
-				rewriteTarget: rewriteTarget,
-				upstreamVhost: upstreamVhost,
-				ssl:           ssl,
-				grpc:          isGRPCService,
-				proxySSLName:  proxySSLName,
+				path:             pathOrDefault(path.Path),
+				pathType:         path.PathType,
+				upstream:         upstreams[upsName],
+				cfg:              &cfgParams,
+				serviceName:      path.Backend.Service.Name,
+				websocket:        wsServices[path.Backend.Service.Name],
+				rewrite:          rewrites[path.Backend.Service.Name],
+				rewriteTarget:    rewriteTarget,
+				upstreamVhost:    upstreamVhost,
+				ssl:              ssl,
+				grpc:             isGRPCService,
+				proxySSLName:     proxySSLName,
+				proxyHTTPVersion: proxyHTTPVersion,
 			})
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Minion egress mTLS is rendered per location to match VirtualServer route policy behavior.
@@ -723,19 +730,26 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
 			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name])
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
+			defaultBackendIsGRPC := grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name]
+			proxyHTTPVersion := ncp.ingEx.proxyHTTPVersionForBackend(cfgParams.ProxyHTTPVersion,
+				ncp.ingEx.Ingress.Spec.DefaultBackend, defaultBackendIsGRPC)
+			allWarnings.Add(warnProxyHTTPVersionConflicts(ncp.ingEx.Ingress, cfgParams.ProxyHTTPVersion, proxyHTTPVersion,
+				ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, defaultBackendIsGRPC,
+				wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name]))
 			loc := createLocation(locationParams{
-				path:          pathOrDefault("/"),
-				pathType:      new(networking.PathTypePrefix),
-				upstream:      upstreams[upsName],
-				cfg:           &cfgParams,
-				serviceName:   ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name,
-				websocket:     wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				rewrite:       rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				rewriteTarget: rewriteTarget,
-				upstreamVhost: upstreamVhost,
-				ssl:           ssl,
-				grpc:          grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				proxySSLName:  proxySSLName,
+				path:             pathOrDefault("/"),
+				pathType:         new(networking.PathTypePrefix),
+				upstream:         upstreams[upsName],
+				cfg:              &cfgParams,
+				serviceName:      ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name,
+				websocket:        wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
+				rewrite:          rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
+				rewriteTarget:    rewriteTarget,
+				upstreamVhost:    upstreamVhost,
+				ssl:              ssl,
+				grpc:             defaultBackendIsGRPC,
+				proxySSLName:     proxySSLName,
+				proxyHTTPVersion: proxyHTTPVersion,
 			})
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Keep default-backend locations aligned with other minion locations for egress mTLS overrides.
@@ -1141,6 +1155,44 @@ type locationParams struct {
 	ssl           bool
 	grpc          bool
 	proxySSLName  string
+	// proxyHTTPVersion is the already-resolved value for proxy_http_version. An empty value
+	// means the directive is not rendered, either because nothing configured it or because
+	// this is a gRPC location, which is proxied with grpc_pass.
+	proxyHTTPVersion string
+}
+
+// warnProxyHTTPVersionConflicts reports configurations that are accepted by validation but
+// cannot work: proxy_http_version has no meaning for a gRPC backend, and WebSocket relies on
+// the HTTP/1.1 Upgrade mechanism, which exists in neither HTTP/1.0 nor HTTP/2.
+func warnProxyHTTPVersionConflicts(ing *networking.Ingress, configured string, resolved string, serviceName string, isGRPC bool, isWebsocket bool) Warnings {
+	warnings := newWarnings()
+
+	if isGRPC && configured != "" {
+		warnings.AddWarningf(ing,
+			"%s is ignored for gRPC service %q; gRPC locations always use HTTP/2",
+			ProxyHTTPVersionAnnotation, serviceName)
+		return warnings
+	}
+
+	if isWebsocket && (resolved == proxyHTTPVersion10 || resolved == proxyHTTPVersion2) {
+		warnings.AddWarningf(ing,
+			"service %q is configured for WebSocket but resolves to an HTTP/%s upstream connection; WebSocket requires HTTP/1.1",
+			serviceName, resolved)
+	}
+
+	return warnings
+}
+
+// proxyHTTPVersionForBackend determines the HTTP version used for upstream connections of a
+// single Ingress location, applying the annotation > Service appProtocol > unset precedence.
+// gRPC backends are left unset: grpc_pass always uses HTTP/2 and proxy_http_version is never
+// rendered for them.
+func (ingEx *IngressEx) proxyHTTPVersionForBackend(configured string, backend *networking.IngressBackend, isGRPC bool) string {
+	if isGRPC {
+		return ""
+	}
+	key := backend.Service.Name + GetBackendPortAsString(backend.Service.Port)
+	return resolveProxyHTTPVersion(configured, ingEx.ServiceAppProtocols[key])
 }
 
 func createLocation(p locationParams) version1.Location {
@@ -1153,6 +1205,7 @@ func createLocation(p locationParams) version1.Location {
 		ProxyReadTimeout:         cfg.ProxyReadTimeout,
 		ProxySendTimeout:         cfg.ProxySendTimeout,
 		ProxySetHeaders:          cfg.ProxySetHeaders,
+		ProxyHTTPVersion:         p.proxyHTTPVersion,
 		ClientMaxBodySize:        cfg.ClientMaxBodySize,
 		ClientBodyBufferSize:     cfg.ClientBodyBufferSize,
 		Websocket:                p.websocket,

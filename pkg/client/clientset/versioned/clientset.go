@@ -15,7 +15,7 @@ import (
 )
 
 type Interface interface {
-	Discovery() discovery.DiscoveryInterface
+	Discovery() discovery.DiscoveryInterfaces
 	K8sV1() k8sv1.K8sV1Interface
 	AppprotectdosV1beta1() appprotectdosv1beta1.AppprotectdosV1beta1Interface
 	ExternaldnsV1() externaldnsv1.ExternaldnsV1Interface
@@ -45,7 +45,7 @@ func (c *Clientset) ExternaldnsV1() externaldnsv1.ExternaldnsV1Interface {
 }
 
 // Discovery retrieves the DiscoveryClient
-func (c *Clientset) Discovery() discovery.DiscoveryInterface {
+func (c *Clientset) Discovery() discovery.DiscoveryInterfaces {
 	if c == nil {
 		return nil
 	}

@@ -62,8 +62,10 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
 
 1. This means template output changed — could be intentional or regression
 2. Review the diff shown in test output
-3. If change is intentional: `make test-update-snaps` to regenerate
+3. If change is intentional: `make test-update-snaps`, then re-read `git diff -- '**/__snapshots__/**'` to confirm only the expected directives moved
 4. If change is unintentional: your template edit had side effects — fix the template
+
+**The inverse failure is more dangerous:** you edited a `.tmpl` and `make test-update-snaps` produced **no** diff. That is not a pass — it means no fixture sets the field your new branch depends on. Add the fixture in `template_test.go` / `templates_test.go` and regenerate.
 
 ## Log Locations
 

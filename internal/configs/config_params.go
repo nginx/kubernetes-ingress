@@ -45,6 +45,7 @@ type ConfigParams struct {
 	MainOtelExporterHeaderName             string
 	MainOtelExporterHeaderValue            string
 	MainOtelServiceName                    string
+	MainOtelTraceContext                   string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string
@@ -93,6 +94,7 @@ type ConfigParams struct {
 	ProxyNextUpstreamTries                 *uint64
 	ProxyRedirectFrom                      string
 	ProxyRedirectTo                        string
+	ProxyHTTPVersion                       string
 	CustomHTTPErrors                       []int
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int

@@ -444,6 +444,10 @@ var (
 			validateRequiredAnnotation,
 			validateSSLCiphersAnnotation,
 		},
+		configs.ProxyHTTPVersionAnnotation: {
+			validateRequiredAnnotation,
+			validateProxyHTTPVersionAnnotation,
+		},
 	}
 	annotationNames = sortedAnnotationNames(annotationValidations)
 )
@@ -806,6 +810,15 @@ func validateProxyNextUpstreamAnnotation(context *annotationValidationContext) f
 	}
 
 	return allErrs
+}
+
+// validateProxyHTTPVersionAnnotation validates the nginx.org/proxy-http-version annotation.
+// It shares the accepted value set with the VirtualServer upstream proxy-http-version field so
+// that the two surfaces cannot drift apart. The shared validator accepts an empty value as
+// "unset"; an annotation that is present but blank is rejected earlier in the validation
+// chain by validateRequiredAnnotation.
+func validateProxyHTTPVersionAnnotation(context *annotationValidationContext) field.ErrorList {
+	return common_validation.ValidateProxyHTTPVersion(context.value, context.fieldPath)
 }
 
 func sortedAnnotationNames(annotationValidations annotationValidationConfig) []string {
