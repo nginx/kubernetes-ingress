@@ -660,6 +660,14 @@ func (c *Configuration) DeleteVirtualServer(key string) ([]ResourceChange, []Con
 	return c.rebuildHosts()
 }
 
+// GetVirtualServer returns the last-applied VirtualServer with the given key,
+// or nil if none is tracked. Safe to call from any goroutine.
+func (c *Configuration) GetVirtualServer(key string) *conf_v1.VirtualServer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualServers[key]
+}
+
 // AddOrUpdateVirtualServerRoute adds or updates the VirtualServerRoute.
 func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServerRoute) ([]ResourceChange, []ConfigurationProblem) {
 	c.lock.Lock()
@@ -726,6 +734,14 @@ func (c *Configuration) DeleteVirtualServerRoute(key string) ([]ResourceChange, 
 	}
 
 	return c.rebuildHosts()
+}
+
+// GetVirtualServerRoute returns the last-applied VirtualServerRoute with the given key,
+// or nil if none is tracked. Safe to call from any goroutine.
+func (c *Configuration) GetVirtualServerRoute(key string) *conf_v1.VirtualServerRoute {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualServerRoutes[key]
 }
 
 // AddOrUpdateGlobalConfiguration adds or updates the GlobalConfiguration.

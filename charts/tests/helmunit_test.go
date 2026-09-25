@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
-	"github.com/gruntwork-io/terratest/modules/helm"
-	"github.com/gruntwork-io/terratest/modules/k8s"
 )
 
 func TestMain(m *testing.M) {
@@ -241,15 +239,13 @@ func TestHelmNICTemplate(t *testing.T) {
 
 	for testName, tc := range tests {
 		t.Run(testName, func(t *testing.T) {
-			options := &helm.Options{
-				KubectlOptions: k8s.NewKubectlOptions("", "", tc.namespace),
-			}
+			options := helmOptions{namespace: tc.namespace}
 
 			if tc.valuesFile != "" {
-				options.ValuesFiles = []string{tc.valuesFile}
+				options.valuesFiles = []string{tc.valuesFile}
 			}
 
-			output := helm.RenderTemplate(t, options, helmChartPath, tc.releaseName, make([]string, 0))
+			output := renderTemplate(t, helmChartPath, tc.releaseName, options)
 
 			snaps.MatchSnapshot(t, output)
 			t.Log(output)
@@ -331,14 +327,12 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 
 	for testName, tc := range negativeTests {
 		t.Run(testName, func(t *testing.T) {
-			options := &helm.Options{
-				KubectlOptions: k8s.NewKubectlOptions("", "", tc.namespace),
-			}
+			options := helmOptions{namespace: tc.namespace}
 
 			if tc.valuesFile != "" {
-				options.ValuesFiles = []string{tc.valuesFile}
+				options.valuesFiles = []string{tc.valuesFile}
 			}
-			_, err := helm.RenderTemplateE(t, options, helmChartPath, tc.releaseName, make([]string, 0))
+			_, err := renderTemplateE(helmChartPath, tc.releaseName, options)
 
 			if err == nil {
 				t.Fatalf("Expected helm template to fail for invalid configuration, but it succeeded")
@@ -368,15 +362,15 @@ func TestHelmNICNetworkPolicyLegacyValues(t *testing.T) {
 		t.Fatal("Failed to open helm chart path ../nginx-ingress")
 	}
 
-	options := &helm.Options{
-		KubectlOptions: k8s.NewKubectlOptions("", "", "default"),
-		ValuesFiles:    []string{"testdata/network-policy-legacy-values.yaml"},
+	options := helmOptions{
+		namespace:   "default",
+		valuesFiles: []string{"testdata/network-policy-legacy-values.yaml"},
 	}
 
 	// The values.schema.json types networkPolicy as "object" and rejects an
 	// explicit null; the real --reuse-values path skips this check because the
 	// key is simply absent.
-	output, err := helm.RenderTemplateE(t, options, helmChartPath, "network-policy-legacy", make([]string, 0), "--skip-schema-validation")
+	output, err := renderTemplateE(helmChartPath, "network-policy-legacy", options, "--skip-schema-validation")
 	if err != nil {
 		t.Fatalf("helm template must succeed when controller.networkPolicy is absent, got: %v", err)
 	}

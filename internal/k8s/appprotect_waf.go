@@ -160,7 +160,11 @@ func (lbc *LoadBalancerController) syncAppProtectPolicy(task task) {
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	logger := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectKind, logNameKey, n)
-	obj, polExists, err = lbc.getNamespacedInformer(ns).appProtectPolicyLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, polExists, err = nsi.appProtectPolicyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
@@ -197,7 +201,11 @@ func (lbc *LoadBalancerController) syncAppProtectLogConf(task task) {
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	logger := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectLogConfKind, logNameKey, n)
-	obj, confExists, err = lbc.getNamespacedInformer(ns).appProtectLogConfLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, confExists, err = nsi.appProtectLogConfLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
@@ -234,7 +242,11 @@ func (lbc *LoadBalancerController) syncAppProtectUserSig(task task) {
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	logger := lbc.Logger.With(logNamespaceKey, ns, logKindKey, appProtectUserSigKind, logNameKey, n)
-	obj, sigExists, err = lbc.getNamespacedInformer(ns).appProtectUserSigLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, sigExists, err = nsi.appProtectUserSigLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return

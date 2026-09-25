@@ -1228,7 +1228,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -1267,7 +1266,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -1289,7 +1287,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -1379,7 +1376,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
@@ -1426,7 +1422,6 @@ server {
         set $service "";
         status_zone "";
         rewrite "(?i)^/(latte|espresso)" /drinks/$1 break;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1470,7 +1465,6 @@ server {
         set $service "";
         status_zone "";
         rewrite "^/(coffee|tea)" /beverages/$1 break;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1514,7 +1508,6 @@ server {
         set $service "";
         status_zone "";
         rewrite "^/menu/(hot|cold)/(coffee|tea)" /drinks/$1/$2 break;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1558,7 +1551,6 @@ server {
         set $service "";
         status_zone "";
         rewrite "/cappuccino" /special/cappuccino break;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1602,7 +1594,6 @@ server {
         set $service "";
         status_zone "";
         rewrite "/mocha" /hot-drinks/mocha break;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1645,7 +1636,6 @@ server {
     location ~ "^/americano" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1688,7 +1678,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1803,7 +1792,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1852,7 +1840,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -1942,7 +1929,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
@@ -2016,7 +2002,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 10s;
@@ -2206,7 +2191,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 10s;
@@ -2321,7 +2305,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 10s;
@@ -2385,7 +2368,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2462,7 +2444,6 @@ server {
         set $service "";
         status_zone "";
         auth_oidc oidc_default_oidc_native_policy_default_cafe_ingress;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2513,7 +2494,6 @@ server {
         set $resource_name "tea-minion";
         set $resource_namespace "default";
         return 500;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2561,7 +2541,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -2578,6 +2557,221 @@ server {
         
     }
     
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithProxyHTTPVersion - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name cafe.example.com;
+
+    status_zone "cafe.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location "/unset" {
+        set $service "";
+        status_zone "";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/http-1-0" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.0;
+        proxy_set_header Connection close;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/http-1-1" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/http-2" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 2;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/websocket-http-1-0" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.0;
+        proxy_set_header Connection close;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/websocket-http-1-1" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/websocket-http-2" {
+        set $service "";
+        status_zone "";
+        proxy_http_version 2;
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/grpc" {
+        set $service "";
+        status_zone "";
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
 }
 
 ---
@@ -2608,7 +2802,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 60s;
@@ -2656,7 +2849,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 60s;
@@ -2705,7 +2897,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 60s;
@@ -2755,7 +2946,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 60s;
@@ -2804,7 +2994,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 60s;
@@ -2879,7 +3068,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
@@ -2956,7 +3144,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
@@ -3033,7 +3220,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
@@ -3110,7 +3296,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
@@ -3182,7 +3367,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
 
@@ -3209,7 +3393,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
 
@@ -3290,7 +3473,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
 
@@ -3320,7 +3502,6 @@ server {
         # location for minion default/coffee-minion
         set $resource_name "coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
 
@@ -3372,7 +3553,6 @@ server {
     location "/" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -3424,7 +3604,6 @@ server {
     location "/" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -3469,7 +3648,6 @@ server {
     location "/" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -3559,7 +3737,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
@@ -3599,7 +3776,6 @@ server {
     location ~* "^/(latte|espresso)" {
         set $service "";
         rewrite "(?i)^/(latte|espresso)" /drinks/$1 break;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -3635,7 +3811,6 @@ server {
     location ~ "^/(coffee|tea)" {
         set $service "";
         rewrite "^/(coffee|tea)" /beverages/$1 break;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -3671,7 +3846,6 @@ server {
     location ~ "^/menu/(hot|cold)/(coffee|tea)" {
         set $service "";
         rewrite "^/menu/(hot|cold)/(coffee|tea)" /drinks/$1/$2 break;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -3707,7 +3881,6 @@ server {
     location = "/cappuccino" {
         set $service "";
         rewrite "/cappuccino" /special/cappuccino break;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -3743,7 +3916,6 @@ server {
     location "/mocha" {
         set $service "";
         rewrite "/mocha" /hot-drinks/mocha break;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -3778,7 +3950,6 @@ server {
     set $service "-";
     location ~ "^/americano" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -3813,7 +3984,6 @@ server {
     set $service "-";
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -3914,7 +4084,6 @@ server {
     set $service "-";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -3956,7 +4125,6 @@ server {
     set $service "-";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -4006,7 +4174,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -4058,7 +4225,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -4277,7 +4443,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -4371,7 +4536,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -4435,7 +4599,6 @@ server {
     }
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -4479,7 +4642,6 @@ server {
     set $service "-";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -4523,7 +4685,6 @@ server {
         set $resource_name "tea-minion";
         set $resource_namespace "default";
         return 500;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -4564,7 +4725,6 @@ server {
     set $service "-";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -4584,6 +4744,202 @@ server {
 
 ---
 
+[TestExecuteTemplate_ForIngressForNGINXWithProxyHTTPVersion - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name cafe.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/unset" {
+        set $service "";
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/http-1-0" {
+        set $service "";
+        proxy_http_version 1.0;
+        proxy_set_header Connection close;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/http-1-1" {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/http-2" {
+        set $service "";
+        proxy_http_version 2;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/websocket-http-1-0" {
+        set $service "";
+        proxy_http_version 1.0;
+        proxy_set_header Connection close;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/websocket-http-1-1" {
+        set $service "";
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/websocket-http-2" {
+        set $service "";
+        proxy_http_version 2;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test;
+        
+    }
+    
+    location "/grpc" {
+        set $service "";
+        error_page 400 @grpcerror400;
+        error_page 401 @grpcerror401;
+        error_page 403 @grpcerror403;
+        error_page 404 @grpcerror404;
+        error_page 405 @grpcerror405;
+        error_page 408 @grpcerror408;
+        error_page 414 @grpcerror414;
+        error_page 426 @grpcerror426;
+        error_page 500 @grpcerror500;
+        error_page 501 @grpcerror501;
+        error_page 502 @grpcerror502;
+        error_page 503 @grpcerror503;
+        error_page 504 @grpcerror504;
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
 [TestExecuteTemplate_ForIngressForNGINXWithProxyNextUpstreamTimeout - 1]
 # configuration for default/test-ingress
 
@@ -4599,7 +4955,6 @@ server {
     set $service "-";
     location "" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -4634,7 +4989,6 @@ server {
     set $service "-";
     location "" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -4675,7 +5029,6 @@ server {
     set $service "-";
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -4717,7 +5070,6 @@ server {
     set $service "-";
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -4760,7 +5112,6 @@ server {
     set $service "-";
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -4804,7 +5155,6 @@ server {
     proxy_redirect off;
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -4847,7 +5197,6 @@ server {
     proxy_redirect http://cafe.example.com/v1/ http://cafe.example.com/coffee/;
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -4886,7 +5235,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -4908,7 +5256,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -4952,7 +5299,6 @@ server {
     }
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
@@ -4975,7 +5321,6 @@ server {
     
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
@@ -5028,7 +5373,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
@@ -5054,7 +5398,6 @@ server {
         # location for minion default/coffee-minion
         set $resource_name "coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
@@ -5098,7 +5441,6 @@ server {
     set $service "-";
     location "/" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -5135,7 +5477,6 @@ server {
     set $service "-";
     location "/" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -5185,7 +5526,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -5223,7 +5563,6 @@ server {
     location "/tea" {
         set $service "";
         add_header_inherit off;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -5267,7 +5606,6 @@ server {
         set $service "";
         status_zone "";
         add_header_inherit off;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -5313,7 +5651,6 @@ server {
     set $service "-";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -5377,7 +5714,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 10s;
@@ -5481,7 +5817,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         auth_jwt_key_file /etc/nginx/secrets/location-key.jwk;
         auth_jwt "closed site" token=$cookie_auth_token;
@@ -5528,7 +5863,6 @@ server {
     error_page 404 500 502 @custom_default_backend;
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -5581,7 +5915,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -5628,7 +5961,6 @@ server {
     proxy_intercept_errors on;
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -5675,7 +6007,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -5726,7 +6057,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -5783,7 +6113,6 @@ server {
     }
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -5856,7 +6185,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 10s;
@@ -5909,7 +6237,6 @@ server {
     set $service "-";
     location "/" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
         proxy_send_timeout 10s;
@@ -5958,7 +6285,6 @@ server {
         auth_request "/_external_auth/oauth2/auth";
         proxy_intercept_errors on;
         error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -6006,7 +6332,6 @@ server {
         set $service "";
         status_zone "";
         auth_request "/_external_auth/oauth2/auth";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -6056,7 +6381,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -6100,7 +6424,6 @@ server {
         auth_request "/_external_auth/oauth2/auth";
         proxy_intercept_errors on;
         error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -6143,7 +6466,6 @@ server {
     error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -6184,7 +6506,6 @@ server {
     auth_request "/_external_auth/oauth2/auth";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -6355,7 +6676,6 @@ server {
     set $service "-";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -6403,7 +6723,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 10s;
@@ -6453,7 +6772,6 @@ server {
         set $service "";
         status_zone "";
         rewrite "(?i)^/coffee" /new break;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -6501,7 +6819,6 @@ server {
         set $service "";
         status_zone "";
         rewrite "/coffee" /new break;
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -6543,7 +6860,6 @@ server {
     location ~* "^/coffee" {
         set $service "";
         rewrite "(?i)^/coffee" /new break;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -6584,7 +6900,6 @@ server {
     location = "/coffee" {
         set $service "";
         rewrite "/coffee" /new break;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -6635,7 +6950,6 @@ server {
     proxy_ssl_name "secure-app.example.com";
     location "/" {
         set $service "secure-app";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -6692,7 +7006,6 @@ server {
     location "/" {
         set $service "secure-app";
         status_zone "secure-app";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -6735,7 +7048,6 @@ server {
     add_header X-Content-Type-Options "nosniff";
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -6783,7 +7095,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -7369,6 +7680,279 @@ mgmt {
 
 ---
 
+[TestExecuteTemplate_ForMainForNGINXPlusWithOtel - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_otel_module.so;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+    otel_exporter {
+        endpoint https://otel-collector:4317;
+        header X-Custom-Header "custom-value";
+    }
+
+    
+    otel_service_name nginx-ingress-controller:nginx;
+    
+    otel_trace on;
+    otel_trace_context inject;
+
+    
+    
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
+[TestExecuteTemplate_ForMainForNGINXPlusWithOtelTraceContextModuleDisabled - 1]
+worker_processes  ;
+
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+load_module modules/ngx_fips_check_module.so;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    
+    
+
+    # NGINX Plus API over unix socket
+    server {
+        listen unix:/var/lib/nginx/nginx-plus-api.sock;
+        access_log off;
+
+        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
+        location /configVersionCheck {
+            if ($config_version_mismatch) {
+                return 503;
+            }
+            return 200;
+        }
+
+        location /api {
+            api write=on;
+        }
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+    
+    
+
+    map_hash_max_size ;
+    
+    include /etc/nginx/stream-conf.d/*.conf;
+}
+
+mgmt {
+    license_token /license.jwt;
+    enforce_initial_report off;
+    deployment_context /etc/nginx/reporting/tracking.info;
+}
+
+---
+
 [TestExecuteTemplate_ForMainForNGINXPlusWithoutCustomTLSPassthroughPort - 1]
 worker_processes  auto;
 worker_rlimit_nofile 65536;
@@ -7769,13 +8353,11 @@ stream {
 
 [TestExecuteTemplate_ForMainForNGINXWithOtel - 1]
 worker_processes  ;
-
 daemon off;
 
 error_log  stderr ;
 pid        /var/lib/nginx/nginx.pid;
 load_module modules/ngx_otel_module.so;
-load_module modules/ngx_fips_check_module.so;
 
 load_module modules/ngx_http_js_module.so;
 
@@ -7800,7 +8382,6 @@ http {
         default $upstream_trailer_grpc_status;
         '' $sent_http_grpc_status;
     }
-
     access_log ;
 
     sendfile        on;
@@ -7848,35 +8429,19 @@ http {
         endpoint https://otel-collector:4317;
         header X-Custom-Header "custom-value";
     }
-
-    
     otel_service_name nginx-ingress-controller:nginx;
-    
     otel_trace on;
-
-    
-    
-
-    # NGINX Plus API over unix socket
-    server {
-        listen unix:/var/lib/nginx/nginx-plus-api.sock;
-        access_log off;
-
-        # $config_version_mismatch is defined in /etc/nginx/config-version.conf
-        location /configVersionCheck {
-            if ($config_version_mismatch) {
-                return 503;
-            }
-            return 200;
-        }
-
-        location /api {
-            api write=on;
-        }
-    }
+    otel_trace_context inject;
 
     include /etc/nginx/config-version.conf;
     include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-502-server.sock;
+        access_log off;
+
+        return 502;
+    }
 
     server {
         listen unix:/var/lib/nginx/nginx-418-server.sock;
@@ -7892,18 +8457,118 @@ stream {
                       '$session_time "$ssl_preread_server_name"';
 
     access_log  /dev/stdout  stream-main;
-    
-    
 
     map_hash_max_size ;
     
+
     include /etc/nginx/stream-conf.d/*.conf;
 }
 
-mgmt {
-    license_token /license.jwt;
-    enforce_initial_report off;
-    deployment_context /etc/nginx/reporting/tracking.info;
+---
+
+[TestExecuteTemplate_ForMainForNGINXWithOtelTraceContextModuleDisabled - 1]
+worker_processes  ;
+daemon off;
+
+error_log  stderr ;
+pid        /var/lib/nginx/nginx.pid;
+
+load_module modules/ngx_http_js_module.so;
+
+events {
+    worker_connections  ;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    map_hash_max_size ;
+    map_hash_bucket_size ;
+
+    js_import /etc/nginx/njs/apikey_auth.js;
+    js_set $apikey_auth_hash apikey_auth.hash;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    map $upstream_trailer_grpc_status $grpc_status {
+        default $upstream_trailer_grpc_status;
+        '' $sent_http_grpc_status;
+    }
+    access_log ;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    keepalive_timeout ;
+    keepalive_requests 0;
+
+    #gzip  on;
+
+    server_names_hash_max_size ;
+    
+
+    variables_hash_bucket_size 0;
+    variables_hash_max_size 0;
+
+    map $request_uri $request_uri_no_args {
+        "~^(?P<path>[^?]*)(\?.*)?$" $path;
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+    map $http_upgrade $default_connection_header {
+        default "";
+    }
+    map $http_host $resource_type {
+        default "";
+    }
+    map $http_host $resource_name {
+        default "";
+    }
+    map $http_host $resource_namespace {
+        default "";
+    }
+    map $http_host $service {
+        default "";
+    }
+    map $http_upgrade $vs_connection_header {
+        default upgrade;
+        ''      $default_connection_header;
+    }
+
+    include /etc/nginx/config-version.conf;
+    include /etc/nginx/conf.d/*.conf;
+
+    server {
+        listen unix:/var/lib/nginx/nginx-502-server.sock;
+        access_log off;
+
+        return 502;
+    }
+
+    server {
+        listen unix:/var/lib/nginx/nginx-418-server.sock;
+        access_log off;
+
+        return 418;
+    }
+}
+
+stream {
+    log_format  stream-main  '$remote_addr [$time_local] '
+                      '$protocol $status $bytes_sent $bytes_received '
+                      '$session_time "$ssl_preread_server_name"';
+
+    access_log  /dev/stdout  stream-main;
+
+    map_hash_max_size ;
+    
+
+    include /etc/nginx/stream-conf.d/*.conf;
 }
 
 ---
@@ -8746,7 +9411,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -8769,7 +9433,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -8809,7 +9472,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -8835,7 +9497,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -8877,7 +9538,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -8899,7 +9559,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -8938,7 +9597,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -8960,7 +9618,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -8999,7 +9656,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9021,7 +9677,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9060,7 +9715,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9082,7 +9736,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9145,7 +9798,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9168,7 +9820,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9231,7 +9882,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9254,7 +9904,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9317,7 +9966,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9340,7 +9988,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9403,7 +10050,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9426,7 +10072,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9489,7 +10134,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9512,7 +10156,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9551,7 +10194,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9573,7 +10215,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9636,7 +10277,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9660,7 +10300,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -9704,7 +10343,6 @@ server {
         set $resource_namespace "default";
         allow 10.1.1.1/16;
         deny all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9727,7 +10365,6 @@ server {
         set $resource_namespace "default";
         allow 10.1.1.1/16;
         deny all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9769,7 +10406,6 @@ server {
         set $resource_namespace "default";
         deny 10.1.1.1/16;
         allow all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9792,7 +10428,6 @@ server {
         set $resource_namespace "default";
         deny 10.1.1.1/16;
         allow all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9834,7 +10469,6 @@ server {
         set $resource_namespace "default";
         deny 10.1.1.1/16;
         allow all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9857,7 +10491,6 @@ server {
         set $resource_namespace "default";
         deny 10.1.1.1/16;
         allow all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9899,7 +10532,6 @@ server {
         set $resource_namespace "default";
         allow 10.1.1.1/16;
         deny all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9922,7 +10554,6 @@ server {
         set $resource_namespace "default";
         allow 10.1.1.1/16;
         deny all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9967,7 +10598,6 @@ server {
         allow 10.1.0.0/16;
         allow 10.2.0.0/16;
         deny all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -9991,7 +10621,6 @@ server {
         allow 10.1.0.0/16;
         allow 10.2.0.0/16;
         deny all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10031,7 +10660,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10052,7 +10680,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10092,7 +10719,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10113,7 +10739,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10153,7 +10778,6 @@ server {
         set $resource_namespace "default";
         allow 10.0.0.0/16;
         deny all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10176,7 +10800,6 @@ server {
         set $resource_namespace "default";
         allow 10.0.0.0/16;
         deny all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10216,7 +10839,6 @@ server {
         set $resource_namespace "default";
         deny 10.0.0.0/16;
         allow all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10239,7 +10861,6 @@ server {
         set $resource_namespace "default";
         deny 10.0.0.0/16;
         allow all;
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10281,7 +10902,6 @@ server {
     error_page 404 @custom_default_backend;
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10299,7 +10919,6 @@ server {
     
     location "/tea" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10354,7 +10973,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -10374,7 +10992,6 @@ server {
     location "/tea" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -10440,7 +11057,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -10463,7 +11079,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -10507,7 +11122,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10530,7 +11144,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10577,7 +11190,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -10602,7 +11214,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -10642,7 +11253,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10663,7 +11273,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10709,7 +11318,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -10732,7 +11340,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -10771,7 +11378,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10793,7 +11399,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_connect_timeout ;
         proxy_read_timeout ;
         proxy_send_timeout ;
@@ -10838,7 +11443,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -10862,7 +11466,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout ;
         proxy_read_timeout ;
@@ -10925,7 +11528,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -10948,7 +11550,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -11011,7 +11612,6 @@ server {
         # location for minion default/cafe-ingress-coffee-minion
         set $resource_name "cafe-ingress-coffee-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
@@ -11034,7 +11634,6 @@ server {
         # location for minion default/cafe-ingress-tea-minion
         set $resource_name "cafe-ingress-tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
 
         proxy_connect_timeout 60s;
         proxy_read_timeout 60s;
