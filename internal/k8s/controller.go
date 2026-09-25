@@ -1687,6 +1687,7 @@ func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceCh
 // from a definitive post-startup snapshot; replaying the startup diff here
 // would only add redundant API calls (see the CompleteStartup comment).
 func (lbc *LoadBalancerController) refreshStaleVSRReferences() {
+ // Before ready, the startup flush writes referencedBy from the post-startup index.
 	if !lbc.reportCustomResourceStatusEnabled() || !lbc.isNginxReady {
 		return
 	}
