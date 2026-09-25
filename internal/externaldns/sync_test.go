@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
+
 	"github.com/google/go-cmp/cmp"
 	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	extdnsapi "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
@@ -337,9 +339,9 @@ func TestSync_ReturnsErrorOnFailure(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := EventRecorder{}
-			ig := make(map[string]*namespacedInformer)
+			ig := nsregistry.New[namespacedInformer]()
 			nsi := namespacedInformer{extdnslister: DNSEPLister{}}
-			ig[""] = &nsi
+			ig.Set("", &nsi)
 			fn := SyncFnFor(rec, nil, ig)
 			err := fn(context.TODO(), tc.input)
 			if err == nil {

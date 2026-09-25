@@ -235,7 +235,7 @@ func TestUpdateTransportServersStatusFromEvents_FiltersEventsByReportingControll
 			}
 
 			su := &statusUpdater{
-				namespacedInformers: nsi,
+				namespacedInformers: registryFrom(nsi),
 				confClient:          fakeConfClient,
 				keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 				logger:              nl.LoggerFromContext(context.Background()),
@@ -244,7 +244,7 @@ func TestUpdateTransportServersStatusFromEvents_FiltersEventsByReportingControll
 			lbc := &LoadBalancerController{
 				client:              fakeK8sClient,
 				ingressClass:        "nginx",
-				namespacedInformers: nsi,
+				namespacedInformers: registryFrom(nsi),
 				statusUpdater:       su,
 				Logger:              nl.LoggerFromContext(context.Background()),
 			}
@@ -275,7 +275,7 @@ func TestSyncTransportServerNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 

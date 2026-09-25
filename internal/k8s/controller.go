@@ -33,6 +33,7 @@ import (
 
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotectdos"
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
 	"github.com/nginx/kubernetes-ingress/internal/telemetry"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/rest"
@@ -176,7 +177,7 @@ type LoadBalancerController struct {
 	dynClient                     dynamic.Interface
 	restConfig                    *rest.Config
 	cacheSyncs                    []cache.InformerSynced
-	namespacedInformers           map[string]*namespacedInformer
+	namespacedInformers           *nsregistry.Registry[namespacedInformer]
 	configMapController           cache.Controller
 	mgmtConfigMapController       cache.Controller
 	globalConfigurationController cache.Controller
@@ -441,7 +442,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 
 	nl.Debugf(lbc.Logger, "Nginx Ingress Controller has class: %v", input.IngressClass)
 
-	lbc.namespacedInformers = make(map[string]*namespacedInformer)
+	lbc.namespacedInformers = nsregistry.New[namespacedInformer]()
 	for _, ns := range lbc.namespaceList {
 		if isDynamicNs && ns == "" {
 			// no initial namespaces with watched label - skip creating informers for now
@@ -623,7 +624,6 @@ type namespacedInformer struct {
 	appProtectEnabled            bool
 	appProtectDosEnabled         bool
 	stopCh                       chan struct{}
-	lock                         sync.RWMutex
 	cacheSyncs                   []cache.InformerSynced
 }
 
@@ -677,7 +677,7 @@ func (lbc *LoadBalancerController) newNamespacedInformer(ns string) (*namespaced
 		return nil, err
 	}
 
-	lbc.namespacedInformers[ns] = nsi
+	lbc.namespacedInformers.Set(ns, nsi)
 	return nsi, nil
 }
 
@@ -830,9 +830,9 @@ func (lbc *LoadBalancerController) Run() {
 		}(lbc.ctx)
 	}
 
-	for _, nif := range lbc.namespacedInformers {
+	lbc.namespacedInformers.ForEach(func(nif *namespacedInformer) {
 		nif.start()
-	}
+	})
 	if lbc.plmCredentialsSecretFactory != nil {
 		go lbc.plmCredentialsSecretFactory.Start(lbc.ctx.Done())
 	}
@@ -854,9 +854,9 @@ func (lbc *LoadBalancerController) Run() {
 
 	totalCacheSyncs := lbc.cacheSyncs
 
-	for _, nif := range lbc.namespacedInformers {
+	lbc.namespacedInformers.ForEach(func(nif *namespacedInformer) {
 		totalCacheSyncs = append(totalCacheSyncs, nif.cacheSyncs...)
-	}
+	})
 
 	nl.Debugf(lbc.Logger, "Waiting for %d caches to sync", len(totalCacheSyncs))
 
@@ -883,9 +883,9 @@ func (lbc *LoadBalancerController) Stop() {
 	if lbc.bundlePollerMgr != nil {
 		lbc.bundlePollerMgr.StopAll()
 	}
-	for _, nif := range lbc.namespacedInformers {
+	lbc.namespacedInformers.ForEach(func(nif *namespacedInformer) {
 		nif.stop()
-	}
+	})
 	lbc.syncQueue.Shutdown()
 }
 
@@ -909,22 +909,10 @@ func (nsi *namespacedInformer) stop() {
 	close(nsi.stopCh)
 }
 
+// getNamespacedInformer returns the informer group watching ns, or nil when ns
+// is not watched. Callers must nil-check the result before dereferencing it.
 func (lbc *LoadBalancerController) getNamespacedInformer(ns string) *namespacedInformer {
-	var nsi *namespacedInformer
-	var isGlobalNs bool
-	var exists bool
-
-	nsi, isGlobalNs = lbc.namespacedInformers[""]
-
-	if !isGlobalNs {
-		// get the correct namespaced informers
-		nsi, exists = lbc.namespacedInformers[ns]
-		if !exists {
-			// we are not watching this namespace
-			return nil
-		}
-	}
-	return nsi
+	return lbc.namespacedInformers.Get(ns)
 }
 
 // finds the number of currently active endpoints for the service pointing at the ingresscontroller and updates all configs that depend on that number
@@ -1241,9 +1229,16 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 // As a result, the IC will generate configuration for that resource assuming that the Secret is missing and
 // it will report warnings. (See https://github.com/nginx/kubernetes-ingress/issues/1448 )
 func (lbc *LoadBalancerController) preSyncSecrets() {
-	for _, ni := range lbc.namespacedInformers {
+	// halted preserves the existing break: the first namespace without secrets
+	// enabled stops the rest.
+	halted := false
+	lbc.namespacedInformers.ForEach(func(ni *namespacedInformer) {
+		if halted {
+			return
+		}
 		if !ni.isSecretsEnabledNamespace {
-			break
+			halted = true
+			return
 		}
 		objects := ni.secretLister.List()
 		nl.Debugf(lbc.Logger, "PreSync %d Secrets", len(objects))
@@ -1259,7 +1254,7 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 			nl.Debugf(lbc.Logger, "Adding Secret: %s/%s", secret.Namespace, secret.Name)
 			lbc.secretStore.AddOrUpdateSecret(secret)
 		}
-	}
+	})
 }
 
 func (lbc *LoadBalancerController) sync(task task) {
@@ -1433,20 +1428,17 @@ func (lbc *LoadBalancerController) sync(task task) {
 	}
 }
 
-func (lbc *LoadBalancerController) removeNamespacedInformer(nsi *namespacedInformer, key string) {
-	nsi.lock.Lock()
-	defer nsi.lock.Unlock()
-	nsi.stop()
-	delete(lbc.namespacedInformers, key)
-	nsi = nil
+// removeNamespacedInformer unregisters key, then stops the group Remove
+// returned. Remove waits for in-flight readers, so nothing is still reading it.
+func (lbc *LoadBalancerController) removeNamespacedInformer(key string) {
+	if nsi := lbc.namespacedInformers.Remove(key); nsi != nil {
+		nsi.stop()
+	}
 }
 
 func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *namespacedInformer) {
 	// if a namespace is not deleted but the label is removed: we see an update event, so we will stop watching that namespace,
 	// BUT we need to remove any configuration for resources deployed in that namespace and still maintained by us
-	nsi.lock.Lock()
-	defer nsi.lock.Unlock()
-
 	var delIngressList []string
 
 	l := lbc.Logger.With(logNamespaceKey, nsi.namespace)
@@ -1521,7 +1513,6 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 		}
 	}
 	nl.Debugf(l, "Finished cleaning up configuration for unwatched resources in namespace: %v", nsi.namespace)
-	nsi.stop()
 }
 
 func (lbc *LoadBalancerController) syncVirtualServer(task task) {
@@ -2926,9 +2917,18 @@ func latestEventEmittedByIngressController(events []api_v1.Event) (api_v1.Event,
 
 func (lbc *LoadBalancerController) updateVirtualServersStatusFromEvents() error {
 	var allErrs []error
-	for _, nsi := range lbc.namespacedInformers {
+	// Collect under the read lock; the API calls below must not run under it.
+	var groups [][]*conf_v1.VirtualServer
+	lbc.namespacedInformers.ForEach(func(nsi *namespacedInformer) {
+		var group []*conf_v1.VirtualServer
 		for _, obj := range nsi.virtualServerLister.List() {
-			vs := obj.(*conf_v1.VirtualServer)
+			group = append(group, obj.(*conf_v1.VirtualServer))
+		}
+		groups = append(groups, group)
+	})
+
+	for _, group := range groups {
+		for _, vs := range group {
 
 			if !lbc.HasCorrectIngressClass(vs) {
 				nl.Debugf(lbc.Logger, "Ignoring VirtualServer %v based on class %v", vs.Name, vs.Spec.IngressClass)
@@ -2963,9 +2963,18 @@ func (lbc *LoadBalancerController) updateVirtualServersStatusFromEvents() error 
 
 func (lbc *LoadBalancerController) updateVirtualServerRoutesStatusFromEvents() error {
 	var allErrs []error
-	for _, nsi := range lbc.namespacedInformers {
+	// Collect under the read lock; the API calls below must not run under it.
+	var groups [][]*conf_v1.VirtualServerRoute
+	lbc.namespacedInformers.ForEach(func(nsi *namespacedInformer) {
+		var group []*conf_v1.VirtualServerRoute
 		for _, obj := range nsi.virtualServerRouteLister.List() {
-			vsr := obj.(*conf_v1.VirtualServerRoute)
+			group = append(group, obj.(*conf_v1.VirtualServerRoute))
+		}
+		groups = append(groups, group)
+	})
+
+	for _, group := range groups {
+		for _, vsr := range group {
 
 			if !lbc.HasCorrectIngressClass(vsr) {
 				nl.Debugf(lbc.Logger, "Ignoring VirtualServerRoute %v based on class %v", vsr.Name, vsr.Spec.IngressClass)
@@ -3912,7 +3921,8 @@ func (lbc *LoadBalancerController) policyValidationConfig() validation.PolicyVal
 func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 	var policies []*conf_v1.Policy
 
-	for _, nsi := range lbc.namespacedInformers {
+	// Validation is in-memory, so this is safe under the read lock.
+	lbc.namespacedInformers.ForEach(func(nsi *namespacedInformer) {
 		for _, obj := range nsi.policyLister.List() {
 			pol := obj.(*conf_v1.Policy)
 
@@ -3925,7 +3935,7 @@ func (lbc *LoadBalancerController) getAllPolicies() []*conf_v1.Policy {
 
 			policies = append(policies, pol)
 		}
-	}
+	})
 
 	return policies
 }

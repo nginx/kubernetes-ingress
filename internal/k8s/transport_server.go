@@ -181,9 +181,18 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 
 func (lbc *LoadBalancerController) updateTransportServersStatusFromEvents() error {
 	var allErrs []error
-	for _, nsi := range lbc.namespacedInformers {
+	// Collect under the read lock; the API calls below must not run under it.
+	var groups [][]*conf_v1.TransportServer
+	lbc.namespacedInformers.ForEach(func(nsi *namespacedInformer) {
+		var group []*conf_v1.TransportServer
 		for _, obj := range nsi.transportServerLister.List() {
-			ts := obj.(*conf_v1.TransportServer)
+			group = append(group, obj.(*conf_v1.TransportServer))
+		}
+		groups = append(groups, group)
+	})
+
+	for _, group := range groups {
+		for _, ts := range group {
 
 			events, err := lbc.client.CoreV1().Events(ts.Namespace).List(context.TODO(),
 				meta_v1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%v,involvedObject.uid=%v", ts.Name, ts.UID)})

@@ -35,8 +35,8 @@ func TestNewController_DynamicNsSkipsEmptyNamespace(t *testing.T) {
 	if c == nil {
 		t.Fatal("expected non-nil controller")
 	}
-	if len(c.informerGroup) != 0 {
-		t.Errorf("expected empty informerGroup when namespace skipped, got %d entries", len(c.informerGroup))
+	if c.informerGroup.Len() != 0 {
+		t.Errorf("expected empty informerGroup when namespace skipped, got %d entries", c.informerGroup.Len())
 	}
 }
 
@@ -51,7 +51,7 @@ func TestNewController_WithNamespace(t *testing.T) {
 	if c == nil {
 		t.Fatal("expected non-nil controller")
 	}
-	if _, ok := c.informerGroup["default"]; !ok {
+	if c.informerGroup.Get("default") == nil {
 		t.Error("expected informerGroup to contain entry for 'default' namespace")
 	}
 }

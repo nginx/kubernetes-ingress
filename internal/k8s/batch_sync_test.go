@@ -75,7 +75,7 @@ func newBatchTestLBC(tb testing.TB, mgr nginx.Manager) *LoadBalancerController {
 		Logger:              nl.LoggerFromContext(context.Background()),
 		client:              fake.NewClientset(),
 		isNginxReady:        true,
-		namespacedInformers: map[string]*namespacedInformer{"default": nsi},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": nsi}),
 		metadata: controllerMetadata{
 			pod: &api_v1.Pod{
 				ObjectMeta: meta_v1.ObjectMeta{

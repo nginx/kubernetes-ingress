@@ -80,17 +80,15 @@ func (lbc *LoadBalancerController) syncNamespace(task task) {
 			nl.Infof(l, "Removing Configuration for Unwatched Namespace: %v", key)
 			// Watched label for namespace was removed
 			// delete any now unwatched namespaced informer groups if required
-			nsi := lbc.getNamespacedInformer(key)
-			if nsi != nil {
+			// Remove waits for in-flight readers, so the group is ours to
+			// clean up and stop once it returns
+			if nsi := lbc.namespacedInformers.Remove(key); nsi != nil {
 				lbc.cleanupUnwatchedNamespacedResources(nsi)
-				delete(lbc.namespacedInformers, key)
+				nsi.stop()
 			}
 		} else {
 			nl.Infof(l, "Deleting Watchers for Deleted Namespace: %v", key)
-			nsi := lbc.getNamespacedInformer(key)
-			if nsi != nil {
-				lbc.removeNamespacedInformer(nsi, key)
-			}
+			lbc.removeNamespacedInformer(key)
 		}
 		if lbc.certManagerController != nil {
 			lbc.certManagerController.RemoveNamespacedInformer(key)
