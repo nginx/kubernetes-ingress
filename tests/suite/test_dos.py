@@ -29,6 +29,8 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_file_contents,
     get_ingress_nginx_template_conf,
     get_nginx_template_conf,
@@ -86,6 +88,7 @@ def dos_setup(
 
     # Clean old scripts if still running
     clean_good_bad_clients()
+    e2e_run_id = generate_e2e_run_id()
 
     print(f"------------- Replace ConfigMap --------------")
     replace_configmap_from_yaml(
@@ -96,9 +99,9 @@ def dos_setup(
     )
 
     print("------------------------- Deploy Dos backend application -------------------------")
-    create_example_app(kube_apis, "dos", test_namespace)
+    create_example_app(kube_apis, "dos", test_namespace, e2e_run_id=e2e_run_id)
     req_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/"
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip,
         ingress_controller_endpoint.port,

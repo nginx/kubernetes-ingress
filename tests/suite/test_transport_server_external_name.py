@@ -7,6 +7,7 @@ from suite.utils.resources_utils import (
     create_service_from_yaml,
     delete_namespace,
     delete_service,
+    get_e2e_run_selector,
     get_events,
     get_file_contents,
     get_first_pod_name,
@@ -53,7 +54,11 @@ def ts_externalname_setup(
 
     external_svc = create_service_from_yaml(kube_apis.v1, transport_server_setup.namespace, external_svc_src)
     wait_before_test()
-    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+    ic_pod_name = get_first_pod_name(
+        kube_apis.v1,
+        ingress_controller_prerequisites.namespace,
+        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
+    )
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

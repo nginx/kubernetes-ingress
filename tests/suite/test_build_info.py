@@ -5,7 +5,12 @@ import time
 import pytest
 import yaml
 from settings import HELM_CHARTS
-from suite.utils.resources_utils import get_first_pod_name, wait_before_test, wait_until_all_pods_are_ready
+from suite.utils.resources_utils import (
+    get_e2e_run_selector,
+    get_first_pod_name,
+    wait_before_test,
+    wait_until_all_pods_are_ready,
+)
 
 
 @pytest.mark.ingresses
@@ -37,8 +42,9 @@ class TestBuildVersion:
         """
         retry = 0
         ready = False
-        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        selector = get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id)
+        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, selector)
+        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace, selector)
         while not ready:
             wait_before_test()
             try:
