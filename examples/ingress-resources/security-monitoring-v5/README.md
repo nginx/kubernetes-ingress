@@ -98,7 +98,6 @@ kubectl apply -f cafe.yaml
 
     ```console
     kubectl create secret generic nim-credentials \
-      --type=Opaque \
       --from-literal=token=<Your NIM Token>
     kubectl apply -f waf-nim.yaml
     ```
@@ -117,7 +116,6 @@ kubectl apply -f cafe.yaml
 
     ```console
     kubectl create secret generic n1c-credentials \
-      --type=Opaque \
       --from-literal=token=<Your API Token>
     kubectl apply -f waf-n1c.yaml
     ```
