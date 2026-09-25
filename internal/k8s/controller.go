@@ -1243,8 +1243,7 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 func (lbc *LoadBalancerController) preSyncSecrets() {
 	for _, ni := range lbc.namespacedInformers {
 		if !ni.isSecretsEnabledNamespace {
-			// this namespace is watched for other resources but not for
-			// Secrets, so there is nothing to preload for it
+			// watched for other resources, but not for Secrets
 			continue
 		}
 		objects := ni.secretLister.List()
@@ -1506,20 +1505,23 @@ func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *name
 	if nsi.appProtectDosEnabled {
 		lbc.cleanupUnwatchedAppDosResources(nsi)
 	}
-	for _, obj := range nsi.secretLister.List() {
-		sec := obj.(*api_v1.Secret)
-		key := getResourceKey(&sec.ObjectMeta)
-		resources := lbc.configuration.FindResourcesForSecret(sec.Namespace, sec.Name)
-		sl := lbc.Logger.With(logNamespaceKey, sec.GetNamespace(), logKindKey, secretKind, logNameKey, sec.GetName())
-		lbc.secretStore.DeleteSecret(key)
+	// A namespace without a Secrets informer has no secretLister to read.
+	if nsi.isSecretsEnabledNamespace {
+		for _, obj := range nsi.secretLister.List() {
+			sec := obj.(*api_v1.Secret)
+			key := getResourceKey(&sec.ObjectMeta)
+			resources := lbc.configuration.FindResourcesForSecret(sec.Namespace, sec.Name)
+			sl := lbc.Logger.With(logNamespaceKey, sec.GetNamespace(), logKindKey, secretKind, logNameKey, sec.GetName())
+			lbc.secretStore.DeleteSecret(key)
 
-		nl.Debugf(sl, "Deleting Secret: %v\n", key)
+			nl.Debugf(sl, "Deleting Secret: %v\n", key)
 
-		if len(resources) > 0 {
-			lbc.handleRegularSecretDeletion(resources)
-		}
-		if lbc.isSpecialSecret(key) {
-			nl.Warnf(sl, "A special TLS Secret %v was removed. Retaining the Secret.", key)
+			if len(resources) > 0 {
+				lbc.handleRegularSecretDeletion(resources)
+			}
+			if lbc.isSpecialSecret(key) {
+				nl.Warnf(sl, "A special TLS Secret %v was removed. Retaining the Secret.", key)
+			}
 		}
 	}
 	nl.Debugf(l, "Finished cleaning up configuration for unwatched resources in namespace: %v", nsi.namespace)
@@ -2626,6 +2628,8 @@ func (lbc *LoadBalancerController) syncSecret(task task) {
 	if nsi == nil {
 		return
 	}
+	// Secret tasks are only queued by the Secrets informer, which exists only
+	// for namespaces with secrets enabled, so secretLister is set here.
 	obj, secretWatched, err = nsi.secretLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)

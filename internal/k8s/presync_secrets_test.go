@@ -24,14 +24,10 @@ func secretListerForNamespace(ns string) *fakeStore {
 	}}
 }
 
-// TestPreSyncSecretsLoadsEverySecretsEnabledNamespace covers a deployment using
-// -watch-secret-namespace to watch a narrower set of namespaces for Secrets
-// than for other resources, so some informer groups have secrets disabled.
-//
-// Every namespace that does have secrets enabled must be preloaded regardless
-// of the order iteration happens to yield them in. Go randomizes map iteration
-// order per run, so this repeats to catch an order-dependent regression rather
-// than passing on a lucky ordering.
+// TestPreSyncSecretsLoadsEverySecretsEnabledNamespace covers -watch-secret-namespace
+// naming fewer namespaces than are otherwise watched, so some informer groups have
+// secrets disabled. Every enabled namespace must still be preloaded. Repeated because
+// Go randomizes map iteration order, so one run can pass on a lucky ordering.
 func TestPreSyncSecretsLoadsEverySecretsEnabledNamespace(t *testing.T) {
 	t.Parallel()
 
