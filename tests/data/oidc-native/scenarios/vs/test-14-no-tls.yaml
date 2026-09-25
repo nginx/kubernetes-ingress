@@ -1,0 +1,24 @@
+# Test 14: VS without TLS.
+#
+# Verify:
+#   - `run-test.sh 14 check` renders successfully; the server{} block listens
+#     on 80 only.
+#   - `curl -I http://${WEBAPP_HOST}/` -> 302 to Keycloak (initial redirect works).
+#   - The full browser flow will typically fail because the session cookie
+#     needs Secure over HTTPS. This test is for config-generation smoke only.
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

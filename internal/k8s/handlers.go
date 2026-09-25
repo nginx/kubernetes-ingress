@@ -5,8 +5,6 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/jinzhu/copier"
-
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
@@ -106,6 +104,40 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 	}
 }
 
+// createPLMCredentialsSecretHandlers re-enqueues PLM bundle consumers when the
+// configured opaque S3 credentials Secret changes.
+func createPLMCredentialsSecretHandlers(lbc *LoadBalancerController, credentialsKey string) cache.ResourceEventHandlerFuncs {
+	enqueue := func(obj interface{}) {
+		secret := obj.(*v1.Secret)
+		if secret.Namespace+"/"+secret.Name == credentialsKey {
+			lbc.enqueuePoliciesUsingPLMStorage(credentialsKey)
+		}
+	}
+
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: enqueue,
+		UpdateFunc: func(old, cur interface{}) {
+			if !reflect.DeepEqual(old, cur) {
+				enqueue(cur)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			secret, ok := obj.(*v1.Secret)
+			if !ok {
+				deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
+				if !ok {
+					return
+				}
+				secret, ok = deletedState.Obj.(*v1.Secret)
+				if !ok {
+					return
+				}
+			}
+			enqueue(secret)
+		},
+	}
+}
+
 func createVirtualServerHandlers(lbc *LoadBalancerController) cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -135,29 +167,6 @@ func createVirtualServerHandlers(lbc *LoadBalancerController) cache.ResourceEven
 			curVs := cur.(*conf_v1.VirtualServer)
 			oldVs := old.(*conf_v1.VirtualServer)
 			l := lbc.Logger.With(logNamespaceKey, curVs.GetNamespace(), logKindKey, virtualServerKind, logNameKey, curVs.GetName())
-			if lbc.weightChangesDynamicReload {
-				var curVsCopy, oldVsCopy conf_v1.VirtualServer
-				err := copier.CopyWithOption(&curVsCopy, curVs, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(l, "Error copying VirtualServer %v: %v for Dynamic Weight Changes", curVs.Name, err)
-					return
-				}
-
-				err = copier.CopyWithOption(&oldVsCopy, oldVs, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(lbc.Logger.With(logNamespaceKey, oldVs.GetNamespace(), logKindKey, virtualServerKind, logNameKey, oldVs.GetName()), "Error copying VirtualServer %v: %v for Dynamic Weight Changes", oldVs.Name, err)
-					return
-				}
-
-				zeroOutVirtualServerSplitWeights(&curVsCopy)
-				zeroOutVirtualServerSplitWeights(&oldVsCopy)
-
-				if reflect.DeepEqual(oldVsCopy.Spec, curVsCopy.Spec) {
-					lbc.processVSWeightChangesDynamicReload(oldVs, curVs)
-					return
-				}
-
-			}
 
 			if !reflect.DeepEqual(oldVs.Spec, curVs.Spec) {
 				nl.Debugf(l, "VirtualServer %v changed, syncing", curVs.Name)
@@ -196,30 +205,6 @@ func createVirtualServerRouteHandlers(lbc *LoadBalancerController) cache.Resourc
 			oldVsr := old.(*conf_v1.VirtualServerRoute)
 
 			l := lbc.Logger.With(logNamespaceKey, curVsr.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, curVsr.GetName())
-
-			if lbc.weightChangesDynamicReload {
-				var curVsrCopy, oldVsrCopy conf_v1.VirtualServerRoute
-				err := copier.CopyWithOption(&curVsrCopy, curVsr, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(l, "Error copying VirtualServerRoute %v: %v for Dynamic Weight Changes", curVsr.Name, err)
-					return
-				}
-
-				err = copier.CopyWithOption(&oldVsrCopy, oldVsr, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(lbc.Logger.With(logNamespaceKey, oldVsr.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, oldVsr.GetName()), "Error copying VirtualServerRoute %v: %v for Dynamic Weight Changes", oldVsr.Name, err)
-					return
-				}
-
-				zeroOutVirtualServerRouteSplitWeights(&curVsrCopy)
-				zeroOutVirtualServerRouteSplitWeights(&oldVsrCopy)
-
-				if reflect.DeepEqual(oldVsrCopy.Spec, curVsrCopy.Spec) {
-					lbc.processVSRWeightChangesDynamicReload(oldVsr, curVsr)
-					return
-				}
-
-			}
 
 			if !reflect.DeepEqual(oldVsr.Spec, curVsr.Spec) || !reflect.DeepEqual(oldVsr.Labels, curVsr.Labels) {
 				nl.Debugf(l, "VirtualServerRoute %v changed, syncing", curVsr.Name)

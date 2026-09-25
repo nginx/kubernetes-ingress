@@ -434,10 +434,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 			VSName:          "cafe",
 			Locations: []version2.Location{
 				{
-					Path:                    "/_external_auth/oauth2/auth",
+					Path:                    `"/_external_auth/oauth2/auth"`,
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_vs_exauth_default_external-auth-policy-route/oauth2/auth",
+					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy-route/oauth2/auth"`,
 					ProxyPassRequestHeaders: true,
 					ProxyPassRequestBody:    "off",
 					ProxySetHeaders: []version2.Header{
@@ -451,10 +451,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					ClientMaxBodySize:        "0",
 				},
 				{
-					Path:                     "/oauth2",
+					Path:                     `"/oauth2"`,
 					AuthRequestOff:           true,
 					ClientMaxBodySize:        "0",
-					ProxyPass:                "http://vs_default_cafe_vs_exauth_default_external-auth-policy-route",
+					ProxyPass:                `"http://vs_default_cafe_vs_exauth_default_external-auth-policy-route"`,
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
 					ProxyPassRequestHeaders:  true,
@@ -658,10 +658,10 @@ func TestGenerateVirtualServerConfigExternalAuthMultipleRoutesNoDuplicateOAuth2(
 
 	result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
 
-	// Count /oauth2 locations — there must be exactly one
+	// Count /oauth2 locations - there must be exactly one.
 	oauth2Count := 0
 	for _, loc := range result.Server.Locations {
-		if loc.Path == "/oauth2" {
+		if loc.Path == `"/oauth2"` {
 			oauth2Count++
 		}
 	}
@@ -888,10 +888,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ServiceName:              "coffee-svc",
 				},
 				{
-					Path:                    "/_external_auth/auth",
+					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute/auth",
+					ProxyPass:               `"http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute/auth"`,
 					ProxyPassRequestHeaders: true,
 					ProxyPassRequestBody:    "off",
 					ProxySetHeaders: []version2.Header{
@@ -905,9 +905,9 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ClientMaxBodySize:        "0",
 				},
 				{
-					Path:                    "/oauth2",
+					Path:                    `"/oauth2"`,
 					AuthRequestOff:          true,
-					ProxyPass:               "http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute",
+					ProxyPass:               `"http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute"`,
 					ProxyPassRequestHeaders: true,
 					ProxySetHeaders: []version2.Header{
 						{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
@@ -4202,10 +4202,10 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 				ProxyNextUpstreamTimeout: "5s",
 			},
 			expected: version2.Location{
-				Path:                    "/_ext_auth_default_my-auth",
+				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\""},
-				ProxyPass:               "http://ext_auth_default_my-auth/auth",
+				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
 				ProxyPassRequestBody:    "off",
 				ProxySetHeaders: []version2.Header{
@@ -4246,10 +4246,10 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 				ProxyNextUpstreamTimeout: "5s",
 			},
 			expected: version2.Location{
-				Path:                    "/_ext_auth_default_my-auth",
+				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
 				Snippets:                nil,
-				ProxyPass:               "https://ext_auth_default_my-auth/auth",
+				ProxyPass:               `"https://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
 				ProxyPassRequestBody:    "off",
 				ProxySetHeaders: []version2.Header{
@@ -4293,10 +4293,10 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 				ProxyNextUpstreamTimeout: "10s",
 			},
 			expected: version2.Location{
-				Path:                    "/_ext_auth_ns1_my-auth",
+				Path:                    `"/_ext_auth_ns1_my-auth"`,
 				Internal:                true,
 				Snippets:                nil,
-				ProxyPass:               "https://ext_auth_ns1_my-auth/verify",
+				ProxyPass:               `"https://ext_auth_ns1_my-auth/verify"`,
 				ProxyPassRequestHeaders: true,
 				ProxyPassRequestBody:    "off",
 				ProxySetHeaders: []version2.Header{
@@ -4336,10 +4336,10 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 				Context: context.Background(),
 			},
 			expected: version2.Location{
-				Path:                    "/_ext_auth_default_my-auth",
+				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\"", "proxy_set_header X-Another \"val2\""},
-				ProxyPass:               "http://ext_auth_default_my-auth/auth",
+				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
 				ProxyPassRequestBody:    "off",
 				ProxySetHeaders: []version2.Header{
@@ -4401,9 +4401,9 @@ func TestGenerateExternalAuthOAuth2Location(t *testing.T) {
 				ProxyNextUpstreamTimeout: "5s",
 			},
 			expected: version2.Location{
-				Path:           "/oauth2",
+				Path:           `"/oauth2"`,
 				AuthRequestOff: true,
-				ProxyPass:      "http://ext_auth_default_my-auth_signin",
+				ProxyPass:      `"http://ext_auth_default_my-auth_signin"`,
 				ProxySetHeaders: []version2.Header{
 					{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 					{Name: "Host", Value: "$host"},
@@ -4444,9 +4444,9 @@ func TestGenerateExternalAuthOAuth2Location(t *testing.T) {
 				ProxyNextUpstreamTimeout: "5s",
 			},
 			expected: version2.Location{
-				Path:           "/oauth2",
+				Path:           `"/oauth2"`,
 				AuthRequestOff: true,
-				ProxyPass:      "https://ext_auth_default_my-auth_signin",
+				ProxyPass:      `"https://ext_auth_default_my-auth_signin"`,
 				ProxySetHeaders: []version2.Header{
 					{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 					{Name: "Host", Value: "$host"},
@@ -4491,9 +4491,9 @@ func TestGenerateExternalAuthOAuth2Location(t *testing.T) {
 				ProxyNextUpstreamTimeout: "10s",
 			},
 			expected: version2.Location{
-				Path:           "/oauth2",
+				Path:           `"/oauth2"`,
 				AuthRequestOff: true,
-				ProxyPass:      "https://ext_auth_ns1_my-auth_signin",
+				ProxyPass:      `"https://ext_auth_ns1_my-auth_signin"`,
 				ProxySetHeaders: []version2.Header{
 					{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 					{Name: "Host", Value: "$host"},
@@ -4532,9 +4532,9 @@ func TestGenerateExternalAuthOAuth2Location(t *testing.T) {
 				Context: context.Background(),
 			},
 			expected: version2.Location{
-				Path:           "/oauth2",
+				Path:           `"/oauth2"`,
 				AuthRequestOff: true,
-				ProxyPass:      "http://ext_auth_default_my-auth_signin",
+				ProxyPass:      `"http://ext_auth_default_my-auth_signin"`,
 				ProxySetHeaders: []version2.Header{
 					{Name: "X-Auth-Request-Redirect", Value: "$request_uri"},
 					{Name: "Host", Value: "$host"},
@@ -4786,10 +4786,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 			},
 			Locations: []version2.Location{
 				{
-					Path:                    "/_external_auth/auth",
+					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
-					ProxyPass:               "http://vs_default_cafe_vs_exauth_default_external-auth-policy/auth",
+					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy/auth"`,
 					ProxyPassRequestHeaders: true,
 					ProxyPassRequestBody:    "off",
 					ProxySetHeaders: []version2.Header{
@@ -4803,10 +4803,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 					ClientMaxBodySize:        "0",
 				},
 				{
-					Path:                     "/oauth2",
+					Path:                     `"/oauth2"`,
 					AuthRequestOff:           true,
 					ClientMaxBodySize:        "0",
-					ProxyPass:                "http://vs_default_cafe_vs_exauth_default_external-auth-policy",
+					ProxyPass:                `"http://vs_default_cafe_vs_exauth_default_external-auth-policy"`,
 					ProxyNextUpstream:        "error timeout",
 					ProxyNextUpstreamTimeout: "0s",
 					ProxyPassRequestHeaders:  true,
@@ -4873,5 +4873,61 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 
 	if len(warnings) != 0 {
 		t.Errorf("GenerateVirtualServerConfig returned warnings: %v", vsc.warnings)
+	}
+}
+
+func TestGenerateVirtualServerConfigQuotesExternalAuthPaths(t *testing.T) {
+	t.Parallel()
+
+	vsEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			Spec: conf_v1.VirtualServerSpec{
+				Host:     "cafe.example.com",
+				Policies: []conf_v1.PolicyReference{{Name: "external-auth"}},
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
+				},
+			},
+		},
+		Policies: map[string]*conf_v1.Policy{
+			"default/external-auth": {
+				ObjectMeta: meta_v1.ObjectMeta{Name: "external-auth", Namespace: "default"},
+				Spec: conf_v1.PolicySpec{ExternalAuth: &conf_v1.ExternalAuth{
+					AuthURI:                    "/check\"; return 200; #",
+					AuthServiceName:            "auth",
+					AuthSigninURI:              "/start\"; return 200; #",
+					AuthSigninRedirectBasePath: "/oauth2\"; return 200; #",
+				}},
+			},
+		},
+	}
+
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	cfg, _ := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+	wantAuthPath := `"/_external_auth/check\"; return 200; #"`
+	wantProxyPass := `"http://vs_default_cafe_vs_exauth_default_external-auth/check\"; return 200; #"`
+	wantSigninPath := `"/oauth2\"; return 200; #"`
+	var authLocationFound, signinLocationFound bool
+	for _, location := range cfg.Server.Locations {
+		switch {
+		case location.Internal:
+			authLocationFound = location.Path == wantAuthPath && location.ProxyPass == wantProxyPass
+		case location.AuthRequestOff:
+			signinLocationFound = location.Path == wantSigninPath
+		}
+	}
+	if !authLocationFound {
+		t.Error("GenerateVirtualServerConfig() did not quote the ExternalAuth internal path and proxy URL")
+	}
+	if !signinLocationFound {
+		t.Error("GenerateVirtualServerConfig() did not quote the ExternalAuth signin redirect path")
+	}
+	if len(cfg.Server.ErrorPages) != 1 || cfg.Server.ErrorPages[0].Name != `/start\"; return 200; #` {
+		t.Errorf("GenerateVirtualServerConfig() did not escape the ExternalAuth signin URL: %+v", cfg.Server.ErrorPages)
 	}
 }

@@ -22,6 +22,67 @@ Note: Helm tests use the `//go:build helmunit` build tag -- they are only compil
 
 ---
 
+## Snapshot Tests -- MANDATORY workflow
+
+This is the single most frequently missed step. Treat it as a hard gate, not an optional cleanup.
+
+### The three snapshot packages
+
+| Package | Golden files | Covers |
+| --- | --- | --- |
+| `internal/configs/version1` | `internal/configs/version1/__snapshots__/` | Ingress templates (`nginx.tmpl`, `nginx.ingress.tmpl`, and Plus variants) |
+| `internal/configs/version2` | `internal/configs/version2/__snapshots__/` | VirtualServer / VSR / TransportServer templates (OSS + Plus) |
+| `charts/tests` | `charts/tests/__snapshots__/` | Rendered Helm manifests (terratest, `helmunit` build tag) |
+
+### Trigger table -- if you touched this, snapshots are in scope
+
+| Change | Snapshot action required |
+| --- | --- |
+| Any `*.tmpl` file | Regenerate **and** add a case that exercises the new directive |
+| Template struct field (`version1/config.go`, `version2/http.go`, `version2/stream.go`) | Add the field to the fixture used by the snapshot test, then regenerate |
+| Config generation (`internal/configs/*.go`) that changes rendered output | Regenerate; confirm the diff matches the intended output |
+| `charts/nginx-ingress/templates/**`, `values.yaml`, `_helpers.tpl` | Add `charts/tests/testdata/<feature>.yaml` + a `helmunit_test.go` case, then regenerate |
+| Deleting or renaming a snapshot test | Regenerate -- `snaps.Clean` prunes the obsolete entry from the golden file |
+
+### Required sequence
+
+1. **Add or extend a test case first.** Regenerating alone only re-records existing fixtures. If no fixture sets your new field, the golden file will never contain your directive and the feature ships untested.
+2. Run `make test-update-snaps`.
+3. Inspect what actually changed:
+
+   ```bash
+   git status --short internal/configs/version1/__snapshots__ \
+     internal/configs/version2/__snapshots__ charts/tests/__snapshots__
+   git diff -- '**/__snapshots__/**'
+   ```
+
+4. **Read the diff and confirm your directive is present** in the golden output for every edition that supports it. An empty diff after a `.tmpl` change means no fixture exercises the new branch -- go back to step 1.
+5. Run `make test` to confirm the suite is green against the regenerated files.
+6. Commit the `__snapshots__` changes in the same commit as the template change.
+
+### Edition parity -- OSS vs Plus
+
+OSS and Plus templates are separate files with separate golden entries, so decide up front which editions the feature targets:
+
+| Feature | Expected snapshot diff |
+| --- | --- |
+| Supported by both editions | Both the OSS **and** Plus golden files change |
+| Plus-only (health checks, OIDC, WAF, `zone_sync`, NGINX Plus API) | **Only** the Plus golden file changes -- the directive must never appear in OSS output |
+| OSS-only | Only the OSS golden file changes |
+
+A one-sided diff is a bug only when the feature is supposed to be shared. Never add a Plus-only directive to an OSS snapshot to "fix" a one-sided diff -- that means the directive leaked into the OSS template and NGINX OSS will fail to start.
+
+### Self-check before declaring done
+
+- [ ] Every `.tmpl` I edited has at least one snapshot case that renders the new directive.
+- [ ] The golden files changed for exactly the editions the feature supports -- both for shared features, Plus-only for Plus features.
+- [ ] No Plus-only directive appears in an OSS golden file.
+- [ ] `git diff` on `__snapshots__` is non-empty and reviewed line by line.
+- [ ] `make test` passes without `UPDATE_SNAPS`.
+- [ ] The regenerated golden files are staged for commit.
+
+---
+
 ## Go Unit Tests
 
 ### Table-Driven Tests (primary pattern)
@@ -61,9 +122,9 @@ Two conventions are in use -- both are acceptable:
 - `TestValidate<Thing>Fails` (invalid input)
 - `TestGenerate<Feature>`
 
-### Snapshot Tests (template output)
+### Snapshot Test Mechanics
 
-Every test file that uses `snaps.MatchSnapshot` must have a `TestMain` that cleans up stale snapshots:
+Every **package** that uses `snaps.MatchSnapshot` needs exactly one `TestMain` that prunes stale snapshots. It lives in a single file per package (`version1/template_test.go`, `version2/templates_test.go`, `charts/tests/helmunit_test.go`) -- do not add a second one when you create a new test file in an existing package:
 
 ```go
 func TestMain(m *testing.M) {
@@ -106,6 +167,10 @@ Add a test values file in `charts/tests/testdata/<feature>.yaml` and a correspon
 ## Python Integration Tests
 
 Location: `tests/suite/`
+
+### Markers must be registered
+
+pytest runs with `--strict-markers` (`pyproject.toml`, `[tool.pytest.ini_options] addopts`). Any new `@pytest.mark.<name>` must be added to the `markers` list in `pyproject.toml` at the repository root or the whole suite errors out. If the marker should run in CI, also add it to the relevant smoke matrix in `.github/data/matrix-smoke-*.json`.
 
 ### Test Class Pattern
 
@@ -156,10 +221,31 @@ Store YAML manifests in `tests/data/<feature>/`.
 
 ---
 
+## Generated Artifacts Verified by CI
+
+The `verify-codegen` job in `ci.yml` re-runs each generator and diffs a **specific path**. Run the matching target and commit the result:
+
+| You changed | Run | Path CI diffs |
+| --- | --- | --- |
+| `pkg/apis/**/types.go` | `make update-codegen` | `pkg/**` |
+| `pkg/apis/**` kubebuilder markers | `make update-crds` | `config/crd/bases` only |
+| Telemetry `Data` / `NICResourceCounts` in `internal/telemetry/exporter.go` | `make telemetry-schema` | `internal/telemetry` |
+| Any import / dependency | `go mod tidy` | `go.mod`, `go.sum` |
+| Any `.tmpl` or template struct | `make test-update-snaps` | not checked by `verify-codegen` -- fails in `unit-tests` instead |
+
+**The checks are path-scoped, not repository-wide.** `make update-crds` also rewrites `deploy/crds*.yaml` and `docs/crd/`, but CI never diffs those paths -- forgetting to commit them produces a green build and stale published CRD bundles. Verify them yourself with `git status` after regenerating.
+
+`charts/nginx-ingress/crds` is a **symlink** to `config/crd/bases/` -- never edit it directly.
+
+---
+
 ## Gotchas
 
 - **Always** run `make test-update-snaps` after changing any `.tmpl` file -- snapshot tests will fail otherwise
-- **Never** run raw `go test` -- use `make test` which includes required build tags
-- Snapshot golden files are in `__snapshots__/` directories -- commit the regenerated files
-- Every snapshot test file requires a `TestMain` with `snaps.Clean(m, snaps.CleanOpts{Sort: true})` -- omitting it causes stale snapshots to accumulate
+- **Regenerating is not the same as testing.** If no fixture sets your new field, the golden file will not change and the feature has zero coverage. Add the test case first
+- **Never** run raw `go test` -- use `make test` which includes required build tags (`aws`, `helmunit`)
+- Snapshot golden files are in `__snapshots__/` directories -- commit the regenerated files with the change that caused them
+- `TestMain` with `snaps.Clean(m, snaps.CleanOpts{Sort: true})` is **per package**, not per file -- adding a second one to the same package breaks the build
+- OSS and Plus templates are separate files, so they have separate snapshot entries -- a one-sided diff means you forgot the sibling template, **unless** the feature is Plus-only, in which case only the Plus golden file must change
+- New pytest markers must be registered in `pyproject.toml` -- `--strict-markers` is enabled
 - Python tests use `indirect=True` parametrize for IC + VS setup -- do not remove this

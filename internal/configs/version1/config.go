@@ -20,10 +20,12 @@ type IngressNginxConfig struct {
 	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
+	OIDCProviders           []version2.OIDCProvider
 	Ingress                 Ingress
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
+	KeyValZones             []version2.KeyValZone
 }
 
 // Ingress holds information about an Ingress resource.
@@ -115,6 +117,7 @@ type Server struct {
 	AddHeaders             []version2.AddHeader
 	Allow                  []string
 	Deny                   []string
+	OIDCProviderName       string
 	PoliciesErrorReturn    *version2.Return
 
 	HealthChecks map[string]HealthCheck
@@ -215,6 +218,7 @@ type Location struct {
 	Websocket               bool
 	Rewrite                 string
 	RewriteTarget           string
+	UpstreamVhost           string
 	SSL                     bool
 	GRPC                    bool
 	ProxyBuffering          bool
@@ -242,6 +246,7 @@ type Location struct {
 	ProxyNextUpstreamTries   *uint64
 	ProxyRedirectFrom        string
 	ProxyRedirectTo          string
+	ProxyHTTPVersion         string
 	// CustomHTTPErrorCodes lists the upstream status codes to intercept at this
 	// location. When non-empty, the location renders proxy_intercept_errors on;
 	// and, when the parent Server has a non-empty CustomHTTPErrorBackend, an
@@ -261,6 +266,7 @@ type Location struct {
 	Deny                       []string
 	WAF                        *version2.WAF
 	EgressMTLS                 *version2.EgressMTLS
+	OIDCProviderName           string
 	PoliciesErrorReturn        *version2.Return
 }
 
@@ -331,6 +337,7 @@ type MainConfig struct {
 	MainOtelExporterHeaderName         string
 	MainOtelExporterHeaderValue        string
 	MainOtelServiceName                string
+	MainOtelTraceContext               string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool

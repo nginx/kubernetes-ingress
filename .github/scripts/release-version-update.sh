@@ -20,7 +20,6 @@ FILES_TO_UPDATE_IC_VERSION=(
     "${DEPLOYMENT_PATH}/stateful-set/nginx-plus-ingress.yaml"
     "${HELM_CHART_PATH}/Chart.yaml"
     "${HELM_CHART_PATH}/values-icp.yaml"
-    "${HELM_CHART_PATH}/values-nsm.yaml"
     "${HELM_CHART_PATH}/values-plus.yaml"
     "${HELM_CHART_PATH}/values.yaml"
 )

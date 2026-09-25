@@ -278,6 +278,8 @@ func (c *Collector) PolicyCount() map[string]int {
 			policyCounters["ExternalAuth"]++
 		case spec.HSTS != nil:
 			policyCounters["HSTS"]++
+		case spec.OIDCNative != nil:
+			policyCounters["OIDCNative"]++
 		}
 	}
 	return policyCounters

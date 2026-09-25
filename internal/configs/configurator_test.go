@@ -650,6 +650,24 @@ func TestSyncDefaultServerConfigSuppressedByEmptyHostIngress(t *testing.T) {
 	}
 }
 
+func TestSyncDefaultServerConfigDoesNotSetServerZoneLabels(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+
+	err := cnf.syncDefaultServerConfig()
+	if err != nil {
+		t.Fatalf("syncDefaultServerConfig() returned error: %v", err)
+	}
+
+	if len(cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels) != 0 {
+		t.Fatalf("syncDefaultServerConfig() expected no server zone labels, got: %v", cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels)
+	}
+}
+
 func TestAddOrUpdateIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
 	t.Parallel()
 	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
@@ -1260,6 +1278,58 @@ func TestUpdateIngressMetricsLabels(t *testing.T) {
 	}
 	if !reflect.DeepEqual(testLatencyCollector, expectedLatencyCollector) {
 		t.Errorf("updateIngressMetricsLabels() updated latency collector labels to \n%+v but expected \n%+v", testLatencyCollector, expectedLatencyCollector)
+	}
+}
+
+func TestUpdateIngressMetricsLabelsUsesEmptyHostTokenForServerZone(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+	testLatencyCollector := newMockLatencyCollector()
+	cnf.latencyCollector = testLatencyCollector
+
+	ingEx := createHostlessCafeIngressEx()
+
+	// Empty-host ingresses render to zone "_", so storing labels under the empty string would miss the scrape path.
+	cnf.updateIngressMetricsLabels(&ingEx, nil)
+
+	got := cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels
+	want := map[string][]string{
+		emptyHostToken: {"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("updateIngressMetricsLabels() server zone labels mismatch (-want +got):\n%s", diff)
+	}
+	if _, exists := got[emptyHostName]; exists {
+		t.Fatalf("updateIngressMetricsLabels() stored labels for empty host key")
+	}
+}
+
+func TestDeleteEmptyHostIngressClearsServerZoneLabels(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+	testLatencyCollector := newMockLatencyCollector()
+	cnf.latencyCollector = testLatencyCollector
+
+	ingEx := createHostlessCafeIngressEx()
+	if _, err := cnf.AddOrUpdateIngress(&ingEx); err != nil {
+		t.Fatalf("AddOrUpdateIngress() returned error: %v", err)
+	}
+
+	err := cnf.DeleteIngress(generateNamespaceNameKey(&ingEx.Ingress.ObjectMeta), true)
+	if err != nil {
+		t.Fatalf("DeleteIngress() returned error: %v", err)
+	}
+
+	if len(cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels) != 0 {
+		t.Fatalf("DeleteIngress() expected server zone labels to be cleared, got: %v", cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels)
 	}
 }
 
@@ -2842,13 +2912,19 @@ server {
 		grpc_pass grpc://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- end}}
 		{{- else}}
-		proxy_http_version 1.1;
+		{{- if $location.ProxyHTTPVersion}}
+		proxy_http_version {{$location.ProxyHTTPVersion}};
+		{{- end}}
+		{{- if eq $location.ProxyHTTPVersion "1.0"}}
+		proxy_set_header Connection close;
+		{{- else if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
 		{{- if $.Keepalive}}
 		proxy_set_header Connection "";{{end}}
+		{{- end}}
 		{{- end}}
 		{{- if $location.LocationSnippets}}
 		{{range $value := $location.LocationSnippets}}
@@ -3516,9 +3592,15 @@ server {
         {{ $proxyOrGRPC }}_buffer_size {{ $l.ProxyBufferSize }};
             {{- end }}
             {{- if not $l.GRPCPass }}
-        proxy_http_version 1.1;
+        {{- if $l.ProxyHTTPVersion }}
+        proxy_http_version {{ $l.ProxyHTTPVersion }};
+        {{- end }}
+        {{- if eq $l.ProxyHTTPVersion "1.0" }}
+        proxy_set_header Connection close;
+        {{- else if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
+        {{- end }}
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
             {{- end }}
 

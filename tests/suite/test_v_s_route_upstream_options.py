@@ -67,7 +67,9 @@ class TestVSRouteUpstreamOptions:
         assert "set $default_connection_header close;" in config
         assert "proxy_set_header Upgrade $http_upgrade;" in config
         assert "proxy_set_header Connection $vs_connection_header;" in config
-        assert "proxy_http_version 1.1;" in config
+        # No upstream HTTP version is configured, so the directive is omitted and NGINX
+        # applies its own default.
+        assert "proxy_http_version" not in config
 
         assert "proxy_next_upstream error timeout;" in config
         assert "proxy_next_upstream_timeout 0s;" in config
@@ -120,6 +122,14 @@ class TestVSRouteUpstreamOptions:
                 ["ip_hash;", "proxy_connect_timeout 75s;", "proxy_read_timeout 15s;", "proxy_send_timeout 1h;"],
             ),
             (
+                {"proxy-http-version": "1.0"},
+                ["proxy_http_version 1.0;", "proxy_set_header Connection close;"],
+            ),
+            (
+                {"proxy-http-version": "1.1"},
+                ["proxy_http_version 1.1;"],
+            ),
+            (
                 {"connect-timeout": "1m", "read-timeout": "1m", "send-timeout": "1s"},
                 ["proxy_connect_timeout 1m;", "proxy_read_timeout 1m;", "proxy_send_timeout 1s;"],
             ),
@@ -148,7 +158,7 @@ class TestVSRouteUpstreamOptions:
                     },
                 },
                 [
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly secure path=/some-valid/path;",
+                    'sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly secure "path=/some-valid/path";',
                 ],
             ),
         ],
@@ -549,6 +559,7 @@ class TestVSRouteUpstreamOptionsValidation:
             "buffer-size",
             "buffering",
             "tls",
+            "proxy-http-version",
             "sessionCookie.name",
             "sessionCookie.path",
             "sessionCookie.expires",
@@ -608,7 +619,7 @@ class TestOptionsSpecificForPlus:
                     "queue": {"size": 100},
                 },
                 [
-                    "health_check uri=/  port=8080 interval=5s jitter=0s fails=1 passes=1 keepalive_time=60s;",
+                    'health_check "uri=/"  port=8080 interval=5s jitter=0s fails=1 passes=1 keepalive_time=60s;',
                     "slow_start=3h",
                     "queue 100 timeout=60s;",
                 ],
@@ -643,7 +654,7 @@ class TestOptionsSpecificForPlus:
                     "proxy_send_timeout 55s;",
                     'proxy_set_header Host "virtual-server.example.com";',
                     "proxy_pass https://vs",
-                    "health_check uri=/health  port=8080 interval=15s jitter=3s fails=2 passes=2 match=vs_backends-namespace_virtual-server-route_vsr_backend2-namespace_backend2_backend2_match keepalive_time=120s;",
+                    'health_check "uri=/health"  port=8080 interval=15s jitter=3s fails=2 passes=2 match=vs_backends-namespace_virtual-server-route_vsr_backend2-namespace_backend2_backend2_match keepalive_time=120s;',
                 ],
             ),
         ],

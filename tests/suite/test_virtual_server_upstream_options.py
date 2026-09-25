@@ -67,7 +67,9 @@ class TestVirtualServerUpstreamOptions:
         assert "set $default_connection_header close;" in config
         assert "proxy_set_header Upgrade $http_upgrade;" in config
         assert "proxy_set_header Connection $vs_connection_header;" in config
-        assert "proxy_http_version 1.1;" in config
+        # No upstream HTTP version is configured, so the directive is omitted and NGINX
+        # applies its own default.
+        assert "proxy_http_version" not in config
 
         assert "proxy_next_upstream error timeout;" in config
         assert "proxy_next_upstream_timeout 0s;" in config
@@ -120,6 +122,14 @@ class TestVirtualServerUpstreamOptions:
                 ["ip_hash;", "proxy_connect_timeout 75s;", "proxy_read_timeout 15s;", "proxy_send_timeout 1h;"],
             ),
             (
+                {"proxy-http-version": "1.0"},
+                ["proxy_http_version 1.0;", "proxy_set_header Connection close;"],
+            ),
+            (
+                {"proxy-http-version": "1.1"},
+                ["proxy_http_version 1.1;"],
+            ),
+            (
                 {"connect-timeout": "1m", "read-timeout": "1m", "send-timeout": "1s"},
                 ["proxy_connect_timeout 1m;", "proxy_read_timeout 1m;", "proxy_send_timeout 1s;"],
             ),
@@ -149,7 +159,7 @@ class TestVirtualServerUpstreamOptions:
                     },
                 },
                 [
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=strict secure path=/some-valid/path;",
+                    'sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=strict secure "path=/some-valid/path";',
                 ],
             ),
             (
@@ -166,7 +176,7 @@ class TestVirtualServerUpstreamOptions:
                     },
                 },
                 [
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=lax secure path=/some-valid/path;",
+                    'sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=lax secure "path=/some-valid/path";',
                 ],
             ),
             (
@@ -183,7 +193,7 @@ class TestVirtualServerUpstreamOptions:
                     },
                 },
                 [
-                    "sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=none secure path=/some-valid/path;",
+                    'sticky cookie TestCookie expires=max domain=virtual-server-route.example.com httponly samesite=none secure "path=/some-valid/path";',
                 ],
             ),
         ],
@@ -507,6 +517,7 @@ class TestVirtualServerUpstreamOptionValidation:
             "buffer-size",
             "buffering",
             "tls",
+            "proxy-http-version",
             "sessionCookie.name",
             "sessionCookie.path",
             "sessionCookie.expires",
@@ -567,7 +578,7 @@ class TestOptionsSpecificForPlus:
                     "ntlm": True,
                 },
                 [
-                    "health_check uri=/ interval=5s jitter=0s",
+                    'health_check "uri=/" interval=5s jitter=0s',
                     "fails=1 passes=1",
                     "mandatory  persistent",
                     "keepalive_time=60s;",
@@ -600,7 +611,7 @@ class TestOptionsSpecificForPlus:
                     "ntlm": True,
                 },
                 [
-                    "health_check uri=/health  port=8080 interval=15s jitter=3s fails=2 passes=2 match=",
+                    'health_check "uri=/health"  port=8080 interval=15s jitter=3s fails=2 passes=2 match=',
                     "proxy_pass https://vs",
                     "status 200;",
                     "proxy_connect_timeout 35s;",

@@ -38,6 +38,9 @@ const PathRegexAnnotation = "nginx.org/path-regex"
 // RewriteTargetAnnotation is the annotation where the regex-based rewrite target is specified.
 const RewriteTargetAnnotation = "nginx.org/rewrite-target"
 
+// UpstreamVhostAnnotation is the annotation where the Host header value sent to the upstream is specified.
+const UpstreamVhostAnnotation = "nginx.org/upstream-vhost"
+
 // SSLCiphersAnnotation is the annotation where SSL ciphers are specified.
 const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
 
@@ -104,6 +107,9 @@ const ProxyRedirectToAnnotation = "nginx.org/proxy-redirect-to"
 // them via error_page to the Ingress's spec.defaultBackend when one is configured.
 const CustomHTTPErrorsAnnotation = "nginx.org/custom-http-errors"
 
+// ProxyHTTPVersionAnnotation is the annotation for specifying the HTTP version to use when proxying requests to upstream servers.
+const ProxyHTTPVersionAnnotation = "nginx.org/proxy-http-version"
+
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
@@ -168,6 +174,8 @@ var minionInheritanceList = map[string]bool{
 	"nginx.org/limit-req-log-level":      true,
 	"nginx.org/limit-req-reject-code":    true,
 	"nginx.org/limit-req-scale":          true,
+	UpstreamVhostAnnotation:              true,
+	ProxyHTTPVersionAnnotation:           true,
 }
 
 var validPathRegex = map[string]bool{
@@ -301,12 +309,20 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 		}
 	}
 
-	if proxyHideHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-hide-headers", ingEx.Ingress, ","); exists {
-		cfgParams.ProxyHideHeaders = proxyHideHeaders
+	if proxyHideHeaders, exists := ingEx.Ingress.Annotations["nginx.org/proxy-hide-headers"]; exists {
+		if parsedProxyHideHeaders, err := ParseHeaderList(proxyHideHeaders); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-hide-headers: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyHideHeaders, err)
+		} else {
+			cfgParams.ProxyHideHeaders = parsedProxyHideHeaders
+		}
 	}
 
-	if proxyPassHeaders, exists := GetMapKeyAsStringSlice(ingEx.Ingress.Annotations, "nginx.org/proxy-pass-headers", ingEx.Ingress, ","); exists {
-		cfgParams.ProxyPassHeaders = proxyPassHeaders
+	if proxyPassHeaders, exists := ingEx.Ingress.Annotations["nginx.org/proxy-pass-headers"]; exists {
+		if parsedProxyPassHeaders, err := ParseHeaderList(proxyPassHeaders); err != nil {
+			nl.Errorf(l, "Ingress %s/%s: Invalid value nginx.org/proxy-pass-headers: got %q: %v", ingEx.Ingress.GetNamespace(), ingEx.Ingress.GetName(), proxyPassHeaders, err)
+		} else {
+			cfgParams.ProxyPassHeaders = parsedProxyPassHeaders
+		}
 	}
 
 	if proxySetHeaders, exists := ingEx.Ingress.Annotations[ProxySetHeadersAnnotation]; exists {
@@ -335,6 +351,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		}
 		cfgParams.ProxyNextUpstreamTries = &proxyNextUpstreamTries
+	}
+
+	if proxyHTTPVersion, exists := ingEx.Ingress.Annotations[ProxyHTTPVersionAnnotation]; exists {
+		cfgParams.ProxyHTTPVersion = proxyHTTPVersion
 	}
 
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
@@ -734,6 +754,15 @@ func getRewriteTarget(ctx context.Context, ingEx *IngressEx) (string, Warnings) 
 	}
 
 	if value, exists := ingEx.Ingress.Annotations[RewriteTargetAnnotation]; exists {
+		return value, warnings
+	}
+	return "", warnings
+}
+
+func getUpstreamVhost(ingEx *IngressEx) (string, Warnings) {
+	warnings := newWarnings()
+
+	if value, exists := ingEx.Ingress.Annotations[UpstreamVhostAnnotation]; exists {
 		return value, warnings
 	}
 	return "", warnings

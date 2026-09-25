@@ -1,0 +1,61 @@
+# Test 5: Policy on VS spec, different policy on a VSR subroute.
+#
+# Verify:
+#   - `run-test.sh 5 check` shows two oidc_provider blocks; VS routes carry
+#     policy1, /vsr/alt carries policy2, /vsr/default inherits policy1.
+#   - Browse /             -> clientID=nginx-plus
+#   - Browse /vsr/default  -> clientID=nginx-plus (inherited)
+#   - Browse /vsr/alt      -> clientID=nginx-plus-2
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidcnative-policy-2
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus-2
+    clientSecret: oidcnative-secret
+    scope: openid profile
+    sslVerify: false
+    postLogoutRedirectURI: /_logout
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: oidcnative-policy
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp
+    - path: /vsr
+      route: default/webapp-vsr
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: webapp-vsr
+spec:
+  host: webapp.example.com
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  subroutes:
+    - path: /vsr/default
+      action:
+        pass: webapp
+    - path: /vsr/alt
+      policies:
+        - name: oidcnative-policy-2
+      action:
+        pass: webapp

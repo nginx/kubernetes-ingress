@@ -274,7 +274,7 @@ func TestValidateStringWithVariablesFail(t *testing.T) {
 
 func TestValidateSize(t *testing.T) {
 	t.Parallel()
-	validInput := []string{"", "4k", "8K", "16m", "32M"}
+	validInput := []string{"", "4k", "8K", "16m", "32M", " 4k ", "\t8K\t"}
 	for _, test := range validInput {
 		allErrs := validateSize(test, field.NewPath("size-field"))
 		if len(allErrs) != 0 {
@@ -282,7 +282,7 @@ func TestValidateSize(t *testing.T) {
 		}
 	}
 
-	invalidInput := []string{"55mm", "2mG", "6kb", "-5k", "1L", "5G"}
+	invalidInput := []string{"55mm", "2mG", "6kb", "-5k", "1L", "5G", "8k\n", "8k\r", "8k\u00a0"}
 	for _, test := range invalidInput {
 		allErrs := validateSize(test, field.NewPath("size-field"))
 		if len(allErrs) == 0 {
@@ -396,6 +396,7 @@ func TestValidatePath(t *testing.T) {
 		"/abc;",
 		`/path\`,
 		`/path\n`,
+		"/foo\u0085bar",
 		`//path`,
 		`/path/../`,
 		`/../`,

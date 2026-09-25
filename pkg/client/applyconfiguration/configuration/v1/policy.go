@@ -13,7 +13,7 @@ import (
 //
 // Policy defines a Policy for VirtualServer and VirtualServerRoute resources.
 type PolicyApplyConfiguration struct {
-	metav1.TypeMetaApplyConfiguration    `json:",inline"`
+	metav1.TypeMetaApplyConfiguration    `json:""`
 	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                                 *PolicySpecApplyConfiguration `json:"spec,omitempty"`
 	// the status of the Policy resource
