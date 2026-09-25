@@ -242,6 +242,8 @@ type Location struct {
 
 	AuthRequestOff bool
 	Internal       bool
+	// DisableWAF marks subrequest targets such as the ExternalAuth location.
+	DisableWAF bool
 
 	MinionIngress *Ingress
 

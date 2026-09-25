@@ -207,8 +207,10 @@ type Dos struct {
 
 // Location defines a location.
 type Location struct {
-	Path                       string
-	Internal                   bool
+	Path     string
+	Internal bool
+	// DisableWAF marks subrequest targets; splits/matches internal locations carry client traffic and must keep WAF.
+	DisableWAF                 bool
 	Snippets                   []string
 	ProxyConnectTimeout        string
 	ProxyReadTimeout           string

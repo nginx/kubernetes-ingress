@@ -997,6 +997,7 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 	loc := version1.Location{
 		Path:                     externalAuth.URI.InternalPath,
 		Internal:                 true,
+		DisableWAF:               true,
 		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName, externalAuth.URI.Path),
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),

@@ -5398,6 +5398,7 @@ func TestGenerateIngressExternalAuthLocation(t *testing.T) {
 	expected := version1.Location{
 		Path:                     "/_ext_auth_default_my-auth",
 		Internal:                 true,
+		DisableWAF:               true,
 		ProxyPass:                "http://ext_auth_default_my-auth/auth",
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      "10s",

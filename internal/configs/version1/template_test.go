@@ -168,6 +168,7 @@ func TestExecuteTemplate_ForIngressForNGINXPlus_DisablesWAFOnInternalLocations(t
 					{
 						Path:        "/_external_auth/authsvc",
 						Internal:    true,
+						DisableWAF:  true,
 						ProxyPass:   "http://ext-auth-authsvc/verify",
 						ServiceName: "authsvc",
 					},
@@ -213,6 +214,53 @@ func TestExecuteTemplate_ForIngressForNGINXPlus_DisablesWAFOnInternalLocations(t
 			t.Errorf("missing app_protect_enable off; inside external auth location\nrendered slice:\n%s", out[idx:end])
 		}
 		snaps.MatchSnapshot(t, buf.String())
+	})
+
+	t.Run("module loaded disables WAF on OIDC native proxy location", func(t *testing.T) {
+		t.Parallel()
+		tmpl := newNGINXPlusIngressTmpl(t)
+		buf := &bytes.Buffer{}
+		cfg := baseCfg
+		cfg.AppProtectLoadModule = true
+		cfg.OIDCProviders = []version2.OIDCProvider{{
+			Name:            "default_oidc",
+			Issuer:          "https://idp.example.com",
+			ClientID:        "nic",
+			ClientSecret:    "secret",
+			ProxyLocation:   "/_oidc_idp_default_oidc",
+			ProxyBufferSize: "32k",
+		}}
+		if err := tmpl.Execute(buf, cfg); err != nil {
+			t.Fatal(err)
+		}
+		out := buf.Bytes()
+		idx := bytes.Index(out, []byte("location = /_oidc_idp_default_oidc"))
+		if idx < 0 {
+			t.Fatalf("OIDC native proxy location missing:\n%s", out)
+		}
+		body := out[idx:]
+		if end := bytes.Index(body, []byte("}")); end >= 0 {
+			body = body[:end]
+		}
+		if !bytes.Contains(body, []byte("app_protect_enable off;")) {
+			t.Errorf("missing app_protect_enable off; inside OIDC native proxy location:\n%s", body)
+		}
+	})
+
+	t.Run("internal location without DisableWAF keeps WAF", func(t *testing.T) {
+		t.Parallel()
+		tmpl := newNGINXPlusIngressTmpl(t)
+		buf := &bytes.Buffer{}
+		cfg := baseCfg
+		cfg.AppProtectLoadModule = true
+		cfg.Servers = []Server{baseCfg.Servers[0]}
+		cfg.Servers[0].Locations = []Location{{Path: "/_internal", Internal: true, ServiceName: "svc", Upstream: Upstream{Name: "test-upstream"}}}
+		if err := tmpl.Execute(buf, cfg); err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(buf.Bytes(), []byte("app_protect_enable off;")) {
+			t.Errorf("app_protect_enable off; must only be emitted for DisableWAF locations:\n%s", buf.String())
+		}
 	})
 }
 

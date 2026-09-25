@@ -396,6 +396,9 @@ server {
     location = {{ $p.ProxyLocation }} {
         internal;
         auth_oidc off;
+        {{- if $.AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         client_max_body_size 0;
         proxy_pass $oidc_idp_request_uri;
         proxy_ssl_server_name on;
@@ -426,9 +429,9 @@ server {
 		{{- end}}
 		{{- if $location.Internal}}
 		internal;
-		{{- if $.AppProtectLoadModule}}
-		app_protect_enable off;
 		{{- end}}
+		{{- if and $.AppProtectLoadModule $location.DisableWAF}}
+		app_protect_enable off;
 		{{- end}}
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}

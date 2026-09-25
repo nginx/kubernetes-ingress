@@ -1245,6 +1245,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 	loc := version2.Location{
 		Path:                    fmt.Sprintf("%q", policiesCfg.ExternalAuth.URI.InternalPath),
 		Internal:                true,
+		DisableWAF:              true,
 		Snippets:                generateSnippets(true, policiesCfg.ExternalAuth.Snippets, nil),
 		ProxyPass:               fmt.Sprintf("%q", proxyPass),
 		ProxyPassRequestHeaders: true,

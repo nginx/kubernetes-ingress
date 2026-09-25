@@ -1400,6 +1400,7 @@ func TestExecuteVirtualServerTemplate_DisablesWAFOnInternalLocationsWhenAppProte
 				{
 					Path:        "/_external_auth/authsvc",
 					Internal:    true,
+					DisableWAF:  true,
 					ProxyPass:   "http://vs_default_ext_auth_authsvc/verify",
 					ServiceName: "authsvc",
 				},
@@ -1456,6 +1457,107 @@ func TestExecuteVirtualServerTemplate_DisablesWAFOnInternalLocationsWhenAppProte
 		}
 		snaps.MatchSnapshot(t, string(got))
 	})
+}
+
+// locationBody returns the rendered text from marker up to the next location block.
+func locationBody(t *testing.T, out []byte, marker string) []byte {
+	t.Helper()
+	idx := bytes.Index(out, []byte(marker))
+	if idx < 0 {
+		t.Fatalf("marker %q missing from rendered template:\n%s", marker, out)
+	}
+	rest := out[idx+len(marker):]
+	if next := bytes.Index(rest, []byte("location ")); next >= 0 {
+		rest = rest[:next]
+	}
+	return append([]byte(marker), rest...)
+}
+
+func TestExecuteVirtualServerTemplate_KeepsWAFOnSplitsAndMatchesLocations(t *testing.T) {
+	t.Parallel()
+
+	waf := &WAF{Enable: "on", ApBundle: "/fake/bundle/path/NginxDefaultPolicy.tgz"}
+	routingLocations := func(locWAF *WAF) []Location {
+		return []Location{
+			{Path: "/internal_location_splits_0_split_0", Internal: true, ProxyPass: "http://upstream1$request_uri", ServiceName: "svc", WAF: locWAF},
+			{Path: "/internal_location_matches_0_match_0", Internal: true, ProxyPass: "http://upstream1$request_uri", ServiceName: "svc", WAF: locWAF},
+			{Path: "/internal_location_matches_0_default", Internal: true, ProxyPass: "http://upstream1$request_uri", ServiceName: "svc", WAF: locWAF},
+		}
+	}
+	markers := []string{
+		`location "/internal_location_splits_0_split_0"`,
+		`location "/internal_location_matches_0_match_0"`,
+		`location "/internal_location_matches_0_default"`,
+	}
+
+	tests := []struct {
+		name      string
+		serverWAF *WAF
+		locWAF    *WAF
+		wantOn    int
+	}{
+		{name: "server-level WAF is inherited", serverWAF: waf, wantOn: 0},
+		{name: "route-level WAF renders exactly one directive", locWAF: waf, wantOn: 1},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := VirtualServerConfig{
+				AppProtectLoadModule: true,
+				Upstreams:            []Upstream{{Name: "upstream1", Servers: []UpstreamServer{{Address: "10.0.0.20:8001"}}}},
+				Server: Server{
+					ServerName: "example.com",
+					StatusZone: "example.com",
+					WAF:        tc.serverWAF,
+					Locations:  routingLocations(tc.locWAF),
+				},
+			}
+			got, err := newTmplExecutorNGINXPlus(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+			for _, m := range markers {
+				body := locationBody(t, got, m)
+				if bytes.Contains(body, []byte("app_protect_enable off;")) {
+					t.Errorf("%s must not disable WAF:\n%s", m, body)
+				}
+				if n := bytes.Count(body, []byte("app_protect_enable ")); n != tc.wantOn {
+					t.Errorf("%s: want %d app_protect_enable directives, got %d:\n%s", m, tc.wantOn, n, body)
+				}
+			}
+		})
+	}
+}
+
+func TestExecuteVirtualServerTemplate_DisablesWAFOnOIDCNativeProxyLocation(t *testing.T) {
+	t.Parallel()
+
+	for _, loaded := range []bool{false, true} {
+		t.Run(fmt.Sprintf("module loaded %t", loaded), func(t *testing.T) {
+			t.Parallel()
+			cfg := VirtualServerConfig{
+				AppProtectLoadModule: loaded,
+				OIDCProviders: []OIDCProvider{{
+					Name:            "default_oidc",
+					Issuer:          "https://idp.example.com",
+					ClientID:        "nic",
+					ClientSecret:    "secret",
+					ProxyLocation:   "/_oidc_idp_default_oidc",
+					ProxyBufferSize: "32k",
+				}},
+				Server: Server{ServerName: "example.com", StatusZone: "example.com"},
+			}
+			got, err := newTmplExecutorNGINXPlus(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatalf("Failed to execute template: %v", err)
+			}
+			body := locationBody(t, got, "location = /_oidc_idp_default_oidc")
+			if has := bytes.Contains(body, []byte("app_protect_enable off;")); has != loaded {
+				t.Errorf("app_protect_enable off; present=%t, want %t:\n%s", has, loaded, body)
+			}
+		})
+	}
 }
 
 func TestExecuteOIDCTemplate_DisablesWAFOnInternalLocationsWhenAppProtectLoaded(t *testing.T) {
