@@ -1662,32 +1662,8 @@ func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceCh
 	}
 }
 
-// refreshStaleVSRReferences writes Status.ReferencedBy for every
-// VirtualServerRoute whose set of referencing VirtualServers changed in the
-// most recent rebuildHosts() pass (Configuration.GetVirtualServerRoutesWithChangedReferences).
-//
-// This exists because a VS being added, deleted, or edited to no longer
-// select a hostless VSR does not necessarily change the *other* VSs that
-// still reference that VSR -- so nothing else re-renders them, and nothing
-// else would otherwise refresh the now-stale referencedBy list. See
-// vsrsWithChangedRefs for the full rationale.
-//
-// It must run before the caller processes changes/problems for this batch:
-// UpdateVirtualServerRouteReferencedBy only touches the referencedBy field
-// and leaves state/reason/message untouched, so if a VS that still
-// references the VSR is also being re-rendered in this same batch, that
-// render's full status write (which reflects the current, authoritative
-// state) must be free to happen afterwards without being reverted by a
-// stale read here.
-//
-// A no-op during startup: reportCustomResourceStatusEnabled gates all VS/VSR
-// status writes, and isNginxReady gates this specifically because
-// CompleteStartup's exhaustive per-VS status pass (see updateAllConfigs via
-// updateResourcesStatusAndEvents) already writes referencedBy for every VSR
-// from a definitive post-startup snapshot; replaying the startup diff here
-// would only add redundant API calls (see the CompleteStartup comment).
 func (lbc *LoadBalancerController) refreshStaleVSRReferences() {
- // Before ready, the startup flush writes referencedBy from the post-startup index.
+	// Before ready, the startup flush writes referencedBy from the post-startup index.
 	if !lbc.reportCustomResourceStatusEnabled() || !lbc.isNginxReady {
 		return
 	}
