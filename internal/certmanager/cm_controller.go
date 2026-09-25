@@ -18,7 +18,6 @@ package certmanager
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -37,6 +36,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	vsinformers "github.com/nginx/kubernetes-ingress/pkg/client/informers/externalversions"
@@ -62,7 +62,7 @@ type CmController struct {
 	sync          SyncFn
 	ctx           context.Context
 	queue         workqueue.TypedRateLimitingInterface[types.NamespacedName]
-	informerGroup map[string]*namespacedInformer
+	informerGroup *nsregistry.Registry[namespacedInformer]
 	recorder      record.EventRecorder
 	cmClient      *cm_clientset.Clientset
 	kubeClient    kubernetes.Interface
@@ -88,7 +88,6 @@ type namespacedInformer struct {
 	vsLister                  listers_v1.VirtualServerLister
 	cmLister                  cmlisters.CertificateLister
 	stopCh                    chan struct{}
-	lock                      sync.RWMutex
 }
 
 func (c *CmController) register() workqueue.TypedRateLimitingInterface[types.NamespacedName] {
@@ -120,7 +119,7 @@ func (c *CmController) newNamespacedInformer(ns string) (*namespacedInformer, er
 		return nil, fmt.Errorf("failed to add event handlers for namespace %s: %w", ns, err)
 	}
 
-	c.informerGroup[ns] = nsi
+	c.informerGroup.Set(ns, nsi)
 	return nsi, nil
 }
 
@@ -145,10 +144,17 @@ func (c *CmController) processItem(ctx context.Context, key types.NamespacedName
 	namespace := key.Namespace
 	name := key.Name
 
-	nsi := getNamespacedInformer(namespace, c.informerGroup)
-
 	var vs *conf_v1.VirtualServer
-	vs, err := nsi.vsLister.VirtualServers(namespace).Get(name)
+	var err error
+	watched := c.informerGroup.WithInformer(namespace, func(nsi *namespacedInformer) {
+		vs, err = nsi.vsLister.VirtualServers(namespace).Get(name)
+	})
+	if !watched {
+		// the namespace stopped being watched between the item being queued
+		// and it being processed, so there is nothing left to reconcile
+		nl.Debugf(l, "Skipping VirtualServer %s/%s: namespace %s is not watched", namespace, name, namespace)
+		return nil
+	}
 
 	// VS has been deleted
 	if apierrors.IsNotFound(err) {
@@ -207,7 +213,7 @@ func NewCmController(opts *CmOpts) (*CmController, error) {
 		return nil, fmt.Errorf("failed to create cert-manager client: %w", err)
 	}
 
-	ig := make(map[string]*namespacedInformer)
+	ig := nsregistry.New[namespacedInformer]()
 
 	cm := &CmController{
 		ctx:           opts.context,
@@ -246,10 +252,10 @@ func (c *CmController) Run(stopCh <-chan struct{}) {
 	nl.Info(l, "Starting cert-manager control loop")
 
 	var mustSync []cache.InformerSynced
-	for _, ig := range c.informerGroup {
+	c.informerGroup.ForEach(func(ig *namespacedInformer) {
 		ig.start()
 		mustSync = append(mustSync, ig.mustSync...)
-	}
+	})
 	// wait for all the informer caches we depend on are synced
 
 	nl.Debugf(l, "Waiting for %d caches to sync", len(mustSync))
@@ -263,9 +269,9 @@ func (c *CmController) Run(stopCh <-chan struct{}) {
 
 	<-stopCh
 	nl.Debugf(l, "shutting down queue as workqueue signaled shutdown")
-	for _, ig := range c.informerGroup {
+	c.informerGroup.ForEach(func(ig *namespacedInformer) {
 		ig.stop()
-	}
+	})
 	c.queue.ShutDown()
 }
 
@@ -311,7 +317,7 @@ func (c *CmController) runWorker(ctx context.Context) {
 func (c *CmController) AddNewNamespacedInformer(ns string) {
 	l := nl.LoggerFromContext(c.ctx)
 	nl.Debugf(l, "Adding or Updating cert-manager Watchers for Namespace: %v", ns)
-	nsi := getNamespacedInformer(ns, c.informerGroup)
+	nsi := c.informerGroup.Get(ns)
 	if nsi == nil {
 		var err error
 		nsi, err = c.newNamespacedInformer(ns)
@@ -330,12 +336,8 @@ func (c *CmController) AddNewNamespacedInformer(ns string) {
 func (c *CmController) RemoveNamespacedInformer(ns string) {
 	l := nl.LoggerFromContext(c.ctx)
 	nl.Debugf(l, "Deleting cert-manager Watchers for Deleted Namespace: %v", ns)
-	nsi := getNamespacedInformer(ns, c.informerGroup)
-	if nsi != nil {
-		nsi.lock.Lock()
-		defer nsi.lock.Unlock()
+	// Remove waits for in-flight readers, so nothing is still reading it
+	if nsi := c.informerGroup.Remove(ns); nsi != nil {
 		nsi.stop()
-		delete(c.informerGroup, ns)
-		nsi = nil
 	}
 }

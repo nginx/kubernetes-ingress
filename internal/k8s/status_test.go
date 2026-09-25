@@ -54,7 +54,7 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 	nsi := make(map[string]*namespacedInformer)
 	nsi["default"] = &namespacedInformer{transportServerLister: tsLister}
 	su := statusUpdater{
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		confClient:          fakeClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:              slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
@@ -121,7 +121,7 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 	nsi["default"] = &namespacedInformer{transportServerLister: tsLister}
 	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	su := statusUpdater{
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		confClient:          fakeClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:              l,
@@ -183,7 +183,7 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 
 	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	su := statusUpdater{
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		confClient:          fakeClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		externalEndpoints: []conf_v1.ExternalEndpoint{
@@ -212,7 +212,7 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 
 func newTestStatusUpdater() statusUpdater {
 	return statusUpdater{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:              slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
 	}
@@ -365,7 +365,7 @@ func TestStatusUpdateWithExternalStatusAndExternalService(t *testing.T) {
 		namespace:             "namespace",
 		externalServiceName:   "service-name",
 		externalStatusAddress: "123.123.123.123",
-		namespacedInformers:   nsi,
+		namespacedInformers:   registryFrom(nsi),
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:                l,
 	}
@@ -483,7 +483,7 @@ func TestStatusUpdateWithExternalStatusAndIngressLink(t *testing.T) {
 		client:                fakeClient,
 		namespace:             "namespace",
 		externalStatusAddress: "",
-		namespacedInformers:   nsi,
+		namespacedInformers:   registryFrom(nsi),
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:                l,
 	}
