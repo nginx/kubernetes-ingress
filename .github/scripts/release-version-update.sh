@@ -9,6 +9,8 @@ DEPLOYMENT_PATH="${ROOTDIR}/deployments"
 EXAMPLES_PATH="${ROOTDIR}/examples"
 DEBUG=${DEBUG:-"false"}
 
+LTS=${LTS:-"false"}
+
 FILES_TO_UPDATE_IC_VERSION=(
     "${ROOTDIR}/.github/data/version.txt"
     "${ROOTDIR}/README.md"
@@ -29,26 +31,36 @@ FILE_TO_UPDATE_HELM_CHART_VERSION=(
 )
 
  usage() {
-    echo "Usage: $0 <current_ic_version> <current_helm_chart_version> <current_operator_version> <new_ic_version> <new_helm_chart_version> <new_operator_version>"
-    exit 1
- }
+    if [ "${LTS}" != "false" ]; then
+        echo "Usage: LTS=true $0 <current_ic_version> <current_helm_chart_version> <new_ic_version> <new_helm_chart_version>"
+    else
+        echo "Usage: $0 <current_ic_version> <current_helm_chart_version> <current_operator_version> <new_ic_version> <new_helm_chart_version> <new_operator_version>"
+    fi
 
-current_ic_version=$1
-current_helm_chart_version=$2
-current_operator_version=$3
-new_ic_version=$4
-new_helm_chart_version=$5
-new_operator_version=$6
+    exit 1
+}
+
+if [ "${LTS}" != "false" ]; then
+    current_ic_version=$1
+    current_helm_chart_version=$2
+    new_ic_version=$3
+    new_helm_chart_version=$4
+    current_operator_version=""
+    new_operator_version=""
+else
+    current_ic_version=$1
+    current_helm_chart_version=$2
+    current_operator_version=$3
+    new_ic_version=$4
+    new_helm_chart_version=$5
+    new_operator_version=$6
+fi
 
 if [ -z "${current_ic_version}" ]; then
     usage
 fi
 
 if [ -z "${current_helm_chart_version}" ]; then
-    usage
-fi
-
-if [ -z "${current_operator_version}" ]; then
     usage
 fi
 
@@ -60,14 +72,19 @@ if [ -z "${new_helm_chart_version}" ]; then
     usage
 fi
 
-if [ -z "${new_operator_version}" ]; then
-    usage
+if [ "${LTS}" == "false" ]; then
+    if [ -z "${current_operator_version}" ]; then
+        usage
+    fi
+
+    if [ -z "${new_operator_version}" ]; then
+        usage
+    fi
 fi
 
 
 escaped_current_ic_version=$(printf '%s' "$current_ic_version" | sed -e 's/\./\\./g');
 escaped_current_helm_chart_version=$(printf '%s' "$current_helm_chart_version" | sed -e 's/\./\\./g');
-escaped_current_operator_version=$(printf '%s' "$current_operator_version" | sed -e 's/\./\\./g');
 
 echo "Updating versions: "
 echo "ic_version: ${current_ic_version} -> ${new_ic_version}"
@@ -76,7 +93,17 @@ echo "operator_version: ${current_operator_version} -> ${new_operator_version}"
 
 regex_ic="s#$escaped_current_ic_version#$new_ic_version#g"
 regex_helm="s#$escaped_current_helm_chart_version#$new_helm_chart_version#g"
-regex_operator="s#$escaped_current_operator_version#$new_operator_version#g"
+
+if [ "${LTS}" == "false" ]; then
+    escaped_current_operator_version=$(printf '%s' "$current_operator_version" | sed -e 's/\./\\./g');
+    echo "operator_version: ${current_operator_version} -> ${new_operator_version}"
+    regex_operator="s#$escaped_current_operator_version#$new_operator_version#g"
+else
+    echo "operator_version: skipped (LTS release has no operator)"
+    # An empty sed expression is a no-op, so the examples pipeline below stays
+    # identical in both modes.
+    regex_operator=""
+fi
 
 mv "${HELM_CHART_PATH}/values.schema.json" "${TMPDIR}/"
 jq --arg version "${new_ic_version}" \
@@ -138,7 +165,7 @@ done
 
 # insert new IC version into bug report template immediately after the "- edge" entry
 bug_report="${ROOTDIR}/.github/ISSUE_TEMPLATE/BUG-REPORT.yml"
-if [ -f "${bug_report}" ]; then
+if [ "${LTS}" == "false" ] && [ -f "${bug_report}" ]; then
     if [ "${DEBUG}" != "false" ]; then
         echo "Processing ${bug_report}"
     fi
@@ -152,6 +179,63 @@ if [ -f "${bug_report}" ]; then
             mv "${TMPDIR}/${file_name}" "${bug_report}"
             exit 2
         fi
+    fi
+fi
+
+UPDATE_TECH_SPECS=${UPDATE_TECH_SPECS:-"true"}
+TECH_SPECS_JSON=${TECH_SPECS_JSON:-"${ROOTDIR}/.github/scripts/tech-specs.json"}
+K8S_VERSIONS=${K8S_VERSIONS:-""}
+NGINX_VERSION=${NGINX_VERSION:-""}
+RELEASE_DATE=${RELEASE_DATE:-""}
+NAP_WAF_VERSION=${NAP_WAF_VERSION:-""}
+NAP_WAF_RELEASE_VERSION=${NAP_WAF_RELEASE_VERSION:-""}
+
+if [ "${UPDATE_TECH_SPECS}" != "false" ]; then
+    if [ -z "${K8S_VERSIONS}" ] || [ -z "${NGINX_VERSION}" ]; then
+        echo "ERROR: UPDATE_TECH_SPECS is enabled but K8S_VERSIONS and/or NGINX_VERSION is unset"
+        echo "       set both, or pass UPDATE_TECH_SPECS=false to skip the tech-specs refresh"
+        exit 2
+    fi
+
+    echo "Updating $(basename "${TECH_SPECS_JSON}"): ${current_ic_version} -> ${new_ic_version}"
+
+    # Built as an array so every value stays individually quoted -- this replaces
+    # the fragile "${{ x && format('--flag \"{0}\"', x) || '' }}" YAML pattern.
+    tech_specs_args=(
+        --json-file "${TECH_SPECS_JSON}"
+        --json-only
+        --update-json
+        --current-nic-version "${current_ic_version}"
+        --current-helm-version "${current_helm_chart_version}"
+    )
+
+    if [ "${LTS}" != "false" ]; then
+        tech_specs_args+=(--lts)
+        tech_specs_args+=(--lts-helm-version "${new_helm_chart_version}")
+        tech_specs_args+=(--nginx-plus-version "${NGINX_VERSION}")
+        tech_specs_args+=(--lts-release-date "${RELEASE_DATE}")
+    else
+        tech_specs_args+=(--current-operator-version "${current_operator_version}")
+        if [ -n "${NAP_WAF_RELEASE_VERSION}" ]; then
+            tech_specs_args+=(--nap-waf-release-version "${NAP_WAF_RELEASE_VERSION}")
+        fi
+    fi
+
+    if [ "${DEBUG}" != "false" ]; then
+        tech_specs_args+=(--verbose)
+    fi
+
+    # Positional: ic_version k8s_versions nginx_version docs_root [nap_waf_version]
+    # docs_root is deliberately empty: --json-only never touches the docs repo.
+    tech_specs_args+=("${new_ic_version}" "${K8S_VERSIONS}" "${NGINX_VERSION}" "")
+
+    if [ "${LTS}" == "false" ] && [ -n "${NAP_WAF_VERSION}" ]; then
+        tech_specs_args+=("${NAP_WAF_VERSION}")
+    fi
+
+    if ! python3 "${ROOTDIR}/.github/scripts/tech-specs-update.py" "${tech_specs_args[@]}"; then
+        echo "ERROR: failed updating ${TECH_SPECS_JSON}"
+        exit 2
     fi
 fi
 

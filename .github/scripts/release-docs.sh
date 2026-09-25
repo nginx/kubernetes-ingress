@@ -11,26 +11,50 @@ DOCS_REPO=${DOCS_REPO:-"nginx/documentation"}
 GITHUB_USERNAME=${GITHUB_USERNAME:-""}
 GITHUB_EMAIL=${GITHUB_EMAIL:-""}
 RELEASE_BRANCH_PREFIX=${RELEASE_BRANCH_PREFIX:-"nic-release-"}
+LTS=${LTS:-"false"}
+if [ "${LTS}" == "false" ]; then
+    CHANGELOG_DIR=${CHANGELOG_DIR:-"content/nic/changelog"}
+else
+    CHANGELOG_DIR=${CHANGELOG_DIR:-"content/nic/lts"}
+fi
 export GH_TOKEN=${GITHUB_TOKEN:-""}
 
  usage() {
-    echo "Usage: $0 <ic_version> <previous_version> <helm_chart_version> <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version>] [<nap_waf_release_version>]"
+    if [ "${LTS}" != "false" ]; then
+        echo "Usage: LTS=true $0 <lts_version> <previous_version> <helm_chart_version> <k8s_versions> <nginx_version> <release_date>"
+    else
+        echo "Usage: $0 <ic_version> <previous_version> <helm_chart_version> <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version>] [<nap_waf_release_version>]"
+    fi
     exit 1
+
  }
 
  # clone local doc repo
  # if branch for the release doesnt exist, create it, otherwise checkout
 
 DOCS_FOLDER=${TMPDIR}/documentation
-ic_version=$1
-previous_version=$2
-helm_chart_version=$3
-operator_version=$4
-k8s_versions=$5
-nginx_version=$6
-release_date=$7
-NAP_WAF_VERSION=${8:-}
-NAP_WAF_RELEASE_VERSION=${9:-}
+
+if [ "${LTS}" != "false" ]; then
+    ic_version=$1
+    previous_version=$2
+    helm_chart_version=$3
+    k8s_versions=$4
+    nginx_version=$5
+    release_date=$6
+    operator_version=""
+    NAP_WAF_VERSION=""
+    NAP_WAF_RELEASE_VERSION=""
+else
+    ic_version=$1
+    previous_version=$2
+    helm_chart_version=$3
+    operator_version=$4
+    k8s_versions=$5
+    nginx_version=$6
+    release_date=$7
+    NAP_WAF_VERSION=${8:-}
+    NAP_WAF_RELEASE_VERSION=${9:-}
+fi
 
 if [ -z "${ic_version}" ]; then
     usage
@@ -48,7 +72,7 @@ if [ -z "${k8s_versions}" ]; then
     usage
 fi
 
-if [ -z "${operator_version}" ]; then
+if [ "${LTS}" == "false" ] && [ -z "${operator_version}" ]; then
     usage
 fi
 
@@ -144,8 +168,13 @@ if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Cloned doc repo to ${DOCS_FOLDER} and changed directory"
 fi
 
-# Generate branch name using major.minor version (e.g., nic-release-5.2)
-branch=${RELEASE_BRANCH_PREFIX}${ic_version%.*}
+# Generate branch name from release series (e.g., nic-release-5.2, nic-release-2026-lts)
+if [ "${LTS}" != "false" ]; then
+    branch=${RELEASE_BRANCH_PREFIX}${ic_version%-r*}
+else
+    branch=${RELEASE_BRANCH_PREFIX}${ic_version%.*}
+fi
+
 if [ "${DEBUG}" != "false" ]; then
     echo "DEBUG: Generated branch name: ${branch} (from version ${ic_version})"
 fi
@@ -173,69 +202,98 @@ if [ -z "${release_year}" ]; then
     exit 2
 fi
 
-# Determine what year the current _index.md represents
-index_file_path=${DOCS_FOLDER}/content/nic/changelog/_index.md
-
-if [ "${DEBUG}" != "false" ]; then
-    echo "DEBUG: Attempting to detect current changelog year from ${index_file_path}"
+# Determine what changelog file to use
+if [ "${LTS}" == "false" ]; then
+    index_file_path=${DOCS_FOLDER}/${CHANGELOG_DIR}/_index.md
+else
+    index_file_path=${DOCS_FOLDER}/${CHANGELOG_DIR}/changelog.md
 fi
 
-# First: look for "releases in 2025" in the header
-current_year=$(grep "releases in" "${index_file_path}" | grep -o "[0-9]\{4\}" | head -1)
-if [ "${DEBUG}" != "false" ] && [ -n "${current_year}" ]; then
-    echo "DEBUG: Found year in header text: ${current_year}"
-fi
-
-# Second: if that fails, look for year in release date entries
-if [ -z "${current_year}" ]; then
-    current_year=$(grep -oE "[0-9]{1,2} [A-Z][a-z]+ [0-9]{4}" "${index_file_path}" | grep -o "[0-9]\{4\}" | head -1)
-    if [ "${DEBUG}" != "false" ] && [ -n "${current_year}" ]; then
-        echo "DEBUG: Found year in release date entries: ${current_year}"
-    fi
-fi
-
-# Third: if both fail, assume it's the previous year as a safe fallback
-if [ -z "${current_year}" ]; then
-    current_year=$((release_year - 1))
-    if [ "${DEBUG}" != "false" ]; then
-        echo "DEBUG: No year found in changelog, using fallback: ${current_year}"
-    fi
-fi
-
-if [ "${DEBUG}" != "false" ]; then
-    echo "DEBUG: Current index year: ${current_year}, Release year: ${release_year}"
-fi
-
-# Compare release year vs current index year
-# If different years: archive current year's releases and create new index
-# If same year: just add to existing index
-if [ "${release_year}" != "${current_year}" ]; then
-    # New year - archive current year and start fresh
-    echo "INFO: New year detected (${release_year}). Archiving ${current_year} and creating new index."
-
-    # Create archive file with Hugo frontmatter for the current year's releases
-    archive_file=${DOCS_FOLDER}/content/nic/changelog/${current_year}.md
+if [ "${LTS}" != "false" ]; then
+    # LTS uses a single changelog.md with no year-based archiving.
     cp "${index_file_path}" "${TMPDIR}/temp_index.md"
+    insert_line=$(grep -n "^## " "${TMPDIR}/temp_index.md" | head -1 | cut -d: -f1)
 
-    # Update weights in existing archive files (bump each by 100 to make room for new archive at 100)
-    if [ "${DEBUG}" != "false" ]; then
-        echo "DEBUG: Updating weights in existing archive files"
-    fi
-    for existing_archive in ${DOCS_FOLDER}/content/nic/changelog/[0-9][0-9][0-9][0-9].md; do
-        if [ -f "${existing_archive}" ]; then
-            # Extract current weight and add 100
-            current_weight=$(grep "^weight:" "${existing_archive}" | sed 's/^weight:[[:space:]]*//')
-            new_weight=$((current_weight + 100))
-            sed -i.bak "s/^weight: *${current_weight}/weight: ${new_weight}/" "${existing_archive}"
-            rm -f "${existing_archive}.bak"
-            if [ "${DEBUG}" != "false" ]; then
-                echo "DEBUG: Updated $(basename "${existing_archive}") weight from ${current_weight} to ${new_weight}"
-            fi
+    if [ -z "${insert_line}" ]; then
+        if [ "${DEBUG}" != "false" ]; then
+            echo "DEBUG: No existing releases found, looking for {{< /details >}} tag"
         fi
-    done
+        insert_line=$(grep -n "{{< /details >}}" "${TMPDIR}/temp_index.md" | tail -1 | cut -d: -f1)
+        [ -n "${insert_line}" ] && insert_line=$((insert_line + 2)) || insert_line=8
+    fi
 
-    # Create archive with frontmatter
-    cat > "${archive_file}" << EOF
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Will insert new LTS release at line ${insert_line}"
+    fi
+
+    head -n $((insert_line - 1)) "${TMPDIR}/temp_index.md" > "${TMPDIR}/final_index.md"
+    echo "${release_notes_content}" >> "${TMPDIR}/final_index.md"
+    echo "" >> "${TMPDIR}/final_index.md"
+    tail -n +"${insert_line}" "${TMPDIR}/temp_index.md" >> "${TMPDIR}/final_index.md"
+
+    mv "${TMPDIR}/final_index.md" "${index_file_path}"
+else
+
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Attempting to detect current changelog year from ${index_file_path}"
+    fi
+
+    # First: look for "releases in 2025" in the header
+    current_year=$(grep "releases in" "${index_file_path}" | grep -o "[0-9]\{4\}" | head -1)
+    if [ "${DEBUG}" != "false" ] && [ -n "${current_year}" ]; then
+        echo "DEBUG: Found year in header text: ${current_year}"
+    fi
+
+    # Second: if that fails, look for year in release date entries
+    if [ -z "${current_year}" ]; then
+        current_year=$(grep -oE "[0-9]{1,2} [A-Z][a-z]+ [0-9]{4}" "${index_file_path}" | grep -o "[0-9]\{4\}" | head -1)
+        if [ "${DEBUG}" != "false" ] && [ -n "${current_year}" ]; then
+            echo "DEBUG: Found year in release date entries: ${current_year}"
+        fi
+    fi
+
+    # Third: if both fail, assume it's the previous year as a safe fallback
+    if [ -z "${current_year}" ]; then
+        current_year=$((release_year - 1))
+        if [ "${DEBUG}" != "false" ]; then
+            echo "DEBUG: No year found in changelog, using fallback: ${current_year}"
+        fi
+    fi
+
+    if [ "${DEBUG}" != "false" ]; then
+        echo "DEBUG: Current index year: ${current_year}, Release year: ${release_year}"
+    fi
+
+    # Compare release year vs current index year
+    # If different years: archive current year's releases and create new index
+    # If same year: just add to existing index
+    if [ "${release_year}" != "${current_year}" ]; then
+        # New year - archive current year and start fresh
+        echo "INFO: New year detected (${release_year}). Archiving ${current_year} and creating new index."
+
+        # Create archive file with Hugo frontmatter for the current year's releases
+        archive_file=${DOCS_FOLDER}/${CHANGELOG_DIR}/${current_year}.md
+        cp "${index_file_path}" "${TMPDIR}/temp_index.md"
+
+        # Update weights in existing archive files (bump each by 100 to make room for new archive at 100)
+        if [ "${DEBUG}" != "false" ]; then
+            echo "DEBUG: Updating weights in existing archive files"
+        fi
+        for existing_archive in ${DOCS_FOLDER}/${CHANGELOG_DIR}/[0-9][0-9][0-9][0-9].md; do
+            if [ -f "${existing_archive}" ]; then
+                # Extract current weight and add 100
+                current_weight=$(grep "^weight:" "${existing_archive}" | sed 's/^weight:[[:space:]]*//')
+                new_weight=$((current_weight + 100))
+                sed -i.bak "s/^weight: *${current_weight}/weight: ${new_weight}/" "${existing_archive}"
+                rm -f "${existing_archive}.bak"
+                if [ "${DEBUG}" != "false" ]; then
+                    echo "DEBUG: Updated $(basename "${existing_archive}") weight from ${current_weight} to ${new_weight}"
+                fi
+            fi
+        done
+
+        # Create archive with frontmatter
+        cat > "${archive_file}" << EOF
 ---
 title: "${current_year} archive"
 # Weights are assigned in increments of 100: determines sorting order
@@ -249,74 +307,75 @@ nd-product: INGRESS
 
 EOF
 
-    # Find where releases start (first "## " heading) and copy everything after that
-    # This skips the frontmatter and intro text, keeping only actual release entries
-    release_start=$(grep -n "^## " "${TMPDIR}/temp_index.md" | head -1 | cut -d: -f1)
-    if [ "${DEBUG}" != "false" ]; then
-        echo "DEBUG: Release content starts at line: ${release_start:-'not found'}"
-    fi
-    [ -n "${release_start}" ] && tail -n +"${release_start}" "${TMPDIR}/temp_index.md" >> "${archive_file}"
-
-    # Create new index for new year
-    echo "INFO: Creating new _index.md for year ${release_year}"
-
-    # Extract header content (everything before the newest release) and update year references
-    if [ "${DEBUG}" != "false" ]; then
-        echo "DEBUG: Extracting header and updating year references from ${current_year} to ${release_year}"
-    fi
-
-    if [ -n "${release_start}" ]; then
-        # Extract everything before the newest release heading
-        head -n $((release_start - 1)) "${TMPDIR}/temp_index.md"
-    else
-        # No releases found, extract most of the file (excluding footer)
-        head -n $(($(wc -l < "${TMPDIR}/temp_index.md") - 3)) "${TMPDIR}/temp_index.md"
-    fi | sed "s/${current_year}/${release_year}/g" | awk -v archived_year="${current_year}" '
-    # Add the archived year to the "previous years" link list
-    /For older releases, check the changelogs for previous years:/ {
-        # Insert the archived year at the beginning
-        sub(/For older releases, check the changelogs for previous years: /, "For older releases, check the changelogs for previous years: [" archived_year "]({{< ref \"/nic/changelog/" archived_year ".md\" >}}), ")
-    }
-    { print }
-    ' > "${TMPDIR}/new_header.md"
-
-    # Assemble new index file: header + new release notes
-    if [ "${DEBUG}" != "false" ]; then
-        echo "DEBUG: Assembling new _index.md with header and new release notes"
-    fi
-    cat "${TMPDIR}/new_header.md" > "${index_file_path}"
-    echo "${release_notes_content}" >> "${index_file_path}"
-
-else
-    # Same year - add to existing changelog
-    echo "INFO: Adding release notes to existing changelog/_index.md for year ${release_year}"
-
-    # Find where to insert new release notes in existing changelog
-    # Look for first release heading ("## ") or fallback to after compatibility matrix
-    cp "${index_file_path}" "${TMPDIR}/temp_index.md"
-    insert_line=$(grep -n "^## " "${TMPDIR}/temp_index.md" | head -1 | cut -d: -f1)
-
-    if [ -z "${insert_line}" ]; then
-        # No existing releases found, insert after the compatibility matrix
+        # Find where releases start (first "## " heading) and copy everything after that
+        # This skips the frontmatter and intro text, keeping only actual release entries
+        release_start=$(grep -n "^## " "${TMPDIR}/temp_index.md" | head -1 | cut -d: -f1)
         if [ "${DEBUG}" != "false" ]; then
-            echo "DEBUG: No existing releases found, looking for {{< /details >}} tag"
+            echo "DEBUG: Release content starts at line: ${release_start:-'not found'}"
         fi
-        insert_line=$(grep -n "{{< /details >}}" "${TMPDIR}/temp_index.md" | tail -1 | cut -d: -f1)
-        [ -n "${insert_line}" ] && insert_line=$((insert_line + 2)) || insert_line=8
+        [ -n "${release_start}" ] && tail -n +"${release_start}" "${TMPDIR}/temp_index.md" >> "${archive_file}"
+
+        # Create new index for new year
+        echo "INFO: Creating new _index.md for year ${release_year}"
+
+        # Extract header content (everything before the newest release) and update year references
+        if [ "${DEBUG}" != "false" ]; then
+            echo "DEBUG: Extracting header and updating year references from ${current_year} to ${release_year}"
+        fi
+
+        if [ -n "${release_start}" ]; then
+            # Extract everything before the newest release heading
+            head -n $((release_start - 1)) "${TMPDIR}/temp_index.md"
+        else
+            # No releases found, extract most of the file (excluding footer)
+            head -n $(($(wc -l < "${TMPDIR}/temp_index.md") - 3)) "${TMPDIR}/temp_index.md"
+        fi | sed "s/${current_year}/${release_year}/g" | awk -v archived_year="${current_year}" '
+        # Add the archived year to the "previous years" link list
+        /For older releases, check the changelogs for previous years:/ {
+            # Insert the archived year at the beginning
+            sub(/For older releases, check the changelogs for previous years: /, "For older releases, check the changelogs for previous years: [" archived_year "]({{< ref \"/nic/changelog/" archived_year ".md\" >}}), ")
+        }
+        { print }
+        ' > "${TMPDIR}/new_header.md"
+
+        # Assemble new index file: header + new release notes
+        if [ "${DEBUG}" != "false" ]; then
+            echo "DEBUG: Assembling new _index.md with header and new release notes"
+        fi
+        cat "${TMPDIR}/new_header.md" > "${index_file_path}"
+        echo "${release_notes_content}" >> "${index_file_path}"
+
+    else
+        # Same year - add to existing changelog
+        echo "INFO: Adding release notes to existing changelog/_index.md for year ${release_year}"
+
+        # Find where to insert new release notes in existing changelog
+        # Look for first release heading ("## ") or fallback to after compatibility matrix
+        cp "${index_file_path}" "${TMPDIR}/temp_index.md"
+        insert_line=$(grep -n "^## " "${TMPDIR}/temp_index.md" | head -1 | cut -d: -f1)
+
+        if [ -z "${insert_line}" ]; then
+            # No existing releases found, insert after the compatibility matrix
+            if [ "${DEBUG}" != "false" ]; then
+                echo "DEBUG: No existing releases found, looking for {{< /details >}} tag"
+            fi
+            insert_line=$(grep -n "{{< /details >}}" "${TMPDIR}/temp_index.md" | tail -1 | cut -d: -f1)
+            [ -n "${insert_line}" ] && insert_line=$((insert_line + 2)) || insert_line=8
+        fi
+
+        if [ "${DEBUG}" != "false" ]; then
+            echo "DEBUG: Will insert new release at line ${insert_line}"
+        fi
+
+        # Reconstruct the file: header + new release + existing releases
+        # This inserts the new release at the top of the releases section
+        head -n $((insert_line - 1)) "${TMPDIR}/temp_index.md" > "${TMPDIR}/final_index.md"
+        echo "${release_notes_content}" >> "${TMPDIR}/final_index.md"
+        echo "" >> "${TMPDIR}/final_index.md"
+        tail -n +"${insert_line}" "${TMPDIR}/temp_index.md" >> "${TMPDIR}/final_index.md"
+
+        mv "${TMPDIR}/final_index.md" "${index_file_path}"
     fi
-
-    if [ "${DEBUG}" != "false" ]; then
-        echo "DEBUG: Will insert new release at line ${insert_line}"
-    fi
-
-    # Reconstruct the file: header + new release + existing releases
-    # This inserts the new release at the top of the releases section
-    head -n $((insert_line - 1)) "${TMPDIR}/temp_index.md" > "${TMPDIR}/final_index.md"
-    echo "${release_notes_content}" >> "${TMPDIR}/final_index.md"
-    echo "" >> "${TMPDIR}/final_index.md"
-    tail -n +"${insert_line}" "${TMPDIR}/temp_index.md" >> "${TMPDIR}/final_index.md"
-
-    mv "${TMPDIR}/final_index.md" "${index_file_path}"
 fi
 
 if [ $? -ne 0 ]; then
@@ -333,11 +392,21 @@ if [ -n "${nginx_version}" ]; then
     fi
 
     # Run the consolidated tech specs update script (driven by tech-specs.json)
+    tech_specs_args=()
+    if [ "${LTS}" != "false" ]; then
+        tech_specs_args+=(--lts)
+        tech_specs_args+=(--lts-helm-version "${helm_chart_version}")
+        tech_specs_args+=(--nginx-plus-version "${nginx_version}")
+        tech_specs_args+=(--lts-release-date "${release_date}")
+    fi
+    tech_specs_args+=("${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}")
+    if [ -n "${NAP_WAF_VERSION}" ]; then
+        tech_specs_args+=("${NAP_WAF_VERSION}")
+    fi
+
     python3 ${ROOTDIR}/.github/scripts/tech-specs-update.py \
         --json-file "${ROOTDIR}/.github/scripts/tech-specs.json" \
-        --update-json \
-        "${ic_version}" "${k8s_versions}" "${nginx_version}" "${DOCS_FOLDER}" \
-        ${NAP_WAF_VERSION:+"${NAP_WAF_VERSION}"}
+        "${tech_specs_args[@]}"
 
     if [ $? -ne 0 ]; then
         echo "ERROR: Failed to update technical specifications"
@@ -347,21 +416,31 @@ if [ -n "${nginx_version}" ]; then
     echo "INFO: Technical specifications updated"
     if [ "${DEBUG}" != "false" ]; then
         echo "DEBUG: Updated technical specifications content:"
-        cat "${DOCS_FOLDER}/content/nic/technical-specifications.md"
+        if [ "${LTS}" != "false" ]; then
+            cat "${DOCS_FOLDER}/content/nic/lts/technical-specifications.md"
+        else
+            cat "${DOCS_FOLDER}/content/nic/technical-specifications.md"
+        fi
     fi
 
     # Stage and commit tech specs changes (skip commit in dry-run mode)
     if [ "${DRY_RUN}" == "false" ]; then
-        git add "content/nic/technical-specifications.md"
-        git add "content/includes/nic/compatibility-tables/nic-k8s.md"
-        if [ -n "${NAP_WAF_VERSION}" ]; then
-            nap_table_file="content/includes/nic/compatibility-tables/nic-nap.md"
-            if [ -f "${nap_table_file}" ]; then
-                git add "${nap_table_file}"
-            fi
-            git commit -m "Update technical specifications and NAP compatibility table for ${ic_version}"
+        if [ "${LTS}" != "false" ]; then
+            git add "content/nic/lts/technical-specifications.md"
+            git add "content/includes/nic/compatibility-tables/nic-lts-k8s.md"
+            git commit -m "Update LTS technical specifications for ${ic_version}"
         else
-            git commit -m "Update technical specifications for ${ic_version}"
+            git add "content/nic/technical-specifications.md"
+            git add "content/includes/nic/compatibility-tables/nic-k8s.md"
+            if [ -n "${NAP_WAF_VERSION}" ]; then
+                nap_table_file="content/includes/nic/compatibility-tables/nic-nap.md"
+                if [ -f "${nap_table_file}" ]; then
+                    git add "${nap_table_file}"
+                fi
+                git commit -m "Update technical specifications and NAP compatibility table for ${ic_version}"
+            else
+                git commit -m "Update technical specifications for ${ic_version}"
+            fi
         fi
     fi
 else
@@ -369,7 +448,7 @@ else
 fi
 
 echo "INFO: Updating shortcodes in the documentation repository"
-${ROOTDIR}/.github/scripts/docs-shortcode-update.sh "${DOCS_FOLDER}" "${ic_version}" "${helm_chart_version}" "${operator_version}" "${NAP_WAF_VERSION}" "${NAP_WAF_RELEASE_VERSION}"
+LTS="${LTS}" ${ROOTDIR}/.github/scripts/docs-shortcode-update.sh "${DOCS_FOLDER}" "${ic_version}" "${helm_chart_version}" "${operator_version}" "${NAP_WAF_VERSION}" "${NAP_WAF_RELEASE_VERSION}"
 if [ $? -ne 0 ]; then
     echo "ERROR: failed updating shortcodes"
     exit 2

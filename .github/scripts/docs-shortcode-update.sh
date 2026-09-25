@@ -2,8 +2,14 @@
 
 set -o pipefail
 
+LTS=${LTS:-"false"}
+
  usage() {
-    echo "Usage: $0 <docs_folder> <new_ic_version> <new_helm_chart_version> <new_operator_version> [<waf_version>] [<waf_release_version>]"
+    if [ "${LTS}" != "false" ]; then
+        echo "Usage: LTS=true $0 <docs_folder> <new_lts_version> <new_helm_chart_version>"
+    else
+        echo "Usage: $0 <docs_folder> <new_ic_version> <new_helm_chart_version> <new_operator_version> [<waf_version>] [<waf_release_version>]"
+    fi
     exit 1
  }
 
@@ -26,8 +32,20 @@ if [ -z "${new_helm_chart_version}" ]; then
     usage
 fi
 
-if [ -z "${new_operator_version}" ]; then
+if [ "${LTS}" == "false" ] && [ -z "${new_operator_version}" ]; then
     usage
+fi
+
+if [ "${LTS}" != "false" ]; then
+    # LTS: only the two LTS shortcodes. No operator (LTS has none) and no NAP
+    # shortcodes (LTS is Plus-only).
+    echo -n "${new_ic_version}" > "${docs_folder}/layouts/shortcodes/nic-lts-version.html"
+    echo -n "${new_helm_chart_version}" > "${docs_folder}/layouts/shortcodes/nic-lts-helm-version.html"
+
+    echo "INFO: Updated LTS shortcodes:"
+    echo "  NIC LTS version: ${new_ic_version}"
+    echo "  NIC LTS Helm chart version: ${new_helm_chart_version}"
+    exit 0
 fi
 
 # update docs with new versions

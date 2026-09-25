@@ -23,6 +23,7 @@ import argparse
 import json
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -49,6 +50,19 @@ def is_minor_or_major(new_version, old_version):
     return major_minor(new_version) != major_minor(old_version)
 
 
+LTS_RELEASE_RE = re.compile(r"-r\d+$")
+
+
+def lts_series(version):
+    """Return the LTS series key: '2026-lts-r6' -> '2026-lts'."""
+    return LTS_RELEASE_RE.sub("", version)
+
+
+def is_new_lts_series(new_version, old_version):
+    """Return True when the LTS year/series rolls over (2026-lts-r6 -> 2027-lts-r1)."""
+    return lts_series(new_version) != lts_series(old_version)
+
+
 def parse_nginx_version(version_str):
     """Parse "OSS_VERSION[/PLUS_VERSION]" into (oss, plus|None)."""
     parts = re.split(r"\s*/\s*", version_str.strip(), maxsplit=1)
@@ -66,6 +80,17 @@ def normalize_k8s_versions(v):
     if not v:
         return v
     return re.sub(r"(\d+\.\d+)\s*-\s*(\d+\.\d+)", r"\1 - \2", v)
+
+
+def calculate_eots(release_date):
+    """Calculate the End of Technical Support (EOTS) date for the new series of LTS releases.
+
+    Input:  "4 Jun 2026" (workflow input format)
+    Output: "June 4, 2029" (docs display format)
+    """
+    dt = datetime.strptime(release_date, "%d %b %Y")
+    eots = dt.replace(year=dt.year + 3)
+    return eots.strftime("%B %-d, %Y")
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +168,18 @@ def update_nap_sc_row(sc_row, nap_waf_version):
         if m and m.group(1) != new_prefix:
             return sc_row.replace(m.group(1) + "+", new_prefix + "+", 1)
     return sc_row
+
+
+def update_lts_sc_row(sc_row, k8s_new, nginx_new):
+    """Update K8s and NGINX values in an existing LTS shortcode row."""
+    cols = [c.strip() for c in sc_row.split("|")[1:-1]]
+    orig_k8s, orig_nginx = cols[1], cols[3]
+    result = sc_row
+    if orig_k8s != k8s_new:
+        result = result.replace(orig_k8s, k8s_new, 1)
+    if orig_nginx != nginx_new:
+        result = result.replace(orig_nginx, nginx_new, 1)
+    return result
 
 
 def replace_table_in_file(file_path, new_table_md):
@@ -261,6 +298,41 @@ def generate_nap_table_md(json_data, sc_row=None):
     return "\n".join([header_line, sep_line, sc_row] + data_lines)
 
 
+def generate_lts_table_md(json_data, sc_row=None):
+    """Generate the NIC LTS compatibility table Markdown from JSON data.
+
+    Mirrors generate_compat_table_md, minus the Operator column (LTS has no
+    operator component) and using the LTS shortcodes.
+    """
+    sr = json_data["nic_lts"]["shortcode_row"]
+    rows = json_data["nic_lts"]["rows"]
+
+    if sc_row is not None:
+        col_count = len(sc_row.split("|")[1:-1])
+        if col_count != 5:
+            sc_row = None
+
+    header = "| NIC LTS version | Kubernetes versions tested  | NIC Helm Chart version | NGINX Plus version | End of Technical Support |"
+    sep = "| --- | --- | --- | --- | --- |"
+
+    if sc_row is None:
+        sc_row = (
+            f"| {{{{< nic-lts-version >}}}} | {sr['k8s_versions']} "
+            f"| {{{{< nic-lts-helm-version >}}}} | {sr['nginx_plus_version']} "
+            f"| {sr['end_of_technical_support']} |"
+        )
+
+    data_lines = []
+    for row in rows:
+        data_lines.append(
+            f"| {row['lts_version']} | {row['k8s_versions']} "
+            f"| {row['helm_version']} | {row['nginx_plus_version']} "
+            f"| {row['end_of_technical_support']} |"
+        )
+
+    return "\n".join([header, sep, sc_row] + data_lines)
+
+
 # ---------------------------------------------------------------------------
 # NGINX prose update (unchanged from original)
 # ---------------------------------------------------------------------------
@@ -285,6 +357,8 @@ def update_nginx_prose(md, nginx_new):
 
     if new_plus:
         plus_match = re.search(r"NGINX Plus images include NGINX Plus (R\d+(?:\.\d+)*(?:\s+P\d+)?)", md)
+        if not plus_match:
+            plus_match = re.search(r"NGINX Plus LTS (R\d+(?:\.\d+)*(?:\s+P\d+)?)", md)
         if plus_match:
             current_plus = plus_match.group(1)
             if current_plus != new_plus:
@@ -346,6 +420,30 @@ def freeze_nap_row(json_data, current_nic):
     print(f"INFO: Frozen NAP row for {current_nic}")
 
 
+def freeze_lts_row(json_data, current_lts, current_helm):
+    """Freeze the current LTS shortcode row as a historical entry.
+
+    Only called on an LTS series rollover.
+    Skips the freeze if current_lts is already present (idempotent on retry).
+    """
+    existing = [r["lts_version"] for r in json_data["nic_lts"]["rows"]]
+    if current_lts in existing:
+        print(f"INFO: LTS row for {current_lts} already exists, skipping freeze")
+        return
+
+    sr = json_data["nic_lts"]["shortcode_row"]
+    frozen = {
+        "lts_version": current_lts,
+        "k8s_versions": sr["k8s_versions"],
+        "helm_version": current_helm,
+        "nginx_plus_version": sr["nginx_plus_version"],
+        "end_of_technical_support": sr["end_of_technical_support"],
+    }
+    json_data["nic_lts"]["rows"].insert(0, frozen)
+    json_data["nic_lts"]["shortcode_row"]["end_of_technical_support"] = ""
+    print(f"INFO: Frozen LTS row for {current_lts}")
+
+
 def update_shortcode_row_values(
     json_data,
     k8s_versions,
@@ -369,6 +467,23 @@ def update_shortcode_row_values(
         json_data["nic_nap"]["shortcode_row"]["compiler_version"] = new_compiler
     if nap_waf_release_version:
         json_data["nic_nap"]["shortcode_row"]["waf_release_version"] = nap_waf_release_version
+
+
+def update_lts_shortcode_row_values(
+    json_data, lts_version, k8s_versions, nic_lts_helm_version, nginx_plus_version, lts_release_date
+):
+    """Update the nic_lts shortcode_row entries; empty values preserve JSON."""
+    if lts_version:
+        json_data["nic_lts"]["shortcode_row"]["lts_version"] = lts_version
+    if k8s_versions:
+        json_data["nic_lts"]["shortcode_row"]["k8s_versions"] = k8s_versions
+    if nic_lts_helm_version:
+        json_data["nic_lts"]["shortcode_row"]["lts_helm_version"] = nic_lts_helm_version
+    if nginx_plus_version:
+        json_data["nic_lts"]["shortcode_row"]["nginx_plus_version"] = nginx_plus_version
+    existing_eots = json_data["nic_lts"]["shortcode_row"].get("end_of_technical_support", "")
+    if not existing_eots and lts_release_date:
+        json_data["nic_lts"]["shortcode_row"]["end_of_technical_support"] = calculate_eots(lts_release_date)
 
 
 # ---------------------------------------------------------------------------
@@ -432,6 +547,31 @@ Examples:
     )
     parser.add_argument("--update-json", action="store_true", help="Write updated JSON back to file")
 
+    # LTS control
+    parser.add_argument(
+        "--lts",
+        action="store_true",
+        help="Operate on the nic_lts section (LTS releases: no operator, no NAP)",
+    )
+    parser.add_argument(
+        "--lts-helm-version",
+        nargs="?",
+        default=None,
+        help="NIC LTS Helm Chart version string (override; empty = use JSON)",
+    )
+    parser.add_argument(
+        "--nginx-plus-version",
+        nargs="?",
+        default=None,
+        help="NGINX Plus version string (override; empty = use JSON)",
+    )
+    parser.add_argument(
+        "--lts-release-date",
+        nargs="?",
+        default=None,
+        help="Release date for the new LTS series (format: D MMM YYYY )",
+    )
+
     # Current versions for freeze in --json-only mode
     parser.add_argument(
         "--current-nic-version",
@@ -463,12 +603,13 @@ Examples:
         sys.exit("ERROR: docs_root is required unless --json-only is set")
     if not args.json_only and args.docs_root and not Path(args.docs_root).exists():
         sys.exit(f"ERROR: Documentation root directory not found: {args.docs_root}")
+    if args.lts and (args.nap_waf_version or args.nap_waf_release_version):
+        sys.exit("ERROR: --lts is incompatible with NAP arguments (LTS is Plus-only)")
     if args.json_only:
-        for attr in (
-            "current_nic_version",
-            "current_helm_version",
-            "current_operator_version",
-        ):
+        required = ["current_nic_version", "current_helm_version"]
+        if not args.lts:
+            required.append("current_operator_version")
+        for attr in required:
             if not getattr(args, attr):
                 sys.exit(f"ERROR: --{attr.replace('_', '-')} is required with --json-only")
 
@@ -492,83 +633,132 @@ Examples:
     else:
         docs = Path(args.docs_root)
         sc_dir = docs / "layouts" / "shortcodes"
-        current_nic = shortcode_ver(sc_dir / "nic-version.html")
-        current_helm = shortcode_ver(sc_dir / "nic-helm-version.html")
-        current_operator = shortcode_ver(sc_dir / "nic-operator-version.html")
+        if args.lts:
+            current_nic = shortcode_ver(sc_dir / "nic-lts-version.html")
+            current_helm = shortcode_ver(sc_dir / "nic-lts-helm-version.html")
+            current_operator = None
+        else:
+            current_nic = shortcode_ver(sc_dir / "nic-version.html")
+            current_helm = shortcode_ver(sc_dir / "nic-helm-version.html")
+            current_operator = shortcode_ver(sc_dir / "nic-operator-version.html")
 
     # ---- Freeze if minor/major release ----
-    freeze = is_minor_or_major(args.ic_version, current_nic)
-    if freeze:
-        print(f"INFO: Minor/major release ({current_nic} -> {args.ic_version}), freezing rows")
-        freeze_compat_row(json_data, current_nic, current_helm, current_operator)
-        if args.nap_waf_version:
-            freeze_nap_row(json_data, current_nic)
+    if args.lts:
+        if is_new_lts_series(args.ic_version, current_nic):
+            print(f"INFO: New LTS series detected ({current_nic} -> {args.ic_version}), freezing row")
+            freeze_lts_row(json_data, current_nic, current_helm)
+        else:
+            print(f"INFO: Same LTS series ({current_nic} -> {args.ic_version}), updating in-place")
     else:
-        print(f"INFO: Patch release or re-run ({current_nic} -> {args.ic_version}), updating in-place")
+        freeze = is_minor_or_major(args.ic_version, current_nic)
+        if freeze:
+            print(f"INFO: Minor/major release ({current_nic} -> {args.ic_version}), freezing rows")
+            freeze_compat_row(json_data, current_nic, current_helm, current_operator)
+            if args.nap_waf_version:
+                freeze_nap_row(json_data, current_nic)
+        else:
+            print(f"INFO: Patch release or re-run ({current_nic} -> {args.ic_version}), updating in-place")
 
     # ---- Normalize k8s version format (ensure spaces around dash) ----
     if args.k8s_versions:
         args.k8s_versions = normalize_k8s_versions(args.k8s_versions)
 
     # ---- Update shortcode_row values ----
-    update_shortcode_row_values(
-        json_data,
-        k8s_versions=args.k8s_versions,
-        nginx_version=args.nginx_version,
-        nap_waf_version=args.nap_waf_version,
-        nap_waf_release_version=args.nap_waf_release_version,
-    )
+    if args.lts:
+        update_lts_shortcode_row_values(
+            json_data,
+            args.ic_version,
+            args.k8s_versions,
+            args.lts_helm_version,
+            args.nginx_plus_version,
+            args.lts_release_date,
+        )
+    else:
+        update_shortcode_row_values(
+            json_data,
+            k8s_versions=args.k8s_versions,
+            nginx_version=args.nginx_version,
+            nap_waf_version=args.nap_waf_version,
+            nap_waf_release_version=args.nap_waf_release_version,
+        )
 
     # ---- Generate and write docs tables (full mode only) ----
     if not args.json_only:
         docs_root = Path(args.docs_root)
 
-        # Resolve values for shortcode row updates (overrides or JSON defaults)
-        k8s = args.k8s_versions or json_data["nic_k8s"]["shortcode_row"]["k8s_versions"]
-        nginx = args.nginx_version or json_data["nic_k8s"]["shortcode_row"]["nginx_version"]
+        if args.lts:
+            k8s = args.k8s_versions or json_data["nic_lts"]["shortcode_row"]["k8s_versions"]
+            nginx = args.nginx_plus_version or json_data["nic_lts"]["shortcode_row"]["nginx_plus_version"]
+            # 1. NIC LTS compatibility table
+            nic_lts = docs_root / "content" / "includes" / "nic" / "compatibility-tables" / "nic-lts-k8s.md"
+            if not nic_lts.exists():
+                sys.exit(f"ERROR: LTS compatibility table file not found: {nic_lts}")
+            existing_lts_sc = extract_shortcode_row(nic_lts)
+            updated_lts_sc = update_lts_sc_row(existing_lts_sc, k8s, nginx) if existing_lts_sc else None
+            replace_table_in_file(nic_lts, generate_lts_table_md(json_data, sc_row=updated_lts_sc))
+            print("updated", nic_lts)
 
-        # 1. NIC/K8s compatibility table
-        nic_k8s = docs_root / "content" / "includes" / "nic" / "compatibility-tables" / "nic-k8s.md"
-        if not nic_k8s.exists():
-            sys.exit(f"ERROR: Compatibility table file not found: {nic_k8s}")
-        if args.verbose:
-            print(f"Updating compatibility table in {nic_k8s}...")
-        # Extract existing shortcode row, update values, preserve formatting
-        existing_k8s_sc = extract_shortcode_row(nic_k8s)
-        updated_k8s_sc = update_compat_sc_row(existing_k8s_sc, k8s, nginx) if existing_k8s_sc else None
-        replace_table_in_file(nic_k8s, generate_compat_table_md(json_data, sc_row=updated_k8s_sc))
-        print("updated", nic_k8s)
+            # 2. NGINX version prose in LTS technical-specifications.md
+            tech = docs_root / "content" / "nic" / "lts" / "technical-specifications.md"
+            if not tech.exists():
+                sys.exit(f"ERROR: LTS technical specifications file not found: {tech}")
+            if args.verbose:
+                print(f"Updating NGINX version prose in {tech}...")
+            tech.write_text(
+                update_nginx_prose(tech.read_text(encoding="utf-8"), nginx),
+                encoding="utf-8",
+            )
+            print("updated", tech)
 
-        # 2. NGINX version prose in technical-specifications.md
-        tech = docs_root / "content" / "nic" / "technical-specifications.md"
-        if not tech.exists():
-            sys.exit(f"ERROR: Technical specifications file not found: {tech}")
-        if args.verbose:
-            print(f"Updating NGINX version prose in {tech}...")
-        tech.write_text(
-            update_nginx_prose(tech.read_text(encoding="utf-8"), nginx),
-            encoding="utf-8",
-        )
-        print("updated", tech)
-
-        # 3. NAP compatibility table (if WAF version provided)
-        if args.nap_waf_version:
-            nap_table = docs_root / "content" / "includes" / "nic" / "compatibility-tables" / "nic-nap.md"
-            if not nap_table.exists():
-                print(f"WARNING: NAP compatibility table not found at {nap_table}, skipping")
-            else:
-                if args.verbose:
-                    print(f"Updating NAP compatibility table at {nap_table}...")
-                # Extract existing shortcode row, update prefix, preserve formatting
-                existing_nap_sc = extract_shortcode_row(nap_table)
-                updated_nap_sc = update_nap_sc_row(existing_nap_sc, args.nap_waf_version) if existing_nap_sc else None
-                replace_table_in_file(
-                    nap_table,
-                    generate_nap_table_md(json_data, sc_row=updated_nap_sc),
-                )
-                print("updated", nap_table)
         else:
-            print("INFO: No NAP WAF version provided, skipping NAP table update")
+            # Resolve values for shortcode row updates (overrides or JSON defaults)
+            k8s = args.k8s_versions or json_data["nic_k8s"]["shortcode_row"]["k8s_versions"]
+            nginx = args.nginx_version or json_data["nic_k8s"]["shortcode_row"]["nginx_version"]
+
+            # 1. NIC/K8s compatibility table
+            nic_k8s = docs_root / "content" / "includes" / "nic" / "compatibility-tables" / "nic-k8s.md"
+            if not nic_k8s.exists():
+                sys.exit(f"ERROR: Compatibility table file not found: {nic_k8s}")
+            if args.verbose:
+                print(f"Updating compatibility table in {nic_k8s}...")
+            # Extract existing shortcode row, update values, preserve formatting
+            existing_k8s_sc = extract_shortcode_row(nic_k8s)
+            updated_k8s_sc = update_compat_sc_row(existing_k8s_sc, k8s, nginx) if existing_k8s_sc else None
+            replace_table_in_file(nic_k8s, generate_compat_table_md(json_data, sc_row=updated_k8s_sc))
+            print("updated", nic_k8s)
+
+            # 2. NGINX version prose in technical-specifications.md
+            tech = docs_root / "content" / "nic" / "technical-specifications.md"
+            if not tech.exists():
+                sys.exit(f"ERROR: Technical specifications file not found: {tech}")
+            if args.verbose:
+                print(f"Updating NGINX version prose in {tech}...")
+            tech.write_text(
+                update_nginx_prose(tech.read_text(encoding="utf-8"), nginx),
+                encoding="utf-8",
+            )
+            print("updated", tech)
+
+            # 3. NAP compatibility table (if WAF version provided)
+            if args.nap_waf_version:
+                nap_table = docs_root / "content" / "includes" / "nic" / "compatibility-tables" / "nic-nap.md"
+                if not nap_table.exists():
+                    print(f"WARNING: NAP compatibility table not found at {nap_table}, skipping")
+                else:
+                    if args.verbose:
+                        print(f"Updating NAP compatibility table at {nap_table}...")
+                    # Extract existing shortcode row, update prefix, preserve formatting
+                    existing_nap_sc = extract_shortcode_row(nap_table)
+                    updated_nap_sc = (
+                        update_nap_sc_row(existing_nap_sc, args.nap_waf_version) if existing_nap_sc else None
+                    )
+                    replace_table_in_file(
+                        nap_table,
+                        generate_nap_table_md(json_data, sc_row=updated_nap_sc),
+                    )
+                    print("updated", nap_table)
+            else:
+                print("INFO: No NAP WAF version provided, skipping NAP table update")
 
     # ---- Write JSON back (if requested) ----
     if args.update_json:

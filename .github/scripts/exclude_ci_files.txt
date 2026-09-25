@@ -44,6 +44,7 @@
 .github/workflows/publish-helm.yml
 .github/workflows/regression.yml
 .github/workflows/release-pr.yml
+.github/workflows/release-lts-pr.yml
 .github/workflows/release-prep.yml
 .github/workflows/release-prep-lts.yml
 .github/workflows/release-publish.yml

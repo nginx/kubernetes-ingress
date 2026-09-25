@@ -31,6 +31,7 @@ template = env.get_template("release-notes.j2")
 github_org = os.getenv("GITHUB_ORG", "nginx")
 github_repo = os.getenv("GITHUB_REPO", "kubernetes-ingress")
 token = os.environ.get("GITHUB_TOKEN")
+is_lts = os.environ.get("LTS", "false").lower() not in ("false", "0", "")
 # For PRs that should be skipped that don't have the "skip changelog" label
 skip_pr_strings = ["pre-commit hook", "pip group"]
 # For PRs that should be grouped but don't have the corresponding label, we look for these strings in the title
@@ -114,12 +115,12 @@ def get_github_release(version, github_org, github_repo, token):
     release = None
     releases = repo.get_releases()
     for rel in releases:
-        if rel.tag_name == f"v{version}":
+        if rel.name in (f"v{version}", version):
             release = rel
             break
     if release is not None:
         return release.body, repo
-    print(f"ERROR: Release v{NIC_VERSION} not found in {github_org}/{github_repo}.")
+    print(f"ERROR: Release {NIC_VERSION} not found in {github_org}/{github_repo}.")
     g.close()
     return None, None
 
@@ -228,10 +229,18 @@ if dependencies_title:
         categories[dependencies_title].append(format_pr_groups(go_dependencies, "Bump Go dependencies"))
     categories[dependencies_title].reverse()
 
+
 # Check if version is a patch release or a minor/major release
-old_version_parts = OLD_VERSION.split(".")
-new_version_parts = NIC_VERSION.split(".")
-is_upgrade = old_version_parts[0] != new_version_parts[0] or old_version_parts[1] != new_version_parts[1]
+# LTS versions (2026-lts-r6) are not semver: an r-bump within a series is an
+# update, a series rollover (2026-lts -> 2027-lts) is an upgrade.
+def _series(version):
+    parts = version.split(".")
+    if len(parts) >= 2:
+        return parts[0], parts[1]
+    return (re.sub(r"-r\d+$", "", version),)
+
+
+is_upgrade = _series(OLD_VERSION) != _series(NIC_VERSION)
 
 # Populates the data needed for rendering the template
 # The data will be passed to the Jinja2 template for rendering
@@ -242,6 +251,7 @@ data = {
     "HELM_CHART_VERSION": HELM_CHART_VERSION,
     "K8S_VERSIONS": K8S_VERSIONS,
     "upgrade_label": "Upgrade" if is_upgrade else "Update",
+    "is_lts": is_lts,
 }
 
 # Render with Jinja2
