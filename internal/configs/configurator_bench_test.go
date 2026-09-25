@@ -74,7 +74,7 @@ func BenchmarkAddOrUpdateMergeableIngress(b *testing.B) {
 	}
 }
 
-func BenchUpdateEndpoints(b *testing.B) {
+func BenchmarkUpdateEndpoints(b *testing.B) {
 	cnf, err := createTestConfiguratorBench()
 	if err != nil {
 		b.Fatal(err)
@@ -232,5 +232,394 @@ func BenchmarkAddTransportServerMetricsLabels(b *testing.B) {
 	b.ResetTimer()
 	for range b.N {
 		cnf.updateTransportServerMetricsLabels(tsEx, streamUpstreams)
+	}
+}
+
+// vsExWithEndpoints returns the standard cafe VirtualServerEx with populated endpoints.
+func vsExWithEndpoints() VirtualServerEx {
+	vs := vsEx()
+	vs.Endpoints = map[string][]string{
+		"default/tea-svc:80": {
+			"10.0.0.20:80",
+		},
+		"default/tea-svc_version=v1:80": {
+			"10.0.0.30:80",
+		},
+		"default/coffee-svc:80": {
+			"10.0.0.40:80",
+		},
+		"default/sub-tea-svc_version=v1:80": {
+			"10.0.0.50:80",
+		},
+	}
+	return vs
+}
+
+// vsExWithSplits returns a VirtualServerEx that uses split routing (weight-based traffic splitting).
+func vsExWithSplits() VirtualServerEx {
+	return VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "tea-v1",
+						Service: "tea-svc-v1",
+						Port:    80,
+					},
+					{
+						Name:    "tea-v2",
+						Service: "tea-svc-v2",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/tea",
+						Splits: []conf_v1.Split{
+							{
+								Weight: 90,
+								Action: &conf_v1.Action{
+									Pass: "tea-v1",
+								},
+							},
+							{
+								Weight: 10,
+								Action: &conf_v1.Action{
+									Pass: "tea-v2",
+								},
+							},
+						},
+					},
+					{
+						Path:  "/coffee",
+						Route: "default/coffee",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc-v1:80": {
+				"10.0.0.20:80",
+			},
+			"default/tea-svc-v2:80": {
+				"10.0.0.21:80",
+			},
+			"default/coffee-svc-v1:80": {
+				"10.0.0.30:80",
+			},
+			"default/coffee-svc-v2:80": {
+				"10.0.0.31:80",
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "coffee",
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Host: "cafe.example.com",
+					Upstreams: []conf_v1.Upstream{
+						{
+							Name:    "coffee-v1",
+							Service: "coffee-svc-v1",
+							Port:    80,
+						},
+						{
+							Name:    "coffee-v2",
+							Service: "coffee-svc-v2",
+							Port:    80,
+						},
+					},
+					Subroutes: []conf_v1.Route{
+						{
+							Path: "/coffee",
+							Splits: []conf_v1.Split{
+								{
+									Weight: 40,
+									Action: &conf_v1.Action{
+										Pass: "coffee-v1",
+									},
+								},
+								{
+									Weight: 60,
+									Action: &conf_v1.Action{
+										Pass: "coffee-v2",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// vsExWithMatches returns a VirtualServerEx that uses match routing (header/arg conditions).
+func vsExWithMatches() VirtualServerEx {
+	return VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      "cafe",
+				Namespace: "default",
+			},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{
+						Name:    "tea-v1",
+						Service: "tea-svc-v1",
+						Port:    80,
+					},
+					{
+						Name:    "tea-v2",
+						Service: "tea-svc-v2",
+						Port:    80,
+					},
+				},
+				Routes: []conf_v1.Route{
+					{
+						Path: "/tea",
+						Matches: []conf_v1.Match{
+							{
+								Conditions: []conf_v1.Condition{
+									{
+										Header: "x-version",
+										Value:  "v2",
+									},
+								},
+								Action: &conf_v1.Action{
+									Pass: "tea-v2",
+								},
+							},
+						},
+						Action: &conf_v1.Action{
+							Pass: "tea-v1",
+						},
+					},
+					{
+						Path:  "/coffee",
+						Route: "default/coffee",
+					},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc-v1:80": {
+				"10.0.0.20:80",
+			},
+			"default/tea-svc-v2:80": {
+				"10.0.0.21:80",
+			},
+			"default/coffee-svc-v1:80": {
+				"10.0.0.30:80",
+			},
+			"default/coffee-svc-v2:80": {
+				"10.0.0.31:80",
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "coffee",
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Host: "cafe.example.com",
+					Upstreams: []conf_v1.Upstream{
+						{
+							Name:    "coffee-v1",
+							Service: "coffee-svc-v1",
+							Port:    80,
+						},
+						{
+							Name:    "coffee-v2",
+							Service: "coffee-svc-v2",
+							Port:    80,
+						},
+					},
+					Subroutes: []conf_v1.Route{
+						{
+							Path: "/coffee",
+							Matches: []conf_v1.Match{
+								{
+									Conditions: []conf_v1.Condition{
+										{
+											Argument: "version",
+											Value:    "v2",
+										},
+									},
+									Action: &conf_v1.Action{
+										Pass: "coffee-v2",
+									},
+								},
+							},
+							Action: &conf_v1.Action{
+								Pass: "coffee-v1",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func BenchmarkAddOrUpdateVirtualServer(b *testing.B) {
+	cnf, err := createTestConfiguratorBench()
+	if err != nil {
+		b.Fatal(err)
+	}
+	virtualServerEx := vsExWithEndpoints()
+
+	b.ResetTimer()
+	for range b.N {
+		_, err := cnf.AddOrUpdateVirtualServer(&virtualServerEx)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkAddOrUpdateVirtualServerWithSplits(b *testing.B) {
+	cnf, err := createTestConfiguratorBench()
+	if err != nil {
+		b.Fatal(err)
+	}
+	virtualServerEx := vsExWithSplits()
+
+	b.ResetTimer()
+	for range b.N {
+		_, err := cnf.AddOrUpdateVirtualServer(&virtualServerEx)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkAddOrUpdateVirtualServerWithMatches(b *testing.B) {
+	cnf, err := createTestConfiguratorBench()
+	if err != nil {
+		b.Fatal(err)
+	}
+	virtualServerEx := vsExWithMatches()
+
+	b.ResetTimer()
+	for range b.N {
+		_, err := cnf.AddOrUpdateVirtualServer(&virtualServerEx)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkAddOrUpdateTransportServer(b *testing.B) {
+	cnf, err := createTestConfiguratorBench()
+	if err != nil {
+		b.Fatal(err)
+	}
+	transportServerEx := tsEx()
+	transportServerEx.ListenerPort = 2020
+	transportServerEx.Endpoints = map[string][]string{
+		"default/tcp-app-svc:5001": {
+			"10.0.0.20:5001",
+		},
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		_, err := cnf.AddOrUpdateTransportServer(&transportServerEx)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkGenerateVirtualServerConfig(b *testing.B) {
+	virtualServerEx := vsExWithEndpoints()
+	cfgParams := &ConfigParams{
+		Context: context.Background(),
+	}
+	staticParams := &StaticConfigParams{}
+	vsc := newVirtualServerConfigurator(cfgParams, false, false, staticParams, false, nil)
+
+	b.ResetTimer()
+	for range b.N {
+		vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	}
+}
+
+func BenchmarkGenerateVirtualServerConfigWithSplits(b *testing.B) {
+	virtualServerEx := vsExWithSplits()
+	cfgParams := &ConfigParams{
+		Context: context.Background(),
+	}
+	staticParams := &StaticConfigParams{}
+	vsc := newVirtualServerConfigurator(cfgParams, false, false, staticParams, false, nil)
+
+	b.ResetTimer()
+	for range b.N {
+		vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	}
+}
+
+func BenchmarkGenerateVirtualServerConfigWithMatches(b *testing.B) {
+	virtualServerEx := vsExWithMatches()
+	cfgParams := &ConfigParams{
+		Context: context.Background(),
+	}
+	staticParams := &StaticConfigParams{}
+	vsc := newVirtualServerConfigurator(cfgParams, false, false, staticParams, false, nil)
+
+	b.ResetTimer()
+	for range b.N {
+		vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+	}
+}
+
+func BenchmarkGenerateTransportServerConfig(b *testing.B) {
+	transportServerEx := tsEx()
+	transportServerEx.ListenerPort = 2020
+	transportServerEx.Endpoints = map[string][]string{
+		"default/tcp-app-svc:5001": {
+			"10.0.0.20:5001",
+		},
+	}
+	params := transportServerConfigParams{
+		transportServerEx: &transportServerEx,
+		listenerPort:      transportServerEx.ListenerPort,
+		isPlus:            false,
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		generateTransportServerConfig(params)
+	}
+}
+
+func BenchmarkUpdateEndpointsForVirtualServers(b *testing.B) {
+	cnf, err := createTestConfiguratorBench()
+	if err != nil {
+		b.Fatal(err)
+	}
+	virtualServerEx := vsExWithEndpoints()
+
+	// Initial add so the VS exists for endpoint updates.
+	if _, err := cnf.AddOrUpdateVirtualServer(&virtualServerEx); err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for range b.N {
+		_, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{&virtualServerEx})
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
