@@ -1236,6 +1236,60 @@ func TestGenerateLocationForProxying(t *testing.T) {
 	}
 }
 
+func TestGenerateLocationForProxying_WithUseForwardedHeaders(t *testing.T) {
+	t.Parallel()
+	cfgParams := ConfigParams{
+		Context:              context.Background(),
+		ProxyConnectTimeout:  "30s",
+		ProxyReadTimeout:     "31s",
+		ProxySendTimeout:     "32s",
+		ClientMaxBodySize:    "1m",
+		ClientBodyBufferSize: "16k",
+		ProxyMaxTempFileSize: "1024m",
+		ProxyBuffering:       true,
+		ProxyBuffers:         "8 4k",
+		ProxyBufferSize:      "4k",
+		ProxyBusyBuffersSize: "8k",
+		LocationSnippets:     []string{"# location snippet"},
+		HTTP2:                true,
+		UseForwardedHeaders:  true,
+	}
+	path := "/"
+	upstreamName := "test-upstream"
+	vsLocSnippets := []string{"# vs location snippet"}
+
+	expected := version2.Location{
+		Path:                     "/",
+		Snippets:                 vsLocSnippets,
+		ProxyConnectTimeout:      "30s",
+		ProxyReadTimeout:         "31s",
+		ProxySendTimeout:         "32s",
+		ClientMaxBodySize:        "1m",
+		ClientBodyBufferSize:     "16k",
+		ProxyMaxTempFileSize:     "1024m",
+		ProxyBuffering:           true,
+		ProxyBuffers:             "8 4k",
+		ProxyBufferSize:          "4k",
+		ProxyBusyBuffersSize:     "8k",
+		ProxyPass:                "http://test-upstream",
+		ProxyNextUpstream:        "error timeout",
+		ProxyNextUpstreamTimeout: "0s",
+		ProxyNextUpstreamTries:   0,
+		ProxyPassRequestHeaders:  true,
+		ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$forwarded_host"}},
+		ServiceName:              "",
+		IsVSR:                    false,
+		VSRName:                  "",
+		VSRNamespace:             "",
+		UseForwardedHeaders:      true,
+	}
+
+	result := generateLocationForProxying(path, upstreamName, conf_v1.Upstream{}, &cfgParams, nil, false, 0, "", nil, "", vsLocSnippets, false, "", "", "")
+	if diff := cmp.Diff(expected, result); diff != "" {
+		t.Errorf("generateLocationForProxying() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestGenerateLocationForGrpcProxying(t *testing.T) {
 	t.Parallel()
 	cfgParams := ConfigParams{
@@ -3318,9 +3372,10 @@ func TestGenerateProxyPassRewrite(t *testing.T) {
 func TestGenerateProxySetHeaders(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		proxy    *conf_v1.ActionProxy
-		expected []version2.Header
-		msg      string
+		proxy               *conf_v1.ActionProxy
+		useForwardedHeaders bool
+		expected            []version2.Header
+		msg                 string
 	}{
 		{
 			proxy:    nil,
@@ -3328,9 +3383,21 @@ func TestGenerateProxySetHeaders(t *testing.T) {
 			msg:      "no action proxy",
 		},
 		{
+			proxy:               nil,
+			useForwardedHeaders: true,
+			expected:            []version2.Header{{Name: "Host", Value: "$forwarded_host"}},
+			msg:                 "no action proxy with useForwardedHeaders",
+		},
+		{
 			proxy:    &conf_v1.ActionProxy{},
 			expected: []version2.Header{{Name: "Host", Value: "$host"}},
 			msg:      "empty action proxy",
+		},
+		{
+			proxy:               &conf_v1.ActionProxy{},
+			useForwardedHeaders: true,
+			expected:            []version2.Header{{Name: "Host", Value: "$forwarded_host"}},
+			msg:                 "empty action proxy with useForwardedHeaders",
 		},
 		{
 			proxy: &conf_v1.ActionProxy{
@@ -3363,6 +3430,30 @@ func TestGenerateProxySetHeaders(t *testing.T) {
 							Name:  "Header-Name",
 							Value: "HeaderValue",
 						},
+					},
+				},
+			},
+			useForwardedHeaders: true,
+			expected: []version2.Header{
+				{
+					Name:  "Header-Name",
+					Value: "HeaderValue",
+				},
+				{
+					Name:  "Host",
+					Value: "$forwarded_host",
+				},
+			},
+			msg: "set headers without host with useForwardedHeaders",
+		},
+		{
+			proxy: &conf_v1.ActionProxy{
+				RequestHeaders: &conf_v1.ProxyRequestHeaders{
+					Set: []conf_v1.Header{
+						{
+							Name:  "Header-Name",
+							Value: "HeaderValue",
+						},
 						{
 							Name:  "Host",
 							Value: "example.com",
@@ -3381,6 +3472,34 @@ func TestGenerateProxySetHeaders(t *testing.T) {
 				},
 			},
 			msg: "set headers with host capitalized",
+		},
+		{
+			proxy: &conf_v1.ActionProxy{
+				RequestHeaders: &conf_v1.ProxyRequestHeaders{
+					Set: []conf_v1.Header{
+						{
+							Name:  "Header-Name",
+							Value: "HeaderValue",
+						},
+						{
+							Name:  "Host",
+							Value: "example.com",
+						},
+					},
+				},
+			},
+			useForwardedHeaders: true,
+			expected: []version2.Header{
+				{
+					Name:  "Header-Name",
+					Value: "HeaderValue",
+				},
+				{
+					Name:  "Host",
+					Value: "example.com",
+				},
+			},
+			msg: "set headers with host overriding useForwardedHeaders",
 		},
 		{
 			proxy: &conf_v1.ActionProxy{
@@ -3447,7 +3566,7 @@ func TestGenerateProxySetHeaders(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		result := generateProxySetHeaders(test.proxy)
+		result := generateProxySetHeaders(test.proxy, test.useForwardedHeaders)
 		if diff := cmp.Diff(test.expected, result); diff != "" {
 			t.Errorf("generateProxySetHeaders() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 		}

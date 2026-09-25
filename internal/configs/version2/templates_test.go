@@ -561,6 +561,93 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithDisableForwardedHeaders
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersTrue(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersTrue)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header Host "$forwarded_host";`)) {
+		t.Error("want `proxy_set_header Host \"$forwarded_host\";` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Host $forwarded_host;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Host $forwarded_host;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Port $forwarded_port;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Port $forwarded_port;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Proto $forwarded_proto;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Proto $forwarded_proto;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;")) {
+		t.Error("want `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` directive in generated template")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersOSSTemplateWithUseForwardedHeadersTrue(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersTrue)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header Host "$forwarded_host";`)) {
+		t.Error("want `proxy_set_header Host \"$forwarded_host\";` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Host $forwarded_host;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Host $forwarded_host;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Port $forwarded_port;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Port $forwarded_port;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Proto $forwarded_proto;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Proto $forwarded_proto;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;")) {
+		t.Error("want `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` directive in generated template")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersAndCustomHeaders(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersAndCustomHeaders)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header Host "custom.example.com";`)) {
+		t.Error("want `proxy_set_header Host \"custom.example.com\";` in generated template")
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header X-Forwarded-Host "custom-forwarded.example.com";`)) {
+		t.Error("want `proxy_set_header X-Forwarded-Host \"custom-forwarded.example.com\";` in generated template")
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header X-Forwarded-Port "8443";`)) {
+		t.Error("want `proxy_set_header X-Forwarded-Port \"8443\";` in generated template")
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header X-Forwarded-Proto "https";`)) {
+		t.Error("want `proxy_set_header X-Forwarded-Proto \"https\";` in generated template")
+	}
+	if bytes.Contains(got, []byte("$forwarded_host")) {
+		t.Error("don't want `$forwarded_host` directive when custom headers are set")
+	}
+	if bytes.Contains(got, []byte("$forwarded_port")) {
+		t.Error("don't want `$forwarded_port` directive when custom headers are set")
+	}
+	if bytes.Contains(got, []byte("$forwarded_proto")) {
+		t.Error("don't want `$forwarded_proto` directive when custom headers are set")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
 func TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2On(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
@@ -2558,6 +2645,43 @@ var (
 					Path:                    "/",
 					ProxyPass:               "http://test-upstream",
 					DisableForwardedHeaders: true,
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithUseForwardedHeadersTrue = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                "/",
+					ProxyPass:           "http://test-upstream",
+					UseForwardedHeaders: true,
+					ProxySetHeaders: []Header{
+						{Name: "Host", Value: "$forwarded_host"},
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithUseForwardedHeadersAndCustomHeaders = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                "/",
+					ProxyPass:           "http://test-upstream",
+					UseForwardedHeaders: true,
+					ProxySetHeaders: []Header{
+						{Name: "Host", Value: "custom.example.com"},
+						{Name: "X-Forwarded-Host", Value: "custom-forwarded.example.com"},
+						{Name: "X-Forwarded-Port", Value: "8443"},
+						{Name: "X-Forwarded-Proto", Value: "https"},
+					},
 				},
 			},
 		},

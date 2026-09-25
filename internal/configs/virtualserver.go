@@ -2050,7 +2050,7 @@ func generateLocation(path string, upstreamName string, upstream conf_v1.Upstrea
 		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName), nil
 }
 
-func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
+func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool) []version2.Header {
 	var headers []version2.Header
 
 	hasHostHeader := false
@@ -2069,7 +2069,11 @@ func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
 	}
 
 	if !hasHostHeader {
-		headers = append(headers, version2.Header{Name: "Host", Value: "$host"})
+		hostVal := "$host"
+		if useForwardedHeaders {
+			hostVal = "$forwarded_host"
+		}
+		headers = append(headers, version2.Header{Name: "Host", Value: hostVal})
 	}
 
 	return headers
@@ -2154,7 +2158,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyNextUpstreamTries:   upstream.ProxyNextUpstreamTries,
 		ProxyInterceptErrors:     generateProxyInterceptErrors(errorPages),
 		ProxyPassRequestHeaders:  generateProxyPassRequestHeaders(proxy),
-		ProxySetHeaders:          generateProxySetHeaders(proxy),
+		ProxySetHeaders:          generateProxySetHeaders(proxy, cfgParams.UseForwardedHeaders),
 		ProxyHideHeaders:         generateProxyHideHeaders(proxy),
 		ProxyPassHeaders:         generateProxyPassHeaders(proxy),
 		ProxyIgnoreHeaders:       generateProxyIgnoreHeaders(proxy),
@@ -2169,6 +2173,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
 		DisableForwardedHeaders:  cfgParams.DisableForwardedHeaders,
+		UseForwardedHeaders:      cfgParams.UseForwardedHeaders,
 		VSRNamespace:             vsrNamespace,
 		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, upstreamName),
 	}
