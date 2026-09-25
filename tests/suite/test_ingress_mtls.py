@@ -24,6 +24,7 @@ std_vsr_src = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
 std_vs_vsr_src = f"{TEST_DATA}/virtual-server-route/standard/virtual-server.yaml"
 
 mtls_sec_valid_src = f"{TEST_DATA}/ingress-mtls/secret/ingress-mtls-secret.yaml"
+mtls_sec_valid_opaque_src = f"{TEST_DATA}/ingress-mtls/secret/ingress-mtls-secret-opaque.yaml"
 tls_sec_valid_src = f"{TEST_DATA}/ingress-mtls/secret/tls-secret.yaml"
 
 mtls_pol_valid_src = f"{TEST_DATA}/ingress-mtls/policies/ingress-mtls.yaml"
@@ -179,6 +180,67 @@ class TestIngressMtlsPolicyVS:
             and expected_text in resp.text
             and vs_message in vs_res["status"]["message"]
             and vs_res["status"]["state"] == vs_state
+        )
+
+    def test_ingress_mtls_policy_with_opaque_secret(
+        self,
+        kube_apis,
+        crd_ingress_controller,
+        virtual_server_setup,
+        test_namespace,
+    ):
+        """
+        Test ingress-mtls where the CA lives in an Opaque secret.
+
+        The secret carries the same ca.crt key, the same CA certificate and the same name as the
+        nginx.org/ca fixture, so the policy resolves it unchanged and client certs signed by that
+        CA are still accepted.
+        """
+        session = create_sni_session()
+        mtls_secret, tls_secret, pol_name = setup_policy(
+            kube_apis,
+            test_namespace,
+            mtls_sec_valid_opaque_src,
+            tls_sec_valid_src,
+            mtls_pol_valid_src,
+        )
+
+        print(f"Patch vs with policy: {mtls_pol_valid_src}")
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            mtls_vs_spec_src,
+            virtual_server_setup.namespace,
+        )
+        wait_before_test()
+        # Tolerate connections dropped by an NGINX reload during the policy swap.
+        resp = retry_get_until_status_code(
+            virtual_server_setup.backend_1_url_ssl,
+            virtual_server_setup.vs_host,
+            200,
+            retries=10,
+            wait_seconds=RECONFIGURATION_DELAY,
+            session=session,
+            cert=(crt, key),
+            allow_redirects=False,
+            verify=False,
+        )
+
+        vs_res = read_vs(kube_apis.custom_objects, test_namespace, virtual_server_setup.vs_name)
+        teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
+
+        patch_virtual_server_from_yaml(
+            kube_apis.custom_objects,
+            virtual_server_setup.vs_name,
+            std_vs_src,
+            virtual_server_setup.namespace,
+        )
+
+        assert (
+            resp.status_code == 200
+            and "Server address:" in resp.text
+            and "was added or updated" in vs_res["status"]["message"]
+            and vs_res["status"]["state"] == "Valid"
         )
 
     @pytest.mark.parametrize(

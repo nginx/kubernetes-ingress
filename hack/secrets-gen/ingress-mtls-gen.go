@@ -13,10 +13,15 @@ import (
 	"log/slog"
 	"math/big"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
 )
 
 type IngressMtls struct {
-	Ca           CertificateInfo `json:"ca"`
+	Ca CertificateInfo `json:"ca"`
+	// CaOpaque re-emits the same CA under a second file name, so the suite can
+	// exercise both a typed and an Opaque copy of one certificate.
+	CaOpaque     CertificateInfo `json:"caOpaque,omitempty"`
 	Crl          CertificateInfo `json:"crl"`
 	Client       FilePaths       `json:"client"`
 	Valid        ClientCerts     `json:"valid"`
@@ -27,7 +32,8 @@ type IngressMtls struct {
 }
 
 type CertificateInfo struct {
-	SecretName string `json:"secretName"`
+	SecretName string        `json:"secretName"`
+	SecretType v1.SecretType `json:"secretType,omitempty"`
 	FilePaths
 	RawCRL FilePaths `json:"rawCRL"`
 }
@@ -530,7 +536,7 @@ func generateStandardCertificateAuthority(logger *slog.Logger, details IngressMt
 	}
 
 	// Write the CA to disk
-	caContents, err := createYamlCA(details.Ca.SecretName, ca, nil)
+	caContents, err := createYamlCA(details.Ca.SecretName, details.Ca.SecretType, ca, nil)
 	if err != nil {
 		return filenames, nil, fmt.Errorf("marshaling bundle CA %s to yaml: %w", details.Ca.FileName, err)
 	}
@@ -538,6 +544,23 @@ func generateStandardCertificateAuthority(logger *slog.Logger, details IngressMt
 	err = writeFiles(logger, caContents, details.Ca.FileName, details.Ca.Symlinks)
 	if err != nil {
 		return filenames, nil, fmt.Errorf("writing bundle CA %s to project root: %w", details.Ca.FileName, err)
+	}
+
+	if details.CaOpaque.FileName != "" {
+		opaqueName := details.CaOpaque.SecretName
+		if opaqueName == "" {
+			opaqueName = details.Ca.SecretName
+		}
+
+		opaqueContents, err := createYamlCA(opaqueName, details.CaOpaque.SecretType, ca, nil)
+		if err != nil {
+			return filenames, nil, fmt.Errorf("marshaling bundle CA %s to yaml: %w", details.CaOpaque.FileName, err)
+		}
+
+		err = writeFiles(logger, opaqueContents, details.CaOpaque.FileName, details.CaOpaque.Symlinks)
+		if err != nil {
+			return filenames, nil, fmt.Errorf("writing bundle CA %s to project root: %w", details.CaOpaque.FileName, err)
+		}
 	}
 
 	return filenames, ca, nil
@@ -601,7 +624,7 @@ func generateCRLAndCertificateAuthority(logger *slog.Logger, details IngressMtls
 		return filenames, nil, fmt.Errorf("encoding revocation list: %w", err)
 	}
 
-	crlContents, err := createYamlCA(details.Crl.SecretName, caCrl, crlOut.Bytes())
+	crlContents, err := createYamlCA(details.Crl.SecretName, details.Crl.SecretType, caCrl, crlOut.Bytes())
 	if err != nil {
 		return filenames, nil, fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", details.Crl.FileName, err)
 	}

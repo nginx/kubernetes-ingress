@@ -54,6 +54,13 @@ func TestAddCustomResourceHandlers_Enabled(t *testing.T) {
 	if len(nsi.cacheSyncs) != wantCacheSyncs {
 		t.Errorf("expected %d cacheSyncs, got %d", wantCacheSyncs, len(nsi.cacheSyncs))
 	}
+
+	if nsi.policySecretIndexer == nil {
+		t.Fatal("expected Policy Secret indexer to be configured")
+	}
+	if _, exists := nsi.policySecretIndexer.GetIndexers()[policySecretIndex]; !exists {
+		t.Errorf("expected %q index to be registered", policySecretIndex)
+	}
 }
 
 func TestAddAppProtectHandlers_Disabled(t *testing.T) {

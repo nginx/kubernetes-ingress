@@ -11,13 +11,13 @@ from suite.utils.external_auth_utils import (
     ext_auth_pol_tls_basic_src,
     ext_auth_pol_tls_full_multi_src,
     ext_auth_pol_tls_full_src,
+    ext_auth_pol_tls_missing_ca_crt_src,
     ext_auth_pol_tls_no_trusted_cert_src,
     ext_auth_pol_tls_nonexistent_ca_src,
-    ext_auth_pol_tls_wrong_ca_type_src,
     ext_auth_pol_valid_multi_src,
     ext_auth_pol_valid_src,
     ext_auth_tls_backend_src,
-    ext_auth_tls_wrong_ca_src,
+    ext_auth_tls_missing_ca_crt_src,
     invalid_credentials,
     setup_ext_auth,
     teardown_ext_auth,
@@ -665,7 +665,7 @@ class TestExternalAuthPoliciesVsrTLS:
 
         assert resp.status_code == 500
 
-    def test_tls_wrong_ca_secret_type(
+    def test_tls_ca_secret_missing_ca_crt(
         self,
         kube_apis,
         crd_ingress_controller,
@@ -674,22 +674,24 @@ class TestExternalAuthPoliciesVsrTLS:
         test_namespace,
     ):
         """
-        Test TLS policy with trustedCertSecret pointing to a kubernetes.io/tls secret
-        instead of nginx.org/ca. Controller rejects: VSR Warning, HTTP 500.
+        Test TLS policy with trustedCertSecret pointing to a Secret that has no
+        ca.crt key. The Secret here is a TLS pair, so the reference is rejected on
+        the missing key regardless of its type. Controller rejects: VSR Warning,
+        HTTP 500.
         """
         req_url = f"http://{v_s_route_setup.public_endpoint.public_ip}:{v_s_route_setup.public_endpoint.port}"
         secret_names, policy_names, headers = setup_ext_auth(
             kube_apis,
             v_s_route_setup.route_m.namespace,
             valid_credentials,
-            [ext_auth_pol_tls_wrong_ca_type_src],
+            [ext_auth_pol_tls_missing_ca_crt_src],
             v_s_route_setup.vs_host,
             tls=True,
         )
 
-        # Also create the wrong-type secret so it exists but has the wrong type
-        wrong_secret = create_secret_from_yaml(
-            kube_apis.v1, v_s_route_setup.route_m.namespace, ext_auth_tls_wrong_ca_src
+        # Create the Secret so the reference resolves but lacks the required key
+        secret_missing_ca_crt = create_secret_from_yaml(
+            kube_apis.v1, v_s_route_setup.route_m.namespace, ext_auth_tls_missing_ca_crt_src
         )
 
         patch_v_s_route_from_yaml(
@@ -705,7 +707,7 @@ class TestExternalAuthPoliciesVsrTLS:
 
         assert_vsr_status(kube_apis, v_s_route_setup.route_m.namespace, v_s_route_setup.route_m.name, "Warning")
 
-        delete_secret(kube_apis.v1, wrong_secret, v_s_route_setup.route_m.namespace)
+        delete_secret(kube_apis.v1, secret_missing_ca_crt, v_s_route_setup.route_m.namespace)
         self.teardown(kube_apis, v_s_route_setup.route_m.namespace, secret_names, policy_names, v_s_route_setup)
 
         assert resp.status_code == 500

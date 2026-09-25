@@ -3,6 +3,7 @@ package secrets
 import (
 	_ "embed"
 	"encoding/base64"
+	"fmt"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
@@ -11,20 +12,28 @@ import (
 
 func TestValidateJWKSecret(t *testing.T) {
 	t.Parallel()
-	secret := &v1.Secret{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "jwk-secret",
-			Namespace: "default",
-		},
-		Type: SecretTypeJWK,
-		Data: map[string][]byte{
-			"jwk": nil,
+	tests := []struct {
+		secret *v1.Secret
+		msg    string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "jwk-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"jwk": nil,
+				},
+			},
+			msg: "Valid JWK secret",
 		},
 	}
-
-	err := ValidateJWKSecret(secret)
-	if err != nil {
-		t.Errorf("ValidateJWKSecret() returned error %v", err)
+	for _, test := range tests {
+		err := ValidateJWKSecret(test.secret)
+		if err != nil {
+			t.Errorf("ValidateJWKSecret() returned error %v", err)
+		}
 	}
 }
 
@@ -40,20 +49,6 @@ func TestValidateJWKSecretFails(t *testing.T) {
 					Name:      "jwk-secret",
 					Namespace: "default",
 				},
-				Type: "some-type",
-				Data: map[string][]byte{
-					"jwk": nil,
-				},
-			},
-			msg: "Incorrect type for JWK secret",
-		},
-		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "jwk-secret",
-					Namespace: "default",
-				},
-				Type: SecretTypeJWK,
 			},
 			msg: "Missing jwk for JWK secret",
 		},
@@ -69,30 +64,23 @@ func TestValidateJWKSecretFails(t *testing.T) {
 
 func TestValidateValidateAPIKeySecret(t *testing.T) {
 	t.Parallel()
-	secret := &v1.Secret{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "api-key-secret",
-			Namespace: "default",
-		},
-		Type: SecretTypeAPIKey,
-		Data: map[string][]byte{
-			"client1": []byte("cGFzc3dvcmQ="),
-			"client2": []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
-		},
-	}
-
-	err := ValidateAPIKeySecret(secret)
-	if err != nil {
-		t.Errorf("ValidateAPIKeySecret() returned error %v", err)
-	}
-}
-
-func TestValidateValidateAPIKeyFails(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		secret *v1.Secret
 		msg    string
 	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"client1": []byte("cGFzc3dvcmQ="),
+					"client2": []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
+				},
+			},
+			msg: "Valid API Key secret",
+		},
 		{
 			secret: &v1.Secret{
 				ObjectMeta: meta_v1.ObjectMeta{
@@ -104,7 +92,7 @@ func TestValidateValidateAPIKeyFails(t *testing.T) {
 					"client": nil,
 				},
 			},
-			msg: "Incorrect type for API Key secret",
+			msg: "API key secret with an unrecognized type",
 		},
 		{
 			secret: &v1.Secret{
@@ -112,14 +100,80 @@ func TestValidateValidateAPIKeyFails(t *testing.T) {
 					Name:      "api-key-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeAPIKey,
+				Data: map[string][]byte{},
+			},
+			msg: "Empty API key secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"token": []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
+				},
+			},
+			msg: "API key secret with a single reserved key",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"token":   []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
+					"client1": []byte("cGFzc3dvcmQ="),
+				},
+			},
+			msg: "API key secret with a reserved key and custom client",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"tls.crt":     []byte("one"),
+					"tls.key":     []byte("two"),
+					"real-client": []byte("three"),
+				},
+			},
+			msg: "reserved keys plus custom client",
+		},
+	}
+
+	for _, test := range tests {
+		err := ValidateAPIKeySecret(test.secret)
+		if err != nil {
+			t.Errorf("ValidateAPIKeySecret() returned error %v", err)
+		}
+	}
+}
+
+func TestValidateValidateAPIKeyFails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		secret  *v1.Secret
+		msg     string
+		wantErr string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
 				Data: map[string][]byte{
 					"client1": []byte("cGFzc3dvcmQ="),
 					"client2": []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
 					"client3": []byte("N2ViNDMwOGItY2Q1Yi00NDEzLWI0NTUtYjMyZmQ4OTg2MmZk"),
 				},
 			},
-			msg: "repeated API Keys for API Key secret",
+			msg:     "repeated API Keys for API Key secret",
+			wantErr: "API Keys cannot be repeated",
 		},
 		{
 			secret: &v1.Secret{
@@ -127,13 +181,59 @@ func TestValidateValidateAPIKeyFails(t *testing.T) {
 					Name:      "api-key-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeAPIKey,
 				Data: map[string][]byte{
 					"client1": []byte(""),
 					"client2": []byte(""),
 				},
 			},
-			msg: "repeated empty API Keys for API Key secret",
+			msg:     "repeated empty API Keys for API Key secret",
+			wantErr: "API Keys cannot be repeated",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"tls.crt": []byte("one"),
+					"tls.key": []byte("two"),
+				},
+			},
+			msg: "API token with tls keys",
+			wantErr: "secret cannot be used for API key authentication: every data key " +
+				"(tls.crt, tls.key) is reserved by another NGINX Ingress Controller feature",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"username": []byte("one"),
+					"password": []byte("two"),
+				},
+			},
+			msg: "API Key with basic auth keys",
+			wantErr: "secret cannot be used for API key authentication: every data key " +
+				"(password, username) is reserved by another NGINX Ingress Controller feature",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"ca.crt":    []byte("one"),
+					"namespace": []byte("default"),
+					"token":     []byte("three"),
+				},
+			},
+			msg: "API Key with service account keys",
+			wantErr: "secret cannot be used for API key authentication: every data key " +
+				"(ca.crt, namespace, token) is reserved by another NGINX Ingress Controller feature",
 		},
 	}
 
@@ -143,25 +243,72 @@ func TestValidateValidateAPIKeyFails(t *testing.T) {
 		if err == nil {
 			t.Errorf("ValidateAPIKeySecret() returned no error for the case of %s", test.msg)
 		}
+		if err.Error() != test.wantErr {
+			t.Errorf("error = %q, want %q", err, test.wantErr)
+		}
+	}
+}
+
+func TestValidateAPIKeySecretRejectsDangerousClientIDs(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{
+		";", "{", "}", "$", "`", `"`, "'", `\`, "\n", "\r",
+	}
+
+	for _, dangerous := range tests {
+		dangerous := dangerous
+		t.Run(fmt.Sprintf("%q", dangerous), func(t *testing.T) {
+			t.Parallel()
+
+			clientID := "client" + dangerous
+			secret := &v1.Secret{
+				Data: map[string][]byte{
+					clientID: []byte("credential"),
+				},
+			}
+
+			err := ValidateAPIKeySecret(secret)
+			if err == nil {
+				t.Fatalf("expected client ID %q to be rejected", clientID)
+			}
+
+			want := fmt.Sprintf(
+				"secret has an API key client ID %q containing characters that are not permitted in NGINX configuration",
+				clientID,
+			)
+			if err.Error() != want {
+				t.Errorf("error = %q, want %q", err, want)
+			}
+		})
 	}
 }
 
 func TestValidateHtpasswdSecret(t *testing.T) {
 	t.Parallel()
-	secret := &v1.Secret{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "htpasswd-secret",
-			Namespace: "default",
-		},
-		Type: SecretTypeHtpasswd,
-		Data: map[string][]byte{
-			"htpasswd": nil,
+	tests := []struct {
+		secret *v1.Secret
+		msg    string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "htpasswd-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"htpasswd": nil,
+				},
+			},
+			msg: "Valid Htpasswd secret",
 		},
 	}
 
-	err := ValidateHtpasswdSecret(secret)
-	if err != nil {
-		t.Errorf("ValidateHtpasswdSecret() returned error %v", err)
+	for _, test := range tests {
+		err := ValidateHtpasswdSecret(test.secret)
+		if err != nil {
+			t.Errorf("ValidateHtpasswdSecret() returned error %v", err)
+		}
 	}
 }
 
@@ -177,20 +324,6 @@ func TestValidateHtpasswdSecretFails(t *testing.T) {
 					Name:      "htpasswd-secret",
 					Namespace: "default",
 				},
-				Type: "some-type",
-				Data: map[string][]byte{
-					"htpasswd": nil,
-				},
-			},
-			msg: "Incorrect type for Htpasswd secret",
-		},
-		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "htpasswd-secret",
-					Namespace: "default",
-				},
-				Type: SecretTypeHtpasswd,
 			},
 			msg: "Missing htpasswd for Htpasswd secret",
 		},
@@ -206,20 +339,42 @@ func TestValidateHtpasswdSecretFails(t *testing.T) {
 
 func TestValidateCASecret(t *testing.T) {
 	t.Parallel()
-	secret := &v1.Secret{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "ingress-mtls-secret",
-			Namespace: "default",
+	tests := []struct {
+		secret *v1.Secret
+		msg    string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "ingress-mtls-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"ca.crt": validCert,
+				},
+			},
+			msg: "Valid CA secret",
 		},
-		Type: SecretTypeCA,
-		Data: map[string][]byte{
-			"ca.crt": validCert,
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "ingress-mtls-secret",
+					Namespace: "default",
+				},
+				Type: "some-type",
+				Data: map[string][]byte{
+					"ca.crt": validCert,
+				},
+			},
+			msg: "CA secret with an unrecognized type",
 		},
 	}
 
-	err := ValidateCASecret(secret)
-	if err != nil {
-		t.Errorf("ValidateCASecret() returned error %v", err)
+	for _, test := range tests {
+		err := ValidateCASecret(test.secret)
+		if err != nil {
+			t.Errorf("ValidateCASecret() returned error %v", err)
+		}
 	}
 }
 
@@ -235,20 +390,6 @@ func TestValidateCASecretFails(t *testing.T) {
 					Name:      "ingress-mtls-secret",
 					Namespace: "default",
 				},
-				Type: "some-type",
-				Data: map[string][]byte{
-					"ca.crt": validCert,
-				},
-			},
-			msg: "Incorrect type for CA secret",
-		},
-		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "ingress-mtls-secret",
-					Namespace: "default",
-				},
-				Type: SecretTypeCA,
 			},
 			msg: "Missing ca.crt for CA secret",
 		},
@@ -258,7 +399,6 @@ func TestValidateCASecretFails(t *testing.T) {
 					Name:      "ingress-mtls-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeCA,
 				Data: map[string][]byte{
 					"ca.crt": invalidCACertWithNoPEMBlock,
 				},
@@ -271,7 +411,6 @@ func TestValidateCASecretFails(t *testing.T) {
 					Name:      "ingress-mtls-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeCA,
 				Data: map[string][]byte{
 					"ca.crt": invalidCACertWithWrongPEMBlock,
 				},
@@ -284,12 +423,21 @@ func TestValidateCASecretFails(t *testing.T) {
 					Name:      "ingress-mtls-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeCA,
 				Data: map[string][]byte{
 					"ca.crt": invalidCACert,
 				},
 			},
 			msg: "Invalid cert",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "ingress-mtls-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{CAKey: nil},
+			},
+			msg: "Empty CA key",
 		},
 	}
 
@@ -333,9 +481,8 @@ func TestValidateTLSSecretFails(t *testing.T) {
 					Name:      "tls-secret",
 					Namespace: "default",
 				},
-				Type: "some type",
 			},
-			msg: "Wrong type",
+			msg: "Missing tls.crt and tls.key",
 		},
 		{
 			secret: &v1.Secret{
@@ -343,7 +490,6 @@ func TestValidateTLSSecretFails(t *testing.T) {
 					Name:      "tls-secret",
 					Namespace: "default",
 				},
-				Type: v1.SecretTypeTLS,
 				Data: map[string][]byte{
 					"tls.crt": invalidCert,
 					"tls.key": validKey,
@@ -357,13 +503,25 @@ func TestValidateTLSSecretFails(t *testing.T) {
 					Name:      "tls-secret",
 					Namespace: "default",
 				},
-				Type: v1.SecretTypeTLS,
 				Data: map[string][]byte{
 					"tls.crt": validCert,
 					"tls.key": invalidKey,
 				},
 			},
 			msg: "Invalid key",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "tls-secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					v1.TLSCertKey:       nil,
+					v1.TLSPrivateKeyKey: validKey,
+				},
+			},
+			msg: "present but empty TLS certificate",
 		},
 	}
 
@@ -377,21 +535,54 @@ func TestValidateTLSSecretFails(t *testing.T) {
 
 func TestValidateOIDCSecret(t *testing.T) {
 	t.Parallel()
-
-	for _, clientSecret := range []string{"", `pa\"ss`, `path\\secret`} {
-		secret := &v1.Secret{
-			ObjectMeta: meta_v1.ObjectMeta{
-				Name:      "oidc-secret",
-				Namespace: "default",
+	tests := []struct {
+		secret *v1.Secret
+		msg    string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-secret", Namespace: "default"},
+				Data:       map[string][]byte{ClientSecretKey: []byte("some-secret")},
 			},
-			Type: SecretTypeOIDC,
-			Data: map[string][]byte{
-				"client-secret": []byte(clientSecret),
+			msg: "Valid OIDC secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-secret", Namespace: "default"},
+				Type:       "some-type",
+				Data:       map[string][]byte{ClientSecretKey: []byte("some-secret")},
 			},
-		}
+			msg: "OIDC secret with an unrecognized type",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-secret", Namespace: "default"},
+				Type:       SecretTypeOIDC,
+				Data:       map[string][]byte{ClientSecretKey: nil},
+			},
+			msg: "Empty client secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-secret", Namespace: "default"},
+				Type:       SecretTypeOIDC,
+				Data:       map[string][]byte{ClientSecretKey: []byte(`pa\"ss`)},
+			},
+			msg: "Escaped quote",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-secret", Namespace: "default"},
+				Type:       SecretTypeOIDC,
+				Data:       map[string][]byte{ClientSecretKey: []byte(`path\\secret`)},
+			},
+			msg: "Escaped backslash",
+		},
+	}
 
-		if err := ValidateOIDCSecret(secret); err != nil {
-			t.Errorf("ValidateOIDCSecret() returned error for %q: %v", clientSecret, err)
+	for _, test := range tests {
+		if err := ValidateOIDCSecret(test.secret); err != nil {
+			t.Errorf("ValidateOIDCSecret() returned error %v for the case of %s", err, test.msg)
 		}
 	}
 }
@@ -408,20 +599,6 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 					Name:      "oidc-secret",
 					Namespace: "default",
 				},
-				Type: "some-type",
-				Data: map[string][]byte{
-					"client-secret": nil,
-				},
-			},
-			msg: "Incorrect type for OIDC secret",
-		},
-		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "oidc-secret",
-					Namespace: "default",
-				},
-				Type: SecretTypeOIDC,
 			},
 			msg: "Missing client-secret for OIDC secret",
 		},
@@ -431,7 +608,6 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 					Name:      "oidc-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeOIDC,
 				Data: map[string][]byte{
 					"client-secret": []byte("hello$$$"),
 				},
@@ -444,7 +620,6 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 					Name:      "oidc-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeOIDC,
 				Data: map[string][]byte{
 					"client-secret": []byte("hello\t\n"),
 				},
@@ -457,7 +632,6 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 					Name:      "oidc-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeOIDC,
 				Data: map[string][]byte{
 					"client-secret": []byte(`foo"; access_log /dev/null; set $dummy "`),
 				},
@@ -476,20 +650,41 @@ func TestValidateOIDCSecretFails(t *testing.T) {
 
 func TestValidateLicenseSecret(t *testing.T) {
 	t.Parallel()
-	secret := &v1.Secret{
-		ObjectMeta: meta_v1.ObjectMeta{
-			Name:      "license-token",
-			Namespace: "default",
+	tests := []struct {
+		secret *v1.Secret
+		msg    string
+	}{
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "license-token",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"license.jwt": []byte(base64.StdEncoding.EncodeToString([]byte("license-token"))),
+				},
+			},
+			msg: "Valid license secret",
 		},
-		Type: SecretTypeLicense,
-		Data: map[string][]byte{
-			"license.jwt": []byte(base64.StdEncoding.EncodeToString([]byte("license-token"))),
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "license-token",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"license.jwt": nil,
+				},
+			},
+			msg: "License secret with empty value",
 		},
 	}
 
-	err := ValidateLicenseSecret(secret)
-	if err != nil {
-		t.Errorf("ValidateLicenseSecret() returned error %v", err)
+	for _, tests := range tests {
+		err := ValidateLicenseSecret(tests.secret)
+		if err != nil {
+			t.Errorf("ValidateLicenseSecret() returned error %v", err)
+		}
 	}
 }
 
@@ -505,20 +700,6 @@ func TestValidateLicenseSecretFails(t *testing.T) {
 					Name:      "license-token",
 					Namespace: "default",
 				},
-				Type: "some-type",
-				Data: map[string][]byte{
-					"license.jwt": []byte(base64.StdEncoding.EncodeToString([]byte("license-token"))),
-				},
-			},
-			msg: "Incorrect type for license secret",
-		},
-		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "license-token",
-					Namespace: "default",
-				},
-				Type: SecretTypeLicense,
 			},
 			msg: "Missing license.jwt for license secret",
 		},
@@ -532,10 +713,11 @@ func TestValidateLicenseSecretFails(t *testing.T) {
 	}
 }
 
-func TestValidateSecret(t *testing.T) {
+func TestValidateSecretForRole(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		secret *v1.Secret
+		role   SecretRole
 		msg    string
 	}{
 		{
@@ -544,13 +726,13 @@ func TestValidateSecret(t *testing.T) {
 					Name:      "tls-secret",
 					Namespace: "default",
 				},
-				Type: v1.SecretTypeTLS,
 				Data: map[string][]byte{
 					"tls.crt": validCert,
 					"tls.key": validKey,
 				},
 			},
-			msg: "Valid TLS secret",
+			role: RoleTLS,
+			msg:  "Valid TLS secret",
 		},
 		{
 			secret: &v1.Secret{
@@ -558,12 +740,12 @@ func TestValidateSecret(t *testing.T) {
 					Name:      "ingress-mtls-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeCA,
 				Data: map[string][]byte{
 					"ca.crt": validCACert,
 				},
 			},
-			msg: "Valid CA secret",
+			role: RoleCA,
+			msg:  "Valid CA secret",
 		},
 		{
 			secret: &v1.Secret{
@@ -571,12 +753,12 @@ func TestValidateSecret(t *testing.T) {
 					Name:      "jwk-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeJWK,
 				Data: map[string][]byte{
 					"jwk": nil,
 				},
 			},
-			msg: "Valid JWK secret",
+			role: RoleJWK,
+			msg:  "Valid JWK secret",
 		},
 		{
 			secret: &v1.Secret{
@@ -584,12 +766,12 @@ func TestValidateSecret(t *testing.T) {
 					Name:      "htpasswd-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeHtpasswd,
 				Data: map[string][]byte{
 					"htpasswd": nil,
 				},
 			},
-			msg: "Valid Htpasswd secret",
+			role: RoleHtpasswd,
+			msg:  "Valid Htpasswd secret",
 		},
 		{
 			secret: &v1.Secret{
@@ -597,12 +779,12 @@ func TestValidateSecret(t *testing.T) {
 					Name:      "oidc-secret",
 					Namespace: "default",
 				},
-				Type: SecretTypeOIDC,
 				Data: map[string][]byte{
 					"client-secret": nil,
 				},
 			},
-			msg: "Valid OIDC secret",
+			role: RoleOIDC,
+			msg:  "Valid OIDC secret",
 		},
 		{
 			secret: &v1.Secret{
@@ -610,136 +792,140 @@ func TestValidateSecret(t *testing.T) {
 					Name:      "api-key",
 					Namespace: "default",
 				},
-				Type: SecretTypeAPIKey,
 				Data: map[string][]byte{
 					"client1": []byte("cGFzc3dvcmQ="),
 				},
 			},
-			msg: "Valid API Key secret",
+			role: RoleAPIKey,
+			msg:  "Valid API Key secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"license.jwt": []byte(nil),
+				},
+			},
+			role: RoleLicense,
+			msg:  "Valid license secret",
+		},
+		{
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "api-key",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					BundleTokenKey: []byte("cGFzc3dvcmQ="),
+				},
+			},
+			role: RoleWAFBundle,
+			msg:  "Valid WAF Bundle secret",
 		},
 	}
 
 	for _, test := range tests {
-		err := ValidateSecret(test.secret)
+		err := ValidateSecretForRole(test.secret, test.role)
 		if err != nil {
-			t.Errorf("ValidateSecret() returned error %v for the case of %s", err, test.msg)
+			t.Errorf("ValidateSecretForRole() returned error %v for the case of %s", err, test.msg)
 		}
 	}
 }
 
-func TestValidateSecretFails(t *testing.T) {
+func TestValidateSecretForRoleMissingRequiredKey(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
-		secret *v1.Secret
-		msg    string
+		name string
+		role SecretRole
+		data map[string][]byte
+		want string
 	}{
 		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "tls-secret",
-					Namespace: "default",
-				},
-				Data: map[string][]byte{
-					"tls.crt": validCert,
-					"tls.key": validKey,
-				},
-			},
-			msg: "Missing type for TLS secret",
+			name: "TLS certificate",
+			role: RoleTLS,
+			data: map[string][]byte{v1.TLSPrivateKeyKey: validKey},
+			want: `secret is missing required key "tls.crt"`,
 		},
 		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "ingress-mtls-secret",
-					Namespace: "default",
-				},
-				Type: SecretTypeCA,
-			},
-			msg: "Missing ca.crt for CA secret",
+			name: "TLS private key",
+			role: RoleTLS,
+			data: map[string][]byte{v1.TLSCertKey: validCert},
+			want: `secret is missing required key "tls.key"`,
 		},
 		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "jwk-secret",
-					Namespace: "default",
-				},
-				Type: SecretTypeJWK,
-			},
-			msg: "Missing jwk for JWK secret",
+			name: "CA",
+			role: RoleCA,
+			want: `secret is missing required key "ca.crt"`,
 		},
 		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "htpasswd-secret",
-					Namespace: "default",
-				},
-				Type: SecretTypeHtpasswd,
-			},
-			msg: "Missing htpasswd for Htpasswd secret",
+			name: "JWK",
+			role: RoleJWK,
+			want: `secret is missing required key "jwk"`,
 		},
 		{
-			secret: &v1.Secret{
-				ObjectMeta: meta_v1.ObjectMeta{
-					Name:      "api-key",
-					Namespace: "default",
-				},
-				Type: SecretTypeAPIKey,
-				Data: map[string][]byte{
-					"client1": []byte("cGFzc3dvcmQ="),
-					"client2": []byte("cGFzc3dvcmQ="),
-				},
-			},
-			msg: "duplicated API Keys in API Key secret",
+			name: "Htpasswd",
+			role: RoleHtpasswd,
+			want: `secret is missing required key "htpasswd"`,
+		},
+		{
+			name: "OIDC",
+			role: RoleOIDC,
+			want: `secret is missing required key "client-secret"`,
+		},
+		{
+			name: "License",
+			role: RoleLicense,
+			want: `secret is missing required key "license.jwt"`,
 		},
 	}
 
 	for _, test := range tests {
-		err := ValidateSecret(test.secret)
-		if err == nil {
-			t.Errorf("ValidateSecret() returned no error for the case of %s", test.msg)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateSecretForRole(
+				&v1.Secret{Data: test.data},
+				test.role,
+			)
+			if err == nil {
+				t.Fatal("expected a missing-key error")
+			}
+			if err.Error() != test.want {
+				t.Errorf("error = %q, want %q", err, test.want)
+			}
+		})
 	}
 }
 
-func TestHasCorrectSecretType(t *testing.T) {
+func TestValidateSecretForRoleUnknownRole(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		secretType v1.SecretType
-		expected   bool
-	}{
-		{
-			secretType: v1.SecretTypeTLS,
-			expected:   true,
-		},
-		{
-			secretType: SecretTypeCA,
-			expected:   true,
-		},
-		{
-			secretType: SecretTypeJWK,
-			expected:   true,
-		},
-		{
-			secretType: SecretTypeOIDC,
-			expected:   true,
-		},
-		{
-			secretType: SecretTypeHtpasswd,
-			expected:   true,
-		},
-		{
-			secretType: SecretTypeAPIKey,
-			expected:   true,
-		},
-		{
-			secretType: "some-type",
-			expected:   false,
-		},
+
+	err := ValidateSecretForRole(&v1.Secret{}, SecretRole("unknown"))
+	if err == nil {
+		t.Fatal("expected an error")
 	}
 
-	for _, test := range tests {
-		result := IsSupportedSecretType(test.secretType)
-		if result != test.expected {
-			t.Errorf("IsSupportedSecretType(%v) returned %v but expected %v", test.secretType, result, test.expected)
+	const want = `unknown secret role "unknown"`
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err, want)
+	}
+}
+
+func TestReservedKeysCoversAllRoles(t *testing.T) {
+	t.Parallel()
+	reserved := reservedKeys()
+	for _, role := range allRoles {
+		if role == RoleAPIKey {
+			continue
+		}
+		for _, key := range KnownKeys(role) {
+			if _, ok := reserved[key]; !ok {
+				t.Errorf("key %q of role %q is missing from reservedKeys", key, role)
+			}
 		}
 	}
 }
@@ -787,32 +973,28 @@ func TestValidateWAFBundleSecret(t *testing.T) {
 			name: "valid with token",
 			secret: &v1.Secret{
 				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
-				Type:       SecretTypeWAFBundle,
-				Data:       map[string][]byte{"token": []byte("my-api-token")},
+				Data:       map[string][]byte{BundleTokenKey: []byte("my-api-token")},
 			},
 		},
 		{
 			name: "valid with username+password",
 			secret: &v1.Secret{
 				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
-				Type:       SecretTypeWAFBundle,
-				Data:       map[string][]byte{"username": []byte("admin"), "password": []byte("secret")},
+				Data:       map[string][]byte{BundleUsernameKey: []byte("admin"), BundlePasswordKey: []byte("secret")},
 			},
 		},
 		{
-			name: "wrong type",
+			name: "unrecognized type",
 			secret: &v1.Secret{
 				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
-				Type:       v1.SecretTypeOpaque,
-				Data:       map[string][]byte{"token": []byte("tok")},
+				Type:       "some-type",
+				Data:       map[string][]byte{BundleTokenKey: []byte("tok")},
 			},
-			wantErr: true,
 		},
 		{
 			name: "missing token and username",
 			secret: &v1.Secret{
 				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
-				Type:       SecretTypeWAFBundle,
 				Data:       map[string][]byte{"other": []byte("value")},
 			},
 			wantErr: true,
@@ -821,10 +1003,44 @@ func TestValidateWAFBundleSecret(t *testing.T) {
 			name: "username without password",
 			secret: &v1.Secret{
 				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
-				Type:       SecretTypeWAFBundle,
-				Data:       map[string][]byte{"username": []byte("admin")},
+				Data:       map[string][]byte{BundleUsernameKey: []byte("admin")},
 			},
 			wantErr: true,
+		},
+		{
+			name: "password without username",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Data:       map[string][]byte{BundlePasswordKey: []byte("admin")},
+			},
+			wantErr: true,
+		},
+		{
+			name: "empty token",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Data:       map[string][]byte{BundleTokenKey: []byte(nil)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty username and password",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Data:       map[string][]byte{BundleUsernameKey: []byte(nil), BundlePasswordKey: []byte(nil)},
+			},
+			wantErr: false,
+		},
+		{
+			name: "token with username",
+			secret: &v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "waf-creds", Namespace: "default"},
+				Data: map[string][]byte{
+					BundleTokenKey:    []byte("token"),
+					BundleUsernameKey: []byte("username"),
+				},
+			},
+			wantErr: false,
 		},
 	}
 	for _, tc := range tests {

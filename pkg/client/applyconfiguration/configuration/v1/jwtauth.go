@@ -9,7 +9,7 @@ package v1
 type JWTAuthApplyConfiguration struct {
 	// The realm of the JWT.
 	Realm *string `json:"realm,omitempty"`
-	// The name of the Kubernetes secret that stores the Htpasswd configuration. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/htpasswd, and the config must be stored in the secret under the key htpasswd, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret containing the JSON Web Key. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the JWK role and must store the JWK under the jwk key.
 	Secret *string `json:"secret,omitempty"`
 	// The token specifies a variable that contains the JSON Web Token. By default the JWT is passed in the Authorization header as a Bearer Token. JWT may be also passed as a cookie or a part of a query string, for example: $cookie_auth_token. Accepted variables are $http_, $arg_, $cookie_.
 	Token *string `json:"token,omitempty"`
@@ -23,7 +23,7 @@ type JWTAuthApplyConfiguration struct {
 	SNIName *string `json:"sniName,omitempty"`
 	// Enables verification of the JWKS server SSL certificate. Default is false.
 	SSLVerify *bool `json:"sslVerify,omitempty"`
-	// The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// Sets the verification depth in the JWKS server certificates chain. The default is 1.
 	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`

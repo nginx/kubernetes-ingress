@@ -60,7 +60,7 @@ type IngressEx struct {
 	AppProtectPolicy    *unstructured.Unstructured
 	AppProtectLogs      []AppProtectLog
 	DosEx               *DosEx
-	SecretRefs          map[string]*secrets.SecretReference
+	SecretRefs          map[secrets.SecretRefKey]*secrets.SecretReference
 	ZoneSync            bool
 }
 
@@ -471,7 +471,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 
 		if !isDefaultServer {
-			warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
+			warnings := addSSLConfig(&server, ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
 			allWarnings.Add(warnings)
 		}
 
@@ -511,7 +511,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		if !ncp.isMinion {
 			if cfgParams.JWTKey != "" {
-				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
+				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
 				server.JWTAuth = jwtAuth
 				if redirectLoc != nil {
 					server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
@@ -520,7 +520,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			}
 
 			if cfgParams.BasicAuthSecret != "" {
-				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, ncp.ingEx.SecretRefs, &cfgParams)
 				server.BasicAuth = basicAuth
 				allWarnings.Add(warnings)
 			}
@@ -632,7 +632,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				server.AddHeaderInherit = "" // unset to avoid writing AddHeaderInherit to server block when the ingress is a minion, since it's only relevant for master ingresses
 
 				if cfgParams.JWTKey != "" {
-					jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
+					jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
 					loc.JWTAuth = jwtAuth
 					if redirectLoc != nil {
 						server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
@@ -641,7 +641,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				}
 
 				if cfgParams.BasicAuthSecret != "" {
-					basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+					basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, ncp.ingEx.SecretRefs, &cfgParams)
 					loc.BasicAuth = basicAuth
 					allWarnings.Add(warnings)
 				}
@@ -868,27 +868,30 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 func generateJWTConfig(
 	owner runtime.Object,
-	secretRefs map[string]*secrets.SecretReference,
+	namespace string,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 	cfgParams *ConfigParams,
 	redirectLocationName string,
 ) (*version1.JWTAuth, *version1.JWTRedirectLocation, Warnings) {
 	warnings := newWarnings()
 
-	secretRef := secretRefs[cfgParams.JWTKey]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeJWK {
-		warnings.AddWarningf(owner, "JWK secret %s is of a wrong type '%s', must be '%s'", cfgParams.JWTKey, secretType, secrets.SecretTypeJWK)
-	} else if secretRef.Error != nil {
-		warnings.AddWarningf(owner, "JWK secret %s is invalid: %v", cfgParams.JWTKey, secretRef.Error)
+	var keyPath string
+	secretRef := secretRefs[secrets.RefKey(namespace+"/"+cfgParams.JWTKey, secrets.RoleJWK)]
+	if secretRef != nil {
+		if secretRef.Error != nil {
+			warnings.AddWarningf(owner, "JWK secret %s is invalid: %v", cfgParams.JWTKey, secretRef.Error)
+		}
+		keyPath = secretRef.Path
+	} else {
+		warnings.AddWarningf(owner, "JWK secret %s is missing from secret references", cfgParams.JWTKey)
 	}
 
-	// Key is configured for all cases, including when the secret is (1) invalid or (2) of a wrong type.
-	// For (1) and (2), NGINX Plus will reject such a key at runtime and return 500 to clients.
+	// Key is configured even when the secret is missing or invalid. auth_jwt_key_file is
+	// read by NGINX Plus at request time, so an absent file yields a 500 for the affected
+	// URLs rather than a configuration load failure. Rendering an empty path here would
+	// produce "auth_jwt_key_file ;" and NGINX would reject the entire configuration.
 	jwtAuth := &version1.JWTAuth{
-		Key:   secretRef.Path,
+		Key:   keyPath,
 		Realm: cfgParams.JWTRealm,
 		Token: cfgParams.JWTToken,
 	}
@@ -906,22 +909,22 @@ func generateJWTConfig(
 	return jwtAuth, redirectLocation, warnings
 }
 
-func generateBasicAuthConfig(owner runtime.Object, secretRefs map[string]*secrets.SecretReference, cfgParams *ConfigParams) (*version1.BasicAuth, Warnings) {
+func generateBasicAuthConfig(owner runtime.Object, namespace string, secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams) (*version1.BasicAuth, Warnings) {
 	warnings := newWarnings()
 
-	secretRef := secretRefs[cfgParams.BasicAuthSecret]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeHtpasswd {
-		warnings.AddWarningf(owner, "Basic auth secret %s is of a wrong type '%s', must be '%s'", cfgParams.BasicAuthSecret, secretType, secrets.SecretTypeHtpasswd)
-	} else if secretRef.Error != nil {
-		warnings.AddWarningf(owner, "Basic auth secret %s is invalid: %v", cfgParams.BasicAuthSecret, secretRef.Error)
+	var secretPath string
+	secretRef := secretRefs[secrets.RefKey(namespace+"/"+cfgParams.BasicAuthSecret, secrets.RoleHtpasswd)]
+	if secretRef != nil {
+		if secretRef.Error != nil {
+			warnings.AddWarningf(owner, "Basic auth secret %s is invalid: %v", cfgParams.BasicAuthSecret, secretRef.Error)
+		}
+		secretPath = secretRef.Path
+	} else {
+		warnings.AddWarningf(owner, "Basic auth secret %s is missing from secret references", cfgParams.BasicAuthSecret)
 	}
 
 	basicAuth := &version1.BasicAuth{
-		Secret: secretRef.Path,
+		Secret: secretPath,
 		Realm:  cfgParams.BasicAuthRealm,
 	}
 
@@ -1076,8 +1079,8 @@ func getExternalAuthServicePort(externalAuth *version2.ExternalAuth) (uint16, st
 	return 80, ""
 }
 
-func addSSLConfig(server *version1.Server, owner runtime.Object, host string, ingressTLS []networking.IngressTLS,
-	secretRefs map[string]*secrets.SecretReference, isWildcardEnabled bool,
+func addSSLConfig(server *version1.Server, owner runtime.Object, namespace string, host string, ingressTLS []networking.IngressTLS,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, isWildcardEnabled bool,
 ) Warnings {
 	warnings := newWarnings()
 
@@ -1102,19 +1105,15 @@ func addSSLConfig(server *version1.Server, owner runtime.Object, host string, in
 	var rejectHandshake bool
 
 	if tlsSecret != "" {
-		secretRef := secretRefs[tlsSecret]
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != api_v1.SecretTypeTLS {
-			rejectHandshake = true
-			warnings.AddWarningf(owner, "TLS secret %s is of a wrong type '%s', must be '%s'", tlsSecret, secretType, api_v1.SecretTypeTLS)
-		} else if secretRef.Error != nil {
+		secretRef := secretRefs[secrets.RefKey(namespace+"/"+tlsSecret, secrets.RoleTLS)]
+		if secretRef != nil && secretRef.Error != nil {
 			rejectHandshake = true
 			warnings.AddWarningf(owner, "TLS secret %s is invalid: %v", tlsSecret, secretRef.Error)
-		} else {
+		} else if secretRef != nil {
 			pemFile = secretRef.Path
+		} else {
+			rejectHandshake = true
+			warnings.AddWarningf(owner, "TLS secret %s is missing from secret references", tlsSecret)
 		}
 	} else if isWildcardEnabled {
 		pemFile = pemFileNameForWildcardTLSSecret

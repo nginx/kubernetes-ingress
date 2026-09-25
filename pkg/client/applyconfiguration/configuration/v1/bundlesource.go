@@ -29,13 +29,15 @@ type BundleSourceApplyConfiguration struct {
 	// URL is the full bundle URL for HTTPS type, or the API base URL for NIM/N1C. Must use https://.
 	URL *string `json:"url,omitempty"`
 	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
-	// For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
-	// For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
-	// For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+	// A secret of the type Opaque is recommended.
+	// For HTTPS: TLS role (tls.crt + tls.key keys for client mTLS; optional ca.crt for server CA).
+	// For N1C: WAF Bundle role; secret with a 'token' field containing the API token.
+	// For NIM: WAF Bundle role; secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
 	Secret *string `json:"secret,omitempty"`
 	// TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
 	// for verifying the remote endpoint TLS certificate. The secret must be in the same
-	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+	// namespace as the Policy. A secret of the type Opaque is recommended. The secret is
+	// resolved with the CA role and must store the certificate under the ca.crt key.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	Name *string `json:"name,omitempty"`
