@@ -60,7 +60,7 @@ type IngressEx struct {
 	AppProtectPolicy    *unstructured.Unstructured
 	AppProtectLogs      []AppProtectLog
 	DosEx               *DosEx
-	SecretRefs          map[string]*secrets.SecretReference
+	SecretRefs          map[secrets.SecretRefKey]*secrets.SecretReference
 	ZoneSync            bool
 }
 
