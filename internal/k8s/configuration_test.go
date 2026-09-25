@@ -1395,7 +1395,10 @@ func TestAddVirtualServerWithExistingVirtualServerRoute(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {}},
-				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-2 doesn't exist or invalid"},
+				Warnings: []string{
+					"VirtualServerRoute default/virtualserverroute-2 doesn't exist or invalid",
+					"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes",
+				},
 			},
 		},
 	}
@@ -5686,6 +5689,7 @@ func TestMatchVSwithVSRusingSelector(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {}},
+				Warnings:                    []string{"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes"},
 			},
 		},
 	}
@@ -5752,7 +5756,10 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {}},
-				Warnings:                    []string{"VirtualServerRoute default/virtualserverroute-2 doesn't exist or invalid"},
+				Warnings: []string{
+					"VirtualServerRoute default/virtualserverroute-2 doesn't exist or invalid",
+					"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes",
+				},
 			},
 		},
 	}
@@ -5777,6 +5784,7 @@ func TestAddVirtualServerWithVirtualServerRoutesVSR(t *testing.T) {
 				VirtualServer:               vs,
 				VirtualServerRoutes:         []*conf_v1.VirtualServerRoute{vsr1, vsr2},
 				VirtualServerRouteSelectors: map[string][]string{"app=route": {}},
+				Warnings:                    []string{"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes"},
 			},
 		},
 	}
@@ -6045,7 +6053,21 @@ func TestValidateVSRSelectors(t *testing.T) {
 			expectedVSRSelectors: map[string][]string{
 				"app=route": {},
 			},
-			expectedWarns: nil,
+			expectedWarns: []string{"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes"},
+		},
+		{
+			name: "VSR exists but labels do not match",
+			route: &conf_v1.Route{
+				Path:          "/",
+				RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+			},
+			vsHost:       "cafe.example.com",
+			vsrs:         []*conf_v1.VirtualServerRoute{createTestVirtualServerRouteWithLabels("tea", "default", "cafe.example.com", "/", map[string]string{"app": "other"})},
+			expectedVSRs: nil,
+			expectedVSRSelectors: map[string][]string{
+				"app=route": {},
+			},
+			expectedWarns: []string{"VirtualServerRoute routeSelector app=route matched no VirtualServerRoutes"},
 		},
 		{
 			name: "VSR exists but host mismatch",
@@ -6088,6 +6110,115 @@ func TestValidateVSRSelectors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestLostVirtualServerRouteWarnsForNamedAndSelectorAttachment verifies that
+// losing a VirtualServerRoute is reported the same way for both attachment
+// methods. Named `route:` already warned; routeSelector previously stayed
+// silent and left the VirtualServer Valid. Warnings on VirtualServerConfiguration
+// are what the controller uses to set State: Warning.
+func TestLostVirtualServerRouteWarnsForNamedAndSelectorAttachment(t *testing.T) {
+	t.Parallel()
+
+	newCafeResources := func() (*conf_v1.VirtualServer, *conf_v1.VirtualServerRoute, *conf_v1.VirtualServerRoute) {
+		namedVSR := createTestVirtualServerRoute("coffee-named", "default", "cafe.example.com", "/coffee")
+		selectorVSR := createTestVirtualServerRouteWithLabels("tea-selected", "default", "cafe.example.com", "/tea", map[string]string{"route-group": "cafe"})
+		vs := createTestVirtualServerWithRoutes("cafe", "cafe.example.com", []conf_v1.Route{
+			{Path: "/coffee", Route: "default/coffee-named"},
+			{Path: "/tea", RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"route-group": "cafe"}}},
+		})
+		return vs, namedVSR, selectorVSR
+	}
+
+	t.Run("both attachments present: no warnings", func(t *testing.T) {
+		t.Parallel()
+		vs, namedVSR, selectorVSR := newCafeResources()
+		configuration := createTestConfiguration()
+		configuration.AddOrUpdateVirtualServerRoute(namedVSR)
+		configuration.AddOrUpdateVirtualServerRoute(selectorVSR)
+
+		changes, problems := configuration.AddOrUpdateVirtualServer(vs)
+		if diff := cmp.Diff([]ConfigurationProblem(nil), problems); diff != "" {
+			t.Errorf("problems (-want +got):\n%s", diff)
+		}
+		if len(changes) != 1 {
+			t.Fatalf("expected 1 change, got %d", len(changes))
+		}
+		vsConfig, ok := changes[0].Resource.(*VirtualServerConfiguration)
+		if !ok {
+			t.Fatalf("expected VirtualServerConfiguration, got %T", changes[0].Resource)
+		}
+		if diff := cmp.Diff([]string(nil), vsConfig.Warnings); diff != "" {
+			t.Errorf("warnings (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("named route deleted: warning", func(t *testing.T) {
+		t.Parallel()
+		vs, namedVSR, selectorVSR := newCafeResources()
+		configuration := createTestConfiguration()
+		configuration.AddOrUpdateVirtualServerRoute(namedVSR)
+		configuration.AddOrUpdateVirtualServerRoute(selectorVSR)
+		configuration.AddOrUpdateVirtualServer(vs)
+
+		changes, problems := configuration.DeleteVirtualServerRoute("default/coffee-named")
+		if diff := cmp.Diff([]ConfigurationProblem(nil), problems); diff != "" {
+			t.Errorf("problems (-want +got):\n%s", diff)
+		}
+		if len(changes) != 1 {
+			t.Fatalf("expected 1 change, got %d", len(changes))
+		}
+		vsConfig := changes[0].Resource.(*VirtualServerConfiguration)
+		want := []string{"VirtualServerRoute default/coffee-named doesn't exist or invalid"}
+		if diff := cmp.Diff(want, vsConfig.Warnings); diff != "" {
+			t.Errorf("warnings (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("selector route deleted: warning", func(t *testing.T) {
+		t.Parallel()
+		vs, namedVSR, selectorVSR := newCafeResources()
+		configuration := createTestConfiguration()
+		configuration.AddOrUpdateVirtualServerRoute(namedVSR)
+		configuration.AddOrUpdateVirtualServerRoute(selectorVSR)
+		configuration.AddOrUpdateVirtualServer(vs)
+
+		changes, problems := configuration.DeleteVirtualServerRoute("default/tea-selected")
+		if diff := cmp.Diff([]ConfigurationProblem(nil), problems); diff != "" {
+			t.Errorf("problems (-want +got):\n%s", diff)
+		}
+		if len(changes) != 1 {
+			t.Fatalf("expected 1 change, got %d", len(changes))
+		}
+		vsConfig := changes[0].Resource.(*VirtualServerConfiguration)
+		want := []string{"VirtualServerRoute routeSelector route-group=cafe matched no VirtualServerRoutes"}
+		if diff := cmp.Diff(want, vsConfig.Warnings); diff != "" {
+			t.Errorf("warnings (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("selector route ingressClassName changed: warning", func(t *testing.T) {
+		t.Parallel()
+		vs, namedVSR, selectorVSR := newCafeResources()
+		configuration := createTestConfiguration()
+		configuration.AddOrUpdateVirtualServerRoute(namedVSR)
+		configuration.AddOrUpdateVirtualServerRoute(selectorVSR)
+		configuration.AddOrUpdateVirtualServer(vs)
+
+		unowned := selectorVSR.DeepCopy()
+		unowned.Generation++
+		unowned.Spec.IngressClass = "other"
+
+		changes, _ := configuration.AddOrUpdateVirtualServerRoute(unowned)
+		if len(changes) != 1 {
+			t.Fatalf("expected 1 change, got %d", len(changes))
+		}
+		vsConfig := changes[0].Resource.(*VirtualServerConfiguration)
+		want := []string{"VirtualServerRoute routeSelector route-group=cafe matched no VirtualServerRoutes"}
+		if diff := cmp.Diff(want, vsConfig.Warnings); diff != "" {
+			t.Errorf("warnings (-want +got):\n%s", diff)
+		}
+	})
 }
 
 // selectorTestVSRCount is the number of VSRs registered under a single
