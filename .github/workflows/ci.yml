@@ -480,20 +480,20 @@ jobs:
         id: packages
         run: |
           source tests/venv/bin/activate
-          python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} --log package_output.txt
+          python tests/scripts/check_container_packages.py --tag ${{ needs.checks.outputs.build_tag }} --report package_report.md
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
 
       - name: Add comment
         run: |
-          # make sure the comment is formatted correctly, as a code block
-          echo '### Package Report' > output.txt
-          echo '<details>' >> output.txt
-          cat package_output.txt | sed -r 's#^(.*)$#\1<br>#' >> output.txt
-          echo '</details>' >> output.txt
-          gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F output.txt
+          # the script emits the full markdown body, including the heading
+          if [ ! -s package_report.md ]; then
+            echo "No package report was generated, skipping comment"
+            exit 0
+          fi
+          gh pr comment --edit-last --create-if-none ${{ github.event.pull_request.number }} -F package_report.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: ${{ ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
+        if: ${{ !cancelled() && ( needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' ) && github.event.pull_request }}
 
   helm-tests:
     if: >-
