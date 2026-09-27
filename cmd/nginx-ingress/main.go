@@ -115,7 +115,7 @@ func main() {
 		Interface: core_v1.New(kubeClient.CoreV1().RESTClient()).Events(""),
 	})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme,
-		api_v1.EventSource{Component: "nginx-ingress-controller"})
+		api_v1.EventSource{Component: k8s.EventReporterName})
 	defer eventBroadcaster.Shutdown()
 	mustValidateIngressClass(ctx, kubeClient)
 

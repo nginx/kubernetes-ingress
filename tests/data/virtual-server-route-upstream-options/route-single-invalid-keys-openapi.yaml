@@ -26,6 +26,7 @@ spec:
     buffer-size: 10
     buffering: 20
     tls: "yes"
+    proxy-http-version: "2.0"
     sessionCookie:
       name: True
       path: 100

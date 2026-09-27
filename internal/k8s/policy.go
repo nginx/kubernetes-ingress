@@ -76,7 +76,11 @@ func (lbc *LoadBalancerController) syncPolicy(task task) {
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, policyKind, logNameKey, n)
-	obj, polExists, err = lbc.getNamespacedInformer(ns).policyLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, polExists, err = nsi.policyLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return

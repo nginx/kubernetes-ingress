@@ -98,14 +98,17 @@ type PodInfo struct {
 
 // VirtualServerEx holds a VirtualServer along with the resources that are referenced in this VirtualServer.
 type VirtualServerEx struct {
-	VirtualServer               *conf_v1.VirtualServer
-	HTTPPort                    int
-	HTTPSPort                   int
-	HTTPIPv4                    string
-	HTTPIPv6                    string
-	HTTPSIPv4                   string
-	HTTPSIPv6                   string
-	Endpoints                   map[string][]string
+	VirtualServer *conf_v1.VirtualServer
+	HTTPPort      int
+	HTTPSPort     int
+	HTTPIPv4      string
+	HTTPIPv6      string
+	HTTPSIPv4     string
+	HTTPSIPv6     string
+	Endpoints     map[string][]string
+	// ServiceAppProtocols holds the appProtocol of the Service port backing each upstream,
+	// keyed identically to Endpoints. Absent or unset appProtocols are not stored.
+	ServiceAppProtocols         map[string]string
 	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
 	VirtualServerSelectorRoutes map[string][]string
 	ExternalNameSvcs            map[string]bool
@@ -1361,6 +1364,7 @@ func generateUpstreams(
 	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
 	upstreams = append(upstreams, ups)
 	u.TLS.Enable = isTLSEnabled(u)
+	u.ProxyHTTPVersion = vsc.resolveUpstreamProxyHTTPVersion(owner, ownerNamespace, u, vsEx)
 	crUpstreams[upstreamName] = u
 
 	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
@@ -1373,6 +1377,30 @@ func generateUpstreams(
 		}
 	}
 	return upstreams, healthChecks, statusMatches
+}
+
+// resolveUpstreamProxyHTTPVersion determines the HTTP version used for connections to the
+// servers of a single upstream. gRPC upstreams are left unset: they are proxied with grpc_pass,
+// which always uses HTTP/2, and never render proxy_http_version.
+func (vsc *virtualServerConfigurator) resolveUpstreamProxyHTTPVersion(
+	owner runtime.Object,
+	ownerNamespace string,
+	upstream conf_v1.Upstream,
+	vsEx *VirtualServerEx,
+) string {
+	if isGRPC(upstream.Type) {
+		if upstream.ProxyHTTPVersion != "" {
+			vsc.addWarningf(owner,
+				"proxy-http-version is ignored for upstream %s because it has type grpc, which always uses HTTP/2",
+				upstream.Name)
+		}
+		return ""
+	}
+
+	serviceNamespace, serviceName := ParseServiceReference(upstream.Service, ownerNamespace)
+	endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, upstream.Subselector, upstream.Port)
+
+	return resolveProxyHTTPVersion(upstream.ProxyHTTPVersion, vsEx.ServiceAppProtocols[endpointsKey])
 }
 
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {
@@ -2130,6 +2158,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyHideHeaders:         generateProxyHideHeaders(proxy),
 		ProxyPassHeaders:         generateProxyPassHeaders(proxy),
 		ProxyIgnoreHeaders:       generateProxyIgnoreHeaders(proxy),
+		ProxyHTTPVersion:         upstream.ProxyHTTPVersion,
 		AddHeaders:               generateProxyAddHeaders(proxy),
 		ProxyPassRewrite:         generateProxyPassRewrite(path, proxy, internal),
 		Rewrites:                 generateRewrites(path, proxy, internal, originalPath, isGRPC(upstream.Type)),
