@@ -795,13 +795,7 @@ func TestHasVsrStatusChanged(t *testing.T) {
 	}
 }
 
-// TestHasVsrStatusChangedReferencedByPointerSemantics verifies that a nil
-// referencedBy pointer excludes the field from the comparison (so
-// UpdateVirtualServerRouteStatus, which does not manage referencedBy, cannot
-// spuriously trigger or suppress a write based on it), while a non-nil
-// pointer to an empty string is compared like any other value (so
-// UpdateVirtualServerRouteStatusWithReferencedBy can clear a stale value down
-// to empty).
+// TestHasVsrStatusChangedReferencedByPointerSemantics distinguishes nil from an empty referencedBy value.
 func TestHasVsrStatusChangedReferencedByPointerSemantics(t *testing.T) {
 	t.Parallel()
 

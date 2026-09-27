@@ -19,21 +19,8 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-// newVSRStatusTestLBC builds a LoadBalancerController wired to a fake
-// configuration clientset, ready to drive VirtualServer/VirtualServerRoute
-// resources through the normal Configuration -> processChanges/processProblems
-// path outside of the task queue, mirroring newWeightTestLBCWithAutoadjust in
-// weight_fast_lane_test.go. Unlike that harness, isNginxReady is true from the
-// start, so VS/VSR status writes go straight to the fake clientset instead of
-// the startup pending slices, and the fake clientset is returned so tests can
-// assert on the persisted status.
-//
-// The single namespacedInformer is registered under the "" (global) key,
-// which getNamespacedInformer treats as "watching all namespaces" -- see its
-// isGlobalNs branch. That lets cross-namespace VS/VSR references (a hostless
-// VSR in one namespace selected by a VS in another) work against this one
-// shared store without the harness needing to know in advance which
-// namespaces a given test will use.
+// newVSRStatusTestLBC registers the informer under the "" key, which getNamespacedInformer treats as global (matches any namespace).
+// isNginxReady is true from the start, so status writes bypass the startup-pending path.
 func newVSRStatusTestLBC(tb testing.TB) (*LoadBalancerController, *fake_v1.Clientset) {
 	tb.Helper()
 
@@ -98,9 +85,6 @@ func newVSRStatusTestLBC(tb testing.TB) (*LoadBalancerController, *fake_v1.Clien
 	return lbc, confClient
 }
 
-// addVSRStatusTest seeds vsr into both the informer store and the fake
-// clientset (so the statusUpdater's UpdateStatus calls succeed), then drives
-// it through Configuration and the normal change/problem processing.
 func addVSRStatusTest(tb testing.TB, lbc *LoadBalancerController, confClient *fake_v1.Clientset, vsr *conf_v1.VirtualServerRoute) {
 	tb.Helper()
 
@@ -119,9 +103,6 @@ func addVSRStatusTest(tb testing.TB, lbc *LoadBalancerController, confClient *fa
 	syncVSRInformerFromClient(tb, lbc, confClient, vsr.Namespace, vsr.Name)
 }
 
-// addVSStatusTest seeds vs into both the informer store and the fake
-// clientset, then drives it through Configuration and the normal
-// change/problem processing.
 func addVSStatusTest(tb testing.TB, lbc *LoadBalancerController, confClient *fake_v1.Clientset, vs *conf_v1.VirtualServer, vsrNamespaces []string, vsrNames []string) {
 	tb.Helper()
 
@@ -142,10 +123,6 @@ func addVSStatusTest(tb testing.TB, lbc *LoadBalancerController, confClient *fak
 	}
 }
 
-// updateVSStatusTest replaces an already-seeded vs in both the informer store
-// and the fake clientset, then drives the update through Configuration and
-// the normal change/problem processing. Unlike addVSStatusTest, it uses
-// Update against both stores since vs is expected to already exist.
 func updateVSStatusTest(tb testing.TB, lbc *LoadBalancerController, confClient *fake_v1.Clientset, vs *conf_v1.VirtualServer, vsrNamespaces []string, vsrNames []string) {
 	tb.Helper()
 
@@ -166,9 +143,6 @@ func updateVSStatusTest(tb testing.TB, lbc *LoadBalancerController, confClient *
 	}
 }
 
-// deleteVSStatusTest removes vs from the informer store and the fake
-// clientset, then drives the deletion through Configuration and the normal
-// change/problem processing.
 func deleteVSStatusTest(tb testing.TB, lbc *LoadBalancerController, confClient *fake_v1.Clientset, namespace, name string, vsrNamespaces []string, vsrNames []string) {
 	tb.Helper()
 
@@ -190,13 +164,7 @@ func deleteVSStatusTest(tb testing.TB, lbc *LoadBalancerController, confClient *
 	}
 }
 
-// syncVSRInformerFromClient copies the VirtualServerRoute's current state
-// (including Status, which is only ever mutated via the fake clientset) back
-// into the informer store, simulating a real informer observing the
-// controller's own status write. Without this, statusUpdater always reads a
-// stale Status from the lister, which would mask both the bug under test and
-// any regression in preserving State/Reason/Message across a referencedBy-only
-// update.
+// Sync status into the fake informer so stale lister reads cannot mask a regression.
 func syncVSRInformerFromClient(tb testing.TB, lbc *LoadBalancerController, confClient *fake_v1.Clientset, namespace, name string) {
 	tb.Helper()
 
@@ -212,15 +180,10 @@ func syncVSRInformerFromClient(tb testing.TB, lbc *LoadBalancerController, confC
 	}
 }
 
-// vsrStatusTestVS returns a VS in the "default" namespace referencing the
-// fixed "default/coffee" VSR built by vsrStatusTestVSR.
 func vsrStatusTestVS(name, host string) *conf_v1.VirtualServer {
 	return vsrStatusTestVSInNamespace("default", name, host, "default/coffee")
 }
 
-// vsrStatusTestVSInNamespace is vsrStatusTestVS with an explicit VS
-// namespace, for exercising a VS that references a hostless VSR in a
-// different namespace.
 func vsrStatusTestVSInNamespace(namespace, name, host, vsrKey string) *conf_v1.VirtualServer {
 	return &conf_v1.VirtualServer{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
@@ -234,14 +197,10 @@ func vsrStatusTestVSInNamespace(namespace, name, host, vsrKey string) *conf_v1.V
 	}
 }
 
-// vsrStatusTestVSR returns a hostless VSR named "coffee" in the "default"
-// namespace.
 func vsrStatusTestVSR() *conf_v1.VirtualServerRoute {
 	return vsrStatusTestVSRInNamespace("default")
 }
 
-// vsrStatusTestVSRInNamespace is vsrStatusTestVSR with an explicit
-// namespace, for exercising a hostless VSR referenced cross-namespace.
 func vsrStatusTestVSRInNamespace(namespace string) *conf_v1.VirtualServerRoute {
 	return &conf_v1.VirtualServerRoute{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: "coffee"},
@@ -258,12 +217,7 @@ func vsrStatusTestVSRInNamespace(namespace string) *conf_v1.VirtualServerRoute {
 	}
 }
 
-// TestVSRReferencedByLifecycle drives a hostless VirtualServerRoute through
-// no-VS -> 1-VS -> 2-VS -> 1-VS -> no-VS and asserts that Status.ReferencedBy
-// (and State/Reason) are correct after every step. The 2-VS -> 1-VS step
-// (removing vs-b while vs-a still references the VSR) is the reported bug:
-// nothing re-renders vs-a's config when only vs-b is deleted, so nothing used
-// to refresh the VSR's stale referencedBy list.
+// TestVSRReferencedByLifecycle checks reference status as VSs are added and removed.
 func TestVSRReferencedByLifecycle(t *testing.T) {
 	t.Parallel()
 	lbc, confClient := newVSRStatusTestLBC(t)
@@ -284,9 +238,7 @@ func TestVSRReferencedByLifecycle(t *testing.T) {
 	addVSStatusTest(t, lbc, confClient, vsB, []string{"default"}, []string{"coffee"})
 	assertVSRStatus(t, confClient, "default/vs-a, default/vs-b", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 
-	// Step 4 (the bug): delete vs-b -> referencedBy must shrink back to
-	// [vs-a]. vs-a's own config is untouched by this deletion, so nothing
-	// re-renders it; the fix must refresh the VSR status directly.
+	// Step 4: delete vs-b; vs-a is not re-rendered, but referencedBy must shrink.
 	deleteVSStatusTest(t, lbc, confClient, "default", "vs-b", []string{"default"}, []string{"coffee"})
 	assertVSRStatus(t, confClient, "default/vs-a", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 
@@ -295,14 +247,7 @@ func TestVSRReferencedByLifecycle(t *testing.T) {
 	assertVSRStatus(t, confClient, "", conf_v1.StateWarning, nl.EventReasonNoVirtualServerFound)
 }
 
-// TestVSRReferencedByDetachWithoutDeletion covers the case
-// TestVSRReferencedByLifecycle cannot: a VS is edited to stop selecting the
-// hostless VSR without being deleted. rebuildHosts rewrites
-// ResourceChange.Resource to the latest version of any changed resource, so
-// the controller cannot recover the *old* VSR reference from the changes
-// slice alone -- the fix's Configuration-level diff
-// (GetVirtualServerRoutesWithChangedReferences) is the only thing that can
-// detect this and drive the referencedBy refresh.
+// TestVSRReferencedByDetachWithoutDeletion: rebuildHosts rewrites ResourceChange to the latest VS version, so only the reverse-index diff (not the changes slice) can detect the dropped reference.
 func TestVSRReferencedByDetachWithoutDeletion(t *testing.T) {
 	t.Parallel()
 	lbc, confClient := newVSRStatusTestLBC(t)
@@ -318,8 +263,7 @@ func TestVSRReferencedByDetachWithoutDeletion(t *testing.T) {
 
 	assertVSRStatus(t, confClient, "default/vs-a, default/vs-b", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 
-	// Edit vs-b so it no longer references the VSR at all, without deleting
-	// vs-b itself.
+	// Update vs-b so it no longer references the VSR.
 	vsBDetached := &conf_v1.VirtualServer{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "vs-b"},
 		Spec: conf_v1.VirtualServerSpec{
@@ -335,13 +279,7 @@ func TestVSRReferencedByDetachWithoutDeletion(t *testing.T) {
 	assertVSRStatus(t, confClient, "default/vs-a", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 }
 
-// TestVSRReferencedByLifecycleCrossNamespace is TestVSRReferencedByLifecycle
-// with the hostless VSR and its referencing VirtualServers spread across
-// three different namespaces, matching the cross-namespace hostless-VSR
-// support covered at the Configuration level by
-// TestHostlessVSR_CrossNamespace. referencedBy entries are sorted by VS key
-// ("namespace/name"), so with vs-b in "apps-ns" and vs-a in "default", vs-b
-// sorts first ("apps-ns" < "default").
+// TestVSRReferencedByLifecycleCrossNamespace checks reference status across namespaces.
 func TestVSRReferencedByLifecycleCrossNamespace(t *testing.T) {
 	t.Parallel()
 	lbc, confClient := newVSRStatusTestLBC(t)
@@ -357,16 +295,12 @@ func TestVSRReferencedByLifecycleCrossNamespace(t *testing.T) {
 	addVSStatusTest(t, lbc, confClient, vsA, []string{"routes-ns"}, []string{"coffee"})
 	assertVSRStatusInNamespace(t, confClient, "routes-ns", "default/vs-a", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 
-	// Step 3: add vs-b (namespace "apps-ns") -> referencedBy = [vs-b, vs-a]
-	// in sorted VS-key order.
+	// Step 3: add vs-b (namespace "apps-ns") -> referencedBy = [vs-b, vs-a] in sorted VS-key order.
 	vsB := vsrStatusTestVSInNamespace("apps-ns", "vs-b", "vs-b.example.com", "routes-ns/coffee")
 	addVSStatusTest(t, lbc, confClient, vsB, []string{"routes-ns"}, []string{"coffee"})
 	assertVSRStatusInNamespace(t, confClient, "routes-ns", "apps-ns/vs-b, default/vs-a", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 
-	// Step 4 (the bug, cross-namespace): delete vs-b -> referencedBy must
-	// shrink back to [vs-a]. vs-a's own config (a different namespace
-	// entirely) is untouched by this deletion, so nothing re-renders it; the
-	// fix must refresh the VSR status directly.
+	// Step 4: delete vs-b; vs-a is not re-rendered, but referencedBy must shrink.
 	deleteVSStatusTest(t, lbc, confClient, "apps-ns", "vs-b", []string{"routes-ns"}, []string{"coffee"})
 	assertVSRStatusInNamespace(t, confClient, "routes-ns", "default/vs-a", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 
@@ -375,9 +309,7 @@ func TestVSRReferencedByLifecycleCrossNamespace(t *testing.T) {
 	assertVSRStatusInNamespace(t, confClient, "routes-ns", "", conf_v1.StateWarning, nl.EventReasonNoVirtualServerFound)
 }
 
-// TestVSRReferencedByDetachWithoutDeletionCrossNamespace is
-// TestVSRReferencedByDetachWithoutDeletion with the detaching VS in a
-// different namespace than both the VSR and the VS that keeps referencing it.
+// TestVSRReferencedByDetachWithoutDeletionCrossNamespace checks detachment across namespaces.
 func TestVSRReferencedByDetachWithoutDeletionCrossNamespace(t *testing.T) {
 	t.Parallel()
 	lbc, confClient := newVSRStatusTestLBC(t)
@@ -393,8 +325,7 @@ func TestVSRReferencedByDetachWithoutDeletionCrossNamespace(t *testing.T) {
 
 	assertVSRStatusInNamespace(t, confClient, "routes-ns", "apps-ns/vs-b, default/vs-a", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 
-	// Edit vs-b (in "apps-ns") so it no longer references the cross-namespace
-	// VSR at all, without deleting vs-b itself.
+	// Update vs-b so it no longer references the VSR.
 	vsBDetached := &conf_v1.VirtualServer{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "apps-ns", Name: "vs-b"},
 		Spec: conf_v1.VirtualServerSpec{
@@ -410,16 +341,11 @@ func TestVSRReferencedByDetachWithoutDeletionCrossNamespace(t *testing.T) {
 	assertVSRStatusInNamespace(t, confClient, "routes-ns", "default/vs-a", conf_v1.StateValid, nl.EventReasonAddedOrUpdated)
 }
 
-// assertVSRStatus checks the "default/coffee" VSR, the fixed identity used by
-// vsrStatusTestVSR and every same-namespace test.
 func assertVSRStatus(t *testing.T, confClient *fake_v1.Clientset, wantReferencedBy, wantState, wantReason string) {
 	t.Helper()
 	assertVSRStatusInNamespace(t, confClient, "default", wantReferencedBy, wantState, wantReason)
 }
 
-// assertVSRStatusInNamespace is assertVSRStatus with an explicit VSR
-// namespace, for cross-namespace tests. The VSR name is always "coffee", the
-// fixed identity used by vsrStatusTestVSR/vsrStatusTestVSRInNamespace.
 func assertVSRStatusInNamespace(t *testing.T, confClient *fake_v1.Clientset, namespace, wantReferencedBy, wantState, wantReason string) {
 	t.Helper()
 

@@ -2166,19 +2166,9 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 		l := lbc.Logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 
 		if lbc.reportCustomResourceStatusEnabled() {
-			// Collect every VS that currently accepts this VSR (includes both
-			// host-based and hostless VSRs shared across multiple VirtualServers).
-			// The slice is returned in deterministic sorted order by VS key.
 			vss := lbc.configuration.GetVirtualServersForVirtualServerRoute(vsr)
 			if len(vss) == 0 {
-				// This should be unreachable: vsr came from vsConfig's own
-				// accepted route set (vsConfig.VirtualServerRoutes), built by
-				// the same rebuildHosts() pass that populates the reverse
-				// index GetVirtualServersForVirtualServerRoute reads from, so
-				// vsConfig.VirtualServer is always expected to be in the
-				// result. Log rather than fabricate a single-entry list, so
-				// referencedBy reflects the (inconsistent) index honestly
-				// instead of masking a bug in it.
+				// This VS accepts the VSR, so an empty reverse index is inconsistent; log rather than invent a reference.
 				nl.Debugf(l, "VirtualServerRoute %v/%v has no entries in the VS reverse index despite being in VirtualServer %v/%v's accepted route set",
 					vsr.Namespace, vsr.Name, vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name)
 			}

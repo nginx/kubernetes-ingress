@@ -7135,35 +7135,27 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
-// Hostless VirtualServerRoute edge-case tests
-// ---------------------------------------------------------------------------
-
-// createHostlessVSR builds a hostless VSR (spec.host == "") in the given
-// namespace. The VSR name and subroute path are fixed ("coffee", "/coffee")
-// — every current test uses those values.
+// createHostlessVSR creates the shared test VSR with no spec.host.
 func createHostlessVSR(namespace string) *conf_v1.VirtualServerRoute {
 	vsr := createTestVirtualServerRoute("coffee", namespace, "", "/coffee")
 	return vsr
 }
 
-// createHostlessVSRWithLabels builds a hostless VSR with labels.
+// createHostlessVSRWithLabels creates a hostless test VSR with selector labels.
 func createHostlessVSRWithLabels(name, namespace, path string, labels map[string]string) *conf_v1.VirtualServerRoute {
 	vsr := createTestVirtualServerRoute(name, namespace, "", path)
 	vsr.Labels = labels
 	return vsr
 }
 
-// vsWithRoute returns a VirtualServer that references a VSR by explicit name.
-// The subroute path is fixed to "/coffee" — every current test uses that path.
+// vsWithRoute creates a test VS referencing a VSR by name.
 func vsWithRoute(vsName, host, vsrKey string) *conf_v1.VirtualServer {
 	return createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
 		{Path: "/coffee", Route: vsrKey},
 	})
 }
 
-// TestHostlessVSR_SingleVS verifies that a hostless VSR referenced by one VS
-// is accepted and no orphan problem is emitted.
+// TestHostlessVSR_SingleVS checks that one VS can attach to a hostless VSR.
 func TestHostlessVSR_SingleVS(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7182,8 +7174,7 @@ func TestHostlessVSR_SingleVS(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_TwoVSs_BothAttach verifies that a hostless VSR referenced by
-// two VirtualServers appears in both configs and produces no orphan problem.
+// TestHostlessVSR_TwoVSs_BothAttach checks that two VSs can share a hostless VSR.
 func TestHostlessVSR_TwoVSs_BothAttach(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7215,8 +7206,7 @@ func TestHostlessVSR_TwoVSs_BothAttach(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_TwoVSs_DeleteOneVS verifies that after deleting one of the
-// two referencing VSs the other keeps the VSR and no orphan problem is emitted.
+// TestHostlessVSR_TwoVSs_DeleteOneVS checks that the surviving VS retains the VSR.
 func TestHostlessVSR_TwoVSs_DeleteOneVS(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7244,8 +7234,7 @@ func TestHostlessVSR_TwoVSs_DeleteOneVS(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_BothVSsDeleted_OrphanProblem verifies that a hostless VSR
-// reports a NoVirtualServerFound problem when all referencing VSs are deleted.
+// TestHostlessVSR_BothVSsDeleted_OrphanProblem checks that deleting all VSs orphans the VSR.
 func TestHostlessVSR_BothVSsDeleted_OrphanProblem(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7272,8 +7261,7 @@ func TestHostlessVSR_BothVSsDeleted_OrphanProblem(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_OrphanFromStart verifies that a hostless VSR with no
-// referencing VS is reported as NoVirtualServerFound (IsError=false).
+// TestHostlessVSR_OrphanFromStart checks the status of an initially unreferenced VSR.
 func TestHostlessVSR_OrphanFromStart(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7292,9 +7280,7 @@ func TestHostlessVSR_OrphanFromStart(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_ReverseIndexDeterminism verifies that GetVirtualServersForVirtualServerRoute
-// returns the same sorted slice on repeated rebuilds regardless of map iteration
-// order (guarding against the previous nondeterministic scan over c.hosts).
+// TestHostlessVSR_ReverseIndexDeterminism guards against a prior nondeterministic scan over c.hosts.
 func TestHostlessVSR_ReverseIndexDeterminism(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7325,8 +7311,7 @@ func TestHostlessVSR_ReverseIndexDeterminism(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_SelectorRoute verifies that a hostless VSR matched via
-// routeSelector is accepted and no orphan problem is emitted.
+// TestHostlessVSR_SelectorRoute checks selector attachment to a hostless VSR.
 func TestHostlessVSR_SelectorRoute(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7349,8 +7334,7 @@ func TestHostlessVSR_SelectorRoute(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_SelectorTwoVSs verifies that a single hostless VSR matched
-// via routeSelector from two different VirtualServers is accepted by both.
+// TestHostlessVSR_SelectorTwoVSs checks that two VSs can select one hostless VSR.
 func TestHostlessVSR_SelectorTwoVSs(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7383,9 +7367,7 @@ func TestHostlessVSR_SelectorTwoVSs(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_HostTransition_AddHost verifies that adding spec.host to a
-// previously hostless VSR correctly updates both referencing VSs: the one whose
-// host matches keeps the route, the other warns and drops it.
+// TestHostlessVSR_HostTransition_AddHost checks that adding a host narrows attachment.
 func TestHostlessVSR_HostTransition_AddHost(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7422,9 +7404,7 @@ func TestHostlessVSR_HostTransition_AddHost(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_HostTransition_RemoveHost verifies the reverse: removing
-// spec.host from a host-based VSR makes it hostless and re-attachable to all
-// referencing VSs.
+// TestHostlessVSR_HostTransition_RemoveHost checks that removing a host restores attachment.
 func TestHostlessVSR_HostTransition_RemoveHost(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7454,9 +7434,7 @@ func TestHostlessVSR_HostTransition_RemoveHost(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_CrossNamespace verifies that a hostless VSR in one namespace
-// can be referenced by a VS in a different namespace using the fully-qualified
-// "namespace/name" route key.
+// TestHostlessVSR_CrossNamespace checks named references across namespaces.
 func TestHostlessVSR_CrossNamespace(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7479,8 +7457,7 @@ func TestHostlessVSR_CrossNamespace(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_GetVirtualServersForVirtualServerRoute verifies the public
-// accessor returns all referencing VSs in sorted key order.
+// TestHostlessVSR_GetVirtualServersForVirtualServerRoute checks sorted accessor output.
 func TestHostlessVSR_GetVirtualServersForVirtualServerRoute(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7506,11 +7483,7 @@ func TestHostlessVSR_GetVirtualServersForVirtualServerRoute(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_VSConflictLoserRetainsVSR verifies that when two VSs compete
-// for the same host, the conflict loser's VirtualServerConfiguration is still
-// built and keeps the hostless VSR in its route set.  The VSR is NOT orphaned
-// because the loser's config exists; it just doesn't serve traffic until the
-// winner is removed.
+// TestHostlessVSR_VSConflictLoserRetainsVSR checks declarative references for conflict losers.
 func TestHostlessVSR_VSConflictLoserRetainsVSR(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7530,8 +7503,7 @@ func TestHostlessVSR_VSConflictLoserRetainsVSR(t *testing.T) {
 	cfg.AddOrUpdateVirtualServer(vsWinner)
 	_, problems := cfg.AddOrUpdateVirtualServer(vsLoser)
 
-	// The VSR must NOT be orphaned: it is referenced by the loser's
-	// VirtualServerConfiguration, which still exists in newResources.
+	// The VSR must NOT be orphaned: it is referenced by the loser's VirtualServerConfiguration.
 	for _, p := range problems {
 		if p.Object == vsr && p.Reason == nl.EventReasonNoVirtualServerFound {
 			t.Errorf("VSR should not be orphaned while the conflict loser holds it; problems: %v", problems)
@@ -7545,15 +7517,12 @@ func TestHostlessVSR_VSConflictLoserRetainsVSR(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_TSHostDoesNotConfuse verifies that a TransportServer in
-// c.hosts for the same host key as a VS does not cause a nil-pointer panic or
-// incorrect "ignored" message for a hostless VSR.
+// TestHostlessVSR_TSHostDoesNotConfuse checks VSR handling when a TS owns the host.
 func TestHostlessVSR_TSHostDoesNotConfuse(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
 
-	// Inject a fake TransportServerConfiguration directly into hosts to simulate
-	// the TS-wins-host scenario without needing full TS validation.
+	// Simulate TransportServer host ownership without constructing a listener.
 	ts := &conf_v1.TransportServer{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "ts1"},
 	}
@@ -7563,8 +7532,7 @@ func TestHostlessVSR_TSHostDoesNotConfuse(t *testing.T) {
 	vsr := createHostlessVSR("default")
 	_, problems := cfg.AddOrUpdateVirtualServerRoute(vsr)
 
-	// VSR is not accepted by any VS (the host belongs to a TS), so it should
-	// be orphaned — NOT panicking or reporting "ignored by TS".
+	// Orphan, not "ignored by TS": no VS accepts this VSR.
 	if len(problems) != 1 {
 		t.Fatalf("expected 1 problem, got %d: %v", len(problems), problems)
 	}
@@ -7573,8 +7541,7 @@ func TestHostlessVSR_TSHostDoesNotConfuse(t *testing.T) {
 	}
 }
 
-// changedRefsNames returns the sorted VSR name list from
-// GetVirtualServerRoutesWithChangedReferences, for compact assertions.
+// changedRefsNames returns sorted names from the changed-reference set.
 func changedRefsNames(cfg *Configuration) []string {
 	var names []string
 	for _, vsr := range cfg.GetVirtualServerRoutesWithChangedReferences() {
@@ -7584,12 +7551,7 @@ func changedRefsNames(cfg *Configuration) []string {
 	return names
 }
 
-// TestHostlessVSR_ReferenceSetShrinkIsDetected verifies that deleting one of
-// several VirtualServers sharing a hostless VirtualServerRoute is reported by
-// GetVirtualServerRoutesWithChangedReferences, and that the reverse index
-// itself shrinks accordingly. This is the reported bug: deleting vs-c does
-// not change vs-a's or vs-b's own rendered config, so nothing besides this
-// diff would otherwise signal that the VSR's referencedBy needs a refresh.
+// TestHostlessVSR_ReferenceSetShrinkIsDetected: deleting one VS doesn't re-render the others, so only this index catches the stale reference.
 func TestHostlessVSR_ReferenceSetShrinkIsDetected(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7601,9 +7563,7 @@ func TestHostlessVSR_ReferenceSetShrinkIsDetected(t *testing.T) {
 		vs := vsWithRoute(name, name+".example.com", "default/coffee")
 		cfg.AddOrUpdateVirtualServer(vs)
 	}
-	// Adding the three VSs is itself a set of changes; only the delete below
-	// is under test.
-
+	// Additions also change the set; the deletion is the behavior under test.
 	_, _ = cfg.DeleteVirtualServer("default/vs-c")
 
 	if diff := cmp.Diff([]string{"default/coffee"}, changedRefsNames(cfg)); diff != "" {
@@ -7620,13 +7580,7 @@ func TestHostlessVSR_ReferenceSetShrinkIsDetected(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_ReferenceSetShrinkIsDetectedCrossNamespace is
-// TestHostlessVSR_ReferenceSetShrinkIsDetected with the hostless VSR and its
-// three referencing VirtualServers spread across four different namespaces,
-// covering the same cross-namespace hostless-VSR support exercised by
-// TestHostlessVSR_CrossNamespace. GetVirtualServersForVirtualServerRoute's
-// order is by VS key ("namespace/name"), so "apps-ns/vs-b" sorts before
-// "default/vs-a".
+// TestHostlessVSR_ReferenceSetShrinkIsDetectedCrossNamespace checks deletion across namespaces.
 func TestHostlessVSR_ReferenceSetShrinkIsDetectedCrossNamespace(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7669,9 +7623,7 @@ func TestHostlessVSR_ReferenceSetShrinkIsDetectedCrossNamespace(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_ReferenceSetNoChangeWhenUnaffected verifies that a rebuild
-// triggered by an unrelated resource does not report the hostless VSR as
-// changed when its referencing-VS set is unaffected.
+// TestHostlessVSR_ReferenceSetNoChangeWhenUnaffected checks that unrelated VS changes are ignored.
 func TestHostlessVSR_ReferenceSetNoChangeWhenUnaffected(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7691,11 +7643,7 @@ func TestHostlessVSR_ReferenceSetNoChangeWhenUnaffected(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_ReferenceSetChangeSkipsDeletedVSR verifies that deleting the
-// VirtualServerRoute itself is not reported by
-// GetVirtualServerRoutesWithChangedReferences: the VSR no longer exists in
-// c.virtualServerRoutes, so there is no Status left to refresh, and the
-// orphan/ignored problem path is what reports that case instead.
+// Deleted VSRs have no status to refresh; orphan and ignored VSRs are reported separately.
 func TestHostlessVSR_ReferenceSetChangeSkipsDeletedVSR(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7713,13 +7661,7 @@ func TestHostlessVSR_ReferenceSetChangeSkipsDeletedVSR(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletion verifies the case
-// the controller cannot detect purely from ResourceChange: a VS is kept but
-// edited so it no longer selects the hostless VSR (its route now points
-// elsewhere). rebuildHosts rewrites ResourceChange.Resource to the latest
-// version of a changed resource, so the *old* VSR reference is not visible
-// from the changes slice alone -- GetVirtualServerRoutesWithChangedReferences
-// must be the source of truth here.
+// An updated VS no longer exposes its old VSR reference through ResourceChange; detect it in the reverse index.
 func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletion(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7752,9 +7694,7 @@ func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletion(t *testing.T) {
 	}
 }
 
-// TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace is
-// TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletion with the VSR and
-// both VirtualServers in three different namespaces.
+// TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace checks cross-namespace reference removal.
 func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace(t *testing.T) {
 	t.Parallel()
 	cfg := createTestConfiguration()
@@ -7781,8 +7721,7 @@ func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace(t *te
 	cfg.AddOrUpdateVirtualServer(vsA)
 	cfg.AddOrUpdateVirtualServer(vsB)
 
-	// Edit vs-b (in "apps-ns") so it no longer references the cross-namespace
-	// VSR at all.
+	// Edit vs-b so it no longer references the VSR.
 	vsBDetached := &conf_v1.VirtualServer{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "apps-ns", Name: "vs-b"},
 		Spec: conf_v1.VirtualServerSpec{

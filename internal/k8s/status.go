@@ -512,12 +512,7 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 	return err
 }
 
-// hasVsrStatusChanged reports whether writing state/reason/message/
-// referencedBy to vsr's status would actually change it. referencedBy is a
-// pointer so callers that don't manage the field (UpdateVirtualServerRouteStatus)
-// can pass nil to exclude it from the comparison, distinct from a managing
-// caller (UpdateVirtualServerRouteStatusWithReferencedBy) explicitly passing an
-// empty string to clear it.
+// hasVsrStatusChanged ignores referencedBy when nil; a pointer to an empty string detects clearing it.
 func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, state string, reason string, message string, referencedBy *string) bool {
 	if vsr.Status.State != state {
 		return true
@@ -603,18 +598,10 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 	return err
 }
 
-// UpdateVirtualServerRouteReferencedBy updates only the referencedBy field of
-// a VirtualServerRoute's status, preserving its current State, Reason and
-// Message. It is used to refresh referencedBy for VSRs whose set of
-// referencing VirtualServers changed without any of those VirtualServers'
-// own rendered config changing (see
-// Configuration.GetVirtualServerRoutesWithChangedReferences), so it must not
-// overwrite state/reason/message with stale values the way a full status
-// write would.
+// UpdateVirtualServerRouteReferencedBy changes only referencedBy so a stale read cannot overwrite state, reason, or message.
 func (su *statusUpdater) UpdateVirtualServerRouteReferencedBy(vsr *conf_v1.VirtualServerRoute, referencedBy []*conf_v1.VirtualServer) error {
 	referencedByString := formatReferencedBy(referencedBy)
 
-	// Get an up-to-date VirtualServerRoute from the Store
 	var vsrLatest interface{}
 	var exists bool
 	var err error

@@ -412,16 +412,7 @@ type Configuration struct {
 	// and enables GetVirtualServersForVirtualServerRoute.
 	vsrToVSConfigs map[string][]*conf_v1.VirtualServer
 
-	// vsrsWithChangedRefs holds the VirtualServerRoutes whose vsrToVSConfigs
-	// entry changed (grew, shrank, or was reordered by identity) during the
-	// most recent rebuildHosts() call. Config-generation changes already
-	// cause any re-rendered VirtualServer to overwrite its VSRs' referencedBy
-	// status (see updateVirtualServerStatusAndEvents), but detaching a VS
-	// from a VSR without changing any *other* VS's own config (deleting one
-	// of several VSs sharing a hostless VSR, for example) produces no such
-	// re-render. GetVirtualServerRoutesWithChangedReferences lets the
-	// controller refresh exactly the VSRs affected in that case, without
-	// forcing a render of every VS that is unaffected.
+	// vsrsWithChangedRefs tracks reference changes from the latest rebuild even when surviving VSs are not re-rendered.
 	vsrsWithChangedRefs []*conf_v1.VirtualServerRoute
 
 	globalConfiguration *conf_v1.GlobalConfiguration
@@ -948,12 +939,7 @@ func (c *Configuration) CompleteStartup() ([]ResourceChange, []ConfigurationProb
 	c.startupComplete = true
 	changes, problems := c.rebuildHosts()
 
-	// The startup rebuild's vsrsWithChangedRefs diff is every VSR that went
-	// from "no index entry" to its startup state, i.e. effectively all of
-	// them. The pending-status flush that follows startup (see
-	// flushPendingStatusesAsync) already writes referencedBy for every VSR
-	// from a definitive post-startup snapshot, so replaying this diff
-	// afterwards would only add redundant, already-covered API calls.
+	// The startup status flush already writes referencedBy; do not replay the initial reference changes.
 	c.vsrsWithChangedRefs = nil
 
 	return changes, problems
@@ -1272,7 +1258,6 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 
 	c.vsrsWithChangedRefs = detectChangesInVSRReferences(c.vsrToVSConfigs, newVSRToVSConfigs, c.virtualServerRoutes)
 
-	// safe to update hosts and the VSR reverse index
 	c.hosts = newHosts
 	c.vsrToVSConfigs = newVSRToVSConfigs
 
@@ -1503,32 +1488,21 @@ func (c *Configuration) addProblemsForOrphanMinions(problems map[string]Configur
 	}
 }
 
-// GetVirtualServersForVirtualServerRoute returns all VirtualServers that currently
-// include the given VSR in their accepted route set. The returned slice is in
-// sorted VS-key order and is safe to read from outside the configuration lock
-// (the caller must hold the read lock or read only from the sync goroutine).
+// GetVirtualServersForVirtualServerRoute returns VirtualServers accepting the VSR in sorted VS-key order.
 func (c *Configuration) GetVirtualServersForVirtualServerRoute(vsr *conf_v1.VirtualServerRoute) []*conf_v1.VirtualServer {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.vsrToVSConfigs[getResourceKey(&vsr.ObjectMeta)]
 }
 
-// GetVirtualServerRoutesWithChangedReferences returns the VirtualServerRoutes
-// whose set of referencing VirtualServers (as returned by
-// GetVirtualServersForVirtualServerRoute) changed during the most recent
-// rebuildHosts() call. Callers use this to refresh Status.ReferencedBy for
-// exactly the VSRs affected by a change, without needing every referencing VS
-// to have been re-rendered itself. See vsrsWithChangedRefs.
+// GetVirtualServerRoutesWithChangedReferences returns VSRs whose referencing VS set changed in the latest rebuild.
 func (c *Configuration) GetVirtualServerRoutesWithChangedReferences() []*conf_v1.VirtualServerRoute {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	return c.vsrsWithChangedRefs
 }
 
-// addProblemsForOrphanOrIgnoredVsrs emits ConfigurationProblems for VSRs that
-// are not referenced by any VirtualServer (orphan) or that a VirtualServer
-// declined to include (ignored).  vsrToVSConfigs is the fresh reverse index
-// just built by buildHostsAndResources.
+// addProblemsForOrphanOrIgnoredVsrs emits orphan and ignored-route problems for VSRs.
 func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]ConfigurationProblem, vsrToVSConfigs map[string][]*conf_v1.VirtualServer) {
 	for _, key := range getSortedVirtualServerRouteKeys(c.virtualServerRoutes) {
 		vsr := c.virtualServerRoutes[key]
@@ -1536,9 +1510,7 @@ func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]Co
 		k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
 
 		if vsr.Spec.Host != "" {
-			// Host-based VSR: preserve the original host-lookup logic so that
-			// the "VirtualServer X ignores VirtualServerRoute" diagnostic still
-			// works for the set-host case.
+			// Host-based VSR: use the host owner to report when its VirtualServer ignores the route.
 			r, exists := c.hosts[vsr.Spec.Host]
 			vsConfig, ok := r.(*VirtualServerConfiguration)
 
@@ -2467,15 +2439,7 @@ func detectChangesInHosts(oldHosts map[string]Resource, newHosts map[string]Reso
 	return removedHosts, updatedHosts, addedHosts
 }
 
-// detectChangesInVSRReferences compares the old and new VSR->VS reverse
-// indexes and returns the VirtualServerRoutes (looked up in vsrs) whose set of
-// referencing VirtualServers changed. A VSR that no longer exists in vsrs is
-// skipped: it has no Status to refresh, and if it is orphaned or ignored,
-// addProblemsForOrphanOrIgnoredVsrs handles reporting that separately.
-// The comparison is by VS identity (namespace/name) and order, matching the
-// deterministic sorted-by-VS-key order both indexes are built in, so a
-// reordering (which cannot currently happen without an identity change, but
-// would signal something worth refreshing) is treated as a change too.
+// detectChangesInVSRReferences compares ordered VS identities and skips deleted VSRs with no status to refresh.
 func detectChangesInVSRReferences(
 	oldIndex map[string][]*conf_v1.VirtualServer,
 	newIndex map[string][]*conf_v1.VirtualServer,
