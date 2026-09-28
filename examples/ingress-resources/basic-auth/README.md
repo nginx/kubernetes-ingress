@@ -6,7 +6,7 @@ NGINX supports authenticating requests with
 The Ingress controller provides the following 2 annotations for configuring Basic Auth validation:
 
 - Required: ```nginx.org/basic-auth-secret: "secret"``` -- specifies a Secret resource with a htpasswd user list. The
-  htpasswd must be stored in the `htpasswd` data field. The type of the secret must be `nginx.org/htpasswd`.
+  htpasswd must be stored in the `htpasswd` data field. The type of the secret can be `Opaque` or `nginx.org/htpasswd`.
 - Optional: ```nginx.org/basic-auth-realm: "realm"``` -- specifies a realm.
 
 ## Prerequisites
@@ -36,7 +36,7 @@ kubectl apply -f cafe.yaml -f cafe-secret.yaml
 
 ## Step 2 - Deploy the Basic Auth Secret
 
-Create a secret of type `nginx.org/htpasswd` with the name `cafe-passwd` that will be used for Basic Auth validation. It
+Create a secret of type `Opaque` (or legacy `nginx.org/htpasswd`) with the name `cafe-passwd` that will be used for Basic Auth validation. It
 contains a list of user and base64 encoded password pairs:
 
 ```console

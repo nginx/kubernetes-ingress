@@ -213,12 +213,10 @@ examples/ingress-resources/egress-mtls/secure-app-tls-secret.yaml
 common-secrets/keycloak-ca-secret.yaml
 common-secrets/keycloak-tls-secret.yaml
 common-secrets/keycloak-ca-secret-crl.yaml
+common-secrets/keycloak-ca-secret-opaque.yaml
 examples/custom-resources/oidc/keycloak-ca-secret.yaml
-examples/custom-resources/oidc/keycloak-ca-secret-crl.yaml
 examples/custom-resources/oidc-native/keycloak-ca-secret.yaml
-examples/custom-resources/oidc-native/keycloak-ca-secret-crl.yaml
 examples/ingress-resources/oidc-native/keycloak-ca-secret.yaml
-examples/ingress-resources/oidc-native/keycloak-ca-secret-crl.yaml
 tests/data/oidc/keycloak-ca-secret.yaml
 tests/data/oidc/keycloak-ca-secret-crl.yaml
 examples/custom-resources/oidc/keycloak-tls-secret.yaml
@@ -229,11 +227,9 @@ common-secrets/external-auth-ca-secret.yaml
 common-secrets/external-auth-server-tls-secret.yaml
 common-secrets/external-auth-ca-secret-crl.yaml
 common-secrets/external-auth-ca-secret-opaque.yaml
-tests/data/external-auth/backend/external-auth-ca-secret-opaque.yaml
 examples/ingress-resources/external-auth-mergeable/external-auth-ca-secret.yaml
-examples/ingress-resources/external-auth-mergeable/external-auth-ca-secret-crl.yaml
 examples/custom-resources/external-auth-oauth2/external-auth-ca-secret.yaml
-examples/custom-resources/external-auth-oauth2/external-auth-ca-secret-crl.yaml
+tests/data/external-auth/backend/external-auth-ca-secret-opaque.yaml
 tests/data/external-auth/backend/external-auth-ca-secret.yaml
 tests/data/external-auth/backend/external-auth-ca-secret-crl.yaml
 examples/ingress-resources/external-auth/external-auth-server-tls-secret.yaml
@@ -245,8 +241,8 @@ common-secrets/bundle-server-ca-secret.yaml
 common-secrets/bundle-server-tls-secret.yaml
 common-secrets/bundle-server-ca-secret-crl.yaml
 common-secrets/bundle-client-tls-secret.yaml
+common-secrets/bundle-server-ca-secret-opaque.yaml
 examples/shared-examples/waf-bundle-server/bundle-server-ca-secret.yaml
-examples/shared-examples/waf-bundle-server/bundle-server-ca-secret-crl.yaml
 tests/data/ap-waf-bundle-source/secret/bundle-server-ca-secret.yaml
 tests/data/ap-waf-bundle-source/secret/bundle-server-ca-secret-crl.yaml
 examples/shared-examples/waf-bundle-server/bundle-client-tls-secret.yaml
@@ -283,11 +279,12 @@ tests/data/auth-basic-secrets/auth-basic-secret-updated.yaml
 common-secrets/auth-basic-secrets-htpasswd-secret-invalid.yaml
 tests/data/auth-basic-secrets/auth-basic-secret-invalid.yaml
 common-secrets/htpasswd-secret-external-auth.yaml
+tests/data/external-auth/backend/htpasswd-secret.yaml
+common-secrets/htpasswd-secret-external-auth-opaque.yaml
 examples/ingress-resources/external-auth/htpasswd-secret.yaml
 examples/ingress-resources/external-auth-mergeable/htpasswd-secret.yaml
 examples/custom-resources/external-auth/htpasswd-secret.yaml
 examples/custom-resources/external-auth-oauth2/htpasswd-secret.yaml
-tests/data/external-auth/backend/htpasswd-secret.yaml
 
 # Jwks secrets
 common-secrets/example-jwt-jwks-secret.yaml
@@ -355,9 +352,9 @@ tests/data/apikey-auth-policy/secret/apikey-secret-2.yaml
 # Ingress mTLS Certificate secrets
 common-secrets/ingress-mtls-secret.yaml
 tests/data/ingress-mtls/secret/ingress-mtls-secret.yaml
+common-secrets/ingress-mtls-secret-opaque.yaml
 examples/custom-resources/ingress-mtls/ingress-mtls-secret.yaml
 examples/ingress-resources/ingress-mtls/ingress-mtls-secret.yaml
-common-secrets/ingress-mtls-secret-opaque.yaml
 tests/data/ingress-mtls/secret/ingress-mtls-secret-opaque.yaml
 common-secrets/ingress-mtls-secret-crl.yaml
 common-secrets/ingress-mtls-webapp-crl.pem
