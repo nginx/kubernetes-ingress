@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"reflect"
@@ -15,10 +16,14 @@ import (
 	fake_v1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -263,6 +268,68 @@ func TestUpdateVirtualServerRouteStatusWithReferencedByNamespaceNotWatched(t *te
 	}
 	if err := su.UpdateVirtualServerRouteStatusWithReferencedBy(vsr, "state", "reason", "message", nil); err != nil {
 		t.Errorf("UpdateVirtualServerRouteStatusWithReferencedBy() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerRouteReferencedByNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateVirtualServerRouteReferencedBy(vsr, nil); err != nil {
+		t.Errorf("UpdateVirtualServerRouteReferencedBy() returned unexpected error: %v", err)
+	}
+}
+
+// TestUpdateVirtualServerRouteReferencedByConflictRetainsNewerStatus: a conflict retry must not overwrite a newer state/reason with the stale cached copy.
+func TestUpdateVirtualServerRouteReferencedByConflictRetainsNewerStatus(t *testing.T) {
+	t.Parallel()
+
+	newer := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "default", ResourceVersion: "2"},
+		Status: conf_v1.VirtualServerRouteStatus{
+			State: conf_v1.StateWarning, Reason: "AddedOrUpdatedWithWarning", Message: "warning message",
+		},
+	}
+	fakeClient := fake_v1.NewSimpleClientset(newer)
+
+	conflicted := false
+	fakeClient.PrependReactor("update", "virtualserverroutes", func(action k8stesting.Action) (bool, runtime.Object, error) {
+		if conflicted {
+			return false, nil, nil
+		}
+		conflicted = true
+		return true, nil, apierrors.NewConflict(schema.GroupResource{Group: "k8s.nginx.org", Resource: "virtualserverroutes"}, "vsr-1", errors.New("stale resourceVersion"))
+	})
+
+	stale := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "default", ResourceVersion: "1"},
+		Status:     conf_v1.VirtualServerRouteStatus{State: conf_v1.StateValid, Reason: "AddedOrUpdated"},
+	}
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	_ = store.Add(stale)
+
+	su := newTestStatusUpdater()
+	su.confClient = fakeClient
+	su.namespacedInformers["default"] = &namespacedInformer{virtualServerRouteLister: store}
+
+	vs := &conf_v1.VirtualServer{ObjectMeta: meta_v1.ObjectMeta{Name: "vs-a", Namespace: "default"}}
+	if err := su.UpdateVirtualServerRouteReferencedBy(stale, []*conf_v1.VirtualServer{vs}); err != nil {
+		t.Fatalf("UpdateVirtualServerRouteReferencedBy() returned unexpected error: %v", err)
+	}
+
+	got, err := fakeClient.K8sV1().VirtualServerRoutes("default").Get(context.TODO(), "vsr-1", meta_v1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get VirtualServerRoute: %v", err)
+	}
+	if got.Status.State != conf_v1.StateWarning || got.Status.Reason != "AddedOrUpdatedWithWarning" {
+		t.Errorf("conflict retry overwrote state/reason: got state=%q reason=%q, want state=%q reason=%q",
+			got.Status.State, got.Status.Reason, conf_v1.StateWarning, "AddedOrUpdatedWithWarning")
+	}
+	if got.Status.ReferencedBy != "default/vs-a" {
+		t.Errorf("ReferencedBy = %q, want %q", got.Status.ReferencedBy, "default/vs-a")
 	}
 }
 

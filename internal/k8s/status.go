@@ -412,6 +412,22 @@ func (su *statusUpdater) retryUpdateVirtualServerRouteStatus(vsrCopy *conf_v1.Vi
 	return nil
 }
 
+// retryUpdateVirtualServerRouteReferencedBy avoids retryUpdateVirtualServerRouteStatus's whole-status overwrite by changing only referencedBy.
+func (su *statusUpdater) retryUpdateVirtualServerRouteReferencedBy(namespace string, name string, referencedBy string) error {
+	vsr, err := su.confClient.K8sV1().VirtualServerRoutes(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	if vsr.Status.ReferencedBy == referencedBy {
+		return nil
+	}
+
+	vsr.Status.ReferencedBy = referencedBy
+	_, err = su.confClient.K8sV1().VirtualServerRoutes(namespace).UpdateStatus(context.TODO(), vsr, metav1.UpdateOptions{})
+	return err
+}
+
 func (su *statusUpdater) hasVsStatusChanged(vs *conf_v1.VirtualServer, state string, reason string, message string) bool {
 	if vs.Status.State != state {
 		return true
@@ -626,7 +642,12 @@ func (su *statusUpdater) UpdateVirtualServerRouteReferencedBy(vsr *conf_v1.Virtu
 	var err error
 
 	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
-	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
+	nsi := su.getNamespacedInformer(vsr.Namespace)
+	if nsi == nil {
+		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
+		return nil
+	}
+	vsrLatest, exists, err = nsi.virtualServerRouteLister.Get(vsr)
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
 		return err
@@ -647,7 +668,7 @@ func (su *statusUpdater) UpdateVirtualServerRouteReferencedBy(vsr *conf_v1.Virtu
 	_, err = su.confClient.K8sV1().VirtualServerRoutes(vsrCopy.Namespace).UpdateStatus(context.TODO(), vsrCopy, metav1.UpdateOptions{})
 	if err != nil {
 		nl.Warnf(l, "error setting VirtualServerRoute %v/%v referencedBy status, retrying: %v", vsrCopy.Namespace, vsrCopy.Name, err)
-		return su.retryUpdateVirtualServerRouteStatus(vsrCopy)
+		return su.retryUpdateVirtualServerRouteReferencedBy(vsrCopy.Namespace, vsrCopy.Name, referencedByString)
 	}
 	return err
 }
