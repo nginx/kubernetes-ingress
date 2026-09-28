@@ -66,6 +66,9 @@ package.json
 kube-local
 venv/
 
+# Opencode config
+.opencode
+
 # AUTO GENERATED SECTION BY CERTGEN (hack/secrets-gen/gitignore-gen.go), DO NOT EDIT BELOW
 
 # TLS Certificate secrets
