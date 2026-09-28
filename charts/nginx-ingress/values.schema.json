@@ -2722,12 +2722,12 @@
                 "secret": {
                   "type": "string",
                   "default": "",
-                  "title": "kubernetes.io/tls secret with a TLS certificate and key for using mTLS between NGINX Agent and NGINX Instance Manager"
+                  "title": "kubernetes.io/tls or Opaque secret with a TLS certificate and key for using mTLS between NGINX Agent and NGINX Instance Manager"
                 },
                 "caSecret": {
                   "type": "string",
                   "default": "",
-                  "title": "nginx.org/ca secret for verification of Instance Manager TLS"
+                  "title": "Opaque secret for verification of Instance Manager TLS"
                 },
                 "skipVerify": {
                   "type": "boolean",
