@@ -1,14 +1,15 @@
-# Test 20: Wrong CA secret type. Secret exists but is nginx.org/oidc instead of
-# nginx.org/ca.
+# Test 20: An OIDC client Secret misreferenced as a trustedCertSecret. It
+# carries client-secret and so has no `ca.crt` key. NIC rejects it on the
+# missing key; the Secret's `type` is incidental and is not consulted.
 #
 # Verify:
-#   - `kubectl describe vs webapp | tail -10` -> Warning: "wrong type
-#     'nginx.org/oidc', must be 'nginx.org/ca'".
+#   - `kubectl describe vs webapp | tail -10` -> Warning naming the Secret and
+#     the missing `ca.crt` key.
 #   - Browse https://${WEBAPP_HOST}/ -> 500.
 apiVersion: v1
 kind: Secret
 metadata:
-  name: test20-wrong-ca-type
+  name: test20-missing-ca-crt-key
 type: nginx.org/oidc
 data:
   client-secret: c29tZS1zZWNyZXQ=
@@ -22,7 +23,7 @@ spec:
     issuer: https://keycloak.example.com/realms/master
     clientID: nginx-plus
     clientSecret: oidcnative-secret
-    trustedCertSecret: test20-wrong-ca-type
+    trustedCertSecret: test20-missing-ca-crt-key
 ---
 apiVersion: k8s.nginx.org/v1
 kind: VirtualServer

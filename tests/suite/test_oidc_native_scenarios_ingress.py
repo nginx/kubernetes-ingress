@@ -148,7 +148,9 @@ def create_ingress_scenario_resources(kube_apis, namespace, keycloak_setup, numb
         doc = configure_ingress_scenario_document(doc, namespace, suffix, keycloak_setup.host, mergeable_host)
         kind = doc["kind"]
         if kind == "Secret":
-            if doc["metadata"]["name"] == "test18-wrong-type":
+            # The API server requires tls.crt/tls.key to be valid base64 on a
+            # kubernetes.io/tls Secret; the scenarios leave them empty.
+            if doc.get("type") == "kubernetes.io/tls":
                 doc["data"] = {"tls.crt": "YQ==", "tls.key": "YQ=="}
             name = create_secret(kube_apis.v1, namespace, doc)
             resources["secrets"].append(name)
