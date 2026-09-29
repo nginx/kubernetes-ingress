@@ -1968,6 +1968,9 @@ func TestCountSecretsWithTwoSecrets(t *testing.T) {
 	cfg.SecretStore.AddOrUpdateSecret(secret1)
 	cfg.SecretStore.AddOrUpdateSecret(secret2)
 
+	cfg.SecretStore.GetSecret("default/jwk-secret-1", secrets.RoleJWK)
+	cfg.SecretStore.GetSecret("default/jwk-secret-2", secrets.RoleJWK)
+
 	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
 	if err != nil {
 		t.Fatal(err)
@@ -2018,6 +2021,9 @@ func TestCountSecretsAddTwoSecretsAndDeleteOne(t *testing.T) {
 	// Add multiple secrets.
 	cfg.SecretStore.AddOrUpdateSecret(secret1)
 	cfg.SecretStore.AddOrUpdateSecret(secret2)
+
+	cfg.SecretStore.GetSecret("default/jwk-secret-1", secrets.RoleJWK)
+	cfg.SecretStore.GetSecret("default/jwk-secret-2", secrets.RoleJWK)
 
 	// Delete one secret.
 	cfg.SecretStore.DeleteSecret(fmt.Sprintf("%s/%s", secret2.Namespace, secret2.Name))
@@ -2313,12 +2319,10 @@ func createCafeIngressEx() configs.IngressEx {
 		ValidHosts: map[string]bool{
 			"cafe.example.com": true,
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"cafe-secret": {
-				Secret: &coreV1.Secret{
-					Type: coreV1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+				Secret: &coreV1.Secret{},
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}
@@ -2435,13 +2439,11 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 			ValidHosts: map[string]bool{
 				"cafe.example.com": true,
 			},
-			SecretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &coreV1.Secret{
-						Type: coreV1.SecretTypeTLS,
-					},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &coreV1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -2457,7 +2459,7 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 				ValidMinionPaths: map[string]bool{
 					"/coffee": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			{
 				Ingress: &teaMinion,
@@ -2470,7 +2472,7 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 				ValidMinionPaths: map[string]bool{
 					"/tea": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 		},
 	}
@@ -2579,13 +2581,11 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 			ValidHosts: map[string]bool{
 				"cafe.example.com": true,
 			},
-			SecretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &coreV1.Secret{
-						Type: coreV1.SecretTypeTLS,
-					},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &coreV1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -2601,7 +2601,7 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 				ValidMinionPaths: map[string]bool{
 					"/coffee": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			{
 				Ingress: &teaMinion,
@@ -2614,7 +2614,7 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 				ValidMinionPaths: map[string]bool{
 					"/tea": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 		},
 	}
@@ -2681,12 +2681,10 @@ func createCafeIngressExWithCustomAnnotations(annotations map[string]string) con
 		ValidHosts: map[string]bool{
 			"cafe.example.com": true,
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"cafe-secret": {
-				Secret: &coreV1.Secret{
-					Type: coreV1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+				Secret: &coreV1.Secret{},
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}

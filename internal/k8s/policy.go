@@ -3,9 +3,11 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,6 +23,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
 )
+
+const policySecretIndex = "policySecret"
 
 func createPolicyHandlers(lbc *LoadBalancerController) cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
@@ -59,12 +63,21 @@ func createPolicyHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 
 func (nsi *namespacedInformer) addPolicyHandler(handlers cache.ResourceEventHandlerFuncs) error {
 	informer := nsi.confSharedInformerFactory.K8s().V1().Policies().Informer()
+
+	if err := informer.AddIndexers(cache.Indexers{
+		policySecretIndex: policySecretIndexFunc,
+	}); err != nil {
+		return fmt.Errorf("failed to add Policy Secret indexer: %w", err)
+	}
+
 	if _, err := informer.AddEventHandler(handlers); err != nil {
 		return fmt.Errorf("failed to add Policy event handler: %w", err)
 	}
-	nsi.policyLister = informer.GetStore()
 
+	nsi.policyLister = informer.GetStore()
+	nsi.policySecretIndexer = informer.GetIndexer()
 	nsi.cacheSyncs = append(nsi.cacheSyncs, informer.HasSynced)
+
 	return nil
 }
 
@@ -910,24 +923,15 @@ func (lbc *LoadBalancerController) resolveWAFBundleAuth(bs *conf_v1.BundleSource
 
 // resolveWAFBundleSecret resolves the primary auth secret into the given BundleAuth.
 func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSource, namespace string, auth *wafbundle.BundleAuth) error {
-	secretKey := namespace + "/" + bs.Secret
-	ref := lbc.secretStore.GetSecret(secretKey)
-	if ref == nil || ref.Error != nil {
-		var msg string
-		if ref != nil {
-			msg = ref.Error.Error()
-		}
-		return fmt.Errorf("secret %s not found or invalid: %s", secretKey, msg)
+	role := secrets.RoleTLS
+	if bs.Type == conf_v1.BundleSourceTypeN1C || bs.Type == conf_v1.BundleSourceTypeNIM {
+		role = secrets.RoleWAFBundle
 	}
 
-	if bs.Type == conf_v1.BundleSourceTypeN1C || bs.Type == conf_v1.BundleSourceTypeNIM {
-		if err := secrets.ValidateWAFBundleSecret(ref.Secret); err != nil {
-			return fmt.Errorf("secret %s: %w", secretKey, err)
-		}
-	} else { // HTTPS
-		if err := secrets.ValidateTLSSecret(ref.Secret); err != nil {
-			return fmt.Errorf("secret %s: %w", secretKey, err)
-		}
+	secretKey := namespace + "/" + bs.Secret
+	ref := lbc.secretStore.GetSecret(secretKey, role)
+	if ref.Error != nil {
+		return fmt.Errorf("secret %s not found or invalid: %w", secretKey, ref.Error)
 	}
 
 	data := ref.Secret.Data
@@ -935,23 +939,23 @@ func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSour
 
 	switch bs.Type {
 	case conf_v1.BundleSourceTypeN1C:
-		tok := string(data["token"])
+		tok := string(data[secrets.BundleTokenKey])
 		if tok == "" {
-			return fmt.Errorf("N1C secret %s must contain a 'token' field (type nginx.com/waf-bundle)", secretKey)
+			return fmt.Errorf("N1C secret %s must contain a 'token' field", secretKey)
 		}
 		auth.APIToken = tok
 	case conf_v1.BundleSourceTypeNIM:
-		if tok := string(data["token"]); tok != "" {
+		if tok := string(data[secrets.BundleTokenKey]); tok != "" {
 			auth.BearerToken = tok
-		} else if usr := string(data["username"]); usr != "" {
+		} else if usr := string(data[secrets.BundleUsernameKey]); usr != "" {
 			auth.Username = usr
-			auth.Password = string(data["password"])
+			auth.Password = string(data[secrets.BundlePasswordKey])
 		} else {
-			return fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password' (type nginx.com/waf-bundle)", secretKey)
+			return fmt.Errorf("NIM secret %s must contain 'token' or 'username'+'password'", secretKey)
 		}
 	default: // HTTPS
-		auth.TLSCert = data["tls.crt"]
-		auth.TLSKey = data["tls.key"]
+		auth.TLSCert = data[api_v1.TLSCertKey]
+		auth.TLSKey = data[api_v1.TLSPrivateKeyKey]
 	}
 	return nil
 }
@@ -959,16 +963,13 @@ func (lbc *LoadBalancerController) resolveWAFBundleSecret(bs *conf_v1.BundleSour
 // resolveWAFTrustedCert resolves the trusted CA certificate secret.
 func (lbc *LoadBalancerController) resolveWAFTrustedCert(secretName, namespace string, auth *wafbundle.BundleAuth) error {
 	caSecretKey := namespace + "/" + secretName
-	caRef := lbc.secretStore.GetSecret(caSecretKey)
-	if caRef == nil || caRef.Error != nil {
+	caRef := lbc.secretStore.GetSecret(caSecretKey, secrets.RoleCA)
+	if caRef == nil || caRef.Error != nil || caRef.Secret == nil {
 		var msg string
-		if caRef != nil {
+		if caRef != nil && caRef.Error != nil {
 			msg = caRef.Error.Error()
 		}
 		return fmt.Errorf("trusted cert secret %s not found or invalid: %s", caSecretKey, msg)
-	}
-	if err := secrets.ValidateCASecret(caRef.Secret); err != nil {
-		return fmt.Errorf("trusted cert secret %s: %w", caSecretKey, err)
 	}
 	auth.TLSCA = caRef.Secret.Data[secrets.CAKey]
 	return nil
@@ -995,4 +996,93 @@ func effectivePollInterval(bs *conf_v1.BundleSource) time.Duration {
 		return bs.PollInterval.Duration
 	}
 	return wafbundle.DefaultPollInterval
+}
+
+func policySecretIndexFunc(obj interface{}) ([]string, error) {
+	pol, ok := obj.(*conf_v1.Policy)
+	if !ok {
+		return nil, fmt.Errorf("expected *v1.Policy, got %T", obj)
+	}
+
+	refs := make(map[string]struct{})
+	collectPolicySecretRefs(pol, refs)
+	collectWAFSecretRefs(pol, refs)
+
+	return slices.Sorted(maps.Keys(refs)), nil
+}
+
+func collectPolicySecretRefs(pol *conf_v1.Policy, refs map[string]struct{}) {
+	add := func(name string) {
+		if name != "" {
+			refs[pol.Namespace+"/"+name] = struct{}{}
+		}
+	}
+
+	spec := pol.Spec
+
+	for _, sec := range extractAuthSecretNames(spec) {
+		add(sec)
+	}
+
+	if spec.ExternalAuth != nil && spec.ExternalAuth.TrustedCertSecret != "" {
+		ns, name := configs.ParseResourceReference(spec.ExternalAuth.TrustedCertSecret, pol.Namespace)
+		if name != "" {
+			refs[ns+"/"+name] = struct{}{}
+		}
+	}
+}
+
+func extractAuthSecretNames(spec conf_v1.PolicySpec) []string {
+	var names []string
+	if spec.IngressMTLS != nil {
+		names = append(names, spec.IngressMTLS.ClientCertSecret)
+	}
+	if spec.JWTAuth != nil {
+		names = append(names, spec.JWTAuth.Secret, spec.JWTAuth.TrustedCertSecret)
+	}
+	if spec.BasicAuth != nil {
+		names = append(names, spec.BasicAuth.Secret)
+	}
+	if spec.EgressMTLS != nil {
+		names = append(names, spec.EgressMTLS.TLSSecret, spec.EgressMTLS.TrustedCertSecret)
+	}
+	if spec.OIDC != nil {
+		names = append(names, spec.OIDC.ClientSecret, spec.OIDC.TrustedCertSecret)
+	}
+	if spec.OIDCNative != nil {
+		names = append(names, spec.OIDCNative.ClientSecret, spec.OIDCNative.TrustedCertSecret)
+	}
+	if spec.APIKey != nil {
+		names = append(names, spec.APIKey.ClientSecret)
+	}
+	return names
+}
+
+func collectWAFSecretRefs(pol *conf_v1.Policy, refs map[string]struct{}) {
+	if pol.Spec.WAF == nil {
+		return
+	}
+
+	addBundleSource := func(source *conf_v1.BundleSource) {
+		if source == nil {
+			return
+		}
+		if source.Secret != "" {
+			refs[pol.Namespace+"/"+source.Secret] = struct{}{}
+		}
+		if source.TrustedCertSecret != "" {
+			refs[pol.Namespace+"/"+source.TrustedCertSecret] = struct{}{}
+		}
+	}
+
+	waf := pol.Spec.WAF
+	addBundleSource(waf.ApBundleSource)
+	if waf.SecurityLog != nil {
+		addBundleSource(waf.SecurityLog.ApLogBundleSource)
+	}
+	for _, log := range waf.SecurityLogs {
+		if log != nil {
+			addBundleSource(log.ApLogBundleSource)
+		}
+	}
 }
