@@ -238,7 +238,7 @@ class TestEmptyHostIngressValidation:
 
         assert "backend2-svc" in conf
         assert "return 404" not in conf
-        assert conf.count("location / {") == 1
+        assert conf.count('location "/" {') == 1
 
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         wait_and_assert_status_code(200, f"{request_url}/", verify=False)

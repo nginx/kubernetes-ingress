@@ -206,6 +206,114 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 	}
 }
 
+// The following tests guard against a nil pointer dereference panic (see
+// getNamespacedInformer) when a status update is requested for a resource whose
+// namespace is no longer watched (e.g. its watch-namespace-label was removed).
+
+func newTestStatusUpdater() statusUpdater {
+	return statusUpdater{
+		namespacedInformers: map[string]*namespacedInformer{},
+		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+		logger:              slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
+	}
+}
+
+func TestUpdateIngressWithStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	ing := networking.Ingress{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "ing-1", Namespace: "not-watched"},
+	}
+	if err := su.updateIngressWithStatus(ing, nil); err != nil {
+		t.Errorf("updateIngressWithStatus() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateTransportServerStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	ts := &conf_v1.TransportServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "ts-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateTransportServerStatus(ts, "state", "reason", "message"); err != nil {
+		t.Errorf("UpdateTransportServerStatus() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vs-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateVirtualServerStatus(vs, "state", "reason", "message"); err != nil {
+		t.Errorf("UpdateVirtualServerStatus() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerRouteStatusWithReferencedByNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateVirtualServerRouteStatusWithReferencedBy(vsr, "state", "reason", "message", nil); err != nil {
+		t.Errorf("UpdateVirtualServerRouteStatusWithReferencedBy() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerRouteStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateVirtualServerRouteStatus(vsr, "state", "reason", "message"); err != nil {
+		t.Errorf("UpdateVirtualServerRouteStatus() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerExternalEndpointsNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vs-1", Namespace: "not-watched"},
+	}
+	if err := su.updateVirtualServerExternalEndpoints(vs); err != nil {
+		t.Errorf("updateVirtualServerExternalEndpoints() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerRouteExternalEndpointsNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "not-watched"},
+	}
+	if err := su.updateVirtualServerRouteExternalEndpoints(vsr); err != nil {
+		t.Errorf("updateVirtualServerRouteExternalEndpoints() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdatePolicyStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "pol-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdatePolicyStatus(pol, "state", "reason", "message"); err != nil {
+		t.Errorf("UpdatePolicyStatus() returned unexpected error: %v", err)
+	}
+}
+
 func TestStatusUpdateWithExternalStatusAndExternalService(t *testing.T) {
 	t.Parallel()
 	ing := networking.Ingress{

@@ -472,6 +472,91 @@ func TestRemoveDuplicateAuthJWTClaimSets(t *testing.T) {
 	}
 }
 
+func TestRemoveDuplicateOIDCProviders(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg       string
+		providers []version2.OIDCProvider
+		expected  []version2.OIDCProvider
+	}{
+		{
+			msg: "no duplicates",
+			providers: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+			expected: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+		},
+		{
+			msg: "same provider name is deduplicated",
+			providers: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+			expected: []version2.OIDCProvider{
+				{Name: "provider1"},
+				{Name: "provider2"},
+			},
+		},
+		{
+			msg: "distinct providers sharing a post-logout path keep only the first location",
+			providers: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+			},
+			expected: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: nil,
+				},
+			},
+		},
+		{
+			msg: "distinct providers with distinct post-logout paths both keep their location",
+			providers: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout1"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout2"},
+				},
+			},
+			expected: []version2.OIDCProvider{
+				{
+					Name:               "provider1",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout1"},
+				},
+				{
+					Name:               "provider2",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{Path: "/_logout2"},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		result := removeDuplicateOIDCProviders(test.providers)
+		if diff := cmp.Diff(test.expected, result); diff != "" {
+			t.Errorf("removeDuplicateOIDCProviders() '%s' mismatch (-want +got):\n%s", test.msg, diff)
+		}
+	}
+}
+
 func TestHasDuplicateMapDefaults(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -1428,7 +1513,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		inputTLS         *conf_v1.TLS
-		inputSecretRefs  map[string]*secrets.SecretReference
+		inputSecretRefs  map[secrets.SecretRefKey]*secrets.SecretReference
 		inputCfgParams   *ConfigParams
 		wildcard         bool
 		expectedSSL      *version2.SSL
@@ -1437,7 +1522,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 	}{
 		{
 			inputTLS:         nil,
-			inputSecretRefs:  map[string]*secrets.SecretReference{},
+			inputSecretRefs:  map[secrets.SecretRefKey]*secrets.SecretReference{},
 			inputCfgParams:   &ConfigParams{Context: context.Background()},
 			wildcard:         false,
 			expectedSSL:      nil,
@@ -1448,7 +1533,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 			inputTLS: &conf_v1.TLS{
 				Secret: "",
 			},
-			inputSecretRefs:  map[string]*secrets.SecretReference{},
+			inputSecretRefs:  map[secrets.SecretRefKey]*secrets.SecretReference{},
 			inputCfgParams:   &ConfigParams{Context: context.Background()},
 			wildcard:         false,
 			expectedSSL:      nil,
@@ -1459,7 +1544,7 @@ func TestGenerateSSLConfig(t *testing.T) {
 			inputTLS: &conf_v1.TLS{
 				Secret: "",
 			},
-			inputSecretRefs: map[string]*secrets.SecretReference{},
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			inputCfgParams:  &ConfigParams{Context: context.Background()},
 			wildcard:        true,
 			expectedSSL: &version2.SSL{
@@ -1477,8 +1562,8 @@ func TestGenerateSSLConfig(t *testing.T) {
 			},
 			inputCfgParams: &ConfigParams{Context: context.Background()},
 			wildcard:       false,
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/missing": {
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/missing", secrets.RoleTLS): {
 					Error: errors.New("missing doesn't exist"),
 				},
 			},
@@ -1497,32 +1582,31 @@ func TestGenerateSSLConfig(t *testing.T) {
 			},
 			inputCfgParams: &ConfigParams{Context: context.Background()},
 			wildcard:       false,
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/mistyped": {
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/mistyped", secrets.RoleTLS): {
 					Secret: &api_v1.Secret{
 						Type: secrets.SecretTypeCA,
 					},
+					Path: "mistyped.pem",
 				},
 			},
 			expectedSSL: &version2.SSL{
 				HTTP2:           false,
-				RejectHandshake: true,
+				Certificate:     "mistyped.pem",
+				CertificateKey:  "mistyped.pem",
+				RejectHandshake: false,
 			},
-			expectedWarnings: Warnings{
-				nil: []string{"TLS secret mistyped is of a wrong type 'nginx.org/ca', must be 'kubernetes.io/tls'"},
-			},
-			msg: "wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "secret with an unrecognized type is accepted",
 		},
 		{
 			inputTLS: &conf_v1.TLS{
 				Secret: "secret",
 			},
-			inputSecretRefs: map[string]*secrets.SecretReference{
-				"default/secret": {
-					Secret: &api_v1.Secret{
-						Type: api_v1.SecretTypeTLS,
-					},
-					Path: "secret.pem",
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/secret", secrets.RoleTLS): {
+					Secret: &api_v1.Secret{},
+					Path:   "secret.pem",
 				},
 			},
 			inputCfgParams: &ConfigParams{Context: context.Background()},
