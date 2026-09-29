@@ -35,18 +35,6 @@ We value community input and would love to see you at the next community call. A
 
 | **Community Call Dates** |
 | ------------------------ |
-<<<<<<< HEAD
-| **2026-02-23**           |
-| **2026-03-09**           |
-| **2026-03-23**           |
-| **2026-04-07**           |
-| **2026-04-20**           |
-| **2026-05-05**           |
-| **2026-05-18**           |
-| **2026-06-02**           |
-| **2026-06-15**           |
-| **2026-06-29**           |
-=======
 | **2026-09-07**           |
 | **2026-09-21**           |
 | **2026-10-05**           |
@@ -56,7 +44,6 @@ We value community input and would love to see you at the next community call. A
 | **2026-11-30**           |
 | **2026-12-14**           |
 
->>>>>>> main
 
 You can also join the [NGINX Community Forum](https://community.nginx.org) to chat about the NGINX Ingress Controller.
 
@@ -142,12 +129,8 @@ See more [examples](https://github.com/nginx/kubernetes-ingress/tree/main/exampl
 
 ## Docker Images
 
-<<<<<<< HEAD
-The latest stable release is [5.5.0](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.5.0). For production
-=======
 
 The latest stable release is [5.6.3](https://github.com/nginx/kubernetes-ingress/releases/tag/v5.6.3). For production
->>>>>>> main
 use, we recommend that you choose the latest stable release.
 
 | Registry | Link |
