@@ -56,6 +56,28 @@
       ]
     },
     {
+      "description": "Batch container digest bumps into a single weekly PR per base branch. Placed before the package-specific docker groups below so those keep precedence for their own images. Excludes the UBI chain: a redhat/ubi10 digest bump rebuilds ghcr.io/nginx/dependencies/nginx-ubi (build-ubi-dependency.yml), which the images then consume via its own digest bump, so batching either link would delay UBI and WAF package updates by up to a week each.",
+      "groupName": "container digests",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "!ghcr.io/nginx/dependencies/nginx-ubi",
+        "!/^redhat\\//"
+      ],
+      "matchUpdateTypes": [
+        "digest",
+        "pinDigest"
+      ],
+      "addLabels": [
+        "docker",
+        "skip changelog"
+      ],
+      "schedule": [
+        "before 6am on monday"
+      ]
+    },
+    {
       "addLabels": [
         "helm"
       ],
@@ -259,6 +281,31 @@
         "go",
         "dependencies"
       ]
+    },
+    {
+      "description": "Maintenance branches only receive updates that can reach a released artifact. Dev tooling, the pytest suite, test fixtures, examples and docs cannot, so skip them there. Deliberately does NOT skip .github/** - that is release infrastructure (image copying in .github/scripts/copy-images.sh, chart publishing in publish-helm.yml, and pinned Action digests) and release-2026-lts must still be able to build and publish for three years. Regex rather than a literal branch list because the current-stable entry in baseBranchPatterns is replaced at each release.",
+      "matchBaseBranches": [
+        "/^release-/"
+      ],
+      "matchFileNames": [
+        ".pre-commit-config.yaml",
+        "pyproject.toml",
+        "tests/**",
+        "examples/**",
+        "docs/**",
+        "**/*.md"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Hold external-dns at v0.20.x. From v0.21.0 its CRD source ignores --crd-source-apiversion and only reads externaldns.k8s.io/v1alpha1, which breaks the externaldns.nginx.org/v1 integration used by the example and the e2e fixture. Remove once NIC supports the upstream group - see https://github.com/nginx/kubernetes-ingress/issues/9779.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "registry.k8s.io/external-dns/external-dns"
+      ],
+      "allowedVersions": "/^v0\\.([0-9]|1[0-9]|20)\\.[0-9]+$/"
     }
   ],
   "kubernetes": {
