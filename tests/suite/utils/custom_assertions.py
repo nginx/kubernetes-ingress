@@ -278,7 +278,6 @@ def assert_proxy_entries_do_not_exist(config) -> None:
     assert "proxy_send_timeout 60s;" not in config
 
     assert "proxy_set_header Upgrade $http_upgrade;" not in config
-    assert "proxy_http_version 1.1;" not in config
 
     assert "proxy_next_upstream error timeout;" not in config
     assert "proxy_next_upstream_timeout 0s;" not in config
@@ -298,7 +297,6 @@ def assert_proxy_entries_exist(config) -> None:
     assert "proxy_send_timeout 60s;" in config
 
     assert "proxy_set_header Upgrade $http_upgrade;" in config
-    assert "proxy_http_version 1.1;" in config
 
     assert "proxy_next_upstream error timeout;" in config
     assert "proxy_next_upstream_timeout 0s;" in config

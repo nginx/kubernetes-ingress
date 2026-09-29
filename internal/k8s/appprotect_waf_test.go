@@ -16,6 +16,47 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
+// TestAppProtectSyncNamespaceNotWatched guards against a nil pointer dereference
+// panic (see getNamespacedInformer) when an AppProtect-related task for a namespace
+// that is no longer watched (e.g. its watch-namespace-label was removed) is processed.
+func TestAppProtectSyncNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		sync func(lbc *LoadBalancerController, key string)
+	}{
+		{
+			name: "AppProtectPolicy",
+			sync: func(lbc *LoadBalancerController, key string) {
+				lbc.syncAppProtectPolicy(task{Kind: appProtectPolicy, Key: key})
+			},
+		},
+		{
+			name: "AppProtectLogConf",
+			sync: func(lbc *LoadBalancerController, key string) {
+				lbc.syncAppProtectLogConf(task{Kind: appProtectLogConf, Key: key})
+			},
+		},
+		{
+			name: "AppProtectUserSig",
+			sync: func(lbc *LoadBalancerController, key string) {
+				lbc.syncAppProtectUserSig(task{Kind: appProtectUserSig, Key: key})
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(_ *testing.T) {
+			lbc := &LoadBalancerController{
+				namespacedInformers: map[string]*namespacedInformer{},
+				Logger:              nl.LoggerFromContext(context.Background()),
+			}
+			tc.sync(lbc, "not-watched/some-resource")
+		})
+	}
+}
+
 func TestAddWAFPolicyRefs(t *testing.T) {
 	t.Parallel()
 	apPol := &unstructured.Unstructured{

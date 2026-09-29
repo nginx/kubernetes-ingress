@@ -14,7 +14,6 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	api_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -98,20 +97,23 @@ type PodInfo struct {
 
 // VirtualServerEx holds a VirtualServer along with the resources that are referenced in this VirtualServer.
 type VirtualServerEx struct {
-	VirtualServer               *conf_v1.VirtualServer
-	HTTPPort                    int
-	HTTPSPort                   int
-	HTTPIPv4                    string
-	HTTPIPv6                    string
-	HTTPSIPv4                   string
-	HTTPSIPv6                   string
-	Endpoints                   map[string][]string
+	VirtualServer *conf_v1.VirtualServer
+	HTTPPort      int
+	HTTPSPort     int
+	HTTPIPv4      string
+	HTTPIPv6      string
+	HTTPSIPv4     string
+	HTTPSIPv6     string
+	Endpoints     map[string][]string
+	// ServiceAppProtocols holds the appProtocol of the Service port backing each upstream,
+	// keyed identically to Endpoints. Absent or unset appProtocols are not stored.
+	ServiceAppProtocols         map[string]string
 	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
 	VirtualServerSelectorRoutes map[string][]string
 	ExternalNameSvcs            map[string]bool
 	Policies                    map[string]*conf_v1.Policy
 	PodsByIP                    map[string]PodInfo
-	SecretRefs                  map[string]*secrets.SecretReference
+	SecretRefs                  map[secrets.SecretRefKey]*secrets.SecretReference
 	ApPolRefs                   map[string]*unstructured.Unstructured
 	LogConfRefs                 map[string]*unstructured.Unstructured
 	DosProtectedRefs            map[string]*unstructured.Unstructured
@@ -1361,6 +1363,7 @@ func generateUpstreams(
 	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
 	upstreams = append(upstreams, ups)
 	u.TLS.Enable = isTLSEnabled(u)
+	u.ProxyHTTPVersion = vsc.resolveUpstreamProxyHTTPVersion(owner, ownerNamespace, u, vsEx)
 	crUpstreams[upstreamName] = u
 
 	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
@@ -1373,6 +1376,30 @@ func generateUpstreams(
 		}
 	}
 	return upstreams, healthChecks, statusMatches
+}
+
+// resolveUpstreamProxyHTTPVersion determines the HTTP version used for connections to the
+// servers of a single upstream. gRPC upstreams are left unset: they are proxied with grpc_pass,
+// which always uses HTTP/2, and never render proxy_http_version.
+func (vsc *virtualServerConfigurator) resolveUpstreamProxyHTTPVersion(
+	owner runtime.Object,
+	ownerNamespace string,
+	upstream conf_v1.Upstream,
+	vsEx *VirtualServerEx,
+) string {
+	if isGRPC(upstream.Type) {
+		if upstream.ProxyHTTPVersion != "" {
+			vsc.addWarningf(owner,
+				"proxy-http-version is ignored for upstream %s because it has type grpc, which always uses HTTP/2",
+				upstream.Name)
+		}
+		return ""
+	}
+
+	serviceNamespace, serviceName := ParseServiceReference(upstream.Service, ownerNamespace)
+	endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, upstream.Subselector, upstream.Port)
+
+	return resolveProxyHTTPVersion(upstream.ProxyHTTPVersion, vsEx.ServiceAppProtocols[endpointsKey])
 }
 
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {
@@ -2130,6 +2157,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyHideHeaders:         generateProxyHideHeaders(proxy),
 		ProxyPassHeaders:         generateProxyPassHeaders(proxy),
 		ProxyIgnoreHeaders:       generateProxyIgnoreHeaders(proxy),
+		ProxyHTTPVersion:         upstream.ProxyHTTPVersion,
 		AddHeaders:               generateProxyAddHeaders(proxy),
 		ProxyPassRewrite:         generateProxyPassRewrite(path, proxy, internal),
 		Rewrites:                 generateRewrites(path, proxy, internal, originalPath, isGRPC(upstream.Type)),
@@ -2683,7 +2711,7 @@ func getNameForSourceForMatchesRouteMapFromCondition(condition conf_v1.Condition
 }
 
 func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tls *conf_v1.TLS, namespace string,
-	secretRefs map[string]*secrets.SecretReference, cfgParams *ConfigParams,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams,
 ) *version2.SSL {
 	if tls == nil {
 		return nil
@@ -2702,21 +2730,17 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 		return nil
 	}
 
-	secretRef := secretRefs[fmt.Sprintf("%s/%s", namespace, tls.Secret)]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
+	secretRef := secretRefs[secrets.RefKey(fmt.Sprintf("%s/%s", namespace, tls.Secret), secrets.RoleTLS)]
 	var name string
 	var rejectHandshake bool
-	if secretType != "" && secretType != api_v1.SecretTypeTLS {
-		rejectHandshake = true
-		vsc.addWarningf(owner, "TLS secret %s is of a wrong type '%s', must be '%s'", tls.Secret, secretType, api_v1.SecretTypeTLS)
-	} else if secretRef.Error != nil {
+	if secretRef != nil && secretRef.Error != nil {
 		rejectHandshake = true
 		vsc.addWarningf(owner, "TLS secret %s is invalid: %v", tls.Secret, secretRef.Error)
-	} else {
+	} else if secretRef != nil {
 		name = secretRef.Path
+	} else {
+		rejectHandshake = true
+		vsc.addWarningf(owner, "TLS secret %s is missing from secret references", tls.Secret)
 	}
 
 	ssl := version2.SSL{

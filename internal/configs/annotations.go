@@ -107,6 +107,9 @@ const ProxyRedirectToAnnotation = "nginx.org/proxy-redirect-to"
 // them via error_page to the Ingress's spec.defaultBackend when one is configured.
 const CustomHTTPErrorsAnnotation = "nginx.org/custom-http-errors"
 
+// ProxyHTTPVersionAnnotation is the annotation for specifying the HTTP version to use when proxying requests to upstream servers.
+const ProxyHTTPVersionAnnotation = "nginx.org/proxy-http-version"
+
 var masterDenylist = map[string]bool{
 	"nginx.org/rewrites":                      true,
 	"nginx.org/ssl-services":                  true,
@@ -172,6 +175,7 @@ var minionInheritanceList = map[string]bool{
 	"nginx.org/limit-req-reject-code":    true,
 	"nginx.org/limit-req-scale":          true,
 	UpstreamVhostAnnotation:              true,
+	ProxyHTTPVersionAnnotation:           true,
 }
 
 var validPathRegex = map[string]bool{
@@ -347,6 +351,10 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		}
 		cfgParams.ProxyNextUpstreamTries = &proxyNextUpstreamTries
+	}
+
+	if proxyHTTPVersion, exists := ingEx.Ingress.Annotations[ProxyHTTPVersionAnnotation]; exists {
+		cfgParams.ProxyHTTPVersion = proxyHTTPVersion
 	}
 
 	if clientMaxBodySize, exists := ingEx.Ingress.Annotations["nginx.org/client-max-body-size"]; exists {
