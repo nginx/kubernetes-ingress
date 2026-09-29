@@ -18,6 +18,7 @@ package certmanager
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
@@ -88,6 +89,7 @@ type namespacedInformer struct {
 	vsLister                  listers_v1.VirtualServerLister
 	cmLister                  cmlisters.CertificateLister
 	stopCh                    chan struct{}
+	stopOnce                  sync.Once
 }
 
 func (c *CmController) register() workqueue.TypedRateLimitingInterface[types.NamespacedName] {
@@ -281,8 +283,12 @@ func (nsi *namespacedInformer) start() {
 	go nsi.kubeSharedInformerFactory.Start(nsi.stopCh)
 }
 
+// stop closes the group's stop channel. It is idempotent: the shutdown sweep in
+// Run and RemoveNamespacedInformer can both reach the same group.
 func (nsi *namespacedInformer) stop() {
-	close(nsi.stopCh)
+	nsi.stopOnce.Do(func() {
+		close(nsi.stopCh)
+	})
 }
 
 // runWorker is a long-running function that will continually call the

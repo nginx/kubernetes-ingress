@@ -78,3 +78,21 @@ func TestRemoveNamespacedInformerUnregistersAndStops(t *testing.T) {
 		t.Error("informer was unregistered but never stopped")
 	}
 }
+
+// TestNamespacedInformerStopIsIdempotent covers shutdown: Run's sweep stops every
+// registered group while RemoveNamespacedInformer may be stopping one of them, so
+// both can reach the same group. A second close of stopCh would panic.
+func TestNamespacedInformerStopIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	nsi := &namespacedInformer{stopCh: make(chan struct{})}
+
+	nsi.stop()
+	nsi.stop()
+
+	select {
+	case <-nsi.stopCh:
+	default:
+		t.Error("stopCh was not closed")
+	}
+}

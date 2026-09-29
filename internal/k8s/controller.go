@@ -649,6 +649,7 @@ type namespacedInformer struct {
 	appProtectEnabled            bool
 	appProtectDosEnabled         bool
 	stopCh                       chan struct{}
+	stopOnce                     sync.Once
 	cacheSyncs                   []cache.InformerSynced
 }
 
@@ -908,10 +909,18 @@ func (lbc *LoadBalancerController) Stop() {
 	if lbc.bundlePollerMgr != nil {
 		lbc.bundlePollerMgr.StopAll()
 	}
-	lbc.namespacedInformers.ForEach(func(nif *namespacedInformer) {
-		nif.stop()
-	})
+	// Sweep first so a namespace task blocked in WaitForCacheSync on its own
+	// stopCh is released, then wait for the worker to exit, then sweep again to
+	// catch a group it registered in between. stop is idempotent, so a group
+	// caught by both sweeps, or already stopped by the worker, is fine.
+	stopAll := func() {
+		lbc.namespacedInformers.ForEach(func(nif *namespacedInformer) {
+			nif.stop()
+		})
+	}
+	stopAll()
 	lbc.syncQueue.Shutdown()
+	stopAll()
 }
 
 func (nsi *namespacedInformer) start() {
@@ -930,8 +939,13 @@ func (nsi *namespacedInformer) start() {
 	}
 }
 
+// stop closes the group's stop channel. It is idempotent: Stop sweeps every
+// registered group at shutdown while the sync queue worker may still be
+// unregistering one, so both can reach the same group.
 func (nsi *namespacedInformer) stop() {
-	close(nsi.stopCh)
+	nsi.stopOnce.Do(func() {
+		close(nsi.stopCh)
+	})
 }
 
 // getNamespacedInformer returns the informer group watching ns, or nil when ns
@@ -1441,6 +1455,25 @@ func (lbc *LoadBalancerController) removeNamespacedInformer(key string) {
 	if nsi := lbc.namespacedInformers.Remove(key); nsi != nil {
 		nsi.stop()
 	}
+}
+
+// unwatchNamespace tears down a namespace that lost its watched label: cleanup
+// runs first, while the group is still registered, and only then is the group
+// unregistered and stopped.
+//
+// The order matters. cleanup fans out to dependent resources through
+// getAllPolicies, which walks the registry, so this namespace's Policy CRs must
+// still be visible; otherwise VirtualServers in other namespaces that reference
+// a WAF Policy here are never regenerated and keep a stale configuration.
+// Unregistering afterwards is what makes stopping safe, since Remove waits for
+// in-flight readers.
+func (lbc *LoadBalancerController) unwatchNamespace(key string, cleanup func(nsi *namespacedInformer)) {
+	nsi := lbc.getNamespacedInformer(key)
+	if nsi == nil {
+		return
+	}
+	cleanup(nsi)
+	lbc.removeNamespacedInformer(key)
 }
 
 func (lbc *LoadBalancerController) cleanupUnwatchedNamespacedResources(nsi *namespacedInformer) {

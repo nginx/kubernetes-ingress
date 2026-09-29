@@ -3,6 +3,7 @@ package externaldns
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -45,6 +46,7 @@ type namespacedInformer struct {
 	extdnslister          extdnslisters.DNSEndpointLister
 	mustSync              []cache.InformerSynced
 	stopCh                chan struct{}
+	stopOnce              sync.Once
 }
 
 // ExtDNSOpts represents config required for building the External DNS Controller.
@@ -157,8 +159,12 @@ func (nsi *namespacedInformer) start() {
 	go nsi.sharedInformerFactory.Start(nsi.stopCh)
 }
 
+// stop closes the group's stop channel. It is idempotent: the shutdown sweep in
+// Run and RemoveNamespacedInformer can both reach the same group.
 func (nsi *namespacedInformer) stop() {
-	close(nsi.stopCh)
+	nsi.stopOnce.Do(func() {
+		close(nsi.stopCh)
+	})
 }
 
 // runWorker is a long-running function that will continually call the processItem
