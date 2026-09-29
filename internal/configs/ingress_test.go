@@ -106,11 +106,9 @@ func TestGenerateNginxCfgForJWT(t *testing.T) {
 	cafeIngressEx.Ingress.Annotations[JWTRealmAnnotation] = "Cafe App"
 	cafeIngressEx.Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token"
 	cafeIngressEx.Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.example.com"
-	cafeIngressEx.SecretRefs["cafe-jwk"] = &secrets.SecretReference{
-		Secret: &v1.Secret{
-			Type: secrets.SecretTypeJWK,
-		},
-		Path: "/etc/nginx/secrets/default-cafe-jwk",
+	cafeIngressEx.SecretRefs[secrets.RefKey("default/cafe-jwk", secrets.RoleJWK)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
+		Path:   "/etc/nginx/secrets/default-cafe-jwk",
 	}
 
 	isPlus := true
@@ -158,11 +156,9 @@ func TestGenerateNginxCfgForBasicAuth(t *testing.T) {
 	cafeIngressEx := createCafeIngressEx()
 	cafeIngressEx.Ingress.Annotations["nginx.org/basic-auth-secret"] = "cafe-htpasswd"
 	cafeIngressEx.Ingress.Annotations["nginx.org/basic-auth-realm"] = "Cafe App"
-	cafeIngressEx.SecretRefs["cafe-htpasswd"] = &secrets.SecretReference{
-		Secret: &v1.Secret{
-			Type: secrets.SecretTypeHtpasswd,
-		},
-		Path: "/etc/nginx/secrets/default-cafe-htpasswd",
+	cafeIngressEx.SecretRefs[secrets.RefKey("default/cafe-htpasswd", secrets.RoleHtpasswd)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
+		Path:   "/etc/nginx/secrets/default-cafe-htpasswd",
 	}
 
 	isPlus := false
@@ -1073,11 +1069,9 @@ func TestGenerateNginxCfgForIngressMTLS(t *testing.T) {
 			},
 		},
 	}
-	cafeIngressEx.SecretRefs["default/ingress-mtls-secret"] = &secrets.SecretReference{
-		Secret: &v1.Secret{
-			Type: secrets.SecretTypeCA,
-		},
-		Path: "/etc/nginx/secrets/default-ingress-mtls-secret",
+	cafeIngressEx.SecretRefs[secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
+		Path:   "/etc/nginx/secrets/default-ingress-mtls-secret",
 	}
 	isPlus := false
 	configParams := NewDefaultConfigParams(context.Background(), isPlus)
@@ -1205,7 +1199,7 @@ func TestGenerateNginxCfgWithMissingOrInvalidPolicy(t *testing.T) {
 func TestGenerateNginxCfgWithMissingTLSSecret(t *testing.T) {
 	t.Parallel()
 	cafeIngressEx := createCafeIngressEx()
-	cafeIngressEx.SecretRefs["cafe-secret"].Error = errors.New("secret doesn't exist")
+	cafeIngressEx.SecretRefs[secrets.RefKey("default/cafe-secret", secrets.RoleTLS)].Error = errors.New("secret doesn't exist")
 	configParams := NewDefaultConfigParams(context.Background(), false)
 
 	result, resultWarnings := generateNginxCfg(NginxCfgParams{
@@ -2418,12 +2412,10 @@ func createCafeIngressEx() IngressEx {
 		ValidHosts: map[string]bool{
 			"cafe.example.com": true,
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"cafe-secret": {
-				Secret: &v1.Secret{
-					Type: v1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+				Secret: &v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}
@@ -2615,22 +2607,18 @@ func TestGenerateNginxCfgForMergeableIngressesForJWT(t *testing.T) {
 	mergeableIngresses.Master.Ingress.Annotations[JWTRealmAnnotation] = "Cafe"
 	mergeableIngresses.Master.Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token"
 	mergeableIngresses.Master.Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.example.com"
-	mergeableIngresses.Master.SecretRefs["cafe-jwk"] = &secrets.SecretReference{
-		Secret: &v1.Secret{
-			Type: secrets.SecretTypeJWK,
-		},
-		Path: "/etc/nginx/secrets/default-cafe-jwk",
+	mergeableIngresses.Master.SecretRefs[secrets.RefKey("default/cafe-jwk", secrets.RoleJWK)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
+		Path:   "/etc/nginx/secrets/default-cafe-jwk",
 	}
 
 	mergeableIngresses.Minions[0].Ingress.Annotations[JWTKeyAnnotation] = "coffee-jwk"
 	mergeableIngresses.Minions[0].Ingress.Annotations[JWTRealmAnnotation] = "Coffee"
 	mergeableIngresses.Minions[0].Ingress.Annotations[JWTTokenAnnotation] = "$cookie_auth_token_coffee"
 	mergeableIngresses.Minions[0].Ingress.Annotations[JWTLoginURLAnnotation] = "https://login.coffee.example.com"
-	mergeableIngresses.Minions[0].SecretRefs["coffee-jwk"] = &secrets.SecretReference{
-		Secret: &v1.Secret{
-			Type: secrets.SecretTypeJWK,
-		},
-		Path: "/etc/nginx/secrets/default-coffee-jwk",
+	mergeableIngresses.Minions[0].SecretRefs[secrets.RefKey("default/coffee-jwk", secrets.RoleJWK)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
+		Path:   "/etc/nginx/secrets/default-coffee-jwk",
 	}
 
 	isPlus := true
@@ -2693,20 +2681,16 @@ func TestGenerateNginxCfgForMergeableIngressesForBasicAuth(t *testing.T) {
 	mergeableIngresses := createMergeableCafeIngress()
 	mergeableIngresses.Master.Ingress.Annotations["nginx.org/basic-auth-secret"] = "cafe-htpasswd"
 	mergeableIngresses.Master.Ingress.Annotations["nginx.org/basic-auth-realm"] = "Cafe"
-	mergeableIngresses.Master.SecretRefs["cafe-htpasswd"] = &secrets.SecretReference{
-		Secret: &v1.Secret{
-			Type: secrets.SecretTypeHtpasswd,
-		},
-		Path: "/etc/nginx/secrets/default-cafe-htpasswd",
+	mergeableIngresses.Master.SecretRefs[secrets.RefKey("default/cafe-htpasswd", secrets.RoleHtpasswd)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
+		Path:   "/etc/nginx/secrets/default-cafe-htpasswd",
 	}
 
 	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/basic-auth-secret"] = "coffee-htpasswd"
 	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/basic-auth-realm"] = "Coffee"
-	mergeableIngresses.Minions[0].SecretRefs["coffee-htpasswd"] = &secrets.SecretReference{
-		Secret: &v1.Secret{
-			Type: secrets.SecretTypeHtpasswd,
-		},
-		Path: "/etc/nginx/secrets/default-coffee-htpasswd",
+	mergeableIngresses.Minions[0].SecretRefs[secrets.RefKey("default/coffee-htpasswd", secrets.RoleHtpasswd)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
+		Path:   "/etc/nginx/secrets/default-coffee-htpasswd",
 	}
 
 	isPlus := false
@@ -4123,13 +4107,11 @@ func createMergeableCafeIngress() *MergeableIngresses {
 			ValidHosts: map[string]bool{
 				"cafe.example.com": true,
 			},
-			SecretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &v1.Secret{
-						Type: v1.SecretTypeTLS,
-					},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &v1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -4145,7 +4127,7 @@ func createMergeableCafeIngress() *MergeableIngresses {
 				ValidMinionPaths: map[string]bool{
 					"/coffee": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			{
 				Ingress: &teaMinion,
@@ -4158,7 +4140,7 @@ func createMergeableCafeIngress() *MergeableIngresses {
 				ValidMinionPaths: map[string]bool{
 					"/tea": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 		},
 	}
@@ -4496,7 +4478,7 @@ func TestAddSSLConfig(t *testing.T) {
 	tests := []struct {
 		host              string
 		tls               []networking.IngressTLS
-		secretRefs        map[string]*secrets.SecretReference
+		secretRefs        map[secrets.SecretRefKey]*secrets.SecretReference
 		isWildcardEnabled bool
 		expectedServer    version1.Server
 		expectedWarnings  Warnings
@@ -4510,12 +4492,10 @@ func TestAddSSLConfig(t *testing.T) {
 					SecretName: "cafe-secret",
 				},
 			},
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &v1.Secret{
-						Type: v1.SecretTypeTLS,
-					},
-					Path: "/etc/nginx/secrets/default-cafe-secret",
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &v1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
 				},
 			},
 			isWildcardEnabled: false,
@@ -4531,12 +4511,10 @@ func TestAddSSLConfig(t *testing.T) {
 					SecretName: "cafe-secret",
 				},
 			},
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &v1.Secret{
-						Type: v1.SecretTypeTLS,
-					},
-					Path: "/etc/nginx/secrets/default-cafe-secret",
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &v1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
 				},
 			},
 			isWildcardEnabled: false,
@@ -4556,12 +4534,10 @@ func TestAddSSLConfig(t *testing.T) {
 					SecretName: "cafe-secret",
 				},
 			},
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &v1.Secret{
-						Type: v1.SecretTypeTLS,
-					},
-					Error: errors.New("invalid secret"),
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &v1.Secret{},
+					Error:  errors.New("invalid secret"),
 				},
 			},
 			isWildcardEnabled: false,
@@ -4584,25 +4560,20 @@ func TestAddSSLConfig(t *testing.T) {
 					SecretName: "cafe-secret",
 				},
 			},
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &v1.Secret{
-						Type: secrets.SecretTypeCA,
-					},
-					Path: "/etc/nginx/secrets/default-cafe-secret",
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &v1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
 				},
 			},
 			isWildcardEnabled: false,
 			expectedServer: version1.Server{
-				SSL:                true,
-				SSLRejectHandshake: true,
+				SSL:               true,
+				SSLCertificate:    "/etc/nginx/secrets/default-cafe-secret",
+				SSLCertificateKey: "/etc/nginx/secrets/default-cafe-secret",
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					"TLS secret cafe-secret is of a wrong type 'nginx.org/ca', must be 'kubernetes.io/tls'",
-				},
-			},
-			msg: "secret of wrong type without error",
+			expectedWarnings: Warnings{},
+			msg:              "secret with an unrecognized type is accepted",
 		},
 		{
 			host: "cafe.example.com",
@@ -4612,13 +4583,11 @@ func TestAddSSLConfig(t *testing.T) {
 					SecretName: "cafe-secret",
 				},
 			},
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &v1.Secret{
-						Type: secrets.SecretTypeCA,
-					},
-					Path:  "",
-					Error: errors.New("CA secret must have the data field ca.crt"),
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &v1.Secret{},
+					Path:   "",
+					Error:  errors.New(`secret is missing required key "tls.crt"`),
 				},
 			},
 			isWildcardEnabled: false,
@@ -4628,10 +4597,10 @@ func TestAddSSLConfig(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					"TLS secret cafe-secret is of a wrong type 'nginx.org/ca', must be 'kubernetes.io/tls'",
+					`TLS secret cafe-secret is invalid: secret is missing required key "tls.crt"`,
 				},
 			},
-			msg: "secret of wrong type with error",
+			msg: "secret missing a required key",
 		},
 		{
 			host: "cafe.example.com",
@@ -4676,7 +4645,7 @@ func TestAddSSLConfig(t *testing.T) {
 		var server version1.Server
 
 		// it is ok to use nil as the owner
-		warnings := addSSLConfig(&server, nil, test.host, test.tls, test.secretRefs, test.isWildcardEnabled)
+		warnings := addSSLConfig(&server, nil, "default", test.host, test.tls, test.secretRefs, test.isWildcardEnabled)
 
 		if diff := cmp.Diff(test.expectedServer, server); diff != "" {
 			t.Errorf("addSSLConfig() '%s' mismatch (-want +got):\n%s", test.msg, diff)
@@ -4706,21 +4675,21 @@ func newEgressMTLSPolicy(name string, tlsSecret string, trustedCertSecret string
 	}
 }
 
-func addEgressMTLSSecretRefs(secretRefs map[string]*secrets.SecretReference) {
-	secretRefs["default/egress-mtls-secret"] = &secrets.SecretReference{
-		Secret: &v1.Secret{Type: v1.SecretTypeTLS},
+func addEgressMTLSSecretRefs(secretRefs map[secrets.SecretRefKey]*secrets.SecretReference) {
+	secretRefs[secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
 		Path:   "/etc/nginx/secrets/default-egress-mtls-secret",
 	}
-	secretRefs["default/egress-trusted-ca-secret"] = &secrets.SecretReference{
-		Secret: &v1.Secret{Type: secrets.SecretTypeCA},
+	secretRefs[secrets.RefKey("default/egress-trusted-ca-secret", secrets.RoleCA)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
 		Path:   "/etc/nginx/secrets/default-egress-trusted-ca-secret",
 	}
-	secretRefs["default/egress-mtls-secret-alt"] = &secrets.SecretReference{
-		Secret: &v1.Secret{Type: v1.SecretTypeTLS},
+	secretRefs[secrets.RefKey("default/egress-mtls-secret-alt", secrets.RoleTLS)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
 		Path:   "/etc/nginx/secrets/default-egress-mtls-secret-alt",
 	}
-	secretRefs["default/egress-trusted-ca-secret-alt"] = &secrets.SecretReference{
-		Secret: &v1.Secret{Type: secrets.SecretTypeCA},
+	secretRefs[secrets.RefKey("default/egress-trusted-ca-secret-alt", secrets.RoleCA)] = &secrets.SecretReference{
+		Secret: &v1.Secret{},
 		Path:   "/etc/nginx/secrets/default-egress-trusted-ca-secret-alt",
 	}
 }
@@ -4743,7 +4712,7 @@ func expectedEgressMTLSConfig(certificate string, trustedCert string, sslName st
 func TestGenerateJWTConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		secretRefs               map[string]*secrets.SecretReference
+		secretRefs               map[secrets.SecretRefKey]*secrets.SecretReference
 		cfgParams                *ConfigParams
 		redirectLocationName     string
 		expectedJWTAuth          *version1.JWTAuth
@@ -4752,12 +4721,10 @@ func TestGenerateJWTConfig(t *testing.T) {
 		msg                      string
 	}{
 		{
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-jwk": {
-					Secret: &v1.Secret{
-						Type: secrets.SecretTypeJWK,
-					},
-					Path: "/etc/nginx/secrets/default-cafe-jwk",
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-jwk", secrets.RoleJWK): {
+					Secret: &v1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-jwk",
 				},
 			},
 			cfgParams: &ConfigParams{
@@ -4776,12 +4743,10 @@ func TestGenerateJWTConfig(t *testing.T) {
 			msg:                      "normal case",
 		},
 		{
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-jwk": {
-					Secret: &v1.Secret{
-						Type: secrets.SecretTypeJWK,
-					},
-					Path: "/etc/nginx/secrets/default-cafe-jwk",
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-jwk", secrets.RoleJWK): {
+					Secret: &v1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-jwk",
 				},
 			},
 			cfgParams: &ConfigParams{
@@ -4805,13 +4770,11 @@ func TestGenerateJWTConfig(t *testing.T) {
 			msg:              "normal case with login url",
 		},
 		{
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-jwk": {
-					Secret: &v1.Secret{
-						Type: secrets.SecretTypeJWK,
-					},
-					Path:  "/etc/nginx/secrets/default-cafe-jwk",
-					Error: errors.New("invalid secret"),
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-jwk", secrets.RoleJWK): {
+					Secret: &v1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-jwk",
+					Error:  errors.New("invalid secret"),
 				},
 			},
 			cfgParams: &ConfigParams{
@@ -4834,12 +4797,10 @@ func TestGenerateJWTConfig(t *testing.T) {
 			msg: "invalid secret",
 		},
 		{
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-jwk": {
-					Secret: &v1.Secret{
-						Type: secrets.SecretTypeCA,
-					},
-					Path: "/etc/nginx/secrets/default-cafe-jwk",
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-jwk", secrets.RoleJWK): {
+					Secret: &v1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-jwk",
 				},
 			},
 			cfgParams: &ConfigParams{
@@ -4854,21 +4815,15 @@ func TestGenerateJWTConfig(t *testing.T) {
 				Token: "$http_token",
 			},
 			expectedRedirectLocation: nil,
-			expectedWarnings: Warnings{
-				nil: {
-					"JWK secret cafe-jwk is of a wrong type 'nginx.org/ca', must be 'nginx.org/jwk'",
-				},
-			},
-			msg: "secret of wrong type without error",
+			expectedWarnings:         Warnings{},
+			msg:                      "secret with an unrecognized type is accepted",
 		},
 		{
-			secretRefs: map[string]*secrets.SecretReference{
-				"cafe-jwk": {
-					Secret: &v1.Secret{
-						Type: secrets.SecretTypeCA,
-					},
-					Path:  "",
-					Error: errors.New("CA secret must have the data field ca.crt"),
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-jwk", secrets.RoleJWK): {
+					Secret: &v1.Secret{},
+					Path:   "",
+					Error:  errors.New(`secret is missing required key "jwk"`),
 				},
 			},
 			cfgParams: &ConfigParams{
@@ -4885,15 +4840,15 @@ func TestGenerateJWTConfig(t *testing.T) {
 			expectedRedirectLocation: nil,
 			expectedWarnings: Warnings{
 				nil: {
-					"JWK secret cafe-jwk is of a wrong type 'nginx.org/ca', must be 'nginx.org/jwk'",
+					`JWK secret cafe-jwk is invalid: secret is missing required key "jwk"`,
 				},
 			},
-			msg: "secret of wrong type with error",
+			msg: "secret missing a required key",
 		},
 	}
 
 	for _, test := range tests {
-		jwtAuth, redirectLocation, warnings := generateJWTConfig(nil, test.secretRefs, test.cfgParams, test.redirectLocationName)
+		jwtAuth, redirectLocation, warnings := generateJWTConfig(nil, "default", test.secretRefs, test.cfgParams, test.redirectLocationName)
 
 		if diff := cmp.Diff(test.expectedJWTAuth, jwtAuth); diff != "" {
 			t.Errorf("generateJWTConfig() '%s' mismatch for jwtAuth (-want +got):\n%s", test.msg, diff)
@@ -5639,7 +5594,7 @@ func createEmptyHostIngressEx() IngressEx {
 	ingEx.Ingress.Spec.TLS = nil
 	ingEx.Ingress.Spec.Rules[0].Host = ""
 	ingEx.ValidHosts = map[string]bool{"": true}
-	ingEx.SecretRefs = map[string]*secrets.SecretReference{}
+	ingEx.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{}
 	return ingEx
 }
 
@@ -5703,7 +5658,7 @@ func createEmptyHostMergeableCafeIngress() *MergeableIngresses {
 	mergeableIngs.Master.Ingress.Spec.TLS = nil
 	mergeableIngs.Master.Ingress.Spec.Rules[0].Host = ""
 	mergeableIngs.Master.ValidHosts = map[string]bool{"": true}
-	mergeableIngs.Master.SecretRefs = map[string]*secrets.SecretReference{}
+	mergeableIngs.Master.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{}
 	for _, minion := range mergeableIngs.Minions {
 		minion.Ingress.Spec.Rules[0].Host = ""
 		minion.ValidHosts = map[string]bool{"": true}
@@ -6118,12 +6073,10 @@ func TestExternalAuthUpstreamNameForCrossNamespacePolicy(t *testing.T) {
 		},
 		ExternalNameSvcs: map[string]bool{},
 		ValidHosts:       map[string]bool{"app.example.com": true},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"app-secret": {
-				Secret: &v1.Secret{
-					Type: v1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/app-ns-app-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("app-ns/app-secret", secrets.RoleTLS): {
+				Secret: &v1.Secret{},
+				Path:   "/etc/nginx/secrets/app-ns-app-secret",
 			},
 		},
 		Policies: map[string]*conf_v1.Policy{

@@ -14,7 +14,6 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	api_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -114,7 +113,7 @@ type VirtualServerEx struct {
 	ExternalNameSvcs            map[string]bool
 	Policies                    map[string]*conf_v1.Policy
 	PodsByIP                    map[string]PodInfo
-	SecretRefs                  map[string]*secrets.SecretReference
+	SecretRefs                  map[secrets.SecretRefKey]*secrets.SecretReference
 	ApPolRefs                   map[string]*unstructured.Unstructured
 	LogConfRefs                 map[string]*unstructured.Unstructured
 	DosProtectedRefs            map[string]*unstructured.Unstructured
@@ -2712,7 +2711,7 @@ func getNameForSourceForMatchesRouteMapFromCondition(condition conf_v1.Condition
 }
 
 func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tls *conf_v1.TLS, namespace string,
-	secretRefs map[string]*secrets.SecretReference, cfgParams *ConfigParams,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams,
 ) *version2.SSL {
 	if tls == nil {
 		return nil
@@ -2731,21 +2730,17 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 		return nil
 	}
 
-	secretRef := secretRefs[fmt.Sprintf("%s/%s", namespace, tls.Secret)]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
+	secretRef := secretRefs[secrets.RefKey(fmt.Sprintf("%s/%s", namespace, tls.Secret), secrets.RoleTLS)]
 	var name string
 	var rejectHandshake bool
-	if secretType != "" && secretType != api_v1.SecretTypeTLS {
-		rejectHandshake = true
-		vsc.addWarningf(owner, "TLS secret %s is of a wrong type '%s', must be '%s'", tls.Secret, secretType, api_v1.SecretTypeTLS)
-	} else if secretRef.Error != nil {
+	if secretRef != nil && secretRef.Error != nil {
 		rejectHandshake = true
 		vsc.addWarningf(owner, "TLS secret %s is invalid: %v", tls.Secret, secretRef.Error)
-	} else {
+	} else if secretRef != nil {
 		name = secretRef.Path
+	} else {
+		rejectHandshake = true
+		vsc.addWarningf(owner, "TLS secret %s is missing from secret references", tls.Secret)
 	}
 
 	ssl := version2.SSL{
