@@ -320,7 +320,6 @@ class TestAPIKeyAuthPolicies:
         )
 
         host = apikey_policy_details.vs_host
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
         wait_before_test()
 
         header = apikey_policy_details.headers[0]

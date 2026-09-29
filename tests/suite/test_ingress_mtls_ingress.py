@@ -207,7 +207,6 @@ class TestIngressMTLSPoliciesIngress:
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
 
         create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
 
         mtls_secret_name = ""
         tls_secret_name = ""
