@@ -345,8 +345,10 @@ def render_report(checks: list, registry: str, tag: str) -> str:
 
     # Too large for a single comment: keep the summary and only expand what failed.
     trimmed = head + [
-        "<sub>Per-image package tables omitted to stay within the comment size limit; "
-        "see the job log for the full list.</sub>",
+        (
+            "<sub>Per-image package tables omitted to stay within the comment size limit; "
+            "see the job log for the full list.</sub>"
+        ),
         "",
     ]
     trimmed += [line for group in failed for line in render_details(group)]
