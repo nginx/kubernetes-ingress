@@ -7,7 +7,6 @@ SERVICE                     ?= nodeport
 NODE_IP                     =
 TEST_PREFIX                 = test-runner
 CA_BUNDLE                   ?= $(CURL_CA_BUNDLE)
-COMMA                       := ,
 KUBE_CONFIG_FOLDER          = ${HOME}/.kube
 KIND_KUBE_CONFIG_FOLDER     = $(KUBE_CONFIG_FOLDER)/kind
 MINIKUBE_KUBE_CONFIG_FOLDER = $(KUBE_CONFIG_FOLDER)/minikube
