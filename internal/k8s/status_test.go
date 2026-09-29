@@ -296,7 +296,7 @@ func TestUpdateVirtualServerRouteReferencedByConflictRetainsNewerStatus(t *testi
 	fakeClient := fake_v1.NewSimpleClientset(newer)
 
 	conflicted := false
-	fakeClient.PrependReactor("update", "virtualserverroutes", func(action k8stesting.Action) (bool, runtime.Object, error) {
+	fakeClient.PrependReactor("update", "virtualserverroutes", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		if conflicted {
 			return false, nil, nil
 		}
