@@ -418,9 +418,9 @@ func shapeForVirtualServer(t *testing.T, vs *conf_v1.VirtualServer, isPlus bool)
 
 	cnf, manager := configuratorForInjectionTest(t, isPlus)
 
-	secretRefs := make(map[string]*secrets.SecretReference)
+	secretRefs := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 	if vs.Spec.TLS != nil && vs.Spec.TLS.Secret != "" {
-		secretRefs[vs.Namespace+"/"+vs.Spec.TLS.Secret] = &secrets.SecretReference{}
+		secretRefs[secrets.RefKey(vs.Namespace+"/"+vs.Spec.TLS.Secret, secrets.RoleTLS)] = &secrets.SecretReference{}
 	}
 
 	vsEx := &configs.VirtualServerEx{
