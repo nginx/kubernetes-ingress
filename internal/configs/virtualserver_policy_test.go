@@ -3483,6 +3483,72 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 	}
 }
 
+func TestGenerateVirtualServerConfigPropagatesAppProtectLoadModule(t *testing.T) {
+	t.Parallel()
+
+	for name, loaded := range map[string]bool{"module not loaded": false, "module loaded": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Host:      "cafe.example.com",
+						Policies:  []conf_v1.PolicyReference{{Name: "oidc-policy"}},
+						Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+						Routes:    []conf_v1.Route{{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}}},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-policy", Namespace: "default"},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:  "https://auth.example.com",
+								TokenEndpoint: "https://token.example.com",
+								JWKSURI:       "https://jwks.example.com",
+								ClientID:      "example-client-id",
+								ClientSecret:  "example-client-secret",
+								Scope:         "openid",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{"default/tea-svc:80": {"10.0.0.20:80"}},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{Data: map[string][]byte{"client-secret": []byte("c2VjcmV0")}},
+					},
+				},
+			}
+
+			vsc := newVirtualServerConfigurator(
+				&ConfigParams{Context: context.Background(), ServerTokens: "off"},
+				true,
+				false,
+				&StaticConfigParams{MainAppProtectLoadModule: loaded},
+				false,
+				&fakeBV,
+			)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+			if len(warnings) != 0 {
+				t.Fatalf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
+			}
+			if result.AppProtectLoadModule != loaded {
+				t.Errorf("VirtualServerConfig.AppProtectLoadModule = %t, want %t", result.AppProtectLoadModule, loaded)
+			}
+			if result.Server.OIDC == nil {
+				t.Fatal("expected Server.OIDC to be non-nil")
+			}
+			if result.Server.OIDC.AppProtectLoadModule != loaded {
+				t.Errorf("Server.OIDC.AppProtectLoadModule = %t, want %t", result.Server.OIDC.AppProtectLoadModule, loaded)
+			}
+		})
+	}
+}
+
 // TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy verifies that multiple routes
 // referencing the same OIDC policy all receive location.OIDC=true.
 func TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy(t *testing.T) {
