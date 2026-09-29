@@ -214,10 +214,15 @@ class TestConfigRollbackStartup:
         wait_before_test()
         ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, selector)
         assert ic_pod_name != old_ic_pod_name
-        pod = kube_apis.v1.read_namespaced_pod(ic_pod_name, ic_namespace)
+        for _ in range(60):
+            pod = kube_apis.v1.read_namespaced_pod(ic_pod_name, ic_namespace)
+            if pod.status.phase == "Running":
+                break
+            wait_before_test(1)
+        else:
+            pytest.fail(f"Pod {ic_pod_name} did not reach Running phase")
 
         print("Step 3: pod is Running but held Not Ready; the default server is preserved")
-        assert pod.status.phase == "Running"
         ready_condition = next(
             (condition for condition in (pod.status.conditions or []) if condition.type == "Ready"), None
         )
