@@ -1567,7 +1567,7 @@ func TestMakeVirtualServerRouteInvalid(t *testing.T) {
 	t.Parallel()
 	configuration, vs, vsr1, vsr2, vsr3 := setupVSRConfiguration()
 
-	// Make VirtualServerRoute-1 invalid by removing making the first subroute action nil
+	// Make VirtualServerRoute-1 invalid by making the first subroute action nil
 	invalidVSR1 := vsr1.DeepCopy()
 	invalidVSR1.Generation++
 	invalidVSR1.Spec.Subroutes[0].Action = nil

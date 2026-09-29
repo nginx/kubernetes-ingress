@@ -1428,6 +1428,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		// the pending slices and nil the fields so the main goroutine can
 		// safely append new statuses for resources arriving after startup.
 		lbc.flushPendingStatusesAsync()
+		lbc.refreshStaleVSRReferences()
 	}
 
 	if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
@@ -1762,8 +1763,8 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.GetNamespace(), logKindKey, transportServerKind, logNameKey, obj.GetName()), "Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServerRoute:
-				var emptyVSes []*conf_v1.VirtualServer
-				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(obj, state, p.Reason, p.Message, emptyVSes)
+				vss := lbc.configuration.GetVirtualServersForVirtualServerRoute(obj)
+				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(obj, state, p.Reason, p.Message, vss)
 				if err != nil {
 					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, obj.GetName()), "Error when updating the status for VirtualServerRoute %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
@@ -2188,9 +2189,7 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 		}
 
 		msg := fmt.Sprintf("Configuration for %v/%v was added or updated%s", vsr.Namespace, vsr.Name, vsrEventWarningMessage)
-		if vsr.Status.State != vsrState || vsr.Status.Reason != vsrEventTitle || vsr.Status.Message != msg {
-			lbc.recorder.Event(vsr, vsrEventType, vsrEventTitle, msg)
-		}
+		lbc.recorder.Event(vsr, vsrEventType, vsrEventTitle, msg)
 		l := lbc.Logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 
 		if lbc.reportCustomResourceStatusEnabled() {

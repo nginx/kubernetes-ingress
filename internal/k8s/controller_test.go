@@ -7187,48 +7187,76 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 	}
 }
 
-func TestUpdateVirtualServerStatusAndEvents_SuppressesDuplicateVSREvents(t *testing.T) {
+func TestProcessProblems_VirtualServerRoutePreservesReferencedBy(t *testing.T) {
 	t.Parallel()
+
+	vs := &conf_v1.VirtualServer{
+		Name:      "parent-vs",
+		Namespace: "default",
+	}
+	vsr := &conf_v1.VirtualServerRoute{
+		Name:      "test-vsr",
+		Namespace: "default",
+	}
+
+	conf := &Configuration{
+		vsrToVSConfigs: map[string][]*conf_v1.VirtualServer{
+			"default/test-vsr": {vs},
+		},
+	}
+
+	fakeConfClient := fake_versioned.NewSimpleClientset(
+		&conf_v1.VirtualServerRouteList{
+			Items: []conf_v1.VirtualServerRoute{*vsr},
+		},
+	)
+
+	vsrLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	err := vsrLister.Add(vsr)
+	if err != nil {
+		t.Fatalf("failed to add VSR to lister: %v", err)
+	}
+
+	nsi := map[string]*namespacedInformer{
+		"default": {
+			virtualServerRouteLister:  vsrLister,
+			areCustomResourcesEnabled: true,
+		},
+	}
+
+	su := &statusUpdater{
+		namespacedInformers: nsi,
+		confClient:          fakeConfClient,
+		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+		logger:              nl.LoggerFromContext(context.Background()),
+	}
 
 	fakeRecorder := record.NewFakeRecorder(10)
 	lbc := &LoadBalancerController{
 		recorder:                fakeRecorder,
-		isLeaderElectionEnabled: true,
+		isLeaderElectionEnabled: false,
 		Logger:                  nl.LoggerFromContext(context.Background()),
+		configuration:           conf,
+		statusUpdater:           su,
 	}
 
-	vsr := &conf_v1.VirtualServerRoute{
-		Name:      "test-vsr",
-		Namespace: "default",
-		Status: conf_v1.VirtualServerRouteStatus{
-			State:   conf_v1.StateValid,
-			Reason:  nl.EventReasonAddedOrUpdated,
-			Message: "Configuration for default/test-vsr was added or updated",
+	problems := []ConfigurationProblem{
+		{
+			Object:  vsr,
+			IsError: false,
+			Reason:  nl.EventReasonIgnored,
+			Message: "VirtualServer default/parent-vs ignores VirtualServerRoute",
 		},
 	}
 
-	vsConfig := &VirtualServerConfiguration{
-		VirtualServer: &conf_v1.VirtualServer{
-			Name:      "test-vs",
-			Namespace: "default",
-		},
-		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr},
+	lbc.processProblems(problems)
+
+	updatedVsr, err := fakeConfClient.K8sV1().VirtualServerRoutes("default").Get(context.TODO(), "test-vsr", meta_v1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get VSR: %v", err)
 	}
 
-	lbc.updateVirtualServerStatusAndEvents(vsConfig, configs.Warnings{}, nil)
-
-	var events []string
-	for len(fakeRecorder.Events) > 0 {
-		events = append(events, <-fakeRecorder.Events)
-	}
-
-	vsrEventCount := 0
-	for _, e := range events {
-		if strings.Contains(e, "test-vsr") {
-			vsrEventCount++
-		}
-	}
-	if vsrEventCount != 0 {
-		t.Errorf("expected 0 events for unchanged VSR, got %d: %v", vsrEventCount, events)
+	if updatedVsr.Status.ReferencedBy != "default/parent-vs" {
+		t.Errorf("expected referencedBy %q, got %q", "default/parent-vs", updatedVsr.Status.ReferencedBy)
 	}
 }

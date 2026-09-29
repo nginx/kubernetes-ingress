@@ -939,9 +939,6 @@ func (c *Configuration) CompleteStartup() ([]ResourceChange, []ConfigurationProb
 	c.startupComplete = true
 	changes, problems := c.rebuildHosts()
 
-	// The startup status flush already writes referencedBy; do not replay the initial reference changes.
-	c.vsrsWithChangedRefs = nil
-
 	return changes, problems
 }
 
