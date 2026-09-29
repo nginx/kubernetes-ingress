@@ -132,6 +132,13 @@
       "type": "oss",
       "marker": "'agentv3'",
       "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "utils 1/1",
+      "image": "debian",
+      "type": "oss",
+      "marker": "utils",
+      "platforms": "linux/arm64, linux/amd64"
     }
   ],
   "k8s": []

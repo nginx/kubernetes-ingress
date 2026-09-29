@@ -18,6 +18,8 @@ from suite.utils.resources_utils import (
     scale_deployment,
 )
 
+pytestmark = pytest.mark.utils
+
 
 @pytest.mark.parametrize("kind", ["Deployment", "DaemonSet", "StatefulSet"])
 def test_add_e2e_run_id_to_workload_updates_only_pod_template(kind):
