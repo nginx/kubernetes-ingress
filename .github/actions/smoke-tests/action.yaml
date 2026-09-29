@@ -20,7 +20,7 @@ inputs:
     required: true
   test-image:
     description: Test Docker image to use
-    default: gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:latest
+    default: ghcr.io/nginx/kubernetes-ingress/test-runner:latest
     required: false
   marker:
     description: Marker to use
