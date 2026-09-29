@@ -5260,3 +5260,46 @@ func TestValidateAddHeaderInherit_InvalidValues(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateProxyHTTPVersion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		version string
+		msg     string
+	}{
+		{version: "", msg: "unset"},
+		{version: "1.0", msg: "HTTP/1.0"},
+		{version: "1.1", msg: "HTTP/1.1"},
+		{version: "2", msg: "HTTP/2"},
+	}
+
+	for _, test := range tests {
+		allErrs := ValidateProxyHTTPVersion(test.version, field.NewPath("proxy-http-version"))
+		if len(allErrs) != 0 {
+			t.Errorf("ValidateProxyHTTPVersion(%q) returned errors %v for valid input for the case of %s", test.version, allErrs, test.msg)
+		}
+	}
+}
+
+func TestValidateProxyHTTPVersionFails(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		version string
+		msg     string
+	}{
+		{version: "2.0", msg: "HTTP/2 must be spelled 2, not 2.0"},
+		{version: "1.2", msg: "non-existent minor version"},
+		{version: "3", msg: "unsupported major version"},
+		{version: "1", msg: "major version without minor"},
+		{version: "http/1.1", msg: "protocol name included"},
+		{version: "1.1;", msg: "directive terminator"},
+		{version: "abc", msg: "not a version"},
+	}
+
+	for _, test := range tests {
+		allErrs := ValidateProxyHTTPVersion(test.version, field.NewPath("proxy-http-version"))
+		if len(allErrs) == 0 {
+			t.Errorf("ValidateProxyHTTPVersion(%q) returned no errors for invalid input for the case of %s", test.version, test.msg)
+		}
+	}
+}

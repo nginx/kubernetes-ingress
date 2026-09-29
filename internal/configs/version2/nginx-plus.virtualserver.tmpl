@@ -833,7 +833,12 @@ server {
         {{- if $l.InternalProxyPass }}
         proxy_pass {{ $l.InternalProxyPass }};
         {{- end }}
+        {{- /* HTTP/2 forbids the hop-by-hop Connection header (RFC 9113 8.2.2), so the header and
+               the variable feeding it are both omitted when proxying over HTTP/2. HTTP/1.0 always
+               sends "Connection: close", so the variable is unused there too. */}}
+        {{- if and (ne $l.ProxyHTTPVersion "2") (ne $l.ProxyHTTPVersion "1.0") }}
         set $default_connection_header {{ if $l.HasKeepalive }}""{{ else }}close{{ end }};
+        {{- end }}
         {{- if or $l.ProxyPass $l.GRPCPass }}
             {{- range $r := $l.Rewrites }}
         rewrite {{ $r }};
@@ -867,9 +872,17 @@ server {
                 {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
-        proxy_http_version 1.1;
+        {{- if $l.ProxyHTTPVersion }}
+        proxy_http_version {{ $l.ProxyHTTPVersion }};
+        {{- end }}
+        {{- /* HTTP/1.0 has no persistent connections or Upgrade mechanism, so the connection is
+               closed explicitly (https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7). */}}
+        {{- if eq $l.ProxyHTTPVersion "1.0" }}
+        proxy_set_header Connection close;
+        {{- else if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
+        {{- end }}
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
         {{- if $l.ProxyPassRequestBody }}
         proxy_pass_request_body {{ $l.ProxyPassRequestBody }};

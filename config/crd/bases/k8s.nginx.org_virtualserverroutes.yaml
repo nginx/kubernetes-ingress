@@ -1134,6 +1134,19 @@ spec:
                         and return a 502 response for requests for this upstream.
                         The port must fall into the range 1..65535.
                       type: integer
+                    proxy-http-version:
+                      description: |-
+                        Sets the HTTP protocol version used for connections to the upstream servers.
+                        Supported values are "1.0", "1.1" and "2". If unset, the appProtocol of the backing
+                        Service port is used ("kubernetes.io/h2c" implies "2"); otherwise NGINX uses HTTP/1.1.
+                        Note: this field is ignored for upstreams with type "grpc", where grpc_pass always
+                        uses HTTP/2, and the values "1.0" and "2" cannot be used with WebSocket, which requires
+                        HTTP/1.1. With "1.0", the "Connection: close" request header is sent to the upstream.
+                      enum:
+                      - "1.0"
+                      - "1.1"
+                      - "2"
+                      type: string
                     queue:
                       description: 'Configures a queue for an upstream. A client request
                         will be placed into the queue if an upstream server cannot

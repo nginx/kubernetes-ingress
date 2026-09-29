@@ -7590,3 +7590,68 @@ func TestValidateProxyRedirectFromRegexUsesNGINXUnescaping(t *testing.T) {
 		t.Errorf("validateProxyRedirectFromAnnotation(%q) returned no errors; NGINX unescapes it to a lone trailing backslash that PCRE rejects", context.value)
 	}
 }
+
+func TestValidateProxyHTTPVersionAnnotation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		value   string
+		isValid bool
+		msg     string
+	}{
+		{value: "1.0", isValid: true, msg: "HTTP/1.0"},
+		{value: "1.1", isValid: true, msg: "HTTP/1.1"},
+		{value: "2", isValid: true, msg: "HTTP/2"},
+		{value: "1.2", isValid: false, msg: "non-existent minor version"},
+		{value: "3", isValid: false, msg: "unsupported major version"},
+		{value: "2.0", isValid: false, msg: "HTTP/2 must be spelled 2, not 2.0"},
+		{value: "1.0.0", isValid: false, msg: "three-part version"},
+		{value: "abc", isValid: false, msg: "not a version"},
+		{value: " 1.1", isValid: false, msg: "leading whitespace is not trimmed"},
+		{value: "1.1;", isValid: false, msg: "directive terminator"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.msg, func(t *testing.T) {
+			t.Parallel()
+
+			context := &annotationValidationContext{
+				value:     test.value,
+				fieldPath: field.NewPath("annotations").Child(configs.ProxyHTTPVersionAnnotation),
+			}
+
+			allErrs := validateProxyHTTPVersionAnnotation(context)
+			if test.isValid && len(allErrs) != 0 {
+				t.Errorf("validateProxyHTTPVersionAnnotation(%q) returned errors %v for valid input", test.value, allErrs)
+			}
+			if !test.isValid && len(allErrs) == 0 {
+				t.Errorf("validateProxyHTTPVersionAnnotation(%q) returned no errors for invalid input", test.value)
+			}
+		})
+	}
+}
+
+// An annotation that is present but blank is a user mistake rather than "unset", so the
+// validation chain must reject it even though the shared validator treats "" as unset.
+func TestValidateProxyHTTPVersionAnnotationRejectsEmptyValue(t *testing.T) {
+	t.Parallel()
+
+	validators, exists := annotationValidations[configs.ProxyHTTPVersionAnnotation]
+	if !exists {
+		t.Fatalf("no validators registered for %s", configs.ProxyHTTPVersionAnnotation)
+	}
+
+	context := &annotationValidationContext{
+		value:     "",
+		fieldPath: field.NewPath("annotations").Child(configs.ProxyHTTPVersionAnnotation),
+	}
+
+	var allErrs field.ErrorList
+	for _, validate := range validators {
+		allErrs = append(allErrs, validate(context)...)
+	}
+
+	if len(allErrs) == 0 {
+		t.Errorf("%s with an empty value was accepted; want an error", configs.ProxyHTTPVersionAnnotation)
+	}
+}

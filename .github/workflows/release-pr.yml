@@ -205,6 +205,7 @@ jobs:
           new_version=$(echo "${{ inputs.nic_version }}" | xargs)
           new_helm_version=$(echo "${new_helm_version}" | xargs)
           new_operator_version=$(echo "${new_operator_version}" | xargs)
+          echo "current_nic_version=${current_nic_version}" >> $GITHUB_OUTPUT
           echo "new_version=${new_version}" >> $GITHUB_OUTPUT
           echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
           echo "new_operator_version=${new_operator_version}" >> $GITHUB_OUTPUT
