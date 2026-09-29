@@ -208,7 +208,7 @@ class TestEgressMTLSPoliciesIngress:
                 ingress_controller_endpoint.port,
                 ingress_controller_endpoint.port_ssl,
             )
-            resp = requests.get(ingress_setup.request_url, headers={"host": ingress_setup.ingress_host})
+            resp = retry_get_until_status_code(ingress_setup.request_url, ingress_setup.ingress_host, 200)
 
             assert resp.status_code == 200, f"Expected 200, got {resp.status_code}"
             assert "hello from pod secure-app" in resp.text, f"Unexpected response body: {resp.text}"
