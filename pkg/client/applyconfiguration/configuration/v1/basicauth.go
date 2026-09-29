@@ -9,7 +9,7 @@ package v1
 type BasicAuthApplyConfiguration struct {
 	// The realm for the basic authentication.
 	Realm *string `json:"realm,omitempty"`
-	// The name of the Kubernetes secret that stores the Htpasswd configuration. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/htpasswd, and the config must be stored in the secret under the key htpasswd, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the Htpasswd configuration. It must be in the same namespace as the Policy resource. A secret of type Opaque is recommended. The secret is resolved with the Htpasswd role and must store the configuration under the htpasswd key.
 	Secret *string `json:"secret,omitempty"`
 }
 
