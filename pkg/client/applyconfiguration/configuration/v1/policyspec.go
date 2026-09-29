@@ -25,6 +25,8 @@ type PolicySpecApplyConfiguration struct {
 	EgressMTLS *EgressMTLSApplyConfiguration `json:"egressMTLS,omitempty"`
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak.
 	OIDC *OIDCApplyConfiguration `json:"oidc,omitempty"`
+	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native.
+	OIDCNative *OIDCNativeApplyConfiguration `json:"oidcNative,omitempty"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAFApplyConfiguration `json:"waf,omitempty"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
@@ -35,6 +37,8 @@ type PolicySpecApplyConfiguration struct {
 	CORS *CORSApplyConfiguration `json:"cors,omitempty"`
 	// The ExternalAuth policy configures NGINX to authenticate client requests using an external authentication server, which can be used for example with the oauth2-proxy or any custom authentication server.
 	ExternalAuth *ExternalAuthApplyConfiguration `json:"externalAuth,omitempty"`
+	// The HSTS policy configures HTTP Strict Transport Security headers
+	HSTS *HSTSApplyConfiguration `json:"hsts,omitempty"`
 }
 
 // PolicySpecApplyConfiguration constructs a declarative configuration of the PolicySpec type for use with
@@ -107,6 +111,14 @@ func (b *PolicySpecApplyConfiguration) WithOIDC(value *OIDCApplyConfiguration) *
 	return b
 }
 
+// WithOIDCNative sets the OIDCNative field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the OIDCNative field is set to the value of the last call.
+func (b *PolicySpecApplyConfiguration) WithOIDCNative(value *OIDCNativeApplyConfiguration) *PolicySpecApplyConfiguration {
+	b.OIDCNative = value
+	return b
+}
+
 // WithWAF sets the WAF field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the WAF field is set to the value of the last call.
@@ -144,5 +156,13 @@ func (b *PolicySpecApplyConfiguration) WithCORS(value *CORSApplyConfiguration) *
 // If called multiple times, the ExternalAuth field is set to the value of the last call.
 func (b *PolicySpecApplyConfiguration) WithExternalAuth(value *ExternalAuthApplyConfiguration) *PolicySpecApplyConfiguration {
 	b.ExternalAuth = value
+	return b
+}
+
+// WithHSTS sets the HSTS field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HSTS field is set to the value of the last call.
+func (b *PolicySpecApplyConfiguration) WithHSTS(value *HSTSApplyConfiguration) *PolicySpecApplyConfiguration {
+	b.HSTS = value
 	return b
 }

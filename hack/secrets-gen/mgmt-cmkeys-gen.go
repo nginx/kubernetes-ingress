@@ -14,6 +14,10 @@ import (
 type MgmtCMKeysBundle struct {
 	CaWithCrl TLSSecret `json:"caWithCrl,omitempty"`
 	Client    TLSSecret `json:"client,omitempty"`
+	// The *Opaque fields re-emit the same certificate under a second file name, letting a
+	// bundle ship both a typed and an Opaque copy.
+	CaWithCrlOpaque TLSSecret `json:"caWithCrlOpaque,omitempty"`
+	ClientOpaque    TLSSecret `json:"clientOpaque,omitempty"`
 }
 
 func generateMgmtCMKeysBundles(logger *slog.Logger, bundles []MgmtCMKeysBundle, filenames map[string]struct{}, cleanPtr *bool) (map[string]struct{}, error) {
@@ -32,6 +36,24 @@ func generateMgmtCMKeysBundles(logger *slog.Logger, bundles []MgmtCMKeysBundle, 
 		err = generateTLSSecretFiles(logger, bundle.Client)
 		if err != nil {
 			return filenames, fmt.Errorf("generating client TLS secret files: %w", err)
+		}
+
+		if bundle.ClientOpaque.FileName != "" {
+			opaqueClient := bundle.ClientOpaque
+			if opaqueClient.SecretName == "" {
+				opaqueClient.SecretName = bundle.Client.SecretName
+			}
+			opaqueClient.TemplateData = bundle.Client.TemplateData
+
+			filenames, err = checkForUniqueAndClean(logger, filenames, opaqueClient.FileName, opaqueClient.Symlinks, cleanPtr)
+			if err != nil {
+				return filenames, fmt.Errorf("checking for unique and cleaning keys for opaque client: %w", err)
+			}
+
+			err = generateTLSSecretFiles(logger, opaqueClient)
+			if err != nil {
+				return filenames, fmt.Errorf("generating opaque client TLS secret files: %w", err)
+			}
 		}
 
 		/**
@@ -73,7 +95,7 @@ func generateMgmtCMKeysBundles(logger *slog.Logger, bundles []MgmtCMKeysBundle, 
 			return filenames, fmt.Errorf("encoding revocation list: %w", err)
 		}
 
-		crlContents, err := createYamlCA(bundle.CaWithCrl.SecretName, ca, crlOut.Bytes())
+		crlContents, err := createYamlCA(bundle.CaWithCrl.SecretName, bundle.CaWithCrl.SecretType, ca, crlOut.Bytes())
 		if err != nil {
 			return filenames, fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", bundle.CaWithCrl.FileName, err)
 		}
@@ -81,6 +103,28 @@ func generateMgmtCMKeysBundles(logger *slog.Logger, bundles []MgmtCMKeysBundle, 
 		err = writeFiles(logger, crlContents, bundle.CaWithCrl.FileName, bundle.CaWithCrl.Symlinks)
 		if err != nil {
 			return filenames, fmt.Errorf("writing bundle CA %s to project root: %w", bundle.CaWithCrl.FileName, err)
+		}
+
+		if bundle.CaWithCrlOpaque.FileName != "" {
+			opaqueCA := bundle.CaWithCrlOpaque
+			if opaqueCA.SecretName == "" {
+				opaqueCA.SecretName = bundle.CaWithCrl.SecretName
+			}
+
+			filenames, err = checkForUniqueAndClean(logger, filenames, opaqueCA.FileName, opaqueCA.Symlinks, cleanPtr)
+			if err != nil {
+				return filenames, fmt.Errorf("checking for unique and cleaning keys for opaque ca + crl: %w", err)
+			}
+
+			opaqueContents, err := createYamlCA(opaqueCA.SecretName, opaqueCA.SecretType, ca, crlOut.Bytes())
+			if err != nil {
+				return filenames, fmt.Errorf("marshaling bundle CA with CRL %s to yaml: %w", opaqueCA.FileName, err)
+			}
+
+			err = writeFiles(logger, opaqueContents, opaqueCA.FileName, opaqueCA.Symlinks)
+			if err != nil {
+				return filenames, fmt.Errorf("writing bundle CA %s to project root: %w", opaqueCA.FileName, err)
+			}
 		}
 	}
 

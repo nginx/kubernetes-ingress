@@ -44,13 +44,32 @@ class VirtualServerSetup:
         vs_name (str):
         backend_1_url (str):
         backend_2_url (str):
+        backend_1_namespace (str):
+        backend_2_namespace (str):
+        backend_1_name (str | None):
+        backend_2_name (str | None):
     """
 
-    def __init__(self, public_endpoint: PublicEndpoint, namespace, vs_host, vs_name, vs_paths):
+    def __init__(
+        self,
+        public_endpoint: PublicEndpoint,
+        namespace,
+        vs_host,
+        vs_name,
+        vs_paths,
+        backend_1_namespace=None,
+        backend_2_namespace=None,
+        backend_1_name=None,
+        backend_2_name=None,
+    ):
         self.public_endpoint = public_endpoint
         self.namespace = namespace
         self.vs_host = vs_host
         self.vs_name = vs_name
+        self.backend_1_namespace = backend_1_namespace or namespace
+        self.backend_2_namespace = backend_2_namespace or namespace
+        self.backend_1_name = backend_1_name
+        self.backend_2_name = backend_2_name
         self.backend_1_url = f"http://{public_endpoint.public_ip}:{public_endpoint.port}{vs_paths[0]}"
         self.backend_2_url = f"http://{public_endpoint.public_ip}:{public_endpoint.port}{vs_paths[1]}"
         self.backend_1_url_ssl = f"https://{public_endpoint.public_ip}:{public_endpoint.port_ssl}{vs_paths[0]}"

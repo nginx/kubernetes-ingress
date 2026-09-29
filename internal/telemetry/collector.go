@@ -168,6 +168,10 @@ func (c *Collector) Collect(ctx context.Context) {
 			CachePolicies:              int64(report.CacheCount),
 			CORSPolicies:               int64(report.CORSCount),
 			ExternalAuthPolicies:       int64(report.ExternalAuthCount),
+			HSTSPolicies:               int64(report.HSTSCount),
+			OIDCNativePolicies:         int64(report.OIDCNativeCount),
+			WAFBundleSourceTypes:       report.WAFBundleSourceTypes,
+			WAFLogBundleSourceTypes:    report.WAFLogBundleSourceTypes,
 
 			GlobalConfiguration: report.GlobalConfiguration,
 			IngressAnnotations:  report.IngressAnnotations,
@@ -226,6 +230,10 @@ type Report struct {
 	CacheCount              int
 	CORSCount               int
 	ExternalAuthCount       int
+	HSTSCount               int
+	OIDCNativeCount         int
+	WAFBundleSourceTypes    []string
+	WAFLogBundleSourceTypes []string
 	GlobalConfiguration     bool
 	IngressAnnotations      []string
 	AppProtectVersion       string
@@ -307,6 +315,8 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		cacheCount              int
 		corsCount               int
 		externalAuthCount       int
+		hstsCount               int
+		oidcNativeCount         int
 	)
 	// Collect Custom Resources (Policies) only if CR enabled at startup.
 	if c.Config.CustomResourcesEnabled {
@@ -325,8 +335,12 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		cacheCount = policies["Cache"]
 		corsCount = policies["CORS"]
 		externalAuthCount = policies["ExternalAuth"]
+		hstsCount = policies["HSTS"]
+		oidcNativeCount = policies["OIDCNative"]
 	}
 
+	wafBundleSourceTypes := c.WAFBundleSourceTypes()
+	wafLogBundleSourceTypes := c.WAFLogBundleSourceTypes()
 	ingressAnnotations := c.IngressAnnotations()
 	appProtectVersion := c.AppProtectVersion()
 	isPlus := c.IsPlusEnabled()
@@ -390,6 +404,8 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		CacheCount:              cacheCount,
 		CORSCount:               corsCount,
 		ExternalAuthCount:       externalAuthCount,
+		HSTSCount:               hstsCount,
+		OIDCNativeCount:         oidcNativeCount,
 		GlobalConfiguration:     c.Config.GlobalConfiguration,
 		IngressAnnotations:      ingressAnnotations,
 		AppProtectVersion:       appProtectVersion,
@@ -398,5 +414,7 @@ func (c *Collector) BuildReport(ctx context.Context) (Report, error) {
 		BuildOS:                 c.BuildOS(),
 		MainConfigMapKeys:       configMapKeys,
 		MGMTConfigMapKeys:       mgmtConfigMapKeys,
+		WAFBundleSourceTypes:    wafBundleSourceTypes,
+		WAFLogBundleSourceTypes: wafLogBundleSourceTypes,
 	}, err
 }

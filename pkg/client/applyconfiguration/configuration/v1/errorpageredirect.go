@@ -7,7 +7,7 @@ package v1
 //
 // ErrorPageRedirect defines a redirect for an ErrorPage.
 type ErrorPageRedirectApplyConfiguration struct {
-	ActionRedirectApplyConfiguration `json:",inline"`
+	ActionRedirectApplyConfiguration `json:""`
 }
 
 // ErrorPageRedirectApplyConfiguration constructs a declarative configuration of the ErrorPageRedirect type for use with

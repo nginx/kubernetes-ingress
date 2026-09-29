@@ -1,0 +1,59 @@
+# Test 16: Cross-namespace policy reference.
+#
+# Before applying: edit this file and replace <insert-secret-here> in the
+# oidc-policies/oidcnative-secret Secret with the same base64-encoded client
+# secret you used in ../client-secret.yaml.
+#
+# Verify:
+#   - `kubectl describe vs webapp` -> Valid, no warning about missing policy.
+#   - `run-test.sh 16 check` shows the oidc_provider block generated from the
+#     cross-namespace policy.
+#   - Browse https://${WEBAPP_HOST}/ and complete the OIDC flow.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oidc-policies
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oidcnative-secret
+  namespace: oidc-policies
+type: nginx.org/oidc
+data:
+  # Replace with the base64-encoded client secret (same value as ../client-secret.yaml).
+  client-secret: <insert-secret-here>
+---
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: cross-ns-policy
+  namespace: oidc-policies
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus
+    clientSecret: oidcnative-secret
+    scope: openid profile email
+    sslVerify: false
+    postLogoutRedirectURI: /_logout
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: webapp
+spec:
+  host: webapp.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: cross-ns-policy
+      namespace: oidc-policies
+  upstreams:
+    - name: webapp
+      service: webapp-svc
+      port: 80
+  routes:
+    - path: /
+      action:
+        pass: webapp

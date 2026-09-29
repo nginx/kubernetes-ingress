@@ -1,7 +1,5 @@
-from unittest import mock
-
 import pytest
-from settings import TEST_DATA
+from settings import RECONFIGURATION_DELAY, TEST_DATA
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import apply_and_wait_for_valid_policy, delete_policy
 from suite.utils.resources_utils import (
@@ -12,7 +10,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
-    wait_before_test,
+    retry_get_until_status_code,
     wait_until_all_pods_are_ready,
 )
 from suite.utils.ssl_utils import create_sni_session
@@ -22,6 +20,7 @@ mergeable_master_src = f"{TEST_DATA}/ingress-mtls/ingress/mergeable-master/ingre
 mergeable_minion_src = f"{TEST_DATA}/ingress-mtls/ingress/mergeable-minion/ingress-mtls-ingress.yaml"
 mtls_pol_src = f"{TEST_DATA}/ingress-mtls/policies/ingress-mtls.yaml"
 mtls_sec_src = f"{TEST_DATA}/ingress-mtls/secret/ingress-mtls-secret.yaml"
+mtls_sec_opaque_src = f"{TEST_DATA}/ingress-mtls/secret/ingress-mtls-secret-opaque.yaml"
 tls_sec_src = f"{TEST_DATA}/ingress-mtls/secret/tls-secret.yaml"
 crt = f"{TEST_DATA}/ingress-mtls/client-auth/valid/client-cert.pem"
 key = f"{TEST_DATA}/ingress-mtls/client-auth/valid/client-key.pem"
@@ -42,12 +41,14 @@ key = f"{TEST_DATA}/ingress-mtls/client-auth/valid/client-key.pem"
     indirect=["crd_ingress_controller"],
 )
 class TestIngressMTLSMergeableIngress:
+    @pytest.mark.parametrize("mtls_secret_src", [mtls_sec_src, mtls_sec_opaque_src], ids=["typed_ca", "opaque_ca"])
     def test_ingress_mtls_policy_mergeable_master(
         self,
         kube_apis,
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        mtls_secret_src,
     ):
         """Validates that an IngressMTLS policy on a mergeable master Ingress enforces client certificate authentication across all merged paths."""
 
@@ -63,7 +64,7 @@ class TestIngressMTLSMergeableIngress:
         ingress_created = False
         try:
             print("Create ingress-mtls secret")
-            mtls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, mtls_sec_src)
+            mtls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, mtls_secret_src)
             print("Create tls secret")
             tls_secret_name = create_secret_from_yaml(kube_apis.v1, test_namespace, tls_sec_src)
             print("Create ingress-mtls policy")
@@ -82,20 +83,18 @@ class TestIngressMTLSMergeableIngress:
             policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
             session = create_sni_session()
 
-            # No cert gives 400 meaning the policy is enforced at the master server block level
-            resp = mock.Mock()
-            resp.status_code = 502
-            counter = 0
-
-            while resp.status_code != 400 and counter < 10:
-                resp = session.get(
-                    request_url,
-                    headers={"host": ingress_host},
-                    allow_redirects=False,
-                    verify=False,
-                )
-                wait_before_test()
-                counter += 1
+            # No cert gives 400 meaning the policy is enforced at the master server block level.
+            # Tolerate connections dropped by an NGINX reload after the ingress/policy apply.
+            resp = retry_get_until_status_code(
+                request_url,
+                ingress_host,
+                400,
+                retries=10,
+                wait_seconds=RECONFIGURATION_DELAY,
+                session=session,
+                allow_redirects=False,
+                verify=False,
+            )
 
             assert resp.status_code == 400, (
                 f"Expected 400 with no client cert on mergeable master, "
@@ -105,10 +104,14 @@ class TestIngressMTLSMergeableIngress:
                 "No required SSL certificate was sent" in resp.text
             ), f"Expected SSL error message in response body, got: {resp.text}"
             # Valid cert gives 200 which confirms the merged Ingress routes correctly
-            resp = session.get(
+            resp = retry_get_until_status_code(
                 request_url,
+                ingress_host,
+                200,
+                retries=10,
+                wait_seconds=RECONFIGURATION_DELAY,
+                session=session,
                 cert=(crt, key),
-                headers={"host": ingress_host},
                 allow_redirects=False,
                 verify=False,
             )
@@ -171,20 +174,18 @@ class TestIngressMTLSMergeableIngress:
             policy_info = read_custom_resource(kube_apis.custom_objects, test_namespace, "policies", pol_name)
             session = create_sni_session()
 
-            # IngressMTLS policy on a minion is rejected; config is not applied and HTTP 500 is returned
-            resp = mock.Mock()
-            resp.status_code = 200
-            counter = 0
-
-            while resp.status_code != 500 and counter < 10:
-                resp = session.get(
-                    request_url,
-                    headers={"host": ingress_host},
-                    allow_redirects=False,
-                    verify=False,
-                )
-                wait_before_test()
-                counter += 1
+            # IngressMTLS policy on a minion is rejected; config is not applied and HTTP 500 is returned.
+            # Tolerate connections dropped by an NGINX reload after the ingress/policy apply.
+            resp = retry_get_until_status_code(
+                request_url,
+                ingress_host,
+                500,
+                retries=10,
+                wait_seconds=RECONFIGURATION_DELAY,
+                session=session,
+                allow_redirects=False,
+                verify=False,
+            )
 
             assert resp.status_code == 500, (
                 f"Expected 500 (IngressMTLS on minion should be rejected), "

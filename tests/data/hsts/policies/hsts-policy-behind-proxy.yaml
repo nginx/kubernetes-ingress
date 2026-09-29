@@ -1,0 +1,8 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: hsts-policy-behind-proxy
+spec:
+  hsts:
+    maxAge: 2592000
+    behindProxy: true

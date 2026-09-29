@@ -20,8 +20,10 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/configs/wafbundle"
 	"github.com/nginx/kubernetes-ingress/internal/healthcheck"
 	"github.com/nginx/kubernetes-ingress/internal/k8s"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/appprotect"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	license_reporting "github.com/nginx/kubernetes-ingress/internal/license_reporting"
 	"github.com/nginx/kubernetes-ingress/internal/metadata"
@@ -113,7 +115,7 @@ func main() {
 		Interface: core_v1.New(kubeClient.CoreV1().RESTClient()).Events(""),
 	})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme,
-		api_v1.EventSource{Component: "nginx-ingress-controller"})
+		api_v1.EventSource{Component: k8s.EventReporterName})
 	defer eventBroadcaster.Shutdown()
 	mustValidateIngressClass(ctx, kubeClient)
 
@@ -150,6 +152,12 @@ func main() {
 		if _, err := os.Stat("/opt/app_protect/VERSION.common"); os.IsNotExist(err) {
 			appProtectV5 = true
 			appProtectBundlePath = appProtectv5BundleFolder
+		}
+
+		selectAppProtectAPIVersion(ctx, *plmStorageURL != "", eventRecorder, pod)
+
+		if *plmStorageURL != "" {
+			setupPLMStorage(ctx, kubeClient, eventRecorder, pod)
 		}
 	}
 
@@ -216,7 +224,6 @@ func main() {
 		TLSPassthrough:                 *enableTLSPassthrough,
 		TLSPassthroughPort:             *tlsPassthroughPort,
 		EnableSnippets:                 *enableSnippets,
-		NginxServiceMesh:               *spireAgentAddress != "",
 		MainAppProtectLoadModule:       *appProtect,
 		MainAppProtectV5LoadModule:     appProtectV5,
 		MainAppProtectDosLoadModule:    *appProtectDos,
@@ -232,6 +239,7 @@ func main() {
 		NginxVersion:                   nginxVersion,
 		AppProtectBundlePath:           appProtectBundlePath,
 		DefaultCABundle:                caBundlePath,
+		PLMEnabled:                     *plmStorageURL != "",
 	}
 
 	if *nginxPlus {
@@ -257,7 +265,7 @@ func main() {
 		licenseReporter.Config.PlusClient = plusClient
 	}
 
-	plusCollector, syslogListener, latencyCollector := createPlusAndLatencyCollectors(ctx, registry, constLabels, kubeClient, plusClient, staticCfgParams.NginxServiceMesh)
+	plusCollector, syslogListener, latencyCollector := createPlusAndLatencyCollectors(ctx, registry, constLabels, kubeClient, plusClient)
 	cnf := configs.NewConfigurator(configs.ConfiguratorParams{
 		NginxManager:                        nginxManager,
 		StaticCfgParams:                     staticCfgParams,
@@ -304,6 +312,8 @@ func main() {
 		AppProtectEnabled:            *appProtect,
 		AppProtectDosEnabled:         *appProtectDos,
 		AppProtectVersion:            appProtectVersion,
+		WAFBundlePath:                appProtectBundlePath,
+		PLMStorageSpec:               plmStorageSpec(),
 		IsNginxPlus:                  *nginxPlus,
 		IngressClass:                 *ingressClass,
 		ExternalServiceName:          *externalService,
@@ -323,8 +333,6 @@ func main() {
 		GlobalConfigurationValidator: globalConfigurationValidator,
 		TransportServerValidator:     transportServerValidator,
 		VirtualServerValidator:       virtualServerValidator,
-		SpireAgentAddress:            *spireAgentAddress,
-		InternalRoutesEnabled:        *enableInternalRoutes,
 		IsPrometheusEnabled:          *enablePrometheusMetrics,
 		IsLatencyMetricsEnabled:      *enableLatencyMetrics,
 		IsTLSPassthroughEnabled:      *enableTLSPassthrough,
@@ -373,7 +381,7 @@ func processClientAuthSecret(kubeClient *kubernetes.Clientset, nginxManager ngin
 
 	clientAuthSecretNsName := controllerNamespace + "/" + mgmtCfgParams.Secrets.ClientAuth
 
-	secret, err := getAndValidateSecret(kubeClient, clientAuthSecretNsName, api_v1.SecretTypeTLS)
+	secret, err := getAndValidateSecret(kubeClient, clientAuthSecretNsName, secrets.RoleTLS)
 	if err != nil {
 		return fmt.Errorf("error trying to get the client auth secret %v: %w", clientAuthSecretNsName, err)
 	}
@@ -390,7 +398,7 @@ func processTrustedCertSecret(kubeClient *kubernetes.Clientset, nginxManager ngi
 
 	trustedCertSecretNsName := controllerNamespace + "/" + mgmtCfgParams.Secrets.TrustedCert
 
-	secret, err := getAndValidateSecret(kubeClient, trustedCertSecretNsName, secrets.SecretTypeCA)
+	secret, err := getAndValidateSecret(kubeClient, trustedCertSecretNsName, secrets.RoleCA)
 	if err != nil {
 		return fmt.Errorf("error trying to get the trusted cert secret %v: %w", trustedCertSecretNsName, err)
 	}
@@ -623,6 +631,52 @@ func getAppProtectVersionInfo(ctx context.Context) string {
 	return version
 }
 
+// selectAppProtectAPIVersion configures the appprotect package to watch the
+// v1 CRDs when --plm-storage-url is set, otherwise the legacy v1beta1 CRDs.
+func selectAppProtectAPIVersion(ctx context.Context, plmEnabled bool, recorder record.EventRecorder, pod *api_v1.Pod) {
+	l := nl.LoggerFromContext(ctx)
+	version := appprotect.SelectAPIVersion(plmEnabled)
+	// Defensive: SelectAPIVersion only returns values SetAPIVersion accepts.
+	if err := appprotect.SetAPIVersion(version); err != nil {
+		nl.Fatalf(l, "Invalid %s API version %q: %v", appprotect.APIGroup, version, err)
+	}
+	nl.Infof(l, "Using %s/%s CRDs", appprotect.APIGroup, version)
+	recorder.Eventf(pod, api_v1.EventTypeNormal, nl.EventReasonAppProtectAPIVersionSelected,
+		"Using %s/%s CRDs", appprotect.APIGroup, version)
+}
+
+// plmStorageSpec assembles the wafbundle.S3ConfigSpec from the PLM flags and
+// the secret refs parsed once in flags.go (plmRefs). Endpoint is empty when
+// PLM is disabled, which callers treat as "PLM off".
+func plmStorageSpec() wafbundle.S3ConfigSpec {
+	return wafbundle.S3ConfigSpec{
+		Endpoint:           *plmStorageURL,
+		Credentials:        plmRefs.Credentials,
+		CA:                 plmRefs.CA,
+		ClientSSL:          plmRefs.ClientSSL,
+		InsecureSkipVerify: *plmStorageInsecureSkipVerify,
+	}
+}
+
+// setupPLMStorage validates the PLM S3 credentials at startup so that
+// misconfiguration surfaces immediately. Credentials are re-read on every
+// bundle fetch, so rotated Secrets are picked up automatically.
+func setupPLMStorage(ctx context.Context, kubeClient kubernetes.Interface, recorder record.EventRecorder, pod *api_v1.Pod) {
+	l := nl.LoggerFromContext(ctx)
+
+	spec := plmStorageSpec()
+	source := &wafbundle.KubeClientSecretSource{Client: kubeClient}
+
+	if _, err := wafbundle.LoadS3Config(source, spec); err != nil {
+		nl.Fatalf(l, "PLM: failed to load initial S3 credentials: %v", err)
+	}
+
+	nl.Infof(l, "PLM S3 client configured, endpoint=%s credentialsSecret=%s caSecret=%s clientSSLSecret=%s",
+		spec.Endpoint, spec.Credentials, spec.CA, spec.ClientSSL)
+	recorder.Eventf(pod, api_v1.EventTypeNormal, nl.EventReasonPLMStorageConfigured,
+		"PLM S3 client configured, endpoint=%s", spec.Endpoint)
+}
+
 func getAgentVersionInfo(nginxManager nginx.Manager) string {
 	return nginxManager.AgentVersion()
 }
@@ -689,7 +743,7 @@ func processDefaultServerSecret(kubeClient *kubernetes.Clientset, nginxManager n
 	var sslRejectHandshake bool
 
 	if *defaultServerSecret != "" {
-		secret, err := getAndValidateSecret(kubeClient, *defaultServerSecret, api_v1.SecretTypeTLS)
+		secret, err := getAndValidateSecret(kubeClient, *defaultServerSecret, secrets.RoleTLS)
 		if err != nil {
 			return sslRejectHandshake, fmt.Errorf("error trying to get the default server TLS secret %v: %w", *defaultServerSecret, err)
 		}
@@ -713,7 +767,7 @@ func processDefaultServerSecret(kubeClient *kubernetes.Clientset, nginxManager n
 func processWildcardSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.Manager) (bool, error) {
 	isWildcardEnabled := *wildcardTLSSecret != ""
 	if isWildcardEnabled {
-		secret, err := getAndValidateSecret(kubeClient, *wildcardTLSSecret, api_v1.SecretTypeTLS)
+		secret, err := getAndValidateSecret(kubeClient, *wildcardTLSSecret, secrets.RoleTLS)
 		if err != nil {
 			return false, fmt.Errorf("error trying to get the wildcard TLS secret %v: %w", *wildcardTLSSecret, err)
 		}
@@ -727,7 +781,7 @@ func processWildcardSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.
 func processLicenseSecret(kubeClient *kubernetes.Clientset, nginxManager nginx.Manager, mgmtCfgParams *configs.MGMTConfigParams, controllerNamespace string) error {
 	licenseSecretNsName := controllerNamespace + "/" + mgmtCfgParams.Secrets.License
 
-	secret, err := getAndValidateSecret(kubeClient, licenseSecretNsName, secrets.SecretTypeLicense)
+	secret, err := getAndValidateSecret(kubeClient, licenseSecretNsName, secrets.RoleLicense)
 	if err != nil {
 		return fmt.Errorf("license secret: %w", err)
 	}
@@ -801,7 +855,7 @@ func getSocketClient(sockPath string) *http.Client {
 }
 
 // getAndValidateSecret gets and validates a secret.
-func getAndValidateSecret(kubeClient *kubernetes.Clientset, secretNsName string, secretType api_v1.SecretType) (secret *api_v1.Secret, err error) {
+func getAndValidateSecret(kubeClient kubernetes.Interface, secretNsName string, role secrets.SecretRole) (secret *api_v1.Secret, err error) {
 	ns, name, err := k8s.ParseNamespaceName(secretNsName)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse the %v argument: %w", secretNsName, err)
@@ -810,22 +864,9 @@ func getAndValidateSecret(kubeClient *kubernetes.Clientset, secretNsName string,
 	if err != nil {
 		return nil, fmt.Errorf("could not find %v: %w", secretNsName, err)
 	}
-	switch secretType {
-	case api_v1.SecretTypeTLS:
-		err = secrets.ValidateTLSSecret(secret)
-		if err != nil {
-			return nil, fmt.Errorf("%v is invalid: %w", secretNsName, err)
-		}
-	case secrets.SecretTypeLicense:
-		err = secrets.ValidateLicenseSecret(secret)
-		if err != nil {
-			return nil, err
-		}
-	case secrets.SecretTypeCA:
-		err = secrets.ValidateCASecret(secret)
-		if err != nil {
-			return nil, err
-		}
+	err = secrets.ValidateSecretForRole(secret, role)
+	if err != nil {
+		return nil, fmt.Errorf("%v is invalid: %w", secretNsName, err)
 	}
 
 	return secret, nil
@@ -950,7 +991,6 @@ func createPlusAndLatencyCollectors(
 	constLabels map[string]string,
 	kubeClient *kubernetes.Clientset,
 	plusClient *client.NginxClient,
-	isMesh bool,
 ) (*nginxCollector.NginxPlusCollector, metrics.SyslogListener, collectors.LatencyCollector) {
 	l := nl.LoggerFromContext(ctx)
 	var prometheusSecret *api_v1.Secret
@@ -961,7 +1001,7 @@ func createPlusAndLatencyCollectors(
 	syslogListener = metrics.NewSyslogFakeServer()
 
 	if *prometheusTLSSecretName != "" {
-		prometheusSecret, err = getAndValidateSecret(kubeClient, *prometheusTLSSecretName, api_v1.SecretTypeTLS)
+		prometheusSecret, err = getAndValidateSecret(kubeClient, *prometheusTLSSecretName, secrets.RoleTLS)
 		if err != nil {
 			nl.Fatalf(l, "Error trying to get the prometheus TLS secret %v: %v", *prometheusTLSSecretName, err)
 		}
@@ -971,9 +1011,6 @@ func createPlusAndLatencyCollectors(
 	if *enablePrometheusMetrics {
 		upstreamServerVariableLabels := []string{"service", "resource_type", "resource_name", "resource_namespace"}
 		upstreamServerPeerVariableLabelNames := []string{"pod_name"}
-		if isMesh {
-			upstreamServerPeerVariableLabelNames = append(upstreamServerPeerVariableLabelNames, "pod_owner")
-		}
 		if *nginxPlus {
 			streamUpstreamServerVariableLabels := []string{"service", "resource_type", "resource_name", "resource_namespace"}
 			streamUpstreamServerPeerVariableLabelNames := []string{"pod_name"}
@@ -1011,7 +1048,7 @@ func createHealthProbeEndpoint(kubeClient *kubernetes.Clientset, plusClient *cli
 	var err error
 
 	if *serviceInsightTLSSecretName != "" {
-		serviceInsightSecret, err = getAndValidateSecret(kubeClient, *serviceInsightTLSSecretName, api_v1.SecretTypeTLS)
+		serviceInsightSecret, err = getAndValidateSecret(kubeClient, *serviceInsightTLSSecretName, secrets.RoleTLS)
 		if err != nil {
 			nl.Fatalf(l, "Error trying to get the service insight TLS secret %v: %v", *serviceInsightTLSSecretName, err)
 		}
@@ -1046,7 +1083,7 @@ func processConfigMaps(kubeClient *kubernetes.Clientset, cfgParams *configs.Conf
 		if err != nil {
 			nl.Fatalf(l, "Error when getting %v: %v", *nginxConfigMaps, err)
 		}
-		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, *enableDirectiveAutoadjust, eventLog)
+		cfgParams, _ = configs.ParseConfigMap(cfgParams.Context, cfm, *nginxPlus, *appProtect, *appProtectDos, *enableTLSPassthrough, *enableDirectiveAutoadjust, *enableSnippets, eventLog)
 		if cfgParams.MainServerSSLDHParamFileContent != nil {
 			fileName, err := nginxManager.CreateDHParam(*cfgParams.MainServerSSLDHParamFileContent)
 			if err != nil {

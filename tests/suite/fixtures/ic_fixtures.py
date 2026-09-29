@@ -6,7 +6,6 @@ import time
 
 import pytest
 from kubernetes.client.rest import ApiException
-from kubernetes.stream import stream
 from settings import CRDS, DEPLOYMENTS, NGX_REG, TEST_DATA
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.resources_utils import (
@@ -266,14 +265,14 @@ def crd_ingress_controller_with_waf_v5(
     )
 
     rbac = None
+    ap_pol_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_appolicies.yaml")
+    ap_log_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_aplogconfs.yaml")
+    ap_uds_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_apusersigs.yaml")
     try:
         print("--------------------Create roles and bindings for AppProtect------------------------")
         rbac = configure_rbac_with_ap(kube_apis.rbac_v1)
 
         print("------------------------- Register AP CRD -----------------------------------")
-        ap_pol_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_appolicies.yaml")
-        ap_log_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_aplogconfs.yaml")
-        ap_uds_crd_name = get_name_from_yaml(f"{CRDS}/appprotect.f5.com_apusersigs.yaml")
         create_crd_from_yaml(
             kube_apis.api_extensions_v1,
             ap_pol_crd_name,
@@ -309,25 +308,17 @@ def crd_ingress_controller_with_waf_v5(
                 request.param.get("extra_args", None),
             )
         try:
-            with open(f"{dir}/wafv5.tgz", "rb") as f:
-                file_content = f.read()
-            exec_command = ["sh", "-c", f"cat > /etc/app_protect/bundles/wafv5.tgz"]
             pod_name = get_first_pod_name(kube_apis.v1, namespace)
-            container_name = f"nginx-plus-ingress"
-            resp = stream(
-                kube_apis.v1.connect_get_namespaced_pod_exec,
-                pod_name,
-                namespace,
-                container=container_name,
-                command=exec_command,
-                stderr=True,
-                stdin=True,
-                stdout=True,
-                tty=False,
-                _preload_content=False,
+            dest_path = "/etc/app_protect/bundles/wafv5.tgz"
+            src_path = f"{dir}/wafv5.tgz"
+            result = subprocess.run(
+                ["kubectl", "cp", src_path, f"{namespace}/{pod_name}:{dest_path}", "-c", "nginx-plus-ingress"],
+                capture_output=True,
+                text=True,
+                timeout=60,
             )
-            resp.write_stdin(file_content)
-            resp.close()
+            if result.returncode != 0:
+                raise RuntimeError(f"kubectl cp failed: {result.stderr}")
 
         except Exception as ex:
             pytest.fail(f"Failed to copy WAFv5 bundle into the pod: {ex}")

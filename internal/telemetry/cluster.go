@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	clusterInfo "github.com/nginx/kubernetes-ingress/internal/common_cluster_info"
@@ -99,6 +100,7 @@ var configMapFilteredKeys = []string{
 	"zone-sync-resolver-addresses",
 	"zone-sync-resolver-valid",
 	"zone-sync-resolver-ipv6",
+	"disable-forwarded-headers",
 }
 
 var mgmtConfigMapFilteredKeys = []string{
@@ -183,12 +185,12 @@ func (c *Collector) InstallationID(ctx context.Context) (_ string, err error) {
 	return clusterInfo.GetInstallationID(ctx, c.Config.K8sClientReader, c.Config.PodNSName)
 }
 
-// Secrets returns the number of secrets watched by NIC.
+// Secrets returns the count of secrets currently referenced and resolved by active configuration.
 func (c *Collector) Secrets() (int, error) {
 	if c.Config.SecretStore == nil {
 		return 0, errors.New("nil secret store")
 	}
-	return len(c.Config.SecretStore.GetSecretReferenceMap()), nil
+	return c.Config.SecretStore.SecretCount(), nil
 }
 
 // RegularIngressCount returns number of Minion Ingresses in the namespaces watched by NIC.
@@ -274,9 +276,74 @@ func (c *Collector) PolicyCount() map[string]int {
 			policyCounters["CORS"]++
 		case spec.ExternalAuth != nil:
 			policyCounters["ExternalAuth"]++
+		case spec.HSTS != nil:
+			policyCounters["HSTS"]++
+		case spec.OIDCNative != nil:
+			policyCounters["OIDCNative"]++
 		}
 	}
 	return policyCounters
+}
+
+// WAFBundleSourceTypes returns a sorted, deduplicated list of WAF bundle source
+// types in use across all valid policies (e.g. ["HTTPS", "N1C", "NIM"]).
+func (c *Collector) WAFBundleSourceTypes() []string {
+	if !c.Config.CustomResourcesEnabled || c.Config.Policies == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	for _, policy := range c.Config.Policies() {
+		if policy.Spec.WAF == nil || policy.Spec.WAF.ApBundleSource == nil {
+			continue
+		}
+		srcType := string(policy.Spec.WAF.ApBundleSource.Type)
+		if srcType == "" {
+			srcType = "HTTPS"
+		}
+		seen[srcType] = true
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	types := make([]string, 0, len(seen))
+	for t := range seen {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	return types
+}
+
+// WAFLogBundleSourceTypes returns a sorted, deduplicated list of WAF log profile
+// bundle source types in use (e.g. ["HTTPS", "NIM", "N1C"]).
+func (c *Collector) WAFLogBundleSourceTypes() []string {
+	if !c.Config.CustomResourcesEnabled || c.Config.Policies == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	for _, policy := range c.Config.Policies() {
+		if policy.Spec.WAF == nil {
+			continue
+		}
+		for _, sl := range policy.Spec.WAF.SecurityLogs {
+			if sl == nil || sl.ApLogBundleSource == nil {
+				continue
+			}
+			srcType := string(sl.ApLogBundleSource.Type)
+			if srcType == "" {
+				srcType = "HTTPS"
+			}
+			seen[srcType] = true
+		}
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	types := make([]string, 0, len(seen))
+	for t := range seen {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	return types
 }
 
 func procecessRateLimitCounters(rl *v1.RateLimit, pc map[string]int) {

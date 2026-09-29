@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: nginx-ingress
+data:
+  resolver-addresses: "kube-dns.kube-system.svc.cluster.local"
+  resolver-valid: "5s"

@@ -1,0 +1,75 @@
+# Test 3: Master policy with route-level override via mergeable minion.
+#
+# Verify:
+#   - Two oidc_provider blocks (nginx-plus, nginx-plus-2).
+#   - / uses clientID=nginx-plus (inherited from master).
+#   - /alt uses clientID=nginx-plus-2 (minion override).
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: oidcnative-policy-2
+spec:
+  oidcNative:
+    issuer: https://keycloak.example.com/realms/master
+    clientID: nginx-plus-2
+    clientSecret: oidcnative-secret
+    scope: openid profile
+    sslVerify: false
+    postLogoutRedirectURI: /_logout
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-master
+  annotations:
+    nginx.org/mergeable-ingress-type: "master"
+    nginx.com/policies: "oidcnative-policy"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - webapp.example.com
+      secretName: tls-secret
+  rules:
+    - host: webapp.example.com
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-minion-root
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp-minion-alt
+  annotations:
+    nginx.org/mergeable-ingress-type: "minion"
+    nginx.com/policies: "oidcnative-policy-2"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /alt
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80

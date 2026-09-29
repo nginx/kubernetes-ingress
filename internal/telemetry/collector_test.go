@@ -290,6 +290,20 @@ func TestCollectPolicyCountOnCustomResourcesEnabled(t *testing.T) {
 			want: 1,
 		},
 		{
+			name: "HSTSPolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{hstsPolicy}
+			},
+			want: 1,
+		},
+		{
+			name: "OIDCNativePolicy",
+			policies: func() []*conf_v1.Policy {
+				return []*conf_v1.Policy{oidcNativePolicy}
+			},
+			want: 1,
+		},
+		{
 			name: "MultiplePolicies",
 			policies: func() []*conf_v1.Policy {
 				return []*conf_v1.Policy{rateLimitPolicy, wafPolicy, oidcPolicy}
@@ -443,6 +457,8 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 				cachePolicy,
 				corsPolicy,
 				externalAuthPolicy,
+				hstsPolicy,
+				oidcNativePolicy,
 			}
 		},
 		CustomResourcesEnabled: true,
@@ -472,6 +488,8 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 		CachePolicies:        1,
 		CORSPolicies:         1,
 		ExternalAuthPolicies: 1,
+		HSTSPolicies:         1,
+		OIDCNativePolicies:   1,
 	}
 
 	td := telemetry.Data{
@@ -483,6 +501,41 @@ func TestCollectPoliciesReportOnEnabledCustomResources(t *testing.T) {
 	got := buf.String()
 	if !cmp.Equal(want, got) {
 		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestCollectWAFBundleSourceTypes(t *testing.T) {
+	t.Parallel()
+
+	buf := &bytes.Buffer{}
+	exp := &telemetry.StdoutExporter{Endpoint: buf}
+	cfg := telemetry.CollectorConfig{
+		Configurator:    newConfigurator(t),
+		K8sClientReader: newTestClientset(node1, kubeNS),
+		Version:         telemetryNICData.ProjectVersion,
+		Policies: func() []*conf_v1.Policy {
+			return []*conf_v1.Policy{
+				wafBundleSourceN1CPolicy,
+				wafBundleSourceNIMPolicy,
+				wafPolicy, // plain WAF without bundle source
+			}
+		},
+		CustomResourcesEnabled: true,
+	}
+
+	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Collect(context.Background())
+
+	got := buf.String()
+	// Verify bundle source types are reported (sorted: N1C, NIM)
+	if !strings.Contains(got, "N1C") {
+		t.Error("expected WAFBundleSourceTypes to contain N1C")
+	}
+	if !strings.Contains(got, "NIM") {
+		t.Error("expected WAFBundleSourceTypes to contain NIM")
 	}
 }
 
@@ -1915,6 +1968,9 @@ func TestCountSecretsWithTwoSecrets(t *testing.T) {
 	cfg.SecretStore.AddOrUpdateSecret(secret1)
 	cfg.SecretStore.AddOrUpdateSecret(secret2)
 
+	cfg.SecretStore.GetSecret("default/jwk-secret-1", secrets.RoleJWK)
+	cfg.SecretStore.GetSecret("default/jwk-secret-2", secrets.RoleJWK)
+
 	c, err := telemetry.NewCollector(cfg, telemetry.WithExporter(exp))
 	if err != nil {
 		t.Fatal(err)
@@ -1965,6 +2021,9 @@ func TestCountSecretsAddTwoSecretsAndDeleteOne(t *testing.T) {
 	// Add multiple secrets.
 	cfg.SecretStore.AddOrUpdateSecret(secret1)
 	cfg.SecretStore.AddOrUpdateSecret(secret2)
+
+	cfg.SecretStore.GetSecret("default/jwk-secret-1", secrets.RoleJWK)
+	cfg.SecretStore.GetSecret("default/jwk-secret-2", secrets.RoleJWK)
 
 	// Delete one secret.
 	cfg.SecretStore.DeleteSecret(fmt.Sprintf("%s/%s", secret2.Namespace, secret2.Name))
@@ -2260,12 +2319,10 @@ func createCafeIngressEx() configs.IngressEx {
 		ValidHosts: map[string]bool{
 			"cafe.example.com": true,
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"cafe-secret": {
-				Secret: &coreV1.Secret{
-					Type: coreV1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+				Secret: &coreV1.Secret{},
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}
@@ -2382,13 +2439,11 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 			ValidHosts: map[string]bool{
 				"cafe.example.com": true,
 			},
-			SecretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &coreV1.Secret{
-						Type: coreV1.SecretTypeTLS,
-					},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &coreV1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -2404,7 +2459,7 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 				ValidMinionPaths: map[string]bool{
 					"/coffee": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			{
 				Ingress: &teaMinion,
@@ -2417,7 +2472,7 @@ func createMergeableCafeIngress() *configs.MergeableIngresses {
 				ValidMinionPaths: map[string]bool{
 					"/tea": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 		},
 	}
@@ -2526,13 +2581,11 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 			ValidHosts: map[string]bool{
 				"cafe.example.com": true,
 			},
-			SecretRefs: map[string]*secrets.SecretReference{
-				"cafe-secret": {
-					Secret: &coreV1.Secret{
-						Type: coreV1.SecretTypeTLS,
-					},
-					Path:  "/etc/nginx/secrets/default-cafe-secret",
-					Error: nil,
+			SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+					Secret: &coreV1.Secret{},
+					Path:   "/etc/nginx/secrets/default-cafe-secret",
+					Error:  nil,
 				},
 			},
 		},
@@ -2548,7 +2601,7 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 				ValidMinionPaths: map[string]bool{
 					"/coffee": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			{
 				Ingress: &teaMinion,
@@ -2561,7 +2614,7 @@ func createMergeableIngressWithCustomAnnotations(masterAnnotations, coffeeAnnota
 				ValidMinionPaths: map[string]bool{
 					"/tea": true,
 				},
-				SecretRefs: map[string]*secrets.SecretReference{},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 		},
 	}
@@ -2628,12 +2681,10 @@ func createCafeIngressExWithCustomAnnotations(annotations map[string]string) con
 		ValidHosts: map[string]bool{
 			"cafe.example.com": true,
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"cafe-secret": {
-				Secret: &coreV1.Secret{
-					Type: coreV1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-cafe-secret",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/cafe-secret", secrets.RoleTLS): {
+				Secret: &coreV1.Secret{},
+				Path:   "/etc/nginx/secrets/default-cafe-secret",
 			},
 		},
 	}
@@ -2938,5 +2989,75 @@ var (
 			ExternalAuth: &conf_v1.ExternalAuth{},
 		},
 		Status: conf_v1.PolicyStatus{},
+	}
+
+	hstsPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "hsts-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			HSTS: &conf_v1.HSTS{
+				MaxAge: new(31536000),
+			},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	oidcNativePolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "oidc-native-policy",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			OIDCNative: &conf_v1.OIDCNative{},
+		},
+		Status: conf_v1.PolicyStatus{},
+	}
+
+	wafBundleSourceN1CPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "waf-bundle-n1c",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypeN1C,
+					URL:  "https://tenant.console.ves.volterra.io",
+				},
+			},
+		},
+	}
+
+	wafBundleSourceNIMPolicy = &conf_v1.Policy{
+		TypeMeta: metaV1.TypeMeta{
+			Kind:       "Policy",
+			APIVersion: "k8s.nginx.org/v1",
+		},
+		ObjectMeta: metaV1.ObjectMeta{
+			Name:      "waf-bundle-nim",
+			Namespace: "default",
+		},
+		Spec: conf_v1.PolicySpec{
+			WAF: &conf_v1.WAF{
+				ApBundleSource: &conf_v1.BundleSource{
+					Type: conf_v1.BundleSourceTypeNIM,
+					URL:  "https://nim.example.com",
+				},
+			},
+		},
 	}
 )

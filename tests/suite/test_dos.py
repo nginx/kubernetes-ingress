@@ -3,7 +3,6 @@ import subprocess
 from datetime import datetime
 
 import pytest
-import requests
 from settings import TEST_DATA
 from suite.utils.custom_resources_utils import (
     create_dos_logconf_from_yaml,
@@ -37,6 +36,7 @@ from suite.utils.resources_utils import (
     get_test_file_name,
     nginx_reload,
     replace_configmap_from_yaml,
+    retry_get,
     scale_deployment,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -243,7 +243,7 @@ class TestDos:
 
         print("----------------------- Send request ----------------------")
         wait_before_test(5)
-        response = requests.get(dos_setup.req_url, headers={"host": "dos.example.com"}, verify=False)
+        response = retry_get(dos_setup.req_url, "dos.example.com", verify=False)
         print(response.text)
 
         print(f"log_loc {log_loc} syslog_pod {syslog_pod} namespace {ingress_controller_prerequisites.namespace}")
@@ -283,8 +283,11 @@ class TestDos:
 
         print("----------------------- Send request to check allowlist ----------------------")
         wait_before_test(5)
-        response = requests.get(
-            dos_setup.req_url, headers={"host": "dos.example.com", "X-Forwarded-For": "10.10.10.10"}, verify=False
+        response = retry_get(
+            dos_setup.req_url,
+            None,
+            headers={"host": "dos.example.com", "X-Forwarded-For": "10.10.10.10"},
+            verify=False,
         )
         print(response.text)
 

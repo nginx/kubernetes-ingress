@@ -207,6 +207,15 @@ func TestValidateAppProtectLogDestinationAnnotation(t *testing.T) {
 		{"stdout", "Log Destination did not follow format"},
 		{"syslog:server=localhost:99999", "not a valid port number"},
 		{"syslog:server=mysyslog-server:999", "not a valid ip address"},
+		{"XXstderrXX", "Log Destination did not follow format"},
+		{"/var/log/ap.log trailing", "Log Destination did not follow format"},
+		{"syslog:server=10.1.1.2:9000extra", "Log Destination did not follow format"},
+		{"syslog:server=localhost:9000;one", "contains dangerous characters"},
+		{"/var/log/ap.log$", "contains dangerous characters"},
+		{"/var/log/ap`log", "contains dangerous characters"},
+		{"/var/log/{ap}.log", "contains dangerous characters"},
+		{"stderr\r", "contains dangerous characters"},
+		{"syslog:server=localhost:9000\nnewline", "contains dangerous characters"},
 	}
 
 	for _, tCase := range posDstAntns {
