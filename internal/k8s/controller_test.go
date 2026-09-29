@@ -7186,3 +7186,49 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 		})
 	}
 }
+
+func TestUpdateVirtualServerStatusAndEvents_SuppressesDuplicateVSREvents(t *testing.T) {
+	t.Parallel()
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	lbc := &LoadBalancerController{
+		recorder:                fakeRecorder,
+		isLeaderElectionEnabled: true,
+		Logger:                  nl.LoggerFromContext(context.Background()),
+	}
+
+	vsr := &conf_v1.VirtualServerRoute{
+		Name:      "test-vsr",
+		Namespace: "default",
+		Status: conf_v1.VirtualServerRouteStatus{
+			State:   conf_v1.StateValid,
+			Reason:  nl.EventReasonAddedOrUpdated,
+			Message: "Configuration for default/test-vsr was added or updated",
+		},
+	}
+
+	vsConfig := &VirtualServerConfiguration{
+		VirtualServer: &conf_v1.VirtualServer{
+			Name:      "test-vs",
+			Namespace: "default",
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr},
+	}
+
+	lbc.updateVirtualServerStatusAndEvents(vsConfig, configs.Warnings{}, nil)
+
+	var events []string
+	for len(fakeRecorder.Events) > 0 {
+		events = append(events, <-fakeRecorder.Events)
+	}
+
+	vsrEventCount := 0
+	for _, e := range events {
+		if strings.Contains(e, "test-vsr") {
+			vsrEventCount++
+		}
+	}
+	if vsrEventCount != 0 {
+		t.Errorf("expected 0 events for unchanged VSR, got %d: %v", vsrEventCount, events)
+	}
+}

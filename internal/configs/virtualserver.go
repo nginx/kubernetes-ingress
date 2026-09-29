@@ -1031,7 +1031,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 						}
 					}
 				} else {
-					vsc.addWarningf(vsr, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
+					vsc.addWarningf(vsEx.VirtualServer, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
 				}
 			}
 

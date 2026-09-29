@@ -688,6 +688,56 @@ func TestGenerateVirtualServerConfigExternalAuthMultipleRoutesNoDuplicateOAuth2(
 	}
 }
 
+func TestGenerateVirtualServerConfigExternalAuthSubrouteDuplicateWarningTargetsVirtualServer(t *testing.T) {
+	t.Parallel()
+
+	policy := &conf_v1.Policy{
+		Name: "ext-auth", Namespace: "default",
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-svc"},
+		},
+	}
+	vsr := &conf_v1.VirtualServerRoute{
+		Name: "vsr", Namespace: "default",
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Subroutes: []conf_v1.Route{
+				{
+					Path:     "/sub",
+					Policies: []conf_v1.PolicyReference{{Name: "ext-auth", Namespace: "default"}},
+					Action:   &conf_v1.Action{Pass: "tea"},
+				},
+			},
+		},
+	}
+	vsEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			Name: "vs", Namespace: "default",
+			Spec: conf_v1.VirtualServerSpec{
+				Routes: []conf_v1.Route{
+					{
+						Path:     "/route",
+						Policies: []conf_v1.PolicyReference{{Name: "ext-auth", Namespace: "default"}},
+						Action:   &conf_v1.Action{Pass: "coffee"},
+					},
+					{Path: "/sub", Route: "default/vsr"},
+				},
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr},
+		Policies:            map[string]*conf_v1.Policy{"default/ext-auth": policy},
+	}
+
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	_, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+	if len(warnings[vsEx.VirtualServer]) == 0 {
+		t.Error("expected duplicate auth warning on VirtualServer, got none")
+	}
+	if len(warnings[vsr]) != 0 {
+		t.Errorf("expected no warnings on VirtualServerRoute, got %v", warnings[vsr])
+	}
+}
+
 // TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute tests ExternalAuth policy applied at the subroute
 // level (VirtualServerRoute) with NGINX Plus. ExternalAuth functionality is interchangeable between OSS and Plus —
 // the isPlus flag does not affect ExternalAuth configuration generation.

@@ -2188,7 +2188,9 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 		}
 
 		msg := fmt.Sprintf("Configuration for %v/%v was added or updated%s", vsr.Namespace, vsr.Name, vsrEventWarningMessage)
-		lbc.recorder.Event(vsr, vsrEventType, vsrEventTitle, msg)
+		if vsr.Status.State != vsrState || vsr.Status.Reason != vsrEventTitle || vsr.Status.Message != msg {
+			lbc.recorder.Event(vsr, vsrEventType, vsrEventTitle, msg)
+		}
 		l := lbc.Logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 
 		if lbc.reportCustomResourceStatusEnabled() {
