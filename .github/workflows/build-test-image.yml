@@ -20,14 +20,16 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write
-  packages: write
 
 jobs:
   build:
     name: Build test image
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
