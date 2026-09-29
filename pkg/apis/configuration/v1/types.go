@@ -136,6 +136,15 @@ type Upstream struct {
 	MaxConns *int `json:"max-conns"`
 	// Configures the cache for connections to upstream servers. The value 0 disables the cache. The default is set in the keepalive ConfigMap key.
 	Keepalive *int `json:"keepalive"`
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum="1.0";"1.1";"2"
+	// Sets the HTTP protocol version used for connections to the upstream servers.
+	// Supported values are "1.0", "1.1" and "2". If unset, the appProtocol of the backing
+	// Service port is used ("kubernetes.io/h2c" implies "2"); otherwise NGINX uses HTTP/1.1.
+	// Note: this field is ignored for upstreams with type "grpc", where grpc_pass always
+	// uses HTTP/2, and the values "1.0" and "2" cannot be used with WebSocket, which requires
+	// HTTP/1.1. With "1.0", the "Connection: close" request header is sent to the upstream.
+	ProxyHTTPVersion string `json:"proxy-http-version"`
 	// The timeout for establishing a connection with an upstream server. The default is specified in the proxy-connect-timeout ConfigMap key.
 	ProxyConnectTimeout string `json:"connect-timeout"`
 	// The timeout for reading a response from an upstream server. The default is specified in the proxy-read-timeout ConfigMap key.
@@ -420,7 +429,7 @@ type ErrorPageRedirect struct {
 
 // TLS defines TLS configuration for a VirtualServer.
 type TLS struct {
-	// The name of a secret with a TLS certificate and key. The secret must belong to the same namespace as the VirtualServer. The secret must be of the type kubernetes.io/tls and contain keys named tls.crt and tls.key that contain the certificate and private key as described here. If the secret doesn’t exist or is invalid, NGINX will break any attempt to establish a TLS connection to the host of the VirtualServer. If the secret is not specified but wildcard TLS secret is configured, NGINX will use the wildcard secret for TLS termination.
+	// The name of a secret with a TLS certificate and key. The secret must belong to the same namespace as the VirtualServer. A secret of the type kubernetes.io/tls or Opaque is recommended. The secret is resolved with the TLS role and must store the certificate chain under tls.crt and the matching private key under tls.key. If the secret doesn’t exist or is invalid, NGINX will break any attempt to establish a TLS connection to the host of the VirtualServer. If the secret is not specified but wildcard TLS secret is configured, NGINX will use the wildcard secret for TLS termination.
 	Secret string `json:"secret"`
 	// The redirect configuration of the TLS for a VirtualServer.
 	Redirect *TLSRedirect `json:"redirect"`
@@ -800,6 +809,9 @@ type PolicySpec struct {
 	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak.
 	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
 	OIDC *OIDC `json:"oidc"`
+	// The OpenID Connect policy configures NGINX to authenticate client requests by validating a JWT token against an OAuth2/OIDC token provider, such as Auth0 or Keycloak. NGINX Plus native.
+	// +kubebuilder:validation:XValidation:rule="(self.sslVerify == true) || (self.sslVerify == false && !has(self.trustedCertSecret))",message="trustedCertSecret can be set only if sslVerify is true"
+	OIDCNative *OIDCNative `json:"oidcNative"`
 	// The WAF policy configures WAF and log configuration policies for NGINX AppProtect
 	WAF *WAF `json:"waf"`
 	// The API Key policy configures NGINX to authorize requests which provide a valid API Key in a specified header or query param.
@@ -900,7 +912,7 @@ type VariableCondition struct {
 type JWTAuth struct {
 	// The realm of the JWT.
 	Realm string `json:"realm"`
-	// The name of the Kubernetes secret that stores the Htpasswd configuration. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/htpasswd, and the config must be stored in the secret under the key htpasswd, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret containing the JSON Web Key. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the JWK role and must store the JWK under the jwk key.
 	Secret string `json:"secret"`
 	// The token specifies a variable that contains the JSON Web Token. By default the JWT is passed in the Authorization header as a Bearer Token. JWT may be also passed as a cookie or a part of a query string, for example: $cookie_auth_token. Accepted variables are $http_, $arg_, $cookie_.
 	Token string `json:"token"`
@@ -915,7 +927,7 @@ type JWTAuth struct {
 	// Enables verification of the JWKS server SSL certificate. Default is false.
 	// +kubebuilder:default:=false
 	SSLVerify bool `json:"sslVerify"`
-	// The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	TrustedCertSecret string `json:"trustedCertSecret"`
 	// Sets the verification depth in the JWKS server certificates chain. The default is 1.
@@ -928,13 +940,13 @@ type JWTAuth struct {
 type BasicAuth struct {
 	// The realm for the basic authentication.
 	Realm string `json:"realm"`
-	// The name of the Kubernetes secret that stores the Htpasswd configuration. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/htpasswd, and the config must be stored in the secret under the key htpasswd, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the Htpasswd configuration. It must be in the same namespace as the Policy resource. A secret of type Opaque is recommended. The secret is resolved with the Htpasswd role and must store the configuration under the htpasswd key.
 	Secret string `json:"secret"`
 }
 
 // The IngressMTLS policy configures client certificate verification.
 type IngressMTLS struct {
-	// The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. A secret of type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	ClientCertSecret string `json:"clientCertSecret"`
 	// The file name of the Certificate Revocation List. NGINX Ingress Controller will look for this file in /etc/nginx/secrets
 	CrlFileName string `json:"crlFileName"`
@@ -946,7 +958,7 @@ type IngressMTLS struct {
 
 // The EgressMTLS policy configures upstreams authentication and certificate verification.
 type EgressMTLS struct {
-	// The name of the Kubernetes secret that stores the TLS certificate and key. It must be in the same namespace as the Policy resource. The secret must be of the type kubernetes.io/tls, the certificate must be stored in the secret under the key tls.crt, and the key must be stored under the key tls.key, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the TLS certificate and key. It must be in the same namespace as the Policy resource. A secret of the type kubernetes.io/tls or Opaque is recommended. The secret is resolved with the TLS role and must store the certificate chain under tls.crt key and matching private key under the tls.key key.
 	TLSSecret string `json:"tlsSecret"`
 	// Enables verification of the upstream HTTPS server certificate.
 	VerifyServer bool `json:"verifyServer"`
@@ -958,7 +970,7 @@ type EgressMTLS struct {
 	SessionReuse *bool `json:"sessionReuse"`
 	// Specifies the enabled ciphers for requests to an upstream HTTPS server. The default is DEFAULT.
 	Ciphers string `json:"ciphers"`
-	// The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt, otherwise the secret will be rejected as invalid.
+	// The name of the Kubernetes secret that stores the CA certificate. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	TrustedCertSecret string `json:"trustedCertSecret"`
 	// Enables passing of the server name through Server Name Indication extension.
 	ServerName bool `json:"serverName"`
@@ -976,7 +988,7 @@ type OIDC struct {
 	JWKSURI string `json:"jwksURI"`
 	// The client ID provided by your OpenID Connect provider.
 	ClientID string `json:"clientID"`
-	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured.
+	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the OIDC role and must store the client secret under the client-secret key. If PKCE is enabled, this should be not configured.
 	ClientSecret string `json:"clientSecret"`
 	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The default is openid.
 	Scope string `json:"scope"`
@@ -997,7 +1009,7 @@ type OIDC struct {
 	// Enables verification of the IDP server SSL certificate. Default is false.
 	// +kubebuilder:default:=false
 	SSLVerify bool `json:"sslVerify"`
-	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	TrustedCertSecret string `json:"trustedCertSecret"`
 	// Sets the verification depth in the IDP server certificates chain. The default is 1.
@@ -1026,8 +1038,12 @@ const (
 //   - NIM: pull a named managed policy from NGINX Instance Manager via its API.
 //   - N1C: pull a named managed policy from NGINX One Console via its API.
 //
-// Type-specific field requirements (policyName required for NIM/N1C, policyNamespace
-// required for N1C) are enforced by the controller's Go validation layer.
+// Type-specific field requirements (url required; name required for NIM/N1C;
+// namespace required for N1C) are enforced by the controller's Go validation layer.
+//
+// To reference bundles compiled by the F5 WAF Policy Controller (PLM), use the
+// apPolicy and apLogConf fields on the parent WAF resource. NIC resolves those
+// references as PLM bundles when the -plm-storage-url flag is set.
 type BundleSource struct {
 	// Type is the bundle source backend. Defaults to HTTPS.
 	// +kubebuilder:default=HTTPS
@@ -1042,36 +1058,39 @@ type BundleSource struct {
 	URL string `json:"url"`
 
 	// Secret is the name of a Kubernetes Secret in the same namespace as the Policy.
-	// For HTTPS: kubernetes.io/tls (tls.crt + tls.key for client mTLS; optional ca.crt for server CA).
-	// For N1C: nginx.com/waf-bundle Secret with a 'token' field containing the API token.
-	// For NIM: nginx.com/waf-bundle Secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
+	// A secret of the type Opaque is recommended.
+	// For HTTPS: TLS role (tls.crt + tls.key keys for client mTLS; optional ca.crt for server CA).
+	// For N1C: WAF Bundle role; secret with a 'token' field containing the API token.
+	// For NIM: WAF Bundle role; secret with a 'token' field (bearer auth) or 'username'+'password' fields (basic auth).
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	// +optional
 	Secret string `json:"secret,omitempty"`
 
 	// TrustedCertSecret is the name of a Kubernetes Secret with a custom CA certificate
 	// for verifying the remote endpoint TLS certificate. The secret must be in the same
-	// namespace as the Policy, must be of type nginx.org/ca, and must include ca.crt.
+	// namespace as the Policy. A secret of the type Opaque is recommended. The secret is
+	// resolved with the CA role and must store the certificate under the ca.crt key.
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
 	// +optional
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
-	// PolicyName is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
+	// Name is the policy name on the management plane. Required for NIM and N1C; forbidden for HTTPS.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
-	PolicyName string `json:"policyName,omitempty"`
+	Name string `json:"name,omitempty"`
 
-	// PolicyNamespace is the namespace/tenant on the management plane. Required for N1C only.
+	// Namespace is the namespace/tenant on the management plane. Required for N1C; forbidden otherwise.
 	// +kubebuilder:validation:MaxLength=63
 	// +optional
-	PolicyNamespace string `json:"policyNamespace,omitempty"`
+	Namespace string `json:"namespace,omitempty"`
 
 	// EnablePolling enables background polling to automatically detect and fetch
-	// updated bundles at the configured PollInterval. When false, the bundle is
-	// fetched once on policy creation or update; subsequent updates require
-	// modifying the Policy resource to trigger a new fetch.
-	// +kubebuilder:validation:Required
-	EnablePolling bool `json:"enablePolling"`
+	// updated bundles at the configured PollInterval. Defaults to false. When
+	// false, the bundle is fetched once on policy creation or update; subsequent
+	// updates require modifying the Policy resource to trigger a new fetch.
+	// +kubebuilder:default:=false
+	// +optional
+	EnablePolling bool `json:"enablePolling,omitempty"`
 
 	// PollInterval is how often to re-fetch the bundle when enablePolling is true.
 	// Minimum 1m. Default 5m. Ignored when enablePolling is false.
@@ -1096,6 +1115,90 @@ type BundleSource struct {
 	// VerifyChecksum enables SHA-256 verification of the downloaded bundle. HTTPS type only.
 	// +optional
 	VerifyChecksum bool `json:"verifyChecksum,omitempty"`
+}
+
+// The OIDCNative policy configures NGINX Plus as a relying party for OpenID Connect authentication using the native ngx_http_oidc_module.
+type OIDCNative struct {
+	// Sets the Issuer Identifier URL of the OpenID Provider; required directive. The URL must exactly match the value of “issuer” in the OpenID Provider metadata and requires the “https” scheme.
+	// +kubebuilder:validation:Pattern=`^https://[^/\s"'\x60$;\\]+(/[^\s"'\x60$;\\]*)?$`
+	// +kubebuilder:validation:Required
+	Issuer string `json:"issuer"`
+	// The client ID provided by your OpenID Connect provider.
+	// +kubebuilder:validation:Required
+	ClientID string `json:"clientID"`
+	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the OIDC role and must store the client secret under the client-secret key.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	ClientSecret string `json:"clientSecret,omitempty"` //nolint:gosec // G117: references a K8s secret name, not a credential
+	// ConfigURL is the URL of the OpenID Provider Configuration Information. If not set, defaults to <issuer>/.well-known/openid-configuration as per the OpenID Connect Discovery specification.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^https?://[^/\s"'\x60$;\\]+/[^\s"'\x60$;\\]*$`
+	ConfigURL string `json:"configURL,omitempty"`
+	// List of OpenID Connect scopes, space-separated. The scope openid is always required. Example: "openid profile email". Default is "openid".
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:XValidation:rule="self == '' || self.matches('(^|[ +])openid([ +]|$)')",message="scope must contain 'openid' as a token"
+	Scope string `json:"scope,omitempty"`
+	// Allows overriding the default redirect URI. Defaults to /oidc_callback_<providerName>.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60"']*$`
+	RedirectURI string `json:"redirectURI,omitempty"`
+	// Sets the name of the session cookie. Defaults to NGX_OIDC_<providerName>.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[_A-Za-z0-9]+$`
+	CookieName string `json:"cookieName,omitempty"`
+	// Sets additional query arguments for the authentication request URL, for example "display=page&prompt=login".
+	// +kubebuilder:validation:Optional
+	ExtraAuthArgs string `json:"extraAuthArgs,omitempty"`
+	// Explicitly enables or disables PKCE. By default, PKCE is automatically enabled based on OpenID Provider metadata.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Enum=on;off
+	PKCE string `json:"pkce,omitempty"`
+	// Defines the URI path for initiating session logout. Upon session termination, the user is redirected to the post logout page.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60"']*$`
+	LogoutURI string `json:"logoutURI,omitempty"`
+	// Defines the path where the user is redirected after logout. Must be a path on the same host — absolute URLs are not supported. When set, NIC also auto-generates an unauthenticated location at this path serving a plain-text confirmation response. If multiple OIDCNative providers on the same host set the same path, only one auto-generated location is rendered; providers whose other generated locations (redirectURI, or the internal IdP proxy location) collide are rejected instead.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60"']*$`
+	PostLogoutRedirectURI string `json:"postLogoutRedirectURI,omitempty"`
+	// Defines the URI path for triggering OIDC front-channel logout. When set, the IdP calls this URI in a hidden iframe when the user logs out globally, allowing NGINX to terminate the local session.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^/[^\s{};\\$\x60"']*$`
+	FrontChannelLogoutURI string `json:"frontChannelLogoutURI,omitempty"`
+	// Adds the id_token_hint argument to the Provider's Logout Endpoint when redirecting user during logout. Required by some providers.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	LogoutTokenHint bool `json:"logoutTokenHint,omitempty"`
+	// Sets a timeout after which the session is deleted, unless it was refreshed. Default is 8h.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]{1,8}(s|m|h|d)?$`
+	SessionTimeout string `json:"sessionTimeout,omitempty"`
+	// Enables downloading of the UserInfo data and makes UserInfo claims available via the $oidc_claim_name variables.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=false
+	UserInfoEnable bool `json:"userInfoEnable,omitempty"`
+	// The name of the Kubernetes secret that stores the trusted CA certificate for verifying the OpenID Provider's TLS certificate. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
+	// Enables verification of the OpenID Provider's TLS certificate. Default is true. Set to false to skip verification (dev/test only, insecure).
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:default=true
+	SSLVerify *bool `json:"sslVerify,omitempty"`
+	// Overrides the TLS SNI name and Host header used when connecting to the OpenID Provider. If omitted, NGINX dynamically resolves SNI and Host header from the endpoint URLs.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	SSLName string `json:"sslName,omitempty"`
+	// Sets the verification depth in the OpenID Provider TLS certificate chain. Default is 1.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:default=1
+	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
+	// Buffer size used when proxying requests to the OpenID Provider. Applies to `proxy_buffer_size` and each buffer in `proxy_buffers`. Default is `32k`.
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Pattern=`^[0-9]{1,8}[kKmM]?$`
+	// +kubebuilder:default="32k"
+	ProxyBufferSize string `json:"proxyBufferSize,omitempty"`
 }
 
 // The WAF policy configures NGINX Plus to secure client requests using App Protect WAF policies.
@@ -1136,7 +1239,7 @@ type SecurityLog struct {
 type APIKey struct {
 	// The location of the API Key. For example, $http_auth, $arg_apikey, $cookie_auth. Accepted variables are $http_, $arg_, $cookie_.
 	SuppliedIn *SuppliedIn `json:"suppliedIn"`
-	// The key to which the API key is applied. Can contain text, variables, or a combination of them. Accepted variables are $http_, $arg_, $cookie_.
+	// The name of a Kubernetes secret in the Policy namespace. A secret of the type Opaque is recommended. The secret is resolved with the APIKey role; each data key is a client ID and its value is that client API key. Can contain text, variables, or a combination of them. Accepted variables are $http_, $arg_, $cookie_.
 	ClientSecret string `json:"clientSecret"`
 }
 
@@ -1416,7 +1519,7 @@ type ExternalAuth struct {
 
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Pattern=`^([a-z0-9]([-a-z0-9]*[a-z0-9])?\/)?[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	// TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. The secret must be of the type nginx.org/ca, and the certificate must be stored under the key ca.crt.
+	// TrustedCertSecret is the name of the Kubernetes secret that stores the CA certificate for external authentication server certificate verification. It can be in the same namespace as the Policy resource or in a different namespace specified as <namespace>/<secret>. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 
 	// +kubebuilder:validation:Optional

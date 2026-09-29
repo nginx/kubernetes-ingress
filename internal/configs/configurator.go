@@ -37,6 +37,21 @@ const (
 	appProtectDosPolicyFolder       = "/etc/nginx/dos/policies/"
 	appProtectDosLogConfFolder      = "/etc/nginx/dos/logconfs/"
 	appProtectDosAllowListFolder    = "/etc/nginx/dos/allowlist/"
+
+	// sharedInputFailureThreshold is the number of consecutive per-resource config
+	// validation failures that triggers early exit from UpdateConfig's resource loop.
+	// When reached, it indicates a likely shared root cause (e.g., a bad
+	// server-snippets from ConfigMap rendered into every per-resource file) is
+	// causing all resources to fail, and continuing would waste O(N) reloads.
+
+	sharedInputFailureThreshold = 2
+
+	// Secret file name prefixes, one per role that produces a file on disk.
+	tlsKeyPairFilePrefix   = "ssl_keypair_"
+	caCertBundleFilePrefix = "cert_bundle_"
+	caCRLBundleFilePrefix  = "crl_bundle_"
+	jwtKeyFilePrefix       = "jwt_key_"
+	basicAuthFilePrefix    = "basic_auth_"
 )
 
 // DefaultServerSecretPath is the full path to the Secret with a TLS cert and a key for the default server. #nosec G101
@@ -115,28 +130,29 @@ type metricLabelsIndex struct {
 // This allows the Ingress Controller to incrementally build the NGINX configuration during the IC start and
 // then apply it at the end of the start.
 type Configurator struct {
-	nginxManager              nginx.Manager
-	staticCfgParams           *StaticConfigParams
-	CfgParams                 *ConfigParams
-	MgmtCfgParams             *MGMTConfigParams
-	templateExecutor          *version1.TemplateExecutor
-	templateExecutorV2        *version2.TemplateExecutor
-	ingresses                 map[string]*IngressEx
-	minions                   map[string]map[string]bool
-	mergeableIngresses        map[string]*MergeableIngresses
-	virtualServers            map[string]*VirtualServerEx
-	transportServers          map[string]*TransportServerEx
-	tlsPassthroughPairs       map[string]tlsPassthroughPair
-	isWildcardEnabled         bool
-	isPlus                    bool
-	labelUpdater              collector.LabelUpdater
-	metricLabelsIndex         *metricLabelsIndex
-	isPrometheusEnabled       bool
-	latencyCollector          latCollector.LatencyCollector
-	isLatencyMetricsEnabled   bool
-	isReloadsEnabled          bool
-	isDynamicSSLReloadEnabled bool
-	ingressControllerReplicas int
+	nginxManager                 nginx.Manager
+	staticCfgParams              *StaticConfigParams
+	CfgParams                    *ConfigParams
+	MgmtCfgParams                *MGMTConfigParams
+	templateExecutor             *version1.TemplateExecutor
+	templateExecutorV2           *version2.TemplateExecutor
+	ingresses                    map[string]*IngressEx
+	minions                      map[string]map[string]bool
+	mergeableIngresses           map[string]*MergeableIngresses
+	virtualServers               map[string]*VirtualServerEx
+	transportServers             map[string]*TransportServerEx
+	tlsPassthroughPairs          map[string]tlsPassthroughPair
+	isWildcardEnabled            bool
+	isPlus                       bool
+	labelUpdater                 collector.LabelUpdater
+	metricLabelsIndex            *metricLabelsIndex
+	isPrometheusEnabled          bool
+	latencyCollector             latCollector.LatencyCollector
+	isLatencyMetricsEnabled      bool
+	isReloadsEnabled             bool
+	isDynamicSSLReloadEnabled    bool
+	ingressControllerReplicas    int
+	effectiveBatchExclusionCount int
 }
 
 // ConfiguratorParams is a collection of parameters used for the
@@ -214,6 +230,15 @@ func findRemovedKeys(currentKeys []string, newKeys map[string]bool) []string {
 	return removedKeys
 }
 
+// normalizeServerZoneName maps empty-host ingress zones to the underscore token emitted in NGINX config.
+func normalizeServerZoneName(zone string) string {
+	if zone == emptyHostName {
+		return emptyHostToken
+	}
+
+	return zone
+}
+
 func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams []version1.Upstream) {
 	upstreamServerLabels := make(map[string][]string)
 	newUpstreams := make(map[string]bool)
@@ -257,9 +282,13 @@ func (cnf *Configurator) updateIngressMetricsLabels(ingEx *IngressEx, upstreams 
 		newZones := make(map[string]bool)
 		var newZonesNames []string
 		for _, rule := range ingEx.Ingress.Spec.Rules {
-			serverZoneLabels[rule.Host] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
-			newZones[rule.Host] = true
-			newZonesNames = append(newZonesNames, rule.Host)
+			if ingEx.ValidHosts != nil && !ingEx.ValidHosts[rule.Host] {
+				continue
+			}
+			zoneName := normalizeServerZoneName(rule.Host)
+			serverZoneLabels[zoneName] = []string{"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace}
+			newZones[zoneName] = true
+			newZonesNames = append(newZonesNames, zoneName)
 		}
 
 		removedZones := findRemovedKeys(cnf.metricLabelsIndex.ingressServerZones[key], newZones)
@@ -475,16 +504,6 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 	cnf.updateDosResource(ingEx.DosEx)
 	dosResource := getAppProtectDosResource(ingEx.DosEx)
 
-	// LocalSecretStore will not set Path if the secret is not on the filesystem.
-	// However, NGINX configuration for an Ingress resource, to handle the case of a missing secret,
-	// relies on the path to be always configured.
-	if jwtKey, exists := ingEx.Ingress.Annotations[JWTKeyAnnotation]; exists {
-		ingEx.SecretRefs[jwtKey].Path = cnf.nginxManager.GetFilenameForSecret(ingEx.Ingress.Namespace + "-" + jwtKey)
-	}
-	if basicAuth, exists := ingEx.Ingress.Annotations[BasicAuthSecretAnnotation]; exists {
-		ingEx.SecretRefs[basicAuth].Path = cnf.nginxManager.GetFilenameForSecret(ingEx.Ingress.Namespace + "-" + basicAuth)
-	}
-
 	isMinion := false
 	nginxCfg, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:              cnf.staticCfgParams,
@@ -549,24 +568,6 @@ func (cnf *Configurator) addOrUpdateMergeableIngress(mergeableIngs *MergeableIng
 	apResources := cnf.updateApResourcesForMergeableIngresses(mergeableIngs)
 	cnf.updateDosResource(mergeableIngs.Master.DosEx)
 	dosResource := getAppProtectDosResource(mergeableIngs.Master.DosEx)
-
-	// LocalSecretStore will not set Path if the secret is not on the filesystem.
-	// However, NGINX configuration for an Ingress resource, to handle the case of a missing secret,
-	// relies on the path to be always configured.
-	if jwtKey, exists := mergeableIngs.Master.Ingress.Annotations[JWTKeyAnnotation]; exists {
-		mergeableIngs.Master.SecretRefs[jwtKey].Path = cnf.nginxManager.GetFilenameForSecret(mergeableIngs.Master.Ingress.Namespace + "-" + jwtKey)
-	}
-	if basicAuth, exists := mergeableIngs.Master.Ingress.Annotations[BasicAuthSecretAnnotation]; exists {
-		mergeableIngs.Master.SecretRefs[basicAuth].Path = cnf.nginxManager.GetFilenameForSecret(mergeableIngs.Master.Ingress.Namespace + "-" + basicAuth)
-	}
-	for _, minion := range mergeableIngs.Minions {
-		if jwtKey, exists := minion.Ingress.Annotations[JWTKeyAnnotation]; exists {
-			minion.SecretRefs[jwtKey].Path = cnf.nginxManager.GetFilenameForSecret(minion.Ingress.Namespace + "-" + jwtKey)
-		}
-		if basicAuth, exists := minion.Ingress.Annotations[BasicAuthSecretAnnotation]; exists {
-			minion.SecretRefs[basicAuth].Path = cnf.nginxManager.GetFilenameForSecret(minion.Ingress.Namespace + "-" + basicAuth)
-		}
-	}
 
 	nginxCfg, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
 		mergeableIngs:             mergeableIngs,
@@ -969,16 +970,28 @@ func (cnf *Configurator) AddOrUpdateCASecret(secret *api_v1.Secret, crtFileName,
 	return fmt.Sprintf("%s %s", crtFilePath, crlFilePath)
 }
 
-func (cnf *Configurator) addOrUpdateJWKSecret(secret *api_v1.Secret) string {
-	name := objectMetaToFileName(&secret.ObjectMeta)
-	data := secret.Data[JWTKeyKey]
-	return cnf.nginxManager.CreateSecret(name, data, nginx.JWKSecretFileMode)
-}
+// addOrUpdateCASecretForRole writes a RoleCA Secret under its role-derived file names.
+func (cnf *Configurator) addOrUpdateCASecretForRole(secret *api_v1.Secret, key string) secrets.Materialized {
+	crtData, crlData := GenerateCAFileContent(secret)
 
-func (cnf *Configurator) addOrUpdateHtpasswdSecret(secret *api_v1.Secret) string {
-	name := objectMetaToFileName(&secret.ObjectMeta)
-	data := secret.Data[HtpasswdFileKey]
-	return cnf.nginxManager.CreateSecret(name, data, nginx.HtpasswdSecretFileMode)
+	m := secrets.Materialized{Path: cnf.nginxManager.CreateSecret(
+		secretFileName(key, secrets.RoleCA),
+		crtData,
+		nginx.ReadWriteOnlyFileMode,
+	)}
+
+	crlFileName := secretCRLFileName(key)
+	if _, hasCRL := secret.Data[secrets.CACrlKey]; hasCRL {
+		m.CRLPath = cnf.nginxManager.CreateSecret(
+			crlFileName,
+			crlData,
+			nginx.ReadWriteOnlyFileMode,
+		)
+	} else {
+		cnf.nginxManager.DeleteSecret(crlFileName)
+	}
+
+	return m
 }
 
 // AddOrUpdateResources adds or updates configuration for resources.
@@ -1068,12 +1081,6 @@ func (cnf *Configurator) AddOrUpdateLicenseSecret(secret *api_v1.Secret) error {
 	cnf.nginxManager.CreateSecret(LicenseSecretFileName, data, nginx.ReadWriteOnlyFileMode)
 
 	return nil
-}
-
-func (cnf *Configurator) addOrUpdateTLSSecret(secret *api_v1.Secret) string {
-	name := objectMetaToFileName(&secret.ObjectMeta)
-	data := GenerateCertAndKeyFileContent(secret)
-	return cnf.nginxManager.CreateSecret(name, data, nginx.ReadWriteOnlyFileMode)
 }
 
 // AddOrUpdateSpecialTLSSecrets adds or updates a file with a TLS cert and a key from a Special TLS Secret (eg. DefaultServerSecret, WildcardTLSSecret).
@@ -1520,6 +1527,59 @@ func (cnf *Configurator) DisableReloads() {
 	cnf.isReloadsEnabled = false
 }
 
+// EnableBatchMode enables batch mode on the underlying ConfigRollbackManager, if config safety is active.
+// In batch mode, CreateConfig/CreateStreamConfig writes are deferred from per-file nginx -t validation.
+// This is used during startup to avoid O(N²) validation cost and all configs are written directly,
+// then validated with a single nginx -t in CompleteBatch().
+func (cnf *Configurator) EnableBatchMode() {
+	if rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager); ok {
+		rm.EnableBatchMode()
+	}
+}
+
+// IsConfigSafetyEnabled reports whether the controller is running with -enable-config-safety.
+// It is true iff the underlying nginx manager is a *ConfigRollbackManager
+func (cnf *Configurator) IsConfigSafetyEnabled() bool {
+	_, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	return ok
+}
+
+// CompleteBatch finalizes batch mode on the underlying ConfigRollbackManager.
+// Runs a single nginx -t against the full config tree. On failure, isolates and excludes
+// bad configs. Returns the list of excluded resources (nil if all valid) and an error
+// if isolation completely failed (caller should fall back to per-file replay).
+func (cnf *Configurator) CompleteBatch() ([]nginx.BatchExclusion, error) {
+	rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	if !ok {
+		return nil, nil
+	}
+	if err := rm.CompleteBatch(); err != nil {
+		return rm.BatchExclusions(), err
+	}
+	return rm.BatchExclusions(), nil
+}
+
+// GetBatchExclusions returns the list of resources excluded during the most recent
+// CompleteBatch() call. Used by the controller to log excluded resources after pod ready.
+// Returns nil if no batch exclusions occurred or if config safety is not active.
+func (cnf *Configurator) GetBatchExclusions() []nginx.BatchExclusion {
+	rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	if !ok {
+		return nil
+	}
+	return rm.BatchExclusions()
+}
+
+// EffectiveBatchExclusionCount returns the number of unique resources whose configs
+// were effectively excluded during the most recent completeBatchAndIsolate call.
+// When multiple resources share a single config file (empty-host Ingresses share
+// _default-server.conf), a single BatchExclusion covers N resources; this count
+// reflects the resource-level total rather than the file-level total, and is what
+// the controller's readiness gate uses to detect the "all resources broken" case.
+func (cnf *Configurator) EffectiveBatchExclusionCount() int {
+	return cnf.effectiveBatchExclusionCount
+}
+
 // Reload reloads nginx if reloads is enabled
 func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 	if !cnf.isReloadsEnabled {
@@ -1545,6 +1605,280 @@ func (cnf *Configurator) updateStreamServersInPlus(upstream string, servers []st
 	return cnf.nginxManager.UpdateStreamServersInPlus(upstream, servers)
 }
 
+// resourceUpdateTask captures one addOrUpdate<Kind> call together with the metadata
+// needed to attribute a failure back to a Kubernetes resource. It exists so that
+// UpdateConfig can process Ingresses, MergeableIngresses, VirtualServers, and
+// TransportServers through a single loop with unified error handling.
+type resourceUpdateTask struct {
+	kind      string
+	namespace string
+	name      string
+	update    func() (Warnings, []WeightUpdate, error)
+}
+
+// buildResourceUpdateTasks flattens ExtendedResources into a single ordered list of
+// update tasks. Order matches the historical per-type loop order
+// (Ingress → MergeableIngress → VirtualServer → TransportServer) so shared-input
+// early-exit behavior is preserved: two consecutive failures still terminate
+// processing at the same point.
+func (cnf *Configurator) buildResourceUpdateTasks(resources ExtendedResources) []resourceUpdateTask {
+	tasks := make([]resourceUpdateTask, 0,
+		len(resources.IngressExes)+len(resources.MergeableIngresses)+
+			len(resources.VirtualServerExes)+len(resources.TransportServerExes))
+	for _, ingEx := range resources.IngressExes {
+		tasks = append(tasks, resourceUpdateTask{
+			kind:      "Ingress",
+			namespace: ingEx.Ingress.Namespace,
+			name:      ingEx.Ingress.Name,
+			update: func() (Warnings, []WeightUpdate, error) {
+				_, warnings, err := cnf.addOrUpdateIngress(ingEx)
+				return warnings, nil, err
+			},
+		})
+	}
+	for _, mergeableIng := range resources.MergeableIngresses {
+		tasks = append(tasks, resourceUpdateTask{
+			kind:      "Ingress",
+			namespace: mergeableIng.Master.Ingress.Namespace,
+			name:      mergeableIng.Master.Ingress.Name,
+			update: func() (Warnings, []WeightUpdate, error) {
+				_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
+				return warnings, nil, err
+			},
+		})
+	}
+	for _, vsEx := range resources.VirtualServerExes {
+		tasks = append(tasks, resourceUpdateTask{
+			kind:      "VirtualServer",
+			namespace: vsEx.VirtualServer.Namespace,
+			name:      vsEx.VirtualServer.Name,
+			update: func() (Warnings, []WeightUpdate, error) {
+				_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
+				return warnings, weightUpdates, err
+			},
+		})
+	}
+	for _, tsEx := range resources.TransportServerExes {
+		tasks = append(tasks, resourceUpdateTask{
+			kind:      "TransportServer",
+			namespace: tsEx.TransportServer.Namespace,
+			name:      tsEx.TransportServer.Name,
+			update: func() (Warnings, []WeightUpdate, error) {
+				_, warnings, err := cnf.addOrUpdateTransportServer(tsEx)
+				return warnings, nil, err
+			},
+		})
+	}
+	return tasks
+}
+
+// resourceUpdateResult carries the outcome of applyResourceUpdates for a single pass.
+type resourceUpdateResult struct {
+	warnings            Warnings
+	weightUpdates       []WeightUpdate
+	sharedInputFailure  bool // set true when the early-exit threshold was reached
+	consecutiveFailures int  // trailing consecutive per-resource failures at loop exit (equals the threshold when sharedInputFailure is true; otherwise the count of trailing failures, or 0 if the last task succeeded)
+	processedCount      int  // number of tasks fully attempted (excludes tasks skipped after early exit)
+}
+
+// applyResourceUpdates runs each task and records per-resource errors.
+//
+// When enableEarlyExit is true (post-startup, non-batch mode), two consecutive per-resource
+// failures set sharedInputFailure=true and the remaining tasks are skipped. This detects
+// bad shared inputs (e.g. a broken server-snippets in the ConfigMap) without churning
+// through every resource. The threshold is fixed at sharedInputFailureThreshold and is
+// not tunable — see the constant's comment for the rationale.
+//
+// When isRollbackManager is false, per-resource errors are propagated to the caller
+// immediately (fail-fast); this preserves the legacy non-safety semantics.
+func (cnf *Configurator) applyResourceUpdates(
+	tasks []resourceUpdateTask,
+	isRollbackManager, enableEarlyExit bool,
+	resourceErrors ResourceErrors,
+) (resourceUpdateResult, error) {
+	res := resourceUpdateResult{warnings: newWarnings()}
+	for _, task := range tasks {
+		if res.sharedInputFailure {
+			break
+		}
+		res.processedCount++
+		warnings, weightUpdates, err := task.update()
+		if err != nil {
+			if !isRollbackManager {
+				return res, err
+			}
+			key := MakeResourceErrorKey(task.kind, task.namespace, task.name)
+			// This resource failed validation during a shared-input regeneration pass
+			// (ConfigMap or special Secret change). The nginx error follows; check the
+			// events on the triggering ConfigMap/Secret for the root-cause change.
+			resourceErrors[key] = fmt.Errorf("resource config rejected during shared-input regeneration "+
+				"(check the ConfigMap/Secret events for the triggering change): %w", err)
+			if enableEarlyExit {
+				res.consecutiveFailures++
+				if res.consecutiveFailures >= sharedInputFailureThreshold {
+					res.sharedInputFailure = true
+				}
+			}
+			continue
+		}
+		res.consecutiveFailures = 0
+		res.warnings.Add(warnings)
+		res.weightUpdates = append(res.weightUpdates, weightUpdates...)
+	}
+	return res, nil
+}
+
+// buildFilenameToErrorKey maps each generated config filename to the kind-qualified
+// error keys (Kind/namespace/name) of resources whose content ended up in that file.
+// Most files have a single owner. Exceptions are files shared by multiple resources:
+// empty-host Ingresses and empty-host mergeable-Ingress masters both write to the
+// shared _default-server.conf, so a single filename can map to multiple owner keys.
+// The controller uses each owner key to emit a per-resource error event, and the
+// number of unique owners feeds the readiness gate's "all resources broken" check.
+func buildFilenameToErrorKey(resources ExtendedResources) map[string][]string {
+	m := make(map[string][]string,
+		len(resources.IngressExes)+len(resources.MergeableIngresses)+
+			len(resources.VirtualServerExes)+len(resources.TransportServerExes))
+	for _, ingEx := range resources.IngressExes {
+		errKey := MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
+		// Empty-host Ingresses route their generated content into the shared
+		// _default-server.conf via addOrUpdateIngress; the per-Ingress filename
+		// ("namespace-name") is never written, so it will never appear in
+		// batchFiles and adding it to the map would be dead attribution.
+		if ingEx.ValidHosts[emptyHostName] {
+			m[DefaultServerConfigName] = append(m[DefaultServerConfigName], errKey)
+			continue
+		}
+		fileName := objectMetaToFileName(&ingEx.Ingress.ObjectMeta)
+		m[fileName] = append(m[fileName], errKey)
+	}
+	for _, mergeableIng := range resources.MergeableIngresses {
+		errKey := MakeResourceErrorKey("Ingress",
+			mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
+		// Same as above: an empty-host mergeable master writes only into
+		// _default-server.conf, so skip the per-master filename entry.
+		if mergeableIng.Master.ValidHosts[emptyHostName] {
+			m[DefaultServerConfigName] = append(m[DefaultServerConfigName], errKey)
+			continue
+		}
+		fileName := objectMetaToFileName(&mergeableIng.Master.Ingress.ObjectMeta)
+		m[fileName] = append(m[fileName], errKey)
+	}
+	for _, vsEx := range resources.VirtualServerExes {
+		fileName := getFileNameForVirtualServer(vsEx.VirtualServer)
+		errKey := MakeResourceErrorKey("VirtualServer", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
+		m[fileName] = append(m[fileName], errKey)
+	}
+	for _, tsEx := range resources.TransportServerExes {
+		fileName := getFileNameForTransportServer(tsEx.TransportServer)
+		errKey := MakeResourceErrorKey("TransportServer", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
+		m[fileName] = append(m[fileName], errKey)
+	}
+	return m
+}
+
+// completeBatchAndIsolate finalizes the startup batch: runs the single full-tree
+// nginx -t via CompleteBatch, attributes any excluded configs back to their
+// Kubernetes resources (recorded into resourceErrors), and if CompleteBatch
+// cannot isolate the bad file at all, clears the caller's accumulators and
+// re-runs a per-file replay so we get a definitive per resource picture.
+//
+// resourceErrors is mutated in place on the happy path. On the nuclear-fallback
+// path resourceErrors is cleared (via the built-in clear) before being repopulated
+// by the replay, so its identity remains the caller's map. The returned warnings
+// and weightUpdates are either the passed-in values (happy path) or fresh values
+// from the replay (nuclear-fallback path), the caller must re-assign both.
+//
+// Callers must only invoke this when the underlying nginx manager is a
+// ConfigRollbackManager that is currently in batch mode.
+func (cnf *Configurator) completeBatchAndIsolate(
+	tasks []resourceUpdateTask,
+	resources ExtendedResources,
+	allWarnings Warnings,
+	allWeightUpdates []WeightUpdate,
+	resourceErrors ResourceErrors,
+	isRollbackManager bool,
+) (Warnings, []WeightUpdate, error) {
+	l := nl.LoggerFromContext(cnf.CfgParams.Context)
+	filenameToErrorKey := buildFilenameToErrorKey(resources)
+	cnf.effectiveBatchExclusionCount = 0
+
+	exclusions, batchErr := cnf.CompleteBatch()
+
+	// Record excluded resources as errors using the kind-qualified key format
+	// that matches r.GetKeyWithKind() in the controller's event emission loop.
+	// A single file exclusion can correspond to multiple resource-level errors when
+	// resources share a config file (empty-host Ingresses → _default-server.conf),
+	// so we iterate every owner and also track the unique set for the effective
+	// exclusion count consumed by the controller's readiness gate.
+	uniqueExcluded := make(map[string]struct{})
+	for _, excl := range exclusions {
+		errorKeys, mapped := filenameToErrorKey[excl.ResourceName]
+		if !mapped {
+			// Should not happen: every file written via batchWriteConfig has a
+			// corresponding entry in filenameToErrorKey. If it does happen, log
+			// loudly and attribute to the raw filename so the operator still gets
+			// a starting point to investigate.
+			nl.Warnf(l, "Config safety: batch exclusion for %q has no resource mapping — event attribution may be incorrect", excl.ResourceName)
+			errorKeys = []string{excl.ResourceName}
+		}
+		for _, errorKey := range errorKeys {
+			resourceErrors[errorKey] = fmt.Errorf("config safety: excluded due to invalid configuration: %w", excl.Error)
+			uniqueExcluded[errorKey] = struct{}{}
+		}
+	}
+	cnf.effectiveBatchExclusionCount = len(uniqueExcluded)
+
+	if batchErr == nil {
+		return allWarnings, allWeightUpdates, nil
+	}
+
+	// Nuclear fallback: CompleteBatch could not isolate the bad file(s). All batch
+	// files have been deleted, leaving only the pre-batch bootstrap on disk. Before
+	// doing the O(N) per-file replay, probe the on-disk state once. If nginx -t
+	// still fails, the bad content lives in a file we never tracked (bootstrap
+	// nginx.conf from a bad ConfigMap render, bad WAF policy file, etc.) and
+	// replaying every resource against that broken foundation would just fail N
+	// times and mis-attribute each failure to the resource instead of the real
+	// root cause. Skip the replay and mark every resource with a clear
+	// unrecoverable-main-config error.
+	if rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager); ok {
+		if probeErr := rm.TestConfig(); probeErr != nil {
+			nl.Errorf(l, "NGINX config still invalid after batch cleanup; skipping per-file replay "+
+				"(pre-batch bootstrap alone does not pass nginx -t). Correct the triggering "+
+				"ConfigMap/Secret to recover: %v", probeErr)
+			clear(resourceErrors)
+			uniqueUnrecoverable := make(map[string]struct{}, len(tasks))
+			for _, task := range tasks {
+				key := MakeResourceErrorKey(task.kind, task.namespace, task.name)
+				resourceErrors[key] = fmt.Errorf("NGINX main configuration is invalid; "+
+					"no resources can be applied until the triggering ConfigMap/Secret is corrected: %w",
+					probeErr)
+				uniqueUnrecoverable[key] = struct{}{}
+			}
+			cnf.effectiveBatchExclusionCount = len(uniqueUnrecoverable)
+			return allWarnings, allWeightUpdates, fmt.Errorf("batch validation failed and "+
+				"NGINX config remains invalid after batch cleanup: %w", probeErr)
+		}
+	}
+
+	// Nginx -t passes against the pre-batch bootstrap on disk, so it is a viable
+	// foundation for per-file replay. Replay each write through createConfigWithRollback
+	// (real per-file nginx -t + rollback). Early exit is disabled — we want a
+	// definitive per-resource picture rather than the shared-input heuristic.
+	nl.Warnf(l, "Batch validation failed completely (%v), falling back to per-file validation", batchErr)
+	clear(resourceErrors)
+	replayWarnings := newWarnings()
+	var replayWeightUpdates []WeightUpdate
+	replayRes, replayErr := cnf.applyResourceUpdates(tasks, isRollbackManager, false, resourceErrors)
+	if replayErr != nil {
+		return replayWarnings, replayWeightUpdates, replayErr
+	}
+	replayWarnings.Add(replayRes.warnings)
+	replayWeightUpdates = append(replayWeightUpdates, replayRes.weightUpdates...)
+	return replayWarnings, replayWeightUpdates, nil
+}
+
 // UpdateConfig updates NGINX configuration parameters.
 //
 //gocyclo:ignore
@@ -1552,7 +1886,15 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	allWarnings := newWarnings()
 	allWeightUpdates := []WeightUpdate{}
 	resourceErrors := make(ResourceErrors)
-	_, isRollbackManager := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+	rm, isRollbackManager := cnf.nginxManager.(*nginx.ConfigRollbackManager)
+
+	// Post-startup shared-input early exit: when not in batch mode (post-startup),
+	// track consecutive per-resource failures. If 2+ consecutive resources fail,
+	// it indicates a shared input (e.g., bad server-snippets from ConfigMap) is the
+	// root cause. Break early to avoid O(N²) nginx -t + O(N) reloads.
+	// The state is owned by applyResourceUpdates; the returned resourceUpdateResult
+	// carries sharedInputFailure and processedCount back to this function.
+	isPostStartupRollback := isRollbackManager && !rm.IsBatchMode()
 
 	if cnf.CfgParams.MainServerSSLDHParamFileContent != nil {
 		fileName, err := cnf.nginxManager.CreateDHParam(*cnf.CfgParams.MainServerSSLDHParamFileContent)
@@ -1611,7 +1953,14 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	if _, err := cnf.nginxManager.CreateMainConfig(mainCfgContent); err != nil {
 		if isRollbackManager {
 			l := nl.LoggerFromContext(cnf.CfgParams.Context)
-			nl.Warnf(l, "Main config validation failed: %v", err)
+
+			// Post-startup only: createConfigWithRollback has already restored the previous-good
+			// main config on disk, so NGINX is unaffected. We continue to the resource loops
+			// because each per-file createConfigWithRollback will still validate against the
+			// rolled-back main config and reject any resource that depends on the rejected changes.
+			nl.Warnf(l, "Main config validation failed and was rolled back to previous-good; "+
+				"NGINX continues serving previous configuration. Resource updates will use rolled-back main config. "+
+				"Root cause: %v", err)
 		} else {
 			return allWarnings, nil, err
 		}
@@ -1621,59 +1970,45 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 		return allWarnings, nil, fmt.Errorf("error syncing default server config: %w", err)
 	}
 
-	for _, ingEx := range resources.IngressExes {
-		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
-		if err != nil {
-			if isRollbackManager {
-				key := MakeResourceErrorKey("Ingress", ingEx.Ingress.Namespace, ingEx.Ingress.Name)
-				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
-				continue
-			}
-			return allWarnings, nil, err
-		}
-		allWarnings.Add(warnings)
+	// Process every resource type through a single unified loop. Ordering
+	// (Ingress → MergeableIngress → VirtualServer → TransportServer) is preserved
+	// by buildResourceUpdateTasks so shared-input early-exit behavior is unchanged.
+	tasks := cnf.buildResourceUpdateTasks(resources)
+	updateRes, updateErr := cnf.applyResourceUpdates(tasks, isRollbackManager, isPostStartupRollback, resourceErrors)
+	if updateErr != nil {
+		return allWarnings, nil, updateErr
 	}
-	for _, mergeableIng := range resources.MergeableIngresses {
-		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIng)
+	allWarnings.Add(updateRes.warnings)
+	allWeightUpdates = append(allWeightUpdates, updateRes.weightUpdates...)
+
+	// If running under ConfigRollbackManager in batch mode, validate the entire
+	// config tree with a single nginx -t and, on failure, isolate bad configs
+	// or fall back to per-file replay. See completeBatchAndIsolate for details.
+	if rm, ok := cnf.nginxManager.(*nginx.ConfigRollbackManager); ok && rm.IsBatchMode() {
+		var err error
+		allWarnings, allWeightUpdates, err = cnf.completeBatchAndIsolate(
+			tasks, resources, allWarnings, allWeightUpdates, resourceErrors, isRollbackManager,
+		)
 		if err != nil {
-			if isRollbackManager {
-				key := MakeResourceErrorKey("Ingress", mergeableIng.Master.Ingress.Namespace, mergeableIng.Master.Ingress.Name)
-				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
-				continue
-			}
-			return allWarnings, nil, err
+			return allWarnings, resourceErrors, err
 		}
-		allWarnings.Add(warnings)
-	}
-	for _, vsEx := range resources.VirtualServerExes {
-		_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(vsEx)
-		if err != nil {
-			if isRollbackManager {
-				key := MakeResourceErrorKey("VirtualServer", vsEx.VirtualServer.Namespace, vsEx.VirtualServer.Name)
-				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
-				continue
-			}
-			return allWarnings, nil, err
-		}
-		allWarnings.Add(warnings)
-		allWeightUpdates = append(allWeightUpdates, weightUpdates...)
 	}
 
-	for _, tsEx := range resources.TransportServerExes {
-		_, warnings, err := cnf.addOrUpdateTransportServer(tsEx)
-		if err != nil {
-			if isRollbackManager {
-				key := MakeResourceErrorKey("TransportServer", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name)
-				resourceErrors[key] = fmt.Errorf("error when updating config from ConfigMap: %w", err)
-				continue
-			}
-			return allWarnings, nil, err
-		}
-		allWarnings.Add(warnings)
+	// Shared-input early exit: if consecutive failures detected a shared-input problem
+	// (e.g., bad server-snippets from ConfigMap), skip the final reload. All failed files
+	// were already rolled back to previous-good by createConfigWithRollback, and NGINX was
+	// reloaded to the previous-good state during rollback. No further action needed.
+	if updateRes.sharedInputFailure {
+		l := nl.LoggerFromContext(cnf.CfgParams.Context)
+		nl.Warnf(l, "Shared-input failure detected: %d consecutive resource configs failed validation. "+
+			"Likely cause is a bad ConfigMap snippet (e.g., server-snippets). "+
+			"Skipping remaining %d resource(s) and final reload — NGINX continues serving previous-good config.",
+			updateRes.consecutiveFailures, len(tasks)-updateRes.processedCount)
+		return allWarnings, resourceErrors, nil
 	}
 
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
-		return allWarnings, resourceErrors, fmt.Errorf("error when updating config from ConfigMap: %w", err)
+		return allWarnings, resourceErrors, fmt.Errorf("NGINX reload failed after shared-input regeneration: %w", err)
 	}
 
 	for _, weightUpdate := range allWeightUpdates {
@@ -2229,34 +2564,93 @@ func (cnf *Configurator) DeleteAppProtectDosAllowList(obj *v1beta1.DosProtectedR
 	cnf.nginxManager.DeleteAppProtectResourceFile(appProtectDosAllowListFileName(obj.Namespace, obj.Name))
 }
 
-// AddOrUpdateSecret adds or updates a secret.
-func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret) string {
-	switch secret.Type {
-	case secrets.SecretTypeCA:
-		name := objectMetaToFileName(&secret.ObjectMeta)
-		crtSecretName := fmt.Sprintf("%s-%s", name, CACrtKey)
-		crlSecretName := fmt.Sprintf("%s-%s", name, CACrlKey)
-		return cnf.AddOrUpdateCASecret(secret, crtSecretName, crlSecretName)
-	case secrets.SecretTypeJWK:
-		return cnf.addOrUpdateJWKSecret(secret)
-	case secrets.SecretTypeHtpasswd:
-		return cnf.addOrUpdateHtpasswdSecret(secret)
-	case secrets.SecretTypeOIDC:
-		// OIDC ClientSecret is not required on the filesystem, it is written directly to the config file.
-		return ""
-	case secrets.SecretTypeAPIKey:
-		// APIKey ClientSecret is not required on the filesystem, it is written directly to the config file.
-		return ""
-	case secrets.SecretTypeLicense:
-		return ""
-	default:
-		return cnf.addOrUpdateTLSSecret(secret)
+// AddOrUpdateSecret writes a Secret to disk for the given role and returns the resulting paths.
+func (cnf *Configurator) AddOrUpdateSecret(secret *api_v1.Secret, role secrets.SecretRole) secrets.Materialized {
+	key := generateNamespaceNameKey(&secret.ObjectMeta)
+
+	switch role {
+	case secrets.RoleTLS:
+		return secrets.Materialized{
+			Path: cnf.nginxManager.CreateSecret(
+				secretFileName(key, role),
+				GenerateCertAndKeyFileContent(secret),
+				nginx.ReadWriteOnlyFileMode,
+			),
+		}
+
+	case secrets.RoleCA:
+		return cnf.addOrUpdateCASecretForRole(secret, key)
+
+	case secrets.RoleJWK:
+		return secrets.Materialized{
+			Path: cnf.nginxManager.CreateSecret(
+				secretFileName(key, role),
+				secret.Data[secrets.JWTKeyKey],
+				nginx.JWKSecretFileMode,
+			),
+		}
+	case secrets.RoleHtpasswd:
+		return secrets.Materialized{
+			Path: cnf.nginxManager.CreateSecret(
+				secretFileName(key, role),
+				secret.Data[secrets.HtpasswdFileKey],
+				nginx.HtpasswdSecretFileMode,
+			),
+		}
+	}
+	return secrets.Materialized{}
+}
+
+// DeleteSecret removes the files a Secret occupies for the given role.
+func (cnf *Configurator) DeleteSecret(key string, role secrets.SecretRole) {
+	name := secretFileName(key, role)
+	if name == "" {
+		return
+	}
+	cnf.nginxManager.DeleteSecret(name)
+
+	if role == secrets.RoleCA {
+		cnf.nginxManager.DeleteSecret(secretCRLFileName(key))
 	}
 }
 
-// DeleteSecret deletes a secret.
-func (cnf *Configurator) DeleteSecret(key string) {
-	cnf.nginxManager.DeleteSecret(keyToFileName(key))
+// SecretPaths returns the paths a Secret would occupy for role, without touching
+// the file system.
+func (cnf *Configurator) SecretPaths(key string, role secrets.SecretRole) secrets.Materialized {
+	name := secretFileName(key, role)
+	if name == "" {
+		return secrets.Materialized{}
+	}
+	return secrets.Materialized{Path: cnf.nginxManager.GetFilenameForSecret(name)}
+}
+
+// secretFileName returns the file name a Secret identified by key
+// ("<namespace>/<name>") occupies for role, or "" for roles that produce no file.
+func secretFileName(key string, role secrets.SecretRole) string {
+	name := strings.ReplaceAll(key, "/", "_")
+
+	switch role {
+	case secrets.RoleTLS:
+		return tlsKeyPairFilePrefix + name + ".pem"
+	case secrets.RoleCA:
+		return caCertBundleFilePrefix + name + ".crt"
+	case secrets.RoleJWK:
+		return jwtKeyFilePrefix + name
+	case secrets.RoleHtpasswd:
+		return basicAuthFilePrefix + name
+	default:
+		// OIDC and API key data is inlined into the generated configuration,
+		// WAF bundle credentials are read from the Secret at fetch time, and the
+		// license is written to a fixed path by AddOrUpdateLicenseSecret.
+		return ""
+	}
+}
+
+// secretCRLFileName returns the certificate revocation list file name for a
+// RoleCA Secret. Separate from secretFileName because RoleCA is the only role
+// that produces two files.
+func secretCRLFileName(key string) string {
+	return caCRLBundleFilePrefix + strings.ReplaceAll(key, "/", "_") + ".pem"
 }
 
 // DynamicSSLReloadEnabled is used to check if dynamic reloading of SSL certificates is enabled

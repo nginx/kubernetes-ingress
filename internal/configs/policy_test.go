@@ -3,7 +3,6 @@ package configs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"testing"
 
@@ -30,77 +29,62 @@ func TestGeneratePolicies(t *testing.T) {
 	}
 	mTLSCertPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt"
 	mTLSCrlPath := "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl"
-	mTLSCertAndCrlPath := fmt.Sprintf("%s %s", mTLSCertPath, mTLSCrlPath)
 	policyOpts := policyOptions{
 		tls:            true,
 		zoneSync:       false,
 		replicas:       2,
 		oidcPolicyName: "",
-		secretRefs: map[string]*secrets.SecretReference{
-			"default/ingress-mtls-secret": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeCA,
-				},
-				Path: mTLSCertPath,
+		secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+				Secret: &api_v1.Secret{},
+				Path:   mTLSCertPath,
 			},
-			"default/ingress-mtls-secret-crl": {
+			secrets.RefKey("default/ingress-mtls-secret-crl", secrets.RoleCA): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeCA,
 					Data: map[string][]byte{
 						"ca.crl": []byte("base64crl"),
 					},
 				},
-				Path: mTLSCertAndCrlPath,
+				Path:    mTLSCertPath,
+				CRLPath: mTLSCrlPath,
 			},
-			"default/egress-mtls-secret": {
-				Secret: &api_v1.Secret{
-					Type: api_v1.SecretTypeTLS,
-				},
-				Path: "/etc/nginx/secrets/default-egress-mtls-secret",
+			secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-egress-mtls-secret",
 			},
-			"default/egress-trusted-ca-secret": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeCA,
-				},
-				Path: "/etc/nginx/secrets/default-egress-trusted-ca-secret",
+			secrets.RefKey("default/egress-trusted-ca-secret", secrets.RoleCA): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-egress-trusted-ca-secret",
 			},
-			"default/egress-trusted-ca-secret-crl": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeCA,
-				},
-				Path: mTLSCertAndCrlPath,
+			secrets.RefKey("default/egress-trusted-ca-secret-crl", secrets.RoleCA): {
+				Secret:  &api_v1.Secret{},
+				Path:    mTLSCertPath,
+				CRLPath: mTLSCrlPath,
 			},
-			"default/jwt-secret": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeJWK,
-				},
-				Path: "/etc/nginx/secrets/default-jwt-secret",
+			secrets.RefKey("default/jwt-secret", secrets.RoleJWK): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-jwt-secret",
 			},
-			"default/htpasswd-secret": {
-				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeHtpasswd,
-				},
-				Path: "/etc/nginx/secrets/default-htpasswd-secret",
+			secrets.RefKey("default/htpasswd-secret", secrets.RoleHtpasswd): {
+				Secret: &api_v1.Secret{},
+				Path:   "/etc/nginx/secrets/default-htpasswd-secret",
 			},
-			"default/oidc-secret": {
+			secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("super_secret_123"),
 					},
 				},
 			},
-			"default/api-key-secret": {
+			secrets.RefKey("default/api-key-secret", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client1": []byte("password"),
 					},
 				},
 			},
-			"default/api-key-secret-2": {
+			secrets.RefKey("default/api-key-secret-2", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client2": []byte("password2"),
 					},
@@ -878,6 +862,183 @@ func TestGeneratePolicies(t *testing.T) {
 				},
 			},
 			msg: "oidc reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:         "https://accounts.google.com",
+							ClientID:       "my-client-id",
+							ClientSecret:   "oidc-secret",
+							Scope:          "openid+profile",
+							RedirectURI:    "/callback",
+							LogoutURI:      "/logout",
+							SessionTimeout: "4h",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				OIDCProvider: &version2.OIDCProvider{
+					Name:                 "oidc_default_oidc_native_policy_default_test_vs",
+					PolicyKey:            "default/oidc-native-policy",
+					Issuer:               "https://accounts.google.com",
+					ClientID:             "my-client-id",
+					ClientSecret:         "super_secret_123",
+					Scope:                "openid profile",
+					RedirectURI:          "/callback",
+					CookieName:           "NGX_OIDC_oidc_default_oidc_native_policy_default_test_vs",
+					SessionStore:         "oidc_sessions_oidc_default_oidc_native_policy_default_test_vs",
+					LogoutURI:            "/logout",
+					SessionTimeout:       "4h",
+					SSLTrustedCert:       "/etc/ssl/certs/ca-certificate.crt",
+					SSLVerify:            true,
+					SSLName:              "",
+					SSLVerifyDepth:       1,
+					ProxyLocation:        "/_oidc_idp_oidc_default_oidc_native_policy_default_test_vs",
+					ProxyBufferSize:      "32k",
+					ProxyTrustedCertPath: "/etc/ssl/certs/ca-certificate.crt",
+				},
+			},
+			msg: "oidcNative reference",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-minimal",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-minimal": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-minimal",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:   "https://keycloak.example.com/realms/master",
+							ClientID: "nginx-plus",
+						},
+					},
+				},
+			},
+			expected: policiesCfg{
+				Context: ctx,
+				OIDCProvider: &version2.OIDCProvider{
+					Name:                 "oidc_default_oidc_native_minimal_default_test_vs",
+					PolicyKey:            "default/oidc-native-minimal",
+					Issuer:               "https://keycloak.example.com/realms/master",
+					ClientID:             "nginx-plus",
+					RedirectURI:          "/oidc_callback_oidc_default_oidc_native_minimal_default_test_vs",
+					CookieName:           "NGX_OIDC_oidc_default_oidc_native_minimal_default_test_vs",
+					SessionStore:         "oidc_sessions_oidc_default_oidc_native_minimal_default_test_vs",
+					SSLTrustedCert:       "/etc/ssl/certs/ca-certificate.crt",
+					SSLVerify:            true,
+					SSLName:              "",
+					SSLVerifyDepth:       1,
+					ProxyLocation:        "/_oidc_idp_oidc_default_oidc_native_minimal_default_test_vs",
+					ProxyBufferSize:      "32k",
+					ProxyTrustedCertPath: "/etc/ssl/certs/ca-certificate.crt",
+				},
+			},
+			msg: "oidcNative minimal reference without secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-full",
+					Namespace: "default",
+				},
+			},
+			policies: func() map[string]*conf_v1.Policy {
+				sslVerifyTrue := true
+				sslVerifyDepth := 3
+				return map[string]*conf_v1.Policy{
+					"default/oidc-native-full": {
+						ObjectMeta: meta_v1.ObjectMeta{
+							Name:      "oidc-native-full",
+							Namespace: "default",
+						},
+						Spec: conf_v1.PolicySpec{
+							OIDCNative: &conf_v1.OIDCNative{
+								Issuer:                "https://keycloak.example.com/realms/master",
+								ClientID:              "nginx-plus",
+								ClientSecret:          "oidc-secret",
+								ConfigURL:             "https://keycloak.example.com/realms/master/.well-known/openid-configuration",
+								Scope:                 "openid+profile+email",
+								RedirectURI:           "/oidc_callback",
+								CookieName:            "MY_SESSION",
+								ExtraAuthArgs:         "prompt=login",
+								PKCE:                  "on",
+								LogoutURI:             "/logout",
+								PostLogoutRedirectURI: "/_logout",
+								FrontChannelLogoutURI: "/frontchannel_logout",
+								LogoutTokenHint:       true,
+								SessionTimeout:        "8h",
+								UserInfoEnable:        true,
+								TrustedCertSecret:     "ingress-mtls-secret-crl",
+								SSLName:               "custom-sni.example.com",
+								SSLVerify:             &sslVerifyTrue,
+								SSLVerifyDepth:        &sslVerifyDepth,
+								ProxyBufferSize:       "16k",
+							},
+						},
+					},
+				}
+			}(),
+			expected: policiesCfg{
+				Context: ctx,
+				OIDCProvider: &version2.OIDCProvider{
+					Name:          "oidc_default_oidc_native_full_default_test_vs",
+					PolicyKey:     "default/oidc-native-full",
+					Issuer:        "https://keycloak.example.com/realms/master",
+					ClientID:      "nginx-plus",
+					ClientSecret:  "super_secret_123",
+					ConfigURL:     "https://keycloak.example.com/realms/master/.well-known/openid-configuration",
+					Scope:         "openid profile email",
+					RedirectURI:   "/oidc_callback",
+					CookieName:    "MY_SESSION",
+					ExtraAuthArgs: "prompt=login",
+					PKCE:          "on",
+					LogoutURI:     "/logout",
+					PostLogoutURI: "/_logout",
+					PostLogoutLocation: &version2.AuthOIDCReturnLocation{
+						Path:        "/_logout",
+						DefaultType: "text/plain",
+						Return: version2.Return{
+							Code: 200,
+							Text: "You have been logged out.\n",
+						},
+					},
+					FrontChannelLogoutURI: "/frontchannel_logout",
+					LogoutTokenHint:       true,
+					SessionStore:          "oidc_sessions_oidc_default_oidc_native_full_default_test_vs",
+					SessionTimeout:        "8h",
+					UserInfoEnable:        true,
+					SSLTrustedCert:        "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt",
+					SSLCrl:                "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crl",
+					SSLVerify:             true,
+					SSLName:               "custom-sni.example.com",
+					SSLVerifyDepth:        3,
+					ProxyLocation:         "/_oidc_idp_oidc_default_oidc_native_full_default_test_vs",
+					ProxyBufferSize:       "16k",
+					ProxyTrustedCertPath:  "/etc/nginx/secrets/default-ingress-mtls-secret-ca.crt",
+				},
+			},
+			msg: "oidcNative full reference with all fields, trusted CA + CRL, and custom SSL settings",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2876,12 +3037,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/jwt-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeJWK,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/jwt-secret", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -2896,6 +3055,48 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "jwt reference missing secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "jwt-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/jwt-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "jwt-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:  "test",
+							Secret: "jwt-secret-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; jwt-secret-2 has no map entry
+					secrets.RefKey("default/jwt-secret-1", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
+					},
+				},
+			},
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`JWT policy default/jwt-policy-2 references a secret default/jwt-secret-2 that could not be resolved`,
+				},
+			},
+			msg: "jwt earlier invalid policy stops reference collection and later policy has no map entry",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2919,25 +3120,23 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/jwt-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/jwt-secret", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-jwt-secret",
 					},
 				},
 			},
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				JWTAuth: jwtAuth{
+					Auth: &version2.JWTAuth{
+						Secret: "/etc/nginx/secrets/default-jwt-secret",
+						Realm:  "test",
+					},
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`JWT policy default/jwt-policy references a secret default/jwt-secret of a wrong type 'nginx.org/ca', must be 'nginx.org/jwk'`,
-				},
-			},
-			msg: "jwt references wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "jwt secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -2977,18 +3176,14 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/jwt-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeJWK,
-						},
-						Path: "/etc/nginx/secrets/default-jwt-secret",
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/jwt-secret", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-jwt-secret",
 					},
-					"default/jwt-secret2": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeJWK,
-						},
-						Path: "/etc/nginx/secrets/default-jwt-secret2",
+					secrets.RefKey("default/jwt-secret2", secrets.RoleJWK): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-jwt-secret2",
 					},
 				},
 			},
@@ -3030,12 +3225,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/htpasswd-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeHtpasswd,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/htpasswd-secret", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -3050,6 +3243,48 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "basic auth reference missing secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "basic-auth-policy-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/basic-auth-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "basic-auth-policy-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Realm:  "test",
+							Secret: "htpasswd-secret-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; htpasswd-secret-2 has no map entry
+					secrets.RefKey("default/htpasswd-secret-1", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
+					},
+				},
+			},
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Basic Auth policy default/basic-auth-policy-2 references a secret default/htpasswd-secret-2 that could not be resolved`,
+				},
+			},
+			msg: "basic auth earlier invalid policy stops reference collection and later policy has no map entry",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3073,25 +3308,21 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/htpasswd-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/htpasswd-secret", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-htpasswd-secret",
 					},
 				},
 			},
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				BasicAuth: &version2.BasicAuth{
+					Secret: "/etc/nginx/secrets/default-htpasswd-secret",
+					Realm:  "test",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`Basic Auth policy default/basic-auth-policy references a secret default/htpasswd-secret of a wrong type 'nginx.org/ca', must be 'nginx.org/htpasswd'`,
-				},
-			},
-			msg: "basic auth references wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "basic auth secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3131,18 +3362,14 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/htpasswd-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeHtpasswd,
-						},
-						Path: "/etc/nginx/secrets/default-htpasswd-secret",
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/htpasswd-secret", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-htpasswd-secret",
 					},
-					"default/htpasswd-secret2": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeHtpasswd,
-						},
-						Path: "/etc/nginx/secrets/default-htpasswd-secret2",
+					secrets.RefKey("default/htpasswd-secret2", secrets.RoleHtpasswd): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-htpasswd-secret2",
 					},
 				},
 			},
@@ -3182,8 +3409,8 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
 						Error: errors.New("secret is invalid"),
 					},
 				},
@@ -3196,7 +3423,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`IngressMTLS policy "default/ingress-mtls-policy" references an invalid secret default/ingress-mtls-secret: secret is invalid`,
+					`IngressMTLS policy default/ingress-mtls-policy references an invalid secret default/ingress-mtls-secret: secret is invalid`,
 				},
 			},
 			msg: "ingress mtls reference an invalid secret",
@@ -3223,26 +3450,23 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: api_v1.SecretTypeTLS,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   ingressMTLSCertPath,
 					},
 				},
 			},
 			context: "spec",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				IngressMTLS: &version2.IngressMTLS{
+					ClientCert:   ingressMTLSCertPath,
+					VerifyClient: "on",
+					VerifyDepth:  1,
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`IngressMTLS policy default/ingress-mtls-policy references a secret default/ingress-mtls-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/ca'`,
-				},
-			},
-			msg: "ingress mtls references wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "ingress mtls secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3277,12 +3501,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
-						Path: ingressMTLSCertPath,
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   ingressMTLSCertPath,
 					},
 				},
 			},
@@ -3324,12 +3546,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
-						Path: ingressMTLSCertPath,
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   ingressMTLSCertPath,
 					},
 				},
 			},
@@ -3404,12 +3624,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: false,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
-						Path: ingressMTLSCertPath,
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   ingressMTLSCertPath,
 					},
 				},
 			},
@@ -3449,15 +3667,15 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls: true,
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/ingress-mtls-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/ingress-mtls-secret", secrets.RoleCA): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
 							Data: map[string][]byte{
 								"ca.crl": []byte("base64crl"),
 							},
 						},
-						Path: ingressMTLSCertPath,
+						Path:    ingressMTLSCertPath,
+						CRLPath: ingressMTLSCrlPath,
 					},
 				},
 			},
@@ -3501,7 +3719,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			policyOpts: policyOptions{
 				tls:        true,
-				secretRefs: map[string]*secrets.SecretReference{},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			context: "spec",
 			expected: policiesCfg{
@@ -3511,7 +3729,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`IngressMTLS policy "default/ingress-mtls-policy" references a non-existent secret default/ingress-mtls-secret`,
+					`IngressMTLS policy default/ingress-mtls-policy references a secret default/ingress-mtls-secret that could not be resolved`,
 				},
 			},
 			msg: "ingress mtls absent secret ref",
@@ -3552,12 +3770,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: api_v1.SecretTypeTLS,
-						},
-						Path: "/etc/nginx/secrets/default-egress-mtls-secret",
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-egress-mtls-secret",
 					},
 				},
 			},
@@ -3604,12 +3820,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-trusted-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-trusted-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -3648,26 +3862,27 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-egress-mtls-secret",
 					},
 				},
 			},
 			context: "route",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				EgressMTLS: &version2.EgressMTLS{
+					Certificate:    "/etc/nginx/secrets/default-egress-mtls-secret",
+					CertificateKey: "/etc/nginx/secrets/default-egress-mtls-secret",
+					Ciphers:        "DEFAULT",
+					Protocols:      "TLSv1 TLSv1.1 TLSv1.2",
+					VerifyDepth:    1,
+					SessionReuse:   true,
+					SSLName:        "foo.com",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`EgressMTLS policy default/egress-mtls-policy references a secret default/egress-mtls-secret of a wrong type 'nginx.org/ca', must be 'kubernetes.io/tls'`,
-				},
-			},
-			msg: "egress mtls referencing wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "egress mtls tls secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3691,26 +3906,26 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-trusted-secret": {
-						Secret: &api_v1.Secret{
-							Type: api_v1.SecretTypeTLS,
-						},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-trusted-secret", secrets.RoleCA): {
+						Secret: &api_v1.Secret{},
+						Path:   "/etc/nginx/secrets/default-egress-trusted-secret",
 					},
 				},
 			},
 			context: "route",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				EgressMTLS: &version2.EgressMTLS{
+					Ciphers:      "DEFAULT",
+					Protocols:    "TLSv1 TLSv1.1 TLSv1.2",
+					VerifyDepth:  1,
+					SessionReuse: true,
+					TrustedCert:  "/etc/nginx/secrets/default-egress-trusted-secret",
+					SSLName:      "foo.com",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`EgressMTLS policy default/egress-mtls-policy references a secret default/egress-trusted-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/ca'`,
-				},
-			},
-			msg: "egress trusted secret referencing wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "egress mtls trusted cert secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3734,12 +3949,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/egress-mtls-secret": {
-						Secret: &api_v1.Secret{
-							Type: api_v1.SecretTypeTLS,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/egress-mtls-secret", secrets.RoleTLS): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -3778,7 +3991,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{},
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
 			},
 			context: "route",
 			expected: policiesCfg{
@@ -3788,7 +4001,7 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`EgressMTLS policy default/egress-mtls-policy references an invalid secret default/egress-mtls-secret: secret doesn't exist`,
+					`EgressMTLS policy default/egress-mtls-policy references a secret default/egress-mtls-secret that could not be resolved`,
 				},
 			},
 			msg: "egress mtls referencing absent tls secret ref",
@@ -3814,12 +4027,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -3858,32 +4069,41 @@ func TestGeneratePoliciesFails(t *testing.T) {
 							EndSessionEndpoint:    "http://foo.com/bar",
 							PostLogoutRedirectURI: "/_logout",
 							AccessTokenEnable:     true,
-							PKCEEnable:            true,
 						},
 					},
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
 							Type: api_v1.SecretTypeTLS,
+							Data: map[string][]byte{
+								"client-secret": []byte("super_secret_123"),
+							},
 						},
 					},
 				},
 			},
 			context: "spec",
 			expected: policiesCfg{
-				ErrorReturn: &version2.Return{
-					Code: 500,
+				OIDC: &version2.OIDC{
+					AuthEndpoint:          "http://foo.com/bar",
+					TokenEndpoint:         "http://foo.com/bar",
+					JwksURI:               "http://foo.com/bar",
+					EndSessionEndpoint:    "http://foo.com/bar",
+					ClientSecret:          "super_secret_123",
+					Scope:                 "openid",
+					RedirectURI:           "/_codexch",
+					PostLogoutRedirectURI: "/_logout",
+					ZoneSyncLeeway:        200,
+					AccessTokenEnable:     true,
+					VerifyDepth:           1,
+					PolicyName:            "default/oidc-policy",
 				},
 			},
-			expectedWarnings: Warnings{
-				nil: {
-					`OIDC policy default/oidc-policy references a secret default/oidc-secret of a wrong type 'kubernetes.io/tls', must be 'nginx.org/oidc'`,
-				},
-			},
-			msg: "oidc secret referencing wrong secret type",
+			expectedWarnings: Warnings{},
+			msg:              "oidc secret with an unrecognized type is accepted",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -3931,10 +4151,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("super_secret_123"),
 							},
@@ -4007,10 +4226,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("super_secret_123"),
 							},
@@ -4215,10 +4433,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"client1": []byte("password"),
 							},
@@ -4282,14 +4499,17 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeJWK,
 							Data: map[string][]byte{
 								"client1": []byte("password"),
+								"client2": []byte("password"),
 							},
 						},
+						Error: errors.New("secret cannot be used for API key authentication: " +
+							"every data key (ca.crt, namespace, token) is reserved by another " +
+							"NGINX Ingress Controller feature"),
 					},
 				},
 			},
@@ -4300,38 +4520,19 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`API Key policy default/api-key-policy references a secret default/api-key-secret of a wrong type 'nginx.org/jwk', must be 'nginx.org/apikey'`,
+					`API Key default/api-key-policy references an invalid secret default/api-key-secret: secret cannot be used for API key authentication: every data key (ca.crt, namespace, token) is reserved by another NGINX Ingress Controller feature`,
 				},
 			},
-			msg: "api key referencing wrong secret type",
+			msg: "api key secret whose keys are all reserved",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
-				{
-					Name:      "api-key-policy",
-					Namespace: "default",
-				},
 				{
 					Name:      "api-key-policy-2",
 					Namespace: "default",
 				},
 			},
 			policies: map[string]*conf_v1.Policy{
-				"default/api-key-policy": {
-					ObjectMeta: meta_v1.ObjectMeta{
-						Name:      "api-key-policy",
-						Namespace: "default",
-					},
-					Spec: conf_v1.PolicySpec{
-						APIKey: &conf_v1.APIKey{
-							SuppliedIn: &conf_v1.SuppliedIn{
-								Header: []string{"X-API-Key"},
-								Query:  []string{"api-key"},
-							},
-							ClientSecret: "api-key-secret",
-						},
-					},
-				},
 				"default/api-key-policy-2": {
 					ObjectMeta: meta_v1.ObjectMeta{
 						Name:      "api-key-policy-2",
@@ -4341,24 +4542,18 @@ func TestGeneratePoliciesFails(t *testing.T) {
 						APIKey: &conf_v1.APIKey{
 							SuppliedIn: &conf_v1.SuppliedIn{
 								Header: []string{"X-API-Key"},
-								Query:  []string{"api-key"},
 							},
-							ClientSecret: "api-key-secret",
+							ClientSecret: "api-key-secret-2",
 						},
 					},
 				},
 			},
 			policyOpts: policyOptions{
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret": {
-						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
-							Data: map[string][]byte{
-								"client1": []byte("password"),
-								"client2": []byte("password"),
-							},
-						},
-						Error: errors.New("secret is invalid"),
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					// Earlier invalid same-type policy stopped reference collection; api-key-secret-2 has no map entry
+					secrets.RefKey("default/api-key-secret-1", secrets.RoleAPIKey): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
 					},
 				},
 			},
@@ -4369,10 +4564,10 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			},
 			expectedWarnings: Warnings{
 				nil: {
-					`API Key default/api-key-policy references an invalid secret default/api-key-secret: secret is invalid`,
+					`API Key default/api-key-policy-2 references a secret default/api-key-secret-2 that could not be resolved`,
 				},
 			},
-			msg: "api key referencing invalid api key secrets",
+			msg: "api key earlier invalid policy stops reference collection and later policy has no map entry",
 		},
 		{
 			policyRefs: []conf_v1.PolicyReference{
@@ -4467,10 +4662,9 @@ func TestGeneratePoliciesFails(t *testing.T) {
 			policyOpts: policyOptions{
 				replicas:       1,
 				oidcPolicyName: "",
-				secretRefs: map[string]*secrets.SecretReference{
-					"default/oidc-secret": {
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("super_secret_123"),
 							},
@@ -4530,6 +4724,291 @@ func TestGeneratePoliciesFails(t *testing.T) {
 				},
 			},
 			msg: "oidc pkce no secret no",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "oidc-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{},
+						Error:  errors.New("secret is invalid"),
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references an invalid secret default/oidc-secret: secret is invalid`,
+				},
+			},
+			msg: "oidcNative referencing invalid secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "oidc-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{
+							Type: api_v1.SecretTypeTLS,
+							Data: map[string][]byte{
+								"client-secret": []byte("super_secret_123"),
+							},
+						},
+					},
+				},
+			},
+			context: "spec",
+			expected: policiesCfg{
+				OIDCProvider: &version2.OIDCProvider{
+					Name:            "oidc_default_oidc_native_policy_default_test_vs",
+					PolicyKey:       "default/oidc-native-policy",
+					Issuer:          "https://accounts.google.com",
+					ClientID:        "my-client",
+					ClientSecret:    "super_secret_123",
+					RedirectURI:     "/oidc_callback_oidc_default_oidc_native_policy_default_test_vs",
+					CookieName:      "NGX_OIDC_oidc_default_oidc_native_policy_default_test_vs",
+					SessionStore:    "oidc_sessions_oidc_default_oidc_native_policy_default_test_vs",
+					SSLVerify:       true,
+					SSLVerifyDepth:  1,
+					ProxyLocation:   "/_oidc_idp_oidc_default_oidc_native_policy_default_test_vs",
+					ProxyBufferSize: "32k",
+				},
+			},
+			expectedWarnings: Warnings{},
+			msg:              "oidcNative secret with an unrecognized type is accepted",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "missing-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references a secret default/missing-secret that could not be resolved`,
+				},
+			},
+			msg: "oidcNative missing secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "oidc-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{
+							Data: map[string][]byte{},
+						},
+						Error: errors.New(`secret is missing required key "client-secret"`),
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references an invalid secret default/oidc-secret: secret is missing required key "client-secret"`,
+				},
+			},
+			msg: "oidcNative secret missing client-secret key",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-policy",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-policy": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-policy",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:       "https://accounts.google.com",
+							ClientID:     "my-client",
+							ClientSecret: "oidc-secret",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{
+				secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/oidc-secret", secrets.RoleOIDC): {
+						Secret: nil,
+					},
+				},
+			},
+			context: "route",
+			expected: policiesCfg{
+				ErrorReturn: &version2.Return{
+					Code: 500,
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`OIDCNative policy default/oidc-native-policy references an invalid secret default/oidc-secret: secret doesn't exist`,
+				},
+			},
+			msg: "oidcNative secret reference with nil Secret",
+		},
+		{
+			policyRefs: []conf_v1.PolicyReference{
+				{
+					Name:      "oidc-native-1",
+					Namespace: "default",
+				},
+				{
+					Name:      "oidc-native-2",
+					Namespace: "default",
+				},
+			},
+			policies: map[string]*conf_v1.Policy{
+				"default/oidc-native-1": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-1",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:   "https://accounts.google.com",
+							ClientID: "client-1",
+						},
+					},
+				},
+				"default/oidc-native-2": {
+					ObjectMeta: meta_v1.ObjectMeta{
+						Name:      "oidc-native-2",
+						Namespace: "default",
+					},
+					Spec: conf_v1.PolicySpec{
+						OIDCNative: &conf_v1.OIDCNative{
+							Issuer:   "https://other.example.com",
+							ClientID: "client-2",
+						},
+					},
+				},
+			},
+			policyOpts: policyOptions{},
+			context:    "route",
+			expected: policiesCfg{
+				Context: ctx,
+				OIDCProvider: &version2.OIDCProvider{
+					Name:            "oidc_default_oidc_native_1_default_test_vs",
+					PolicyKey:       "default/oidc-native-1",
+					Issuer:          "https://accounts.google.com",
+					ClientID:        "client-1",
+					RedirectURI:     "/oidc_callback_oidc_default_oidc_native_1_default_test_vs",
+					CookieName:      "NGX_OIDC_oidc_default_oidc_native_1_default_test_vs",
+					SessionStore:    "oidc_sessions_oidc_default_oidc_native_1_default_test_vs",
+					SSLVerify:       true,
+					SSLName:         "",
+					SSLVerifyDepth:  1,
+					ProxyLocation:   "/_oidc_idp_oidc_default_oidc_native_1_default_test_vs",
+					ProxyBufferSize: "32k",
+				},
+			},
+			expectedWarnings: Warnings{
+				nil: {
+					`Multiple oidcNative policies in the same context is not valid. OIDCNative policy default/oidc-native-2 will be ignored`,
+				},
+			},
+			msg: "oidcNative duplicate in same context",
 		},
 	}
 
@@ -4598,6 +5077,11 @@ func TestIsPolicySupportedOnIngress(t *testing.T) {
 			name:     "OIDC is not supported",
 			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{OIDC: &conf_v1.OIDC{}}},
 			expected: false,
+		},
+		{
+			name:     "OIDCNative is supported",
+			policy:   &conf_v1.Policy{Spec: conf_v1.PolicySpec{OIDCNative: &conf_v1.OIDCNative{}}},
+			expected: true,
 		},
 		{
 			name:     "APIKey is not supported",
@@ -5176,9 +5660,234 @@ func TestAddWafConfig(t *testing.T) {
 
 	for _, test := range tests {
 		polCfg := newPoliciesConfig(&fakeBV)
-		result := polCfg.addWAFConfig(context.Background(), test.wafInput, test.polKey, test.polNamespace, test.apResources)
+		result := polCfg.addWAFConfig(context.Background(), test.wafInput, test.polKey, test.polNamespace, test.apResources, false)
 		if diff := cmp.Diff(test.expected.warnings, result.warnings); diff != "" {
 			t.Errorf("policiesCfg.addWAFConfig() '%v' mismatch (-want +got):\n%s", test.msg, diff)
 		}
 	}
+}
+
+// Under PLM an apPolicy/apLogConf resolves to the fetched bundle path instead of an
+// in-pod compiled AP resource. apResources is intentionally empty to prove resolution
+// does not depend on the in-pod compilation lookup.
+func TestAddWafConfigPLMResolvesAPRefs(t *testing.T) {
+	t.Parallel()
+
+	waf := &conf_v1.WAF{
+		Enable:   true,
+		ApPolicy: "default/dataguard-alarm",
+		SecurityLogs: []*conf_v1.SecurityLog{
+			{ApLogConf: "default/logconf", LogDest: "syslog:server=syslog-svc:514"},
+		},
+	}
+	apResources := &appProtectPolicyResources{
+		Policies: map[string]string{},
+		LogConfs: map[string]string{},
+	}
+
+	polCfg := newPoliciesConfig(&fakeBV)
+	result := polCfg.addWAFConfig(context.Background(), waf, "default/waf-policy", "default", apResources, true)
+
+	if result.isError {
+		t.Errorf("addWAFConfig() isError = true, want false; warnings: %v", result.warnings)
+	}
+	if len(result.warnings) != 0 {
+		t.Errorf("addWAFConfig() unexpected warnings: %v", result.warnings)
+	}
+	if polCfg.WAF.ApPolicy != "" {
+		t.Errorf("ApPolicy = %q, want empty under PLM", polCfg.WAF.ApPolicy)
+	}
+	if want := "/fake/bundle/path/fetched_default_waf-policy_policy.tgz"; polCfg.WAF.ApBundle != want {
+		t.Errorf("ApBundle = %q, want %q", polCfg.WAF.ApBundle, want)
+	}
+	wantLog := []string{"/fake/bundle/path/fetched_default_waf-policy_log_0.tgz syslog:server=syslog-svc:514"}
+	if diff := cmp.Diff(wantLog, polCfg.WAF.ApLogConf); diff != "" {
+		t.Errorf("ApLogConf mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestOIDCNativeDefaultCAAndLocations(t *testing.T) {
+	t.Parallel()
+	ownerDetails := policyOwnerDetails{
+		parentNamespace: "default",
+		parentName:      "test",
+		parentType:      "vs",
+	}
+	policyOpts := policyOptions{
+		defaultCABundle:     "/etc/ssl/certs/ca-certificates.crt",
+		oidcNativeLocations: make(map[string]oidcNativeLocationOwner),
+	}
+	policy := &conf_v1.OIDCNative{
+		Issuer:   "https://accounts.google.com",
+		ClientID: "client",
+	}
+
+	config := newPoliciesConfig(nil)
+	result := config.addOIDCNativeConfig(policy, "default/first", "default", ownerDetails, policyOpts)
+	if result.isError {
+		t.Fatalf("unexpected OIDCNative error: %v", result.warnings)
+	}
+	if config.OIDCProvider.SSLTrustedCert != policyOpts.defaultCABundle || config.OIDCProvider.ProxyTrustedCertPath != policyOpts.defaultCABundle {
+		t.Fatalf("expected default CA bundle to be used, got provider=%q proxy=%q", config.OIDCProvider.SSLTrustedCert, config.OIDCProvider.ProxyTrustedCertPath)
+	}
+
+	second := newPoliciesConfig(nil)
+	result = second.addOIDCNativeConfig(&conf_v1.OIDCNative{
+		Issuer:      "https://login.example.com",
+		ClientID:    "second-client",
+		RedirectURI: config.OIDCProvider.RedirectURI,
+	}, "default/second", "default", ownerDetails, policyOpts)
+	if !result.isError {
+		t.Fatal("expected duplicate OIDCNative callback location to be rejected")
+	}
+
+	postLogoutOpts := policyOpts
+	postLogoutOpts.oidcNativeLocations = make(map[string]oidcNativeLocationOwner)
+	firstPostLogout := newPoliciesConfig(nil)
+	result = firstPostLogout.addOIDCNativeConfig(&conf_v1.OIDCNative{
+		Issuer:                "https://accounts.google.com",
+		ClientID:              "post-logout-client",
+		PostLogoutRedirectURI: "/logout",
+	}, "default/post-logout", "default", ownerDetails, postLogoutOpts)
+	if result.isError {
+		t.Fatalf("unexpected OIDCNative post-logout error: %v", result.warnings)
+	}
+	if firstPostLogout.OIDCProvider.PostLogoutLocation == nil {
+		t.Fatal("expected the first provider to keep its post-logout location")
+	}
+
+	// Two different providers sharing the same postLogoutRedirectURI is not
+	// ambiguous (the generated location is a static, provider-agnostic
+	// return); it must be deduplicated rather than rejected.
+	secondPostLogout := newPoliciesConfig(nil)
+	result = secondPostLogout.addOIDCNativeConfig(&conf_v1.OIDCNative{
+		Issuer:                "https://login.example.com",
+		ClientID:              "second-post-logout-client",
+		PostLogoutRedirectURI: "/logout",
+	}, "default/second-post-logout", "default", ownerDetails, postLogoutOpts)
+	if result.isError {
+		t.Fatalf("expected sharing a postLogoutRedirectURI across providers to be valid: %v", result.warnings)
+	}
+	if secondPostLogout.OIDCProvider.PostLogoutLocation != nil {
+		t.Fatal("expected the second provider's duplicate post-logout location to be dropped")
+	}
+
+	callbackCollision := newPoliciesConfig(nil)
+	result = callbackCollision.addOIDCNativeConfig(&conf_v1.OIDCNative{
+		Issuer:      "https://login.example.com",
+		ClientID:    "callback-client",
+		RedirectURI: "/logout",
+	}, "default/callback", "default", ownerDetails, postLogoutOpts)
+	if !result.isError {
+		t.Fatal("expected callback and post-logout location collision to be rejected")
+	}
+
+	reused := newPoliciesConfig(nil)
+	result = reused.addOIDCNativeConfig(policy, "default/first", "default", ownerDetails, policyOpts)
+	if result.isError {
+		t.Fatalf("expected reusing the same OIDCNative provider to be valid: %v", result.warnings)
+	}
+}
+
+// TestOIDCAndOIDCNativeSharedLocationRegistry covers NJS OIDC and OIDCNative
+// used on different routes of the same VS (e.g. NJS at the spec level, native
+// overriding one route) -- a combination the design explicitly supports.
+// addOIDCConfig and addOIDCNativeConfig are called against a single shared
+// policyOptions, mirroring how GenerateVirtualServerConfig reuses one
+// policyOptions across every route in a VS. Real Keycloak-based repro: an
+// OIDCNative policy with postLogoutRedirectURI: /_logout (as shown in
+// examples/custom-resources/oidc-native/oidc-native-policy.yaml) alongside
+// any NJS OIDC policy produced a duplicate `location "/_logout"` and an
+// nginx -t failure, because oidc.tmpl always renders /_logout as a static
+// fallback page regardless of any policy field.
+func TestOIDCAndOIDCNativeSharedLocationRegistry(t *testing.T) {
+	t.Parallel()
+	ownerDetails := policyOwnerDetails{
+		parentNamespace: "default",
+		parentName:      "test",
+		parentType:      "vs",
+	}
+
+	t.Run("native postLogoutRedirectURI collides with NJS's fixed /_logout", func(t *testing.T) {
+		t.Parallel()
+		sharedOpts := policyOptions{oidcNativeLocations: make(map[string]oidcNativeLocationOwner)}
+
+		njs := newPoliciesConfig(nil)
+		njsResult := njs.addOIDCConfig(&conf_v1.OIDC{
+			ClientID:      "njs-client",
+			PKCEEnable:    true,
+			AuthEndpoint:  "https://login.example.com/auth",
+			TokenEndpoint: "https://login.example.com/token",
+			JWKSURI:       "https://login.example.com/jwks",
+		}, "default/njs-policy", "default", sharedOpts)
+		if njsResult.isError {
+			t.Fatalf("unexpected OIDC error: %v", njsResult.warnings)
+		}
+
+		native := newPoliciesConfig(nil)
+		nativeResult := native.addOIDCNativeConfig(&conf_v1.OIDCNative{
+			Issuer:                "https://login.example.com",
+			ClientID:              "native-client",
+			PostLogoutRedirectURI: "/_logout",
+		}, "default/native-policy", "default", ownerDetails, sharedOpts)
+		if !nativeResult.isError {
+			t.Fatal("expected OIDCNative postLogoutRedirectURI=/_logout to be rejected when NJS OIDC is also on the VS")
+		}
+	})
+
+	t.Run("native postLogoutRedirectURI does not collide with a distinct path", func(t *testing.T) {
+		t.Parallel()
+		sharedOpts := policyOptions{oidcNativeLocations: make(map[string]oidcNativeLocationOwner)}
+
+		njs := newPoliciesConfig(nil)
+		njsResult := njs.addOIDCConfig(&conf_v1.OIDC{
+			ClientID:      "njs-client",
+			PKCEEnable:    true,
+			AuthEndpoint:  "https://login.example.com/auth",
+			TokenEndpoint: "https://login.example.com/token",
+			JWKSURI:       "https://login.example.com/jwks",
+		}, "default/njs-policy", "default", sharedOpts)
+		if njsResult.isError {
+			t.Fatalf("unexpected OIDC error: %v", njsResult.warnings)
+		}
+
+		native := newPoliciesConfig(nil)
+		nativeResult := native.addOIDCNativeConfig(&conf_v1.OIDCNative{
+			Issuer:                "https://login.example.com",
+			ClientID:              "native-client",
+			PostLogoutRedirectURI: "/_native_logout",
+		}, "default/native-policy", "default", ownerDetails, sharedOpts)
+		if nativeResult.isError {
+			t.Fatalf("expected NJS OIDC and OIDCNative to coexist when their generated locations don't collide: %v", nativeResult.warnings)
+		}
+	})
+
+	t.Run("NJS callback collides with a native provider claiming the same custom redirectURI", func(t *testing.T) {
+		t.Parallel()
+		sharedOpts := policyOptions{oidcNativeLocations: make(map[string]oidcNativeLocationOwner)}
+
+		native := newPoliciesConfig(nil)
+		nativeResult := native.addOIDCNativeConfig(&conf_v1.OIDCNative{
+			Issuer:      "https://login.example.com",
+			ClientID:    "native-client",
+			RedirectURI: "/_codexch",
+		}, "default/native-policy", "default", ownerDetails, sharedOpts)
+		if nativeResult.isError {
+			t.Fatalf("unexpected OIDCNative error: %v", nativeResult.warnings)
+		}
+
+		njs := newPoliciesConfig(nil)
+		njsResult := njs.addOIDCConfig(&conf_v1.OIDC{
+			ClientID:      "njs-client",
+			PKCEEnable:    true,
+			AuthEndpoint:  "https://login.example.com/auth",
+			TokenEndpoint: "https://login.example.com/token",
+			JWKSURI:       "https://login.example.com/jwks",
+			// NJS defaults RedirectURI to /_codexch, matching the native
+			// policy's explicit override above.
+		}, "default/njs-policy", "default", sharedOpts)
+		if !njsResult.isError {
+			t.Fatal("expected NJS OIDC's default callback /_codexch to be rejected when a native provider already claims it")
+		}
+	})
 }

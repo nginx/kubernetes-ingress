@@ -75,7 +75,7 @@ runs:
   using: composite
   steps:
     - name: Build and Push (attempt 1)
-      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       id: attempt1
       continue-on-error: true
       with:
@@ -108,7 +108,7 @@ runs:
 
     - name: Build and Push (attempt 2)
       if: steps.attempt1.outcome == 'failure' && inputs.max-attempts >= 2
-      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       id: attempt2
       continue-on-error: true
       with:
@@ -140,7 +140,7 @@ runs:
 
     - name: Build and Push (attempt 3)
       if: steps.attempt1.outcome == 'failure' && steps.attempt2.outcome == 'failure' && inputs.max-attempts >= 3
-      uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+      uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
       id: attempt3
       continue-on-error: true
       with:

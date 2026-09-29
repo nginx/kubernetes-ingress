@@ -31,7 +31,7 @@ const (
 // ParseConfigMap parses ConfigMap into ConfigParams.
 //
 //nolint:gocyclo
-func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, hasAppProtect bool, hasAppProtectDos bool, hasTLSPassthrough bool, enableDirectiveAutoadjust bool, eventLog record.EventRecorder) (*ConfigParams, bool) {
+func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, hasAppProtect bool, hasAppProtectDos bool, hasTLSPassthrough bool, enableDirectiveAutoadjust bool, enableSnippets bool, eventLog record.EventRecorder) (*ConfigParams, bool) {
 	l := nl.LoggerFromContext(ctx)
 	cfgParams := NewDefaultConfigParams(ctx, nginxPlus)
 	configOk := true
@@ -110,6 +110,21 @@ func ParseConfigMap(ctx context.Context, cfgm *v1.ConfigMap, nginxPlus bool, has
 			configOk = false
 		} else {
 			cfgParams.MainAddHeaders = headers
+		}
+	}
+
+	if disableForwardedHeaders, exists, err := GetMapKeyAsBool(cfgm.Data, "disable-forwarded-headers", cfgm); exists {
+		if !enableSnippets {
+			errorText := fmt.Sprintf("ConfigMap %s/%s: 'disable-forwarded-headers' requires -enable-snippets, ignoring", cfgm.GetNamespace(), cfgm.GetName())
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			configOk = false
+		} else if err != nil {
+			nl.Error(l, err)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, err.Error())
+			configOk = false
+		} else {
+			cfgParams.DisableForwardedHeaders = disableForwardedHeaders
 		}
 	}
 
@@ -979,6 +994,23 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		cfgParams.MainOtelTraceInHTTP = otelTraceInHTTP
 	}
 
+	if otelTraceContext, exists := cfgm.Data["otel-trace-context"]; exists {
+		otelTraceContext = strings.TrimSpace(otelTraceContext)
+		switch otelTraceContext {
+		case "extract", "inject", "propagate", "ignore":
+			cfgParams.MainOtelTraceContext = otelTraceContext
+		case "":
+		default:
+			errorText := fmt.Sprintf(
+				"ConfigMap %s/%s: invalid value for 'otel-trace-context': %q, must be one of 'extract', 'inject', 'propagate', 'ignore'",
+				cfgm.GetNamespace(), cfgm.GetName(), otelTraceContext,
+			)
+			nl.Error(l, errorText)
+			eventLog.Event(cfgm, v1.EventTypeWarning, nl.EventReasonInvalidValue, errorText)
+			otelValid = false
+		}
+	}
+
 	if (cfgParams.MainOtelExporterHeaderName != "" && cfgParams.MainOtelExporterHeaderValue == "") ||
 		(cfgParams.MainOtelExporterHeaderName == "" && cfgParams.MainOtelExporterHeaderValue != "") {
 		cfgParams.MainOtelExporterHeaderName = ""
@@ -997,6 +1029,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		(cfgParams.MainOtelExporterHeaderName != "" ||
 			cfgParams.MainOtelExporterHeaderValue != "" ||
 			cfgParams.MainOtelServiceName != "" ||
+			cfgParams.MainOtelTraceContext != "" ||
 			cfgParams.MainOtelTraceInHTTP) {
 		errorText := "ConfigMap key 'otel-exporter-endpoint' is required when other otel fields are set"
 		nl.Error(l, errorText)
@@ -1004,6 +1037,7 @@ func parseConfigMapOpenTelemetry(l *slog.Logger, cfgm *v1.ConfigMap, cfgParams *
 		otelValid = false
 		cfgParams.MainOtelTraceInHTTP = false
 		cfgParams.MainOtelExporterHeaderName = ""
+		cfgParams.MainOtelTraceContext = ""
 		cfgParams.MainOtelExporterHeaderValue = ""
 		cfgParams.MainOtelServiceName = ""
 	}
@@ -1223,6 +1257,7 @@ func GenerateNginxMainConfig(staticCfgParams *StaticConfigParams, config *Config
 		MainOtelExporterHeaderName:         config.MainOtelExporterHeaderName,
 		MainOtelExporterHeaderValue:        config.MainOtelExporterHeaderValue,
 		MainOtelServiceName:                config.MainOtelServiceName,
+		MainOtelTraceContext:               config.MainOtelTraceContext,
 		ProxyProtocol:                      config.ProxyProtocol,
 		ResolverAddresses:                  config.ResolverAddresses,
 		ResolverIPV6:                       config.ResolverIPV6,
