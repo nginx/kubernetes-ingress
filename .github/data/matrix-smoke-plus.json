@@ -167,6 +167,13 @@
       "type": "plus",
       "marker": "oidc",
       "platforms": "linux/arm64, linux/amd64"
+    },
+    {
+      "label": "Native-OIDC 1/1",
+      "image": "debian-plus",
+      "type": "plus",
+      "marker": "native_oidc",
+      "platforms": "linux/arm64, linux/amd64"
     }
   ],
   "k8s": []

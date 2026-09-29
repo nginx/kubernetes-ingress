@@ -45,6 +45,7 @@ type ConfigParams struct {
 	MainOtelExporterHeaderName             string
 	MainOtelExporterHeaderValue            string
 	MainOtelServiceName                    string
+	MainOtelTraceContext                   string
 	MainServerNamesHashBucketSize          string
 	MainServerNamesHashMaxSize             string
 	MainStreamLogFormat                    []string
@@ -93,6 +94,7 @@ type ConfigParams struct {
 	ProxyNextUpstreamTries                 *uint64
 	ProxyRedirectFrom                      string
 	ProxyRedirectTo                        string
+	ProxyHTTPVersion                       string
 	CustomHTTPErrors                       []int
 	RedirectToHTTPS                        bool
 	HTTPRedirectCode                       int
@@ -179,6 +181,10 @@ type StaticConfigParams struct {
 	NginxVersion                   nginx.Version
 	AppProtectBundlePath           string
 	DefaultCABundle                string
+	// PLMEnabled reports whether WAF bundles are sourced from the F5 WAF Policy
+	// Controller. When true, apPolicy/apLogConf references resolve to PLM bundles
+	// instead of in-pod compiled App Protect resources.
+	PLMEnabled bool
 }
 
 // GlobalConfigParams holds global configuration parameters. For now, it only holds listeners.
