@@ -1,6 +1,5 @@
 """Describe project shared pytest fixtures."""
 
-import os
 import subprocess
 import time
 
@@ -130,10 +129,9 @@ class IngressControllerPrerequisites:
 
 
 @pytest.fixture(autouse=True)
-def print_name() -> None:
+def print_name(request) -> None:
     """Print out a current test name."""
-    test_name = f"{os.environ.get('PYTEST_CURRENT_TEST').split(':')[2]} :: {os.environ.get('PYTEST_CURRENT_TEST').split(':')[4].split(' ')[0]}"
-    print(f"\n============================= {test_name} =============================")
+    print(f"\n============================= {request.node.nodeid} =============================")
 
 
 @pytest.fixture(scope="function")
