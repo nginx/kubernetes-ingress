@@ -24,7 +24,26 @@ jobs:
           stale-issue-label: "stale"
           stale-pr-label: "stale"
           exempt-all-assignees: true
-          exempt-issue-labels: "proposal"
+          # Exempt work already accepted through triage or refinement.
+          exempt-issue-labels: "proposal,backlog,backlog candidate,refined,ready for refinement,epic,story"
+          exempt-pr-labels: "community"
           operations-per-run: 100
           days-before-stale: 90
           days-before-close: 10
+
+      # Re-admit community PRs that are waiting on their author. only-pr-labels
+      # requires ALL listed labels; issues are disabled here and handled above.
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          only-pr-labels: "community,waiting for response"
+          days-before-issue-stale: -1
+          days-before-issue-close: -1
+          days-before-pr-stale: 30
+          days-before-pr-close: 14
+          stale-pr-label: "stale"
+          stale-pr-message: "This PR has been waiting on a response from the author for 30 days. If there is no further activity it will be closed in 14 days. Comment or push to keep it open -- we are happy to pick the work up again whenever you are ready."
+          close-pr-message: "Closing this PR as it has been waiting on a response from the author for 44 days. This is not a rejection of the change: comment here and we will reopen it, or the team may carry the work forward separately."
+          exempt-all-assignees: true
+          labels-to-remove-when-unstale: "waiting for response"
+          operations-per-run: 100
