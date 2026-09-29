@@ -845,7 +845,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	return version1.IngressNginxConfig{
 		Upstreams:     upstreamMapToSlice(upstreams),
 		Servers:       servers,
-		Keepalive:     keepalive,
 		CORSHeaders:   policyCfg.CORSHeaders,
 		OIDCProviders: dedupedOIDCProviders,
 		KeyValZones:   keyValZones,

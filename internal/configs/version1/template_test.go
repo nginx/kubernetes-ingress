@@ -4699,7 +4699,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                    "/tea",
-						Upstream:                testUpstream,
+						Upstream:                testUpstreamWithKeepalive,
 						ProxyConnectTimeout:     "10s",
 						DisableForwardedHeaders: true,
 						ProxyReadTimeout:        "10s",
@@ -4714,8 +4714,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -8250,7 +8249,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 			Locations: []Location{
 				{
 					Path:                "/unset",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8259,7 +8258,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/http-1-0",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8269,7 +8268,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/http-1-1",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8279,7 +8278,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/http-2",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8289,7 +8288,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/websocket-http-1-0",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8300,7 +8299,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/websocket-http-1-1",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8311,7 +8310,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/websocket-http-2",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8322,7 +8321,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/grpc",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8333,8 +8332,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 			HasGRPCLocations: true,
 		},
 	},
-	Upstreams: []Upstream{testUpstream},
-	Keepalive: "16",
+	Upstreams: []Upstream{testUpstreamWithKeepalive},
 	Ingress: Ingress{
 		Name:      "cafe-ingress",
 		Namespace: "default",
