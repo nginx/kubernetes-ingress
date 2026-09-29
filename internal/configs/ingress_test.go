@@ -5264,6 +5264,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 		name      string
 		upsName   string
 		endpoints []string
+		cfgParams *ConfigParams
 		expected  version1.Upstream
 		warning   bool
 	}{
@@ -5271,6 +5272,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			name:      "no endpoints returns default server",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: nil,
+			cfgParams: &ConfigParams{},
 			expected:  version1.NewUpstreamWithDefaultServer("ext_auth_default_my-auth"),
 			warning:   true,
 		},
@@ -5278,6 +5280,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			name:      "empty endpoints returns default server",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: []string{},
+			cfgParams: &ConfigParams{},
 			expected:  version1.NewUpstreamWithDefaultServer("ext_auth_default_my-auth"),
 			warning:   true,
 		},
@@ -5285,6 +5288,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			name:      "single endpoint",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: []string{"10.0.0.1:8080"},
+			cfgParams: &ConfigParams{},
 			expected: version1.Upstream{
 				Name:             "ext_auth_default_my-auth",
 				UpstreamZoneSize: "256k",
@@ -5298,6 +5302,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			name:      "multiple endpoints sorted",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: []string{"10.0.0.3:8080", "10.0.0.1:8080", "10.0.0.2:8080"},
+			cfgParams: &ConfigParams{},
 			expected: version1.Upstream{
 				Name:             "ext_auth_default_my-auth",
 				UpstreamZoneSize: "256k",
@@ -5309,12 +5314,27 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			},
 			warning: false,
 		},
+		{
+			name:      "keepalive from cfgParams is applied",
+			upsName:   "ext_auth_default_my-auth",
+			endpoints: []string{"10.0.0.1:8080"},
+			cfgParams: &ConfigParams{Keepalive: 32},
+			expected: version1.Upstream{
+				Name:             "ext_auth_default_my-auth",
+				UpstreamZoneSize: "256k",
+				Keepalive:        "32",
+				UpstreamServers: []version1.UpstreamServer{
+					{Address: "10.0.0.1:8080", MaxFails: 1, MaxConns: 0, FailTimeout: "10s"},
+				},
+			},
+			warning: false,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			result, warning := createExternalAuthUpstream(test.upsName, test.endpoints)
+			result, warning := createExternalAuthUpstream(test.upsName, test.endpoints, test.cfgParams)
 			if diff := cmp.Diff(test.expected, result); diff != "" {
 				t.Errorf("createExternalAuthUpstream() mismatch (-want +got):\n%s", diff)
 			}
@@ -5346,11 +5366,13 @@ func TestGenerateIngressExternalAuthLocation(t *testing.T) {
 		ProxyNextUpstreamTimeout: "5s",
 	}
 
-	result := generateIngressExternalAuthLocation(externalAuth, "ext_auth_default_my-auth", cfg)
+	upstream := version1.Upstream{Name: "ext_auth_default_my-auth", Keepalive: "32"}
+	result := generateIngressExternalAuthLocation(externalAuth, upstream, cfg)
 
 	expected := version1.Location{
 		Path:                     "/_ext_auth_default_my-auth",
 		Internal:                 true,
+		Upstream:                 upstream,
 		ProxyPass:                "http://ext_auth_default_my-auth/auth",
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      "10s",
@@ -5392,11 +5414,13 @@ func TestGenerateIngressExternalAuthOAuth2Location(t *testing.T) {
 		ProxyNextUpstreamTimeout: "5s",
 	}
 
-	result := generateIngressExternalAuthOAuth2Location(externalAuth, "ext_auth_default_my-auth", cfg)
+	upstream := version1.Upstream{Name: "ext_auth_default_my-auth", Keepalive: "32"}
+	result := generateIngressExternalAuthOAuth2Location(externalAuth, upstream, cfg)
 
 	expected := version1.Location{
 		Path:                     "/oauth2",
 		AuthRequestOff:           true,
+		Upstream:                 upstream,
 		ProxyPass:                "http://ext_auth_default_my-auth",
 		ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      "10s",

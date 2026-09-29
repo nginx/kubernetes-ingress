@@ -927,7 +927,7 @@ func generateBasicAuthConfig(owner runtime.Object, namespace string, secretRefs 
 
 // createExternalAuthUpstream creates a version1.Upstream for the external auth service
 // from the resolved endpoints.
-func createExternalAuthUpstream(name string, endpoints []string) (version1.Upstream, string) {
+func createExternalAuthUpstream(name string, endpoints []string, cfgParams *ConfigParams) (version1.Upstream, string) {
 	if len(endpoints) == 0 {
 		return version1.NewUpstreamWithDefaultServer(name), fmt.Sprintf("No endpoints found for external auth upstream %v", name)
 	}
@@ -943,11 +943,15 @@ func createExternalAuthUpstream(name string, endpoints []string) (version1.Upstr
 	sort.Slice(upsServers, func(i, j int) bool {
 		return upsServers[i].Address < upsServers[j].Address
 	})
-	return version1.Upstream{
+	ups := version1.Upstream{
 		Name:             name,
 		UpstreamServers:  upsServers,
 		UpstreamZoneSize: "256k",
-	}, ""
+	}
+	if cfgParams.Keepalive > 0 {
+		ups.Keepalive = fmt.Sprint(cfgParams.Keepalive)
+	}
+	return ups, ""
 }
 
 // resolveExternalAuth resolves the external auth upstream and generates the
@@ -968,7 +972,7 @@ func resolveExternalAuth(
 
 	ns, svcName := ParseServiceReference(exAuth.URI.Service, ingress.Namespace)
 	endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
-	authUps, upsWarning := createExternalAuthUpstream(upsName, endpoints[endpointKey])
+	authUps, upsWarning := createExternalAuthUpstream(upsName, endpoints[endpointKey], cfgParams)
 	if upsWarning != "" {
 		if warning != "" {
 			warning = fmt.Sprintf("%s. %s", warning, upsWarning)
@@ -977,9 +981,9 @@ func resolveExternalAuth(
 		}
 	}
 	var locs []version1.Location
-	locs = append(locs, generateIngressExternalAuthLocation(exAuth, upsName, cfgParams))
+	locs = append(locs, generateIngressExternalAuthLocation(exAuth, authUps, cfgParams))
 	if exAuth.SigninURL != "" {
-		locs = append(locs, generateIngressExternalAuthOAuth2Location(exAuth, upsName, cfgParams))
+		locs = append(locs, generateIngressExternalAuthOAuth2Location(exAuth, authUps, cfgParams))
 	}
 
 	return authUps, locs, warning
@@ -987,13 +991,14 @@ func resolveExternalAuth(
 
 // generateIngressExternalAuthLocation builds a version1.Location for the
 // internal NGINX location that proxies auth subrequests to the external auth service.
-func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, upstreamName string, cfg *ConfigParams) version1.Location {
+func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, upstream version1.Upstream, cfg *ConfigParams) version1.Location {
 	var svcName string
 	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
 	loc := version1.Location{
 		Path:                     externalAuth.URI.InternalPath,
 		Internal:                 true,
-		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName, externalAuth.URI.Path),
+		Upstream:                 upstream,
+		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstream.Name, externalAuth.URI.Path),
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
@@ -1016,13 +1021,14 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 
 // generateIngressExternalAuthOAuth2Location builds a version1.Location
 // for the NGINX location that handles OAuth2 signin redirects.
-func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAuth, upstreamName string, cfg *ConfigParams) version1.Location {
+func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAuth, upstream version1.Upstream, cfg *ConfigParams) version1.Location {
 	var svcName string
 	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
 	loc := version1.Location{
 		Path:                     externalAuth.SigninRedirectBasePath,
 		AuthRequestOff:           true,
-		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName),
+		Upstream:                 upstream,
+		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstream.Name),
 		ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
