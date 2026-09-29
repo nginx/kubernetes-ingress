@@ -9,14 +9,14 @@ on:
         description: "NIC version to release"
         required: true
         default: "5.5.0"
-      current_versions:
-        description: "Current versions to replace (NIC, Helm Chart, Operator)"
+      helm_version:
+        description: "Helm Chart version to release"
         required: true
-        default: "5.4.0, 2.5.0, 3.5.0"
-      new_versions:
-        description: "Versions to release (Helm Chart, Operator)"
+        default: "2.6.0"
+      operator_version:
+        description: "Operator version to release"
         required: true
-        default: "2.6.0, 3.6.0"
+        default: "3.6.0"
       k8s_versions:
         description: "Kubernetes versions this release was tested on"
         required: true
@@ -63,19 +63,11 @@ jobs:
       - name: Parse versions
         id: parse
         run: |
-          IFS=',' read -r current_version current_helm_version current_operator_version <<< "${{ inputs.current_versions }}"
-          IFS=',' read -r new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
           # Trim whitespace from parsed values
-          current_version=$(echo "${current_version}" | xargs)
-          current_helm_version=$(echo "${current_helm_version}" | xargs)
-          current_operator_version=$(echo "${current_operator_version}" | xargs)
-          new_version=$(echo "${{ inputs.nic_version }}" | xargs)
-          new_helm_version=$(echo "${new_helm_version}" | xargs)
-          new_operator_version=$(echo "${new_operator_version}" | xargs)
-          echo "current_version=${current_version}" >> $GITHUB_OUTPUT
-          echo "current_helm_version=${current_helm_version}" >> $GITHUB_OUTPUT
-          echo "current_operator_version=${current_operator_version}" >> $GITHUB_OUTPUT
-          echo "new_version=${new_version}" >> $GITHUB_OUTPUT
+          new_nic_version=$(echo "${{ inputs.nic_version }}" | xargs)
+          new_helm_version=$(echo "${{ inputs.helm_version }}" | xargs)
+          new_operator_version=$(echo "${{ inputs.operator_version }}" | xargs)
+          echo "new_version=${new_nic_version}" >> $GITHUB_OUTPUT
           echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
           echo "new_operator_version=${new_operator_version}" >> $GITHUB_OUTPUT
 
@@ -147,9 +139,6 @@ jobs:
       - name: Replace
         run: |
           .github/scripts/release-version-update.sh \
-            ${{ steps.parse.outputs.current_version }} \
-            ${{ steps.parse.outputs.current_helm_version }} \
-            ${{ steps.parse.outputs.current_operator_version }} \
             ${{ steps.parse.outputs.new_version }} \
             ${{ steps.parse.outputs.new_helm_version }} \
             ${{ steps.parse.outputs.new_operator_version }}
@@ -185,13 +174,9 @@ jobs:
       - name: Parse versions
         id: parse
         run: |
-          IFS=',' read -r current_nic_version _ _ <<< "${{ inputs.current_versions }}"
-          IFS=',' read -r new_helm_version new_operator_version <<< "${{ inputs.new_versions }}"
-          current_nic_version=$(echo "${current_nic_version}" | xargs)
           new_version=$(echo "${{ inputs.nic_version }}" | xargs)
-          new_helm_version=$(echo "${new_helm_version}" | xargs)
-          new_operator_version=$(echo "${new_operator_version}" | xargs)
-          echo "current_nic_version=${current_nic_version}" >> $GITHUB_OUTPUT
+          new_helm_version=$(echo "${{ inputs.helm_version }}" | xargs)
+          new_operator_version=$(echo "${{ inputs.operator_version }}" | xargs)
           echo "new_version=${new_version}" >> $GITHUB_OUTPUT
           echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
           echo "new_operator_version=${new_operator_version}" >> $GITHUB_OUTPUT
@@ -252,7 +237,6 @@ jobs:
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
             "${{ steps.parse.outputs.new_version }}" \
-            "${{ steps.parse.outputs.current_nic_version }}" \
             "${{ steps.parse.outputs.new_helm_version }}" \
             "${{ steps.parse.outputs.new_operator_version }}" \
             "${{ inputs.k8s_versions }}" \

@@ -32,28 +32,65 @@ FILE_TO_UPDATE_HELM_CHART_VERSION=(
 
  usage() {
     if [ "${LTS}" != "false" ]; then
-        echo "Usage: LTS=true $0 <current_ic_version> <current_helm_chart_version> <new_ic_version> <new_helm_chart_version>"
+        echo "Usage: LTS=true $0 <new_ic_version> <new_helm_chart_version>"
     else
-        echo "Usage: $0 <current_ic_version> <current_helm_chart_version> <current_operator_version> <new_ic_version> <new_helm_chart_version> <new_operator_version>"
+        echo "Usage: $0 <new_ic_version> <new_helm_chart_version> <new_operator_version>"
     fi
 
     exit 1
 }
 
+validate_format() {
+    local label="$1" value="$2" pattern="$3" example="$4"
+    if [[ ! "${value}" =~ ${pattern} ]]; then
+        echo "ERROR: Invalid ${label}: '${value}'. Expected format like '${example}'. (Pattern: ${pattern})"
+        exit 1
+    fi
+}
+
 if [ "${LTS}" != "false" ]; then
-    current_ic_version=$1
-    current_helm_chart_version=$2
-    new_ic_version=$3
-    new_helm_chart_version=$4
+    if [ $# -eq 2 ]; then
+        source "${ROOTDIR}/.github/data/version.txt"
+        current_ic_version="${IC_VERSION}"
+        current_helm_chart_version="${HELM_CHART_VERSION}"
+        new_ic_version=$1
+        new_helm_chart_version=$2
+    elif [ $# -eq 4 ]; then
+        current_ic_version=$1
+        current_helm_chart_version=$2
+        new_ic_version=$3
+        new_helm_chart_version=$4
+    else
+        usage
+    fi
     current_operator_version=""
     new_operator_version=""
 else
-    current_ic_version=$1
-    current_helm_chart_version=$2
-    current_operator_version=$3
-    new_ic_version=$4
-    new_helm_chart_version=$5
-    new_operator_version=$6
+    if [ $# -eq 3 ]; then
+        source "${ROOTDIR}/.github/data/version.txt"
+        current_ic_version="${IC_VERSION}"
+        current_helm_chart_version="${HELM_CHART_VERSION}"
+        # Fetch current operator version from latest release
+        current_operator_version=$(curl -s "https://api.github.com/repos/nginx/nginx-ingress-helm-operator/releases/latest" | jq -r '.tag_name')
+        current_operator_version="${current_operator_version#v}"
+        if [ -z "${current_operator_version}" ] || [ "${current_operator_version}" == "null" ]; then
+            echo "ERROR: Failed to fetch current operator version from GitHub API"
+            exit 1
+        fi
+        new_ic_version=$1
+        new_helm_chart_version=$2
+        new_operator_version=$3
+    elif [ $# -eq 6 ]; then
+        current_ic_version=$1
+        current_helm_chart_version=$2
+        current_operator_version=$3
+        new_ic_version=$4
+        new_helm_chart_version=$5
+        new_operator_version=$6
+    else
+        usage
+    fi
+
 fi
 
 if [ -z "${current_ic_version}" ]; then
@@ -81,6 +118,18 @@ if [ "${LTS}" == "false" ]; then
         usage
     fi
 fi
+
+if [ "${LTS}" != "false" ]; then
+    validate_format "LTS version" "${new_ic_version}" '^[0-9]{4}-lts-r[0-9]+$' "2026-lts-r8"
+    validate_format "Current LTS version" "${current_ic_version}" '^[0-9]{4}-lts-r[0-9]+$' "2026-lts-r7"
+else
+    validate_format "NIC version" "${new_ic_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "5.7.0"
+    validate_format "Current NIC version" "${current_ic_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "5.6.0"
+    validate_format "Operator version" "${new_operator_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "3.8.0"
+    validate_format "Current Operator version" "${current_operator_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "3.7.0"
+fi
+validate_format "Helm version" "${new_helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2.8.0"
+validate_format "Current Helm version" "${current_helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2.7.0"
 
 
 escaped_current_ic_version=$(printf '%s' "$current_ic_version" | sed -e 's/\./\\./g');
@@ -197,6 +246,13 @@ if [ "${UPDATE_TECH_SPECS}" != "false" ]; then
         exit 2
     fi
 
+    validate_format "K8s versions" "${K8S_VERSIONS}" '^[0-9]+\.[0-9]+\s*-\s*[0-9]+\.[0-9]+$' "1.30 - 1.37"
+    if [ "${LTS}" != "false" ]; then
+        validate_format "NGINX Plus version" "${NGINX_VERSION}" '^R[0-9]+(\.[0-9]+)+$' "R37.0.1.1"
+    else
+        validate_format "NGINX version" "${NGINX_VERSION}" '^[0-9]+\.[0-9]+\.[0-9]+(\s*/\s*R[0-9]+(\.[0-9]+)+)?$' "1.31.6 / R37.1.1.2"
+    fi
+
     echo "Updating $(basename "${TECH_SPECS_JSON}"): ${current_ic_version} -> ${new_ic_version}"
 
     # Built as an array so every value stays individually quoted -- this replaces
@@ -210,6 +266,14 @@ if [ "${UPDATE_TECH_SPECS}" != "false" ]; then
     )
 
     if [ "${LTS}" != "false" ]; then
+        if [ -n "${RELEASE_DATE}" ]; then
+            normalized_date=$(date -d "${RELEASE_DATE}" "+%-d %b %Y" 2>/dev/null)
+            if [ -z "${normalized_date}" ]; then
+                echo "ERROR: Invalid release date '${RELEASE_DATE}'. Expected format like '22 May 2026'"
+                exit 1
+            fi
+            RELEASE_DATE="${normalized_date}"
+        fi
         tech_specs_args+=(--lts)
         tech_specs_args+=(--lts-helm-version "${new_helm_chart_version}")
         tech_specs_args+=(--nginx-plus-version "${NGINX_VERSION}")

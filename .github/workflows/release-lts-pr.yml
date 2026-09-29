@@ -8,22 +8,18 @@ on:
         description: "NIC LTS version to release"
         required: true
         default: "2026-lts-r7"
-      current_versions:
-        description: "Current versions to replace (NIC LTS, Helm Chart)"
-        required: true
-        default: "2026-lts-r6, 2026.0.5"
-      new_versions:
-        description: "Versions to release (Helm Chart)"
+      helm_version:
+        description: "Helm Chart version to release"
         required: true
         default: "2026.0.6"
       k8s_versions:
         description: "Kubernetes versions this release was tested on"
         required: true
         default: "1.28 - 1.35"
-      new_nginx_version:
-        description: "Nginx version to release"
+      nginx_plus_version:
+        description: "Nginx Plus version to release"
         required: true
-        default: "1.31.1 / R37.0.1.1"
+        default: "R37.0.1.1"
       release_date:
         description: "Date for this release (D MMM YYYY)"
         required: true
@@ -57,15 +53,9 @@ jobs:
       - name: Parse versions
         id: parse
         run: |
-          IFS=',' read -r current_version current_helm_version <<< "${{ inputs.current_versions }}"
-          IFS=',' read -r new_helm_version <<< "${{ inputs.new_versions }}"
           # Trim whitespace from parsed values
-          current_version=$(echo "${current_version}" | xargs)
-          current_helm_version=$(echo "${current_helm_version}" | xargs)
           new_version=$(echo "${{ inputs.lts_version }}" | xargs)
-          new_helm_version=$(echo "${new_helm_version}" | xargs)
-          echo "current_version=${current_version}" >> $GITHUB_OUTPUT
-          echo "current_helm_version=${current_helm_version}" >> $GITHUB_OUTPUT
+          new_helm_version=$(echo "${{ inputs.helm_version }}" | xargs)
           echo "new_version=${new_version}" >> $GITHUB_OUTPUT
           echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
 
@@ -127,8 +117,6 @@ jobs:
       - name: Replace
         run: |
           .github/scripts/release-version-update.sh \
-            ${{ steps.parse.outputs.current_version }} \
-            ${{ steps.parse.outputs.current_helm_version }} \
             ${{ steps.parse.outputs.new_version }} \
             ${{ steps.parse.outputs.new_helm_version }}
         env:
@@ -136,7 +124,7 @@ jobs:
           DEBUG: ${{ inputs.debug && 'true' || 'false' }}
           LTS: true
           K8S_VERSIONS: ${{ inputs.k8s_versions }}
-          NGINX_VERSION: ${{ inputs.new_nginx_version }}
+          NGINX_VERSION: ${{ inputs.nginx_plus_version }}
           RELEASE_DATE: ${{ inputs.release_date }}
 
       - name: Create Pull Request
@@ -160,22 +148,26 @@ jobs:
     if: github.repository == 'nginx/kubernetes-ingress'
     runs-on: ubuntu-24.04
     steps:
+      - name: Branch
+        id: branch
+        run: |
+          version=$(echo "${{ inputs.lts_version }}" | xargs)
+          version=${version%-r*}
+          echo "branch=release-${version}" >> $GITHUB_OUTPUT
+
+      - name: Checkout NIC Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.branch.outputs.branch }}
+
       - name: Parse versions
         id: parse
         run: |
-          IFS=',' read -r current_version current_helm_version <<< "${{ inputs.current_versions }}"
-          IFS=',' read -r new_helm_version <<< "${{ inputs.new_versions }}"
-          current_nic_version=$(echo "${current_nic_version}" | xargs)
-          current_helm_version=$(echo "${current_helm_version}" | xargs)
+          # Trim whitespace from parsed values
           new_version=$(echo "${{ inputs.lts_version }}" | xargs)
-          new_helm_version=$(echo "${new_helm_version}" | xargs)
-          echo "current_nic_version=${current_nic_version}" >> $GITHUB_OUTPUT
-          echo "current_helm_version=${current_helm_version}" >> $GITHUB_OUTPUT
+          new_helm_version=$(echo "${{ inputs.helm_version }}" | xargs)
           echo "new_version=${new_version}" >> $GITHUB_OUTPUT
           echo "new_helm_version=${new_helm_version}" >> $GITHUB_OUTPUT
-
-      - name: Checkout Repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Get secrets from vault
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730 # main @ 2026-05-22
@@ -220,10 +212,9 @@ jobs:
           pip install --require-hashes -r .github/scripts/requirements.txt --no-deps
           .github/scripts/release-docs.sh \
             "${{ steps.parse.outputs.new_version }}" \
-            "${{ steps.parse.outputs.current_nic_version }}" \
             "${{ steps.parse.outputs.new_helm_version }}" \
             "${{ inputs.k8s_versions }}" \
-            "${{ inputs.new_nginx_version }}" \
+            "${{ inputs.nginx_plus_version }}" \
             "${{ inputs.release_date }}"
         env:
           GITHUB_USERNAME: nginx-bot

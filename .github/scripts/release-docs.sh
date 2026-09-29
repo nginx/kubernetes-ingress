@@ -20,15 +20,23 @@ else
 fi
 export GH_TOKEN=${GITHUB_TOKEN:-""}
 
- usage() {
+usage() {
     if [ "${LTS}" != "false" ]; then
-        echo "Usage: LTS=true $0 <lts_version> <previous_version> <helm_chart_version> <k8s_versions> <nginx_version> <release_date>"
+        echo "Usage: LTS=true $0 <lts_version> <helm_chart_version> <k8s_versions> <nginx_version> <release_date>"
     else
-        echo "Usage: $0 <ic_version> <previous_version> <helm_chart_version> <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version>] [<nap_waf_release_version>]"
+        echo "Usage: $0 <ic_version> <helm_chart_version> <operator_version> <k8s_versions> <nginx_version> <release_date> [<nap_waf_version>] [<nap_waf_release_version>]"
     fi
     exit 1
 
- }
+}
+
+ validate_format() {
+    local label="$1" value="$2" pattern="$3" example="$4"
+    if [[ ! "${value}" =~ ${pattern} ]]; then
+        echo "ERROR: Invalid ${label}: '${value}'. Expected format like '${example}'. (Pattern: ${pattern})"
+        exit 1
+    fi
+}
 
  # clone local doc repo
  # if branch for the release doesnt exist, create it, otherwise checkout
@@ -36,25 +44,53 @@ export GH_TOKEN=${GITHUB_TOKEN:-""}
 DOCS_FOLDER=${TMPDIR}/documentation
 
 if [ "${LTS}" != "false" ]; then
-    ic_version=$1
-    previous_version=$2
-    helm_chart_version=$3
-    k8s_versions=$4
-    nginx_version=$5
-    release_date=$6
+    if [ $# -eq 5 ]; then
+        source "${ROOTDIR}/.github/data/version.txt"
+        ic_version=$1
+        previous_version="${IC_VERSION}"
+        helm_chart_version=$2
+        k8s_versions=$3
+        nginx_version=$4
+        release_date=$5
+    elif [ $# -eq 6 ]; then
+        ic_version=$1
+        previous_version=$2
+        helm_chart_version=$3
+        k8s_versions=$4
+        nginx_version=$5
+        release_date=$6
+    else
+        usage
+    fi
     operator_version=""
     NAP_WAF_VERSION=""
     NAP_WAF_RELEASE_VERSION=""
 else
-    ic_version=$1
-    previous_version=$2
-    helm_chart_version=$3
-    operator_version=$4
-    k8s_versions=$5
-    nginx_version=$6
-    release_date=$7
-    NAP_WAF_VERSION=${8:-}
-    NAP_WAF_RELEASE_VERSION=${9:-}
+    if [ $# -eq 6 ] || [ $# -eq 8 ]; then
+        source "${ROOTDIR}/.github/data/version.txt"
+        ic_version=$1
+        previous_version="${IC_VERSION}"
+        helm_chart_version=$2
+        operator_version=$3
+        k8s_versions=$4
+        nginx_version=$5
+        release_date=$6
+        NAP_WAF_VERSION=${7:-}
+        NAP_WAF_RELEASE_VERSION=${8:-}
+
+    elif [ $# -eq 7 ] || [ $# -eq 9 ]; then
+        ic_version=$1
+        previous_version=$2
+        helm_chart_version=$3
+        operator_version=$4
+        k8s_versions=$5
+        nginx_version=$6
+        release_date=$7
+        NAP_WAF_VERSION=${8:-}
+        NAP_WAF_RELEASE_VERSION=${9:-}
+    else
+        usage
+    fi
 fi
 
 if [ -z "${ic_version}" ]; then
@@ -88,6 +124,25 @@ fi
 if [ -n "${NAP_WAF_VERSION}" ]; then
     echo "INFO: NAP WAF version provided: ${NAP_WAF_VERSION}"
 fi
+
+if [ "${LTS}" != "false" ]; then
+    validate_format "LTS version" "${ic_version}" '^[0-9]{4}-lts-r[0-9]+$' "2026-lts-r9"
+    validate_format "NGINX Plus version" "${nginx_version}" '^R[0-9]+(\.[0-9]+)+$' "R37.0.1.1"
+
+else
+    validate_format "NIC version" "${ic_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "5.6.4"
+    validate_format "operator version" "${operator_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "3.7.3"
+    validate_format "NGINX version" "${nginx_version}" '^[0-9]+\.[0-9]+\.[0-9]+(\s*/\s*R[0-9]+(\.[0-9]+)+)?$' "1.31.1 / R37.0.1.1"
+fi
+validate_format "Helm version" "${helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2026.0.6"
+validate_format "K8s versions" "${k8s_versions}" '^[0-9]+\.[0-9]+\s*-\s*[0-9]+\.[0-9]+$' "1.20 - 1.37"
+
+normalized_date=$(date -d "${release_date}" "+%-d %b %Y" 2>/dev/null)
+if [ -z "${normalized_date}" ]; then
+    echo "ERROR: Invalid release date '${release_date}'. Expected format like '22 May 2026'"
+    exit 1
+fi
+release_date="${normalized_date}"
 
 if [ -z "${GH_TOKEN}" ]; then
     echo "ERROR: GITHUB_TOKEN is not set"
