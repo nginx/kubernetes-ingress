@@ -4438,6 +4438,64 @@ func TestExecuteTemplate_ForIngressWithUseForwardedHeaders(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressWithUseForwardedHeadersGRPC(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *template.Template
+	}{
+		{name: "nginx", newTmpl: newNGINXIngressTmpl},
+		{name: "nginx-plus", newTmpl: newNGINXPlusIngressTmpl},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpl := test.newTmpl(t)
+			buf := &bytes.Buffer{}
+
+			err := tmpl.Execute(buf, ingressCfgForwardedHeaderUsedGRPC)
+			t.Log(buf.String())
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			wantDirectives := []string{
+				"grpc_set_header Host $forwarded_host;",
+				"grpc_set_header X-Real-IP $remote_addr;",
+				"grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;",
+				"grpc_set_header X-Forwarded-Host $forwarded_host;",
+				"grpc_set_header X-Forwarded-Port $forwarded_port;",
+				"grpc_set_header X-Forwarded-Proto $forwarded_proto;",
+				"grpc_set_header Host coffee.internal;",
+			}
+
+			unwantDirectives := []string{
+				"grpc_set_header Host $host;",
+				"grpc_set_header X-Forwarded-Host $host;",
+				"grpc_set_header X-Forwarded-Port $server_port;",
+				"grpc_set_header X-Forwarded-Proto $scheme;",
+			}
+
+			rendered := buf.String()
+			for _, want := range wantDirectives {
+				if !strings.Contains(rendered, want) {
+					t.Errorf("want %q in generated config", want)
+				}
+			}
+			for _, unwant := range unwantDirectives {
+				if strings.Contains(rendered, unwant) {
+					t.Errorf("unwant %q in generated config", unwant)
+				}
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 var (
 	// Ingress Config example without added annotations
 	ingressCfg = IngressNginxConfig{
@@ -4894,6 +4952,52 @@ var (
 						ProxySendTimeout:    "10s",
 						ClientMaxBodySize:   "2m",
 						ProxyPass:           "http://test",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Keepalive: "16",
+		Ingress: Ingress{
+			Name:      "cafe-ingress",
+			Namespace: "default",
+		},
+	}
+
+	// Ingress Config example for GRPC with use-forwarded-headers enabled
+	ingressCfgForwardedHeaderUsedGRPC = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:              "test.example.com",
+				ServerTokens:      "off",
+				StatusZone:        "test.example.com",
+				HTTP2:             true,
+				HasGRPCLocations:  true,
+				SSL:               true,
+				SSLCertificate:    "secret.pem",
+				SSLCertificateKey: "secret.pem",
+				SSLPorts:          []int{443},
+				SSLRedirect:       true,
+				HTTPRedirectCode:  301,
+				Locations: []Location{
+					{
+						Path:                "/tea",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						UseForwardedHeaders: true,
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						GRPC:                true,
+					},
+					{
+						Path:                "/coffee",
+						Upstream:            testUpstream,
+						ProxyConnectTimeout: "10s",
+						UseForwardedHeaders: true,
+						UpstreamVhost:       "coffee.internal",
+						ProxyReadTimeout:    "10s",
+						ProxySendTimeout:    "10s",
+						GRPC:                true,
 					},
 				},
 			},
