@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
 	vsapi "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	extdnsapi "github.com/nginx/kubernetes-ingress/pkg/apis/externaldns/v1"
 	clientset "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
@@ -40,7 +41,7 @@ type DNSTarget struct {
 }
 
 // SyncFnFor knows how to reconcile VirtualServer DNSEndpoint object.
-func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[string]*namespacedInformer) SyncFn {
+func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig *nsregistry.Registry[namespacedInformer]) SyncFn {
 	return func(ctx context.Context, vs *vsapi.VirtualServer) error {
 		// Do nothing if ExternalDNS is not present (nil) in VS or is not enabled.
 		if !vs.Spec.ExternalDNS.Enable {
@@ -61,9 +62,16 @@ func SyncFnFor(rec record.EventRecorder, client clientset.Interface, ig map[stri
 			return err
 		}
 
-		nsi := getNamespacedInformer(vs.Namespace, ig)
-
-		newDNSEndpoint, updateDNSEndpoint, err := buildDNSEndpoint(ctx, nsi.extdnslister, vs, targets)
+		var newDNSEndpoint, updateDNSEndpoint *extdnsapi.DNSEndpoint
+		watched := ig.WithInformer(vs.Namespace, func(nsi *namespacedInformer) {
+			newDNSEndpoint, updateDNSEndpoint, err = buildDNSEndpoint(ctx, nsi.extdnslister, vs, targets)
+		})
+		if !watched {
+			// the namespace stopped being watched between the item being
+			// queued and it being processed
+			nl.Debugf(l, "Skipping VirtualServer %s/%s: namespace %s is not watched", vs.Namespace, vs.Name, vs.Namespace)
+			return nil
+		}
 		if err != nil {
 			nl.Errorf(l, "incorrect DNSEndpoint config for VirtualServer resource: %s", err)
 			rec.Eventf(vs, corev1.EventTypeWarning, nl.EventReasonBadConfig, "Incorrect DNSEndpoint config for VirtualServer resource: %s", err)
