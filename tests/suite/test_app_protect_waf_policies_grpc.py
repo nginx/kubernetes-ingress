@@ -23,6 +23,7 @@ from suite.utils.resources_utils import (
     generate_e2e_run_id,
     get_e2e_run_selector,
     get_file_contents,
+    get_first_pod_name,
     get_service_endpoint,
     replace_configmap_from_yaml,
     wait_before_test,
@@ -260,7 +261,7 @@ class TestAppProtectVSGrpc:
             appprotect_setup.vs_host,
             appprotect_setup.public_endpoint.port_ssl,
         )
-        syslog_pod = kube_apis.v1.list_namespaced_pod(test_namespace).items[-1].metadata.name
+        syslog_pod = get_first_pod_name(kube_apis.v1, test_namespace, "app=syslog")
         log_contents = get_file_contents(kube_apis.v1, log_loc, syslog_pod, test_namespace)
         assert (
             "ASM:attack_type=" in str(log_contents)
@@ -298,7 +299,7 @@ class TestAppProtectVSGrpc:
             appprotect_setup.vs_host,
             appprotect_setup.public_endpoint.port_ssl,
         )
-        syslog_pod = kube_apis.v1.list_namespaced_pod(test_namespace).items[-1].metadata.name
+        syslog_pod = get_first_pod_name(kube_apis.v1, test_namespace, "app=syslog")
         log_contents = get_file_contents(kube_apis.v1, log_loc, syslog_pod, test_namespace)
         assert (
             "ASM:attack_type=" in str(log_contents)
