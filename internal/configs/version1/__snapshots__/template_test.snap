@@ -7434,7 +7434,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -7453,7 +7452,6 @@ server {
     
     location "/coffee" {
         set $service "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_connect_timeout 10s;
         proxy_read_timeout 10s;
@@ -7509,7 +7507,6 @@ server {
         # location for minion default/tea-minion
         set $resource_name "tea-minion";
         set $resource_namespace "default";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 10s;
@@ -7530,7 +7527,6 @@ server {
     location "/coffee" {
         set $service "";
         status_zone "";
-        proxy_http_version 1.1;
         proxy_set_header Connection "";
 
         proxy_connect_timeout 10s;
