@@ -21,7 +21,6 @@ from suite.utils.resources_utils import (
     delete_ingress_controller,
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
-    generate_e2e_run_id,
     get_first_pod_name,
     patch_rbac,
     replace_configmap_from_yaml,
@@ -391,7 +390,6 @@ def crd_ingress_controller_with_dos(
     """
     namespace = ingress_controller_prerequisites.namespace
     name = "nginx-ingress"
-    dos_run_id = generate_e2e_run_id()
 
     try:
         print("--------------------Create roles and bindings for AppProtect------------------------")
@@ -419,14 +417,14 @@ def crd_ingress_controller_with_dos(
 
         print("------------------------- Create syslog svc -----------------------")
         src_syslog_yaml = f"{TEST_DATA}/dos/dos-syslog.yaml"
-        create_items_from_yaml(kube_apis, src_syslog_yaml, namespace, dos_run_id)
+        create_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
 
         print("------------------------- Create accesslog svc -----------------------")
         src_accesslog_yaml = f"{TEST_DATA}/dos/dos-accesslog.yaml"
-        create_items_from_yaml(kube_apis, src_accesslog_yaml, namespace, dos_run_id)
+        create_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
 
         before = time.time()
-        wait_until_all_pods_are_ready(kube_apis.v1, namespace, f"e2e.nginx.org/run-id={dos_run_id}")
+        wait_until_all_pods_are_ready(kube_apis.v1, namespace, "app in (syslog,accesslog)")
         after = time.time()
         print(f"All pods came up in {int(after-before)} seconds")
         print(f"syslog and accesslog svc was created")
