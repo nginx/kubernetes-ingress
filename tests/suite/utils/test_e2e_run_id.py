@@ -119,14 +119,11 @@ def test_ready_check_ignores_terminating_pods_and_uses_the_run_selector():
 
 
 @pytest.mark.parametrize(
-    ("run_id", "expected_selector"),
-    [("test-run-id", "e2e.nginx.org/run-id=test-run-id"), (None, None)],
+    ("match_labels", "expected_selector"),
+    [({"app": "nginx-ingress"}, "app=nginx-ingress"), ({"app": "backend1", "tier": "web"}, "app=backend1,tier=web")],
 )
-def test_scale_deployment_uses_run_selector_when_present(run_id, expected_selector):
-    labels = {E2E_RUN_ID_LABEL: run_id} if run_id else {}
-    deployment = SimpleNamespace(
-        spec=SimpleNamespace(template=SimpleNamespace(metadata=SimpleNamespace(labels=labels)))
-    )
+def test_scale_deployment_waits_on_deployment_selector(match_labels, expected_selector):
+    deployment = SimpleNamespace(spec=SimpleNamespace(selector=SimpleNamespace(match_labels=match_labels)))
     scale_obj = SimpleNamespace(spec=SimpleNamespace(replicas=1))
     apps_v1_api = Mock()
     apps_v1_api.read_namespaced_deployment.return_value = deployment

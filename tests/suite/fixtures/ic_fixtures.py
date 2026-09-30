@@ -438,7 +438,6 @@ def crd_ingress_controller_with_dos(
             namespace,
             f"{DEPLOYMENTS}/deployment/appprotect-dos-arb.yaml",
             f"{DEPLOYMENTS}/service/appprotect-dos-arb-svc.yaml",
-            e2e_run_id=dos_run_id,
         )
 
         print("------------------------- Create IC -----------------------------------")

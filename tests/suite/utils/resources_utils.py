@@ -43,6 +43,11 @@ def get_e2e_run_selector(e2e_run_id: str) -> str:
     return f"{E2E_RUN_ID_LABEL}={e2e_run_id}"
 
 
+def get_match_labels_selector(match_labels: dict) -> str:
+    """Return a label selector string for a workload's spec.selector.matchLabels."""
+    return ",".join(f"{k}={v}" for k, v in match_labels.items())
+
+
 def add_e2e_run_id_to_workload(workload: dict, e2e_run_id: str) -> None:
     """Add an e2e run ID only to a workload's pod template."""
     if workload["kind"] not in {"Deployment", "DaemonSet", "StatefulSet"}:
@@ -270,9 +275,7 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     :return: original: int the original amount of replicas
     """
     deployment = apps_v1_api.read_namespaced_deployment(name, namespace)
-    labels = deployment.spec.template.metadata.labels or {}
-    e2e_run_id = labels.get(E2E_RUN_ID_LABEL)
-    selector = get_e2e_run_selector(e2e_run_id) if e2e_run_id else None
+    selector = get_match_labels_selector(deployment.spec.selector.match_labels)
     body = apps_v1_api.read_namespaced_deployment_scale(name, namespace)
     original = body.spec.replicas
     print(f"Original number of replicas is {original}")
@@ -1557,7 +1560,7 @@ def delete_ingress_controller(apps_v1_api: AppsV1Api, name, dep_type, namespace)
 
 
 def create_dos_arbitrator(
-    v1: CoreV1Api, apps_v1_api: AppsV1Api, namespace, deployment_yaml_manifest, svc_yaml_manifest, e2e_run_id=None
+    v1: CoreV1Api, apps_v1_api: AppsV1Api, namespace, deployment_yaml_manifest, svc_yaml_manifest
 ) -> str:
     """
     Create dos arbitrator according to the params.
@@ -1573,10 +1576,10 @@ def create_dos_arbitrator(
     with open(deployment_yaml_manifest) as f:
         dep = yaml.safe_load(f)
 
-    name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
+    name = create_deployment(apps_v1_api, namespace, dep)
 
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
+    wait_until_all_pods_are_ready(v1, namespace, get_match_labels_selector(dep["spec"]["selector"]["matchLabels"]))
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Dos arbitrator was created with name '{name}'")
