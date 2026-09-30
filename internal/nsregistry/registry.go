@@ -2,7 +2,32 @@
 // the informer group watching that namespace, generic over the group type.
 package nsregistry
 
-import "sync"
+import (
+	"context"
+	"sync"
+
+	"k8s.io/client-go/tools/cache"
+)
+
+// WaitForCacheSync waits for a namespace informer group's caches to sync. It
+// gives up when either the group's own stopCh closes or ctx is canceled.
+//
+// Namespace groups are synced from a queue worker, and controller shutdown
+// waits for that worker to exit. Gating on stopCh alone could block that wait
+// indefinitely, e.g. with an unreachable API server, because nothing closes a
+// group's stopCh until the worker has already exited.
+func WaitForCacheSync(ctx context.Context, stopCh <-chan struct{}, cacheSyncs ...cache.InformerSynced) bool {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		select {
+		case <-stopCh:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return cache.WaitForCacheSync(ctx.Done(), cacheSyncs...)
+}
 
 // Registry maps a namespace name to the informer group watching it.
 //

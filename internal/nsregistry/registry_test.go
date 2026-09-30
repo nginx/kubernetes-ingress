@@ -1,6 +1,7 @@
 package nsregistry
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -194,4 +195,50 @@ func TestConcurrentAccess(t *testing.T) {
 	readers.Wait()
 	close(stop)
 	writer.Wait()
+}
+
+// TestWaitForCacheSyncGivesUpOnEitherSignal checks that a wait for caches that
+// never sync ends when either the group's stopCh closes or ctx is canceled.
+func TestWaitForCacheSyncGivesUpOnEitherSignal(t *testing.T) {
+	t.Parallel()
+
+	neverSynced := func() bool { return false }
+
+	tests := []struct {
+		name    string
+		release func(stopCh chan struct{}, cancel context.CancelFunc)
+	}{
+		{name: "stopCh closed", release: func(stopCh chan struct{}, _ context.CancelFunc) { close(stopCh) }},
+		{name: "ctx canceled", release: func(_ chan struct{}, cancel context.CancelFunc) { cancel() }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			stopCh := make(chan struct{})
+
+			done := make(chan bool)
+			go func() { done <- WaitForCacheSync(ctx, stopCh, neverSynced) }()
+			tc.release(stopCh, cancel)
+
+			select {
+			case synced := <-done:
+				if synced {
+					t.Error("WaitForCacheSync = true, want false for caches that never synced")
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("WaitForCacheSync did not return")
+			}
+		})
+	}
+}
+
+func TestWaitForCacheSyncReportsSynced(t *testing.T) {
+	t.Parallel()
+
+	if !WaitForCacheSync(context.Background(), make(chan struct{}), func() bool { return true }) {
+		t.Error("WaitForCacheSync = false, want true for synced caches")
+	}
 }

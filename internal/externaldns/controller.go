@@ -259,7 +259,7 @@ func BuildOpts(ctx context.Context, ns []string, rdr record.EventRecorder, clien
 }
 
 // AddNewNamespacedInformer adds watchers for a new namespace
-func (c *ExtDNSController) AddNewNamespacedInformer(ns string) {
+func (c *ExtDNSController) AddNewNamespacedInformer(ctx context.Context, ns string) {
 	l := nl.LoggerFromContext(c.ctx)
 	nl.Debugf(l, "Adding or Updating external-dns Watchers for Namespace: %v", ns)
 	nsi := c.informerGroup.Get(ns)
@@ -272,7 +272,11 @@ func (c *ExtDNSController) AddNewNamespacedInformer(ns string) {
 		}
 		nsi.start()
 	}
-	if !cache.WaitForCacheSync(nsi.stopCh, nsi.mustSync...) {
+	// ctx is the caller's run context. This is called from the main
+	// controller's queue worker, and its shutdown waits for that worker, so
+	// the wait must also end when ctx is canceled rather than only when this
+	// group's stopCh closes.
+	if !nsregistry.WaitForCacheSync(ctx, nsi.stopCh, nsi.mustSync...) {
 		return
 	}
 }

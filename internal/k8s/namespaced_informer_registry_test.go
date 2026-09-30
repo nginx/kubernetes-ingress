@@ -2,11 +2,19 @@ package k8s
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"sync"
 	"testing"
+	"time"
 
+	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
+	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
 	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
+	api_v1 "k8s.io/api/core/v1"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 )
 
 // registryFrom builds a registry pre-populated from m. Tests construct informer
@@ -147,29 +155,70 @@ func TestNamespacedInformerStopIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestStopRacesWithNamespaceRemoval reproduces the shutdown interleaving under
-// -race: Stop's sweep and removeNamespacedInformer can target the same group.
-func TestStopRacesWithNamespaceRemoval(t *testing.T) {
+// TestStopReleasesWorkerWaitingOnNamespaceCaches drives Stop against a sync
+// queue worker that is blocked in syncNamespace waiting for a watched
+// namespace's caches, as happens with an unreachable API server. Stop shuts the
+// queue down before sweeping the registry, so the worker must give up on the
+// canceled run context rather than on its group's stopCh; otherwise Stop hangs.
+// It then checks the sweep stopped every registered group.
+func TestStopReleasesWorkerWaitingOnNamespaceCaches(t *testing.T) {
 	t.Parallel()
 
-	lbc := &LoadBalancerController{
-		namespacedInformers: registryFrom(map[string]*namespacedInformer{
-			"a": {namespace: "a", stopCh: make(chan struct{})},
-			"b": {namespace: "b", stopCh: make(chan struct{})},
-		}),
+	waiting := make(chan struct{})
+	var once sync.Once
+	neverSynced := func() bool {
+		once.Do(func() { close(waiting) })
+		return false
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	stuck := &namespacedInformer{
+		namespace:  "stuck",
+		stopCh:     make(chan struct{}),
+		cacheSyncs: []cache.InformerSynced{neverSynced},
+	}
+	other := &namespacedInformer{namespace: "other", stopCh: make(chan struct{})}
+
+	labeled := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	if err := labeled.Add(&api_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "stuck"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	logger := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
+	lbc := &LoadBalancerController{
+		Logger:                 logger,
+		namespaceLabeledLister: labeled,
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
+			"stuck": stuck,
+			"other": other,
+		}),
+	}
+	lbc.ctx, lbc.cancel = context.WithCancel(context.Background())
+	lbc.syncQueue = newTaskQueue(logger, lbc.syncNamespace)
+	lbc.syncQueue.Enqueue(&api_v1.Namespace{ObjectMeta: meta_v1.ObjectMeta{Name: "stuck"}})
+	go lbc.syncQueue.Run(time.Second, lbc.ctx.Done())
+
+	select {
+	case <-waiting:
+	case <-time.After(10 * time.Second):
+		t.Fatal("worker never started waiting for the namespace caches")
+	}
+
+	stopped := make(chan struct{})
 	go func() {
-		defer wg.Done()
-		lbc.namespacedInformers.ForEach(func(nsi *namespacedInformer) {
-			nsi.stop()
-		})
+		lbc.Stop()
+		close(stopped)
 	}()
-	go func() {
-		defer wg.Done()
-		lbc.removeNamespacedInformer("a")
-	}()
-	wg.Wait()
+	select {
+	case <-stopped:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop did not return while the worker was waiting for namespace caches")
+	}
+
+	for _, nsi := range []*namespacedInformer{stuck, other} {
+		select {
+		case <-nsi.stopCh:
+		default:
+			t.Errorf("namespace %q was not stopped by Stop", nsi.namespace)
+		}
+	}
 }

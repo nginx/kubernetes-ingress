@@ -909,18 +909,23 @@ func (lbc *LoadBalancerController) Stop() {
 	if lbc.bundlePollerMgr != nil {
 		lbc.bundlePollerMgr.StopAll()
 	}
-	// Sweep first so a namespace task blocked in WaitForCacheSync on its own
-	// stopCh is released, then wait for the worker to exit, then sweep again to
-	// catch a group it registered in between. stop is idempotent, so a group
-	// caught by both sweeps, or already stopped by the worker, is fine.
-	stopAll := func() {
-		lbc.namespacedInformers.ForEach(func(nif *namespacedInformer) {
-			nif.stop()
-		})
-	}
-	stopAll()
+	// Wait for the sync queue worker to exit before sweeping, so no namespace
+	// can be registered or unregistered once the sweep starts. The worker cannot
+	// hang here: a namespace task waiting for a new group's caches also gives up
+	// on lbc.ctx, which was canceled above. stop stays idempotent as a guard.
 	lbc.syncQueue.Shutdown()
-	stopAll()
+	lbc.namespacedInformers.ForEach(func(nif *namespacedInformer) {
+		nif.stop()
+	})
+}
+
+// runContext returns the context Run created, which Stop cancels first. It falls
+// back to context.Background for a controller that was never Run, as in tests.
+func (lbc *LoadBalancerController) runContext() context.Context {
+	if lbc.ctx == nil {
+		return context.Background()
+	}
+	return lbc.ctx
 }
 
 func (nsi *namespacedInformer) start() {
@@ -939,9 +944,8 @@ func (nsi *namespacedInformer) start() {
 	}
 }
 
-// stop closes the group's stop channel. It is idempotent: Stop sweeps every
-// registered group at shutdown while the sync queue worker may still be
-// unregistering one, so both can reach the same group.
+// stop closes the group's stop channel. It is idempotent so that a group reached
+// by both namespace removal and the shutdown sweep cannot panic on a second close.
 func (nsi *namespacedInformer) stop() {
 	nsi.stopOnce.Do(func() {
 		close(nsi.stopCh)
@@ -1258,24 +1262,25 @@ func (lbc *LoadBalancerController) updateAllConfigs() {
 // As a result, the IC will generate configuration for that resource assuming that the Secret is missing and
 // it will report warnings. (See https://github.com/nginx/kubernetes-ingress/issues/1448 )
 func (lbc *LoadBalancerController) preSyncSecrets() {
-	var totalSecrets int
+	// Only list under the registry read lock: AddOrUpdateSecret can write
+	// secret files to disk, so it runs after ForEach returns.
+	var objects []interface{}
 	lbc.namespacedInformers.ForEach(func(ni *namespacedInformer) {
 		if !ni.isSecretsEnabledNamespace {
 			return
 		}
-		objects := ni.secretLister.List()
-		nl.Debugf(lbc.Logger, "PreSync %d Secrets", len(objects))
-
-		for _, obj := range objects {
-			secret := obj.(*api_v1.Secret)
-
-			nl.Debugf(lbc.Logger, "Adding Secret: %s/%s", secret.Namespace, secret.Name)
-			lbc.secretStore.AddOrUpdateSecret(secret)
-		}
-		totalSecrets += len(objects)
+		objects = append(objects, ni.secretLister.List()...)
 	})
+	nl.Debugf(lbc.Logger, "PreSync %d Secrets", len(objects))
+
+	for _, obj := range objects {
+		secret := obj.(*api_v1.Secret)
+
+		nl.Debugf(lbc.Logger, "Adding Secret: %s/%s", secret.Namespace, secret.Name)
+		lbc.secretStore.AddOrUpdateSecret(secret)
+	}
 	nl.Debugf(lbc.Logger, "PreSync complete: primed %d Secrets. Unreferenced Secrets will be evicted during the first sync cycle",
-		totalSecrets)
+		len(objects))
 }
 
 func (lbc *LoadBalancerController) sync(task task) {

@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -110,12 +111,14 @@ func (lbc *LoadBalancerController) syncNamespace(task task) {
 			nsi.start()
 		}
 		if lbc.certManagerController != nil {
-			lbc.certManagerController.AddNewNamespacedInformer(key)
+			lbc.certManagerController.AddNewNamespacedInformer(lbc.runContext(), key)
 		}
 		if lbc.externalDNSController != nil {
-			lbc.externalDNSController.AddNewNamespacedInformer(key)
+			lbc.externalDNSController.AddNewNamespacedInformer(lbc.runContext(), key)
 		}
-		if !cache.WaitForCacheSync(nsi.stopCh, nsi.cacheSyncs...) {
+		// Also give up when the controller is stopping: Stop waits for this
+		// worker to exit before it closes a newly registered group's stopCh.
+		if !nsregistry.WaitForCacheSync(lbc.runContext(), nsi.stopCh, nsi.cacheSyncs...) {
 			return
 		}
 	}
