@@ -194,6 +194,7 @@ class TestIngressMTLSPoliciesIngress:
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        e2e_run_id,
     ):
         """
         Validates that an IngressMTLS policy works when the CA lives in an Opaque secret.
@@ -206,7 +207,8 @@ class TestIngressMTLSPoliciesIngress:
         ingress_host = get_first_ingress_host_from_yaml(mtls_ingress_src)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
         mtls_secret_name = ""
         tls_secret_name = ""
