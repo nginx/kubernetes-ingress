@@ -11653,3 +11653,136 @@ server {
 }
 
 ---
+
+[TestExecuteTemplate_ForIngressForNGINXPlusWithMixedKeepaliveUpstreams - 1]
+# configuration for default/cafe-ingress
+upstream test-no-keepalive {
+    zone test-no-keepalive 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+upstream test-keepalive {
+    zone test-keepalive 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;keepalive 16;
+}
+
+
+server {
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location "/no-keepalive" {
+        set $service "";
+        status_zone "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test-no-keepalive;
+        
+    }
+    
+    location "/keepalive" {
+        set $service "";
+        status_zone "";
+        proxy_set_header Connection "";
+
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test-keepalive;
+        
+    }
+    
+}
+
+---
+
+[TestExecuteTemplate_ForIngressForNGINXWithMixedKeepaliveUpstreams - 1]
+# configuration for default/cafe-ingress
+upstream test-no-keepalive {
+    zone test-no-keepalive 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+upstream test-keepalive {
+    zone test-keepalive 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+    keepalive 16;
+}
+
+
+
+server {
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/no-keepalive" {
+        set $service "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test-no-keepalive;
+        
+    }
+    
+    location "/keepalive" {
+        set $service "";
+        proxy_set_header Connection "";
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 10s;
+        proxy_send_timeout 10s;
+        client_max_body_size 2m;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_pass http://test-keepalive;
+        
+    }
+    
+}
+
+---
