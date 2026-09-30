@@ -857,6 +857,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
+		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
 	}, allWarnings
 }
 
@@ -998,6 +999,7 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 		Path:                     externalAuth.URI.InternalPath,
 		Internal:                 true,
 		Upstream:                 upstream,
+		DisableWAF:               true,
 		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstream.Name, externalAuth.URI.Path),
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
@@ -1594,6 +1596,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
+		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
 	}, warnings
 }
 
