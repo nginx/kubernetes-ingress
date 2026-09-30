@@ -106,6 +106,7 @@ type ConfigParams struct {
 	ServerTokens                           string
 	ServerSSLCiphers                       string
 	ServerSSLPreferServerCiphers           bool
+	ServerHTTP2                            *bool // nginx.org/http2 annotation; nil means use HTTP2 (ConfigMap) for TLS servers only
 	SlowStart                              string
 	SSLRedirect                            bool
 	UpstreamZoneSize                       string

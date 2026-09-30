@@ -3125,9 +3125,11 @@ server {
         {{- else }}
     {{ makeHTTPSListener $s | printf }}
         {{- end }}
-        {{- if $ssl.HTTP2 }}
+    {{- end }}
+    {{- if $s.HTTP2 }}
     http2 on;
-        {{- end }}
+    {{- end }}
+    {{- with $ssl := $s.SSL }}
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
@@ -3653,7 +3655,7 @@ server {
     {{- end }}
 
     {{- with $ssl := $s.SSL }}
-        {{ if $ssl.HTTP2 }}
+        {{ if $s.HTTP2 }}
 	location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;

@@ -17,6 +17,9 @@ type VirtualServerSpecApplyConfiguration struct {
 	TLS *TLSApplyConfiguration `json:"tls,omitempty"`
 	// Enables or disables decompression of gzipped responses for clients. Allowed values “on”/“off”, “true”/“false” or “yes”/“no”. If the gunzip value is not set, it defaults to off.
 	Gunzip *bool `json:"gunzip,omitempty"`
+	// Turns HTTP/2 on or off for this VirtualServer, replacing the http2 ConfigMap setting, which only applies to VirtualServers with TLS.
+	// For unencrypted (http://) traffic, turning HTTP/2 on also requires the ConfigMap setting.
+	HTTP2 *bool `json:"http2,omitempty"`
 	// A list of policies.
 	Policies []PolicyReferenceApplyConfiguration `json:"policies,omitempty"`
 	// A list of upstreams.
@@ -78,6 +81,14 @@ func (b *VirtualServerSpecApplyConfiguration) WithTLS(value *TLSApplyConfigurati
 // If called multiple times, the Gunzip field is set to the value of the last call.
 func (b *VirtualServerSpecApplyConfiguration) WithGunzip(value bool) *VirtualServerSpecApplyConfiguration {
 	b.Gunzip = &value
+	return b
+}
+
+// WithHTTP2 sets the HTTP2 field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the HTTP2 field is set to the value of the last call.
+func (b *VirtualServerSpecApplyConfiguration) WithHTTP2(value bool) *VirtualServerSpecApplyConfiguration {
+	b.HTTP2 = &value
 	return b
 }
 

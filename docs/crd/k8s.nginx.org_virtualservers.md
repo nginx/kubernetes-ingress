@@ -28,6 +28,7 @@ The `.spec` object supports the following fields:
 | `gunzip` | `boolean` | Enables or disables decompression of gzipped responses for clients. Allowed values “on”/“off”, “true”/“false” or “yes”/“no”. If the gunzip value is not set, it defaults to off. |
 | `host` | `string` | The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. The host value needs to be unique among all Ingress and VirtualServer resources. |
 | `http-snippets` | `string` | Sets a custom snippet in the http context. |
+| `http2` | `boolean` | Turns HTTP/2 on or off for this VirtualServer, replacing the http2 ConfigMap setting, which only applies to VirtualServers with TLS. For unencrypted (http://) traffic, turning HTTP/2 on also requires the ConfigMap setting. |
 | `ingressClassName` | `string` | Specifies which Ingress Controller must handle the VirtualServerRoute resource. Must be the same as the ingressClassName of the VirtualServer that references this resource. |
 | `listener` | `object` | Sets a custom HTTP and/or HTTPS listener. Valid fields are listener.http and listener.https. Each field must reference the name of a valid listener defined in a GlobalConfiguration resource |
 | `listener.http` | `string` | The name of an HTTP listener defined in a GlobalConfiguration resource. |
@@ -197,7 +198,6 @@ The `.spec` object supports the following fields:
 | `tls.cert-manager.issuer-kind` | `string` | The kind of the external issuer resource, for example AWSPCAIssuer. This is only necessary for out-of-tree issuers. This cannot be defined if cluster-issuer is also defined. |
 | `tls.cert-manager.renew-before` | `string` | This annotation allows you to configure spec.renewBefore field for the Certificate to be generated. Must be specified using a Go time.Duration string format, which does not allow the d (days) suffix. You must specify these values using s, m, and h suffixes instead. |
 | `tls.cert-manager.usages` | `string` | This field allows you to configure spec.usages field for the Certificate to be generated. Pass a string with comma-separated values i.e. key agreement,digital signature, server auth. An exhaustive list of supported key usages can be found in the the cert-manager api documentation. |
-| `tls.http2` | `boolean` | Enables or disables HTTP/2 for the VirtualServer. Overrides the http2 ConfigMap key. |
 | `tls.redirect` | `object` | The redirect configuration of the TLS for a VirtualServer. |
 | `tls.redirect.basedOn` | `string` | The attribute of a request that NGINX will evaluate to send a redirect. The allowed values are scheme (the scheme of the request) or x-forwarded-proto (the X-Forwarded-Proto header of the request). The default is scheme. |
 | `tls.redirect.code` | `integer` | The status code of a redirect. The allowed values are: 301, 302, 307 or 308. The default is 301. |

@@ -1405,11 +1405,6 @@ func (in *TLS) DeepCopyInto(out *TLS) {
 		*out = new(CertManager)
 		**out = **in
 	}
-	if in.HTTP2 != nil {
-		in, out := &in.HTTP2, &out.HTTP2
-		*out = new(bool)
-		**out = **in
-	}
 	return
 }
 
@@ -2046,6 +2041,11 @@ func (in *VirtualServerSpec) DeepCopyInto(out *VirtualServerSpec) {
 		in, out := &in.TLS, &out.TLS
 		*out = new(TLS)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.HTTP2 != nil {
+		in, out := &in.HTTP2, &out.HTTP2
+		*out = new(bool)
+		**out = **in
 	}
 	if in.Policies != nil {
 		in, out := &in.Policies, &out.Policies

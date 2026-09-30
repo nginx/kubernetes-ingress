@@ -3356,8 +3356,8 @@ func TestGenerateVirtualServerConfigGrpcErrorPageWarning(t *testing.T) {
 			StatusZone:  "cafe.example.com",
 			VSNamespace: "default",
 			VSName:      "cafe",
+			HTTP2:       true,
 			SSL: &version2.SSL{
-				HTTP2:          true,
 				Certificate:    "/etc/nginx/secrets/wildcard",
 				CertificateKey: "/etc/nginx/secrets/wildcard",
 			},
@@ -3895,32 +3895,50 @@ func TestGenerateVirtualServerConfigProxyHTTPVersionGRPC(t *testing.T) {
 	}
 }
 
-// TestGenerateVirtualServerConfigTLSHTTP2OverrideDisablesGRPC asserts that tls.http2: false
-// overrides the http2 ConfigMap key, both for the server and for the gRPC upstream check.
-func TestGenerateVirtualServerConfigTLSHTTP2OverrideDisablesGRPC(t *testing.T) {
+// TestGenerateVirtualServerConfigHTTP2 asserts that spec.http2 overrides the http2 ConfigMap key,
+// which only applies to VirtualServers with TLS, and that gRPC upstreams follow the result.
+func TestGenerateVirtualServerConfigHTTP2(t *testing.T) {
 	t.Parallel()
-
-	http2Off := false
-	virtualServerEx := VirtualServerEx{
-		VirtualServer: &conf_v1.VirtualServer{
-			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
-			Spec: conf_v1.VirtualServerSpec{
-				Host:      "cafe.example.com",
-				TLS:       &conf_v1.TLS{Secret: "cafe-secret", HTTP2: &http2Off},
-				Upstreams: []conf_v1.Upstream{{Name: "grpc", Service: "grpc-svc", Port: 50051, Type: "grpc"}},
-				Routes:    []conf_v1.Route{{Path: "/", Action: &conf_v1.Action{Pass: "grpc"}}},
-			},
-		},
+	on, off := true, false
+	tests := []struct {
+		msg       string
+		tls       bool
+		configMap bool
+		spec      *bool
+		want      bool
+	}{
+		{msg: "TLS inherits ConfigMap on", tls: true, configMap: true, want: true},
+		{msg: "TLS, spec off overrides ConfigMap on", tls: true, configMap: true, spec: &off, want: false},
+		{msg: "TLS, spec on overrides ConfigMap off", tls: true, spec: &on, want: true},
+		{msg: "no TLS ignores ConfigMap on", configMap: true, want: false},
+		{msg: "no TLS, spec on", spec: &on, want: true},
 	}
+	for _, tc := range tests {
+		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
+			vs := &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+				Spec: conf_v1.VirtualServerSpec{
+					Host:      "cafe.example.com",
+					HTTP2:     tc.spec,
+					Upstreams: []conf_v1.Upstream{{Name: "grpc", Service: "grpc-svc", Port: 50051, Type: "grpc"}},
+					Routes:    []conf_v1.Route{{Path: "/", Action: &conf_v1.Action{Pass: "grpc"}}},
+				},
+			}
+			if tc.tls {
+				vs.Spec.TLS = &conf_v1.TLS{Secret: "cafe-secret"}
+			}
 
-	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background(), HTTP2: true}, false, false, &StaticConfigParams{}, false, &fakeBV)
-	result, _ := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background(), HTTP2: tc.configMap}, false, false, &StaticConfigParams{}, false, &fakeBV)
+			result, _ := vsc.GenerateVirtualServerConfig(&VirtualServerEx{VirtualServer: vs}, nil, nil)
 
-	if result.Server.SSL.HTTP2 {
-		t.Error("SSL.HTTP2 = true, want false from tls.http2 override")
-	}
-	want := "gRPC cannot be configured for upstream grpc. gRPC requires enabled HTTP/2 and TLS termination"
-	if !slices.Contains(vsc.warnings[virtualServerEx.VirtualServer], want) {
-		t.Errorf("warnings %v do not contain %q", vsc.warnings[virtualServerEx.VirtualServer], want)
+			if result.Server.HTTP2 != tc.want {
+				t.Errorf("Server.HTTP2 = %v, want %v", result.Server.HTTP2, tc.want)
+			}
+			grpcWarning := slices.Contains(vsc.warnings[vs], "gRPC cannot be configured for upstream grpc. gRPC requires enabled HTTP/2 and TLS termination")
+			if wantWarning := !tc.tls || !tc.want; grpcWarning != wantWarning {
+				t.Errorf("gRPC warning = %v, want %v", grpcWarning, wantWarning)
+			}
+		})
 	}
 }

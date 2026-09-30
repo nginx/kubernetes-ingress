@@ -13,8 +13,6 @@ type TLSApplyConfiguration struct {
 	Redirect *TLSRedirectApplyConfiguration `json:"redirect,omitempty"`
 	// The cert-manager configuration of the TLS for a VirtualServer.
 	CertManager *CertManagerApplyConfiguration `json:"cert-manager,omitempty"`
-	// Enables or disables HTTP/2 for the VirtualServer. Overrides the http2 ConfigMap key.
-	HTTP2 *bool `json:"http2,omitempty"`
 }
 
 // TLSApplyConfiguration constructs a declarative configuration of the TLS type for use with
@@ -44,13 +42,5 @@ func (b *TLSApplyConfiguration) WithRedirect(value *TLSRedirectApplyConfiguratio
 // If called multiple times, the CertManager field is set to the value of the last call.
 func (b *TLSApplyConfiguration) WithCertManager(value *CertManagerApplyConfiguration) *TLSApplyConfiguration {
 	b.CertManager = value
-	return b
-}
-
-// WithHTTP2 sets the HTTP2 field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the HTTP2 field is set to the value of the last call.
-func (b *TLSApplyConfiguration) WithHTTP2(value bool) *TLSApplyConfiguration {
-	b.HTTP2 = &value
 	return b
 }
