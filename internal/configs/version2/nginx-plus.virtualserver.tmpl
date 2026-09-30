@@ -1031,13 +1031,13 @@ server {
     }
     {{- end }}
 
-    {{- if $s.HasExternalAuthSignin}}
+    {{- if hasExternalAuthSignin $s}}
     location @external_auth_signin {
         auth_request off;
         return 302 $external_auth_signin_uri;
     }
     {{- end}}
-    {{- if $s.HasExternalAuthNoSignin}}
+    {{- if hasExternalAuthNoSignin $s}}
     location @external_auth_unauthorized {
         auth_request off;
         return 401;

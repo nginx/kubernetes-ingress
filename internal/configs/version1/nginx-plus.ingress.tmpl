@@ -695,13 +695,13 @@ server {
 		{{end}}
 	}
 	{{end -}}
-	{{- if $server.HasExternalAuthSignin}}
+	{{- if hasExternalAuthSignin $server}}
 	location @external_auth_signin {
 		auth_request off;
 		return 302 $external_auth_signin_uri;
 	}
 	{{- end}}
-	{{- if $server.HasExternalAuthNoSignin}}
+	{{- if hasExternalAuthNoSignin $server}}
 	location @external_auth_unauthorized {
 		auth_request off;
 		return 401;

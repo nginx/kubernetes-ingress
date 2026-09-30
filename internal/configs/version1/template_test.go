@@ -8038,11 +8038,11 @@ func TestExecuteTemplate_ForIngressWithExternalAuthSigninURL(t *testing.T) {
 			tmpl := tc.newTmpl(t)
 			buf := &bytes.Buffer{}
 			cfg := newIngressConfigWithExternalAuth(tc.scope, tc.signin)
-			if got := cfg.Servers[0].HasExternalAuthSignin(); got != tc.wantHit {
-				t.Errorf("HasExternalAuthSignin() = %v, want %v", got, tc.wantHit)
+			if got := hasExternalAuthSignin(cfg.Servers[0]); got != tc.wantHit {
+				t.Errorf("hasExternalAuthSignin() = %v, want %v", got, tc.wantHit)
 			}
-			if got := cfg.Servers[0].HasExternalAuthNoSignin(); got != tc.wantUnauthorized {
-				t.Errorf("HasExternalAuthNoSignin() = %v, want %v", got, tc.wantUnauthorized)
+			if got := hasExternalAuthNoSignin(cfg.Servers[0]); got != tc.wantUnauthorized {
+				t.Errorf("hasExternalAuthNoSignin() = %v, want %v", got, tc.wantUnauthorized)
 			}
 			if err := tmpl.Execute(buf, cfg); err != nil {
 				t.Fatal(err)
