@@ -4930,7 +4930,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						UseForwardedHeaders: true,
 						ProxyReadTimeout:    "10s",
@@ -4944,7 +4944,7 @@ var (
 					},
 					{
 						Path:                "/coffee",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						UseForwardedHeaders: true,
 						UpstreamVhost:       "coffee.internal",
@@ -4956,8 +4956,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4982,7 +4981,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						UseForwardedHeaders: true,
 						ProxyReadTimeout:    "10s",
@@ -4991,7 +4990,7 @@ var (
 					},
 					{
 						Path:                "/coffee",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						UseForwardedHeaders: true,
 						UpstreamVhost:       "coffee.internal",
@@ -5002,8 +5001,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
