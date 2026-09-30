@@ -368,28 +368,30 @@ def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, label_selector, time
 
 def get_pod_list(v1: CoreV1Api, namespace, label_selector=None) -> []:
     """
-    Get a list of pods in a namespace.
+    Get a list of pods in a namespace, excluding pods that are terminating.
 
     :param v1: CoreV1Api
     :param namespace: namespace
+    :param label_selector:
     :return: []
     """
-    return v1.list_namespaced_pod(namespace, label_selector=label_selector).items
+    pods = v1.list_namespaced_pod(namespace, label_selector=label_selector).items
+    return [pod for pod in pods if pod.metadata.deletion_timestamp is None]
 
 
 def get_first_pod_name(v1: CoreV1Api, namespace, label_selector=None) -> str:
     """
-    Return 1st pod_name in a list of pods in a namespace.
+    Return 1st pod_name in a list of non-terminating pods in a namespace.
 
     :param v1: CoreV1Api
     :param namespace:
     :param label_selector:
     :return: str
     """
-    resp = v1.list_namespaced_pod(namespace, label_selector=label_selector)
-    if not resp.items:
+    pods = get_pod_list(v1, namespace, label_selector)
+    if not pods:
         raise IndexError(f"No pods found in namespace '{namespace}' matching selector '{label_selector}'")
-    return resp.items[0].metadata.name
+    return pods[0].metadata.name
 
 
 def are_all_pods_in_ready_state(v1: CoreV1Api, namespace, label_selector) -> bool:

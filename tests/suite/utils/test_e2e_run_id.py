@@ -15,6 +15,8 @@ from suite.utils.resources_utils import (
     create_stateful_set,
     generate_e2e_run_id,
     get_e2e_run_selector,
+    get_first_pod_name,
+    get_pod_list,
     scale_deployment,
 )
 
@@ -134,3 +136,17 @@ def test_scale_deployment_waits_on_deployment_selector(match_labels, expected_se
         original = scale_deployment(v1, apps_v1_api, "test-dep", "test-ns", 2)
         assert original == 1
         wait_mock.assert_called_once_with(v1, "test-ns", expected_selector)
+
+
+def test_pod_lookups_skip_terminating_pods():
+    terminating_pod = SimpleNamespace(metadata=SimpleNamespace(name="a-old", deletion_timestamp="2026-09-11T00:00:00Z"))
+    current_pod = SimpleNamespace(metadata=SimpleNamespace(name="b-new", deletion_timestamp=None))
+    v1 = Mock()
+    v1.list_namespaced_pod.return_value = SimpleNamespace(items=[terminating_pod, current_pod])
+
+    assert get_pod_list(v1, "ns", "app=nginx-ingress") == [current_pod]
+    assert get_first_pod_name(v1, "ns", "app=nginx-ingress") == "b-new"
+
+    v1.list_namespaced_pod.return_value = SimpleNamespace(items=[terminating_pod])
+    with pytest.raises(IndexError):
+        get_first_pod_name(v1, "ns", "app=nginx-ingress")
