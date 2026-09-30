@@ -469,16 +469,10 @@ def update_shortcode_row_values(
         json_data["nic_nap"]["shortcode_row"]["waf_release_version"] = nap_waf_release_version
 
 
-def update_lts_shortcode_row_values(
-    json_data, lts_version, k8s_versions, nic_lts_helm_version, nginx_plus_version, lts_release_date
-):
+def update_lts_shortcode_row_values(json_data, k8s_versions, nginx_plus_version, lts_release_date):
     """Update the nic_lts shortcode_row entries; empty values preserve JSON."""
-    if lts_version:
-        json_data["nic_lts"]["shortcode_row"]["lts_version"] = lts_version
     if k8s_versions:
         json_data["nic_lts"]["shortcode_row"]["k8s_versions"] = k8s_versions
-    if nic_lts_helm_version:
-        json_data["nic_lts"]["shortcode_row"]["lts_helm_version"] = nic_lts_helm_version
     if nginx_plus_version:
         json_data["nic_lts"]["shortcode_row"]["nginx_plus_version"] = nginx_plus_version
     existing_eots = json_data["nic_lts"]["shortcode_row"].get("end_of_technical_support", "")
@@ -667,9 +661,7 @@ Examples:
     if args.lts:
         update_lts_shortcode_row_values(
             json_data,
-            args.ic_version,
             args.k8s_versions,
-            args.lts_helm_version,
             args.nginx_plus_version,
             args.lts_release_date,
         )

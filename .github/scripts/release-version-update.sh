@@ -128,8 +128,8 @@ else
     validate_format "Operator version" "${new_operator_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "3.8.0"
     validate_format "Current Operator version" "${current_operator_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "3.7.0"
 fi
-validate_format "Helm version" "${new_helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2.8.0"
-validate_format "Current Helm version" "${current_helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2.7.0"
+validate_format "Helm version" "${new_helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2.7.3 or 2026.0.6"
+validate_format "Current Helm version" "${current_helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2.7.2 or 2026.0.5"
 
 
 escaped_current_ic_version=$(printf '%s' "$current_ic_version" | sed -e 's/\./\\./g');
@@ -246,11 +246,11 @@ if [ "${UPDATE_TECH_SPECS}" != "false" ]; then
         exit 2
     fi
 
-    validate_format "K8s versions" "${K8S_VERSIONS}" '^[0-9]+\.[0-9]+\s*-\s*[0-9]+\.[0-9]+$' "1.30 - 1.37"
+    validate_format "K8s versions" "${K8S_VERSIONS}" '^[0-9]+\.[0-9]+ *- *[0-9]+\.[0-9]+$' "1.30 - 1.37"
     if [ "${LTS}" != "false" ]; then
         validate_format "NGINX Plus version" "${NGINX_VERSION}" '^R[0-9]+(\.[0-9]+)+$' "R37.0.1.1"
     else
-        validate_format "NGINX version" "${NGINX_VERSION}" '^[0-9]+\.[0-9]+\.[0-9]+(\s*/\s*R[0-9]+(\.[0-9]+)+)?$' "1.31.6 / R37.1.1.2"
+        validate_format "NGINX version" "${NGINX_VERSION}" '^[0-9]+\.[0-9]+\.[0-9]+( */ *R[0-9]+(\.[0-9]+)+)?$' "1.31.6 / R37.1.1.2"
     fi
 
     echo "Updating $(basename "${TECH_SPECS_JSON}"): ${current_ic_version} -> ${new_ic_version}"
@@ -267,11 +267,24 @@ if [ "${UPDATE_TECH_SPECS}" != "false" ]; then
 
     if [ "${LTS}" != "false" ]; then
         if [ -n "${RELEASE_DATE}" ]; then
-            normalized_date=$(date -d "${RELEASE_DATE}" "+%-d %b %Y" 2>/dev/null)
+            normalized_date=$(python3 -c "
+            import sys
+            from datetime import datetime
+            for fmt in ('%d %b %Y', '%d %B %Y'):
+                try:
+                    d = datetime.strptime(sys.argv[1], fmt)
+                    print(d.strftime('%-d %b %Y'))
+                    sys.exit(0)
+                except ValueError:
+                    continue
+            sys.exit(1)
+            " "${RELEASE_DATE}" 2>/dev/null)
+
             if [ -z "${normalized_date}" ]; then
-                echo "ERROR: Invalid release date '${RELEASE_DATE}'. Expected format like '22 May 2026'"
+                echo "ERROR: Invalid release date '${RELEASE_DATE}'. Expected format like '16 Sept 2026' or '16 September 2026'"
                 exit 1
             fi
+
             RELEASE_DATE="${normalized_date}"
         fi
         tech_specs_args+=(--lts)

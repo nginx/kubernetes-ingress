@@ -127,21 +127,34 @@ fi
 
 if [ "${LTS}" != "false" ]; then
     validate_format "LTS version" "${ic_version}" '^[0-9]{4}-lts-r[0-9]+$' "2026-lts-r9"
-    validate_format "NGINX Plus version" "${nginx_version}" '^R[0-9]+(\.[0-9]+)+$' "R37.0.1.1"
+    validate_format "NGINX Plus version" "${nginx_version}" '^R[0-9]+(\.[0-9]+)+$' "R37.0.6.3"
 
 else
     validate_format "NIC version" "${ic_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "5.6.4"
-    validate_format "operator version" "${operator_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "3.7.3"
-    validate_format "NGINX version" "${nginx_version}" '^[0-9]+\.[0-9]+\.[0-9]+(\s*/\s*R[0-9]+(\.[0-9]+)+)?$' "1.31.1 / R37.0.1.1"
+    validate_format "operator version" "${operator_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "3.7.4"
+    validate_format "NGINX version" "${nginx_version}" '^[0-9]+\.[0-9]+\.[0-9]+( */ *R[0-9]+(\.[0-9]+)+)?$' "1.31.6 / R37.1.1.2"
 fi
-validate_format "Helm version" "${helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2026.0.6"
-validate_format "K8s versions" "${k8s_versions}" '^[0-9]+\.[0-9]+\s*-\s*[0-9]+\.[0-9]+$' "1.20 - 1.37"
+validate_format "Helm version" "${helm_chart_version}" '^[0-9]+\.[0-9]+\.[0-9]+$' "2.7.3 or 2026.0.6"
+validate_format "K8s versions" "${k8s_versions}" '^[0-9]+\.[0-9]+ *- *[0-9]+\.[0-9]+$' "1.20 - 1.37"
 
-normalized_date=$(date -d "${release_date}" "+%-d %b %Y" 2>/dev/null)
+normalized_date=$(python3 -c "
+import sys
+from datetime import datetime
+for fmt in ('%d %b %Y', '%d %B %Y'):
+    try:
+        d = datetime.strptime(sys.argv[1], fmt)
+        print(d.strftime('%-d %b %Y'))
+        sys.exit(0)
+    except ValueError:
+        continue
+sys.exit(1)
+" "${release_date}" 2>/dev/null)
+
 if [ -z "${normalized_date}" ]; then
-    echo "ERROR: Invalid release date '${release_date}'. Expected format like '22 May 2026'"
+    echo "ERROR: Invalid release date '${release_date}'. Expected format like '16 Sept 2026' or '16 September 2026'"
     exit 1
 fi
+
 release_date="${normalized_date}"
 
 if [ -z "${GH_TOKEN}" ]; then
