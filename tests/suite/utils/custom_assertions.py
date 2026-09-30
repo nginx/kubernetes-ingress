@@ -303,9 +303,7 @@ def assert_proxy_entries_exist(config) -> None:
     assert "proxy_next_upstream_tries 0;" in config
 
 
-def assert_pods_scaled_to_count(
-    apps_v1_api, v1, deployment_name, namespace, expected_count, timeout=60, interval=1, label_selector=None
-):
+def assert_pods_scaled_to_count(apps_v1_api, v1, deployment_name, namespace, expected_count, timeout=60, interval=1):
     """
     Check if the number of pods for a given deployment has scaled down to the expected count.
 
@@ -327,8 +325,6 @@ def assert_pods_scaled_to_count(
                 ).spec.selector.match_labels.items()
             ]
         )
-        if label_selector:
-            selector = f"{selector},{label_selector}"
         pods = v1.list_namespaced_pod(namespace, label_selector=selector)
         pod_count = len(pods.items)
         if pod_count == expected_count:

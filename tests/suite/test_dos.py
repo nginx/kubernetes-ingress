@@ -19,6 +19,7 @@ from suite.utils.dos_utils import (
     log_content_to_dic,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     clear_file_contents,
     create_dos_arbitrator,
     create_example_app,
@@ -34,7 +35,7 @@ from suite.utils.resources_utils import (
     get_file_contents,
     get_ingress_nginx_template_conf,
     get_nginx_template_conf,
-    get_pods_amount_with_name,
+    get_pods_amount,
     get_test_file_name,
     nginx_reload,
     replace_configmap_from_yaml,
@@ -473,7 +474,7 @@ class TestDos:
         print("------------------------- Check new IC pod get info from arbitrator -----------------------------")
         ic_ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 2)
-        while get_pods_amount_with_name(kube_apis.v1, "nginx-ingress", "nginx-ingress") != 2:
+        while get_pods_amount(kube_apis.v1, ic_ns, IC_SELECTOR) != 2:
             print(f"Number of replicas is not 2, retrying...")
             wait_before_test()
 
@@ -562,7 +563,7 @@ class TestDos:
         print("------------------------- Check new IC pod get info from arbitrator -----------------------------")
         ic_ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 2)
-        while get_pods_amount_with_name(kube_apis.v1, "nginx-ingress", "nginx-ingress") != 2:
+        while get_pods_amount(kube_apis.v1, ic_ns, IC_SELECTOR) != 2:
             print(f"Number of replicas is not 2, retrying...")
             wait_before_test()
 

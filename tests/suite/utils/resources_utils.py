@@ -183,7 +183,7 @@ def cleanup_rbac(rbac_v1: RbacAuthorizationV1Api, rbac: RBACAuthorization) -> No
     rbac_v1.delete_cluster_role(rbac.role)
 
 
-def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest, e2e_run_id=None) -> str:
+def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest) -> str:
     """
     Create a deployment based on yaml file.
 
@@ -195,7 +195,7 @@ def create_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest
     print(f"Load {yaml_manifest}")
     with open(yaml_manifest) as f:
         dep = yaml.safe_load(f)
-    return create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
+    return create_deployment(apps_v1_api, namespace, dep)
 
 
 def patch_deployment_from_yaml(apps_v1_api: AppsV1Api, namespace, yaml_manifest) -> str:
@@ -431,7 +431,7 @@ def get_pods_amount(v1: CoreV1Api, namespace, label_selector=None) -> int:
     return 0 if not pods.items else len(pods.items)
 
 
-def get_pods_amount_with_name(v1: CoreV1Api, namespace, name, label_selector=None) -> int:
+def get_pods_amount_with_name(v1: CoreV1Api, namespace, name) -> int:
     """
     Get an amount of pods.
 
@@ -440,7 +440,7 @@ def get_pods_amount_with_name(v1: CoreV1Api, namespace, name, label_selector=Non
     :param name: name
     :return: int
     """
-    pods = v1.list_namespaced_pod(namespace, label_selector=label_selector)
+    pods = v1.list_namespaced_pod(namespace)
     count = 0
     if pods and pods.items:
         for item in pods.items:
@@ -2296,22 +2296,18 @@ def get_last_log_entry(kube_apis, pod_name, namespace) -> str:
     return logs.split("\n")[-2]
 
 
-def get_resource_metrics(kube_apis, plural, namespace="nginx-ingress", label_selector=None) -> str:
+def get_resource_metrics(kube_apis, plural, namespace="nginx-ingress") -> str:
     """
     :param kube_apis: kube apis
     :param namespace: the namespace
     :param plural: the plural of the resource
     """
     if plural == "pods":
-        metrics = kube_apis.list_namespaced_custom_object(
-            "metrics.k8s.io", "v1beta1", namespace, plural, label_selector=label_selector
-        )
+        metrics = kube_apis.list_namespaced_custom_object("metrics.k8s.io", "v1beta1", namespace, plural)
         while metrics["items"] == []:
             wait_before_test()
             try:
-                metrics = kube_apis.list_namespaced_custom_object(
-                    "metrics.k8s.io", "v1beta1", namespace, plural, label_selector=label_selector
-                )
+                metrics = kube_apis.list_namespaced_custom_object("metrics.k8s.io", "v1beta1", namespace, plural)
             except ApiException as e:
                 print(f"Error: {e}")
     elif plural == "nodes":

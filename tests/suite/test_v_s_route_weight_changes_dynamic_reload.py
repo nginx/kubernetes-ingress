@@ -35,14 +35,13 @@ class VSRWeightChangesDynamicReloadSetup:
         backends_url (str): backend url
     """
 
-    def __init__(self, namespace, vs_host, vs_name, route: VirtualServerRoute, backends_url, metrics_url, e2e_run_id):
+    def __init__(self, namespace, vs_host, vs_name, route: VirtualServerRoute, backends_url, metrics_url):
         self.namespace = namespace
         self.vs_host = vs_host
         self.vs_name = vs_name
         self.route = route
         self.backends_url = backends_url
         self.metrics_url = metrics_url
-        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -92,7 +91,7 @@ def vsr_weight_changes_dynamic_reload_setup(
 
     request.addfinalizer(fin)
 
-    return VSRWeightChangesDynamicReloadSetup(ns_1, vs_host, vs_name, route, backends_url, metrics_url, e2e_run_id)
+    return VSRWeightChangesDynamicReloadSetup(ns_1, vs_host, vs_name, route, backends_url, metrics_url)
 
 
 @pytest.mark.vsr

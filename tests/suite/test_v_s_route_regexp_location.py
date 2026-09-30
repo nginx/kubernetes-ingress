@@ -181,11 +181,10 @@ class VSRRegexpSetup:
         vs_name (str):
     """
 
-    def __init__(self, namespace, vs_host, vs_name, e2e_run_id):
+    def __init__(self, namespace, vs_host, vs_name):
         self.namespace = namespace
         self.vs_host = vs_host
         self.vs_name = vs_name
-        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -222,7 +221,7 @@ def vsr_regexp_setup(
     create_example_app(kube_apis, "extended", test_namespace, e2e_run_id=e2e_run_id)
     wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
-    return VSRRegexpSetup(test_namespace, vs_host, vs_name, e2e_run_id)
+    return VSRRegexpSetup(test_namespace, vs_host, vs_name)
 
 
 @pytest.mark.vsr
@@ -475,11 +474,10 @@ class VSRRegexpSetup:
         vs_name (str):
     """
 
-    def __init__(self, namespace, vs_host, vs_name, e2e_run_id):
+    def __init__(self, namespace, vs_host, vs_name):
         self.namespace = namespace
         self.vs_host = vs_host
         self.vs_name = vs_name
-        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -518,7 +516,7 @@ def vsr_selector_regexp_setup(
     create_example_app(kube_apis, "extended", test_namespace, e2e_run_id=e2e_run_id)
     wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
-    return VSRRegexpSetup(test_namespace, vs_host, vs_name, e2e_run_id)
+    return VSRRegexpSetup(test_namespace, vs_host, vs_name)
 
 
 @pytest.mark.vsr

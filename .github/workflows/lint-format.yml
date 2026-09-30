@@ -65,6 +65,26 @@ jobs:
           version: v2.14.0
           only-new-issues: true
 
+  python-unit:
+    name: Python Test Utils Unit Tests
+    if: github.repository == 'nginx/kubernetes-ingress'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.14"
+
+      - name: Install test dependencies
+        run: pip install --require-hashes --no-deps -r tests/requirements.txt
+
+      - name: Run unit tests
+        # --noconftest: these tests mock the Kubernetes API and must not load the cluster fixtures
+        run: PYTHONPATH=tests python -m pytest --noconftest -m utils tests/suite/utils
+
   actionlint:
     name: Actionlint
     if: github.repository == 'nginx/kubernetes-ingress'
