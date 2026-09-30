@@ -857,8 +857,8 @@ func TestExecuteVirtualServerTemplateWithJWKSWithToken(t *testing.T) {
 		t.Error("want `proxy_ssl_server_name on;` in generated template")
 	}
 
-	if !bytes.Contains(got, []byte("proxy_ssl_name sni.idp.spec.example.com;")) {
-		t.Error("want `proxy_ssl_name sni.idp.spec.example.com;` in generated template")
+	if !bytes.Contains(got, []byte(`proxy_ssl_name "sni.idp.spec.example.com";`)) {
+		t.Error(`want proxy_ssl_name "sni.idp.spec.example.com"; in generated template`)
 	}
 
 	snaps.MatchSnapshot(t, string(got))
@@ -937,7 +937,7 @@ func TestExecuteVirtualServerTemplate_WithCustomOIDCRedirectLocation(t *testing.
 		t.Error(err)
 	}
 
-	expectedCustomLocation := "location = /custom-location {"
+	expectedCustomLocation := `location = "/custom-location" {`
 	if !bytes.Contains(got, []byte(expectedCustomLocation)) {
 		t.Errorf("Custom redirectURI should generate location block: %s", expectedCustomLocation)
 	}
@@ -983,6 +983,24 @@ func TestExecuteVirtualServerTemplate_WithOIDCTLSVerify(t *testing.T) {
 	}
 	snaps.MatchSnapshot(t, string(got))
 	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_OIDCClientSecretPreservesEscapes(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := virtualServerCfgWithOIDCAndPKCETurnedOn
+	oidc := *cfg.Server.OIDC
+	cfg.Server.OIDC = &oidc
+	cfg.Server.OIDC.ClientSecret = `pa\"ss`
+
+	got, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.Contains(got, []byte(`set $oidc_client_secret "pa\"ss";`)) {
+		t.Errorf("generated config changed the validated client-secret escape: %s", got)
+	}
 }
 
 func TestExecuteVirtualServerTemplateWithOIDCAndPKCEPolicyNGINXPlus(t *testing.T) {
@@ -1069,7 +1087,10 @@ func TestExecuteVirtualServerTemplate_RendersHSTSAtLocationLevel(t *testing.T) {
 	}
 
 	content := string(got)
-	locationIdx := strings.Index(content, "location /")
+	locationIdx := strings.Index(content, `location "/"`)
+	if locationIdx == -1 {
+		t.Fatal("want quoted root location, got none")
+	}
 	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
 	if hstsIdx == -1 {
 		t.Error("want Strict-Transport-Security inside location block, got none")
@@ -1137,7 +1158,10 @@ func TestExecuteVirtualServerTemplate_RendersPlusHSTSAtLocationLevel(t *testing.
 	}
 
 	content := string(got)
-	locationIdx := strings.Index(content, "location /")
+	locationIdx := strings.Index(content, `location "/"`)
+	if locationIdx == -1 {
+		t.Fatal("want quoted root location, got none")
+	}
 	hstsIdx := strings.Index(content[locationIdx:], "Strict-Transport-Security")
 	if hstsIdx == -1 {
 		t.Error("want Strict-Transport-Security inside location block, got none")
@@ -3899,6 +3923,43 @@ func TestVirtualServerForNginxWithAllPathTypes(t *testing.T) {
 	t.Log(string(data))
 }
 
+func TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	}
+	wantLocations := []string{
+		`location "/images/" {`,
+		`location = "/images/logo.jpg" {`,
+		`location ^~ "/images/static/" {`,
+		`location ~ "\.jpg$" {`,
+		`location ~* "\.png$" {`,
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&virtualServerCfgAllPathTypes)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			for _, want := range wantLocations {
+				if !strings.Contains(string(data), want) {
+					t.Errorf("generated config missing %q", want)
+				}
+			}
+			snaps.MatchSnapshot(t, string(data))
+		})
+	}
+}
+
 func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
 	data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)
@@ -3909,6 +3970,92 @@ func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	const want = `error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";`
 	if !strings.Contains(string(data), want) {
 		t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+	}
+	snaps.MatchSnapshot(t, string(data))
+	t.Log(string(data))
+}
+
+func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := VirtualServerConfig{
+		KeyValZones: []KeyValZone{
+			{
+				Name:    "oidc_sessions_oidc_default_my_provider_default_cafe",
+				Size:    "10m",
+				Sync:    true,
+				Timeout: "4h",
+			},
+		},
+		OIDCProviders: []OIDCProvider{
+			{
+				Name:                  "oidc_default_my_provider_default_cafe",
+				Issuer:                "https://accounts.google.com",
+				ClientID:              "my-client-id",
+				ClientSecret:          "my-resolved-secret",
+				ConfigURL:             "https://accounts.google.com/.well-known/openid-configuration",
+				Scope:                 "openid profile",
+				RedirectURI:           "/callback",
+				CookieName:            "MY_SESSION",
+				ExtraAuthArgs:         "prompt=login",
+				PKCE:                  "on",
+				LogoutURI:             "/logout",
+				PostLogoutURI:         "/logged_out",
+				FrontChannelLogoutURI: "/frontchannel_logout",
+				LogoutTokenHint:       true,
+				SessionStore:          "oidc_sessions_oidc_default_my_provider_default_cafe",
+				SessionTimeout:        "4h",
+				Sync:                  true,
+				UserInfoEnable:        true,
+				SSLTrustedCert:        "/etc/nginx/secrets/default-google-ca-secret",
+				SSLCrl:                "/etc/nginx/secrets/default-google-ca-secret-ca.crl",
+				SSLVerify:             true,
+				SSLName:               "accounts.google.com",
+				SSLVerifyDepth:        3,
+				ProxyLocation:         "/_oidc_idp_oidc_default_my_provider_default_cafe",
+				ProxyBufferSize:       "16k",
+				ProxyTrustedCertPath:  "/etc/nginx/secrets/default-google-ca-secret",
+				PostLogoutLocation: &AuthOIDCReturnLocation{
+					Path:        "/logged_out",
+					DefaultType: "text/plain",
+					Return: Return{
+						Code: 200,
+						Text: "You have been logged out.\n",
+					},
+				},
+			},
+		},
+		Upstreams: []Upstream{
+			{
+				Name:             "test-upstream",
+				Servers:          []UpstreamServer{{Address: "10.0.0.20:8001"}},
+				MaxFails:         1,
+				FailTimeout:      "10s",
+				UpstreamZoneSize: "256k",
+			},
+		},
+		Server: Server{
+			ServerName:       "cafe.example.com",
+			StatusZone:       "cafe.example.com",
+			OIDCProviderName: "oidc_default_my_provider_default_cafe",
+			VSNamespace:      "default",
+			VSName:           "cafe",
+			Locations: []Location{
+				{
+					Path:             "/",
+					ProxyPass:        "http://test-upstream",
+					OIDCProviderName: "oidc_default_my_provider_default_cafe",
+				},
+				{
+					Path:      "/public",
+					ProxyPass: "http://test-upstream",
+				},
+			},
+		},
+	}
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Errorf("Failed to execute template: %v", err)
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
@@ -4006,4 +4153,181 @@ func TestErrorPageRendering(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVirtualServerForNginxPlusDisablesInheritedOIDCNative(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+	cfg := VirtualServerConfig{
+		Server: Server{
+			OIDC:             &OIDC{},
+			OIDCProviderName: "native-provider",
+			Locations: []Location{{
+				Path:      "/njs",
+				ProxyPass: "http://test-upstream",
+				OIDC:      true,
+			}},
+		},
+	}
+	data, err := executor.ExecuteVirtualServerTemplate(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`(?s)location "/njs" \{.*?auth_oidc off;`).Match(data) {
+		t.Error("NJS OIDC locations must disable an inherited native OIDC policy")
+	}
+}
+
+// virtualServerCfgProxyHTTPVersion exercises every rendering branch of proxy_http_version in
+// one server: unset (directive omitted), 1.0 ("Connection: close" only, even with keepalive),
+// 1.1, 2 (hop-by-hop headers and the $default_connection_header variable suppressed) and a
+// gRPC location (never rendered).
+var virtualServerCfgProxyHTTPVersion = VirtualServerConfig{
+	Server: Server{
+		ServerName: "cafe.example.com",
+		StatusZone: "cafe.example.com",
+		Locations: []Location{
+			{
+				Path:         "/unset",
+				ProxyPass:    "http://test-upstream",
+				HasKeepalive: true,
+			},
+			{
+				Path:             "/http-1-0",
+				ProxyPass:        "http://test-upstream",
+				ProxyHTTPVersion: "1.0",
+				HasKeepalive:     true,
+			},
+			{
+				Path:             "/http-1-1",
+				ProxyPass:        "http://test-upstream",
+				ProxyHTTPVersion: "1.1",
+				HasKeepalive:     true,
+			},
+			{
+				Path:             "/http-2",
+				ProxyPass:        "http://test-upstream",
+				ProxyHTTPVersion: "2",
+				HasKeepalive:     true,
+			},
+			{
+				Path:     "/grpc",
+				GRPCPass: "grpc://test-upstream",
+			},
+		},
+	},
+	Upstreams: []Upstream{
+		{
+			Name: "test-upstream",
+			Servers: []UpstreamServer{
+				{Address: "10.0.0.20:8001"},
+			},
+		},
+	},
+}
+
+func TestExecuteVirtualServerTemplate_RendersProxyHTTPVersion(t *testing.T) {
+	t.Parallel()
+
+	executor := newTmplExecutorNGINX(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgProxyHTTPVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(got))
+
+	assertVSProxyHTTPVersionRendering(t, string(got))
+	snaps.MatchSnapshot(t, string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersProxyHTTPVersionForNGINXPlus(t *testing.T) {
+	t.Parallel()
+
+	executor := newTmplExecutorNGINXPlus(t)
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgProxyHTTPVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(string(got))
+
+	assertVSProxyHTTPVersionRendering(t, string(got))
+	snaps.MatchSnapshot(t, string(got))
+}
+
+// assertVSProxyHTTPVersionRendering checks the invariants that the snapshot alone would not
+// make obvious: the directive is never emitted with an empty argument, an unset version omits
+// it entirely, and HTTP/2 locations carry no hop-by-hop headers (RFC 9113 8.2.2).
+func assertVSProxyHTTPVersionRendering(t *testing.T, conf string) {
+	t.Helper()
+
+	if strings.Contains(conf, "proxy_http_version ;") {
+		t.Error("generated config contains proxy_http_version with an empty argument")
+	}
+
+	for _, want := range []string{
+		"proxy_http_version 1.0;",
+		"proxy_http_version 1.1;",
+		"proxy_http_version 2;",
+	} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("want %q in generated config", want)
+		}
+	}
+
+	unsetLocation := vsLocationBlock(t, conf, `location "/unset" {`)
+	if strings.Contains(unsetLocation, "proxy_http_version") {
+		t.Errorf("an unset version must omit the directive, got:\n%s", unsetLocation)
+	}
+	if !strings.Contains(unsetLocation, "proxy_set_header Connection $vs_connection_header;") {
+		t.Errorf("an unset version must keep the Connection header, got:\n%s", unsetLocation)
+	}
+
+	grpcLocation := vsLocationBlock(t, conf, `location "/grpc" {`)
+	if strings.Contains(grpcLocation, "proxy_http_version") {
+		t.Errorf("gRPC locations must not render proxy_http_version, got:\n%s", grpcLocation)
+	}
+
+	// HTTP/1.0 has no keep-alive or Upgrade, so the connection is closed explicitly and nothing
+	// else is sent, even for keepalive upstreams.
+	http10Location := vsLocationBlock(t, conf, `location "/http-1-0" {`)
+	if !strings.Contains(http10Location, "proxy_set_header Connection close;") {
+		t.Errorf("an HTTP/1.0 location must contain %q, got:\n%s", "proxy_set_header Connection close;", http10Location)
+	}
+	for _, unwanted := range []string{
+		"proxy_set_header Upgrade",
+		"$vs_connection_header",
+		"set $default_connection_header",
+	} {
+		if strings.Contains(http10Location, unwanted) {
+			t.Errorf("an HTTP/1.0 location must not contain %q, got:\n%s", unwanted, http10Location)
+		}
+	}
+
+	http2Location := vsLocationBlock(t, conf, `location "/http-2" {`)
+	for _, unwanted := range []string{
+		"proxy_set_header Connection",
+		"proxy_set_header Upgrade",
+		"set $default_connection_header",
+	} {
+		if strings.Contains(http2Location, unwanted) {
+			t.Errorf("an HTTP/2 location must not contain %q, got:\n%s", unwanted, http2Location)
+		}
+	}
+}
+
+// vsLocationBlock returns the text of the location block starting at header, up to the start of
+// the next location block. It is a crude but sufficient way of scoping directive assertions.
+func vsLocationBlock(t *testing.T, conf string, header string) string {
+	t.Helper()
+
+	start := strings.Index(conf, header)
+	if start == -1 {
+		t.Fatalf("no %s in generated config", header)
+	}
+
+	rest := conf[start+len(header):]
+	if end := strings.Index(rest, "location \""); end != -1 {
+		return rest[:end]
+	}
+	return rest
 }

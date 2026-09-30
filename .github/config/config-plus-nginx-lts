@@ -4,4 +4,4 @@ export PUBLISH_OSS=false
 export PUBLISH_WAF=false
 export PUBLISH_DOS=false
 export PUBLISH_WAF_DOS=false
-export TARGET_PLUS_IMAGE_PREFIX=lts/nginx-ic/nginx-plus-ingress
+export TARGET_PLUS_IMAGE_PREFIX=nginx-ic/lts/nginx-plus-ingress

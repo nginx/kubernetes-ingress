@@ -34,6 +34,7 @@ ingress-resources/complete-example/cafe-secret.yaml
 ingress-resources/mergeable-ingress-types/cafe-secret.yaml
 ingress-resources/proxy-set-headers/mergeable-ingress/cafe-secret.yaml
 ingress-resources/proxy-set-headers/standard-ingress/cafe-secret.yaml
+ingress-resources/upstream-vhost/cafe-secret.yaml
 ingress-resources/rate-limit/cafe-secret.yaml
 ingress-resources/security-monitoring/cafe-secret.yaml
 shared-examples/default-server-secret/default-server-secret.yaml

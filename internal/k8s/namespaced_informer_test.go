@@ -54,6 +54,13 @@ func TestAddCustomResourceHandlers_Enabled(t *testing.T) {
 	if len(nsi.cacheSyncs) != wantCacheSyncs {
 		t.Errorf("expected %d cacheSyncs, got %d", wantCacheSyncs, len(nsi.cacheSyncs))
 	}
+
+	if nsi.policySecretIndexer == nil {
+		t.Fatal("expected Policy Secret indexer to be configured")
+	}
+	if _, exists := nsi.policySecretIndexer.GetIndexers()[policySecretIndex]; !exists {
+		t.Errorf("expected %q index to be registered", policySecretIndex)
+	}
 }
 
 func TestAddAppProtectHandlers_Disabled(t *testing.T) {
@@ -109,6 +116,32 @@ func TestAddAppProtectHandlers_AppProtectEnabled(t *testing.T) {
 	const wantCacheSyncs = 3
 	if len(nsi.cacheSyncs) != wantCacheSyncs {
 		t.Errorf("expected %d cacheSyncs for app protect, got %d", wantCacheSyncs, len(nsi.cacheSyncs))
+	}
+}
+
+func TestAddAppProtectHandlers_PLMEnabled(t *testing.T) {
+	t.Parallel()
+	lbc := &LoadBalancerController{
+		appProtectEnabled:    true,
+		appProtectDosEnabled: false,
+		plmEnabled:           true,
+		dynClient:            dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
+		Logger:               nl.LoggerFromContext(context.Background()),
+	}
+	nsi := &namespacedInformer{}
+
+	err := lbc.addAppProtectHandlers(nsi, "test-ns")
+	if err != nil {
+		t.Errorf("expected nil error when PLM is enabled, got %v", err)
+	}
+	if !nsi.appProtectEnabled {
+		t.Error("expected nsi.appProtectEnabled to be true")
+	}
+	// PLM compiles APUserSig content into bundles. NIC must not register the
+	// legacy raw-user-signature handler, which would write nac-usersigs files.
+	const wantCacheSyncs = 2 // Policy, LogConf
+	if len(nsi.cacheSyncs) != wantCacheSyncs {
+		t.Errorf("expected %d cacheSyncs for PLM app protect, got %d", wantCacheSyncs, len(nsi.cacheSyncs))
 	}
 }
 

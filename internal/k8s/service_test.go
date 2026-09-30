@@ -1,11 +1,27 @@
 package k8s
 
 import (
+	"context"
 	"testing"
 
+	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+// TestSyncServiceNamespaceNotWatched guards against a nil pointer dereference panic
+// (see getNamespacedInformer) when a Service task for a namespace that is no longer
+// watched (e.g. its watch-namespace-label was removed) is processed.
+func TestSyncServiceNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+
+	lbc := &LoadBalancerController{
+		namespacedInformers: map[string]*namespacedInformer{},
+		Logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	lbc.syncService(task{Kind: service, Key: "not-watched/some-service"})
+}
 
 func TestHasServicePortChanges(t *testing.T) {
 	t.Parallel()
@@ -146,6 +162,41 @@ func TestHasServicePortChanges(t *testing.T) {
 			}},
 			false,
 			"Some names some ports",
+		},
+		{
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("kubernetes.io/h2c"),
+			}},
+			[]v1.ServicePort{{
+				Port: 80,
+			}},
+			true,
+			"AppProtocol added/removed",
+		},
+		{
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("kubernetes.io/h2c"),
+			}},
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("http"),
+			}},
+			true,
+			"AppProtocol changed",
+		},
+		{
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("kubernetes.io/h2c"),
+			}},
+			[]v1.ServicePort{{
+				Port:        80,
+				AppProtocol: new("kubernetes.io/h2c"),
+			}},
+			false,
+			"AppProtocol unchanged",
 		},
 	}
 

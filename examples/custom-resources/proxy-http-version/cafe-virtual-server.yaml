@@ -1,0 +1,25 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: cafe.example.com
+  upstreams:
+    # Explicit field: this upstream is pinned to HTTP/1.0 regardless of the appProtocol
+    # of coffee-svc.
+    - name: coffee
+      service: coffee-svc
+      port: 80
+      proxy-http-version: "1.0"
+    # No field: tea-svc declares appProtocol: kubernetes.io/h2c, so this upstream is
+    # proxied over HTTP/2.
+    - name: tea
+      service: tea-svc
+      port: 80
+  routes:
+    - path: /coffee
+      action:
+        pass: coffee
+    - path: /tea
+      action:
+        pass: tea

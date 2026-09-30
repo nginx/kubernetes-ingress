@@ -15,7 +15,7 @@ type OIDCApplyConfiguration struct {
 	JWKSURI *string `json:"jwksURI,omitempty"`
 	// The client ID provided by your OpenID Connect provider.
 	ClientID *string `json:"clientID,omitempty"`
-	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/oidc, and the secret under the key client-secret, otherwise the secret will be rejected as invalid. If PKCE is enabled, this should be not configured.
+	// The name of the Kubernetes secret that stores the client secret provided by your OpenID Connect provider. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the OIDC role and must store the client secret under the client-secret key. If PKCE is enabled, this should be not configured.
 	ClientSecret *string `json:"clientSecret,omitempty"`
 	// List of OpenID Connect scopes. The scope openid always needs to be present and others can be added concatenating them with a + sign, for example openid+profile+email, openid+email+userDefinedScope. The default is openid.
 	Scope *string `json:"scope,omitempty"`
@@ -35,7 +35,7 @@ type OIDCApplyConfiguration struct {
 	PKCEEnable *bool `json:"pkceEnable,omitempty"`
 	// Enables verification of the IDP server SSL certificate. Default is false.
 	SSLVerify *bool `json:"sslVerify,omitempty"`
-	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. The secret must be of the type nginx.org/ca, and the certificate must be stored in the secret under the key ca.crt.
+	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	TrustedCertSecret *string `json:"trustedCertSecret,omitempty"`
 	// Sets the verification depth in the IDP server certificates chain. The default is 1.
 	SSLVerifyDepth *int `json:"sslVerifyDepth,omitempty"`
