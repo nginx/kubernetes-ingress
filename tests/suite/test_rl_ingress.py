@@ -11,6 +11,7 @@ from suite.utils.nginx_api_utils import (
     wait_for_zone_sync_nodes_online,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     are_all_pods_in_ready_state,
     create_example_app,
     create_items_from_yaml,
@@ -86,11 +87,7 @@ def annotations_setup(
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
-    ic_pod_name = get_first_pod_name(
-        kube_apis.v1,
-        ingress_controller_prerequisites.namespace,
-        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-    )
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -183,11 +180,7 @@ class TestRateLimitIngressZoneSync:
         wait_before_test()
 
         print("Step 4: check if pods are ready")
-        wait_until_all_pods_are_ready(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         print("Step 5: check plus api for zone sync")
         api_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.api_port}"
@@ -230,19 +223,11 @@ class TestRateLimitIngressScaled:
         ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 4)
         count = 0
-        while (
-            not are_all_pods_in_ready_state(
-                kube_apis.v1, ns, get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id)
-            )
-        ) and count < 10:
+        while (not are_all_pods_in_ready_state(kube_apis.v1, ns, IC_SELECTOR)) and count < 10:
             count += 1
             wait_before_test()
 
-        ic_pods = get_pod_list(
-            kube_apis.v1,
-            ns,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pods = get_pod_list(kube_apis.v1, ns, IC_SELECTOR)
         flag = False
         retries = 0
         while flag is False and retries < 10:
@@ -286,11 +271,7 @@ class TestRateLimitIngressScaledWithZoneSync:
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 2)
 
         print("Step 3: check if pods are ready")
-        wait_until_all_pods_are_ready(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        wait_until_all_pods_are_ready(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         print("Step 4: check sync in config")
         ingress_name = annotations_setup.ingress_name
@@ -305,11 +286,7 @@ class TestRateLimitIngressScaledWithZoneSync:
             f"limit_req_zone {key} zone={annotations_setup.namespace}/{ingress_name}_sync:{zone_size} rate={rate} sync;"
         )
 
-        ic_pods = get_pod_list(
-            kube_apis.v1,
-            ns,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pods = get_pod_list(kube_apis.v1, ns, IC_SELECTOR)
         assert len(ic_pods) == 2, f"Expected 2 pods, but found {len(ic_pods)}"
         for i, pod in enumerate(ic_pods):
             flag = False

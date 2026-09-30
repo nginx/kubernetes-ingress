@@ -5,6 +5,7 @@ from settings import TEST_DATA
 from suite.fixtures.custom_resource_fixtures import VirtualServerSetup
 from suite.utils.custom_assertions import assert_pods_scaled_to_count, wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_items_from_yaml,
     create_namespace_with_name_from_yaml,
     delete_items_from_yaml,
@@ -262,11 +263,7 @@ class TestVirtualServerForeignUpstream:
         crd_ingress_controller,
         virtual_server_foreign_upstream_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         upstream_name = f"upstream vs_{virtual_server_foreign_upstream_app_setup.namespace}_{virtual_server_foreign_upstream_app_setup.vs_name}_backend2"
         original_server_count = 1
         scaled_server_count = 3
@@ -357,11 +354,7 @@ class TestVirtualServerForeignUpstream:
         crd_ingress_controller,
         virtual_server_foreign_upstream_app_setup,
     ):
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         vs_source = f"{TEST_DATA}/virtual-server-foreign-upstream/standard/virtual-server-vsr.yaml"
         original_server_count = 1
         scaled_server_count = 3

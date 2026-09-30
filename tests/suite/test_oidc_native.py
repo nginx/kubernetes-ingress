@@ -9,6 +9,7 @@ from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.custom_assertions import assert_vs_status
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_items_from_yaml,
     create_secret,
@@ -494,11 +495,7 @@ class TestOIDCNativeTrustedCA:
             vs_patched = True
             assert_vs_status(kube_apis, test_namespace, virtual_server_setup.vs_name, "Valid")
 
-            ic_pod_name = get_first_pod_name(
-                kube_apis.v1,
-                ingress_controller_prerequisites.namespace,
-                get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-            )
+            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
             conf = get_vs_nginx_template_conf(
                 kube_apis.v1,
                 test_namespace,

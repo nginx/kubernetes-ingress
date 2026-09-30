@@ -9,6 +9,7 @@ from kubernetes.client.rest import ApiException
 from settings import CRDS, DEPLOYMENTS, NGX_REG, TEST_DATA
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     cleanup_rbac,
     configure_rbac_with_ap,
     configure_rbac_with_dos,
@@ -50,14 +51,7 @@ def ingress_controller(cli_arguments, kube_apis, ingress_controller_prerequisite
         print("IC will start with CRDs disabled and without any additional cli-arguments")
         extra_args = ["-enable-custom-resources=false"]
     try:
-        name = create_ingress_controller(
-            kube_apis.v1,
-            kube_apis.apps_v1_api,
-            cli_arguments,
-            namespace,
-            extra_args,
-            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
-        )
+        name = create_ingress_controller(kube_apis.v1, kube_apis.apps_v1_api, cli_arguments, namespace, extra_args)
     except ApiException as ex:
         # Finalizer doesn't start if fixture creation was incomplete, ensure clean up here
         print(f"Failed to complete IC fixture: {ex}\nClean up the cluster as much as possible.")
@@ -105,7 +99,6 @@ def crd_ingress_controller(
             cli_arguments,
             namespace,
             request.param.get("extra_args", None),
-            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
         if request.param["type"] == "tls-passthrough-custom-port":
             orig_port = ingress_controller_endpoint.port_ssl
@@ -184,7 +177,6 @@ def crd_ingress_controller_with_ap(
             cli_arguments,
             namespace,
             request.param.get("extra_args", None),
-            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
@@ -307,7 +299,6 @@ def crd_ingress_controller_with_waf_v5(
                 "regcred",
                 request.param.get("extra_args", None),
                 True,
-                e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
             )
         else:
             name = create_ingress_controller_wafv5(
@@ -317,14 +308,9 @@ def crd_ingress_controller_with_waf_v5(
                 namespace,
                 "regcred",
                 request.param.get("extra_args", None),
-                e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
             )
         try:
-            pod_name = get_first_pod_name(
-                kube_apis.v1,
-                namespace,
-                f"e2e.nginx.org/run-id={ingress_controller_prerequisites.e2e_run_id}",
-            )
+            pod_name = get_first_pod_name(kube_apis.v1, namespace, IC_SELECTOR)
             dest_path = "/etc/app_protect/bundles/wafv5.tgz"
             src_path = f"{dir}/wafv5.tgz"
             result = subprocess.run(
@@ -462,7 +448,6 @@ def crd_ingress_controller_with_dos(
             cli_arguments,
             namespace,
             request.param.get("extra_args", None),
-            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
@@ -557,7 +542,6 @@ def crd_ingress_controller_with_ed(
             cli_arguments,
             namespace,
             request.param.get("extra_args", None),
-            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
         )
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,

@@ -3,6 +3,7 @@ import requests
 from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_deployment_with_name,
     create_ingress_from_yaml,
     create_namespace_with_name_from_yaml,
@@ -13,7 +14,6 @@ from suite.utils.resources_utils import (
     delete_service,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
-    get_e2e_run_selector,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     replace_configmap,
@@ -87,11 +87,7 @@ def external_name_setup(
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
-    ic_pod_name = get_first_pod_name(
-        kube_apis.v1,
-        ingress_controller_prerequisites.namespace,
-        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-    )
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":

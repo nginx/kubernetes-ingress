@@ -11,7 +11,7 @@ from suite.utils.custom_assertions import (
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
-    get_e2e_run_selector,
+    IC_SELECTOR,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -34,11 +34,7 @@ from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
 )
 class TestVSCannedResponse:
     def test_config(self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup):
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,
@@ -135,11 +131,7 @@ class TestVSCannedResponse:
     def test_openapi_validation_flow(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, virtual_server_setup
     ):
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config_old = get_vs_nginx_template_conf(
             kube_apis.v1,
             virtual_server_setup.namespace,

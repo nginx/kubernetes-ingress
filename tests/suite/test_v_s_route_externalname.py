@@ -9,13 +9,13 @@ from suite.utils.custom_assertions import (
     wait_for_event_count_increases,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_deployment_with_name,
     create_namespace_with_name_from_yaml,
     create_service_from_yaml,
     create_service_with_name,
     delete_namespace,
     ensure_response_from_backend,
-    get_e2e_run_selector,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -155,11 +155,7 @@ class TestVSRWithExternalNameService:
     def test_template_config(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, vsr_externalname_setup
     ):
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_config = get_vs_nginx_template_conf(
             kube_apis.v1,
             vsr_externalname_setup.namespace,

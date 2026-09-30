@@ -29,6 +29,7 @@ from suite.utils.custom_resources_utils import (
     patch_ts,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_items_from_yaml,
     delete_items_from_yaml,
     generate_e2e_run_id,
@@ -132,11 +133,7 @@ class TestConfigRollbackTSCreate:
         proxy_upload_rate (a valid stream server directive not in the TS CRD spec,
         only available via snippets) with an invalid value.
         """
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         host = ingress_controller_endpoint.public_ip
         port = getattr(ingress_controller_endpoint, traffic_port_attr)
 
@@ -267,11 +264,7 @@ class TestConfigRollbackTransportServer:
         not in the TS CRD spec, only available via snippets, and not present in the
         default template config.
         """
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         host = transport_server_setup.public_endpoint.public_ip.strip("[]")
         port = transport_server_setup.public_endpoint.tcp_server_port
 
@@ -377,11 +370,7 @@ class TestConfigRollbackTransportServer:
         - stream-log-format-escaping: unknown escape value (needs stream-log-format set too)
         All cause main config nginx -t failure → main config rollback.
         """
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         ts_host = transport_server_setup.public_endpoint.public_ip.strip("[]")
         ts_port = transport_server_setup.public_endpoint.tcp_server_port
 

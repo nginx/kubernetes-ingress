@@ -122,10 +122,9 @@ class IngressControllerPrerequisites:
         config_map (str): config_map name
     """
 
-    def __init__(self, config_map, namespace, e2e_run_id):
+    def __init__(self, config_map, namespace):
         self.namespace = namespace
         self.config_map = config_map
-        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(autouse=True)
@@ -287,7 +286,7 @@ def ingress_controller_prerequisites(cli_arguments, kube_apis, request) -> Ingre
 
     request.addfinalizer(fin)
 
-    return IngressControllerPrerequisites(config_map, namespace, generate_e2e_run_id())
+    return IngressControllerPrerequisites(config_map, namespace)
 
 
 @pytest.fixture(scope="session")

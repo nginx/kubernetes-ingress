@@ -18,6 +18,7 @@ import pytest
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, assert_ingress_conf_not_exists, wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress_from_yaml,
     delete_common_app,
@@ -87,13 +88,12 @@ class TestConfigRollbackStartup:
         )
 
         print("Step 2: restart the controller pod so the startup path runs against both Ingresses")
-        selector = get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id)
-        old_ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, selector)
+        old_ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, IC_SELECTOR)
         kube_apis.v1.delete_namespaced_pod(old_ic_pod_name, ic_namespace)
         wait_before_test()
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, selector)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, IC_SELECTOR)
         assert ic_pod_name != old_ic_pod_name, "new pod did not start"
-        wait_until_all_pods_are_ready(kube_apis.v1, ic_namespace, selector)
+        wait_until_all_pods_are_ready(kube_apis.v1, ic_namespace, IC_SELECTOR)
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,
@@ -149,13 +149,12 @@ class TestConfigRollbackStartup:
         ingress_2_name = create_ingress_from_yaml(kube_apis.networking_v1, test_namespace, ingress_2_src)
 
         print("Step 2: restart the controller pod")
-        selector = get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id)
-        old_ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, selector)
+        old_ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, IC_SELECTOR)
         kube_apis.v1.delete_namespaced_pod(old_ic_pod_name, ic_namespace)
         wait_before_test()
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, selector)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, IC_SELECTOR)
         assert ic_pod_name != old_ic_pod_name, "new pod did not start"
-        wait_until_all_pods_are_ready(kube_apis.v1, ic_namespace, selector)
+        wait_until_all_pods_are_ready(kube_apis.v1, ic_namespace, IC_SELECTOR)
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,
@@ -208,11 +207,10 @@ class TestConfigRollbackStartup:
         )
 
         print("Step 2: restart the controller pod against the invalid Ingress")
-        selector = get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id)
-        old_ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, selector)
+        old_ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, IC_SELECTOR)
         kube_apis.v1.delete_namespaced_pod(old_ic_pod_name, ic_namespace)
         wait_before_test()
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, selector)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ic_namespace, IC_SELECTOR)
         assert ic_pod_name != old_ic_pod_name
         for _ in range(60):
             pod = kube_apis.v1.read_namespaced_pod(ic_pod_name, ic_namespace)
@@ -247,7 +245,7 @@ class TestConfigRollbackStartup:
         wait_before_test()
 
         print("Step 6: pod recovers to Ready on its own; recovery log line is emitted")
-        wait_until_all_pods_are_ready(kube_apis.v1, ic_namespace, selector)
+        wait_until_all_pods_are_ready(kube_apis.v1, ic_namespace, IC_SELECTOR)
         recovered_pod = kube_apis.v1.read_namespaced_pod(ic_pod_name, ic_namespace)
         recovered_ready = next(
             (condition for condition in (recovered_pod.status.conditions or []) if condition.type == "Ready"),

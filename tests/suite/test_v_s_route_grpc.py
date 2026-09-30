@@ -7,6 +7,7 @@ from suite.utils.custom_assertions import (
     assert_proxy_entries_exist,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_secret_from_yaml,
     delete_common_app,
@@ -106,11 +107,7 @@ class TestVirtualServerRouteGrpc:
     ):
         self.deploy_tls_secrets(kube_apis, v_s_route_setup)
         print("\nStep 1: assert config")
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,
@@ -125,11 +122,7 @@ class TestVirtualServerRouteGrpc:
     def test_config_after_enable_tls(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, v_s_route_setup
     ):
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         patch_v_s_route_from_yaml(
             kube_apis.custom_objects,
             v_s_route_setup.route_m.name,
@@ -179,11 +172,7 @@ class TestVirtualServerRouteGrpc:
             v_s_route_setup.route_m.namespace,
         )
         wait_before_test()
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             v_s_route_setup.namespace,

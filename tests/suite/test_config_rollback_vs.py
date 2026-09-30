@@ -13,7 +13,7 @@ from suite.utils.custom_assertions import (
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
-    get_e2e_run_selector,
+    IC_SELECTOR,
     get_events_for_object,
     get_first_pod_name,
     get_ts_nginx_template_conf,
@@ -86,11 +86,7 @@ class TestConfigRollbackVSCreate:
             ],
         )
         # Step 3: conf file was removed — no traffic served for this host
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         assert_vs_conf_not_exists(
             kube_apis, ic_pod, ingress_controller_prerequisites.namespace, test_namespace, vs_name
         )
@@ -177,11 +173,7 @@ class TestConfigRollbackVirtualServer:
         upstream proxy buffer fields (buffer-size alone or with incompatible buffers),
         covering nginx errors from different config directive types.
         """
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         # Step 1: valid VS serves traffic
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
         # Step 2: load VS YAML, apply invalid patch, send to cluster
@@ -273,11 +265,7 @@ class TestConfigRollbackVirtualServer:
         Note: log-format-escaping only takes effect when log-format is also set, so the
         escaping case passes both keys together.
         """
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         # Step 1: VS serves traffic, capture TS config
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
         ts_conf_before = get_ts_nginx_template_conf(
@@ -341,11 +329,7 @@ class TestConfigRollbackVirtualServer:
         """ConfigMap location-snippets invalid: consecutive VirtualServer failures trigger the
         shared-input early-exit path.
         """
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         # Step 1: create three valid VirtualServers
         wait_and_assert_status_code(200, virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)

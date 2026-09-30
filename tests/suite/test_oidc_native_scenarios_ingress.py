@@ -11,6 +11,7 @@ from suite.test_oidc_native_ingress import keycloak_ingress_setup  # noqa: F401
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_items_from_yaml,
     create_secret,
     delete_ingress,
@@ -202,11 +203,7 @@ def scenario_response(endpoint, host, path="/", https=True):
 
 
 def ingress_conf(kube_apis, ingress_controller_prerequisites, namespace, ingress_name):
-    ic_pod_name = get_first_pod_name(
-        kube_apis.v1,
-        ingress_controller_prerequisites.namespace,
-        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-    )
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     return get_ingress_nginx_template_conf(
         kube_apis.v1,
         namespace,

@@ -13,7 +13,7 @@ from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, wait_and_assert_status_code
 from suite.utils.custom_resources_utils import read_custom_resource
 from suite.utils.resources_utils import (
-    get_e2e_run_selector,
+    IC_SELECTOR,
     get_events,
     get_first_pod_name,
     get_vs_nginx_template_conf,
@@ -184,11 +184,7 @@ class TestVSRMultipleRegexPaths:
     ):
         """Generated nginx config should contain a location block for every routed path."""
         setup = multi_regex_vsr_setup
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         config = get_vs_nginx_template_conf(
             kube_apis.v1,
             setup.namespace,

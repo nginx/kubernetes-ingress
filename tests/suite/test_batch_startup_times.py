@@ -13,6 +13,7 @@ from suite.utils.ap_resources_utils import (
 )
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress,
     create_ingress_with_ap_annotations,
@@ -140,7 +141,7 @@ class TestMultipleSimpleIngress:
         wait_before_test()
         ic_ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 0)
-        while get_pods_amount(kube_apis.v1, ic_ns) != 0:
+        while get_pods_amount(kube_apis.v1, ic_ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 1)
@@ -265,7 +266,7 @@ class TestAppProtect:
         wait_before_test()
         ic_ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 0)
-        while get_pods_amount(kube_apis.v1, ic_ns) != 0:
+        while get_pods_amount(kube_apis.v1, ic_ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 1)
@@ -329,7 +330,7 @@ class TestVirtualServer:
         wait_before_test()
         ic_ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 0)
-        while get_pods_amount(kube_apis.v1, ic_ns) != 0:
+        while get_pods_amount(kube_apis.v1, ic_ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 1)
@@ -473,7 +474,7 @@ class TestAppProtectWAFPolicyVS:
         wait_before_test()
         ic_ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 0)
-        while get_pods_amount(kube_apis.v1, ic_ns) != 0:
+        while get_pods_amount(kube_apis.v1, ic_ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 1)
@@ -568,7 +569,7 @@ class TestSingleVSMultipleVSRs:
 
         ic_ns = ingress_controller_prerequisites.namespace
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 0)
-        while get_pods_amount(kube_apis.v1, ic_ns) != 0:
+        while get_pods_amount(kube_apis.v1, ic_ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ic_ns, 1)

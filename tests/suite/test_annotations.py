@@ -5,6 +5,7 @@ from settings import DEPLOYMENTS, TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.custom_assertions import assert_event_count_increased
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_items_from_yaml,
     delete_common_app,
@@ -133,11 +134,7 @@ def annotations_setup(
     ensure_connection_to_public_endpoint(
         ingress_controller_endpoint.public_ip, ingress_controller_endpoint.port, ingress_controller_endpoint.port_ssl
     )
-    ic_pod_name = get_first_pod_name(
-        kube_apis.v1,
-        ingress_controller_prerequisites.namespace,
-        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-    )
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     upstream_names = []
     if request.param == "mergeable":
         event_text = f"Configuration for {test_namespace}/{ingress_name} was added or updated"
@@ -202,11 +199,7 @@ def annotations_grpc_setup(
         ingress_controller_prerequisites.namespace,
         f"{TEST_DATA}/common/configmap-with-grpc.yaml",
     )
-    ic_pod_name = get_first_pod_name(
-        kube_apis.v1,
-        ingress_controller_prerequisites.namespace,
-        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-    )
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     event_text = f"Configuration for {test_namespace}/{ingress_name} was added or updated"
     error_text = f"{event_text} ; but was not applied: Error reloading NGINX"
 

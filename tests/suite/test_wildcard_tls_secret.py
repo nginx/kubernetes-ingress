@@ -98,14 +98,7 @@ def wildcard_tls_secret_ingress_controller(
         kube_apis.v1, namespace, f"{TEST_DATA}/wildcard-tls-secret/wildcard-tls-secret.yaml"
     )
     extra_args = [f"-wildcard-tls-secret={namespace}/{secret_name}", "-enable-custom-resources=false"]
-    name = create_ingress_controller(
-        kube_apis.v1,
-        kube_apis.apps_v1_api,
-        cli_arguments,
-        namespace,
-        extra_args,
-        e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
-    )
+    name = create_ingress_controller(kube_apis.v1, kube_apis.apps_v1_api, cli_arguments, namespace, extra_args)
     ensure_connection_to_public_endpoint(
         wildcard_tls_secret_setup.public_endpoint.public_ip,
         wildcard_tls_secret_setup.public_endpoint.port,

@@ -3,6 +3,7 @@ import yaml
 from settings import TEST_DATA
 from suite.utils.custom_assertions import assert_event, assert_ingress_conf_not_exists, wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress_controller,
     create_ingress_from_yaml,
@@ -76,11 +77,7 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
 
         print("Step 1: create a working empty-host ingress that owns _default-server.conf")
@@ -129,11 +126,7 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
@@ -188,11 +181,7 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         http_request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 
         print("Step 1: create a working named-host ingress")
@@ -262,11 +251,7 @@ class TestEmptyHostIngressReload:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
 
         print("Step 1: create a working empty-host ingress")
@@ -355,12 +340,7 @@ class TestEmptyHostIngressStartupProtection:
         # Start NIC after the invalid empty-host ingress already exists.
         extra_args = request.param + ["-enable-custom-resources=false"]
         ic_name = create_ingress_controller(
-            kube_apis.v1,
-            kube_apis.apps_v1_api,
-            cli_arguments,
-            ingress_controller_prerequisites.namespace,
-            extra_args,
-            e2e_run_id=ingress_controller_prerequisites.e2e_run_id,
+            kube_apis.v1, kube_apis.apps_v1_api, cli_arguments, ingress_controller_prerequisites.namespace, extra_args
         )
 
         def fin():
@@ -388,11 +368,7 @@ class TestEmptyHostIngressStartupProtection:
         test_namespace,
         expect_rollback,
     ):
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         request_url = f"https://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port_ssl}"
         health_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}"
 

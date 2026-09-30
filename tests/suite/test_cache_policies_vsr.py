@@ -4,12 +4,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.policy_resources_utils import create_policy_from_yaml, delete_policy
-from suite.utils.resources_utils import (
-    ensure_connection_to_public_endpoint,
-    get_e2e_run_selector,
-    pod_restart,
-    wait_before_test,
-)
+from suite.utils.resources_utils import IC_SELECTOR, ensure_connection_to_public_endpoint, pod_restart, wait_before_test
 from suite.utils.vs_vsr_resources_utils import delete_and_create_v_s_route_from_yaml, delete_and_create_vs_from_yaml
 
 std_vsr_src = f"{TEST_DATA}/virtual-server-route/route-multiple.yaml"
@@ -130,11 +125,7 @@ class TestCachePoliciesVSR:
         )
         ns = ingress_controller_prerequisites.namespace
         # Purge all existing cache entries by removing pods
-        pod_restart(
-            kube_apis.v1,
-            ns,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        pod_restart(kube_apis.v1, ns, IC_SELECTOR)
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,
@@ -221,11 +212,7 @@ class TestCachePoliciesVSR:
         )
         ns = ingress_controller_prerequisites.namespace
         # Purge all existing cache entries by removing pods
-        pod_restart(
-            kube_apis.v1,
-            ns,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        pod_restart(kube_apis.v1, ns, IC_SELECTOR)
         ensure_connection_to_public_endpoint(
             ingress_controller_endpoint.public_ip,
             ingress_controller_endpoint.port,

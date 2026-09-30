@@ -11,6 +11,7 @@ from suite.utils.custom_assertions import (
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_ingress,
     create_ingress_from_yaml,
@@ -98,11 +99,7 @@ class TestConfigRollbackIngressCreate:
         # Step 2: conf file removed — no traffic served
         assert_ingress_conf_not_exists(
             kube_apis,
-            get_first_pod_name(
-                kube_apis.v1,
-                ingress_controller_prerequisites.namespace,
-                get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-            ),
+            get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR),
             ingress_controller_prerequisites.namespace,
             test_namespace,
             ingress_name,
@@ -168,11 +165,7 @@ class TestConfigRollbackIngress:
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         def fin():
             if request.config.getoption("--skip-fixture-teardown") == "no":

@@ -30,6 +30,7 @@ from settings import DEPLOYMENTS, NGX_REG, PROJECT_ROOT, RECONFIGURATION_DELAY, 
 from suite.utils.ssl_utils import create_sni_session
 
 E2E_RUN_ID_LABEL = "e2e.nginx.org/run-id"
+IC_SELECTOR = "app=nginx-ingress"
 
 
 def generate_e2e_run_id() -> str:
@@ -1284,9 +1285,7 @@ def wait_for_event_increment(kube_apis, namespace, event_count, offset) -> bool:
         return False
 
 
-def create_ingress_controller(
-    v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, args=None, e2e_run_id=None
-) -> str:
+def create_ingress_controller(v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, args=None) -> str:
     """
     Create an Ingress Controller according to the params.
 
@@ -1313,15 +1312,15 @@ def create_ingress_controller(
     if args is not None:
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
-        name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
+        name = create_deployment(apps_v1_api, namespace, dep)
     elif cli_arguments["deployment-type"] == "daemon-set":
-        name = create_daemon_set(apps_v1_api, namespace, dep, e2e_run_id)
+        name = create_daemon_set(apps_v1_api, namespace, dep)
     elif cli_arguments["deployment-type"] == "stateful-set":
-        name = create_stateful_set(apps_v1_api, namespace, dep, e2e_run_id)
+        name = create_stateful_set(apps_v1_api, namespace, dep)
     else:
         raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
+    wait_until_all_pods_are_ready(v1, namespace, IC_SELECTOR)
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Ingress Controller was created with name '{name}'")
@@ -1329,14 +1328,7 @@ def create_ingress_controller(
 
 
 def create_ingress_controller_wafv5(
-    v1: CoreV1Api,
-    apps_v1_api: AppsV1Api,
-    cli_arguments,
-    namespace,
-    reg_secret,
-    args=None,
-    rorfs=False,
-    e2e_run_id=None,
+    v1: CoreV1Api, apps_v1_api: AppsV1Api, cli_arguments, namespace, reg_secret, args=None, rorfs=False
 ) -> str:
     """
     Create an Ingress Controller according to the params.
@@ -1529,15 +1521,15 @@ def create_ingress_controller_wafv5(
     if args is not None:
         dep["spec"]["template"]["spec"]["containers"][0]["args"].extend(args)
     if cli_arguments["deployment-type"] == "deployment":
-        name = create_deployment(apps_v1_api, namespace, dep, e2e_run_id)
+        name = create_deployment(apps_v1_api, namespace, dep)
     elif cli_arguments["deployment-type"] == "daemon-set":
-        name = create_daemon_set(apps_v1_api, namespace, dep, e2e_run_id)
+        name = create_daemon_set(apps_v1_api, namespace, dep)
     elif cli_arguments["deployment-type"] == "stateful-set":
-        name = create_stateful_set(apps_v1_api, namespace, dep, e2e_run_id)
+        name = create_stateful_set(apps_v1_api, namespace, dep)
     else:
         raise ValueError(f"Unknown deployment-type: {cli_arguments['deployment-type']}")
     before = time.time()
-    wait_until_all_pods_are_ready(v1, namespace, get_e2e_run_selector(e2e_run_id) if e2e_run_id else None)
+    wait_until_all_pods_are_ready(v1, namespace, IC_SELECTOR)
     after = time.time()
     print(f"All pods came up in {int(after - before)} seconds")
     print(f"Ingress Controller was created with name '{name}'")

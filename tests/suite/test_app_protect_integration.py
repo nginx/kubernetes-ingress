@@ -11,6 +11,7 @@ from suite.utils.ap_resources_utils import (
     read_ap_custom_resource,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     clear_file_contents,
     create_example_app,
     create_ingress,
@@ -166,7 +167,14 @@ def assert_valid_responses(response) -> None:
     indirect=["crd_ingress_controller_with_ap"],
 )
 class TestAppProtect:
-    def test_ap_nginx_config_entries(self, kube_apis, crd_ingress_controller_with_ap, appprotect_setup, test_namespace):
+    def test_ap_nginx_config_entries(
+        self,
+        kube_apis,
+        ingress_controller_prerequisites,
+        crd_ingress_controller_with_ap,
+        appprotect_setup,
+        test_namespace,
+    ):
         """
         Test to verify AppProtect annotations in nginx config
         """
@@ -184,10 +192,11 @@ class TestAppProtect:
         ingress_host = get_first_ingress_host_from_yaml(src_ing_yaml)
         ensure_response_from_backend(appprotect_setup.req_url, ingress_host, check404=True)
 
-        pod_name = get_first_pod_name(kube_apis.v1, "nginx-ingress")
+        ic_ns = ingress_controller_prerequisites.namespace
+        pod_name = get_first_pod_name(kube_apis.v1, ic_ns, IC_SELECTOR)
 
         result_conf = get_ingress_nginx_template_conf(
-            kube_apis.v1, test_namespace, "appprotect-ingress", pod_name, "nginx-ingress"
+            kube_apis.v1, test_namespace, "appprotect-ingress", pod_name, ic_ns
         )
         delete_items_from_yaml(kube_apis, src_ing_yaml, test_namespace)
 
@@ -322,7 +331,7 @@ class TestAppProtect:
         ns = ingress_controller_prerequisites.namespace
 
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 0)
-        while get_pods_amount(kube_apis.v1, ns) != 0:
+        while get_pods_amount(kube_apis.v1, ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)

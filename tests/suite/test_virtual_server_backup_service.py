@@ -2,6 +2,7 @@ import pytest
 import requests
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_deployment_with_name,
     create_namespace_with_name_from_yaml,
     create_service_from_yaml,
@@ -9,7 +10,6 @@ from suite.utils.resources_utils import (
     delete_namespace,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
-    get_e2e_run_selector,
     get_first_pod_name,
     get_vs_nginx_template_conf,
     replace_configmap,
@@ -86,11 +86,7 @@ def vs_externalname_setup(
         virtual_server_setup.public_endpoint.port,
         virtual_server_setup.public_endpoint.port_ssl,
     )
-    ic_pod_name = get_first_pod_name(
-        kube_apis.v1,
-        ingress_controller_prerequisites.namespace,
-        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-    )
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     ensure_response_from_backend(virtual_server_setup.backend_1_url, virtual_server_setup.vs_host)
 
     def fin():

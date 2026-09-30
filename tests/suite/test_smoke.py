@@ -7,6 +7,7 @@ from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.custom_assertions import wait_and_assert_status_code
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_items_from_yaml,
     create_secret_from_yaml,
@@ -112,7 +113,7 @@ class TestSmoke:
         ns = ingress_controller_prerequisites.namespace
 
         scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 0)
-        while get_pods_amount(kube_apis.v1, ns) != 0:
+        while get_pods_amount(kube_apis.v1, ns, IC_SELECTOR) != 0:
             print(f"Number of replicas not 0, retrying...")
             wait_before_test()
         num = scale_deployment(kube_apis.v1, kube_apis.apps_v1_api, "nginx-ingress", ns, 1)

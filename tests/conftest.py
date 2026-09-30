@@ -17,8 +17,8 @@ from settings import (
     NUM_REPLICAS,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     are_all_pods_in_ready_state,
-    get_e2e_run_selector,
     get_first_pod_name,
     wait_before_test,
 )
@@ -242,12 +242,11 @@ def pytest_runtest_makereport(item) -> None:
     if rep.when == "call" and rep.failed and item.config.getoption("--show-ic-logs") == "yes":
         try:
             pod_namespace = item.funcargs["ingress_controller_prerequisites"].namespace
-            selector = get_e2e_run_selector(item.funcargs["ingress_controller_prerequisites"].e2e_run_id)
-            pod_name = get_first_pod_name(item.funcargs["kube_apis"].v1, pod_namespace, selector)
+            pod_name = get_first_pod_name(item.funcargs["kube_apis"].v1, pod_namespace, IC_SELECTOR)
             print("\n::group::NGINX Ingress Controller Pod Logs")
             count = 0
             while (
-                not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace, selector)
+                not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace, IC_SELECTOR)
             ) and count < 10:
                 count += 1
                 wait_before_test()

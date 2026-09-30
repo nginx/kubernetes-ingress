@@ -5,6 +5,7 @@ from settings import TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
 from suite.utils.custom_resources_utils import create_gc_from_yaml, create_ts_from_yaml, delete_gc, delete_ts
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_deployment_with_name,
     create_example_app,
     create_items_from_yaml,
@@ -185,11 +186,7 @@ def transport_server_setup(
 
     request.addfinalizer(fin)
 
-    ic_pod_name = get_first_pod_name(
-        kube_apis.v1,
-        ingress_controller_prerequisites.namespace,
-        get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-    )
+    ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
     ic_namespace = ingress_controller_prerequisites.namespace
 
     metrics_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"

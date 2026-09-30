@@ -7,6 +7,7 @@ from suite.utils.custom_assertions import (
     wait_and_assert_status_code,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_items_from_yaml,
     delete_common_app,
@@ -114,11 +115,7 @@ class TestConfigRollbackMinion:
         expected_nginx_error,
     ):
         """Patch a master or minion with an invalid snippet — master + minions get error events, traffic rolls back."""
-        ic_pod = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         # Step 1: both minion paths serve traffic
         wait_and_assert_status_code(

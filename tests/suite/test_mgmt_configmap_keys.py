@@ -3,11 +3,11 @@ import re
 import pytest
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_license,
     create_secret_from_yaml,
     delete_secret,
     ensure_connection_to_public_endpoint,
-    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_nginx_template_conf,
@@ -73,11 +73,7 @@ class TestMGMTConfigMap:
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-        ic_pod_name = get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         metrics_url = (
             f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
         )
@@ -191,11 +187,7 @@ class TestMGMTConfigMap:
             ingress_controller_endpoint.port,
             ingress_controller_endpoint.port_ssl,
         )
-        get_first_pod_name(
-            kube_apis.v1,
-            ingress_controller_prerequisites.namespace,
-            get_e2e_run_selector(ingress_controller_prerequisites.e2e_run_id),
-        )
+        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         metrics_url = (
             f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.metrics_port}/metrics"
         )
