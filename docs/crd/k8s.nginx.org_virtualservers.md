@@ -197,6 +197,7 @@ The `.spec` object supports the following fields:
 | `tls.cert-manager.issuer-kind` | `string` | The kind of the external issuer resource, for example AWSPCAIssuer. This is only necessary for out-of-tree issuers. This cannot be defined if cluster-issuer is also defined. |
 | `tls.cert-manager.renew-before` | `string` | This annotation allows you to configure spec.renewBefore field for the Certificate to be generated. Must be specified using a Go time.Duration string format, which does not allow the d (days) suffix. You must specify these values using s, m, and h suffixes instead. |
 | `tls.cert-manager.usages` | `string` | This field allows you to configure spec.usages field for the Certificate to be generated. Pass a string with comma-separated values i.e. key agreement,digital signature, server auth. An exhaustive list of supported key usages can be found in the the cert-manager api documentation. |
+| `tls.http2` | `boolean` | Enables or disables HTTP/2 for the VirtualServer. Overrides the http2 ConfigMap key. |
 | `tls.redirect` | `object` | The redirect configuration of the TLS for a VirtualServer. |
 | `tls.redirect.basedOn` | `string` | The attribute of a request that NGINX will evaluate to send a redirect. The allowed values are scheme (the scheme of the request) or x-forwarded-proto (the X-Forwarded-Proto header of the request). The default is scheme. |
 | `tls.redirect.code` | `integer` | The status code of a redirect. The allowed values are: 301, 302, 307 or 308. The default is 301. |

@@ -1350,7 +1350,7 @@ func generateUpstreams(
 	healthChecks []version2.HealthCheck,
 	statusMatches []version2.StatusMatch,
 ) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch) {
-	if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
+	if (sslConfig == nil || !sslConfig.HTTP2) && isGRPC(u.Type) {
 		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination", u.Name)
 	}
 
@@ -2717,10 +2717,12 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 		return nil
 	}
 
+	http2 := generateBool(tls.HTTP2, cfgParams.HTTP2)
+
 	if tls.Secret == "" {
 		if vsc.isWildcardEnabled {
 			ssl := version2.SSL{
-				HTTP2:           cfgParams.HTTP2,
+				HTTP2:           http2,
 				Certificate:     pemFileNameForWildcardTLSSecret,
 				CertificateKey:  pemFileNameForWildcardTLSSecret,
 				RejectHandshake: false,
@@ -2744,7 +2746,7 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 	}
 
 	ssl := version2.SSL{
-		HTTP2:           cfgParams.HTTP2,
+		HTTP2:           http2,
 		Certificate:     name,
 		CertificateKey:  name,
 		RejectHandshake: rejectHandshake,

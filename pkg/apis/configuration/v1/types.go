@@ -435,6 +435,8 @@ type TLS struct {
 	Redirect *TLSRedirect `json:"redirect"`
 	// The cert-manager configuration of the TLS for a VirtualServer.
 	CertManager *CertManager `json:"cert-manager"`
+	// Enables or disables HTTP/2 for the VirtualServer. Overrides the http2 ConfigMap key.
+	HTTP2 *bool `json:"http2,omitempty"`
 }
 
 // TLSRedirect defines a redirect for a TLS.

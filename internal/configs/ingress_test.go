@@ -4449,6 +4449,69 @@ func TestGenerateNginxCfgForMergeableIngressesSSLCiphers(t *testing.T) {
 	}
 }
 
+func TestGenerateNginxCfgHTTP2Annotation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg        string
+		configMap  bool
+		annotation string
+		want       bool
+	}{
+		{msg: "no annotation inherits ConfigMap off", configMap: false, want: false},
+		{msg: "annotation true overrides ConfigMap off", configMap: false, annotation: "true", want: true},
+		{msg: "annotation false overrides ConfigMap on", configMap: true, annotation: "false", want: false},
+		{msg: "invalid annotation is ignored", configMap: true, annotation: "maybe", want: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
+			configParams := NewDefaultConfigParams(context.Background(), false)
+			configParams.HTTP2 = tc.configMap
+			ingEx := createCafeIngressEx()
+			ingEx.Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+			if tc.annotation != "" {
+				ingEx.Ingress.Annotations[HTTP2Annotation] = tc.annotation
+			}
+
+			result, _ := generateNginxCfg(NginxCfgParams{
+				staticParams:  &StaticConfigParams{},
+				ingEx:         &ingEx,
+				BaseCfgParams: configParams,
+			})
+
+			if got := result.Servers[0].HTTP2; got != tc.want {
+				t.Errorf("Server.HTTP2 = %v, want %v", got, tc.want)
+			}
+			// gRPC requires HTTP/2, so it follows the effective value.
+			if got := result.Servers[0].HasGRPCLocations; got != tc.want {
+				t.Errorf("Server.HasGRPCLocations = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestGenerateNginxCfgForMergeableIngressesHTTP2Annotation(t *testing.T) {
+	t.Parallel()
+	mergeableIngresses := createMergeableCafeIngress()
+	mergeableIngresses.Master.Ingress.Annotations[HTTP2Annotation] = "true"
+	// the minion annotation is ignored; the minion's gRPC location follows the master
+	mergeableIngresses.Minions[0].Ingress.Annotations[HTTP2Annotation] = "false"
+	mergeableIngresses.Minions[0].Ingress.Annotations["nginx.org/grpc-services"] = "coffee-svc"
+
+	result, _ := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+		mergeableIngs: mergeableIngresses,
+		BaseCfgParams: NewDefaultConfigParams(context.Background(), false),
+		staticParams:  &StaticConfigParams{},
+	})
+
+	if !result.Servers[0].HTTP2 {
+		t.Error("Server.HTTP2 = false, want true from master annotation")
+	}
+	if !result.Servers[0].HasGRPCLocations {
+		t.Error("Server.HasGRPCLocations = false, want true: minion gRPC should use the master's http2 value")
+	}
+}
+
 func TestIsSSLEnabled(t *testing.T) {
 	t.Parallel()
 	type testCase struct {

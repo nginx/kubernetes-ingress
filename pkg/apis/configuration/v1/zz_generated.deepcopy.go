@@ -1405,6 +1405,11 @@ func (in *TLS) DeepCopyInto(out *TLS) {
 		*out = new(CertManager)
 		**out = **in
 	}
+	if in.HTTP2 != nil {
+		in, out := &in.HTTP2, &out.HTTP2
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 

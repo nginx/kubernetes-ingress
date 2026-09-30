@@ -1424,6 +1424,10 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
 	}
 
+	// http2 is server-level: minions share the master's server, so they use its value.
+	minionBaseCfgParams := *ncp.BaseCfgParams
+	minionBaseCfgParams.HTTP2 = masterServer.HTTP2
+
 	minions := ncp.mergeableIngs.Minions
 	grpcOnly := true
 	hasGRPCLocations := false
@@ -1461,7 +1465,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 			dosResource:               dummyDosResource,
 			isMinion:                  isMinion,
 			isPlus:                    ncp.isPlus,
-			BaseCfgParams:             ncp.BaseCfgParams,
+			BaseCfgParams:             &minionBaseCfgParams,
 			isResolverConfigured:      ncp.isResolverConfigured,
 			isWildcardEnabled:         ncp.isWildcardEnabled,
 			ingressControllerReplicas: ncp.ingressControllerReplicas,

@@ -3894,3 +3894,33 @@ func TestGenerateVirtualServerConfigProxyHTTPVersionGRPC(t *testing.T) {
 		}
 	}
 }
+
+// TestGenerateVirtualServerConfigTLSHTTP2OverrideDisablesGRPC asserts that tls.http2: false
+// overrides the http2 ConfigMap key, both for the server and for the gRPC upstream check.
+func TestGenerateVirtualServerConfigTLSHTTP2OverrideDisablesGRPC(t *testing.T) {
+	t.Parallel()
+
+	http2Off := false
+	virtualServerEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			Spec: conf_v1.VirtualServerSpec{
+				Host:      "cafe.example.com",
+				TLS:       &conf_v1.TLS{Secret: "cafe-secret", HTTP2: &http2Off},
+				Upstreams: []conf_v1.Upstream{{Name: "grpc", Service: "grpc-svc", Port: 50051, Type: "grpc"}},
+				Routes:    []conf_v1.Route{{Path: "/", Action: &conf_v1.Action{Pass: "grpc"}}},
+			},
+		},
+	}
+
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background(), HTTP2: true}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	result, _ := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+
+	if result.Server.SSL.HTTP2 {
+		t.Error("SSL.HTTP2 = true, want false from tls.http2 override")
+	}
+	want := "gRPC cannot be configured for upstream grpc. gRPC requires enabled HTTP/2 and TLS termination"
+	if !slices.Contains(vsc.warnings[virtualServerEx.VirtualServer], want) {
+		t.Errorf("warnings %v do not contain %q", vsc.warnings[virtualServerEx.VirtualServer], want)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
@@ -1619,6 +1620,33 @@ func TestGenerateSSLConfig(t *testing.T) {
 			},
 			expectedWarnings: Warnings{},
 			msg:              "normal case with HTTPS",
+		},
+		{
+			inputTLS: &conf_v1.TLS{Secret: "secret", HTTP2: commonhelpers.BoolToPointerBool(false)},
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				secrets.RefKey("default/secret", secrets.RoleTLS): {Secret: &api_v1.Secret{}, Path: "secret.pem"},
+			},
+			inputCfgParams: &ConfigParams{Context: context.Background(), HTTP2: true},
+			expectedSSL: &version2.SSL{
+				HTTP2:          false,
+				Certificate:    "secret.pem",
+				CertificateKey: "secret.pem",
+			},
+			expectedWarnings: Warnings{},
+			msg:              "tls.http2 false overrides ConfigMap",
+		},
+		{
+			inputTLS:        &conf_v1.TLS{HTTP2: commonhelpers.BoolToPointerBool(true)},
+			inputSecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{},
+			inputCfgParams:  &ConfigParams{Context: context.Background()},
+			wildcard:        true,
+			expectedSSL: &version2.SSL{
+				HTTP2:          true,
+				Certificate:    pemFileNameForWildcardTLSSecret,
+				CertificateKey: pemFileNameForWildcardTLSSecret,
+			},
+			expectedWarnings: Warnings{},
+			msg:              "tls.http2 true overrides ConfigMap with wildcard cert",
 		},
 	}
 

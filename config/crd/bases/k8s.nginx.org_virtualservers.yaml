@@ -1058,6 +1058,10 @@ spec:
                           can be found in the the cert-manager api documentation.
                         type: string
                     type: object
+                  http2:
+                    description: Enables or disables HTTP/2 for the VirtualServer.
+                      Overrides the http2 ConfigMap key.
+                    type: boolean
                   redirect:
                     description: The redirect configuration of the TLS for a VirtualServer.
                     properties:
