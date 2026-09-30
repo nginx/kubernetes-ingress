@@ -95,10 +95,8 @@ class TestRegexpLocation:
         wait_before_test()
 
         # Wait for IC to reconcile by confirming the first 200-expected URI works
-        for uri, code in test_data["expected_results"].items():
-            if code == 200:
-                ensure_response_from_backend(f"{req_url}{uri}", v_s_route_setup.vs_host)
-                break
+        first_ok = next(uri for uri, code in test_data["expected_results"].items() if code == 200)
+        ensure_response_from_backend(f"{req_url}{first_ok}", v_s_route_setup.vs_host)
 
         for item in test_data["expected_results"]:
             uri = item
@@ -377,10 +375,8 @@ class TestVSRSelectorRegexpLocation:
         wait_before_test()
 
         # Wait for IC to reconcile by confirming the first 200-expected URI works
-        for uri, code in test_data["expected_results"].items():
-            if code == 200:
-                ensure_response_from_backend(f"{req_url}{uri}", v_s_route_selector_setup.vs_host)
-                break
+        first_ok = next(uri for uri, code in test_data["expected_results"].items() if code == 200)
+        ensure_response_from_backend(f"{req_url}{first_ok}", v_s_route_selector_setup.vs_host)
 
         for item in test_data["expected_results"]:
             uri = item

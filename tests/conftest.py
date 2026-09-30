@@ -220,7 +220,7 @@ def pytest_collection_modifyitems(config, items) -> None:
     # session-scoped IC pool can reuse the same IC deployment across as many
     # consecutive test classes as possible. Within each profile group the
     # original collection order is preserved (Python's sort is stable).
-    _sort_items_by_ic_profile(items)
+    items.sort(key=_ic_profile_key)
 
 
 # Fixtures that share the session-scoped ic_pool. Test classes using any of
@@ -261,29 +261,16 @@ def _ic_profile_key(item) -> tuple:
 
     pool_fixture = next((f for f in _POOL_FIXTURES if f in fixturenames), None)
     if pool_fixture is not None:
-        # Try to extract extra_args from the parametrized fixture value so
-        # classes with matching args run consecutively (maximum pool reuse).
-        extra_args_key: tuple = ()
-        callspec = getattr(item, "callspec", None)
-        if callspec is not None:
-            params = getattr(callspec, "params", {}) or {}
-            param_value = params.get(pool_fixture)
-            if isinstance(param_value, dict):
-                extra_args = param_value.get("extra_args") or []
-                if isinstance(extra_args, (list, tuple)):
-                    extra_args_key = tuple(sorted(str(a) for a in extra_args))
-        return (1, extra_args_key, pool_fixture)
+        # Sub-sort by extra_args so classes with matching args run consecutively (maximum pool reuse).
+        param = item.callspec.params.get(pool_fixture) if hasattr(item, "callspec") else None
+        extra_args = (param.get("extra_args") or []) if isinstance(param, dict) else []
+        return (1, tuple(sorted(map(str, extra_args))), pool_fixture)
 
     inline_fixture = next((f for f in _INLINE_IC_FIXTURES if f in fixturenames), None)
     if inline_fixture is not None:
         return (2, (), inline_fixture)
 
     return (0, (), "")
-
-
-def _sort_items_by_ic_profile(items) -> None:
-    """In-place stable sort of test items by IC fixture profile."""
-    items.sort(key=_ic_profile_key)
 
 
 def pytest_runtest_logstart(nodeid, location) -> None:
@@ -307,48 +294,6 @@ def pytest_runtest_teardown(item, nextitem) -> None:
     after it (e.g. ``PASSEDClean up the Application:``).
     """
     print()
-
-
-def _iter_log_lines(log_output: str):
-    """
-    Yield individual log lines from an IC pod log payload.
-
-    ``read_namespaced_pod_log`` normally returns a decoded string with real
-    newline separators, but some responses arrive as an already-escaped string
-    (for example when a Kubernetes event message that itself contains ``\\n``
-    is written by the controller as a single line, or when a bytes payload is
-    coerced via ``str(...)`` further up the stack). In those cases splitting
-    on ``\\n`` alone leaves everything on one line.
-
-    This helper handles both cases: it first normalises common backslash
-    escape sequences (``\\r\\n``, ``\\n``, ``\\r``, ``\\t``, ``\\'``, ``\\"``)
-    to their real equivalents, strips any surrounding ``b'...'`` / ``b"..."``
-    bytes-repr wrapper, and then splits on real line breaks.
-    """
-    if log_output is None:
-        return
-
-    text = log_output
-
-    # Strip a bytes-repr wrapper if one snuck in (``b'...'`` or ``b"..."``).
-    if len(text) >= 3 and text[:2] in ("b'", 'b"') and text[-1] == text[1]:
-        text = text[2:-1]
-
-    # If the payload contains more escaped newlines than real ones, treat the
-    # common escape sequences as literals and expand them. Guarding on the
-    # counts keeps real log content (which may legitimately contain a ``\\n``
-    # substring) untouched in the normal case.
-    if text.count("\\n") > text.count("\n"):
-        text = (
-            text.replace("\\r\\n", "\n")
-            .replace("\\n", "\n")
-            .replace("\\r", "\n")
-            .replace("\\t", "\t")
-            .replace("\\'", "'")
-            .replace('\\"', '"')
-        )
-
-    yield from text.splitlines()
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True)
@@ -380,15 +325,12 @@ def pytest_runtest_makereport(item) -> None:
         while (not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace)) and count < 10:
             count += 1
             wait_before_test()
-        log_output = item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace)
-        if isinstance(log_output, bytes):
-            log_output = log_output.decode("utf-8", errors="replace")
-        # Some code paths deliver the log as an already-escaped string (e.g. the
-        # payload contains literal "\n" / "\r" / "\'" sequences rather than real
-        # control characters). Split on both real and escaped newlines so each
-        # log entry ends up on its own line in the terminal.
-        for line in _iter_log_lines(log_output):
-            print(line)
+        v1 = item.funcargs["kube_apis"].v1
+        container_name = v1.read_namespaced_pod(pod_name, pod_namespace).spec.containers[0].name
+        # _preload_content=False returns the raw bytes, skipping the client's str/JSON deserialisation
+        # that mangles log lines into escaped one-liners.
+        resp = v1.read_namespaced_pod_log(pod_name, pod_namespace, container=container_name, _preload_content=False)
+        print(resp.data.decode("utf-8", errors="replace"))
         print("::endgroup::")
 
     if rep.when == "call" and item.config.getoption("--skip-fixture-teardown") == "yes":

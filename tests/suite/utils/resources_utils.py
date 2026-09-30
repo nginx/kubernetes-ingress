@@ -43,89 +43,38 @@ class RBACAuthorization:
         self.binding = binding
 
 
-def configure_rbac(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorization:
+def _configure_rbac_from_yaml(rbac_v1: RbacAuthorizationV1Api, yaml_manifest) -> RBACAuthorization:
     """
-    Create cluster and binding.
+    Create a cluster role and binding from a yaml manifest, removing leftovers from interrupted runs first.
 
     :param rbac_v1: RbacAuthorizationV1Api
+    :param yaml_manifest: an absolute path to yaml manifest
     :return: RBACAuthorization
     """
-    with open(f"{DEPLOYMENTS}/rbac/rbac.yaml") as f:
-        docs = list(yaml.safe_load_all(f))
-    role_name = ""
-    binding_name = ""
+    with open(yaml_manifest) as f:
+        docs = [d for d in yaml.safe_load_all(f) if d["kind"] in ("ClusterRole", "ClusterRoleBinding")]
+    names = {d["kind"]: d["metadata"]["name"] for d in docs}
+    rbac = RBACAuthorization(names.get("ClusterRole", ""), names.get("ClusterRoleBinding", ""))
+    cleanup_rbac_if_exists(rbac_v1, rbac.role, rbac.binding)
     for dep in docs:
         if dep["kind"] == "ClusterRole":
-            role_name = dep["metadata"]["name"]
-        elif dep["kind"] == "ClusterRoleBinding":
-            binding_name = dep["metadata"]["name"]
-    cleanup_rbac_if_exists(rbac_v1, role_name, binding_name)
-    for dep in docs:
-        if dep["kind"] == "ClusterRole":
-            print("Create cluster role")
             rbac_v1.create_cluster_role(dep)
-            print(f"Created role '{role_name}'")
-        elif dep["kind"] == "ClusterRoleBinding":
-            print("Create binding")
+        else:
             rbac_v1.create_cluster_role_binding(dep)
-            print(f"Created binding '{binding_name}'")
-    return RBACAuthorization(role_name, binding_name)
+        print(f"Created {dep['kind']} '{dep['metadata']['name']}' from {yaml_manifest}")
+    return rbac
+
+
+def configure_rbac(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorization:
+    return _configure_rbac_from_yaml(rbac_v1, f"{DEPLOYMENTS}/rbac/rbac.yaml")
 
 
 def configure_rbac_with_ap(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorization:
-    """
-    Create cluster and binding for AppProtect module.
-    :param rbac_v1: RbacAuthorizationV1Api
-    :return: RBACAuthorization
-    """
-    with open(f"{DEPLOYMENTS}/rbac/ap-rbac.yaml") as f:
-        docs = list(yaml.safe_load_all(f))
-    role_name = ""
-    binding_name = ""
-    for dep in docs:
-        if dep["kind"] == "ClusterRole":
-            role_name = dep["metadata"]["name"]
-        elif dep["kind"] == "ClusterRoleBinding":
-            binding_name = dep["metadata"]["name"]
-    cleanup_rbac_if_exists(rbac_v1, role_name, binding_name)
-    for dep in docs:
-        if dep["kind"] == "ClusterRole":
-            print("Create cluster role for AppProtect")
-            rbac_v1.create_cluster_role(dep)
-            print(f"Created role '{role_name}'")
-        elif dep["kind"] == "ClusterRoleBinding":
-            print("Create binding for AppProtect")
-            rbac_v1.create_cluster_role_binding(dep)
-            print(f"Created binding '{binding_name}'")
-    return RBACAuthorization(role_name, binding_name)
+    return _configure_rbac_from_yaml(rbac_v1, f"{DEPLOYMENTS}/rbac/ap-rbac.yaml")
 
 
 def configure_rbac_with_dos(rbac_v1: RbacAuthorizationV1Api) -> RBACAuthorization:
-    """
-    Create cluster and binding for Dos module.
-    :param rbac_v1: RbacAuthorizationV1Api
-    :return: RBACAuthorization
-    """
-    with open(f"{DEPLOYMENTS}/rbac/apdos-rbac.yaml") as f:
-        docs = list(yaml.safe_load_all(f))
-    role_name = ""
-    binding_name = ""
-    for dep in docs:
-        if dep["kind"] == "ClusterRole":
-            role_name = dep["metadata"]["name"]
-        elif dep["kind"] == "ClusterRoleBinding":
-            binding_name = dep["metadata"]["name"]
-    cleanup_rbac_if_exists(rbac_v1, role_name, binding_name)
-    for dep in docs:
-        if dep["kind"] == "ClusterRole":
-            print("Create cluster role for DOS")
-            rbac_v1.create_cluster_role(dep)
-            print(f"Created role '{role_name}'")
-        elif dep["kind"] == "ClusterRoleBinding":
-            print("Create binding for DOS")
-            rbac_v1.create_cluster_role_binding(dep)
-            print(f"Created binding '{binding_name}'")
-    return RBACAuthorization(role_name, binding_name)
+    return _configure_rbac_from_yaml(rbac_v1, f"{DEPLOYMENTS}/rbac/apdos-rbac.yaml")
 
 
 def patch_rbac(rbac_v1: RbacAuthorizationV1Api, yaml_manifest) -> RBACAuthorization:
@@ -362,7 +311,7 @@ def wait_until_all_pods_are_ready(v1: CoreV1Api, namespace, timeout=600) -> None
         counter = counter + 1
         if counter * 3 >= timeout:
             raise Exception(f"Timed out after {timeout}s waiting for all pods in namespace '{namespace}'")
-    print("All pods are Ready" + " " * 40)
+    print("All pods are Ready")
     pods = v1.list_namespaced_pod(namespace)
     for pod in pods.items:
         images = ", ".join(c.image for c in pod.spec.containers)
@@ -1785,20 +1734,6 @@ def ensure_connection(request_url, expected_code=404, headers=None, retries=20) 
     """
     if headers is None:
         headers = {}
-    for _ in range(retries):
-        try:
-            resp = requests.get(request_url, headers=headers, verify=False, timeout=5)
-        except Exception as ex:
-            print(f"Warning: there was an exception {str(ex)}")
-        time.sleep(3)
-    """
-    Wait for connection.
-
-    :param request_url: url to request
-    :param expected_code: response code
-    :param retries: number of retry attempts (default 20, ~60s total)
-    :return:
-    """
     for _ in range(retries):
         try:
             resp = requests.get(request_url, headers=headers, verify=False, timeout=5)

@@ -47,12 +47,6 @@ class ICPool:
         self._current_key: Optional[tuple] = None
         self._name: Optional[str] = None
 
-    @staticmethod
-    def _config_key(params: dict) -> tuple:
-        """Derive a hashable key from IC params."""
-        extra_args = tuple(sorted(params.get("extra_args") or []))
-        return extra_args
-
     def ensure(self, params: dict) -> str:
         """Ensure an IC with the requested configuration is running.
 
@@ -62,54 +56,38 @@ class ICPool:
         :param params: the fixture request.param dict
         :return: the IC deployment name
         """
-        key = self._config_key(params)
-        namespace = self._prerequisites.namespace
+        key = tuple(sorted(params.get("extra_args") or []))
 
         if self._current_key == key and self._name is not None:
             print(f"------------------------- Reuse IC (key={key}) -----------------------------------")
             # Allow time for the IC to process pending changes from previous test class teardown
             wait_before_test()
-            ensure_connection_to_public_endpoint(
-                self._endpoint.public_ip,
-                self._endpoint.port,
-                self._endpoint.port_ssl,
+        else:
+            self.teardown()
+            print(f"------------------------- Create IC (key={key}) -----------------------------------")
+            self._name = create_ingress_controller(
+                self._kube_apis.v1,
+                self._kube_apis.apps_v1_api,
+                self._cli_arguments,
+                self._prerequisites.namespace,
+                params.get("extra_args", None),
             )
-            return self._name
+            self._current_key = key
 
-        # Tear down the old IC if one exists with a different config
-        if self._name is not None:
-            print(
-                f"------------------------- Recycle IC (old key={self._current_key}) -----------------------------------"
-            )
-            delete_ingress_controller(
-                self._kube_apis.apps_v1_api, self._name, self._cli_arguments["deployment-type"], namespace
-            )
-            self._name = None
-            self._current_key = None
-
-        print(f"------------------------- Create IC (key={key}) -----------------------------------")
-        self._name = create_ingress_controller(
-            self._kube_apis.v1,
-            self._kube_apis.apps_v1_api,
-            self._cli_arguments,
-            namespace,
-            params.get("extra_args", None),
-        )
-        self._current_key = key
-        ensure_connection_to_public_endpoint(
-            self._endpoint.public_ip,
-            self._endpoint.port,
-            self._endpoint.port_ssl,
-        )
+        ensure_connection_to_public_endpoint(self._endpoint.public_ip, self._endpoint.port, self._endpoint.port_ssl)
         return self._name
 
     def teardown(self) -> None:
-        """Tear down the currently-running IC (called at session end)."""
+        """Tear down the currently-running IC, if any."""
         if self._name is not None:
-            namespace = self._prerequisites.namespace
-            print("------------------------- Teardown IC Pool -----------------------------------")
+            print(
+                f"------------------------- Teardown IC (key={self._current_key}) -----------------------------------"
+            )
             delete_ingress_controller(
-                self._kube_apis.apps_v1_api, self._name, self._cli_arguments["deployment-type"], namespace
+                self._kube_apis.apps_v1_api,
+                self._name,
+                self._cli_arguments["deployment-type"],
+                self._prerequisites.namespace,
             )
             self._name = None
             self._current_key = None
@@ -272,6 +250,7 @@ def crd_ingress_controller_with_waf_v5(
     crds,
     ap_crds,
     ap_rbac,
+    ic_pool,
 ) -> None:
     """
     Create an Ingress Controller with WAF v5.
@@ -288,6 +267,7 @@ def crd_ingress_controller_with_waf_v5(
     :param crds: the common IC crds (session-scoped).
     :param ap_crds: the AppProtect CRDs (session-scoped).
     :param ap_rbac: the AppProtect RBAC (session-scoped).
+    :param ic_pool: session-scoped IC pool (torn down before creating the WAF v5 IC)
     :return:
     """
     dir = f"{TEST_DATA}/ap-waf-v5"  # directory with WAFv5 bundle generated in setup-smoke workflow
@@ -312,6 +292,8 @@ def crd_ingress_controller_with_waf_v5(
         ]
     )
 
+    # The pool IC uses the same deployment name ("nginx-ingress"); remove it to avoid a 409 Conflict.
+    ic_pool.teardown()
     try:
         if request.param["type"] == "rorfs":  # WAFv5 with readOnlyRootFileSystem
             name = create_ingress_controller_wafv5(
@@ -353,6 +335,10 @@ def crd_ingress_controller_with_waf_v5(
                 _preload_content=False,
             )
             resp.write_stdin(file_content)
+            resp.close_channel(0)  # signal EOF on stdin so `cat` flushes and exits
+            resp.run_forever(timeout=60)
+            if resp.returncode != 0:
+                raise RuntimeError(f"bundle copy exited with {resp.returncode}: {resp.read_stderr()}")
             resp.close()
         except Exception as ex:
             pytest.fail(f"Failed to copy WAFv5 bundle into the pod: {ex}")
@@ -408,14 +394,14 @@ def crd_ingress_controller_with_dos(
     """
     namespace = ingress_controller_prerequisites.namespace
     dos_arbitrator_name = None
+    src_syslog_yaml = f"{TEST_DATA}/dos/dos-syslog.yaml"
+    src_accesslog_yaml = f"{TEST_DATA}/dos/dos-accesslog.yaml"
 
     try:
         print("------------------------- Create syslog svc -----------------------")
-        src_syslog_yaml = f"{TEST_DATA}/dos/dos-syslog.yaml"
         create_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
 
         print("------------------------- Create accesslog svc -----------------------")
-        src_accesslog_yaml = f"{TEST_DATA}/dos/dos-accesslog.yaml"
         create_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
 
         before = time.time()
@@ -437,8 +423,11 @@ def crd_ingress_controller_with_dos(
         print(f"Failed to complete DoS IC fixture: {ex}\nClean up the cluster as much as possible.")
         if dos_arbitrator_name:
             delete_dos_arbitrator(kube_apis.v1, kube_apis.apps_v1_api, dos_arbitrator_name, namespace)
-        delete_items_from_yaml(kube_apis, src_syslog_yaml, namespace)
-        delete_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
+        for src in (src_syslog_yaml, src_accesslog_yaml):
+            try:  # best effort: the item may not have been created before the failure
+                delete_items_from_yaml(kube_apis, src, namespace)
+            except ApiException as cleanup_ex:
+                print(f"Cleanup of {src} skipped: {cleanup_ex.reason}")
         pytest.fail("IC setup failed")
 
     def fin():

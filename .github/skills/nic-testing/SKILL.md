@@ -15,6 +15,12 @@ description: 'Testing patterns for NIC including Go table-driven tests, snapshot
 | `make format` | goimports + gofumpt |
 | `make cover` | Generate Go test coverage report |
 | `make secrets` | Generate test TLS certificates and keys required for E2E tests |
+| `make lint-python` | Python test formatting: `isort` + `black` |
+
+E2E targets in `tests/Makefile` (run from `tests/`, e.g. `make -C tests <target>`):
+
+| Command | Purpose |
+| --- | --- |
 | `make run-local-tests` | Run Python E2E test suite locally using virtual environment |
 | `make run-tests-in-kind` | Run E2E test suite inside a Kind Kubernetes cluster |
 | `make run-tests-in-minikube` | Run E2E test suite inside a Minikube Kubernetes cluster |
@@ -186,6 +192,7 @@ Location: `tests/` (suite in `tests/suite/`, fixtures in `tests/suite/fixtures/`
 - **Run locally via Makefile**:
 
   ```bash
+  cd tests
   make run-local-tests NODE_IP=$(minikube ip)
   ```
 
@@ -296,10 +303,6 @@ The `verify-codegen` job in `ci.yml` re-runs each generator and diffs a **specif
 ## Gotchas
 
 - **Always** run `make secrets` before running individual pytest files directly.
-- **Always** run `make test-update-snaps` after changing `.tmpl` files -- snapshot tests will fail otherwise.
-- **Never** run raw `go test` -- use `make test` (includes build tags like `helmunit`).
-- Snapshot golden files live in `__snapshots__/` directories -- commit regenerated snapshot diffs alongside template changes.
-- Python test classes using `crd_ingress_controller` MUST use `indirect=True` parameterization to pass IC arguments through the fixture pool.
 - **Always** run `make test-update-snaps` after changing any `.tmpl` file -- snapshot tests will fail otherwise
 - **Regenerating is not the same as testing.** If no fixture sets your new field, the golden file will not change and the feature has zero coverage. Add the test case first
 - **Never** run raw `go test` -- use `make test` which includes required build tags (`aws`, `helmunit`)
@@ -307,4 +310,4 @@ The `verify-codegen` job in `ci.yml` re-runs each generator and diffs a **specif
 - `TestMain` with `snaps.Clean(m, snaps.CleanOpts{Sort: true})` is **per package**, not per file -- adding a second one to the same package breaks the build
 - OSS and Plus templates are separate files, so they have separate snapshot entries -- a one-sided diff means you forgot the sibling template, **unless** the feature is Plus-only, in which case only the Plus golden file must change
 - New pytest markers must be registered in `pyproject.toml` -- `--strict-markers` is enabled
-- Python tests use `indirect=True` parametrize for IC + VS setup -- do not remove this
+- Python tests use `indirect=True` parametrize for IC + VS setup (this is how `extra_args` reach the IC pool) -- do not remove this
