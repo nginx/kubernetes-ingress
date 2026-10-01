@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
@@ -36,8 +38,11 @@ type recordingWeightManager struct {
 	mu      sync.Mutex
 	keyvals []configs.WeightUpdate
 
+	deleted []string
+
 	configWrites atomic.Int32
 	reloads      atomic.Int32
+	failReload   atomic.Bool
 }
 
 func newRecordingWeightManager() *recordingWeightManager {
@@ -65,6 +70,21 @@ func (m *recordingWeightManager) keyvalsSince(n int) []configs.WeightUpdate {
 	return append([]configs.WeightUpdate(nil), m.keyvals[n:]...)
 }
 
+// DeleteConfig records the name so tests can assert a change did not remove
+// NGINX config.
+func (m *recordingWeightManager) DeleteConfig(name string) {
+	m.mu.Lock()
+	m.deleted = append(m.deleted, name)
+	m.mu.Unlock()
+	m.FakeManager.DeleteConfig(name)
+}
+
+func (m *recordingWeightManager) deletedConfigs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.deleted...)
+}
+
 func (m *recordingWeightManager) CreateConfig(name string, content []byte) (bool, error) {
 	m.configWrites.Add(1)
 	return m.FakeManager.CreateConfig(name, content)
@@ -72,6 +92,9 @@ func (m *recordingWeightManager) CreateConfig(name string, content []byte) (bool
 
 func (m *recordingWeightManager) Reload(isEndpointsUpdate bool) error {
 	m.reloads.Add(1)
+	if m.failReload.Load() {
+		return errors.New("injected reload failure")
+	}
 	return m.FakeManager.Reload(isEndpointsUpdate)
 }
 
@@ -979,6 +1002,10 @@ func TestApplyWeightOnlyVSChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 			changes: []ResourceChange{{Op: Delete, Resource: vsc}},
 		},
 		{
+			name:    "update-status instead of add-or-update",
+			changes: []ResourceChange{{Op: UpdateStatus, Resource: vsc}},
+		},
+		{
 			name: "cascade to a second resource",
 			changes: []ResourceChange{
 				{Op: AddOrUpdate, Resource: vsc},
@@ -1041,6 +1068,10 @@ func TestApplyWeightOnlyVSRChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 		{
 			name:    "delete instead of add-or-update",
 			changes: []ResourceChange{{Op: Delete, Resource: referencing}},
+		},
+		{
+			name:    "update-status instead of add-or-update",
+			changes: []ResourceChange{{Op: UpdateStatus, Resource: referencing}},
 		},
 		{
 			name:    "change is not a VirtualServerConfiguration",
@@ -1236,5 +1267,184 @@ func TestVSRWeightOnlyEligible(t *testing.T) {
 				t.Errorf("vsrWeightOnlyEligible() = %v, want %v", got, test.want)
 			}
 		})
+	}
+}
+
+// drainEvents returns and clears every event recorded so far.
+func drainEvents(tb testing.TB, lbc *LoadBalancerController) []string {
+	tb.Helper()
+
+	recorder, ok := lbc.recorder.(*record.FakeRecorder)
+	if !ok {
+		tb.Fatalf("recorder is %T, want *record.FakeRecorder", lbc.recorder)
+	}
+	var events []string
+	for {
+		select {
+		case e := <-recorder.Events:
+			events = append(events, e)
+		default:
+			return events
+		}
+	}
+}
+
+// TestProcessRejectedVSChanges_UpdateStatusDoesNotDelete pins that an
+// UpdateStatus for a VirtualServer in the same batch as a rejected one only
+// reports status. It used to fall through to processDelete and remove that
+// VirtualServer's NGINX config.
+func TestProcessRejectedVSChanges_UpdateStatusDoesNotDelete(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBC(t, true)
+
+	other := weightTestVS("other", 1, []conf_v1.Route{twoWayRoute("/tea", 70, 30)})
+	seedVS(t, lbc, other)
+	drainEvents(t, lbc)
+
+	vsc, ok := lbc.configuration.hosts[other.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not a VirtualServerConfiguration", other.Spec.Host)
+	}
+
+	lbc.processRejectedVSChanges([]ResourceChange{{Op: UpdateStatus, Resource: vsc}})
+
+	if got := mgr.deletedConfigs(); len(got) != 0 {
+		t.Errorf("UpdateStatus deleted NGINX config %v, want none", got)
+	}
+	if got := drainEvents(t, lbc); len(got) != 1 {
+		t.Errorf("UpdateStatus produced %d events, want 1: %v", len(got), got)
+	}
+
+	// An explicit Delete still tears the config down.
+	lbc.processRejectedVSChanges([]ResourceChange{{Op: Delete, Resource: vsc}})
+	if got := mgr.deletedConfigs(); len(got) != 1 || got[0] != "vs_default_other" {
+		t.Errorf("Delete removed %v, want [vs_default_other]", got)
+	}
+}
+
+// TestProcessStatusUpdate_KeepsConfiguratorWarning pins that a status-only
+// update does not reset a VirtualServer to Valid while a warning produced by
+// the configurator (here a missing TLS secret) still applies.
+func TestProcessStatusUpdate_KeepsConfiguratorWarning(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBC(t, true)
+	lbc.secretStore = secrets.NewEmptyFakeSecretsStore()
+
+	vs := weightTestVS("cafe", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
+	vs.Spec.TLS = &conf_v1.TLS{Secret: "missing-secret"}
+	seedVS(t, lbc, vs)
+
+	seedEvents := drainEvents(t, lbc)
+	if len(seedEvents) == 0 || !strings.Contains(seedEvents[0], "missing-secret") {
+		t.Fatalf("fixture invalid: seeding should warn about the missing secret, got %v", seedEvents)
+	}
+
+	vsc, ok := lbc.configuration.hosts[vs.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not a VirtualServerConfiguration", vs.Spec.Host)
+	}
+	writes := mgr.configWrites.Load()
+
+	lbc.processChanges([]ResourceChange{{Op: UpdateStatus, Resource: vsc}})
+
+	events := drainEvents(t, lbc)
+	if len(events) != 1 {
+		t.Fatalf("UpdateStatus produced %d events, want 1: %v", len(events), events)
+	}
+	if !strings.Contains(events[0], nl.EventReasonAddedOrUpdatedWithWarning) || !strings.Contains(events[0], "missing-secret") {
+		t.Errorf("UpdateStatus lost the configurator warning, got %q", events[0])
+	}
+	if got := mgr.configWrites.Load() - writes; got != 0 {
+		t.Errorf("UpdateStatus wrote %d NGINX configs, want 0", got)
+	}
+}
+
+// TestProcessStatusUpdate_DoesNotEmitVSREvents pins that a status-only update
+// reports the VirtualServer only, not every attached VirtualServerRoute.
+func TestProcessStatusUpdate_DoesNotEmitVSREvents(t *testing.T) {
+	t.Parallel()
+
+	lbc, _ := newWeightTestLBC(t, true)
+
+	vs := weightTestSelectorVS("cafe", 1)
+	seedVS(t, lbc, vs)
+
+	vsr := weightTestVSR("coffee", 1, []conf_v1.Route{{Path: "/tea", Action: &conf_v1.Action{Pass: "v1"}}})
+	vsr.Labels = map[string]string{"app": "route"}
+	if err := lbc.namespacedInformers["default"].virtualServerRouteLister.Add(vsr); err != nil {
+		t.Fatalf("seeding VSR informer: %v", err)
+	}
+	changes, problems := lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)
+	lbc.processChanges(changes)
+	lbc.processProblems(problems)
+	drainEvents(t, lbc)
+
+	vsc, ok := lbc.configuration.hosts[vs.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not a VirtualServerConfiguration", vs.Spec.Host)
+	}
+	if len(vsc.VirtualServerRoutes) != 1 {
+		t.Fatalf("fixture invalid: want 1 attached VSR, got %d", len(vsc.VirtualServerRoutes))
+	}
+
+	lbc.processStatusUpdate(ResourceChange{Op: UpdateStatus, Resource: vsc})
+
+	events := drainEvents(t, lbc)
+	if len(events) != 1 {
+		t.Fatalf("UpdateStatus produced %d events, want 1 (VirtualServer only): %v", len(events), events)
+	}
+	if strings.Contains(events[0], "coffee") {
+		t.Errorf("UpdateStatus emitted an event for the VirtualServerRoute: %q", events[0])
+	}
+}
+
+// TestProcessChangesFromGlobalConfiguration_UpdateStatusIgnoresBatchError pins
+// that a batch error does not mark a VirtualServer Invalid when it only
+// received an UpdateStatus and took no part in the NGINX update.
+func TestProcessChangesFromGlobalConfiguration_UpdateStatusIgnoresBatchError(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBC(t, true)
+
+	statusOnly := weightTestVS("status", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
+	seedVS(t, lbc, statusOnly)
+	updated := weightTestVS("updated", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
+	seedVS(t, lbc, updated)
+	drainEvents(t, lbc)
+
+	statusVSC, ok := lbc.configuration.hosts[statusOnly.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not a VirtualServerConfiguration", statusOnly.Spec.Host)
+	}
+	updatedVSC, ok := lbc.configuration.hosts[updated.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not a VirtualServerConfiguration", updated.Spec.Host)
+	}
+
+	mgr.failReload.Store(true)
+	err := lbc.processChangesFromGlobalConfiguration([]ResourceChange{
+		{Op: UpdateStatus, Resource: statusVSC},
+		{Op: AddOrUpdate, Resource: updatedVSC},
+	})
+	if err == nil {
+		t.Fatal("expected the batch to report an error")
+	}
+
+	var statusEvent, updatedEvent string
+	for _, e := range drainEvents(t, lbc) {
+		switch {
+		case strings.Contains(e, "default/status"):
+			statusEvent = e
+		case strings.Contains(e, "default/updated"):
+			updatedEvent = e
+		}
+	}
+	if statusEvent == "" || strings.Contains(statusEvent, nl.EventReasonAddedOrUpdatedWithError) {
+		t.Errorf("status-only VirtualServer must not report the batch error, got %q", statusEvent)
+	}
+	if !strings.Contains(updatedEvent, nl.EventReasonAddedOrUpdatedWithError) {
+		t.Errorf("updated VirtualServer should report the batch error, got %q", updatedEvent)
 	}
 }

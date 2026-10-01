@@ -133,6 +133,7 @@ type Configurator struct {
 	minions                      map[string]map[string]bool
 	mergeableIngresses           map[string]*MergeableIngresses
 	virtualServers               map[string]*VirtualServerEx
+	virtualServerWarnings        map[string]Warnings
 	transportServers             map[string]*TransportServerEx
 	tlsPassthroughPairs          map[string]tlsPassthroughPair
 	isWildcardEnabled            bool
@@ -189,6 +190,7 @@ func NewConfigurator(p ConfiguratorParams) *Configurator {
 		MgmtCfgParams:             p.MGMTCfgParams,
 		ingresses:                 make(map[string]*IngressEx),
 		virtualServers:            make(map[string]*VirtualServerEx),
+		virtualServerWarnings:     make(map[string]Warnings),
 		transportServers:          make(map[string]*TransportServerEx),
 		templateExecutor:          p.TemplateExecutor,
 		templateExecutorV2:        p.TemplateExecutorV2,
@@ -718,6 +720,15 @@ func (cnf *Configurator) deleteVirtualServerMetricsLabels(key string) {
 	delete(cnf.metricLabelsIndex.virtualServerUpstreamPeers, key)
 }
 
+// GetVirtualServerWarnings returns the warnings produced when the VirtualServer
+// with the given namespace/name key was last rendered, or nil if it has not been
+// rendered. It lets status-only updates keep reporting warnings that come from
+// config generation (for example a missing Service or TLS secret) without
+// regenerating the config.
+func (cnf *Configurator) GetVirtualServerWarnings(key string) Warnings {
+	return cnf.virtualServerWarnings[getFileNameForVirtualServerFromKey(key)]
+}
+
 // AddOrUpdateVirtualServer adds or updates NGINX configuration for the VirtualServer resource.
 func (cnf *Configurator) AddOrUpdateVirtualServer(virtualServerEx *VirtualServerEx) (Warnings, error) {
 	_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(virtualServerEx)
@@ -786,6 +797,10 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 		changed = true
 	}
 	cnf.virtualServers[name] = virtualServerEx
+	if cnf.virtualServerWarnings == nil {
+		cnf.virtualServerWarnings = make(map[string]Warnings)
+	}
+	cnf.virtualServerWarnings[name] = warnings
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.updateVirtualServerMetricsLabels(virtualServerEx, vsCfg.Upstreams)
@@ -1196,6 +1211,7 @@ func (cnf *Configurator) DeleteVirtualServer(key string, skipReload bool) error 
 	}
 
 	delete(cnf.virtualServers, name)
+	delete(cnf.virtualServerWarnings, name)
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {
 		cnf.deleteVirtualServerMetricsLabels(key)
 	}

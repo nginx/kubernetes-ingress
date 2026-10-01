@@ -1996,6 +1996,12 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 		}
 	}
 
+	// The loop above ranges over a map, so the per-route "is invalid" warnings
+	// arrive in a random order. Warnings are compared with slices.Equal when
+	// deciding whether to emit an UpdateStatus, so a reorder alone would look
+	// like a change and flood the status with differently ordered messages.
+	sort.Strings(warnings)
+
 	// Sort before building the output slices.  The vsrs slice ends up as
 	// VirtualServerConfiguration.VirtualServerRoutes, which
 	// GenerateVirtualServerConfig walks in order to assign split_clients

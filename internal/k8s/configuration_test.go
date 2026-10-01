@@ -6013,6 +6013,53 @@ func TestVirtualServerWarningWithAcceptedSetChangeStillReloads(t *testing.T) {
 	}
 }
 
+// TestVirtualServerSelectorWarningsAreStableAcrossNoOpSyncs pins that several
+// per-route "is invalid" warnings from a routeSelector are sorted. They come
+// from ranging over a map, so without sorting a repeated no-op sync would
+// reorder them and emit a spurious UpdateStatus every time.
+func TestVirtualServerSelectorWarningsAreStableAcrossNoOpSyncs(t *testing.T) {
+	t.Parallel()
+
+	vs := createCafeVirtualServer()
+	c := createTestConfiguration()
+	c.AddOrUpdateVirtualServer(vs)
+
+	var invalid []*conf_v1.VirtualServerRoute
+	for _, name := range []string{"tea-a", "tea-b", "tea-c", "tea-d", "tea-e", "tea-f"} {
+		vsr := createCafeVirtualServerRoute(name, "/coffee")
+		vsr.Spec.Host = "wrong.example.com"
+		invalid = append(invalid, vsr)
+	}
+
+	for _, vsr := range invalid {
+		c.AddOrUpdateVirtualServerRoute(vsr)
+	}
+
+	vsc, ok := c.hosts[vs.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected VirtualServerConfiguration, got %T", c.hosts[vs.Spec.Host])
+	}
+	if len(vsc.Warnings) != len(invalid) {
+		t.Fatalf("expected %d warnings, got %d: %v", len(invalid), len(vsc.Warnings), vsc.Warnings)
+	}
+	if !sort.StringsAreSorted(vsc.Warnings) {
+		t.Errorf("expected sorted warnings, got %v", vsc.Warnings)
+	}
+
+	for i := 0; i < 50; i++ {
+		for _, vsr := range invalid {
+			changes, _ := c.AddOrUpdateVirtualServerRoute(vsr)
+			if len(changes) != 0 {
+				t.Fatalf("sync %d: expected no changes for a no-op sync, got %+v", i, changes)
+			}
+		}
+		changes, _ := c.AddOrUpdateVirtualServer(vs)
+		if len(changes) != 0 {
+			t.Fatalf("sync %d: expected no changes for a no-op VirtualServer sync, got %+v", i, changes)
+		}
+	}
+}
+
 func TestCreateVirtualServerWarningChanges(t *testing.T) {
 	t.Parallel()
 

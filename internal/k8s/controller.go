@@ -1638,8 +1638,9 @@ func vsSelfRejected(changes []ResourceChange, vs *conf_v1.VirtualServer) bool {
 // rejected VirtualServer update, with the same semantics the pre-fast-lane
 // haltIfVSConfigInvalid had: a VirtualServer Delete is torn down and
 // reported via processDelete (which duplicates none of the logic here), a
-// VirtualServer AddOrUpdate only gets a status/event update, and any
-// non-VirtualServer change is left untouched.
+// VirtualServer AddOrUpdate or UpdateStatus only gets a status/event update,
+// and any non-VirtualServer change is left untouched. Only an explicit Delete
+// removes config; unknown operations do nothing.
 //
 // AddOrUpdate deliberately does not render here. That means a VirtualServer
 // taking over the host just freed by the rejected one is left unserved until
@@ -1652,11 +1653,16 @@ func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceCh
 		if !ok {
 			continue
 		}
-		if c.Op == AddOrUpdate {
+		switch c.Op {
+		case AddOrUpdate:
 			lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
-			continue
+		case UpdateStatus:
+			// Status only. This must never fall through to processDelete,
+			// which would remove the NGINX config of an unrelated VirtualServer.
+			lbc.processStatusUpdate(c)
+		case Delete:
+			lbc.processDelete(c)
 		}
-		lbc.processDelete(c)
 	}
 }
 
@@ -1666,8 +1672,9 @@ func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceCh
 //
 // It returns false, without side effects, unless changes is exactly a single
 // AddOrUpdate of the VirtualServer identified by key. Any other shape -- a
-// Delete, a cascade to another resource, or a rejected spec -- means the
-// caller must fall back to processChanges, which is correct for all of them.
+// Delete, an UpdateStatus, a cascade to another resource, or a rejected spec --
+// means the caller must fall back to processChanges, which dispatches each
+// operation explicitly and is correct for all of them.
 func (lbc *LoadBalancerController) applyWeightOnlyVSChanges(key string, changes []ResourceChange, weightUpdates []configs.WeightUpdate) bool {
 	if len(changes) != 1 || changes[0].Op != AddOrUpdate {
 		return false
@@ -1750,11 +1757,38 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 	}
 }
 
+// processStatusUpdate reports status and events for a change that does not
+// need NGINX to be reconfigured. It never touches NGINX config.
+//
+// The warnings the configurator produced when the VirtualServer was last
+// rendered (a missing Service or TLS secret, for example) still apply, so they
+// are carried over instead of being reset to an empty set. Only the
+// VirtualServer itself is reported: a status-only change does not alter any
+// attached VirtualServerRoute, so no events are emitted for them.
 func (lbc *LoadBalancerController) processStatusUpdate(c ResourceChange) {
 	switch impl := c.Resource.(type) {
 	case *VirtualServerConfiguration:
-		lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
+		lbc.updateVirtualServerOwnStatusAndEvents(impl, lbc.lastRenderedVirtualServerWarnings(impl), nil)
 	}
+}
+
+// lastRenderedVirtualServerWarnings returns the configurator warnings recorded
+// the last time the VirtualServer in vsConfig was rendered, re-keyed to the
+// VirtualServer object vsConfig holds (the rendered copy may be an older object
+// than the one in the change, so warnings are matched by namespace and name).
+func (lbc *LoadBalancerController) lastRenderedVirtualServerWarnings(vsConfig *VirtualServerConfiguration) configs.Warnings {
+	warnings := configs.Warnings{}
+	if lbc.configurator == nil {
+		return warnings
+	}
+
+	key := getResourceKey(&vsConfig.VirtualServer.ObjectMeta)
+	for obj, messages := range lbc.configurator.GetVirtualServerWarnings(key) {
+		if vs, ok := obj.(*conf_v1.VirtualServer); ok && getResourceKey(&vs.ObjectMeta) == key {
+			warnings[vsConfig.VirtualServer] = append(warnings[vsConfig.VirtualServer], messages...)
+		}
+	}
+	return warnings
 }
 
 func (lbc *LoadBalancerController) processAddOrUpdate(c ResourceChange) {
@@ -2087,6 +2121,13 @@ func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig
 }
 
 func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *VirtualServerConfiguration, warnings configs.Warnings, operationErr error) {
+	lbc.updateVirtualServerOwnStatusAndEvents(vsConfig, warnings, operationErr)
+	lbc.updateAttachedVirtualServerRoutesStatusAndEvents(vsConfig, warnings, operationErr)
+}
+
+// updateVirtualServerOwnStatusAndEvents reports the status and event of the
+// VirtualServer itself, without touching its VirtualServerRoutes.
+func (lbc *LoadBalancerController) updateVirtualServerOwnStatusAndEvents(vsConfig *VirtualServerConfiguration, warnings configs.Warnings, operationErr error) {
 	eventType := api_v1.EventTypeNormal
 	eventTitle := nl.EventReasonAddedOrUpdated
 	eventWarningMessage := ""
@@ -2131,7 +2172,11 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 			}
 		}
 	}
+}
 
+// updateAttachedVirtualServerRoutesStatusAndEvents reports the status and event
+// of every VirtualServerRoute attached to the VirtualServer in vsConfig.
+func (lbc *LoadBalancerController) updateAttachedVirtualServerRoutesStatusAndEvents(vsConfig *VirtualServerConfiguration, warnings configs.Warnings, operationErr error) {
 	for _, vsr := range vsConfig.VirtualServerRoutes {
 		vsrEventType := api_v1.EventTypeNormal
 		vsrEventTitle := nl.EventReasonAddedOrUpdated
@@ -2295,7 +2340,8 @@ func vsrWeightOnlyEligible(prevVsr, curVsr *conf_v1.VirtualServerRoute) bool {
 // against its own render.
 //
 // It returns false, without side effects, unless every change is a plain
-// AddOrUpdate of a VirtualServer that actually references vsrNew.
+// AddOrUpdate of a VirtualServer that actually references vsrNew. An
+// UpdateStatus or Delete is never treated as one; it takes the fallback path.
 // rebuildHosts reports a change for every host whose configuration moved, so
 // an unrelated VirtualServer can appear in this set; it needs a real render,
 // and its starting split_clients index cannot be derived from this VSR in any

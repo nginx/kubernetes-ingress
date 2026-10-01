@@ -120,6 +120,9 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 	var deletedVSKeys []string
 
 	var updatedResources []Resource
+	// Resources that only need their status refreshed. They are not part of the
+	// NGINX update, so a batch error must not be attributed to them.
+	var statusOnlyChanges []ResourceChange
 
 	for _, c := range changes {
 		switch impl := c.Resource.(type) {
@@ -134,7 +137,7 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 
 				deletedVSKeys = append(deletedVSKeys, key)
 			} else if c.Op == UpdateStatus {
-				updatedResources = append(updatedResources, impl)
+				statusOnlyChanges = append(statusOnlyChanges, c)
 			}
 		case *TransportServerConfiguration:
 			if c.Op == AddOrUpdate {
@@ -169,6 +172,10 @@ func (lbc *LoadBalancerController) processChangesFromGlobalConfiguration(changes
 	}
 
 	lbc.updateResourcesStatusAndEvents(updatedResources, configs.Warnings{}, updateErr)
+
+	for _, c := range statusOnlyChanges {
+		lbc.processStatusUpdate(c)
+	}
 
 	return updateErr
 }
