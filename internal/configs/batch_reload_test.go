@@ -26,9 +26,10 @@ var (
 )
 
 // recordingBatchManager wraps FakeManager and records calls to the reload
-// paths gated by Configurator.isReloadsEnabled — Reload and the Plus API
-// upstream writes. Referenced by the batch/reload regression tests for
-// https://github.com/nginx/kubernetes-ingress/pull/7779 and
+// path (Configurator.Reload, gated by isReloadsEnabled) and the NGINX Plus
+// API upstream writes (gated by isPlusAPIEnabled). Referenced by the
+// batch/reload regression tests for
+// https://github.com/nginx/kubernetes-ingress/issues/7778 and
 // https://github.com/nginx/kubernetes-ingress/issues/10397.
 type recordingBatchManager struct {
 	*nginx.FakeManager
@@ -56,23 +57,39 @@ func (m *recordingBatchManager) UpdateStreamServersInPlus(upstream string, serve
 	return m.FakeManager.UpdateStreamServersInPlus(upstream, servers)
 }
 
-// TestBatchModeDropsPlusEndpointUpdates highlights the regression that
-// PR #7779 (https://github.com/nginx/kubernetes-ingress/pull/7779) introduces
-// on top of the pre-existing behavior flagged in issue #7778.
+// failingPlusAPIManager wraps recordingBatchManager and makes every
+// UpdateServersInPlus call fail, simulating an NGINX Plus API error (e.g.
+// the upstream doesn't exist yet in the running config because it was
+// created earlier in the same batch). Reload calls are still counted via
+// the embedded recordingBatchManager.
+type failingPlusAPIManager struct {
+	*recordingBatchManager
+}
+
+func (m *failingPlusAPIManager) UpdateServersInPlus(upstream string, _ []string, _ nginx.ServerConfig) error {
+	m.updateServersInPlus.Add(1)
+	return fmt.Errorf("simulated Plus API failure for upstream %s", upstream)
+}
+
+// TestBatchModeDropsPlusEndpointUpdates pins the fix for issue #7778
+// (https://github.com/nginx/kubernetes-ingress/issues/7778): NGINX Plus
+// reloading on every endpoint churn event.
 //
-// During batch sync, sync() calls Configurator.DisableReloads() at batch start.
-// The same isReloadsEnabled flag also gates updateServersInPlus /
-// updateStreamServersInPlus (see Configurator.updateServersInPlus), which
-// silently return nil when reloads are disabled. Before PR #7779, the safety
-// net was ReloadForBatchUpdates(true) at queue drain: it picked up the freshly
-// rewritten config with the new endpoints. PR #7779 removes that reload for
-// endpointslice-only batches on Plus without lifting the API gate, so during
-// a batch neither path applies endpoint changes to the running NGINX Plus.
+// Originally, DisableReloads() (called by sync() at batch start) flipped a
+// single isReloadsEnabled flag that gated both Configurator.Reload and the
+// Plus API upstream writes (updateServersInPlus / updateStreamServersInPlus).
+// That forced a choice: either the Plus API write was suppressed during a
+// batch (stale endpoints until the batch-end reload, or until #7779-style
+// changes remove that reload entirely — see
+// https://github.com/nginx/kubernetes-ingress/pull/7779), or reloads were
+// re-enabled mid-batch (defeating the point of batching, #7778's reload
+// storm).
 //
-// The test asserts the *correct* behavior (the Plus API upstream write should
-// still fire during a batch). It therefore FAILS on current main and will
-// only pass once updateServersInPlus is ungated during batch, or an explicit
-// Plus API flush runs at batch end.
+// Configurator now has two independent flags: isReloadsEnabled (gates
+// Reload) and isPlusAPIEnabled (gates the Plus API writes). DisableReloads
+// only clears the former, so the Plus API upstream write continues to apply
+// endpoint changes live during a batch while reloads stay deferred — closing
+// #7778 without reintroducing the staleness #7779 would have caused.
 func TestBatchModeDropsPlusEndpointUpdates(t *testing.T) {
 	t.Parallel()
 
@@ -80,23 +97,7 @@ func TestBatchModeDropsPlusEndpointUpdates(t *testing.T) {
 	cnf := createTestConfiguratorWithManager(t, mgr)
 	cnf.isPlus = true
 
-	vsEx := &VirtualServerEx{
-		VirtualServer: &conf_v1.VirtualServer{
-			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
-			Spec: conf_v1.VirtualServerSpec{
-				Host: "cafe.example.com",
-				Upstreams: []conf_v1.Upstream{
-					{Name: "tea", Service: "tea-svc", Port: 80},
-				},
-				Routes: []conf_v1.Route{
-					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
-				},
-			},
-		},
-		Endpoints: map[string][]string{
-			"default/tea-svc:80": {"10.0.0.1:80"},
-		},
-	}
+	vsEx := cafeVSExWithEndpoints("10.0.0.1:80")
 
 	if err := cnf.updatePlusEndpointsForVirtualServer(vsEx); err != nil {
 		t.Fatalf("baseline updatePlusEndpointsForVirtualServer: %v", err)
@@ -116,36 +117,35 @@ func TestBatchModeDropsPlusEndpointUpdates(t *testing.T) {
 
 	if got := mgr.updateServersInPlus.Load(); got != 2 {
 		t.Fatalf("Plus API upstream write suppressed during batch: UpdateServersInPlus calls = %d, want 2 "+
-			"(PR #7779 relies on the Plus API to propagate endpoints while it skips the reload; "+
-			"the same isReloadsEnabled flag suppresses that API call, so endpoints go stale)", got)
+			"(isPlusAPIEnabled should stay true across DisableReloads so endpoints keep propagating "+
+			"to the running NGINX Plus during a batch)", got)
 	}
 
-	// PR #7779's Plus batch-end path: ReloadForBatchUpdates(false), a no-op.
+	// Batch-end: an endpointslice-only batch no longer forces a reload (#7778)
+	// — the Plus API write above already applied the change live.
 	cnf.EnableReloads()
 	if err := cnf.ReloadForBatchUpdates(false); err != nil {
 		t.Fatalf("ReloadForBatchUpdates: %v", err)
 	}
 	if got := mgr.reloads.Load(); got != 0 {
-		t.Fatalf("PR #7779 Plus path: reload count = %d, want 0 "+
-			"(confirms neither path applies endpoints; the running NGINX Plus "+
-			"stays on pre-batch upstream membership until a subsequent non-batch "+
-			"event arrives for this service)", got)
+		t.Fatalf("reload count = %d, want 0 "+
+			"(the Plus API write already applied the endpoint change; no reload should be needed)", got)
 	}
 }
 
-// TestBatchModeSilentlyDropsOSSReload demonstrates the primitive that
-// amplifies into issue #10397 (https://github.com/nginx/kubernetes-ingress/issues/10397)
-// at the controller level: while batching is active, every call to
-// Configurator.Reload is a silent no-op regardless of how much fresh config
-// gets written to disk. sync() only re-enables reloads and fires
-// ReloadForBatchUpdates when syncQueue.Len() == 0. Under sustained
-// endpointslice churn the queue never drains, so a real config change
-// (Ingress / VirtualServer / TransportServer) enqueued during the batch has
-// its reload deferred by the duration of the churn — the "stale IPs for
-// several minutes" symptom reported in #10397.
-//
-// See TestOSSBatchNeverDrainsUnderEndpointsliceChurn in the internal/k8s
-// package for the end-to-end amplification driven through sync().
+// TestBatchModeSilentlyDropsOSSReload demonstrates the primitive that, without
+// a bounded batch window, amplifies into issue #10397
+// (https://github.com/nginx/kubernetes-ingress/issues/10397) at the
+// controller level: while batching is active, every call to
+// Configurator.Reload is a no-op regardless of how much fresh config gets
+// written to disk — by design, the reload is deferred until the batch ends.
+// sync() ends the batch either when syncQueue.Len() == 0 or, since the
+// #10397 fix, once LoadBalancerController.batchReloadWindow has elapsed.
+// This test only exercises the Configurator-level deferral; see
+// TestOSSBatchNeverDrainsUnderEndpointsliceChurn (pre-fix semantics with the
+// window disabled) and TestBatchEndsOnWindowUnderContinuousChurn (the fix)
+// in the internal/k8s package for the end-to-end behavior driven through
+// sync().
 func TestBatchModeSilentlyDropsOSSReload(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +184,121 @@ func TestBatchModeSilentlyDropsOSSReload(t *testing.T) {
 	}
 	if got := mgr.reloads.Load(); got != 2 {
 		t.Fatalf("post-batch reload count = %d, want 2", got)
+	}
+}
+
+// cafeVSExWithEndpoints builds a minimal VirtualServerEx for a single
+// upstream, used by the batch-mode Plus tests below. endpoint is the sole
+// backing pod IP for the "tea" upstream.
+func cafeVSExWithEndpoints(endpoint string) *VirtualServerEx {
+	return &VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			Spec: conf_v1.VirtualServerSpec{
+				Host: "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{
+					{Name: "tea", Service: "tea-svc", Port: 80},
+				},
+				Routes: []conf_v1.Route{
+					{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}},
+				},
+			},
+		},
+		Endpoints: map[string][]string{
+			"default/tea-svc:80": {endpoint},
+		},
+	}
+}
+
+// TestBatchModeEndpointslicesOnlyNoReloadOnPlus is the Plus-side,
+// public-API counterpart to TestBatchModeDropsPlusEndpointUpdates: it drives
+// repeated endpoint churn for the same VirtualServer through
+// UpdateEndpointsForVirtualServers (the path syncEndpointSlices actually
+// calls) and asserts that an endpointslice-only batch applies every update
+// via the Plus API without ever triggering a reload — the fix for
+// https://github.com/nginx/kubernetes-ingress/issues/7778.
+func TestBatchModeEndpointslicesOnlyNoReloadOnPlus(t *testing.T) {
+	t.Parallel()
+
+	mgr := newRecordingBatchManager()
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = true
+
+	// Warm-up outside the batch so subsequent calls exercise the "update"
+	// branch, matching steady-state churn.
+	vsEx := cafeVSExWithEndpoints("10.0.0.1:80")
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{vsEx}); err != nil {
+		t.Fatalf("warm-up UpdateEndpointsForVirtualServers: %v", err)
+	}
+
+	// sync() enters batch mode when the work queue has more than one item.
+	cnf.DisableReloads()
+
+	for i, ip := range []string{"10.0.0.2:80", "10.0.0.3:80", "10.0.0.4:80"} {
+		vsEx.Endpoints["default/tea-svc:80"] = []string{ip}
+		if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{vsEx}); err != nil {
+			t.Fatalf("in-batch update #%d: %v", i, err)
+		}
+	}
+
+	const wantAPIWrites = 4 // 1 warm-up + 3 in-batch
+	if got := mgr.updateServersInPlus.Load(); got != wantAPIWrites {
+		t.Fatalf("UpdateServersInPlus calls = %d, want %d", got, wantAPIWrites)
+	}
+
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("reload count = %d, want 0 (endpointslice-only Plus batch should never reload, #7778)", got)
+	}
+}
+
+// TestBatchModePlusAPIFailureStillReloadsAtBatchEnd pins the safety net that
+// a Plus-only #7779-style change (https://github.com/nginx/kubernetes-ingress/pull/7779)
+// must preserve: on NGINX Plus, UpdateEndpointsForVirtualServers already
+// falls back to Reload() when the Plus API write fails (e.g. the upstream
+// doesn't exist yet in the running config). Because Configurator.Reload
+// tracks reloadDeferred whenever it no-ops, ReloadForBatchUpdates still
+// fires that reload at batch end even though the triggering task was an
+// endpointslice — which, after the #7778 fix, no longer unconditionally
+// requests a batch-end reload on its own. Without reloadDeferred, this
+// fallback would be silently dropped and the endpoint change lost until an
+// unrelated event next kicks the queue.
+func TestBatchModePlusAPIFailureStillReloadsAtBatchEnd(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failingPlusAPIManager{recordingBatchManager: newRecordingBatchManager()}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = true
+
+	vsEx := cafeVSExWithEndpoints("10.0.0.1:80")
+
+	// sync() enters batch mode.
+	cnf.DisableReloads()
+
+	// The Plus API write fails; UpdateEndpointsForVirtualServers falls back
+	// to requesting a reload, which is deferred because reloads are
+	// disabled during the batch.
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{vsEx}); err != nil {
+		t.Fatalf("UpdateEndpointsForVirtualServers: %v", err)
+	}
+	if got := mgr.updateServersInPlus.Load(); got != 1 {
+		t.Fatalf("UpdateServersInPlus calls = %d, want 1 (the failed attempt)", got)
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("reload count = %d, want 0 (deferred during the batch, not dropped)", got)
+	}
+
+	// Batch end: even though this was an endpointslice-driven update,
+	// reloadDeferred carries the fallback forward so it still fires.
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("post-batch reload count = %d, want 1 (the Plus API failure fallback must not be silently dropped)", got)
 	}
 }
 
