@@ -8,6 +8,7 @@ from playwright.sync_api import Error, sync_playwright
 from settings import TEST_DATA
 from suite.utils.policy_resources_utils import delete_policy
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_example_app,
     create_items_from_yaml,
     create_secret,
@@ -16,7 +17,7 @@ from suite.utils.resources_utils import (
     delete_secret,
     generate_e2e_run_id,
     get_e2e_run_selector,
-    get_pod_name_that_contains,
+    get_first_pod_name,
     replace_configmap_from_yaml,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -192,9 +193,7 @@ class TestOIDCFCLO:
             )
 
         # Check nginx-ingress logs for two instances to /front_channel_logout
-        nic_pod_name = get_pod_name_that_contains(
-            kube_apis.v1, ingress_controller_prerequisites.namespace, "nginx-ingress-"
-        )
+        nic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         retry = 0
         count_fclo_initiated = 0

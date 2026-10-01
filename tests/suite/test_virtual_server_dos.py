@@ -20,6 +20,7 @@ from suite.utils.dos_utils import (
     log_content_to_dic,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     clear_file_contents,
     create_example_app,
     delete_common_app,
@@ -27,6 +28,8 @@ from suite.utils.resources_utils import (
     generate_e2e_run_id,
     get_e2e_run_selector,
     get_file_contents,
+    get_first_pod_name,
+    get_pod_list,
     get_vs_nginx_template_conf,
     nginx_reload,
     replace_configmap_from_yaml,
@@ -139,9 +142,8 @@ def dos_setup(
         kube_apis.custom_objects, src_protected_yaml, test_namespace, ingress_controller_prerequisites.namespace
     )
 
-    for item in kube_apis.v1.list_namespaced_pod(ingress_controller_prerequisites.namespace).items:
-        if "nginx-ingress" in item.metadata.name:
-            nginx_reload(kube_apis.v1, item.metadata.name, ingress_controller_prerequisites.namespace)
+    for item in get_pod_list(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR):
+        nginx_reload(kube_apis.v1, item.metadata.name, ingress_controller_prerequisites.namespace)
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -175,12 +177,6 @@ def dos_setup(
     indirect=True,
 )
 class TestDos:
-    def getPodNameThatContains(self, kube_apis, namespace, contains_string):
-        for item in kube_apis.v1.list_namespaced_pod(namespace).items:
-            if contains_string in item.metadata.name:
-                return item.metadata.name
-        return ""
-
     def test_responses_after_setup(
         self, kube_apis, crd_ingress_controller_with_dos, dos_setup, virtual_server_setup_dos
     ):
@@ -200,7 +196,7 @@ class TestDos:
         Test app protect logs appear in syslog after sending request to dos enabled route
         """
         print("----------------------- Get syslog pod name ----------------------")
-        syslog_pod = self.getPodNameThatContains(kube_apis, ingress_controller_prerequisites.namespace, "syslog")
+        syslog_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, "app=syslog")
         assert "syslog" in syslog_pod
         log_loc = f"/var/log/messages"
         clear_file_contents(kube_apis.v1, log_loc, syslog_pod, ingress_controller_prerequisites.namespace)
@@ -248,7 +244,7 @@ class TestDos:
         print("\n confirm response for standard request")
         wait_and_assert_status_code(200, virtual_server_setup_dos.backend_1_url, virtual_server_setup_dos.vs_host)
 
-        pod_name = self.getPodNameThatContains(kube_apis, ingress_controller_prerequisites.namespace, "nginx-ingress")
+        pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
 
         result_conf = get_vs_nginx_template_conf(
             kube_apis.v1,
@@ -303,7 +299,7 @@ class TestDos:
         Test App Protect Dos: Block bad clients attack
         """
         print("----------------------- Get syslog pod name ----------------------")
-        syslog_pod = self.getPodNameThatContains(kube_apis, ingress_controller_prerequisites.namespace, "syslog")
+        syslog_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, "app=syslog")
         assert "syslog" in syslog_pod
         log_loc = f"/var/log/messages"
         clear_file_contents(kube_apis.v1, log_loc, syslog_pod, ingress_controller_prerequisites.namespace)
@@ -372,7 +368,7 @@ class TestDos:
         """
         log_loc = f"/var/log/messages"
         print("----------------------- Get syslog pod name ----------------------")
-        syslog_pod = self.getPodNameThatContains(kube_apis, ingress_controller_prerequisites.namespace, "syslog")
+        syslog_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, "app=syslog")
         assert "syslog" in syslog_pod
         clear_file_contents(kube_apis.v1, log_loc, syslog_pod, ingress_controller_prerequisites.namespace)
 
@@ -387,8 +383,8 @@ class TestDos:
         )
 
         print("Learning for max 15 minutes")
-        nginx_ingress_pod_name = self.getPodNameThatContains(
-            kube_apis, ingress_controller_prerequisites.namespace, "nginx"
+        nginx_ingress_pod_name = get_first_pod_name(
+            kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR
         )
         check_learning_status_with_admd_s(
             kube_apis,

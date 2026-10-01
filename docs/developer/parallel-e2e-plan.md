@@ -95,6 +95,19 @@ match every pod in it. Flakes also eat the gains from every later phase.
 - `scale_deployment` and `create_dos_arbitrator` wait on the Deployment's own
   `matchLabels`.
 - Unit tests for the helpers: `tests/suite/utils/test_e2e_run_id.py`.
+- Every remaining pod lookup by name substring now uses the workload's
+  existing `app=` label: `app=nginx-ingress` (`IC_SELECTOR`), `app=syslog`,
+  `app=syslog2`, `app=accesslog`.
+  - Files: `test_filter_secrets`, `test_oidc_fclo`,
+    `test_app_protect_waf_policies`, `test_app_protect_integration`,
+    `test_dos`, `test_virtual_server_dos`.
+  - The DoS-only `TestDos.getPodNameThatContains` copies are deleted.
+  - The shared helpers `get_pod_name_that_contains` and
+    `get_pods_amount_with_name` are deleted.
+  - This also fixes `"syslog"` matching `syslog2-*` pods in
+    `test_app_protect_waf_policies`.
+  - No raw `list_namespaced_pod` without a selector is left in
+    `tests/suite`.
 
 **Left to land #10850:**
 
@@ -109,23 +122,11 @@ match every pod in it. Flakes also eat the gains from every later phase.
       `.github/skills/nic-code-review/SKILL.md` with how to write tests that
       use `e2e_run_id` (requested by haywoodsh). This can be a follow-up PR.
 
-**Follow-up [new]:** lookups that are still unscoped on this branch.
+**Follow-up [new]:**
 
-- [ ] `get_pod_name_that_contains` / `get_first_pod_name` with no
-      selector in:
-      - `test_filter_secrets.py` (4 calls)
-      - `test_oidc_fclo.py`
-      - `test_transport_server_backup_service.py` (2 calls)
-      - `test_transport_server_service_insight.py`
-      - `test_ts_tls_passthrough.py`
-      - `test_app_protect_integration.py`
-      - `test_app_protect_waf_policies.py`
-- [ ] Raw `list_namespaced_pod(...)` calls in `test_dos.py` (lines 130, 168)
-      and `test_virtual_server_dos.py` (lines 142, 179).
-- [ ] `get_pods_amount_with_name` (`resources_utils.py`) still lists every
-      pod in the namespace.
-- [ ] A guard against regressions, for example a unit test that greps
-      `tests/suite` for `list_namespaced_pod(` without `label_selector`.
+- [ ] `test_filter_secrets.py` still hard-codes the `nginx-ingress`
+      namespace, for both pod lookups and Secrets. Moving it to
+      `ingress_controller_prerequisites.namespace` is part of Phase 5.
 
 ### Phase 1 — Measure and split outlier shards **[10492]**
 
@@ -340,7 +341,7 @@ above. Effects are as estimated in #10492.
 |---|---|---|---|
 | 0 | Resolve review threads, second approval, merge #10850 | [10850] | In review, CI green |
 | 0 | Skills update for `e2e_run_id` | [10850] follow-up | Not started |
-| 0 | Remaining unscoped pod lookups + regression guard | [new] | Not started |
+| 0 | Scope remaining pod lookups by `app=` label | [10850] | Done |
 | 1 | Duration tooling | [10492] | Draft PR |
 | 1 | Split outlier shards | [10492] | Not started |
 | 1 | Decide DoS learning → nightly | [10492] | Open question |

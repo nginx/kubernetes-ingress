@@ -1,11 +1,12 @@
 import pytest
 from settings import TEST_DATA
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_namespace_with_name_from_yaml,
     create_secret_from_yaml,
     delete_namespace,
     delete_secret,
-    get_pod_name_that_contains,
+    get_first_pod_name,
     is_secret_present,
     wait_before_test,
 )
@@ -37,7 +38,7 @@ def setup_single_secret_and_ns(request, kube_apis):
 )
 class TestFilterSecret:
     def test_filter_secret_single_namespace(self, request, kube_apis, ingress_controller, setup_single_secret_and_ns):
-        pod_name = get_pod_name_that_contains(kube_apis.v1, "nginx-ingress", "nginx-ingress")
+        pod_name = get_first_pod_name(kube_apis.v1, "nginx-ingress", IC_SELECTOR)
         logs = kube_apis.v1.read_namespaced_pod_log(pod_name, "nginx-ingress")
         assert "helm.sh/release.v1" not in logs
 
@@ -56,7 +57,7 @@ class TestFilterAfterIcCreated:
         filtered_secret_1 = create_secret_from_yaml(
             kube_apis.v1, filtered_ns_1, f"{TEST_DATA}/filter-secrets/filtered-secret-1.yaml"
         )
-        pod_name = get_pod_name_that_contains(kube_apis.v1, "nginx-ingress", "nginx-ingress")
+        pod_name = get_first_pod_name(kube_apis.v1, "nginx-ingress", IC_SELECTOR)
         logs = kube_apis.v1.read_namespaced_pod_log(pod_name, "nginx-ingress")
         assert "helm.sh/release.v1" not in logs
 
@@ -106,7 +107,7 @@ class TestFilterSecretMultipuleNamespace:
     def test_filter_secret_multi_namespace(
         self, request, kube_apis, ingress_controller, setup_multiple_ns_and_multiple_secrets
     ):
-        pod_name = get_pod_name_that_contains(kube_apis.v1, "nginx-ingress", "nginx-ingress")
+        pod_name = get_first_pod_name(kube_apis.v1, "nginx-ingress", IC_SELECTOR)
         logs = kube_apis.v1.read_namespaced_pod_log(pod_name, "nginx-ingress")
         assert "helm.sh/release.v1" not in logs
 
@@ -136,7 +137,7 @@ class TestFilterSecretMultipleNamespaceAfterIcCreated:
             kube_apis.v1, "nginx-ingress", f"{TEST_DATA}/filter-secrets/nginx-ingress-secret.yaml"
         )
 
-        pod_name = get_pod_name_that_contains(kube_apis.v1, "nginx-ingress", "nginx-ingress")
+        pod_name = get_first_pod_name(kube_apis.v1, "nginx-ingress", IC_SELECTOR)
         logs = kube_apis.v1.read_namespaced_pod_log(pod_name, "nginx-ingress")
 
         if is_secret_present(kube_apis.v1, filtered_secret_1, filtered_ns_1):

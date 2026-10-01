@@ -27,7 +27,6 @@ from suite.utils.resources_utils import (
     get_first_pod_name,
     get_ingress_nginx_template_conf,
     get_last_reload_time,
-    get_pod_name_that_contains,
     get_pods_amount,
     get_test_file_name,
     retry_get,
@@ -381,12 +380,8 @@ class TestAppProtect:
         print("----------------------- Send request ----------------------")
         response = retry_get(appprotect_setup.req_url + "/<script>", ingress_host, verify=False)
         print(response.text)
-        syslog_pod = get_pod_name_that_contains(
-            kube_apis.v1, test_namespace, "syslog-", get_e2e_run_selector(appprotect_setup.e2e_run_id)
-        )
-        syslog2_pod = get_pod_name_that_contains(
-            kube_apis.v1, test_namespace, "syslog2", get_e2e_run_selector(e2e_run_id)
-        )
+        syslog_pod = get_first_pod_name(kube_apis.v1, test_namespace, "app=syslog")
+        syslog2_pod = get_first_pod_name(kube_apis.v1, test_namespace, "app=syslog2")
         log_contents = ""
         log2_contents = ""
         retry = 0

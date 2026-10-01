@@ -431,39 +431,6 @@ def get_pods_amount(v1: CoreV1Api, namespace, label_selector=None) -> int:
     return 0 if not pods.items else len(pods.items)
 
 
-def get_pods_amount_with_name(v1: CoreV1Api, namespace, name) -> int:
-    """
-    Get an amount of pods.
-
-    :param v1: CoreV1Api
-    :param namespace: namespace
-    :param name: name
-    :return: int
-    """
-    pods = v1.list_namespaced_pod(namespace)
-    count = 0
-    if pods and pods.items:
-        for item in pods.items:
-            if name in item.metadata.name:
-                count += 1
-    return count
-
-
-def get_pod_name_that_contains(v1: CoreV1Api, namespace, contains_string, label_selector=None) -> str:
-    """
-    Get an amount of pods.
-
-    :param v1: CoreV1Api
-    :param namespace: namespace
-    :param contains_string: string to search on
-    :return: string
-    """
-    for item in v1.list_namespaced_pod(namespace, label_selector=label_selector).items:
-        if contains_string in item.metadata.name:
-            return item.metadata.name
-    return ""
-
-
 def create_service_from_yaml(v1: CoreV1Api, namespace, yaml_manifest) -> str:
     """
     Create a service based on yaml file.
