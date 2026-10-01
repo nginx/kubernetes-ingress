@@ -7225,7 +7225,7 @@ func TestProcessProblems_VirtualServerRoutePreservesReferencedBy(t *testing.T) {
 	}
 
 	su := &statusUpdater{
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		confClient:          fakeConfClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:              nl.LoggerFromContext(context.Background()),

@@ -622,12 +622,13 @@ func (su *statusUpdater) UpdateVirtualServerRouteReferencedBy(vsr *conf_v1.Virtu
 	var err error
 
 	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
-	nsi := su.getNamespacedInformer(vsr.Namespace)
-	if nsi == nil {
+	watched := su.namespacedInformers.WithInformer(vsr.Namespace, func(nsi *namespacedInformer) {
+		vsrLatest, exists, err = nsi.virtualServerRouteLister.Get(vsr)
+	})
+	if !watched {
 		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
 		return nil
 	}
-	vsrLatest, exists, err = nsi.virtualServerRouteLister.Get(vsr)
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
 		return err

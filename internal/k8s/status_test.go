@@ -313,7 +313,9 @@ func TestUpdateVirtualServerRouteReferencedByConflictRetainsNewerStatus(t *testi
 
 	su := newTestStatusUpdater()
 	su.confClient = fakeClient
-	su.namespacedInformers["default"] = &namespacedInformer{virtualServerRouteLister: store}
+	su.namespacedInformers = registryFrom(map[string]*namespacedInformer{
+		"default": {virtualServerRouteLister: store},
+	})
 
 	vs := &conf_v1.VirtualServer{ObjectMeta: meta_v1.ObjectMeta{Name: "vs-a", Namespace: "default"}}
 	if err := su.UpdateVirtualServerRouteReferencedBy(stale, []*conf_v1.VirtualServer{vs}); err != nil {

@@ -71,11 +71,11 @@ func newVSRStatusTestLBC(tb testing.TB) (*LoadBalancerController, *fake_v1.Clien
 		Logger:                    nl.LoggerFromContext(context.Background()),
 		client:                    fake.NewClientset(),
 		isNginxReady:              true,
-		namespacedInformers:       map[string]*namespacedInformer{"": nsi},
+		namespacedInformers:       registryFrom(map[string]*namespacedInformer{"": nsi}),
 		areCustomResourcesEnabled: true,
 		statusUpdater: &statusUpdater{
 			confClient:          confClient,
-			namespacedInformers: map[string]*namespacedInformer{"": nsi},
+			namespacedInformers: registryFrom(map[string]*namespacedInformer{"": nsi}),
 			keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 			logger:              nl.LoggerFromContext(context.Background()),
 		},
