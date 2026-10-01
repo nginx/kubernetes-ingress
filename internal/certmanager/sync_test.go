@@ -21,6 +21,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
+
 	cmapi "github.com/cert-manager/cert-manager/pkg/apis/certmanager/v1"
 	cmmeta "github.com/cert-manager/cert-manager/pkg/apis/meta/v1"
 	"github.com/cert-manager/cert-manager/test/unit/gen"
@@ -494,7 +496,7 @@ func TestSync(t *testing.T) {
 			b.Init()
 			defer b.Stop()
 
-			ig := make(map[string]*namespacedInformer)
+			ig := nsregistry.New[namespacedInformer]()
 
 			nsi := &namespacedInformer{
 				cmSharedInformerFactory:   b.FakeCMInformerFactory(),
@@ -503,7 +505,7 @@ func TestSync(t *testing.T) {
 				cmLister:                  b.SharedInformerFactory.Certmanager().V1().Certificates().Lister(),
 			}
 
-			ig[""] = nsi
+			ig.Set("", nsi)
 
 			sync := SyncFnFor(b.Recorder, b.CMClient, ig)
 			b.Start()

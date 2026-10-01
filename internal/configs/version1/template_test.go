@@ -151,6 +151,119 @@ func TestExecuteTemplate_ForIngressForNGINXPlus(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressForNGINXPlus_DisablesWAFOnInternalLocations(t *testing.T) {
+	t.Parallel()
+
+	baseCfg := IngressNginxConfig{
+		Upstreams: []Upstream{
+			{Name: "test-upstream", UpstreamServers: []UpstreamServer{{Address: "10.0.0.20:8001"}}, UpstreamZoneSize: "256k"},
+		},
+		Servers: []Server{
+			{
+				Name:         "example.com",
+				StatusZone:   "example.com",
+				ServerTokens: "off",
+				Locations: []Location{
+					{Path: "/", Upstream: Upstream{Name: "test-upstream"}, ServiceName: "svc"},
+					{
+						Path:        "/_external_auth/authsvc",
+						Internal:    true,
+						DisableWAF:  true,
+						ProxyPass:   "http://ext-auth-authsvc/verify",
+						ServiceName: "authsvc",
+					},
+				},
+			},
+		},
+		Ingress: Ingress{Name: "ing", Namespace: "default"},
+	}
+
+	t.Run("module not loaded emits no override", func(t *testing.T) {
+		t.Parallel()
+		tmpl := newNGINXPlusIngressTmpl(t)
+		buf := &bytes.Buffer{}
+		cfg := baseCfg
+		if err := tmpl.Execute(buf, cfg); err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(buf.Bytes(), []byte("app_protect_enable off;")) {
+			t.Errorf("expected no app_protect_enable off; when AppProtectLoadModule is false, got:\n%s", buf.String())
+		}
+	})
+
+	t.Run("module loaded disables WAF on internal locations", func(t *testing.T) {
+		t.Parallel()
+		tmpl := newNGINXPlusIngressTmpl(t)
+		buf := &bytes.Buffer{}
+		cfg := baseCfg
+		cfg.AppProtectLoadModule = true
+		if err := tmpl.Execute(buf, cfg); err != nil {
+			t.Fatal(err)
+		}
+		out := buf.Bytes()
+		marker := []byte(`location "/_external_auth/authsvc"`)
+		idx := bytes.Index(out, marker)
+		if idx < 0 {
+			t.Fatalf("marker %q missing from rendered template", marker)
+		}
+		end := idx + 400
+		if end > len(out) {
+			end = len(out)
+		}
+		if !bytes.Contains(out[idx:end], []byte("app_protect_enable off;")) {
+			t.Errorf("missing app_protect_enable off; inside external auth location\nrendered slice:\n%s", out[idx:end])
+		}
+		snaps.MatchSnapshot(t, buf.String())
+	})
+
+	t.Run("module loaded disables WAF on OIDC native proxy location", func(t *testing.T) {
+		t.Parallel()
+		tmpl := newNGINXPlusIngressTmpl(t)
+		buf := &bytes.Buffer{}
+		cfg := baseCfg
+		cfg.AppProtectLoadModule = true
+		cfg.OIDCProviders = []version2.OIDCProvider{{
+			Name:            "default_oidc",
+			Issuer:          "https://idp.example.com",
+			ClientID:        "nic",
+			ClientSecret:    "secret",
+			ProxyLocation:   "/_oidc_idp_default_oidc",
+			ProxyBufferSize: "32k",
+		}}
+		if err := tmpl.Execute(buf, cfg); err != nil {
+			t.Fatal(err)
+		}
+		out := buf.Bytes()
+		idx := bytes.Index(out, []byte("location = /_oidc_idp_default_oidc"))
+		if idx < 0 {
+			t.Fatalf("OIDC native proxy location missing:\n%s", out)
+		}
+		body := out[idx:]
+		if end := bytes.Index(body, []byte("}")); end >= 0 {
+			body = body[:end]
+		}
+		if !bytes.Contains(body, []byte("app_protect_enable off;")) {
+			t.Errorf("missing app_protect_enable off; inside OIDC native proxy location:\n%s", body)
+		}
+	})
+
+	t.Run("internal location without DisableWAF keeps WAF", func(t *testing.T) {
+		t.Parallel()
+		tmpl := newNGINXPlusIngressTmpl(t)
+		buf := &bytes.Buffer{}
+		cfg := baseCfg
+		cfg.AppProtectLoadModule = true
+		cfg.Servers = []Server{baseCfg.Servers[0]}
+		cfg.Servers[0].Locations = []Location{{Path: "/_internal", Internal: true, ServiceName: "svc", Upstream: Upstream{Name: "test-upstream"}}}
+		if err := tmpl.Execute(buf, cfg); err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(buf.Bytes(), []byte("app_protect_enable off;")) {
+			t.Errorf("app_protect_enable off; must only be emitted for DisableWAF locations:\n%s", buf.String())
+		}
+	})
+}
+
 func TestExecuteTemplate_ForIngressForNGINX(t *testing.T) {
 	t.Parallel()
 
@@ -3792,6 +3905,32 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndMixedGRPCLocations(
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+// TestExecuteTemplate_ForIngressForNGINXPlusWithMixedKeepaliveUpstreams renders
+// a config with two upstreams behind two locations -- one upstream with
+// keepalive, one without -- and confirms `keepalive N;` and
+// `proxy_set_header Connection "";` are only emitted for the upstream/location
+// pair that has it configured.
+func TestExecuteTemplate_ForIngressForNGINXPlusWithMixedKeepaliveUpstreams(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXPlusIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgMixedKeepaliveUpstreams)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ingConf := buf.String()
+	if strings.Count(ingConf, "keepalive 16;") != 1 {
+		t.Errorf("want exactly one %q in generated config, got:\n%s", "keepalive 16;", ingConf)
+	}
+	if strings.Count(ingConf, `proxy_set_header Connection "";`) != 1 {
+		t.Errorf("want exactly one %q in generated config, got:\n%s", `proxy_set_header Connection "";`, ingConf)
+	}
+	snaps.MatchSnapshot(t, ingConf)
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2OnAndGRPCOnlyLocations(t *testing.T) {
 	t.Parallel()
 
@@ -3914,6 +4053,29 @@ func TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndMixedGRPCLocations(t *t
 		}
 	}
 	snaps.MatchSnapshot(t, buf.String())
+}
+
+// TestExecuteTemplate_ForIngressForNGINXWithMixedKeepaliveUpstreams is the OSS
+// counterpart of TestExecuteTemplate_ForIngressForNGINXPlusWithMixedKeepaliveUpstreams.
+func TestExecuteTemplate_ForIngressForNGINXWithMixedKeepaliveUpstreams(t *testing.T) {
+	t.Parallel()
+
+	tmpl := newNGINXIngressTmpl(t)
+	buf := &bytes.Buffer{}
+
+	err := tmpl.Execute(buf, ingressCfgMixedKeepaliveUpstreams)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ingConf := buf.String()
+	if strings.Count(ingConf, "keepalive 16;") != 1 {
+		t.Errorf("want exactly one %q in generated config, got:\n%s", "keepalive 16;", ingConf)
+	}
+	if strings.Count(ingConf, `proxy_set_header Connection "";`) != 1 {
+		t.Errorf("want exactly one %q in generated config, got:\n%s", `proxy_set_header Connection "";`, ingConf)
+	}
+	snaps.MatchSnapshot(t, ingConf)
 }
 
 func TestExecuteTemplate_ForIngressForNGINXWithHTTP2OnAndGRPCOnlyLocations(t *testing.T) {
@@ -4325,7 +4487,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4368,8 +4530,7 @@ var (
 				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4386,7 +4547,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4411,8 +4572,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Maps: []version2.Map{
 			{
 				Source:   "$http_origin",
@@ -4499,7 +4659,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4516,8 +4676,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4636,7 +4795,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                 "/tea",
-						Upstream:             testUpstream,
+						Upstream:             testUpstreamWithKeepalive,
 						ProxyConnectTimeout:  "10s",
 						ProxyReadTimeout:     "10s",
 						ProxySendTimeout:     "10s",
@@ -4680,8 +4839,7 @@ var (
 				AppProtectDosAllowListPath:   "/etc/nginx/dos/allowlist/default_test.example.com",
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4703,7 +4861,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                    "/tea",
-						Upstream:                testUpstream,
+						Upstream:                testUpstreamWithKeepalive,
 						ProxyConnectTimeout:     "10s",
 						DisableForwardedHeaders: true,
 						ProxyReadTimeout:        "10s",
@@ -4718,8 +4876,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4743,7 +4900,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4754,8 +4911,7 @@ var (
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4773,7 +4929,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/coffee",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
@@ -4783,8 +4939,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4803,7 +4958,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/coffee",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
@@ -4813,8 +4968,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4832,7 +4986,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/coffee",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
@@ -4842,8 +4996,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4860,7 +5013,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/coffee",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
@@ -4871,8 +5024,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4889,7 +5041,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/coffee",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "60s",
 						ProxyReadTimeout:    "60s",
 						ProxySendTimeout:    "60s",
@@ -4901,8 +5053,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -4931,7 +5082,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -4957,8 +5108,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:        "cafe-ingress",
 			Namespace:   "default",
@@ -4988,7 +5138,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea/[A-Z0-9]{3}",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -5014,8 +5164,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:        "cafe-ingress",
 			Namespace:   "default",
@@ -5045,7 +5194,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -5071,8 +5220,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:        "cafe-ingress",
 			Namespace:   "default",
@@ -5102,7 +5250,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -5128,8 +5276,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:        "cafe-ingress",
 			Namespace:   "default",
@@ -5370,7 +5517,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -5381,8 +5528,7 @@ var (
 				HealthChecks: map[string]HealthCheck{"test": healthCheck},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -6291,7 +6437,7 @@ var (
 				Locations: []Location{
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -6312,8 +6458,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -6346,7 +6491,7 @@ var (
 					},
 					{
 						Path:                "/tea",
-						Upstream:            testUpstream,
+						Upstream:            testUpstreamWithKeepalive,
 						ProxyConnectTimeout: "10s",
 						ProxyReadTimeout:    "10s",
 						ProxySendTimeout:    "10s",
@@ -6367,8 +6512,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -6410,8 +6554,7 @@ var (
 				},
 			},
 		},
-		Upstreams: []Upstream{testUpstream},
-		Keepalive: "16",
+		Upstreams: []Upstream{testUpstreamWithKeepalive},
 		Ingress: Ingress{
 			Name:      "cafe-ingress",
 			Namespace: "default",
@@ -6617,6 +6760,77 @@ var testUpstream = Upstream{
 			FailTimeout: "1s",
 			SlowStart:   "5s",
 		},
+	},
+}
+
+var testUpstreamWithKeepalive = func() Upstream {
+	u := testUpstream
+	u.Keepalive = "16"
+	return u
+}()
+
+// testUpstreamNoKeepaliveNamed and testUpstreamKeepaliveNamed are distinctly
+// named (unlike testUpstream/testUpstreamWithKeepalive, which share the name
+// "test") so that a single IngressNginxConfig can render two separate
+// upstream blocks -- one with keepalive and one without -- to prove that
+// keepalive and `proxy_set_header Connection "";` are emitted per-upstream,
+// not globally.
+var testUpstreamNoKeepaliveNamed = Upstream{
+	Name:             "test-no-keepalive",
+	UpstreamZoneSize: "256k",
+	UpstreamServers: []UpstreamServer{
+		{
+			Address:     "127.0.0.1:8181",
+			MaxFails:    0,
+			MaxConns:    0,
+			FailTimeout: "1s",
+		},
+	},
+}
+
+var testUpstreamKeepaliveNamed = func() Upstream {
+	u := testUpstreamNoKeepaliveNamed
+	u.Name = "test-keepalive"
+	u.Keepalive = "16"
+	return u
+}()
+
+// ingressCfgMixedKeepaliveUpstreams has two upstreams behind two locations on
+// the same server: one upstream configured with keepalive, one without. It
+// exercises the per-upstream (not per-config) keepalive gate in
+// nginx.ingress.tmpl / nginx-plus.ingress.tmpl.
+var ingressCfgMixedKeepaliveUpstreams = IngressNginxConfig{
+	Servers: []Server{
+		{
+			Name:         "test.example.com",
+			ServerTokens: "off",
+			StatusZone:   "test.example.com",
+			Locations: []Location{
+				{
+					Path:                "/no-keepalive",
+					Upstream:            testUpstreamNoKeepaliveNamed,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test-no-keepalive",
+				},
+				{
+					Path:                "/keepalive",
+					Upstream:            testUpstreamKeepaliveNamed,
+					ProxyConnectTimeout: "10s",
+					ProxyReadTimeout:    "10s",
+					ProxySendTimeout:    "10s",
+					ClientMaxBodySize:   "2m",
+					ProxyPass:           "http://test-keepalive",
+				},
+			},
+		},
+	},
+	Upstreams: []Upstream{testUpstreamNoKeepaliveNamed, testUpstreamKeepaliveNamed},
+	Ingress: Ingress{
+		Name:      "cafe-ingress",
+		Namespace: "default",
 	},
 }
 
@@ -8282,7 +8496,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 			Locations: []Location{
 				{
 					Path:                "/unset",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8291,7 +8505,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/http-1-0",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8301,7 +8515,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/http-1-1",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8311,7 +8525,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/http-2",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8321,7 +8535,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/websocket-http-1-0",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8332,7 +8546,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/websocket-http-1-1",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8343,7 +8557,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/websocket-http-2",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8354,7 +8568,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 				},
 				{
 					Path:                "/grpc",
-					Upstream:            testUpstream,
+					Upstream:            testUpstreamWithKeepalive,
 					ProxyConnectTimeout: "10s",
 					ProxyReadTimeout:    "10s",
 					ProxySendTimeout:    "10s",
@@ -8365,8 +8579,7 @@ var ingressCfgProxyHTTPVersion = IngressNginxConfig{
 			HasGRPCLocations: true,
 		},
 	},
-	Upstreams: []Upstream{testUpstream},
-	Keepalive: "16",
+	Upstreams: []Upstream{testUpstreamWithKeepalive},
 	Ingress: Ingress{
 		Name:      "cafe-ingress",
 		Namespace: "default",

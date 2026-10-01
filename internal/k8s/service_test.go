@@ -16,7 +16,7 @@ func TestSyncServiceNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 

@@ -437,6 +437,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 				{
 					Path:                    `"/_external_auth/oauth2/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy-route/oauth2/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -884,6 +885,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -3467,6 +3469,72 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 	}
 }
 
+func TestGenerateVirtualServerConfigPropagatesAppProtectLoadModule(t *testing.T) {
+	t.Parallel()
+
+	for name, loaded := range map[string]bool{"module not loaded": false, "module loaded": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Host:      "cafe.example.com",
+						Policies:  []conf_v1.PolicyReference{{Name: "oidc-policy"}},
+						Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+						Routes:    []conf_v1.Route{{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}}},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-policy", Namespace: "default"},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:  "https://auth.example.com",
+								TokenEndpoint: "https://token.example.com",
+								JWKSURI:       "https://jwks.example.com",
+								ClientID:      "example-client-id",
+								ClientSecret:  "example-client-secret",
+								Scope:         "openid",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{"default/tea-svc:80": {"10.0.0.20:80"}},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{Data: map[string][]byte{"client-secret": []byte("c2VjcmV0")}},
+					},
+				},
+			}
+
+			vsc := newVirtualServerConfigurator(
+				&ConfigParams{Context: context.Background(), ServerTokens: "off"},
+				true,
+				false,
+				&StaticConfigParams{MainAppProtectLoadModule: loaded},
+				false,
+				&fakeBV,
+			)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+			if len(warnings) != 0 {
+				t.Fatalf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
+			}
+			if result.AppProtectLoadModule != loaded {
+				t.Errorf("VirtualServerConfig.AppProtectLoadModule = %t, want %t", result.AppProtectLoadModule, loaded)
+			}
+			if result.Server.OIDC == nil {
+				t.Fatal("expected Server.OIDC to be non-nil")
+			}
+			if result.Server.OIDC.AppProtectLoadModule != loaded {
+				t.Errorf("Server.OIDC.AppProtectLoadModule = %t, want %t", result.Server.OIDC.AppProtectLoadModule, loaded)
+			}
+		})
+	}
+}
+
 // TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy verifies that multiple routes
 // referencing the same OIDC policy all receive location.OIDC=true.
 func TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy(t *testing.T) {
@@ -4180,6 +4248,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4224,6 +4293,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4271,6 +4341,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_ns1_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_ns1_my-auth/verify"`,
 				ProxyPassRequestHeaders: true,
@@ -4314,6 +4385,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\"", "proxy_set_header X-Another \"val2\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4690,6 +4762,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy/auth"`,
 					ProxyPassRequestHeaders: true,

@@ -12,7 +12,7 @@ upstream {{$upstream.Name}} {
 	{{- if $upstream.StickyCookie}}
 	sticky cookie {{$upstream.StickyCookie}};
 	{{- end}}
-	{{- if $.Keepalive}}keepalive {{$.Keepalive}};{{end}}
+	{{- if $upstream.Keepalive}}keepalive {{$upstream.Keepalive}};{{end}}
 	{{- if $upstream.UpstreamServers -}}
 	{{- if $upstream.Queue}}
 	queue {{$upstream.Queue}} timeout={{$upstream.QueueTimeout}}s;
@@ -396,6 +396,9 @@ server {
     location = {{ $p.ProxyLocation }} {
         internal;
         auth_oidc off;
+        {{- if $.AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         client_max_body_size 0;
         proxy_pass $oidc_idp_request_uri;
         proxy_ssl_server_name on;
@@ -426,6 +429,9 @@ server {
 		{{- end}}
 		{{- if $location.Internal}}
 		internal;
+		{{- end}}
+		{{- if and $.AppProtectLoadModule $location.DisableWAF}}
+		app_protect_enable off;
 		{{- end}}
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
@@ -573,7 +579,7 @@ server {
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
-		{{- if $.Keepalive}}
+		{{- if $location.Upstream.Keepalive}}
 		proxy_set_header Connection "";{{end}}
 		{{- end}}
 		{{- end}}

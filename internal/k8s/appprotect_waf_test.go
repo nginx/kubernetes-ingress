@@ -2,8 +2,10 @@ package k8s
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -14,6 +16,7 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 )
 
 // TestAppProtectSyncNamespaceNotWatched guards against a nil pointer dereference
@@ -49,7 +52,7 @@ func TestAppProtectSyncNamespaceNotWatched(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(_ *testing.T) {
 			lbc := &LoadBalancerController{
-				namespacedInformers: map[string]*namespacedInformer{},
+				namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 				Logger:              nl.LoggerFromContext(context.Background()),
 			}
 			tc.sync(lbc, "not-watched/some-resource")
@@ -505,9 +508,9 @@ func TestResolvePLMBundleStatus_ReadsInformerStore(t *testing.T) {
 	}
 	lbc := &LoadBalancerController{
 		Logger: nl.LoggerFromContext(context.Background()),
-		namespacedInformers: map[string]*namespacedInformer{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
 			"": {appProtectPolicyLister: store},
-		},
+		}),
 	}
 	pol := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"}}
 
@@ -517,6 +520,56 @@ func TestResolvePLMBundleStatus_ReadsInformerStore(t *testing.T) {
 	}
 	if got.Location != "s3://plm/bundles/compiled-policy.tgz" || got.SHA256 != "0123456789abcdef" {
 		t.Errorf("resolvePLMBundleStatus() = %#v, want informer status bundle", got)
+	}
+}
+
+// resolvePLMBundleStatus runs on the PLM credentials Secret handler goroutine, so
+// the namespace can be unregistered underneath it. It must report the namespace
+// unwatched instead of reading a lister it no longer holds.
+func TestResolvePLMBundleStatus_UnwatchedNamespace(t *testing.T) {
+	t.Parallel()
+
+	recorder := record.NewFakeRecorder(2)
+	lbc := &LoadBalancerController{
+		Logger:                  nl.LoggerFromContext(context.Background()),
+		recorder:                recorder,
+		isLeaderElectionEnabled: true, // no leaderElector, so status updates are skipped
+		namespacedInformers:     registryFrom(map[string]*namespacedInformer{}),
+	}
+	pol := &conf_v1.Policy{ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "waf-policy"}}
+
+	if got := lbc.resolvePLMBundleStatus(pol, "plm", "compiled-policy", wafbundle.PolicyBundle); got != nil {
+		t.Errorf("resolvePLMBundleStatus() = %#v, want nil for an unwatched namespace", got)
+	}
+	select {
+	case event := <-recorder.Events:
+		if !strings.Contains(event, "is not watched") {
+			t.Errorf("recorded event = %q, want it to report the namespace as unwatched", event)
+		}
+	default:
+		t.Error("no event recorded for an unwatched namespace")
+	}
+}
+
+// handleBundleRefreshFailure runs on the bundle poller goroutine, with the same
+// exposure to the namespace being unregistered mid-call.
+func TestHandleBundleRefreshFailure_UnwatchedNamespace(t *testing.T) {
+	t.Parallel()
+
+	recorder := record.NewFakeRecorder(2)
+	lbc := &LoadBalancerController{
+		Logger:                  nl.LoggerFromContext(context.Background()),
+		recorder:                recorder,
+		isLeaderElectionEnabled: true, // no leaderElector, so status updates are skipped
+		namespacedInformers:     registryFrom(map[string]*namespacedInformer{}),
+	}
+
+	lbc.handleBundleRefreshFailure("not-watched/waf-policy", errors.New("fetch failed"))
+
+	select {
+	case event := <-recorder.Events:
+		t.Errorf("recorded event %q for an unwatched namespace, want none", event)
+	default:
 	}
 }
 
@@ -926,9 +979,9 @@ func TestPolicyNeedsPLMBundleFetch(t *testing.T) {
 		Logger:        nl.LoggerFromContext(context.Background()),
 		wafBundlePath: dir,
 		plmEnabled:    true,
-		namespacedInformers: map[string]*namespacedInformer{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
 			"": {appProtectPolicyLister: store},
-		},
+		}),
 	}
 
 	if !lbc.policyNeedsPLMBundleFetch(pol) {

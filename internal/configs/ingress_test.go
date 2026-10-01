@@ -4905,6 +4905,7 @@ func TestGenerateNginxCfgForAppProtect(t *testing.T) {
 	expected.Servers[0].AppProtectLogConfs = []string{"/etc/nginx/waf/nac-logconfs/default_logconf syslog:server=127.0.0.1:514"}
 	expected.Servers[0].AppProtectLogEnable = "on"
 	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
+	expected.AppProtectLoadModule = true
 
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         staticCfgParams,
@@ -4968,6 +4969,7 @@ func TestGenerateNginxCfgForMergeableIngressesForAppProtect(t *testing.T) {
 	expected.Servers[0].AppProtectLogConfs = []string{"/etc/nginx/waf/nac-logconfs/default_logconf syslog:server=127.0.0.1:514"}
 	expected.Servers[0].AppProtectLogEnable = "on"
 	expected.Ingress.Annotations = mergeableIngresses.Master.Ingress.Annotations
+	expected.AppProtectLoadModule = true
 
 	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
 		mergeableIngs:        mergeableIngresses,
@@ -5264,6 +5266,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 		name      string
 		upsName   string
 		endpoints []string
+		cfgParams *ConfigParams
 		expected  version1.Upstream
 		warning   bool
 	}{
@@ -5271,6 +5274,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			name:      "no endpoints returns default server",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: nil,
+			cfgParams: &ConfigParams{},
 			expected:  version1.NewUpstreamWithDefaultServer("ext_auth_default_my-auth"),
 			warning:   true,
 		},
@@ -5278,6 +5282,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			name:      "empty endpoints returns default server",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: []string{},
+			cfgParams: &ConfigParams{},
 			expected:  version1.NewUpstreamWithDefaultServer("ext_auth_default_my-auth"),
 			warning:   true,
 		},
@@ -5285,6 +5290,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			name:      "single endpoint",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: []string{"10.0.0.1:8080"},
+			cfgParams: &ConfigParams{},
 			expected: version1.Upstream{
 				Name:             "ext_auth_default_my-auth",
 				UpstreamZoneSize: "256k",
@@ -5298,6 +5304,7 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			name:      "multiple endpoints sorted",
 			upsName:   "ext_auth_default_my-auth",
 			endpoints: []string{"10.0.0.3:8080", "10.0.0.1:8080", "10.0.0.2:8080"},
+			cfgParams: &ConfigParams{},
 			expected: version1.Upstream{
 				Name:             "ext_auth_default_my-auth",
 				UpstreamZoneSize: "256k",
@@ -5309,12 +5316,27 @@ func TestCreateExternalAuthUpstream(t *testing.T) {
 			},
 			warning: false,
 		},
+		{
+			name:      "keepalive from cfgParams is applied",
+			upsName:   "ext_auth_default_my-auth",
+			endpoints: []string{"10.0.0.1:8080"},
+			cfgParams: &ConfigParams{Keepalive: 32},
+			expected: version1.Upstream{
+				Name:             "ext_auth_default_my-auth",
+				UpstreamZoneSize: "256k",
+				Keepalive:        "32",
+				UpstreamServers: []version1.UpstreamServer{
+					{Address: "10.0.0.1:8080", MaxFails: 1, MaxConns: 0, FailTimeout: "10s"},
+				},
+			},
+			warning: false,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			result, warning := createExternalAuthUpstream(test.upsName, test.endpoints)
+			result, warning := createExternalAuthUpstream(test.upsName, test.endpoints, test.cfgParams)
 			if diff := cmp.Diff(test.expected, result); diff != "" {
 				t.Errorf("createExternalAuthUpstream() mismatch (-want +got):\n%s", diff)
 			}
@@ -5346,11 +5368,14 @@ func TestGenerateIngressExternalAuthLocation(t *testing.T) {
 		ProxyNextUpstreamTimeout: "5s",
 	}
 
-	result := generateIngressExternalAuthLocation(externalAuth, "ext_auth_default_my-auth", cfg)
+	upstream := version1.Upstream{Name: "ext_auth_default_my-auth", Keepalive: "32"}
+	result := generateIngressExternalAuthLocation(externalAuth, upstream, cfg)
 
 	expected := version1.Location{
 		Path:                     "/_ext_auth_default_my-auth",
 		Internal:                 true,
+		DisableWAF:               true,
+		Upstream:                 upstream,
 		AuthRequestOff:           true,
 		ProxyPass:                "http://ext_auth_default_my-auth/auth",
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
@@ -5394,11 +5419,13 @@ func TestGenerateIngressExternalAuthOAuth2Location(t *testing.T) {
 		ProxyNextUpstreamTimeout: "5s",
 	}
 
-	result := generateIngressExternalAuthOAuth2Location(externalAuth, "ext_auth_default_my-auth", cfg)
+	upstream := version1.Upstream{Name: "ext_auth_default_my-auth", Keepalive: "32"}
+	result := generateIngressExternalAuthOAuth2Location(externalAuth, upstream, cfg)
 
 	expected := version1.Location{
 		Path:                     "/oauth2",
 		AuthRequestOff:           true,
+		Upstream:                 upstream,
 		ProxyPass:                "http://ext_auth_default_my-auth",
 		ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      "10s",
@@ -6872,5 +6899,125 @@ func TestGenerateNginxCfgForMergeableIngressesProxyHTTPVersion(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestGenerateNginxCfgKeepalivePerUpstream verifies that nginx.org/keepalive is
+// applied per-upstream (not as a global config-level value), and that in a
+// mergeable master/minion setup:
+//  1. A keepalive annotation on the master is inherited by minions that don't
+//     set their own.
+//  2. A minion's own keepalive annotation overrides the inherited master value.
+//  3. A minion explicitly setting keepalive "0" disables it even when the master
+//     enables it.
+func TestGenerateNginxCfgKeepalivePerUpstream(t *testing.T) {
+	t.Parallel()
+
+	const (
+		coffeeUpstreamName = "default-cafe-ingress-coffee-minion-cafe.example.com-coffee-svc-80"
+		teaUpstreamName    = "default-cafe-ingress-tea-minion-cafe.example.com-tea-svc-80"
+	)
+
+	tests := []struct {
+		name            string
+		masterKeepalive string
+		coffeeKeepalive string // empty = not set
+		teaKeepalive    string // empty = not set
+		wantCoffeeKA    string // expected Keepalive on coffee upstream
+		wantTeaKA       string // expected Keepalive on tea upstream
+	}{
+		{
+			name:            "master keepalive only – inherited by both minions",
+			masterKeepalive: "30",
+			wantCoffeeKA:    "30",
+			wantTeaKA:       "30",
+		},
+		{
+			name:            "minion overrides master keepalive",
+			masterKeepalive: "30",
+			coffeeKeepalive: "64",
+			wantCoffeeKA:    "64",
+			wantTeaKA:       "30",
+		},
+		{
+			name:            "minion explicitly disables keepalive (0) while master enables it",
+			masterKeepalive: "30",
+			coffeeKeepalive: "0",
+			wantCoffeeKA:    "",
+			wantTeaKA:       "30",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mergeableIngresses := createMergeableCafeIngress()
+			mergeableIngresses.Master.Ingress.Annotations["nginx.org/keepalive"] = tc.masterKeepalive
+			setMinionKeepalive(mergeableIngresses.Minions, "coffee", tc.coffeeKeepalive)
+			setMinionKeepalive(mergeableIngresses.Minions, "tea", tc.teaKeepalive)
+
+			configParams := NewDefaultConfigParams(context.Background(), false)
+			result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
+				mergeableIngs:        mergeableIngresses,
+				apResources:          nil,
+				dosResource:          nil,
+				BaseCfgParams:        configParams,
+				isPlus:               false,
+				isResolverConfigured: false,
+				staticParams:         &StaticConfigParams{},
+				isWildcardEnabled:    false,
+			})
+
+			if len(warnings) != 0 {
+				t.Errorf("generateNginxCfgForMergeableIngresses() returned warnings: %v", warnings)
+			}
+
+			upstreams := upstreamsByName(result.Upstreams)
+			assertUpstreamKeepalive(t, "coffee", upstreams[coffeeUpstreamName].Keepalive, tc.wantCoffeeKA)
+			assertUpstreamKeepalive(t, "tea", upstreams[teaUpstreamName].Keepalive, tc.wantTeaKA)
+
+			// The location's embedded upstream must match so the template renders
+			// keepalive and proxy_set_header Connection "" correctly.
+			wantLocationKA := map[string]string{
+				coffeeUpstreamName: tc.wantCoffeeKA,
+				teaUpstreamName:    tc.wantTeaKA,
+			}
+			for _, loc := range result.Servers[0].Locations {
+				if want, ok := wantLocationKA[loc.Upstream.Name]; ok {
+					assertUpstreamKeepalive(t, loc.Upstream.Name+" location", loc.Upstream.Keepalive, want)
+				}
+			}
+		})
+	}
+}
+
+// setMinionKeepalive sets nginx.org/keepalive on every minion whose name
+// contains substr, but only when value is non-empty.
+func setMinionKeepalive(minions []*IngressEx, substr, value string) {
+	if value == "" {
+		return
+	}
+	for i, m := range minions {
+		if strings.Contains(m.Ingress.Name, substr) {
+			minions[i].Ingress.Annotations["nginx.org/keepalive"] = value
+		}
+	}
+}
+
+// upstreamsByName indexes a slice of upstreams by name for O(1) lookup.
+func upstreamsByName(upstreams []version1.Upstream) map[string]version1.Upstream {
+	m := make(map[string]version1.Upstream, len(upstreams))
+	for _, u := range upstreams {
+		m[u.Name] = u
+	}
+	return m
+}
+
+// assertUpstreamKeepalive fails t if got != want.
+func assertUpstreamKeepalive(t *testing.T, label, got, want string) {
+	t.Helper()
+	if got != want {
+		t.Errorf("%s Keepalive = %q, want %q", label, got, want)
 	}
 }
