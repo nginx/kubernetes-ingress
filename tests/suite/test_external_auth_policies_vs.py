@@ -1,3 +1,5 @@
+from urllib.parse import urlparse
+
 import pytest
 import requests
 from kubernetes.client.rest import ApiException
@@ -456,16 +458,8 @@ class TestExternalAuthPolicies:
     ):
         """
         Test external-auth policy with authSigninURI set.
-        Verifies the policy and VS are accepted as Valid, and that
-        authenticated requests still pass through correctly.
-
-        Note: This test does NOT verify the actual signin redirect behavior
-        (error_page 401 -> internal redirect to authSigninURI) because the full
-        signin flow requires a real OAuth2 proxy deployed at authSigninRedirectBasePath
-        (default "/oauth2"). Without it, the error_page internal redirect to "/signin"
-        hits the same auth-protected location and produces another 401, making the
-        redirect behavior non-testable in this environment. Instead, we test that
-        the authSigninURI configuration is accepted and applied correctly.
+        Unauthenticated requests redirect to authSigninURI, while authenticated
+        requests still reach the protected backend.
         """
         _, policy_names = ext_auth_setup
         headers = build_ext_auth_headers(virtual_server_setup.vs_host, valid_credentials)
@@ -484,10 +478,17 @@ class TestExternalAuthPolicies:
 
         policy_info = read_policy(kube_apis.custom_objects, test_namespace, policy_names[0])
 
+        unauthenticated_resp = requests.get(
+            virtual_server_setup.backend_1_url,
+            headers=build_ext_auth_headers(virtual_server_setup.vs_host),
+            allow_redirects=False,
+        )
         resp = requests.get(virtual_server_setup.backend_1_url, headers=headers)
         print(f"Status: {resp.status_code}")
 
         assert policy_info["status"]["state"] == "Valid"
+        assert unauthenticated_resp.status_code == 302
+        assert urlparse(unauthenticated_resp.headers["location"]).path == "/oauth2/signin"
         assert resp.status_code == 200
         assert "Request ID:" in resp.text
 

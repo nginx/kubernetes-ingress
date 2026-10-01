@@ -407,6 +407,12 @@ type Configuration struct {
 	// Maintained by AddOrUpdateIngress/DeleteIngress; consumed by buildMinionConfigs.
 	minionsByHost map[string]map[string]bool
 
+	// vsrToVSConfigs indexes accepted VirtualServers by VSR key (namespace/name) in deterministic key order.
+	vsrToVSConfigs map[string][]*conf_v1.VirtualServer
+
+	// vsrsWithChangedRefs tracks reference changes from the latest rebuild even when surviving VSs are not re-rendered.
+	vsrsWithChangedRefs []*conf_v1.VirtualServerRoute
+
 	globalConfiguration *conf_v1.GlobalConfiguration
 
 	hostProblems     map[string]ConfigurationProblem
@@ -469,6 +475,7 @@ func NewConfiguration(
 		virtualServerRoutes:          make(map[string]*conf_v1.VirtualServerRoute),
 		transportServers:             make(map[string]*conf_v1.TransportServer),
 		minionsByHost:                make(map[string]map[string]bool),
+		vsrToVSConfigs:               make(map[string][]*conf_v1.VirtualServer),
 		hostProblems:                 make(map[string]ConfigurationProblem),
 		hasCorrectIngressClass:       hasCorrectIngressClass,
 		virtualServerValidator:       virtualServerValidator,
@@ -1235,12 +1242,14 @@ func getResourceKey(meta *metav1.ObjectMeta) string {
 
 // rebuildHosts rebuilds the Configuration and returns the changes to it and the new problems.
 func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem) {
-	newHosts, newResources := c.buildHostsAndResources()
+	newHosts, newResources, newVSRToVSConfigs := c.buildHostsAndResources()
 
 	updateActiveHostsForIngresses(newHosts, newResources)
 
 	removedHosts, updatedHosts, addedHosts := detectChangesInHosts(c.hosts, newHosts)
 	changes := createResourceChangesForHosts(removedHosts, updatedHosts, addedHosts, c.hosts, newHosts)
+
+	c.vsrsWithChangedRefs = detectChangesInVSRReferences(c.vsrToVSConfigs, newVSRToVSConfigs, c.virtualServerRoutes)
 
 	// Retain the previous hosts so warning-only diffs can be detected after
 	// listener warnings are attached to newResources.
@@ -1248,6 +1257,7 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 
 	// safe to update hosts
 	c.hosts = newHosts
+	c.vsrToVSConfigs = newVSRToVSConfigs
 
 	changes = squashResourceChanges(changes)
 
@@ -1481,42 +1491,68 @@ func (c *Configuration) addProblemsForOrphanMinions(problems map[string]Configur
 	}
 }
 
+// GetVirtualServersForVirtualServerRoute returns VirtualServers accepting the VSR in sorted VS-key order.
+func (c *Configuration) GetVirtualServersForVirtualServerRoute(vsr *conf_v1.VirtualServerRoute) []*conf_v1.VirtualServer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.vsrToVSConfigs[getResourceKey(&vsr.ObjectMeta)]
+}
+
+// GetVirtualServerRoutesWithChangedReferences returns VSRs whose referencing VS set changed in the latest rebuild.
+func (c *Configuration) GetVirtualServerRoutesWithChangedReferences() []*conf_v1.VirtualServerRoute {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.vsrsWithChangedRefs
+}
+
+// addProblemsForOrphanOrIgnoredVsrs emits orphan and ignored-route problems for VSRs.
 func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]ConfigurationProblem) {
 	for _, key := range getSortedVirtualServerRouteKeys(c.virtualServerRoutes) {
 		vsr := c.virtualServerRoutes[key]
+		vsrKey := getResourceKey(&vsr.ObjectMeta)
+		k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
 
-		r, exists := c.hosts[vsr.Spec.Host]
-		vsConfig, ok := r.(*VirtualServerConfiguration)
+		if vsr.Spec.Host != "" {
+			// Host-based VSR: use the host owner to report when its VirtualServer ignores the route.
+			r, exists := c.hosts[vsr.Spec.Host]
+			vsConfig, ok := r.(*VirtualServerConfiguration)
 
-		if !exists || !ok {
-			p := ConfigurationProblem{
-				Object:  vsr,
-				IsError: false,
-				Reason:  nl.EventReasonNoVirtualServerFound,
-				Message: "VirtualServer is invalid or doesn't exist",
+			if !exists || !ok {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonNoVirtualServerFound,
+					Message: "VirtualServer is invalid or doesn't exist",
+				}
+				continue
 			}
-			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
-			problems[k] = p
-			continue
-		}
 
-		found := false
-		for _, v := range vsConfig.VirtualServerRoutes {
-			if vsr.Namespace == v.Namespace && vsr.Name == v.Name {
-				found = true
-				break
+			found := false
+			for _, v := range vsConfig.VirtualServerRoutes {
+				if vsr.Namespace == v.Namespace && vsr.Name == v.Name {
+					found = true
+					break
+				}
 			}
-		}
-
-		if !found {
-			p := ConfigurationProblem{
-				Object:  vsr,
-				IsError: false,
-				Reason:  nl.EventReasonIgnored,
-				Message: fmt.Sprintf("VirtualServer %s ignores VirtualServerRoute", getResourceKey(&vsConfig.VirtualServer.ObjectMeta)),
+			if !found {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonIgnored,
+					Message: fmt.Sprintf("VirtualServer %s ignores VirtualServerRoute", getResourceKey(&vsConfig.VirtualServer.ObjectMeta)),
+				}
 			}
-			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
-			problems[k] = p
+		} else {
+			// Hostless VSR: use the O(1) reverse index built in buildHostsAndResources.
+			// A VSR with no accepted VS is an orphan; accepted by ≥1 VS means no problem.
+			if len(c.vsrToVSConfigs[vsrKey]) == 0 {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonNoVirtualServerFound,
+					Message: "VirtualServer is invalid or doesn't exist",
+				}
+			}
 		}
 	}
 }
@@ -1707,9 +1743,11 @@ func squashResourceChanges(changes []ResourceChange) []ResourceChange {
 	return append(deletes, updates...)
 }
 
-func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource) {
+//nolint:gocyclo // complexity is pre-existing; refactoring planned as a follow-up
+func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource, vsrToVSConfigs map[string][]*conf_v1.VirtualServer) {
 	newHosts = make(map[string]Resource)
 	newResources = make(map[string]Resource)
+	vsrToVSConfigs = make(map[string][]*conf_v1.VirtualServer)
 	var challengesVSR []*conf_v1.VirtualServerRoute
 
 	// Step 1 - Build hosts from Ingress resources
@@ -1775,6 +1813,12 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 
 		newResources[resource.GetKeyWithKind()] = resource
 
+		// Index accepted VirtualServers by VSR key in sorted VS order.
+		for _, vsr := range resource.VirtualServerRoutes {
+			vsrKey := getResourceKey(&vsr.ObjectMeta)
+			vsrToVSConfigs[vsrKey] = append(vsrToVSConfigs[vsrKey], vs)
+		}
+
 		holder, exists := newHosts[vs.Spec.Host]
 		if !exists {
 			newHosts[vs.Spec.Host] = resource
@@ -1821,7 +1865,7 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		}
 	}
 
-	return newHosts, newResources
+	return newHosts, newResources, vsrToVSConfigs
 }
 
 func (c *Configuration) isChallengeIngress(ing *networking.Ingress) bool {
@@ -2448,6 +2492,36 @@ func detectChangesInHosts(oldHosts map[string]Resource, newHosts map[string]Reso
 	}
 
 	return removedHosts, updatedHosts, addedHosts
+}
+
+// detectChangesInVSRReferences compares ordered VS identities and skips deleted VSRs with no status to refresh.
+func detectChangesInVSRReferences(
+	oldIndex map[string][]*conf_v1.VirtualServer,
+	newIndex map[string][]*conf_v1.VirtualServer,
+	vsrs map[string]*conf_v1.VirtualServerRoute,
+) []*conf_v1.VirtualServerRoute {
+	var changed []*conf_v1.VirtualServerRoute
+
+	for _, key := range getSortedVirtualServerRouteKeys(vsrs) {
+		if vsSlicesReferenceSameVirtualServers(oldIndex[key], newIndex[key]) {
+			continue
+		}
+		changed = append(changed, vsrs[key])
+	}
+
+	return changed
+}
+
+// vsSlicesReferenceSameVirtualServers reports whether two slices of
+// VirtualServers reference the same VirtualServers, in the same order,
+// identified by namespace/name.
+func vsSlicesReferenceSameVirtualServers(a, b []*conf_v1.VirtualServer) bool {
+	return slices.EqualFunc(a, b, func(x, y *conf_v1.VirtualServer) bool {
+		if x == nil || y == nil {
+			return x == y
+		}
+		return x.Namespace == y.Namespace && x.Name == y.Name
+	})
 }
 
 func detectChangesInListenerHosts(

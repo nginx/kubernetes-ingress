@@ -1,0 +1,15 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: cafe
+spec:
+  host: cafe.example.com
+  tls:
+    secret: tls-secret
+  policies:
+    - name: rate-limit-policy
+  routes:
+  - path: /tea
+    route: default/tea
+  - path: /coffee
+    route: default/coffee

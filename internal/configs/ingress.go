@@ -1001,6 +1001,7 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 		Upstream:                 upstream,
 		DisableWAF:               true,
 		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstream.Name, externalAuth.URI.Path),
+		AuthRequestOff:           true,
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
@@ -1009,6 +1010,7 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 		ClientMaxBodySize:        "0",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(cfg.ProxyNextUpstreamTimeout, "0s"),
+		SkipCustomHTTPErrors:     true,
 		LocationSnippets:         splitSnippets(externalAuth.Snippets),
 		ServiceName:              svcName,
 	}
@@ -1221,6 +1223,7 @@ func createLocation(p locationParams) version1.Location {
 		ProxyBusyBuffersSize:     cfg.ProxyBusyBuffersSize,
 		ProxyMaxTempFileSize:     cfg.ProxyMaxTempFileSize,
 		DisableForwardedHeaders:  cfg.DisableForwardedHeaders,
+		UseForwardedHeaders:      cfg.UseForwardedHeaders,
 		ProxySSLName:             p.proxySSLName,
 		ProxyNextUpstream:        cfg.ProxyNextUpstream,
 		ProxyNextUpstreamTimeout: cfg.ProxyNextUpstreamTimeout,
