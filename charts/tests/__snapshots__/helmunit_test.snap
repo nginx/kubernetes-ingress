@@ -30,7 +30,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -273,12 +272,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
@@ -310,7 +309,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: custom-resources-nginx-ingress
       automountServiceAccountToken: true
@@ -354,7 +353,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -366,7 +365,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/custom-resources-nginx-ingress
@@ -460,7 +458,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -724,12 +721,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
@@ -766,7 +763,7 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      terminationGracePeriodSeconds: 30      
+      terminationGracePeriodSeconds: 30
       volumes: []
       hostNetwork: false
       dnsPolicy: ClusterFirst
@@ -781,7 +778,6 @@ spec:
         - name: https
           containerPort: 443
           protocol: TCP
-
         - name: prometheus
           containerPort: 9113
         - name: readiness-port
@@ -801,7 +797,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -817,7 +813,6 @@ spec:
             cpu: 100m
             memory: 128Mi
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-nginx-ingress
@@ -917,7 +912,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -1181,12 +1175,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset-readonly
@@ -1223,9 +1217,8 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      terminationGracePeriodSeconds: 30      
+      terminationGracePeriodSeconds: 30
       volumes:
-      
       - name: nginx-etc
         emptyDir: {}
       - name: nginx-lib
@@ -1249,7 +1242,6 @@ spec:
         - name: https
           containerPort: 443
           protocol: TCP
-
         - name: prometheus
           containerPort: 9113
         - name: readiness-port
@@ -1269,9 +1261,8 @@ spec:
             - ALL
           readOnlyRootFilesystem: true
           runAsNonRoot: true
-          runAsUser: 101        
+          runAsUser: 101
         volumeMounts:
-        
         - mountPath: /etc/nginx
           name: nginx-etc
         - mountPath: /var/cache/nginx
@@ -1296,7 +1287,6 @@ spec:
             cpu: 100m
             memory: 128Mi
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/daemonset-readonly-nginx-ingress
@@ -1416,7 +1406,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -1680,12 +1669,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
@@ -1717,7 +1706,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: default-nginx-ingress
       automountServiceAccountToken: true
@@ -1761,7 +1750,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -1773,7 +1762,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/default-nginx-ingress
@@ -1873,7 +1861,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -2137,12 +2124,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: deployment-hpa
@@ -2173,7 +2160,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: deployment-hpa-nginx-ingress
       automountServiceAccountToken: true
@@ -2217,7 +2204,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -2229,7 +2216,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/deployment-hpa-nginx-ingress
@@ -2362,7 +2348,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -2626,12 +2611,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: deployment-hpa-no-create
@@ -2662,7 +2647,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: deployment-hpa-no-create-nginx-ingress
       automountServiceAccountToken: true
@@ -2706,7 +2691,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -2718,7 +2703,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/deployment-hpa-no-create-nginx-ingress
@@ -2818,7 +2802,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -3082,12 +3065,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
@@ -3119,7 +3102,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: global-configuration-nginx-ingress
       automountServiceAccountToken: true
@@ -3163,7 +3146,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -3175,7 +3158,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/global-configuration-nginx-ingress
@@ -3297,7 +3279,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -3561,12 +3542,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-config-custom-name
@@ -3598,7 +3579,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: global-config-custom-name-nginx-ingress
       automountServiceAccountToken: true
@@ -3642,7 +3623,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -3654,7 +3635,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/global-config-custom-name-nginx-ingress
@@ -3773,7 +3753,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -4037,12 +4016,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
@@ -4074,7 +4053,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: ingress-class-nginx-ingress
       automountServiceAccountToken: true
@@ -4118,7 +4097,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -4130,7 +4109,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/ingress-class-nginx-ingress
@@ -4232,7 +4210,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -4508,17 +4485,16 @@ spec:
     port: 9001
     protocol: UDP
     targetPort: 9001
-
   - port: 80
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
@@ -4553,7 +4529,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: list-configs-nginx-ingress
       automountServiceAccountToken: true
@@ -4603,7 +4579,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -4615,7 +4591,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/list-configs-nginx-ingress
@@ -4715,7 +4690,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -4980,12 +4954,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
@@ -5017,7 +4991,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: loadbalancerclass-nginx-ingress
       automountServiceAccountToken: true
@@ -5061,7 +5035,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -5073,7 +5047,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/loadbalancerclass-nginx-ingress
@@ -5173,7 +5146,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5437,12 +5409,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
@@ -5474,7 +5446,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: namespace-nginx-ingress
       automountServiceAccountToken: true
@@ -5518,7 +5490,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -5530,7 +5502,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/namespace-nginx-ingress
@@ -5630,7 +5601,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5894,12 +5864,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
@@ -5931,7 +5901,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-nginx-ingress
       automountServiceAccountToken: true
@@ -5975,7 +5945,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -5987,7 +5957,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-nginx-ingress
@@ -6087,7 +6056,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6351,12 +6319,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
@@ -6388,7 +6356,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-debug-nginx-ingress
       automountServiceAccountToken: true
@@ -6432,7 +6400,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -6444,7 +6412,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - --listen=:2345
           - --headless=true
           - --log=true
@@ -6554,7 +6521,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6828,12 +6794,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
@@ -6865,7 +6831,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-mgmt-nginx-ingress
       automountServiceAccountToken: true
@@ -6909,7 +6875,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -6931,7 +6897,6 @@ spec:
               name: proxy-credentials
               key: password
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-nginx-ingress
@@ -7031,7 +6996,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7296,12 +7260,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
@@ -7333,7 +7297,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-mgmt-custom-endpoint-nginx-ingress
       automountServiceAccountToken: true
@@ -7377,7 +7341,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -7389,7 +7353,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-custom-endpoint-nginx-ingress
@@ -7489,7 +7452,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7754,12 +7716,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
@@ -7791,7 +7753,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-mgmt-proxy-host-nginx-ingress
       automountServiceAccountToken: true
@@ -7835,7 +7797,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -7847,7 +7809,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-proxy-host-nginx-ingress
@@ -7947,7 +7908,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -8212,12 +8172,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
@@ -8249,7 +8209,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-mgmt-proxy-host-auth-nginx-ingress
       automountServiceAccountToken: true
@@ -8293,7 +8253,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -8315,7 +8275,6 @@ spec:
               name: custom-credentials
               key: password
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-mgmt-proxy-host-auth-nginx-ingress
@@ -8428,23 +8387,19 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       # set log level (error, info, debug; default "info")
       level: info
       # set log path. if empty, don't log to file.
       path: ""
-    
     allowed_directories:
       - /etc/nginx
       - /usr/lib/nginx/modules
-    
     features:
       - certificates
       - connection
       - metrics
       - file-watcher
-    
     ## command server settings
     command:
       server:
@@ -8454,7 +8409,6 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
-    
     ## collector settings
     collector:
       log:
@@ -8724,12 +8678,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
@@ -8762,9 +8716,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: agent-conf
         configMap:
           name: plus-agent-nginx-ingress-agent-config
@@ -8813,9 +8766,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
@@ -8831,7 +8783,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-nginx-ingress
@@ -8945,23 +8896,19 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       # set log level (error, info, debug; default "info")
       level: debug
       # set log path. if empty, don't log to file.
       path: ""
-    
     allowed_directories:
       - /etc/nginx
       - /usr/lib/nginx/modules
-    
     features:
       - certificates
       - connection
       - metrics
       - file-watcher
-    
     ## command server settings
     command:
       server:
@@ -8971,7 +8918,6 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: true
-    
     ## collector settings
     collector:
       log:
@@ -9241,12 +9187,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
@@ -9279,9 +9225,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: agent-conf
         configMap:
           name: plus-agent-all-nginx-ingress-agent-config
@@ -9330,9 +9275,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: agent-conf
           mountPath: /etc/nginx-agent/nginx-agent.conf
           subPath: nginx-agent.conf
@@ -9348,7 +9292,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/plus-agent-all-nginx-ingress
@@ -9449,7 +9392,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9713,12 +9655,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: startupstatus
@@ -9750,7 +9692,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: startupstatus-nginx-ingress
       automountServiceAccountToken: true
@@ -9805,7 +9747,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -9817,7 +9759,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/startupstatus-nginx-ingress
@@ -9917,7 +9858,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10181,12 +10121,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset
@@ -10219,7 +10159,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: statefulset-nginx-ingress
       automountServiceAccountToken: true
@@ -10263,9 +10203,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - mountPath: /var/cache/nginx
           name: nginx-cache
         env:
@@ -10278,7 +10217,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-nginx-ingress
@@ -10391,7 +10329,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -10655,12 +10592,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-config
@@ -10693,7 +10630,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: statefulset-config-nginx-ingress
       automountServiceAccountToken: true
@@ -10737,9 +10674,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - mountPath: /var/cache/nginx
           name: nginx-cache
         env:
@@ -10752,7 +10688,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-config-nginx-ingress
@@ -10866,7 +10801,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11130,12 +11064,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-no-storageclass
@@ -11168,7 +11102,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: statefulset-no-storageclass-nginx-ingress
       automountServiceAccountToken: true
@@ -11212,9 +11146,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - mountPath: /var/cache/nginx
           name: nginx-cache
         env:
@@ -11227,7 +11160,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-no-storageclass-nginx-ingress
@@ -11340,7 +11272,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11604,12 +11535,12 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
+    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
+    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-readonly
@@ -11642,9 +11573,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: nginx-etc
         emptyDir: {}
       - name: nginx-lib
@@ -11695,9 +11625,8 @@ spec:
             - ALL
           readOnlyRootFilesystem: true
           runAsNonRoot: true
-          runAsUser: 101        
+          runAsUser: 101
         volumeMounts:
-        
         - mountPath: /etc/nginx
           name: nginx-etc
         - mountPath: /var/cache/nginx
@@ -11718,7 +11647,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -nginx-configmaps=$(POD_NAMESPACE)/statefulset-readonly-nginx-ingress
