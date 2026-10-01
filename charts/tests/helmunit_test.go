@@ -214,6 +214,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "loadbalancerclass",
 			namespace:   "default",
 		},
+		"nodePort": {
+			valuesFile:  "testdata/service-nodeport.yaml",
+			releaseName: "nodeport",
+			namespace:   "default",
+		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",
