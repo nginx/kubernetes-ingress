@@ -1,4 +1,5 @@
-## Labels to apply to all chart-managed resource metadata except pod templates.
+## Labels to apply to all chart-managed resources, including pod templates.
+## Does not apply to CRDs (Helm does not template crds/) or to pod selector labels.
 commonLabels: {}
 
 controller:

@@ -13,7 +13,7 @@
     "commonLabels": {
       "type": "object",
       "default": {},
-      "title": "Common labels to apply to all chart-managed resource metadata except pod templates",
+      "title": "Common labels to apply to all chart-managed resources, including pod templates",
       "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
     },
     "controller": {

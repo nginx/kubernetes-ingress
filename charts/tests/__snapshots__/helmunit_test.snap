@@ -5974,6 +5974,10 @@ spec:
       labels:
         app.kubernetes.io/name: nginx-ingress
         app.kubernetes.io/instance: common-labels
+        cost-center: "12345"
+        environment: production
+        team: platform
+        team: ingress
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"

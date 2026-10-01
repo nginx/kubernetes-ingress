@@ -71,6 +71,9 @@ Pod labels
 {{- if and .Values.nginxAgent.enable (eq (.Values.nginxAgent.customConfigMap | default "") "") }}
 agent-configuration-revision-hash: {{ include "nginx-ingress.agentConfiguration" . | sha1sum | trunc 8 | quote }}
 {{- end }}
+{{- if .Values.commonLabels }}
+{{ toYaml .Values.commonLabels }}
+{{- end }}
 {{- if .Values.controller.pod.extraLabels }}
 {{ toYaml .Values.controller.pod.extraLabels }}
 {{- end }}
