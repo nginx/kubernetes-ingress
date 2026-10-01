@@ -1,4 +1,4 @@
-## Labels to apply to all resources.  Does not affect pod selector labels.
+## Labels to apply to all chart-managed resource metadata except pod templates.
 commonLabels: {}
 
 controller:
