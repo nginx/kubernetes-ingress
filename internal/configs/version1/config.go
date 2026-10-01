@@ -238,6 +238,7 @@ type Location struct {
 	ServiceName             string
 	LimitReq                *LimitReq
 	DisableForwardedHeaders bool
+	UseForwardedHeaders     bool
 	CORSEnabled             bool
 
 	AuthRequestOff bool
@@ -367,6 +368,7 @@ type MainConfig struct {
 	TLSPassthroughPort                 int
 	VariablesHashBucketSize            uint64
 	VariablesHashMaxSize               uint64
+	UseForwardedHeaders                bool
 	WorkerConnections                  string
 	WorkerCPUAffinity                  string
 	WorkerProcesses                    string
