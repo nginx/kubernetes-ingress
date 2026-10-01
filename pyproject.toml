@@ -105,6 +105,7 @@ markers = [
     "vsr_grpc",
     "vsr_redirects",
     "vsr_multi_regex",
+    "vsr_hostless",
     "vsr_regexes",
     "vsr_rewrite",
     "vsr_routing",

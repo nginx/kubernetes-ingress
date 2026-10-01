@@ -519,8 +519,14 @@ type VirtualServerRoute struct {
 type VirtualServerRouteSpec struct {
 	// Specifies which Ingress Controller must handle the VirtualServerRoute resource. Must be the same as the ingressClassName of the VirtualServer that references this resource.
 	IngressClass string `json:"ingressClassName"`
-	// The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be contained in double quotes. Must be the same as the host of the VirtualServer that references this resource.
-	Host string `json:"host"`
+	// The host (domain name) of the server. Must be a valid subdomain as defined in RFC 1123, such as
+	// my-app or hello.example.com. When using a wildcard domain like *.example.com the domain must be
+	// contained in double quotes. When set, must be the same as the host of the VirtualServer that
+	// references this resource. When omitted (hostless mode), the VirtualServerRoute can be referenced
+	// by any VirtualServer regardless of host, enabling the same route configuration to be shared across
+	// multiple VirtualServers.
+	// +kubebuilder:validation:Optional
+	Host string `json:"host,omitempty"`
 	// A list of upstreams.
 	Upstreams []Upstream `json:"upstreams"`
 	// A list of subroutes.
@@ -929,7 +935,7 @@ type JWTAuth struct {
 	SSLVerify bool `json:"sslVerify"`
 	// The name of the Kubernetes secret that stores the CA certificate for JWKS server verification. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	TrustedCertSecret string `json:"trustedCertSecret"`
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 	// Sets the verification depth in the JWKS server certificates chain. The default is 1.
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default:=1
@@ -1011,7 +1017,7 @@ type OIDC struct {
 	SSLVerify bool `json:"sslVerify"`
 	// The name of the Kubernetes secret that stores the CA certificate for IDP server verification. It must be in the same namespace as the Policy resource. A secret of the type Opaque is recommended. The secret is resolved with the CA role and must store the certificate under the ca.crt key.
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`
-	TrustedCertSecret string `json:"trustedCertSecret"`
+	TrustedCertSecret string `json:"trustedCertSecret,omitempty"`
 	// Sets the verification depth in the IDP server certificates chain. The default is 1.
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default:=1

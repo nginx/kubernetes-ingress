@@ -437,6 +437,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 				{
 					Path:                    `"/_external_auth/oauth2/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy-route/oauth2/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -474,17 +475,10 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 					ProxyNextUpstreamTries:   0,
 					ProxyInterceptErrors:     true,
 					HasKeepalive:             true,
-					ErrorPages: []version2.ErrorPage{
-						{
-							Name:         "/oauth2/signin",
-							Codes:        "401",
-							ResponseCode: version2.ErrorPageResponseCodeInherit,
-						},
-					},
-					ProxySSLName:            "tea-svc.default.svc",
-					ProxyPassRequestHeaders: true,
-					ProxySetHeaders:         []version2.Header{{Name: "Host", Value: "$host"}},
-					ServiceName:             "tea-svc",
+					ProxySSLName:             "tea-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-svc",
 					ExternalAuth: &version2.ExternalAuth{
 						URI: &version2.AuthURI{
 							Service:      "auth-server",
@@ -685,6 +679,56 @@ func TestGenerateVirtualServerConfigExternalAuthMultipleRoutesNoDuplicateOAuth2(
 		if !found {
 			t.Errorf("expected warning about 'Duplicate external auth URI /auth' for route '/coffee', got: %v", vsWarnings)
 		}
+	}
+}
+
+func TestGenerateVirtualServerConfigExternalAuthSubrouteDuplicateWarningTargetsVirtualServer(t *testing.T) {
+	t.Parallel()
+
+	policy := &conf_v1.Policy{
+		Name: "ext-auth", Namespace: "default",
+		Spec: conf_v1.PolicySpec{
+			ExternalAuth: &conf_v1.ExternalAuth{AuthURI: "/auth", AuthServiceName: "auth-svc"},
+		},
+	}
+	vsr := &conf_v1.VirtualServerRoute{
+		Name: "vsr", Namespace: "default",
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Subroutes: []conf_v1.Route{
+				{
+					Path:     "/sub",
+					Policies: []conf_v1.PolicyReference{{Name: "ext-auth", Namespace: "default"}},
+					Action:   &conf_v1.Action{Pass: "tea"},
+				},
+			},
+		},
+	}
+	vsEx := VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			Name: "vs", Namespace: "default",
+			Spec: conf_v1.VirtualServerSpec{
+				Routes: []conf_v1.Route{
+					{
+						Path:     "/route",
+						Policies: []conf_v1.PolicyReference{{Name: "ext-auth", Namespace: "default"}},
+						Action:   &conf_v1.Action{Pass: "coffee"},
+					},
+					{Path: "/sub", Route: "default/vsr"},
+				},
+			},
+		},
+		VirtualServerRoutes: []*conf_v1.VirtualServerRoute{vsr},
+		Policies:            map[string]*conf_v1.Policy{"default/ext-auth": policy},
+	}
+
+	vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+	_, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+	if len(warnings[vsEx.VirtualServer]) == 0 {
+		t.Error("expected duplicate auth warning on VirtualServer, got none")
+	}
+	if len(warnings[vsr]) != 0 {
+		t.Errorf("expected no warnings on VirtualServerRoute, got %v", warnings[vsr])
 	}
 }
 
@@ -891,6 +935,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -928,20 +973,13 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 					ProxyNextUpstreamTries:   0,
 					ProxyInterceptErrors:     true,
 					HasKeepalive:             true,
-					ErrorPages: []version2.ErrorPage{
-						{
-							Name:         "/signin",
-							Codes:        "401",
-							ResponseCode: -1,
-						},
-					},
-					ProxySSLName:            "tea-v1-svc.default.svc",
-					ProxyPassRequestHeaders: true,
-					ProxySetHeaders:         []version2.Header{{Name: "Host", Value: "$host"}},
-					ServiceName:             "tea-v1-svc",
-					IsVSR:                   true,
-					VSRName:                 "tea-vsr",
-					VSRNamespace:            "default",
+					ProxySSLName:             "tea-v1-svc.default.svc",
+					ProxyPassRequestHeaders:  true,
+					ProxySetHeaders:          []version2.Header{{Name: "Host", Value: "$host"}},
+					ServiceName:              "tea-v1-svc",
+					IsVSR:                    true,
+					VSRName:                  "tea-vsr",
+					VSRNamespace:             "default",
 					ExternalAuth: &version2.ExternalAuth{
 						URI: &version2.AuthURI{
 							Service:      "auth-server",
@@ -3481,6 +3519,72 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 	}
 }
 
+func TestGenerateVirtualServerConfigPropagatesAppProtectLoadModule(t *testing.T) {
+	t.Parallel()
+
+	for name, loaded := range map[string]bool{"module not loaded": false, "module loaded": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Host:      "cafe.example.com",
+						Policies:  []conf_v1.PolicyReference{{Name: "oidc-policy"}},
+						Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+						Routes:    []conf_v1.Route{{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}}},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-policy", Namespace: "default"},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:  "https://auth.example.com",
+								TokenEndpoint: "https://token.example.com",
+								JWKSURI:       "https://jwks.example.com",
+								ClientID:      "example-client-id",
+								ClientSecret:  "example-client-secret",
+								Scope:         "openid",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{"default/tea-svc:80": {"10.0.0.20:80"}},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{Data: map[string][]byte{"client-secret": []byte("c2VjcmV0")}},
+					},
+				},
+			}
+
+			vsc := newVirtualServerConfigurator(
+				&ConfigParams{Context: context.Background(), ServerTokens: "off"},
+				true,
+				false,
+				&StaticConfigParams{MainAppProtectLoadModule: loaded},
+				false,
+				&fakeBV,
+			)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+			if len(warnings) != 0 {
+				t.Fatalf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
+			}
+			if result.AppProtectLoadModule != loaded {
+				t.Errorf("VirtualServerConfig.AppProtectLoadModule = %t, want %t", result.AppProtectLoadModule, loaded)
+			}
+			if result.Server.OIDC == nil {
+				t.Fatal("expected Server.OIDC to be non-nil")
+			}
+			if result.Server.OIDC.AppProtectLoadModule != loaded {
+				t.Errorf("Server.OIDC.AppProtectLoadModule = %t, want %t", result.Server.OIDC.AppProtectLoadModule, loaded)
+			}
+		})
+	}
+}
+
 // TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy verifies that multiple routes
 // referencing the same OIDC policy all receive location.OIDC=true.
 func TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy(t *testing.T) {
@@ -4194,6 +4298,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4238,6 +4343,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4285,6 +4391,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_ns1_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_ns1_my-auth/verify"`,
 				ProxyPassRequestHeaders: true,
@@ -4328,6 +4435,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\"", "proxy_set_header X-Another \"val2\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4552,73 +4660,6 @@ func TestGenerateExternalAuthOAuth2Location(t *testing.T) {
 	}
 }
 
-func TestGetServerErrorPages(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		cfg      policiesCfg
-		expected []version2.ErrorPage
-	}{
-		{
-			name: "nil ExternalAuth returns nil",
-			cfg: policiesCfg{
-				ExternalAuth: nil,
-			},
-			expected: nil,
-		},
-		{
-			name: "empty SigninURL returns nil",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "",
-				},
-			},
-			expected: nil,
-		},
-		{
-			name: "non-empty SigninURL returns 401 error page",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "https://example.com/oauth2/start?rd=$scheme://$host$request_uri",
-				},
-			},
-			expected: []version2.ErrorPage{
-				{
-					Name:         "https://example.com/oauth2/start?rd=$scheme://$host$request_uri",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
-		},
-		{
-			name: "simple SigninURL returns 401 error page",
-			cfg: policiesCfg{
-				ExternalAuth: &version2.ExternalAuth{
-					SigninURL: "https://auth.example.com/login",
-				},
-			},
-			expected: []version2.ErrorPage{
-				{
-					Name:         "https://auth.example.com/login",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := getServerErrorPages(tc.cfg)
-			if diff := cmp.Diff(tc.expected, result); diff != "" {
-				t.Errorf("getServerErrorPages() mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
 func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -4767,17 +4808,11 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				Snippets:               "proxy_set_header X-Custom-Header \"custom-value\";",
 				ServicePorts:           nil,
 			},
-			ErrorPages: []version2.ErrorPage{
-				{
-					Name:         "/signin",
-					Codes:        "401",
-					ResponseCode: -1,
-				},
-			},
 			Locations: []version2.Location{
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -4917,8 +4952,8 @@ func TestGenerateVirtualServerConfigQuotesExternalAuthPaths(t *testing.T) {
 	if !signinLocationFound {
 		t.Error("GenerateVirtualServerConfig() did not quote the ExternalAuth signin redirect path")
 	}
-	if len(cfg.Server.ErrorPages) != 1 || cfg.Server.ErrorPages[0].Name != `/start\"; return 200; #` {
-		t.Errorf("GenerateVirtualServerConfig() did not escape the ExternalAuth signin URL: %+v", cfg.Server.ErrorPages)
+	if cfg.Server.ExternalAuth == nil || cfg.Server.ExternalAuth.SigninURL != `/start"; return 200; #` {
+		t.Errorf("GenerateVirtualServerConfig() did not preserve the ExternalAuth signin URL: %+v", cfg.Server.ExternalAuth)
 	}
 }
 
