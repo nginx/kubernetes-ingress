@@ -13,8 +13,8 @@
     "commonLabels": {
       "type": "object",
       "default": {},
-      "title": "Common labels to apply to all resources",
-      "additionalProperties": true
+      "title": "Common labels to apply to all resources.  Does not affect pod selector labels",
+      "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
     },
     "controller": {
       "type": "object",

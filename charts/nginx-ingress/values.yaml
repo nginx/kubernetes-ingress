@@ -1,4 +1,4 @@
-## Labels to apply to all resources.
+## Labels to apply to all resources.  Does not affect pod selector labels.
 commonLabels: {}
 
 controller:
