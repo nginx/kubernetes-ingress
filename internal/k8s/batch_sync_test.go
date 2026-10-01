@@ -401,10 +401,16 @@ func BenchmarkSyncBatchChurn(b *testing.B) {
 	mgr := newRecordingBatchManager()
 	lbc := newBatchTestLBC(b, mgr)
 
-	// Prime batch mode by enqueuing a second dummy task so queue.Len() > 1
-	// on the first sync() call. This dummy stays in the queue for the
-	// whole benchmark so batch mode never exits.
-	lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: "default/anchor"})
+	// Prime batch mode with two anchor tasks. workqueue.Get() removes the
+	// returned item from the queue before sync() checks syncQueue.Len(), so
+	// with only one anchor plus one churn item added per iteration, Len()
+	// is always 1 at that check and batch mode is never entered. Two
+	// anchors leave Len() == 2 after the first Get(), which both triggers
+	// batch mode and — since every later iteration adds exactly one churn
+	// item per Get() — keeps Len() == 2 for the rest of the run, so batch
+	// mode never exits (syncQueue.Len() never reaches 0).
+	lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: "default/anchor-1"})
+	lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: "default/anchor-2"})
 
 	b.ReportAllocs()
 	b.ResetTimer()

@@ -302,6 +302,122 @@ func TestBatchModePlusAPIFailureStillReloadsAtBatchEnd(t *testing.T) {
 	}
 }
 
+// failingReloadManager makes the first remainingFailures calls to Reload fail, then
+// succeeds. Used to verify that Configurator.Reload only clears reloadDeferred once
+// nginxManager.Reload is actually called *and succeeds* — a failed reload must leave
+// the pending state set so it is retried at the next batch end instead of being
+// forgotten.
+type failingReloadManager struct {
+	*recordingBatchManager
+	remainingFailures int32
+}
+
+func (m *failingReloadManager) Reload(isEndpointsUpdate bool) error {
+	m.reloads.Add(1)
+	if m.remainingFailures > 0 {
+		m.remainingFailures--
+		return fmt.Errorf("simulated reload failure")
+	}
+	return m.FakeManager.Reload(isEndpointsUpdate)
+}
+
+// TestFailedBatchReloadStaysPending pins the fix to Configurator.Reload: reloadDeferred
+// must only be cleared once nginxManager.Reload succeeds, not merely because it was
+// called. Before the fix, reloadDeferred was cleared unconditionally as soon as reloads
+// were enabled, so a failed fallback reload at batch end was forgotten and a later
+// endpoint-only batch (which never sets batchReloadsEnabled) would skip retrying it,
+// leaving the generated config unapplied.
+func TestFailedBatchReloadStaysPending(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failingReloadManager{recordingBatchManager: newRecordingBatchManager(), remainingFailures: 1}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+
+	// sync() enters batch mode; the in-batch Reload() call is deferred.
+	cnf.DisableReloads()
+	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
+		t.Fatalf("in-batch Reload: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("in-batch reload count = %d, want 0 (deferred during the batch)", got)
+	}
+
+	// Batch end: sync() calls EnableReloads() then ReloadForBatchUpdates(). The
+	// manager's first Reload attempt fails.
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err == nil {
+		t.Fatal("ReloadForBatchUpdates: expected error from simulated reload failure, got nil")
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("reload attempts = %d, want 1", got)
+	}
+
+	// A later batch end must retry: reloadDeferred must not have been cleared by the
+	// failed attempt, or the pending config change would be lost forever.
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("retry ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 2 {
+		t.Fatalf("reload attempts after retry = %d, want 2 (the pending reload must be retried, not dropped)", got)
+	}
+}
+
+// failOnNameManager makes CreateConfig fail for one specific config name, simulating a
+// later resource in a multi-resource UpdateEndpoints* call failing after an earlier
+// resource in the same call already had its config written successfully.
+type failOnNameManager struct {
+	*recordingBatchManager
+	failName string
+}
+
+func (m *failOnNameManager) CreateConfig(name string, content []byte) (bool, error) {
+	if name == m.failName {
+		return false, fmt.Errorf("simulated CreateConfig failure for %s", name)
+	}
+	return m.FakeManager.CreateConfig(name, content)
+}
+
+// TestBatchPartialEndpointFailureStillReloads pins the fix to the UpdateEndpoints*
+// family (Configurator.deferReload): each of those functions can return an error
+// mid-loop after an earlier resource in the same call already wrote its config via
+// addOrUpdate* — on OSS, addOrUpdate* never calls Reload() itself, so the function
+// returns before reaching its own Reload() call at the end. Without deferReload()
+// marking the batch dirty on that early-return path, the earlier resource's
+// written-but-unapplied config would never get a reload: reloadDeferred stays false,
+// and ReloadForBatchUpdates(false) at batch end becomes a silent no-op.
+func TestBatchPartialEndpointFailureStillReloads(t *testing.T) {
+	t.Parallel()
+
+	good := cafeVSExWithEndpoints("10.0.0.1:80")
+	bad := cafeVSExWithEndpoints("10.0.0.2:80")
+	bad.VirtualServer.Name = "cafe2"
+	bad.VirtualServer.Spec.Host = "cafe2.example.com"
+
+	mgr := &failOnNameManager{recordingBatchManager: newRecordingBatchManager(), failName: "vs_default_cafe2"}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = false
+
+	// sync() enters batch mode.
+	cnf.DisableReloads()
+
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{good, bad}); err == nil {
+		t.Fatal("UpdateEndpointsForVirtualServers: expected error from simulated CreateConfig failure, got nil")
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("in-batch reload count = %d, want 0 (deferred during the batch)", got)
+	}
+
+	// Batch end: "good"'s written-but-unapplied config must still get a reload, even
+	// though the triggering call returned an error and batchReloadsEnabled is false.
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("post-batch reload count = %d, want 1 (the partially-successful batch must not be silently dropped)", got)
+	}
+}
+
 // newBenchConfigurator builds a Configurator against the real templates,
 // suitable for both *testing.T and *testing.B callers. It intentionally
 // omits the isReloadsEnabled=true toggle that createTestConfigurator does,
@@ -371,8 +487,11 @@ func makeVSExWithUpstreams(upstreams, endpoints int) *VirtualServerEx {
 //   - OSS/BatchOn  : template exec + config write; Reload gated → shows the
 //     wasted config regen cost during batch.
 //   - Plus/BatchOff: template exec + config write + Plus API call (fake).
-//   - Plus/BatchOn : template exec + config write; Plus API gated → matches
-//     the PR #7779 scenario where endpoints never leave the process.
+//   - Plus/BatchOn : template exec + config write + Plus API call (fake); the
+//     Plus API write is not gated by batch mode (see
+//     Configurator.isPlusAPIEnabled), so this measures the same work as
+//     Plus/BatchOff — Reload is the only thing batch mode defers, and both
+//     cases already skip it on a successful Plus API write.
 //
 // Collect a CPU profile with:
 //
