@@ -264,6 +264,7 @@ type Location struct {
 	GRPCPass                   string
 	CORSEnabled                bool
 	DisableForwardedHeaders    bool
+	UseForwardedHeaders        bool
 	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
