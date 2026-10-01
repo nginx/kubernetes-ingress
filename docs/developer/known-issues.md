@@ -15,21 +15,19 @@ if len(weightUpdates) > 0 {
 
 **What happens:** `sync()` (`internal/k8s/controller.go`) enters batch mode by calling
 `Configurator.DisableReloads()` when the work queue has more than one item, deferring
-reloads until the batch drains (NGINX Plus API writes stay enabled throughout batch
-mode — see `Configurator.isPlusAPIEnabled` — so they are not affected by this issue).
-`AddOrUpdateVirtualServer` is one of the sync paths that can run mid-batch (e.g. a
-VirtualServer with traffic-splitting weights is updated while other events are queued).
-If that VirtualServer has pending `weightUpdates`, this line calls `EnableReloads()`
-unconditionally — re-enabling reloads for the rest of the process, not just for this
-call.
+reloads and NGINX Plus API writes until the batch drains. `AddOrUpdateVirtualServer` is
+one of the sync paths that can run mid-batch (e.g. a VirtualServer with traffic-splitting
+weights is updated while other events are queued). If that VirtualServer has pending
+`weightUpdates`, this line calls `EnableReloads()` unconditionally — re-enabling reloads
+and NGINX Plus API writes for the rest of the process, not just for this call.
 
 The controller's `batchSyncEnabled` bookkeeping in `sync()` is untouched, so the
 controller still believes it's batching and will later call `EnableReloads()` again and
 run its own batch-end reload logic. The visible effect is just that batching is
-defeated early for whatever mid-batch work follows this call — reloads start happening
-immediately instead of being deferred to the batch end. It doesn't corrupt state, but
-it undermines the point of batching (coalescing reloads under churn) for the remainder
-of that batch.
+defeated early for whatever mid-batch work follows this call — reloads and Plus API
+writes start happening immediately instead of being deferred to the batch end. It
+doesn't corrupt state, but it undermines the point of batching (coalescing reloads
+under churn) for the remainder of that batch.
 
 **Why it hasn't been fixed:** Low impact (reload storms are cosmetic/perf, not
 correctness) and it's adjacent to, but distinct from, the batch-reload staleness work

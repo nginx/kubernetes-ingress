@@ -1326,14 +1326,10 @@ func (lbc *LoadBalancerController) sync(task task) {
 		// change via the Plus API during the batch (see
 		// Configurator.isPlusAPIEnabled) and only fall back to Reload() on
 		// API failure. On OSS, those same functions always call Reload().
-		// Either way, Configurator marks the batch dirty itself whenever that
-		// matters: Reload() sets reloadDeferred when it no-ops, and the
-		// UpdateEndpoints* functions also call it directly if they abort
-		// after an earlier resource in the same call already wrote its
-		// config (see Configurator.deferReload). ReloadForBatchUpdates
-		// honors reloadDeferred at batch end — so this path no longer needs
-		// to infer "was a reload needed" from the task Kind or from
-		// syncEndpointSlices's return value. See
+		// Either way, Configurator tracks whether a Reload() call was
+		// deferred (reloadDeferred) and ReloadForBatchUpdates honors that at
+		// batch end — so this path no longer needs to infer "was a reload
+		// needed" from the task Kind. See
 		// https://github.com/nginx/kubernetes-ingress/issues/7778.
 		lbc.syncEndpointSlices(task)
 	case secret:
