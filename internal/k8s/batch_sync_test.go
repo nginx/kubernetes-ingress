@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/configs/version1"
@@ -205,9 +204,9 @@ func TestBatchModeResetsUpdateAllConfigsFlag(t *testing.T) {
 
 // TestOSSBatchNeverDrainsUnderEndpointsliceChurn drives sync() with a real
 // syncQueue and demonstrates issue #10397
-// (https://github.com/nginx/kubernetes-ingress/issues/10397): without a
-// bounded batch window, the deferred reload for a real config change is not
-// fired while endpointslice churn keeps syncQueue.Len() > 0.
+// (https://github.com/nginx/kubernetes-ingress/issues/10397): the deferred
+// reload for a real config change is not fired while endpointslice churn
+// keeps syncQueue.Len() > 0.
 //
 // Scenario:
 //   - Batch mode is entered on the first sync (queue.Len() > 1).
@@ -217,12 +216,12 @@ func TestBatchModeResetsUpdateAllConfigsFlag(t *testing.T) {
 //     endpointSliceLister is empty — syncEndpointSlices returns false without
 //     touching config, matching "endpointslice churn for services this
 //     controller does not track".
-//   - batchReloadWindow is left at its zero value (disabled), so this test
-//     pins the pre-fix, unbounded-drain semantics: no reload fires while
-//     queue.Len() > 0, and the batch-end reload fires exactly once when the
-//     queue finally drains. All 51 syncs run synchronously in well under the
-//     production batchReloadWindowDefault, so this is unaffected by the fix
-//     in TestBatchEndsOnWindowUnderContinuousChurn below.
+//   - The test asserts no reload fires while queue.Len() > 0, then confirms
+//     that ReloadForBatchUpdates(true) is called exactly once when the queue
+//     finally drains.
+//
+// Fix criterion: the batch should finalize on a bounded time / item budget
+// rather than exclusively on queue.Len() == 0.
 func TestOSSBatchNeverDrainsUnderEndpointsliceChurn(t *testing.T) {
 	t.Parallel()
 
@@ -266,24 +265,24 @@ func TestOSSBatchNeverDrainsUnderEndpointsliceChurn(t *testing.T) {
 	}
 }
 
-// TestBatchEndsOnWindowUnderContinuousChurn is the fix-side counterpart to
-// TestOSSBatchNeverDrainsUnderEndpointsliceChurn: it drives the same
-// continuous-arrivals-outpacing-drain scenario from issue #10397
-// (https://github.com/nginx/kubernetes-ingress/issues/10397) — a single
-// "real" config change (dummy Ingress) enqueued alongside endpointslice
-// churn, with a *new* endpointslice task enqueued for every task processed
-// so arrivals outpace drain and syncQueue.Len() never reaches 0 — but with
-// batchReloadWindow set to a tiny positive duration (matching what
-// NewLoadBalancerController wires up in production via
-// batchReloadWindowDefault). It asserts the fix actually closes the gap:
-// the pending reload fires well before the churn itself stops, instead of
-// being deferred for the full duration of a rolling deployment.
-func TestBatchEndsOnWindowUnderContinuousChurn(t *testing.T) {
+// TestOSSBatchReloadStarvedByContinuousChurn is the direct counterpart to
+// TestOSSBatchNeverDrainsUnderEndpointsliceChurn: while
+// TestOSSBatchNeverDrains... proves the batch-end reload fires *once* the
+// queue drains, this test proves that reload never fires while churn keeps
+// syncQueue.Len() > 0 — matching the reporter's symptom in
+// https://github.com/nginx/kubernetes-ingress/issues/10397 of "several
+// minutes of stale IPs" during a rolling deployment.
+//
+// A single "real" config change (dummy Ingress) is enqueued alongside
+// endpointslice churn, then for each task processed a *new* endpointslice
+// task is enqueued — modeling arrivals outpacing drain. After processing
+// a large number of tasks, no reload has fired despite enableBatchReload
+// being set on the first sync.
+func TestOSSBatchReloadStarvedByContinuousChurn(t *testing.T) {
 	t.Parallel()
 
 	mgr := newRecordingBatchManager()
 	lbc := newBatchTestLBC(t, mgr)
-	lbc.batchReloadWindow = time.Microsecond
 
 	// Enter batch mode: at least two items so queue.Len() > 1 on first sync.
 	const configRelevant = 999
@@ -305,80 +304,15 @@ func TestBatchEndsOnWindowUnderContinuousChurn(t *testing.T) {
 		// New endpointslice event arrives — models arrivals outpacing drain.
 		lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: fmt.Sprintf("default/es-churn-%d", processed)})
 		processed++
-
-		if mgr.reloads.Load() > 0 {
-			break
-		}
 	}
 
 	if lbc.syncQueue.queue.Len() == 0 {
 		t.Fatal("test setup error: queue drained; churn injection failed")
 	}
-	if got := mgr.reloads.Load(); got != 1 {
-		t.Fatalf("issue #10397 fix: after %d syncs with continuous churn and a %s batch window, "+
-			"reload count = %d, want 1 (the batch window should force the deferred reload to fire "+
-			"even though the queue never drains)", processed, lbc.batchReloadWindow, got)
-	}
-}
-
-// TestBatchWindowRepeatsAcrossMultipleCycles strengthens
-// TestBatchEndsOnWindowUnderContinuousChurn, which only proves the window
-// forces a *single* reload and then stops. It does not prove that, once a
-// window-triggered batch ends, sync() actually re-enters batch mode and
-// applies a *fresh* window for the next cycle — i.e. that under sustained
-// churn the controller keeps reloading periodically for as long as the
-// churn (and real config changes) continue, rather than reloading once and
-// then going silent again (which would just move the staleness problem
-// from "forever" to "forever after the first window").
-//
-// This is driven by real wall-clock time rather than a fixed iteration
-// count, because the thing under test — LoadBalancerController.batchStart
-// being reset on every new batch entry (see sync() in controller.go) — is
-// itself wall-clock based. A recurring non-endpointslice task is re-added
-// every iteration alongside endpointslice churn, modeling continuous real
-// Ingress/VS changes arriving throughout a rolling deployment, so every
-// window has genuine pending work to reload (pure untracked-endpoint churn
-// with nothing referencing it correctly produces zero reloads — that's the
-// #7778 fix, not a bug — so asserting repetition requires real work).
-func TestBatchWindowRepeatsAcrossMultipleCycles(t *testing.T) {
-	t.Parallel()
-
-	mgr := newRecordingBatchManager()
-	lbc := newBatchTestLBC(t, mgr)
-	const window = 10 * time.Millisecond
-	const testDuration = 150 * time.Millisecond // 15x window: generous margin for slow/loaded CI runners.
-	const minReloads = 3                        // conservative: observed ~15 on a dev laptop; only prove repetition, not a precise rate.
-	lbc.batchReloadWindow = window
-
-	const configRelevant = 999
-	lbc.syncQueue.queue.Add(task{Kind: configRelevant, Key: "default/user-ingress"})
-	for i := 0; i < 5; i++ {
-		lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: fmt.Sprintf("default/es-init-%d", i)})
-	}
-
-	deadline := time.Now().Add(testDuration)
-	processed := 0
-	for time.Now().Before(deadline) {
-		obj, quit := lbc.syncQueue.queue.Get()
-		if quit {
-			t.Fatal("queue shut down mid-test")
-		}
-		lbc.sync(obj.(task))
-		lbc.syncQueue.queue.Done(obj)
-
-		// Re-add both a recurring "real" config change and endpointslice
-		// churn every iteration, so every batch window has genuine pending
-		// work — unlike TestBatchEndsOnWindowUnderContinuousChurn, which only
-		// seeds one real task and therefore only ever proves one reload.
-		lbc.syncQueue.queue.Add(task{Kind: configRelevant, Key: fmt.Sprintf("default/real-%d", processed)})
-		lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: fmt.Sprintf("default/es-churn-%d", processed)})
-		processed++
-	}
-
-	if got := mgr.reloads.Load(); got < minReloads {
-		t.Fatalf("reload count = %d over %s of continuous real-work churn with a %s batch window, want >= %d "+
-			"(the batch must re-enter and reload again every window as long as churn continues, "+
-			"not just once)", got, testDuration, window, minReloads)
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("issue #10397: after %d syncs with continuous churn, reload count = %d, want 0 "+
+			"(the reload for the ingress change should have been deferred by the batch-drain condition; "+
+			"under sustained churn this deferral is unbounded)", processed, got)
 	}
 }
 

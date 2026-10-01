@@ -130,44 +130,26 @@ type metricLabelsIndex struct {
 // This allows the Ingress Controller to incrementally build the NGINX configuration during the IC start and
 // then apply it at the end of the start.
 type Configurator struct {
-	nginxManager            nginx.Manager
-	staticCfgParams         *StaticConfigParams
-	CfgParams               *ConfigParams
-	MgmtCfgParams           *MGMTConfigParams
-	templateExecutor        *version1.TemplateExecutor
-	templateExecutorV2      *version2.TemplateExecutor
-	ingresses               map[string]*IngressEx
-	minions                 map[string]map[string]bool
-	mergeableIngresses      map[string]*MergeableIngresses
-	virtualServers          map[string]*VirtualServerEx
-	transportServers        map[string]*TransportServerEx
-	tlsPassthroughPairs     map[string]tlsPassthroughPair
-	isWildcardEnabled       bool
-	isPlus                  bool
-	labelUpdater            collector.LabelUpdater
-	metricLabelsIndex       *metricLabelsIndex
-	isPrometheusEnabled     bool
-	latencyCollector        latCollector.LatencyCollector
-	isLatencyMetricsEnabled bool
-	isReloadsEnabled        bool
-	// isPlusAPIEnabled gates NGINX Plus API upstream writes
-	// (updateServersInPlus / updateStreamServersInPlus) independently of
-	// isReloadsEnabled. Both start disabled during startup build-up (the
-	// running NGINX has no config for these upstreams yet, so an API write
-	// would fail). EnableReloads() enables both. DisableReloads() —
-	// called when the controller enters batch mode — only disables
-	// isReloadsEnabled: nginx is already running a valid config at that
-	// point, so Plus API writes may safely continue even while reloads are
-	// deferred for the rest of the batch. See
-	// https://github.com/nginx/kubernetes-ingress/issues/7778.
-	isPlusAPIEnabled bool
-	// reloadDeferred is set by Reload() whenever it no-ops because
-	// isReloadsEnabled is false, and cleared whenever a reload actually
-	// runs. ReloadForBatchUpdates consults it at batch end so a reload that
-	// was skipped mid-batch (e.g. a Plus API upstream write failed and
-	// fell back to requesting a reload) is not silently dropped just
-	// because the triggering task's Kind didn't otherwise call for one.
-	reloadDeferred               bool
+	nginxManager                 nginx.Manager
+	staticCfgParams              *StaticConfigParams
+	CfgParams                    *ConfigParams
+	MgmtCfgParams                *MGMTConfigParams
+	templateExecutor             *version1.TemplateExecutor
+	templateExecutorV2           *version2.TemplateExecutor
+	ingresses                    map[string]*IngressEx
+	minions                      map[string]map[string]bool
+	mergeableIngresses           map[string]*MergeableIngresses
+	virtualServers               map[string]*VirtualServerEx
+	transportServers             map[string]*TransportServerEx
+	tlsPassthroughPairs          map[string]tlsPassthroughPair
+	isWildcardEnabled            bool
+	isPlus                       bool
+	labelUpdater                 collector.LabelUpdater
+	metricLabelsIndex            *metricLabelsIndex
+	isPrometheusEnabled          bool
+	latencyCollector             latCollector.LatencyCollector
+	isLatencyMetricsEnabled      bool
+	isReloadsEnabled             bool
 	isDynamicSSLReloadEnabled    bool
 	ingressControllerReplicas    int
 	effectiveBatchExclusionCount int
@@ -1536,16 +1518,11 @@ func (cnf *Configurator) updatePlusExternalAuthEndpoints(policies map[string]*co
 }
 
 // EnableReloads enables NGINX reloads meaning that configuration changes will be followed by a reload.
-// It also (re-)enables NGINX Plus API upstream writes; see isPlusAPIEnabled.
 func (cnf *Configurator) EnableReloads() {
 	cnf.isReloadsEnabled = true
-	cnf.isPlusAPIEnabled = true
 }
 
 // DisableReloads disables NGINX reloads meaning that configuration changes will not be followed by a reload.
-// NGINX Plus API upstream writes are intentionally left enabled: DisableReloads is called when
-// entering batch mode, at which point NGINX is already running a valid config, so applying
-// endpoint changes via the Plus API during the batch is safe. See isPlusAPIEnabled.
 func (cnf *Configurator) DisableReloads() {
 	cnf.isReloadsEnabled = false
 }
@@ -1603,21 +1580,17 @@ func (cnf *Configurator) EffectiveBatchExclusionCount() int {
 	return cnf.effectiveBatchExclusionCount
 }
 
-// Reload reloads nginx if reloads is enabled. If reloads are disabled (e.g. batch mode),
-// the reload is skipped and recorded via reloadDeferred so ReloadForBatchUpdates can
-// catch up on it at batch end instead of silently dropping it.
+// Reload reloads nginx if reloads is enabled
 func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 	if !cnf.isReloadsEnabled {
-		cnf.reloadDeferred = true
 		return nil
 	}
 
-	cnf.reloadDeferred = false
 	return cnf.nginxManager.Reload(isEndpointsUpdate)
 }
 
 func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, config nginx.ServerConfig) error {
-	if !cnf.isPlusAPIEnabled {
+	if !cnf.isReloadsEnabled {
 		return nil
 	}
 
@@ -1625,7 +1598,7 @@ func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, 
 }
 
 func (cnf *Configurator) updateStreamServersInPlus(upstream string, servers []string) error {
-	if !cnf.isPlusAPIEnabled {
+	if !cnf.isReloadsEnabled {
 		return nil
 	}
 
@@ -2050,14 +2023,8 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 }
 
 // ReloadForBatchUpdates reloads NGINX after a batch event.
-// batchReloadsEnabled is set by the caller when a non-endpointslice task ran during the
-// batch (a change that always needs a reload). reloadDeferred additionally covers any
-// Reload() call that no-op'd during the batch regardless of task Kind — e.g. an NGINX
-// Plus endpoint update whose API write failed and fell back to requesting a reload
-// (see Configurator.Reload). Without consulting reloadDeferred here, that fallback
-// reload would be silently dropped whenever the triggering task was an endpointslice.
 func (cnf *Configurator) ReloadForBatchUpdates(batchReloadsEnabled bool) error {
-	if !batchReloadsEnabled && !cnf.reloadDeferred {
+	if !batchReloadsEnabled {
 		return nil
 	}
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {

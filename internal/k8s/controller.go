@@ -254,8 +254,6 @@ type LoadBalancerController struct {
 	batchSyncEnabled              bool
 	updateAllConfigsOnBatch       bool
 	enableBatchReload             bool
-	batchStart                    time.Time
-	batchReloadWindow             time.Duration
 	isIPV6Disabled                bool
 	namespaceWatcherController    cache.Controller
 	telemetryCollector            *telemetry.Collector
@@ -401,7 +399,6 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		wafBundlePath:                input.WAFBundlePath,
 		plmEnabled:                   input.PLMStorageSpec.Endpoint != "",
 		plmStorageSecrets:            plmStorageSecretKeys(input.PLMStorageSpec),
-		batchReloadWindow:            batchReloadWindowDefault,
 	}
 
 	if input.AppProtectEnabled && input.WAFBundlePath != "" {
@@ -1286,22 +1283,10 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 		len(objects))
 }
 
-// batchReloadWindowDefault bounds how long batch mode can defer a pending
-// reload. Without a bound, sustained EndpointSlice churn (e.g. a rolling
-// deployment) keeps syncQueue.Len() > 0 indefinitely, so a real config
-// change queued during the batch never gets its reload — the running NGINX
-// config can show already-terminated pod IPs for as long as the churn lasts
-// (see https://github.com/nginx/kubernetes-ingress/issues/10397). Once the
-// window elapses the batch ends and reloads like normal, then a new batch
-// starts on the next sync if the queue is still non-empty — capping both
-// the staleness window and the reload rate at one per window.
-const batchReloadWindowDefault = 2 * time.Second
-
 func (lbc *LoadBalancerController) sync(task task) {
 	if lbc.isNginxReady && lbc.syncQueue.Len() > 1 && !lbc.batchSyncEnabled {
 		lbc.configurator.DisableReloads()
 		lbc.batchSyncEnabled = true
-		lbc.batchStart = time.Now()
 
 		nl.Debugf(lbc.Logger, "Batch processing %v items", lbc.syncQueue.Len())
 	}
@@ -1321,17 +1306,11 @@ func (lbc *LoadBalancerController) sync(task task) {
 		}
 		lbc.syncConfigMap(task)
 	case endpointslice:
-		// Batch-end reload is no longer forced here for endpointslice tasks.
-		// On NGINX Plus, UpdateEndpoints*/updatePlusEndpoints* apply the
-		// change via the Plus API during the batch (see
-		// Configurator.isPlusAPIEnabled) and only fall back to Reload() on
-		// API failure. On OSS, those same functions always call Reload().
-		// Either way, Configurator tracks whether a Reload() call was
-		// deferred (reloadDeferred) and ReloadForBatchUpdates honors that at
-		// batch end — so this path no longer needs to infer "was a reload
-		// needed" from the task Kind. See
-		// https://github.com/nginx/kubernetes-ingress/issues/7778.
-		lbc.syncEndpointSlices(task)
+		resourcesFound := lbc.syncEndpointSlices(task)
+		if lbc.batchSyncEnabled && resourcesFound {
+			nl.Debugf(lbc.Logger, "Endpointslice %v is referenced - enabling batch reload", task.Key)
+			lbc.enableBatchReload = true
+		}
 	case secret:
 		lbc.syncSecret(task)
 	case service:
@@ -1459,15 +1438,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		lbc.refreshStaleVSRReferences()
 	}
 
-	// The batch also ends once batchReloadWindow has elapsed since it started,
-	// even if the queue hasn't drained. Without this, sustained EndpointSlice
-	// churn (e.g. a rolling deployment) can keep syncQueue.Len() > 0
-	// indefinitely, deferring a real config change's reload for as long as
-	// the churn lasts (https://github.com/nginx/kubernetes-ingress/issues/10397).
-	// A zero batchReloadWindow disables the bound (used by tests that assert
-	// the pre-existing drain-to-zero behavior).
-	batchWindowElapsed := lbc.batchReloadWindow > 0 && time.Since(lbc.batchStart) >= lbc.batchReloadWindow
-	if lbc.batchSyncEnabled && (lbc.syncQueue.Len() == 0 || batchWindowElapsed) {
+	if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
 		lbc.batchSyncEnabled = false
 		lbc.configurator.EnableReloads()
 		if lbc.updateAllConfigsOnBatch {
