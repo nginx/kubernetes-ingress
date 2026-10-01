@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"reflect"
@@ -15,10 +16,14 @@ import (
 	fake_v1 "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned/fake"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -263,6 +268,70 @@ func TestUpdateVirtualServerRouteStatusWithReferencedByNamespaceNotWatched(t *te
 	}
 	if err := su.UpdateVirtualServerRouteStatusWithReferencedBy(vsr, "state", "reason", "message", nil); err != nil {
 		t.Errorf("UpdateVirtualServerRouteStatusWithReferencedBy() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerRouteReferencedByNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateVirtualServerRouteReferencedBy(vsr, nil); err != nil {
+		t.Errorf("UpdateVirtualServerRouteReferencedBy() returned unexpected error: %v", err)
+	}
+}
+
+// TestUpdateVirtualServerRouteReferencedByConflictRetainsNewerStatus: a conflict retry must not overwrite a newer state/reason with the stale cached copy.
+func TestUpdateVirtualServerRouteReferencedByConflictRetainsNewerStatus(t *testing.T) {
+	t.Parallel()
+
+	newer := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "default", ResourceVersion: "2"},
+		Status: conf_v1.VirtualServerRouteStatus{
+			State: conf_v1.StateWarning, Reason: "AddedOrUpdatedWithWarning", Message: "warning message",
+		},
+	}
+	fakeClient := fake_v1.NewSimpleClientset(newer)
+
+	conflicted := false
+	fakeClient.PrependReactor("update", "virtualserverroutes", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		if conflicted {
+			return false, nil, nil
+		}
+		conflicted = true
+		return true, nil, apierrors.NewConflict(schema.GroupResource{Group: "k8s.nginx.org", Resource: "virtualserverroutes"}, "vsr-1", errors.New("stale resourceVersion"))
+	})
+
+	stale := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "default", ResourceVersion: "1"},
+		Status:     conf_v1.VirtualServerRouteStatus{State: conf_v1.StateValid, Reason: "AddedOrUpdated"},
+	}
+	store := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	_ = store.Add(stale)
+
+	su := newTestStatusUpdater()
+	su.confClient = fakeClient
+	su.namespacedInformers = registryFrom(map[string]*namespacedInformer{
+		"default": {virtualServerRouteLister: store},
+	})
+
+	vs := &conf_v1.VirtualServer{ObjectMeta: meta_v1.ObjectMeta{Name: "vs-a", Namespace: "default"}}
+	if err := su.UpdateVirtualServerRouteReferencedBy(stale, []*conf_v1.VirtualServer{vs}); err != nil {
+		t.Fatalf("UpdateVirtualServerRouteReferencedBy() returned unexpected error: %v", err)
+	}
+
+	got, err := fakeClient.K8sV1().VirtualServerRoutes("default").Get(context.TODO(), "vsr-1", meta_v1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get VirtualServerRoute: %v", err)
+	}
+	if got.Status.State != conf_v1.StateWarning || got.Status.Reason != "AddedOrUpdatedWithWarning" {
+		t.Errorf("conflict retry overwrote state/reason: got state=%q reason=%q, want state=%q reason=%q",
+			got.Status.State, got.Status.Reason, conf_v1.StateWarning, "AddedOrUpdatedWithWarning")
+	}
+	if got.Status.ReferencedBy != "default/vs-a" {
+		t.Errorf("ReferencedBy = %q, want %q", got.Status.ReferencedBy, "default/vs-a")
 	}
 }
 
@@ -894,12 +963,46 @@ func TestHasVsrStatusChanged(t *testing.T) {
 	for _, test := range tests {
 		test := test // address gosec G601
 		t.Run(test.desc, func(t *testing.T) {
-			changed := su.hasVsrStatusChanged(&test.vsr, state, reason, msg, referencedBy)
+			changed := su.hasVsrStatusChanged(&test.vsr, state, reason, msg, &referencedBy)
 
 			if changed != test.expected {
 				t.Errorf("hasVsrStatusChanged(%v, %v, %v, %v) returned %v but expected %v for test: %s", test.vsr, state, reason, msg, changed, test.expected, test.desc)
 			}
 		})
+	}
+}
+
+// TestHasVsrStatusChangedReferencedByPointerSemantics distinguishes nil from an empty referencedBy value.
+func TestHasVsrStatusChangedReferencedByPointerSemantics(t *testing.T) {
+	t.Parallel()
+
+	state := "Valid"
+	reason := "AddedOrUpdated"
+	msg := "Configuration was added or updated"
+
+	su := &statusUpdater{}
+
+	vsr := &conf_v1.VirtualServerRoute{
+		Status: conf_v1.VirtualServerRouteStatus{
+			State:        state,
+			Reason:       reason,
+			Message:      msg,
+			ReferencedBy: "default/vs-a, default/vs-b",
+		},
+	}
+
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, nil); changed {
+		t.Errorf("hasVsrStatusChanged with nil referencedBy = true, want false (field must be ignored)")
+	}
+
+	empty := ""
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, &empty); !changed {
+		t.Errorf("hasVsrStatusChanged with &\"\" referencedBy against a non-empty stored value = false, want true (must detect the shrink-to-empty case)")
+	}
+
+	same := "default/vs-a, default/vs-b"
+	if changed := su.hasVsrStatusChanged(vsr, state, reason, msg, &same); changed {
+		t.Errorf("hasVsrStatusChanged with an unchanged referencedBy pointer = true, want false")
 	}
 }
 
@@ -1052,5 +1155,82 @@ func TestHasPolicyStatusChanged(t *testing.T) {
 		if changed != test.expected {
 			t.Errorf("hasPolicyStatusChanged(%v, %v, %v, %v) returned %v but expected %v.", test.pol, state, reason, msg, changed, test.expected)
 		}
+	}
+}
+
+func TestFormatReferencedBy(t *testing.T) {
+	t.Parallel()
+
+	vs := func(ns, name string) *conf_v1.VirtualServer {
+		return &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Namespace: ns, Name: name},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		input    []*conf_v1.VirtualServer
+		expected string
+	}{
+		{
+			name:     "nil slice",
+			input:    nil,
+			expected: "",
+		},
+		{
+			name:     "empty slice",
+			input:    []*conf_v1.VirtualServer{},
+			expected: "",
+		},
+		{
+			name:     "single VS",
+			input:    []*conf_v1.VirtualServer{vs("default", "cafe")},
+			expected: "default/cafe",
+		},
+		{
+			name: "two VSes",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				vs("default", "cafe2"),
+			},
+			expected: "default/cafe, default/cafe2",
+		},
+		{
+			name: "three VSes preserves input order",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				vs("default", "cafe2"),
+				vs("default", "cafe3"),
+			},
+			expected: "default/cafe, default/cafe2, default/cafe3",
+		},
+		{
+			name: "VSes across namespaces",
+			input: []*conf_v1.VirtualServer{
+				vs("ns-a", "cafe"),
+				vs("ns-b", "cafe"),
+			},
+			expected: "ns-a/cafe, ns-b/cafe",
+		},
+		{
+			name: "nil entries are skipped",
+			input: []*conf_v1.VirtualServer{
+				vs("default", "cafe"),
+				nil,
+				vs("default", "cafe2"),
+			},
+			expected: "default/cafe, default/cafe2",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := formatReferencedBy(tc.input)
+			if got != tc.expected {
+				t.Errorf("formatReferencedBy() = %q, want %q", got, tc.expected)
+			}
+		})
 	}
 }
