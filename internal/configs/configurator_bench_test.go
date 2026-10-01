@@ -38,7 +38,7 @@ func createTestConfiguratorBench() (*Configurator, error) {
 		IsLatencyMetricsEnabled: false,
 		NginxVersion:            nginx.NewVersion("nginx version: nginx/1.25.3 (nginx-plus-r31)"),
 	})
-	cnf.EnableReloads()
+	cnf.isReloadsEnabled = true
 	return cnf, nil
 }
 
