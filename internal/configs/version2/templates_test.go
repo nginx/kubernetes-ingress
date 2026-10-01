@@ -4115,13 +4115,6 @@ var virtualServerCfgWithExternalAuthSigninURL = VirtualServerConfig{
 			SigninURL:              "/oauth2/start?rd=$scheme://$host$request_uri",
 			SigninRedirectBasePath: "/oauth2",
 		},
-		ErrorPages: []ErrorPage{
-			{
-				Name:         "/oauth2/start?rd=$scheme://$host$request_uri",
-				Codes:        "401",
-				ResponseCode: -1,
-			},
-		},
 		Locations: []Location{
 			{
 				Path:        "/tea",
@@ -4136,13 +4129,6 @@ var virtualServerCfgWithExternalAuthSigninURL = VirtualServerConfig{
 					},
 					SigninURL:              "/oauth2/start?rd=$scheme://$host$request_uri",
 					SigninRedirectBasePath: "/oauth2",
-				},
-				ErrorPages: []ErrorPage{
-					{
-						Name:         "/oauth2/start?rd=$scheme://$host$request_uri",
-						Codes:        "401",
-						ResponseCode: -1,
-					},
 				},
 				ProxyInterceptErrors: true,
 			},
@@ -4200,17 +4186,80 @@ func TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs(t *testing.T) {
 
 func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
+	if !hasExternalAuthSignin(virtualServerCfgWithExternalAuthSigninURL.Server) {
+		t.Error("hasExternalAuthSignin() = false, want true")
+	}
+	if hasExternalAuthNoSignin(virtualServerCfgWithExternalAuthSigninURL.Server) {
+		t.Error("hasExternalAuthNoSignin() = true, want false")
+	}
 	data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)
 	if err != nil {
 		t.Fatalf("Failed to execute template: %v", err)
 	}
-	// Guard the exact nginx directive; a missing `=` (or missing space) here reintroduces the 401+Location bug.
-	const want = `error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";`
-	if !strings.Contains(string(data), want) {
-		t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+	for _, want := range []string{
+		`set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";`,
+		`error_page 401 = @external_auth_signin;`,
+		`return 302 $external_auth_signin_uri;`,
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+		}
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
+}
+
+func TestVirtualServerLocationExternalAuthWithoutSigninURL(t *testing.T) {
+	t.Parallel()
+
+	cfg := VirtualServerConfig{
+		Server: Server{
+			ServerName: "cafe.example.com",
+			ExternalAuth: &ExternalAuth{
+				URI:       &AuthURI{InternalPath: "/_external_auth/server"},
+				SigninURL: "/oauth2/start",
+			},
+			Locations: []Location{
+				{
+					Path:         "/tea",
+					ExternalAuth: &ExternalAuth{URI: &AuthURI{InternalPath: "/_external_auth/location"}},
+				},
+			},
+		},
+	}
+	if !hasExternalAuthSignin(cfg.Server) {
+		t.Error("hasExternalAuthSignin() = false, want true")
+	}
+	if !hasExternalAuthNoSignin(cfg.Server) {
+		t.Error("hasExternalAuthNoSignin() = false, want true")
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(*testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := string(data)
+			for _, want := range []string{
+				`error_page 401 = @external_auth_unauthorized;`,
+				`location @external_auth_unauthorized {`,
+				`return 401;`,
+			} {
+				if !strings.Contains(got, want) {
+					t.Errorf("rendered config missing %q\n---\n%s", want, got)
+				}
+			}
+			snaps.MatchSnapshot(t, got)
+		})
+	}
 }
 
 func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
@@ -4305,18 +4354,21 @@ func TestVirtualServerForNginxPlusWithExternalAuthSigninURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to execute template: %v", err)
 	}
-	const want = `error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";`
-	if !strings.Contains(string(data), want) {
-		t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+	for _, want := range []string{
+		`set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";`,
+		`error_page 401 = @external_auth_signin;`,
+		`return 302 $external_auth_signin_uri;`,
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+		}
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
 }
 
-// TestErrorPageRendering guards the rendered `error_page` directive for the three
-// ResponseCode encodings the ExternalAuth signin flow depends on: -1 (emit `=`
-// without a code so nginx returns the target's status), 0 (emit no `=`), and
-// >0 (emit `=<code>`).
+// TestErrorPageRendering guards the rendered `error_page` directive for the two
+// supported ResponseCode encodings: 0 (emit no `=`) and >0 (emit `=<code>`).
 func TestErrorPageRendering(t *testing.T) {
 	t.Parallel()
 
@@ -4325,11 +4377,6 @@ func TestErrorPageRendering(t *testing.T) {
 		pages []ErrorPage
 		want  string
 	}{
-		{
-			name:  "ExternalAuth signin URL renders `error_page 401 = \"...\"`",
-			pages: []ErrorPage{{Name: "/oauth2/start", Codes: "401", ResponseCode: -1}},
-			want:  `error_page 401 = "/oauth2/start";`,
-		},
 		{
 			name:  "ResponseCode 0 renders `error_page CODES \"NAME\"` without `=`",
 			pages: []ErrorPage{{Name: "@error_page_2", Codes: "500", ResponseCode: 0}},
