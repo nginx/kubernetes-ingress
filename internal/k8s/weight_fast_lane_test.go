@@ -184,10 +184,10 @@ func newWeightTestLBCWithAutoadjust(tb testing.TB, dynamicReload, autoadjust boo
 		Logger:                     nl.LoggerFromContext(context.Background()),
 		client:                     fake.NewClientset(),
 		isNginxReady:               false,
-		namespacedInformers:        map[string]*namespacedInformer{"default": nsi},
+		namespacedInformers:        registryFrom(map[string]*namespacedInformer{"default": nsi}),
 		statusUpdater: &statusUpdater{
 			confClient:          confClient,
-			namespacedInformers: map[string]*namespacedInformer{"default": nsi},
+			namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": nsi}),
 			keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 			logger:              nl.LoggerFromContext(context.Background()),
 		},
@@ -235,7 +235,7 @@ func twoWayRoute(path string, w0, w1 int) conf_v1.Route {
 func seedVS(tb testing.TB, lbc *LoadBalancerController, vs *conf_v1.VirtualServer) {
 	tb.Helper()
 
-	nsi := lbc.namespacedInformers["default"]
+	nsi := lbc.namespacedInformers.Get("default")
 	if err := nsi.virtualServerLister.Add(vs); err != nil {
 		tb.Fatalf("seeding informer: %v", err)
 	}
@@ -253,7 +253,7 @@ func seedVS(tb testing.TB, lbc *LoadBalancerController, vs *conf_v1.VirtualServe
 func updateVS(tb testing.TB, lbc *LoadBalancerController, vs *conf_v1.VirtualServer) {
 	tb.Helper()
 
-	if err := lbc.namespacedInformers["default"].virtualServerLister.Update(vs); err != nil {
+	if err := lbc.namespacedInformers.Get("default").virtualServerLister.Update(vs); err != nil {
 		tb.Fatalf("updating informer: %v", err)
 	}
 }
@@ -426,7 +426,7 @@ func TestSyncVirtualServer_FallsBackToReload(t *testing.T) {
 			lbc, mgr := newWeightTestLBC(t, test.dynamicReload)
 
 			vs := weightTestVS("cafe", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
-			nsi := lbc.namespacedInformers["default"]
+			nsi := lbc.namespacedInformers.Get("default")
 
 			if test.skipSeed {
 				if err := nsi.virtualServerLister.Add(vs); err != nil {
@@ -574,7 +574,7 @@ func TestSyncVirtualServer_FallbackShapeDoesNotDoubleProcessProblems(t *testing.
 	// unexpected shape.
 	extra := weightTestVS("ccc", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
 	lbc.configuration.virtualServers[getResourceKey(&extra.ObjectMeta)] = extra
-	if err := lbc.namespacedInformers["default"].virtualServerLister.Add(extra); err != nil {
+	if err := lbc.namespacedInformers.Get("default").virtualServerLister.Add(extra); err != nil {
 		t.Fatalf("seeding ccc informer: %v", err)
 	}
 
@@ -694,7 +694,7 @@ func TestSyncVirtualServerRoute_FallsBackToReload(t *testing.T) {
 			t.Parallel()
 
 			lbc, mgr := newWeightTestLBC(t, true)
-			nsi := lbc.namespacedInformers["default"]
+			nsi := lbc.namespacedInformers.Get("default")
 
 			vsr := weightTestVSR("coffee", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
 			vsr.Labels = test.seedLabels
@@ -732,7 +732,7 @@ func TestSyncVirtualServerRoute_WeightOnlyDiffAppliesKeyvalWithoutReload(t *test
 	t.Parallel()
 
 	lbc, mgr := newWeightTestLBC(t, true)
-	nsi := lbc.namespacedInformers["default"]
+	nsi := lbc.namespacedInformers.Get("default")
 
 	vsr := weightTestVSR("coffee", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
 	if err := nsi.virtualServerRouteLister.Add(vsr); err != nil {
@@ -803,7 +803,7 @@ func TestSyncVirtualServerRoute_SelectorWeightOnlyUsesRenderedOrder(t *testing.T
 	t.Parallel()
 
 	lbc, mgr := newWeightTestLBC(t, true)
-	nsi := lbc.namespacedInformers["default"]
+	nsi := lbc.namespacedInformers.Get("default")
 
 	selectorLabels := map[string]string{"app": "route"}
 
@@ -922,7 +922,7 @@ func TestSyncVirtualServerRoute_RejectedUpdateFallsBackAndRerenders(t *testing.T
 	t.Parallel()
 
 	lbc, mgr := newWeightTestLBC(t, true)
-	nsi := lbc.namespacedInformers["default"]
+	nsi := lbc.namespacedInformers.Get("default")
 
 	vsr := weightTestVSR("coffee", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
 	if err := nsi.virtualServerRouteLister.Add(vsr); err != nil {
@@ -1373,7 +1373,7 @@ func TestProcessStatusUpdate_DoesNotEmitVSREvents(t *testing.T) {
 
 	vsr := weightTestVSR("coffee", 1, []conf_v1.Route{{Path: "/tea", Action: &conf_v1.Action{Pass: "v1"}}})
 	vsr.Labels = map[string]string{"app": "route"}
-	if err := lbc.namespacedInformers["default"].virtualServerRouteLister.Add(vsr); err != nil {
+	if err := lbc.namespacedInformers.Get("default").virtualServerRouteLister.Add(vsr); err != nil {
 		t.Fatalf("seeding VSR informer: %v", err)
 	}
 	changes, problems := lbc.configuration.AddOrUpdateVirtualServerRoute(vsr)

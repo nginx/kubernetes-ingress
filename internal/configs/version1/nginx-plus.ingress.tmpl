@@ -12,7 +12,7 @@ upstream {{$upstream.Name}} {
 	{{- if $upstream.StickyCookie}}
 	sticky cookie {{$upstream.StickyCookie}};
 	{{- end}}
-	{{- if $.Keepalive}}keepalive {{$.Keepalive}};{{end}}
+	{{- if $upstream.Keepalive}}keepalive {{$upstream.Keepalive}};{{end}}
 	{{- if $upstream.UpstreamServers -}}
 	{{- if $upstream.Queue}}
 	queue {{$upstream.Queue}} timeout={{$upstream.QueueTimeout}}s;
@@ -396,6 +396,9 @@ server {
     location = {{ $p.ProxyLocation }} {
         internal;
         auth_oidc off;
+        {{- if $.AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         client_max_body_size 0;
         proxy_pass $oidc_idp_request_uri;
         proxy_ssl_server_name on;
@@ -426,6 +429,9 @@ server {
 		{{- end}}
 		{{- if $location.Internal}}
 		internal;
+		{{- end}}
+		{{- if and $.AppProtectLoadModule $location.DisableWAF}}
+		app_protect_enable off;
 		{{- end}}
 		{{- with $location.MinionIngress}}
 		# location for minion {{$location.MinionIngress.Namespace}}/{{$location.MinionIngress.Name}}
@@ -557,13 +563,23 @@ server {
 		grpc_pass grpc://{{$location.Upstream.Name}};
 		{{- end}}
 		{{- else}}
-		proxy_http_version 1.1;
+		{{- if $location.ProxyHTTPVersion}}
+		proxy_http_version {{$location.ProxyHTTPVersion}};
+		{{- end}}
+		{{- /* HTTP/1.0 has no persistent connections or Upgrade mechanism, so the connection is
+		       closed explicitly (https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7).
+		       HTTP/2 forbids the hop-by-hop Connection and Upgrade headers (RFC 9113 8.2.2),
+		       so they are omitted when proxying over HTTP/2. */}}
+		{{- if eq $location.ProxyHTTPVersion "1.0"}}
+		proxy_set_header Connection close;
+		{{- else if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
-		{{- if $.Keepalive}}
+		{{- if $location.Upstream.Keepalive}}
 		proxy_set_header Connection "";{{end}}
+		{{- end}}
 		{{- end}}
 		{{- if not $location.AuthRequestOff}}
 		{{- range $value := $location.LocationSnippets}}

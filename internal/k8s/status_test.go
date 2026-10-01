@@ -54,7 +54,7 @@ func TestUpdateTransportServerStatus(t *testing.T) {
 	nsi := make(map[string]*namespacedInformer)
 	nsi["default"] = &namespacedInformer{transportServerLister: tsLister}
 	su := statusUpdater{
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		confClient:          fakeClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:              slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
@@ -121,7 +121,7 @@ func TestUpdateTransportServerStatusIgnoreNoChange(t *testing.T) {
 	nsi["default"] = &namespacedInformer{transportServerLister: tsLister}
 	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	su := statusUpdater{
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		confClient:          fakeClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:              l,
@@ -183,7 +183,7 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 
 	l := slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo}))
 	su := statusUpdater{
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		confClient:          fakeClient,
 		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 		externalEndpoints: []conf_v1.ExternalEndpoint{
@@ -203,6 +203,114 @@ func TestUpdateTransportServerStatusMissingTransportServer(t *testing.T) {
 	_, err = fakeClient.K8sV1().TransportServers(ts.Namespace).Get(context.TODO(), ts.Name, meta_v1.GetOptions{})
 	if err == nil {
 		t.Fatalf("expected TransportServer Store would be empty as provided TransportServer was not found.")
+	}
+}
+
+// The following tests guard against a nil pointer dereference panic (see
+// getNamespacedInformer) when a status update is requested for a resource whose
+// namespace is no longer watched (e.g. its watch-namespace-label was removed).
+
+func newTestStatusUpdater() statusUpdater {
+	return statusUpdater{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
+		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+		logger:              slog.New(nic_glog.New(io.Discard, &nic_glog.Options{Level: levels.LevelInfo})),
+	}
+}
+
+func TestUpdateIngressWithStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	ing := networking.Ingress{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "ing-1", Namespace: "not-watched"},
+	}
+	if err := su.updateIngressWithStatus(ing, nil); err != nil {
+		t.Errorf("updateIngressWithStatus() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateTransportServerStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	ts := &conf_v1.TransportServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "ts-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateTransportServerStatus(ts, "state", "reason", "message"); err != nil {
+		t.Errorf("UpdateTransportServerStatus() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vs-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateVirtualServerStatus(vs, "state", "reason", "message"); err != nil {
+		t.Errorf("UpdateVirtualServerStatus() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerRouteStatusWithReferencedByNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateVirtualServerRouteStatusWithReferencedBy(vsr, "state", "reason", "message", nil); err != nil {
+		t.Errorf("UpdateVirtualServerRouteStatusWithReferencedBy() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerRouteStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdateVirtualServerRouteStatus(vsr, "state", "reason", "message"); err != nil {
+		t.Errorf("UpdateVirtualServerRouteStatus() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerExternalEndpointsNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vs-1", Namespace: "not-watched"},
+	}
+	if err := su.updateVirtualServerExternalEndpoints(vs); err != nil {
+		t.Errorf("updateVirtualServerExternalEndpoints() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdateVirtualServerRouteExternalEndpointsNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	vsr := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "vsr-1", Namespace: "not-watched"},
+	}
+	if err := su.updateVirtualServerRouteExternalEndpoints(vsr); err != nil {
+		t.Errorf("updateVirtualServerRouteExternalEndpoints() returned unexpected error: %v", err)
+	}
+}
+
+func TestUpdatePolicyStatusNamespaceNotWatched(t *testing.T) {
+	t.Parallel()
+	su := newTestStatusUpdater()
+
+	pol := &conf_v1.Policy{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "pol-1", Namespace: "not-watched"},
+	}
+	if err := su.UpdatePolicyStatus(pol, "state", "reason", "message"); err != nil {
+		t.Errorf("UpdatePolicyStatus() returned unexpected error: %v", err)
 	}
 }
 
@@ -257,7 +365,7 @@ func TestStatusUpdateWithExternalStatusAndExternalService(t *testing.T) {
 		namespace:             "namespace",
 		externalServiceName:   "service-name",
 		externalStatusAddress: "123.123.123.123",
-		namespacedInformers:   nsi,
+		namespacedInformers:   registryFrom(nsi),
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:                l,
 	}
@@ -375,7 +483,7 @@ func TestStatusUpdateWithExternalStatusAndIngressLink(t *testing.T) {
 		client:                fakeClient,
 		namespace:             "namespace",
 		externalStatusAddress: "",
-		namespacedInformers:   nsi,
+		namespacedInformers:   registryFrom(nsi),
 		keyFunc:               cache.DeletionHandlingMetaNamespaceKeyFunc,
 		logger:                l,
 	}

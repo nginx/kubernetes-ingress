@@ -2,6 +2,7 @@ package configs
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
@@ -436,6 +437,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusRoute(t *testing.T) {
 				{
 					Path:                    `"/_external_auth/oauth2/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy-route/oauth2/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -890,6 +892,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicyPlusSubroute(t *testing.T)
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vsr_default_tea-vsr_vs_exauth_default_external-auth-policy-subroute/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -1188,18 +1191,16 @@ func TestGenerateVirtualServerConfigAPIKeyPolicy(t *testing.T) {
 	t.Parallel()
 
 	virtualServerEx := VirtualServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/api-key-secret-spec": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"clientSpec": []byte("password"),
 					},
 				},
 			},
-			"default/api-key-secret-route": {
+			secrets.RefKey("default/api-key-secret-route", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"clientRoute": []byte("password2"),
 					},
@@ -1450,18 +1451,16 @@ func TestGenerateVirtualServerConfigAPIKeyClientMaps(t *testing.T) {
 	t.Parallel()
 
 	virtualServerEx := VirtualServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/api-key-secret-1": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/api-key-secret-1", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client1": []byte("password"),
 					},
 				},
 			},
-			"default/api-key-secret-2": {
+			secrets.RefKey("default/api-key-secret-2", secrets.RoleAPIKey): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeAPIKey,
 					Data: map[string][]byte{
 						"client2": []byte("password2"),
 					},
@@ -2895,10 +2894,9 @@ func TestGenerateVirtualServerConfigWithOIDCTLSVerifyOn(t *testing.T) {
 						"10.0.0.30:80",
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/example-client-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("c2VjcmV0"),
 							},
@@ -3111,18 +3109,16 @@ func TestGenerateVirtualServerConfigWithOIDCTLSCASecret(t *testing.T) {
 						"10.0.0.30:80",
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/example-client-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeOIDC,
 							Data: map[string][]byte{
 								"client-secret": []byte("c2VjcmV0"),
 							},
 						},
 					},
-					"default/example-ca-secret": {
+					secrets.RefKey("default/example-ca-secret", secrets.RoleCA): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeCA,
 							Data: map[string][]byte{
 								"ca.crt": []byte("ca-certificate-data"),
 							},
@@ -3322,10 +3318,9 @@ func TestGenerateVirtualServerConfigOIDCRouteDoesNotLeakToSubsequentRoutes(t *te
 		Endpoints: map[string][]string{
 			"default/app-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3447,10 +3442,9 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 			"default/tea-svc:80":    {"10.0.0.20:80"},
 			"default/coffee-svc:80": {"10.0.0.30:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3486,6 +3480,72 @@ func TestGenerateVirtualServerConfigOIDCAtSpecLevelAppliesToAllRoutes(t *testing
 		if !loc.OIDC {
 			t.Errorf("location %q should have OIDC=true because the VS spec carries the OIDC policy, but got OIDC=false", loc.Path)
 		}
+	}
+}
+
+func TestGenerateVirtualServerConfigPropagatesAppProtectLoadModule(t *testing.T) {
+	t.Parallel()
+
+	for name, loaded := range map[string]bool{"module not loaded": false, "module loaded": true} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Host:      "cafe.example.com",
+						Policies:  []conf_v1.PolicyReference{{Name: "oidc-policy"}},
+						Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+						Routes:    []conf_v1.Route{{Path: "/tea", Action: &conf_v1.Action{Pass: "tea"}}},
+					},
+				},
+				Policies: map[string]*conf_v1.Policy{
+					"default/oidc-policy": {
+						ObjectMeta: meta_v1.ObjectMeta{Name: "oidc-policy", Namespace: "default"},
+						Spec: conf_v1.PolicySpec{
+							OIDC: &conf_v1.OIDC{
+								AuthEndpoint:  "https://auth.example.com",
+								TokenEndpoint: "https://token.example.com",
+								JWKSURI:       "https://jwks.example.com",
+								ClientID:      "example-client-id",
+								ClientSecret:  "example-client-secret",
+								Scope:         "openid",
+							},
+						},
+					},
+				},
+				Endpoints: map[string][]string{"default/tea-svc:80": {"10.0.0.20:80"}},
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
+						Secret: &api_v1.Secret{Data: map[string][]byte{"client-secret": []byte("c2VjcmV0")}},
+					},
+				},
+			}
+
+			vsc := newVirtualServerConfigurator(
+				&ConfigParams{Context: context.Background(), ServerTokens: "off"},
+				true,
+				false,
+				&StaticConfigParams{MainAppProtectLoadModule: loaded},
+				false,
+				&fakeBV,
+			)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+			if len(warnings) != 0 {
+				t.Fatalf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
+			}
+			if result.AppProtectLoadModule != loaded {
+				t.Errorf("VirtualServerConfig.AppProtectLoadModule = %t, want %t", result.AppProtectLoadModule, loaded)
+			}
+			if result.Server.OIDC == nil {
+				t.Fatal("expected Server.OIDC to be non-nil")
+			}
+			if result.Server.OIDC.AppProtectLoadModule != loaded {
+				t.Errorf("Server.OIDC.AppProtectLoadModule = %t, want %t", result.Server.OIDC.AppProtectLoadModule, loaded)
+			}
+		})
 	}
 }
 
@@ -3548,10 +3608,9 @@ func TestGenerateVirtualServerConfigOIDCMultipleRoutesWithSamePolicy(t *testing.
 		Endpoints: map[string][]string{
 			"default/app-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3907,10 +3966,9 @@ func TestGenerateVirtualServerConfigWithRouteSelector(t *testing.T) {
 						},
 					},
 				},
-				SecretRefs: map[string]*secrets.SecretReference{
-					"cafe/api-key-secret": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("cafe/api-key-secret", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"clientSpec": []byte("password"),
 							},
@@ -4204,6 +4262,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4248,6 +4307,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4295,6 +4355,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_ns1_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                nil,
 				ProxyPass:               `"https://ext_auth_ns1_my-auth/verify"`,
 				ProxyPassRequestHeaders: true,
@@ -4338,6 +4399,7 @@ func TestGenerateExternalAuthLocation(t *testing.T) {
 			expected: version2.Location{
 				Path:                    `"/_ext_auth_default_my-auth"`,
 				Internal:                true,
+				DisableWAF:              true,
 				Snippets:                []string{"proxy_set_header X-Custom \"value\"", "proxy_set_header X-Another \"val2\""},
 				ProxyPass:               `"http://ext_auth_default_my-auth/auth"`,
 				ProxyPassRequestHeaders: true,
@@ -4788,6 +4850,7 @@ func TestGenerateVirtualServerConfigExternalAuthPolicy(t *testing.T) {
 				{
 					Path:                    `"/_external_auth/auth"`,
 					Internal:                true,
+					DisableWAF:              true,
 					Snippets:                []string{`proxy_set_header X-Custom-Header "custom-value";`},
 					ProxyPass:               `"http://vs_default_cafe_vs_exauth_default_external-auth-policy/auth"`,
 					ProxyPassRequestHeaders: true,
@@ -4929,5 +4992,180 @@ func TestGenerateVirtualServerConfigQuotesExternalAuthPaths(t *testing.T) {
 	}
 	if len(cfg.Server.ErrorPages) != 1 || cfg.Server.ErrorPages[0].Name != `/start\"; return 200; #` {
 		t.Errorf("GenerateVirtualServerConfig() did not escape the ExternalAuth signin URL: %+v", cfg.Server.ErrorPages)
+	}
+}
+
+func TestGenerateVirtualServerConfig_EarlierInvalidPolicyStopsSecretCollection(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name             string
+		policies         map[string]*conf_v1.Policy
+		route1Policies   []conf_v1.PolicyReference
+		route2Policies   []conf_v1.PolicyReference
+		secretRefs       map[secrets.SecretRefKey]*secrets.SecretReference
+		expectedWarnings []string
+	}{
+		{
+			name: "JWT earlier invalid policy stops reference collection and later policy has no map entry",
+			policies: map[string]*conf_v1.Policy{
+				"default/jwt-policy-1": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "jwt-policy-1", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:  "test1",
+							Secret: "jwt-secret-1",
+						},
+					},
+				},
+				"default/jwt-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "jwt-policy-2", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						JWTAuth: &conf_v1.JWTAuth{
+							Realm:  "test2",
+							Secret: "jwt-secret-2",
+						},
+					},
+				},
+			},
+			route1Policies: []conf_v1.PolicyReference{{Name: "jwt-policy-1"}},
+			route2Policies: []conf_v1.PolicyReference{{Name: "jwt-policy-2"}},
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				// Earlier invalid policy stopped reference collection; jwt-secret-2 has no map entry
+				secrets.RefKey("default/jwt-secret-1", secrets.RoleJWK): {
+					Secret: &api_v1.Secret{},
+					Error:  errors.New("secret is invalid"),
+				},
+			},
+			expectedWarnings: []string{
+				"JWT policy default/jwt-policy-1 references an invalid secret default/jwt-secret-1: secret is invalid",
+				"JWT policy default/jwt-policy-2 references a secret default/jwt-secret-2 that could not be resolved",
+			},
+		},
+		{
+			name: "BasicAuth earlier invalid policy stops reference collection and later policy has no map entry",
+			policies: map[string]*conf_v1.Policy{
+				"default/basic-auth-policy-1": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "basic-auth-policy-1", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Realm:  "test1",
+							Secret: "basic-secret-1",
+						},
+					},
+				},
+				"default/basic-auth-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "basic-auth-policy-2", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						BasicAuth: &conf_v1.BasicAuth{
+							Realm:  "test2",
+							Secret: "basic-secret-2",
+						},
+					},
+				},
+			},
+			route1Policies: []conf_v1.PolicyReference{{Name: "basic-auth-policy-1"}},
+			route2Policies: []conf_v1.PolicyReference{{Name: "basic-auth-policy-2"}},
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				// Earlier invalid policy stopped reference collection; basic-secret-2 has no map entry
+				secrets.RefKey("default/basic-secret-1", secrets.RoleHtpasswd): {
+					Secret: &api_v1.Secret{},
+					Error:  errors.New("secret is invalid"),
+				},
+			},
+			expectedWarnings: []string{
+				"Basic Auth policy default/basic-auth-policy-1 references an invalid secret default/basic-secret-1: secret is invalid",
+				"Basic Auth policy default/basic-auth-policy-2 references a secret default/basic-secret-2 that could not be resolved",
+			},
+		},
+		{
+			name: "APIKey earlier invalid policy stops reference collection and later policy has no map entry",
+			policies: map[string]*conf_v1.Policy{
+				"default/api-key-policy-1": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "api-key-policy-1", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						APIKey: &conf_v1.APIKey{
+							SuppliedIn:   &conf_v1.SuppliedIn{Header: []string{"X-API-Key"}},
+							ClientSecret: "api-key-secret-1",
+						},
+					},
+				},
+				"default/api-key-policy-2": {
+					ObjectMeta: meta_v1.ObjectMeta{Name: "api-key-policy-2", Namespace: "default"},
+					Spec: conf_v1.PolicySpec{
+						APIKey: &conf_v1.APIKey{
+							SuppliedIn:   &conf_v1.SuppliedIn{Header: []string{"X-API-Key"}},
+							ClientSecret: "api-key-secret-2",
+						},
+					},
+				},
+			},
+			route1Policies: []conf_v1.PolicyReference{{Name: "api-key-policy-1"}},
+			route2Policies: []conf_v1.PolicyReference{{Name: "api-key-policy-2"}},
+			secretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+				// Earlier invalid policy stopped reference collection; api-key-secret-2 has no map entry
+				secrets.RefKey("default/api-key-secret-1", secrets.RoleAPIKey): {
+					Secret: &api_v1.Secret{},
+					Error:  errors.New("secret is invalid"),
+				},
+			},
+			expectedWarnings: []string{
+				"API Key default/api-key-policy-1 references an invalid secret default/api-key-secret-1: secret is invalid",
+				"API Key default/api-key-policy-2 references a secret default/api-key-secret-2 that could not be resolved",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vs := &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{
+					Name:      "cafe",
+					Namespace: "default",
+				},
+				Spec: conf_v1.VirtualServerSpec{
+					Host: "cafe.example.com",
+					Upstreams: []conf_v1.Upstream{
+						{Name: "tea", Service: "tea-svc", Port: 80},
+						{Name: "coffee", Service: "coffee-svc", Port: 80},
+					},
+					Routes: []conf_v1.Route{
+						{
+							Path:     "/tea",
+							Action:   &conf_v1.Action{Pass: "tea"},
+							Policies: tc.route1Policies,
+						},
+						{
+							Path:     "/coffee",
+							Action:   &conf_v1.Action{Pass: "coffee"},
+							Policies: tc.route2Policies,
+						},
+					},
+				},
+			}
+			vsEx := VirtualServerEx{
+				VirtualServer: vs,
+				Policies:      tc.policies,
+				SecretRefs:    tc.secretRefs,
+			}
+
+			vsc := newVirtualServerConfigurator(&ConfigParams{Context: context.Background()}, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+			// Assert that generating the configuration returns warnings and does not panic
+			_, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+			vsWarnings := warnings[vs]
+			for _, expectedWarning := range tc.expectedWarnings {
+				found := false
+				for _, w := range vsWarnings {
+					if strings.Contains(w, expectedWarning) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected warning %q not found in warnings: %v", expectedWarning, vsWarnings)
+				}
+			}
+		})
 	}
 }

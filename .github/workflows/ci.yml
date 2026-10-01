@@ -136,7 +136,7 @@ jobs:
         id: stable_exists
         run: |
           exists=false
-          if docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.stable_tag }}; then
+          if docker manifest inspect gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/nginx-ic/nginx-ingress:${{ steps.vars.outputs.stable_tag }} > /dev/null 2>&1; then
             exists=true
           fi
           echo "exists=${exists}" >> $GITHUB_OUTPUT
@@ -296,7 +296,7 @@ jobs:
           needs.checks.outputs.binary_cache_hit != 'true'
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage.txt
           token: ${{ env.CODECOV_TOKEN }} # required
@@ -439,7 +439,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
         if: ${{ needs.checks.outputs.forked_workflow == 'false' || needs.checks.outputs.docs_only == 'false' }}
@@ -574,7 +574,7 @@ jobs:
       - name: Check if stable image exists
         id: stable_exists
         run: |
-          if docker pull ${{ matrix.image }}:${{ needs.checks.outputs.stable_tag }}; then
+          if docker manifest inspect ${{ matrix.image }}:${{ needs.checks.outputs.stable_tag }} > /dev/null 2>&1; then
             echo "exists=true" >> $GITHUB_OUTPUT
           fi
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
@@ -592,7 +592,7 @@ jobs:
         if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         if: ${{ needs.checks.outputs.forked_workflow == 'true' }}
 
       - name: Build Docker Image ${{ matrix.base-os }}
@@ -688,6 +688,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write # for pushing/pulling test-runner on GHCR
     outputs:
       matrix_oss: ${{ steps.set-matrix.outputs.matrix_oss }}
       matrix_plus: ${{ steps.set-matrix.outputs.matrix_plus }}
@@ -703,7 +704,7 @@ jobs:
           echo "matrix_nap=$(cat .github/data/matrix-smoke-nap.json | jq -c --arg latest "${{ needs.checks.outputs.k8s_latest }}" '.k8s += [$latest]')" >> $GITHUB_OUTPUT
 
       - name: Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Setup secrets
         uses: nginx/ci-self-hosted/.github/actions/get-from-vault@5c3e1f8b51f66a851fdba80f70e19cf966199730
@@ -732,10 +733,18 @@ jobs:
           password: ${{ steps.auth.outputs.access_token }}
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
 
+      - name: Login to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
+
       - name: Check if test image exists
         id: check-image
         run: |
-          docker pull gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}
+          docker manifest inspect ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}
         shell: bash
         continue-on-error: true
         if: ${{ needs.checks.outputs.forked_workflow == 'false' }}
@@ -746,7 +755,7 @@ jobs:
           file: tests/Dockerfile
           context: "."
           cache-from: type=gha,scope=test-runner
-          tags: "gcr.io/f5-gcs-7899-ptg-ingrss-ctlr/dev/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
+          tags: "ghcr.io/nginx/kubernetes-ingress/test-runner:${{ hashFiles('./tests/requirements.txt', './tests/Dockerfile') || 'latest' }}"
           pull: true
           push: ${{ needs.checks.outputs.forked_workflow == 'false' }}
           load: false
@@ -769,6 +778,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write # for pushing/pulling test-runner on GHCR
     uses: ./.github/workflows/setup-smoke.yml
     secrets: inherit
     with:
@@ -801,6 +811,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write # for pushing/pulling test-runner on GHCR
     uses: ./.github/workflows/setup-smoke.yml
     secrets: inherit
     with:
@@ -833,6 +844,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: write # for pushing/pulling test-runner on GHCR
     uses: ./.github/workflows/setup-smoke.yml
     secrets: inherit
     with:

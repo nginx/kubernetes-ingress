@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
+	"github.com/nginx/kubernetes-ingress/internal/nsregistry"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
 	k8s_nginx "github.com/nginx/kubernetes-ingress/pkg/client/clientset/versioned"
 	api_v1 "k8s.io/api/core/v1"
@@ -38,7 +39,7 @@ type statusUpdater struct {
 	status                   []networking.IngressLoadBalancerIngress
 	statusInitialized        bool
 	keyFunc                  func(obj interface{}) (string, error)
-	namespacedInformers      map[string]*namespacedInformer
+	namespacedInformers      *nsregistry.Registry[namespacedInformer]
 	confClient               k8s_nginx.Interface
 	hasCorrectIngressClass   func(interface{}) bool
 	logger                   *slog.Logger
@@ -108,24 +109,6 @@ func (su *statusUpdater) UpdateIngressStatus(ing networking.Ingress) error {
 	return su.updateIngressWithStatus(ing, su.status)
 }
 
-func (su *statusUpdater) getNamespacedInformer(ns string) *namespacedInformer {
-	var nsi *namespacedInformer
-	var isGlobalNs bool
-	var exists bool
-
-	nsi, isGlobalNs = su.namespacedInformers[""]
-
-	if !isGlobalNs {
-		// get the correct namespaced informers
-		nsi, exists = su.namespacedInformers[ns]
-		if !exists {
-			// we are not watching this namespace
-			return nil
-		}
-	}
-	return nsi
-}
-
 // updateIngressWithStatus sets the provided status on the selected Ingress.
 func (su *statusUpdater) updateIngressWithStatus(ing networking.Ingress, status []networking.IngressLoadBalancerIngress) error {
 	l := su.logger.With(logNamespaceKey, ing.Namespace, logKindKey, ingressKind, logNameKey, ing.Name)
@@ -140,7 +123,12 @@ func (su *statusUpdater) updateIngressWithStatus(ing networking.Ingress, status 
 	ns, _, _ := cache.SplitMetaNamespaceKey(key)
 	var ingCopy *networking.Ingress
 	var exists bool
-	ingCopy, exists, err = su.getNamespacedInformer(ns).ingressLister.GetByKeySafe(key)
+	watched := su.namespacedInformers.WithInformer(ns, func(nsi *namespacedInformer) {
+		ingCopy, exists, err = nsi.ingressLister.GetByKeySafe(key)
+	})
+	if !watched {
+		return nil
+	}
 	if err != nil {
 		nl.Infof(l, "error getting ing from Store by key: %v", err)
 		return err
@@ -435,7 +423,13 @@ func (su *statusUpdater) UpdateTransportServerStatus(ts *conf_v1.TransportServer
 	var err error
 
 	l := su.logger.With(logNamespaceKey, ts.Namespace, logKindKey, transportServerKind, logNameKey, ts.Name)
-	tsLatest, exists, err = su.getNamespacedInformer(ts.Namespace).transportServerLister.Get(ts)
+	watched := su.namespacedInformers.WithInformer(ts.Namespace, func(nsi *namespacedInformer) {
+		tsLatest, exists, err = nsi.transportServerLister.Get(ts)
+	})
+	if !watched {
+		nl.Infof(l, "TransportServer doesn't exist in Store")
+		return nil
+	}
 	if err != nil {
 		nl.Infof(l, "error getting TransportServer from Store: %v", err)
 		return err
@@ -483,7 +477,13 @@ func (su *statusUpdater) UpdateVirtualServerStatus(vs *conf_v1.VirtualServer, st
 	var err error
 
 	l := su.logger.With(logNamespaceKey, vs.Namespace, logKindKey, virtualServerKind, logNameKey, vs.Name)
-	vsLatest, exists, err = su.getNamespacedInformer(vs.Namespace).virtualServerLister.Get(vs)
+	watched := su.namespacedInformers.WithInformer(vs.Namespace, func(nsi *namespacedInformer) {
+		vsLatest, exists, err = nsi.virtualServerLister.Get(vs)
+	})
+	if !watched {
+		nl.Infof(l, "VirtualServer doesn't exist in Store")
+		return nil
+	}
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServer from Store: %v", err)
 		return err
@@ -550,7 +550,13 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatusWithReferencedBy(vsr *con
 	var err error
 
 	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
-	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
+	watched := su.namespacedInformers.WithInformer(vsr.Namespace, func(nsi *namespacedInformer) {
+		vsrLatest, exists, err = nsi.virtualServerRouteLister.Get(vsr)
+	})
+	if !watched {
+		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
+		return nil
+	}
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
 		return err
@@ -590,7 +596,13 @@ func (su *statusUpdater) UpdateVirtualServerRouteStatus(vsr *conf_v1.VirtualServ
 	var err error
 
 	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
-	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
+	watched := su.namespacedInformers.WithInformer(vsr.Namespace, func(nsi *namespacedInformer) {
+		vsrLatest, exists, err = nsi.virtualServerRouteLister.Get(vsr)
+	})
+	if !watched {
+		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
+		return nil
+	}
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
 		return err
@@ -626,7 +638,13 @@ func (su *statusUpdater) updateVirtualServerExternalEndpoints(vs *conf_v1.Virtua
 	var err error
 
 	l := su.logger.With(logNamespaceKey, vs.Namespace, logKindKey, virtualServerKind, logNameKey, vs.Name)
-	vsLatest, exists, err = su.getNamespacedInformer(vs.Namespace).virtualServerLister.Get(vs)
+	watched := su.namespacedInformers.WithInformer(vs.Namespace, func(nsi *namespacedInformer) {
+		vsLatest, exists, err = nsi.virtualServerLister.Get(vs)
+	})
+	if !watched {
+		nl.Infof(l, "VirtualServer doesn't exist in Store")
+		return nil
+	}
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServer from Store: %v", err)
 		return err
@@ -654,7 +672,13 @@ func (su *statusUpdater) updateVirtualServerRouteExternalEndpoints(vsr *conf_v1.
 	var err error
 
 	l := su.logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
-	vsrLatest, exists, err = su.getNamespacedInformer(vsr.Namespace).virtualServerRouteLister.Get(vsr)
+	watched := su.namespacedInformers.WithInformer(vsr.Namespace, func(nsi *namespacedInformer) {
+		vsrLatest, exists, err = nsi.virtualServerRouteLister.Get(vsr)
+	})
+	if !watched {
+		nl.Infof(l, "VirtualServerRoute doesn't exist in Store")
+		return nil
+	}
 	if err != nil {
 		nl.Infof(l, "error getting VirtualServerRoute from Store: %v", err)
 		return err
@@ -702,7 +726,13 @@ func (su *statusUpdater) UpdatePolicyStatus(pol *conf_v1.Policy, state string, r
 	var err error
 
 	l := su.logger.With(logNamespaceKey, pol.Namespace, logKindKey, policyKind, logNameKey, pol.Name)
-	polLatest, exists, err = su.getNamespacedInformer(pol.Namespace).policyLister.Get(pol)
+	watched := su.namespacedInformers.WithInformer(pol.Namespace, func(nsi *namespacedInformer) {
+		polLatest, exists, err = nsi.policyLister.Get(pol)
+	})
+	if !watched {
+		nl.Infof(l, "Policy doesn't exist in Store")
+		return nil
+	}
 	if err != nil {
 		nl.Infof(l, "error getting policy from Store: %v", err)
 		return err
