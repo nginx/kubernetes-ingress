@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -403,13 +404,7 @@ type Configuration struct {
 	// Maintained by AddOrUpdateIngress/DeleteIngress; consumed by buildMinionConfigs.
 	minionsByHost map[string]map[string]bool
 
-	// vsrToVSConfigs is a reverse index from VSR key (namespace/name) to every
-	// VirtualServer that currently includes that VSR in its accepted route set.
-	// It is rebuilt on every rebuildHosts() call. The slice is appended in sorted
-	// VS-key order (because buildHostsAndResources iterates virtualServers via
-	// getSortedVirtualServerKeys), so callers always receive a deterministic list.
-	// This replaces the previous O(hosts × VSRs) linear scan for hostless VSRs
-	// and enables GetVirtualServersForVirtualServerRoute.
+	// vsrToVSConfigs indexes accepted VirtualServers by VSR key (namespace/name) in deterministic key order.
 	vsrToVSConfigs map[string][]*conf_v1.VirtualServer
 
 	// vsrsWithChangedRefs tracks reference changes from the latest rebuild even when surviving VSs are not re-rendered.
@@ -937,9 +932,7 @@ func (c *Configuration) CompleteStartup() ([]ResourceChange, []ConfigurationProb
 	defer c.lock.Unlock()
 
 	c.startupComplete = true
-	changes, problems := c.rebuildHosts()
-
-	return changes, problems
+	return c.rebuildHosts()
 }
 
 func (c *Configuration) rebuildListenerHosts() ([]ResourceChange, []ConfigurationProblem) {
@@ -1273,7 +1266,7 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 
 	c.addProblemsForResourcesWithoutActiveHost(newResources, newProblems)
 	c.addProblemsForOrphanMinions(newProblems)
-	c.addProblemsForOrphanOrIgnoredVsrs(newProblems, newVSRToVSConfigs)
+	c.addProblemsForOrphanOrIgnoredVsrs(newProblems)
 	c.addWarningsForVirtualServersWithMissConfiguredListeners(newResources)
 
 	newOrUpdatedProblems := detectChangesInProblems(newProblems, c.hostProblems)
@@ -1500,7 +1493,7 @@ func (c *Configuration) GetVirtualServerRoutesWithChangedReferences() []*conf_v1
 }
 
 // addProblemsForOrphanOrIgnoredVsrs emits orphan and ignored-route problems for VSRs.
-func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]ConfigurationProblem, vsrToVSConfigs map[string][]*conf_v1.VirtualServer) {
+func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]ConfigurationProblem) {
 	for _, key := range getSortedVirtualServerRouteKeys(c.virtualServerRoutes) {
 		vsr := c.virtualServerRoutes[key]
 		vsrKey := getResourceKey(&vsr.ObjectMeta)
@@ -1539,7 +1532,7 @@ func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]Co
 		} else {
 			// Hostless VSR: use the O(1) reverse index built in buildHostsAndResources.
 			// A VSR with no accepted VS is an orphan; accepted by ≥1 VS means no problem.
-			if len(vsrToVSConfigs[vsrKey]) == 0 {
+			if len(c.vsrToVSConfigs[vsrKey]) == 0 {
 				problems[k] = ConfigurationProblem{
 					Object:  vsr,
 					IsError: false,
@@ -1759,9 +1752,7 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 
 		newResources[resource.GetKeyWithKind()] = resource
 
-		// Build the VSR→VS reverse index: map every accepted VSR to this VS.
-		// The outer VS loop is sorted (getSortedVirtualServerKeys), so the slice
-		// entries are appended in deterministic order — no explicit sort needed.
+		// Index accepted VirtualServers by VSR key in sorted VS order.
 		for _, vsr := range resource.VirtualServerRoutes {
 			vsrKey := getResourceKey(&vsr.ObjectMeta)
 			vsrToVSConfigs[vsrKey] = append(vsrToVSConfigs[vsrKey], vs)
@@ -2458,21 +2449,12 @@ func detectChangesInVSRReferences(
 // VirtualServers reference the same VirtualServers, in the same order,
 // identified by namespace/name.
 func vsSlicesReferenceSameVirtualServers(a, b []*conf_v1.VirtualServer) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] == nil || b[i] == nil {
-			if a[i] != b[i] {
-				return false
-			}
-			continue
+	return slices.EqualFunc(a, b, func(x, y *conf_v1.VirtualServer) bool {
+		if x == nil || y == nil {
+			return x == y
 		}
-		if a[i].Namespace != b[i].Namespace || a[i].Name != b[i].Name {
-			return false
-		}
-	}
-	return true
+		return x.Namespace == y.Namespace && x.Name == y.Name
+	})
 }
 
 func detectChangesInListenerHosts(

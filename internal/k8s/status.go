@@ -572,20 +572,13 @@ func (su *statusUpdater) hasVsrStatusChanged(vsr *conf_v1.VirtualServerRoute, st
 // the returned string matches the input slice order; callers are expected to
 // pass an already-sorted slice.
 func formatReferencedBy(referencedBy []*conf_v1.VirtualServer) string {
-	if len(referencedBy) == 0 {
-		return ""
-	}
-	var builder strings.Builder
+	names := make([]string, 0, len(referencedBy))
 	for _, vs := range referencedBy {
-		if vs == nil {
-			continue
+		if vs != nil {
+			names = append(names, fmt.Sprintf("%v/%v", vs.Namespace, vs.Name))
 		}
-		if builder.Len() > 0 {
-			builder.WriteString(", ")
-		}
-		fmt.Fprintf(&builder, "%v/%v", vs.Namespace, vs.Name)
 	}
-	return builder.String()
+	return strings.Join(names, ", ")
 }
 
 // UpdateVirtualServerRouteStatusWithReferencedBy updates the status of a VirtualServerRoute, including the referencedBy field.
