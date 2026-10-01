@@ -176,11 +176,11 @@ func createIngressProcessChangesController(t *testing.T, manager nginx.Manager) 
 		configurator: createTestPolicySyncConfigurator(t, manager),
 		recorder:     record.NewFakeRecorder(100),
 		secretStore:  secrets.NewEmptyFakeSecretsStore(),
-		namespacedInformers: map[string]*namespacedInformer{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
 			"default": {
 				ingressLister: storeToIngressLister{Store: &fakeStore{FakeCustomStore: *ingressStore}},
 			},
-		},
+		}),
 		Logger: nl.LoggerFromContext(context.Background()),
 	}
 }
@@ -2300,7 +2300,7 @@ func TestGetPoliciesGlobalWatch(t *testing.T) {
 
 	lbc := LoadBalancerController{
 		isNginxPlus:         true,
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 
@@ -2402,7 +2402,7 @@ func TestGetPoliciesNamespacedWatch(t *testing.T) {
 
 	lbc := LoadBalancerController{
 		isNginxPlus:         true,
-		namespacedInformers: nsi,
+		namespacedInformers: registryFrom(nsi),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 
@@ -2510,9 +2510,9 @@ func TestCreateIngressEx_SetsWarningWhenReferencedPolicyMissing(t *testing.T) {
 	}}
 
 	lbc := LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
 			"default": {policyLister: policyLister},
-		},
+		}),
 		areCustomResourcesEnabled: true,
 		Logger:                    nl.LoggerFromContext(context.Background()),
 	}
@@ -2551,9 +2551,9 @@ func TestCreateIngressEx_SetsWarningWhenPoliciesAnnotationUsedWithoutCustomResou
 			ing.Annotations[tc.annotation] = "some-policy"
 
 			lbc := LoadBalancerController{
-				namespacedInformers: map[string]*namespacedInformer{
+				namespacedInformers: registryFrom(map[string]*namespacedInformer{
 					"default": {},
-				},
+				}),
 				areCustomResourcesEnabled: false,
 				Logger:                    nl.LoggerFromContext(context.Background()),
 			}
@@ -2607,9 +2607,9 @@ func TestCreateIngressEx_NoSpuriousWarningWhenTLSSecretNameEmpty(t *testing.T) {
 			t.Parallel()
 
 			lbc := LoadBalancerController{
-				namespacedInformers: map[string]*namespacedInformer{
+				namespacedInformers: registryFrom(map[string]*namespacedInformer{
 					"default": {},
-				},
+				}),
 				secretStore: secrets.NewEmptyFakeSecretsStore(),
 				specialSecrets: specialSecrets{
 					wildcardTLSSecret: tc.wildcardTLSSecret,
@@ -2680,12 +2680,12 @@ func TestSyncPolicy_UpdatesMergeableIngressesWhenPolicyChanges(t *testing.T) {
 	cnf := createTestPolicySyncConfigurator(t, manager)
 
 	lbc := LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
 			"default": {
 				policyLister: policyLister,
 				svcLister:    svcLister,
 			},
-		},
+		}),
 		configuration:             configuration,
 		configurator:              cnf,
 		recorder:                  record.NewFakeRecorder(100),
@@ -2835,7 +2835,7 @@ func TestProcessDeleteNamespaceNotWatched(t *testing.T) {
 			configurator:        createTestPolicySyncConfigurator(t, manager),
 			recorder:            record.NewFakeRecorder(100),
 			secretStore:         secrets.NewEmptyFakeSecretsStore(),
-			namespacedInformers: map[string]*namespacedInformer{},
+			namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 			Logger:              nl.LoggerFromContext(context.Background()),
 		}
 	}
@@ -2875,7 +2875,7 @@ func TestSyncVirtualServerNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 	lbc.syncVirtualServer(task{Kind: virtualserver, Key: "not-watched/some-vs"})
@@ -2885,7 +2885,7 @@ func TestSyncVirtualServerRouteNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 	lbc.syncVirtualServerRoute(task{Kind: virtualServerRoute, Key: "not-watched/some-vsr"})
@@ -2895,7 +2895,7 @@ func TestSyncIngressNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 	lbc.syncIngress(task{Kind: ingress, Key: "not-watched/some-ingress"})
@@ -2905,7 +2905,7 @@ func TestSyncSecretNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 	lbc.syncSecret(task{Kind: secret, Key: "not-watched/some-secret"})
@@ -2915,7 +2915,7 @@ func TestGetServiceForIngressBackendNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 
@@ -2935,7 +2935,7 @@ func TestGetEndpointsForIngressBackendNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 
@@ -2961,7 +2961,7 @@ func TestGetTargetPortNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 
@@ -2984,7 +2984,7 @@ func TestGetPodOwnerTypeAndNameFromAddressNamespaceNotWatched(t *testing.T) {
 	t.Parallel()
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{},
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 		Logger:              nl.LoggerFromContext(context.Background()),
 	}
 
@@ -3479,7 +3479,7 @@ func TestGetPoliciesForSecret(t *testing.T) {
 	teamBIndexer := newIndexer(t, validPolicyA, validPolicyB, unrelatedPolicy)
 
 	lbc := &LoadBalancerController{
-		namespacedInformers: map[string]*namespacedInformer{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
 			"team-a": {
 				policySecretIndexer: teamAIndexer,
 			},
@@ -3490,7 +3490,7 @@ func TestGetPoliciesForSecret(t *testing.T) {
 				// A Secret-only informer legitimately has no Policy indexer.
 				policySecretIndexer: nil,
 			},
-		},
+		}),
 		Logger: nl.LoggerFromContext(context.Background()),
 	}
 
@@ -4564,7 +4564,7 @@ func TestPreSyncSecrets(t *testing.T) {
 
 	lbc := LoadBalancerController{
 		secretStore: secretStore,
-		namespacedInformers: map[string]*namespacedInformer{
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{
 			"namespace-a": {
 				secretLister:              newSecretLister(secretA),
 				isSecretsEnabledNamespace: true,
@@ -4577,7 +4577,7 @@ func TestPreSyncSecrets(t *testing.T) {
 				secretLister:              newSecretLister(secretB),
 				isSecretsEnabledNamespace: true,
 			},
-		},
+		}),
 		Logger: nl.LoggerFromContext(context.Background()),
 	}
 
@@ -4632,7 +4632,7 @@ func TestSyncSecretUnreferencedDoesNotMaterializeOrReload(t *testing.T) {
 		t.Fatalf("failed to add Secret to cache: %v", err)
 	}
 
-	lbc.namespacedInformers["default"].secretLister = secretCache
+	lbc.namespacedInformers.Get("default").secretLister = secretCache
 	lbc.secretStore = secrets.NewLocalSecretStore(lbc.configurator, secrets.WithSecretResolver(lbc.getSecret))
 	lbc.areCustomResourcesEnabled = false
 	lbc.plmEnabled = false
@@ -4711,7 +4711,7 @@ func TestSyncSecretReferencedLifecycle(t *testing.T) {
 		t.Fatalf("failed to add Secret to cache: %v", err)
 	}
 
-	lbc.namespacedInformers["default"].secretLister = secretCache
+	lbc.namespacedInformers.Get("default").secretLister = secretCache
 	localStore := secrets.NewLocalSecretStore(lbc.configurator, secrets.WithSecretResolver(lbc.getSecret))
 	lbc.secretStore = localStore
 	lbc.areCustomResourcesEnabled = false
@@ -6094,7 +6094,7 @@ func TestGenerateExternalAuthEndpoints(t *testing.T) {
 			isNginxPlus:         false,
 			Logger:              nl.LoggerFromContext(context.Background()),
 			metricsCollector:    collectors.NewControllerFakeCollector(),
-			namespacedInformers: map[string]*namespacedInformer{namespace: nsi},
+			namespacedInformers: registryFrom(map[string]*namespacedInformer{namespace: nsi}),
 		}
 	}
 
@@ -6901,7 +6901,7 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 			}
 
 			su := &statusUpdater{
-				namespacedInformers: nsi,
+				namespacedInformers: registryFrom(nsi),
 				confClient:          fakeConfClient,
 				keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 				logger:              nl.LoggerFromContext(context.Background()),
@@ -6910,7 +6910,7 @@ func TestUpdateVirtualServersStatusFromEvents_FiltersEventsByReportingController
 			lbc := &LoadBalancerController{
 				client:              fakeK8sClient,
 				ingressClass:        "nginx",
-				namespacedInformers: nsi,
+				namespacedInformers: registryFrom(nsi),
 				statusUpdater:       su,
 				Logger:              nl.LoggerFromContext(context.Background()),
 			}
@@ -7153,7 +7153,7 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 			}
 
 			su := &statusUpdater{
-				namespacedInformers: nsi,
+				namespacedInformers: registryFrom(nsi),
 				confClient:          fakeConfClient,
 				keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
 				logger:              nl.LoggerFromContext(context.Background()),
@@ -7162,7 +7162,7 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 			lbc := &LoadBalancerController{
 				client:              fakeK8sClient,
 				ingressClass:        "nginx",
-				namespacedInformers: nsi,
+				namespacedInformers: registryFrom(nsi),
 				statusUpdater:       su,
 				Logger:              nl.LoggerFromContext(context.Background()),
 			}
