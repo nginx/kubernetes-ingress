@@ -7260,3 +7260,122 @@ func TestProcessProblems_VirtualServerRoutePreservesReferencedBy(t *testing.T) {
 		t.Errorf("expected referencedBy %q, got %q", "default/parent-vs", updatedVsr.Status.ReferencedBy)
 	}
 }
+
+func TestCreateVirtualServerExCopiesChallengeRoutes(t *testing.T) {
+	t.Parallel()
+
+	endpointPort := int32(8089)
+	endpointReady := true
+
+	solverSvc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cm-acme-http-solver-abcde", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Ports: []api_v1.ServicePort{
+				{Name: "http", Port: 8089, TargetPort: intstr.FromInt(8089)},
+			},
+			Selector: map[string]string{"acme.cert-manager.io/http01-solver": "true"},
+		},
+	}
+	solverES := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name: "cm-acme-http-solver-abcde-xyz", Namespace: "default",
+			Labels: map[string]string{discovery_v1.LabelServiceName: "cm-acme-http-solver-abcde"},
+		},
+		Ports: []discovery_v1.EndpointPort{{Port: &endpointPort}},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.99"}, Conditions: discovery_v1.EndpointConditions{Ready: &endpointReady}},
+		},
+	}
+
+	svcStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	if err := svcStore.Add(solverSvc); err != nil {
+		t.Fatalf("error adding service: %v", err)
+	}
+	esStore := cache.NewStore(cache.MetaNamespaceKeyFunc)
+	if err := esStore.Add(solverES); err != nil {
+		t.Fatalf("error adding endpoint slice: %v", err)
+	}
+	nsi := &namespacedInformer{
+		svcLister:           svcStore,
+		endpointSliceLister: storeToEndpointSliceLister{Store: esStore},
+		podLister:           indexerToPodLister{Indexer: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})},
+	}
+
+	vs := &conf_v1.VirtualServer{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+		Spec:       conf_v1.VirtualServerSpec{Host: "cafe.example.com"},
+	}
+	challengeRoute := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "cm-acme-http-solver-xyz12", Namespace: "default"},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			Host:      "cafe.example.com",
+			Upstreams: []conf_v1.Upstream{{Name: "challenge", Service: "cm-acme-http-solver-abcde", Port: 8089}},
+			Subroutes: []conf_v1.Route{{
+				Path:   "/.well-known/acme-challenge/tok",
+				Action: &conf_v1.Action{Pass: "challenge"},
+			}},
+		},
+	}
+
+	lbc := &LoadBalancerController{
+		client:              fake.NewClientset(solverSvc),
+		Logger:              nl.LoggerFromContext(context.Background()),
+		metricsCollector:    collectors.NewControllerFakeCollector(),
+		namespacedInformers: registryFrom(map[string]*namespacedInformer{"default": nsi}),
+		configuration: &Configuration{
+			hosts: map[string]Resource{
+				"cafe.example.com": &VirtualServerConfiguration{
+					VirtualServer:   vs,
+					ChallengeRoutes: []*conf_v1.VirtualServerRoute{challengeRoute},
+				},
+			},
+		},
+	}
+
+	vsEx := lbc.createVirtualServerEx(vs, nil, nil)
+
+	if len(vsEx.ChallengeRoutes) != 1 {
+		t.Fatalf("want 1 ChallengeRoute, got %d", len(vsEx.ChallengeRoutes))
+	}
+	if vsEx.ChallengeRoutes[0] != challengeRoute {
+		t.Errorf("want ChallengeRoutes[0] to be the configured challenge route, got %+v", vsEx.ChallengeRoutes[0])
+	}
+	if len(vsEx.VirtualServerRoutes) != 0 {
+		t.Errorf("want no VirtualServerRoutes, got %d", len(vsEx.VirtualServerRoutes))
+	}
+
+	key := "default/cm-acme-http-solver-abcde:8089"
+	want := []string{"10.0.0.99:8089"}
+	if diff := cmp.Diff(want, vsEx.Endpoints[key]); diff != "" {
+		t.Errorf("Endpoints[%q] mismatch (-want +got):\n%s", key, diff)
+	}
+}
+
+func TestVirtualServerRequiresEndpointsUpdateChallengeRoute(t *testing.T) {
+	t.Parallel()
+
+	vsEx := &configs.VirtualServerEx{
+		VirtualServer: &conf_v1.VirtualServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+			Spec: conf_v1.VirtualServerSpec{
+				Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+			},
+		},
+		ChallengeRoutes: []*conf_v1.VirtualServerRoute{
+			{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cm-acme-http-solver-xyz12", Namespace: "default"},
+				Spec: conf_v1.VirtualServerRouteSpec{
+					Upstreams: []conf_v1.Upstream{{Name: "challenge", Service: "cm-acme-http-solver-abcde", Port: 8089}},
+				},
+			},
+		},
+	}
+
+	lbc := &LoadBalancerController{}
+	if !lbc.virtualServerRequiresEndpointsUpdate(vsEx, "default", "cm-acme-http-solver-abcde") {
+		t.Error("want virtualServerRequiresEndpointsUpdate true for the solver Service, got false")
+	}
+	if lbc.virtualServerRequiresEndpointsUpdate(vsEx, "other", "cm-acme-http-solver-abcde") {
+		t.Error("want virtualServerRequiresEndpointsUpdate false for a Service in another namespace, got true")
+	}
+}

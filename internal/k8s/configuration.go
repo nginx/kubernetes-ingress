@@ -1220,10 +1220,26 @@ func (c *Configuration) findResourcesForResourceReference(namespace string, name
 				continue
 			}
 
+			found := false
 			for _, vsr := range impl.VirtualServerRoutes {
 				if checker.IsReferencedByVirtualServerRoute(namespace, name, vsr) {
 					result = append(result, r)
+					found = true
 					break
+				}
+			}
+			if found {
+				continue
+			}
+
+			// ACME challenge routes reference only their solver Service. Match them for Service/Endpoints
+			// lookups so solver endpoint changes reach the challenge upstream; never for other reference kinds.
+			if _, isServiceChecker := checker.(*serviceReferenceChecker); isServiceChecker {
+				for _, cr := range impl.ChallengeRoutes {
+					if checker.IsReferencedByVirtualServerRoute(namespace, name, cr) {
+						result = append(result, r)
+						break
+					}
 				}
 			}
 		case *TransportServerConfiguration:

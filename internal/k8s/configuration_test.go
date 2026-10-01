@@ -7947,3 +7947,52 @@ func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace(t *te
 		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after detaching apps-ns/vs-b (-want +got):\n%s", diff)
 	}
 }
+
+func TestFindResourcesForServiceIncludesChallengeRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("attached challenge route", func(t *testing.T) {
+		t.Parallel()
+		configuration := createTestConfiguration()
+
+		vs := createTestVirtualServer("virtualserver", "foo.example.com")
+		ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
+		configuration.AddOrUpdateVirtualServer(vs)
+		configuration.AddOrUpdateIngress(ing)
+
+		vsConfig, ok := configuration.hosts["foo.example.com"].(*VirtualServerConfiguration)
+		if !ok || len(vsConfig.ChallengeRoutes) != 1 {
+			t.Fatalf("expected a VirtualServerConfiguration with 1 challenge route, got %T %+v", configuration.hosts["foo.example.com"], configuration.hosts["foo.example.com"])
+		}
+
+		want := []Resource{vsConfig}
+		if diff := cmp.Diff(want, configuration.FindResourcesForService("default", "cm-acme-http-solver-test")); diff != "" {
+			t.Errorf("FindResourcesForService() mismatch (-want +got):\n%s", diff)
+		}
+		if diff := cmp.Diff(want, configuration.FindResourcesForEndpoints("default", "cm-acme-http-solver-test")); diff != "" {
+			t.Errorf("FindResourcesForEndpoints() mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("challenge Ingress in another namespace is not attached", func(t *testing.T) {
+		t.Parallel()
+		configuration := createTestConfiguration()
+
+		vs := createTestVirtualServer("virtualserver", "foo.example.com")
+		ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/test", "cm-acme-http-solver-test")
+		ing.Namespace = "other"
+		configuration.AddOrUpdateVirtualServer(vs)
+		configuration.AddOrUpdateIngress(ing)
+
+		for _, r := range configuration.FindResourcesForService("other", "cm-acme-http-solver-test") {
+			if vsConfig, ok := r.(*VirtualServerConfiguration); ok && vsConfig.VirtualServer.Name == vs.Name {
+				t.Errorf("expected VirtualServer %s/%s not to be returned for an unattached solver Service", vs.Namespace, vs.Name)
+			}
+		}
+		for _, r := range configuration.FindResourcesForService("default", "cm-acme-http-solver-test") {
+			if vsConfig, ok := r.(*VirtualServerConfiguration); ok && vsConfig.VirtualServer.Name == vs.Name {
+				t.Errorf("expected VirtualServer %s/%s not to be returned for an unattached solver Service", vs.Namespace, vs.Name)
+			}
+		}
+	})
+}
