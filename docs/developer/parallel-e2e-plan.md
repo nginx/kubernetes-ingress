@@ -35,7 +35,7 @@ when we:
 
 | PR | What it does | Phases |
 |---|---|---|
-| [#10850](https://github.com/nginx/kubernetes-ingress/pull/10850) (this branch) | Labels each test's workloads with a run ID, so pod waits and lookups only see that test's pods. A prerequisite for xdist; reduces flakes now. | 0, prerequisite for 3–5 |
+| [#10850](https://github.com/nginx/kubernetes-ingress/pull/10850) | Labels each test's workloads with a run ID, so pod waits and lookups only see that test's pods. A prerequisite for xdist; reduces flakes now. | 0, prerequisite for 3–5 |
 | [#10492](https://github.com/nginx/kubernetes-ingress/pull/10492) | Design doc, duration tooling, and a proof of concept for several kind clusters per runner. Also proposes ways to get PRs merged faster. | 1, 2, plus [Throughput work](#throughput-work-alongside-not-on-the-critical-path) |
 
 Every step below is tagged with where it comes from: **[10850]**,
@@ -93,7 +93,11 @@ match every pod in it. Flakes also eat the gains from every later phase.
 - The Ingress Controller is selected with `IC_SELECTOR` (`app=nginx-ingress`)
   instead of "first pod in the namespace".
 - `scale_deployment` and `create_dos_arbitrator` wait on the Deployment's own
-  `matchLabels`.
+  `matchLabels`. When scaling up, `scale_deployment` first waits until the
+  requested number of pods exists, then waits for them to be Ready. Before,
+  it could return before the new pods were created.
+- `get_nginx_template_conf` falls back to the `IC_SELECTOR` pod, not the
+  first pod in the namespace.
 - Unit tests for the helpers: `tests/suite/utils/test_e2e_run_id.py`.
 - Every remaining pod lookup by name substring now uses the workload's
   existing `app=` label: `app=nginx-ingress` (`IC_SELECTOR`), `app=syslog`,
@@ -109,21 +113,10 @@ match every pod in it. Flakes also eat the gains from every later phase.
   - No raw `list_namespaced_pod` without a selector is left in
     `tests/suite`.
 
-**Left to land #10850:**
-
-- [ ] Resolve the 3 open review threads from pdabelf5. All of them were
-      addressed in `a9ce4c4`:
-      - `perf-tests/suite/test_ap_reload_perf.py`
-      - the `utils` matrix entry
-      - unused `label_selector` parameters in `custom_assertions.py`
-- [ ] A second approval. haywoodsh's approval was dismissed and the PR is
-      `BLOCKED`.
-- [ ] Update `.github/skills/nic-testing/SKILL.md` and
-      `.github/skills/nic-code-review/SKILL.md` with how to write tests that
-      use `e2e_run_id` (requested by haywoodsh). This can be a follow-up PR.
-
 **Follow-up [new]:**
 
+- [ ] Update the `nic-testing` and `nic-code-review` skills with how to
+      write tests that use `e2e_run_id` (requested in #10850 review).
 - [ ] `test_filter_secrets.py` still hard-codes the `nginx-ingress`
       namespace, for both pod lookups and Secrets. Moving it to
       `ingress_controller_prerequisites.namespace` is part of Phase 5.
@@ -339,9 +332,8 @@ above. Effects are as estimated in #10492.
 
 | Phase | Item | Source | Status |
 |---|---|---|---|
-| 0 | Resolve review threads, second approval, merge #10850 | [10850] | In review, CI green |
-| 0 | Skills update for `e2e_run_id` | [10850] follow-up | Not started |
-| 0 | Scope remaining pod lookups by `app=` label | [10850] | Done |
+| 0 | Run-ID labels, label-scoped pod waits and lookups, scale-up wait | [10850] | Done |
+| 0 | Skills update for `e2e_run_id` | [new] | Not started |
 | 1 | Duration tooling | [10492] | Draft PR |
 | 1 | Split outlier shards | [10492] | Not started |
 | 1 | Decide DoS learning → nightly | [10492] | Open question |
