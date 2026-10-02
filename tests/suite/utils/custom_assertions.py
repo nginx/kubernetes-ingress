@@ -346,6 +346,7 @@ def assert_crd_status(
     expected_messages=None,
     retry_count=30,
     wait_time=1,
+    **kwargs,
 ):
     """Wait until a CRD resource reaches expected_state, optionally check reason and message substrings.
 
@@ -358,6 +359,7 @@ def assert_crd_status(
     :param expected_messages: if set, list of substrings that must appear in status.message
     :param retry_count: number of retries
     :param wait_time: seconds between retries
+    :param kwargs: additional status fields to match exactly
     :return: the resource dict
     """
     count = 0
@@ -376,7 +378,8 @@ def assert_crd_status(
             messages_ok = not expected_messages or all(
                 msg in resource_info["status"].get("message", "") for msg in expected_messages
             )
-            if reason_ok and messages_ok:
+            fields_ok = all(resource_info["status"].get(field) == value for field, value in kwargs.items())
+            if reason_ok and messages_ok and fields_ok:
                 return resource_info
 
         count += 1
@@ -393,6 +396,9 @@ def assert_crd_status(
             for msg in expected_messages:
                 if msg not in status.get("message", ""):
                     details.append(f"expected '{msg}' in status message")
+        for field, value in kwargs.items():
+            if status.get(field) != value:
+                details.append(f"expected {field} '{value}', got '{status.get(field)}'")
         fail_msg = (
             f"{crd_plural} '{name}' reached state '{expected_state}' but {'; '.join(details)}. "
             f"Current status: {status}"

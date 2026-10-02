@@ -1435,6 +1435,7 @@ func (lbc *LoadBalancerController) sync(task task) {
 		// the pending slices and nil the fields so the main goroutine can
 		// safely append new statuses for resources arriving after startup.
 		lbc.flushPendingStatusesAsync()
+		lbc.refreshStaleVSRReferences()
 	}
 
 	if lbc.batchSyncEnabled && lbc.syncQueue.Len() == 0 {
@@ -1689,6 +1690,8 @@ func vsSelfRejected(changes []ResourceChange, vs *conf_v1.VirtualServer) bool {
 // haltIfVSConfigInvalid. Rendering it would add a second reload to this
 // path, which is a real behavior change out of scope for this refactor.
 func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceChange) {
+	lbc.refreshStaleVSRReferences()
+
 	for _, c := range changes {
 		impl, ok := c.Resource.(*VirtualServerConfiguration)
 		if !ok {
@@ -1699,6 +1702,21 @@ func (lbc *LoadBalancerController) processRejectedVSChanges(changes []ResourceCh
 			continue
 		}
 		lbc.processDelete(c)
+	}
+}
+
+func (lbc *LoadBalancerController) refreshStaleVSRReferences() {
+	// Before ready, the startup flush writes referencedBy from the post-startup index.
+	if !lbc.reportCustomResourceStatusEnabled() || !lbc.isNginxReady {
+		return
+	}
+
+	for _, vsr := range lbc.configuration.GetVirtualServerRoutesWithChangedReferences() {
+		vss := lbc.configuration.GetVirtualServersForVirtualServerRoute(vsr)
+		if err := lbc.statusUpdater.UpdateVirtualServerRouteReferencedBy(vsr, vss); err != nil {
+			l := lbc.Logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
+			nl.Errorf(l, "Error when refreshing referencedBy status for VirtualServerRoute %v/%v: %v", vsr.Namespace, vsr.Name, err)
+		}
 	}
 }
 
@@ -1767,8 +1785,8 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.GetNamespace(), logKindKey, transportServerKind, logNameKey, obj.GetName()), "Error when updating the status for TransportServer %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
 			case *conf_v1.VirtualServerRoute:
-				var emptyVSes []*conf_v1.VirtualServer
-				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(obj, state, p.Reason, p.Message, emptyVSes)
+				vss := lbc.configuration.GetVirtualServersForVirtualServerRoute(obj)
+				err := lbc.statusUpdater.UpdateVirtualServerRouteStatusWithReferencedBy(obj, state, p.Reason, p.Message, vss)
 				if err != nil {
 					nl.Errorf(lbc.Logger.With(logNamespaceKey, obj.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, obj.GetName()), "Error when updating the status for VirtualServerRoute %v/%v: %v", obj.Namespace, obj.Name, err)
 				}
@@ -1779,6 +1797,8 @@ func (lbc *LoadBalancerController) processProblems(problems []ConfigurationProbl
 
 func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 	nl.Debugf(lbc.Logger, "Processing %v changes", len(changes))
+
+	lbc.refreshStaleVSRReferences()
 
 	for _, c := range changes {
 		if c.Op == AddOrUpdate {
@@ -2195,7 +2215,12 @@ func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *
 		l := lbc.Logger.With(logNamespaceKey, vsr.Namespace, logKindKey, virtualServerRouteKind, logNameKey, vsr.Name)
 
 		if lbc.reportCustomResourceStatusEnabled() {
-			vss := []*conf_v1.VirtualServer{vsConfig.VirtualServer}
+			vss := lbc.configuration.GetVirtualServersForVirtualServerRoute(vsr)
+			if len(vss) == 0 {
+				// This VS accepts the VSR, so an empty reverse index is inconsistent; log rather than invent a reference.
+				nl.Debugf(l, "VirtualServerRoute %v/%v has no entries in the VS reverse index despite being in VirtualServer %v/%v's accepted route set",
+					vsr.Namespace, vsr.Name, vsConfig.VirtualServer.Namespace, vsConfig.VirtualServer.Name)
+			}
 			// Defer VSR status updates during startup. See flushPendingStatusesAsync().
 			if !lbc.isNginxReady {
 				lbc.pendingStatusVSRs = append(lbc.pendingStatusVSRs, pendingVSRStatus{
@@ -3356,7 +3381,7 @@ func (lbc *LoadBalancerController) createMergeableIngresses(ingConfig *IngressCo
 	}
 }
 
-//nolint:gocyclo complexity is pre-existing; refactoring planned as a follow-up
+//nolint:gocyclo // complexity is pre-existing; refactoring planned as a follow-up
 func (lbc *LoadBalancerController) createIngressEx(ing *networking.Ingress, validHosts map[string]bool, validMinionPaths map[string]bool) *configs.IngressEx {
 	var endps []string
 	ingEx := &configs.IngressEx{

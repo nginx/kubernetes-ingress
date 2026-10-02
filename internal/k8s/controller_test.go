@@ -7186,3 +7186,77 @@ func TestUpdateVirtualServerRoutesStatusFromEvents_FiltersEventsByReportingContr
 		})
 	}
 }
+
+func TestProcessProblems_VirtualServerRoutePreservesReferencedBy(t *testing.T) {
+	t.Parallel()
+
+	vs := &conf_v1.VirtualServer{
+		Name:      "parent-vs",
+		Namespace: "default",
+	}
+	vsr := &conf_v1.VirtualServerRoute{
+		Name:      "test-vsr",
+		Namespace: "default",
+	}
+
+	conf := &Configuration{
+		vsrToVSConfigs: map[string][]*conf_v1.VirtualServer{
+			"default/test-vsr": {vs},
+		},
+	}
+
+	fakeConfClient := fake_versioned.NewSimpleClientset(
+		&conf_v1.VirtualServerRouteList{
+			Items: []conf_v1.VirtualServerRoute{*vsr},
+		},
+	)
+
+	vsrLister := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	err := vsrLister.Add(vsr)
+	if err != nil {
+		t.Fatalf("failed to add VSR to lister: %v", err)
+	}
+
+	nsi := map[string]*namespacedInformer{
+		"default": {
+			virtualServerRouteLister:  vsrLister,
+			areCustomResourcesEnabled: true,
+		},
+	}
+
+	su := &statusUpdater{
+		namespacedInformers: registryFrom(nsi),
+		confClient:          fakeConfClient,
+		keyFunc:             cache.DeletionHandlingMetaNamespaceKeyFunc,
+		logger:              nl.LoggerFromContext(context.Background()),
+	}
+
+	fakeRecorder := record.NewFakeRecorder(10)
+	lbc := &LoadBalancerController{
+		recorder:                fakeRecorder,
+		isLeaderElectionEnabled: false,
+		Logger:                  nl.LoggerFromContext(context.Background()),
+		configuration:           conf,
+		statusUpdater:           su,
+	}
+
+	problems := []ConfigurationProblem{
+		{
+			Object:  vsr,
+			IsError: false,
+			Reason:  nl.EventReasonIgnored,
+			Message: "VirtualServer default/parent-vs ignores VirtualServerRoute",
+		},
+	}
+
+	lbc.processProblems(problems)
+
+	updatedVsr, err := fakeConfClient.K8sV1().VirtualServerRoutes("default").Get(context.TODO(), "test-vsr", meta_v1.GetOptions{})
+	if err != nil {
+		t.Fatalf("failed to get VSR: %v", err)
+	}
+
+	if updatedVsr.Status.ReferencedBy != "default/parent-vs" {
+		t.Errorf("expected referencedBy %q, got %q", "default/parent-vs", updatedVsr.Status.ReferencedBy)
+	}
+}

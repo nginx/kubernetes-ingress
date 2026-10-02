@@ -5376,6 +5376,7 @@ func TestGenerateIngressExternalAuthLocation(t *testing.T) {
 		Internal:                 true,
 		DisableWAF:               true,
 		Upstream:                 upstream,
+		AuthRequestOff:           true,
 		ProxyPass:                "http://ext_auth_default_my-auth/auth",
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      "10s",
@@ -5385,6 +5386,7 @@ func TestGenerateIngressExternalAuthLocation(t *testing.T) {
 		ClientMaxBodySize:        "0",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: "5s",
+		SkipCustomHTTPErrors:     true,
 		LocationSnippets:         []string{"proxy_set_header X-Custom \"value\""},
 		ServiceName:              "auth-svc",
 	}

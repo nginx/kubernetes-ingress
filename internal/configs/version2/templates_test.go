@@ -561,6 +561,198 @@ func TestExecuteVirtualServerTemplate_RendersTemplateWithDisableForwardedHeaders
 	t.Log(string(got))
 }
 
+func TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersTrue(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersTrue)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header Host "$forwarded_host";`)) {
+		t.Error("want `proxy_set_header Host \"$forwarded_host\";` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Host $forwarded_host;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Host $forwarded_host;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Port $forwarded_port;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Port $forwarded_port;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Proto $forwarded_proto;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Proto $forwarded_proto;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;")) {
+		t.Error("want `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` directive in generated template")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersOSSTemplateWithUseForwardedHeadersTrue(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINX(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersTrue)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header Host "$forwarded_host";`)) {
+		t.Error("want `proxy_set_header Host \"$forwarded_host\";` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Host $forwarded_host;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Host $forwarded_host;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Port $forwarded_port;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Port $forwarded_port;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-Proto $forwarded_proto;")) {
+		t.Error("want `proxy_set_header X-Forwarded-Proto $forwarded_proto;` directive in generated template")
+	}
+	if !bytes.Contains(got, []byte("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;")) {
+		t.Error("want `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` directive in generated template")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersAndCustomHeaders(t *testing.T) {
+	t.Parallel()
+	executor := newTmplExecutorNGINXPlus(t)
+
+	got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersAndCustomHeaders)
+	if err != nil {
+		t.Error(err)
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header Host "custom.example.com";`)) {
+		t.Error("want `proxy_set_header Host \"custom.example.com\";` in generated template")
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header X-Forwarded-Host "custom-forwarded.example.com";`)) {
+		t.Error("want `proxy_set_header X-Forwarded-Host \"custom-forwarded.example.com\";` in generated template")
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header X-Forwarded-Port "8443";`)) {
+		t.Error("want `proxy_set_header X-Forwarded-Port \"8443\";` in generated template")
+	}
+	if !bytes.Contains(got, []byte(`proxy_set_header X-Forwarded-Proto "https";`)) {
+		t.Error("want `proxy_set_header X-Forwarded-Proto \"https\";` in generated template")
+	}
+	if bytes.Contains(got, []byte("$forwarded_host")) {
+		t.Error("don't want `$forwarded_host` directive when custom headers are set")
+	}
+	if bytes.Contains(got, []byte("$forwarded_port")) {
+		t.Error("don't want `$forwarded_port` directive when custom headers are set")
+	}
+	if bytes.Contains(got, []byte("$forwarded_proto")) {
+		t.Error("don't want `$forwarded_proto` directive when custom headers are set")
+	}
+	snaps.MatchSnapshot(t, string(got))
+	t.Log(string(got))
+}
+
+func TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersTrueGRPC(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			executor := test.newTmpl(t)
+			got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersTrueGRPC)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(got, []byte(`grpc_set_header Host "$forwarded_host";`)) {
+				t.Error("want `grpc_set_header Host \"$forwarded_host\";` directive in generated template")
+			}
+			if !bytes.Contains(got, []byte("grpc_set_header X-Forwarded-Host $forwarded_host;")) {
+				t.Error("want `grpc_set_header X-Forwarded-Host $forwarded_host;` directive in generated template")
+			}
+			if !bytes.Contains(got, []byte("grpc_set_header X-Forwarded-Port $forwarded_port;")) {
+				t.Error("want `grpc_set_header X-Forwarded-Port $forwarded_port;` directive in generated template")
+			}
+			if !bytes.Contains(got, []byte("grpc_set_header X-Forwarded-Proto $forwarded_proto;")) {
+				t.Error("want `grpc_set_header X-Forwarded-Proto $forwarded_proto;` directive in generated template")
+			}
+			if !bytes.Contains(got, []byte("grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;")) {
+				t.Error("want `grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` directive in generated template")
+			}
+			if !bytes.Contains(got, []byte("grpc_pass grpc://test-upstream;")) {
+				t.Error("want `grpc_pass grpc://test-upstream;` directive in generated template")
+			}
+			if bytes.Contains(got, []byte("grpc_set_header X-Forwarded-Host $host;")) {
+				t.Error("don't want default `$host` directive in generated template")
+			}
+			if bytes.Contains(got, []byte("grpc_set_header X-Forwarded-Port $server_port;")) {
+				t.Error("don't want default `$server_port` directive in generated template")
+			}
+			if bytes.Contains(got, []byte("grpc_set_header X-Forwarded-Proto $scheme;")) {
+				t.Error("don't want default `$scheme` directive in generated template")
+			}
+			snaps.MatchSnapshot(t, string(got))
+			t.Log(string(got))
+		})
+	}
+}
+
+func TestExecuteVirtualServerTemplate_RendersTemplateWithUseForwardedHeadersAndCustomHeadersGRPC(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		newTmpl func(t *testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			executor := test.newTmpl(t)
+			got, err := executor.ExecuteVirtualServerTemplate(&virtualServerCfgWithUseForwardedHeadersAndCustomHeadersGRPC)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(got, []byte(`grpc_set_header Host "custom.example.com";`)) {
+				t.Error("want `grpc_set_header Host \"custom.example.com\";` in generated template")
+			}
+			if !bytes.Contains(got, []byte(`grpc_set_header X-Forwarded-Host "custom-forwarded.example.com";`)) {
+				t.Error("want `grpc_set_header X-Forwarded-Host \"custom-forwarded.example.com\";` in generated template")
+			}
+			if !bytes.Contains(got, []byte(`grpc_set_header X-Forwarded-Port "8443";`)) {
+				t.Error("want `grpc_set_header X-Forwarded-Port \"8443\";` in generated template")
+			}
+			if !bytes.Contains(got, []byte(`grpc_set_header X-Forwarded-Proto "https";`)) {
+				t.Error("want `grpc_set_header X-Forwarded-Proto \"https\";` in generated template")
+			}
+			if !bytes.Contains(got, []byte("grpc_pass grpc://test-upstream;")) {
+				t.Error("want `grpc_pass grpc://test-upstream;` directive in generated template")
+			}
+			if bytes.Contains(got, []byte("$forwarded_host")) {
+				t.Error("don't want `$forwarded_host` directive when custom headers are set")
+			}
+			if bytes.Contains(got, []byte("$forwarded_port")) {
+				t.Error("don't want `$forwarded_port` directive when custom headers are set")
+			}
+			if bytes.Contains(got, []byte("$forwarded_proto")) {
+				t.Error("don't want `$forwarded_proto` directive when custom headers are set")
+			}
+			snaps.MatchSnapshot(t, string(got))
+			t.Log(string(got))
+		})
+	}
+}
+
 func TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2On(t *testing.T) {
 	t.Parallel()
 	executor := newTmplExecutorNGINX(t)
@@ -2801,6 +2993,80 @@ var (
 		},
 	}
 
+	virtualServerCfgWithUseForwardedHeadersTrue = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                "/",
+					ProxyPass:           "http://test-upstream",
+					UseForwardedHeaders: true,
+					ProxySetHeaders: []Header{
+						{Name: "Host", Value: "$forwarded_host"},
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithUseForwardedHeadersAndCustomHeaders = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                "/",
+					ProxyPass:           "http://test-upstream",
+					UseForwardedHeaders: true,
+					ProxySetHeaders: []Header{
+						{Name: "Host", Value: "custom.example.com"},
+						{Name: "X-Forwarded-Host", Value: "custom-forwarded.example.com"},
+						{Name: "X-Forwarded-Port", Value: "8443"},
+						{Name: "X-Forwarded-Proto", Value: "https"},
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithUseForwardedHeadersTrueGRPC = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                "/",
+					GRPCPass:            "grpc://test-upstream",
+					UseForwardedHeaders: true,
+					ProxySetHeaders: []Header{
+						{Name: "Host", Value: "$forwarded_host"},
+					},
+				},
+			},
+		},
+	}
+
+	virtualServerCfgWithUseForwardedHeadersAndCustomHeadersGRPC = VirtualServerConfig{
+		Server: Server{
+			ServerName: "example.com",
+			StatusZone: "example.com",
+			Locations: []Location{
+				{
+					Path:                "/",
+					GRPCPass:            "grpc://test-upstream",
+					UseForwardedHeaders: true,
+					ProxySetHeaders: []Header{
+						{Name: "Host", Value: "custom.example.com"},
+						{Name: "X-Forwarded-Host", Value: "custom-forwarded.example.com"},
+						{Name: "X-Forwarded-Port", Value: "8443"},
+						{Name: "X-Forwarded-Proto", Value: "https"},
+					},
+				},
+			},
+		},
+	}
+
 	virtualServerCfgWithRateLimitJWTClaim = VirtualServerConfig{
 		LimitReqZones: []LimitReqZone{
 			{
@@ -4115,13 +4381,6 @@ var virtualServerCfgWithExternalAuthSigninURL = VirtualServerConfig{
 			SigninURL:              "/oauth2/start?rd=$scheme://$host$request_uri",
 			SigninRedirectBasePath: "/oauth2",
 		},
-		ErrorPages: []ErrorPage{
-			{
-				Name:         "/oauth2/start?rd=$scheme://$host$request_uri",
-				Codes:        "401",
-				ResponseCode: -1,
-			},
-		},
 		Locations: []Location{
 			{
 				Path:        "/tea",
@@ -4136,13 +4395,6 @@ var virtualServerCfgWithExternalAuthSigninURL = VirtualServerConfig{
 					},
 					SigninURL:              "/oauth2/start?rd=$scheme://$host$request_uri",
 					SigninRedirectBasePath: "/oauth2",
-				},
-				ErrorPages: []ErrorPage{
-					{
-						Name:         "/oauth2/start?rd=$scheme://$host$request_uri",
-						Codes:        "401",
-						ResponseCode: -1,
-					},
 				},
 				ProxyInterceptErrors: true,
 			},
@@ -4200,17 +4452,80 @@ func TestVirtualServerAllPathTypesKeepModifiersOutsideQuotedURIs(t *testing.T) {
 
 func TestVirtualServerForNginxWithExternalAuthSigninURL(t *testing.T) {
 	t.Parallel()
+	if !hasExternalAuthSignin(virtualServerCfgWithExternalAuthSigninURL.Server) {
+		t.Error("hasExternalAuthSignin() = false, want true")
+	}
+	if hasExternalAuthNoSignin(virtualServerCfgWithExternalAuthSigninURL.Server) {
+		t.Error("hasExternalAuthNoSignin() = true, want false")
+	}
 	data, err := newTmplExecutorNGINX(t).ExecuteVirtualServerTemplate(&virtualServerCfgWithExternalAuthSigninURL)
 	if err != nil {
 		t.Fatalf("Failed to execute template: %v", err)
 	}
-	// Guard the exact nginx directive; a missing `=` (or missing space) here reintroduces the 401+Location bug.
-	const want = `error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";`
-	if !strings.Contains(string(data), want) {
-		t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+	for _, want := range []string{
+		`set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";`,
+		`error_page 401 = @external_auth_signin;`,
+		`return 302 $external_auth_signin_uri;`,
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+		}
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
+}
+
+func TestVirtualServerLocationExternalAuthWithoutSigninURL(t *testing.T) {
+	t.Parallel()
+
+	cfg := VirtualServerConfig{
+		Server: Server{
+			ServerName: "cafe.example.com",
+			ExternalAuth: &ExternalAuth{
+				URI:       &AuthURI{InternalPath: "/_external_auth/server"},
+				SigninURL: "/oauth2/start",
+			},
+			Locations: []Location{
+				{
+					Path:         "/tea",
+					ExternalAuth: &ExternalAuth{URI: &AuthURI{InternalPath: "/_external_auth/location"}},
+				},
+			},
+		},
+	}
+	if !hasExternalAuthSignin(cfg.Server) {
+		t.Error("hasExternalAuthSignin() = false, want true")
+	}
+	if !hasExternalAuthNoSignin(cfg.Server) {
+		t.Error("hasExternalAuthNoSignin() = false, want true")
+	}
+
+	for _, test := range []struct {
+		name    string
+		newTmpl func(*testing.T) *TemplateExecutor
+	}{
+		{name: "nginx", newTmpl: newTmplExecutorNGINX},
+		{name: "nginx-plus", newTmpl: newTmplExecutorNGINXPlus},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := test.newTmpl(t).ExecuteVirtualServerTemplate(&cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := string(data)
+			for _, want := range []string{
+				`error_page 401 = @external_auth_unauthorized;`,
+				`location @external_auth_unauthorized {`,
+				`return 401;`,
+			} {
+				if !strings.Contains(got, want) {
+					t.Errorf("rendered config missing %q\n---\n%s", want, got)
+				}
+			}
+			snaps.MatchSnapshot(t, got)
+		})
+	}
 }
 
 func TestVirtualServerForNginxPlusWithOIDCNative(t *testing.T) {
@@ -4305,18 +4620,21 @@ func TestVirtualServerForNginxPlusWithExternalAuthSigninURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to execute template: %v", err)
 	}
-	const want = `error_page 401 = "/oauth2/start?rd=$scheme://$host$request_uri";`
-	if !strings.Contains(string(data), want) {
-		t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+	for _, want := range []string{
+		`set $external_auth_signin_uri "/oauth2/start?rd=$scheme://$host$request_uri";`,
+		`error_page 401 = @external_auth_signin;`,
+		`return 302 $external_auth_signin_uri;`,
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("rendered config missing %q\n---\n%s", want, string(data))
+		}
 	}
 	snaps.MatchSnapshot(t, string(data))
 	t.Log(string(data))
 }
 
-// TestErrorPageRendering guards the rendered `error_page` directive for the three
-// ResponseCode encodings the ExternalAuth signin flow depends on: -1 (emit `=`
-// without a code so nginx returns the target's status), 0 (emit no `=`), and
-// >0 (emit `=<code>`).
+// TestErrorPageRendering guards the rendered `error_page` directive for the two
+// supported ResponseCode encodings: 0 (emit no `=`) and >0 (emit `=<code>`).
 func TestErrorPageRendering(t *testing.T) {
 	t.Parallel()
 
@@ -4325,11 +4643,6 @@ func TestErrorPageRendering(t *testing.T) {
 		pages []ErrorPage
 		want  string
 	}{
-		{
-			name:  "ExternalAuth signin URL renders `error_page 401 = \"...\"`",
-			pages: []ErrorPage{{Name: "/oauth2/start", Codes: "401", ResponseCode: -1}},
-			want:  `error_page 401 = "/oauth2/start";`,
-		},
 		{
 			name:  "ResponseCode 0 renders `error_page CODES \"NAME\"` without `=`",
 			pages: []ErrorPage{{Name: "@error_page_2", Codes: "500", ResponseCode: 0}},
