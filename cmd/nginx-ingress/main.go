@@ -38,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	api_v1 "k8s.io/api/core/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	pkg_runtime "k8s.io/apimachinery/pkg/runtime"
 	util_version "k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/client-go/dynamic"
@@ -108,27 +109,7 @@ func main() {
 		nl.Fatalf(l, "Failed to get pod: %v", err)
 	}
 
-	var controllerZone string
-	if pod.Spec.NodeName == "" {
-		nl.Warnf(l, "Pod has no spec.nodeName; cannot determine controller zone, topology-aware routing unavailable")
-	} else {
-		nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, meta_v1.ListOptions{
-			FieldSelector: "metadata.name=" + pod.Spec.NodeName,
-		})
-		switch {
-		case err != nil:
-			nl.Warnf(l, "Failed to list node %s for zone detection: %v; topology-aware routing unavailable", pod.Spec.NodeName, err)
-		case len(nodeList.Items) == 0:
-			nl.Warnf(l, "Node %s not found for zone detection; topology-aware routing unavailable", pod.Spec.NodeName)
-		default:
-			controllerZone = nodeList.Items[0].Labels[api_v1.LabelTopologyZone]
-			if controllerZone == "" {
-				nl.Warnf(l, "Node %s has no %s label; zone-based topology-aware routing unavailable", pod.Spec.NodeName, api_v1.LabelTopologyZone)
-			} else {
-				nl.Infof(l, "Controller zone: %s (topology-aware routing enabled)", controllerZone)
-			}
-		}
-	}
+	controllerZone := getControllerZone(ctx, kubeClient, pod.Spec.NodeName)
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(func(format string, args ...interface{}) {
@@ -465,6 +446,44 @@ func mustCreateConfigAndKubeClient(ctx context.Context) (*rest.Config, *kubernet
 	}
 
 	return config, kubeClient
+}
+
+// getControllerZone returns the topology.kubernetes.io/zone label of the node the
+// controller is running on, used to honor zone hints on EndpointSlices. Failures
+// are non-fatal: an empty zone disables zone-based topology filtering only.
+//
+// It lists with a field selector rather than calling Get so that the existing
+// `list` permission on nodes is sufficient.
+func getControllerZone(ctx context.Context, kubeClient kubernetes.Interface, nodeName string) string {
+	l := nl.LoggerFromContext(ctx)
+	if nodeName == "" {
+		nl.Warnf(l, "Pod has no spec.nodeName; topology-aware routing using EndpointSlice hints is unavailable")
+		return ""
+	}
+
+	nodeList, err := kubeClient.CoreV1().Nodes().List(ctx, meta_v1.ListOptions{
+		FieldSelector: fields.OneTermEqualSelector("metadata.name", nodeName).String(),
+	})
+	if err != nil {
+		nl.Warnf(l, "Failed to list node %s for zone detection: %v; same-zone routing using EndpointSlice hints is unavailable", nodeName, err)
+		return ""
+	}
+
+	for _, node := range nodeList.Items {
+		if node.Name != nodeName {
+			continue
+		}
+		zone := node.Labels[api_v1.LabelTopologyZone]
+		if zone == "" {
+			nl.Warnf(l, "Node %s has no %s label; same-zone routing using EndpointSlice hints is unavailable", nodeName, api_v1.LabelTopologyZone)
+		} else {
+			nl.Infof(l, "Controller node: %s, zone: %s", nodeName, zone)
+		}
+		return zone
+	}
+
+	nl.Warnf(l, "Node %s not found for zone detection; same-zone routing using EndpointSlice hints is unavailable", nodeName)
+	return ""
 }
 
 // validateKubernetesVersionInfo returns an Error if
