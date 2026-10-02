@@ -382,6 +382,9 @@ server {
     {{- range $index, $element := $s.JWTAuthList }}
     location = /_jwks_uri_server_{{ .Key }} {
         internal;
+        {{- if $.AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         proxy_method GET;
         proxy_set_header Content-Length "";
         {{- with .JwksURI }}
@@ -414,6 +417,9 @@ server {
     {{- if $s.APIKeyEnabled}}
     location = /_validate_apikey_njs {
             internal;
+            {{- if $.AppProtectLoadModule }}
+            app_protect_enable off;
+            {{- end }}
             js_content apikey_auth.validate;
     }
     {{- end }}
@@ -457,11 +463,14 @@ server {
 
     {{- if $s.ExternalAuth }}
     auth_request {{ printf "%q" $s.ExternalAuth.URI.InternalPath }};
+        {{- if $s.ExternalAuth.SigninURL }}
+    set $external_auth_signin_uri {{ printf "%q" $s.ExternalAuth.SigninURL }};
+    error_page 401 = @external_auth_signin;
+        {{- end}}
     {{- end }}
 
     {{- range $e := $s.ErrorPages }}
-    {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
-    error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    error_page {{ $e.Codes }} {{ if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
     {{- end }}
 
     {{- with $s.APIKey}}
@@ -603,6 +612,9 @@ server {
     location = {{ $p.ProxyLocation }} {
         internal;
         auth_oidc off;
+        {{- if $.AppProtectLoadModule }}
+        app_protect_enable off;
+        {{- end }}
         client_max_body_size 0;
         proxy_pass $oidc_idp_request_uri;
         proxy_ssl_server_name on;
@@ -637,6 +649,9 @@ server {
         {{- if $l.Internal }}
         internal;
         {{- end }}
+        {{- if and $.AppProtectLoadModule $l.DisableWAF }}
+        app_protect_enable off;
+        {{- end }}
         {{- if $l.AddHeaderInherit }}
         add_header_inherit {{ $l.AddHeaderInherit }};
         {{- end }}
@@ -648,6 +663,12 @@ server {
         auth_request off;
         {{- else if $l.ExternalAuth }}
         auth_request {{ printf "%q" $l.ExternalAuth.URI.InternalPath }};
+            {{- if $l.ExternalAuth.SigninURL }}
+        set $external_auth_signin_uri {{ printf "%q" $l.ExternalAuth.SigninURL }};
+        error_page 401 = @external_auth_signin;
+            {{- else}}
+        error_page 401 = @external_auth_unauthorized;
+            {{- end}}
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}
@@ -822,8 +843,7 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        {{- /* ResponseCode <0 => "= " (nginx forwards target status), 0 => omitted, >0 => "=<code> ". Same expression at 4 sites across nginx{,-plus}.virtualserver.tmpl; keep in sync. */}}
-        error_page {{ $e.Codes }} {{ if lt $e.ResponseCode 0 }}= {{ else if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+        error_page {{ $e.Codes }} {{ if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}
@@ -900,15 +920,15 @@ server {
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Host") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host $host;
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host {{ if $l.UseForwardedHeaders }}$forwarded_host{{ else }}$host{{ end }};
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Port") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port $server_port;
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port {{ if $l.UseForwardedHeaders }}$forwarded_port{{ else }}$server_port{{ end }};
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Proto") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }};
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ if $l.UseForwardedHeaders }}$forwarded_proto{{ else }}{{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }}{{ end }};
         {{- end }}
         {{- end }}
 
@@ -1022,6 +1042,19 @@ server {
         {{- end }}
     }
     {{- end }}
+
+    {{- if hasExternalAuthSignin $s}}
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
+    {{- end}}
+    {{- if hasExternalAuthNoSignin $s}}
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+    {{- end}}
 
     {{- with $ssl := $s.SSL }}
         {{ if $ssl.HTTP2 }}

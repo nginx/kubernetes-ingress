@@ -129,21 +129,3 @@ func translateVsSpec(crt *cmapi.Certificate, vsCmSpec *vsapi.CertManager) error 
 	}
 	return nil
 }
-
-func getNamespacedInformer(ns string, ig map[string]*namespacedInformer) *namespacedInformer {
-	var nsi *namespacedInformer
-	var isGlobalNs bool
-	var exists bool
-
-	nsi, isGlobalNs = ig[""]
-
-	if !isGlobalNs {
-		// get the correct namespaced informers
-		nsi, exists = ig[ns]
-		if !exists {
-			// we are not watching this namespace
-			return nil
-		}
-	}
-	return nsi
-}

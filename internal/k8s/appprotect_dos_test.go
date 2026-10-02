@@ -40,7 +40,7 @@ func TestAppProtectDosSyncNamespaceNotWatched(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(_ *testing.T) {
 			lbc := &LoadBalancerController{
-				namespacedInformers: map[string]*namespacedInformer{},
+				namespacedInformers: registryFrom(map[string]*namespacedInformer{}),
 				Logger:              nl.LoggerFromContext(context.Background()),
 			}
 			tc.sync(lbc, "not-watched/some-resource")

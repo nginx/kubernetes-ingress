@@ -25,6 +25,10 @@ type IngressNginxConfig struct {
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
 	KeyValZones             []version2.KeyValZone
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
+	// templates can safely emit app_protect_enable off; in internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // Ingress holds information about an Ingress resource.
@@ -234,10 +238,13 @@ type Location struct {
 	ServiceName             string
 	LimitReq                *LimitReq
 	DisableForwardedHeaders bool
+	UseForwardedHeaders     bool
 	CORSEnabled             bool
 
 	AuthRequestOff bool
 	Internal       bool
+	// DisableWAF marks subrequest targets such as the ExternalAuth location.
+	DisableWAF bool
 
 	MinionIngress *Ingress
 
@@ -361,6 +368,7 @@ type MainConfig struct {
 	TLSPassthroughPort                 int
 	VariablesHashBucketSize            uint64
 	VariablesHashMaxSize               uint64
+	UseForwardedHeaders                bool
 	WorkerConnections                  string
 	WorkerCPUAffinity                  string
 	WorkerProcesses                    string

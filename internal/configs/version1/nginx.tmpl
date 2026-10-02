@@ -117,6 +117,20 @@ http {
         default upgrade;
         ''      $default_connection_header;
     }
+    {{- if .UseForwardedHeaders }}
+    map $http_x_forwarded_host $forwarded_host {
+        default $host;
+        "~^[ \t]*([^, \t]+)" $1;
+    }
+    map $http_x_forwarded_port $forwarded_port {
+        default $server_port;
+        "~^[ \t]*([^, \t]+)" $1;
+    }
+    map $http_x_forwarded_proto $forwarded_proto {
+        default $scheme;
+        "~^[ \t]*([^, \t]+)" $1;
+    }
+    {{- end }}
     {{- if .SSLProtocols}}
     ssl_protocols {{.SSLProtocols}};
     {{- end}}
