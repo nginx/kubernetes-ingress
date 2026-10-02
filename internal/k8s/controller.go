@@ -1730,17 +1730,31 @@ func (lbc *LoadBalancerController) refreshStaleVSRReferences() {
 // and emits the usual status and events, skipping template regeneration and
 // the reload.
 //
-// It returns false, without side effects, unless changes is exactly a single
-// AddOrUpdate of the VirtualServer identified by key. Any other shape -- a
-// Delete, an UpdateStatus, a cascade to another resource, or a rejected spec --
+// UpdateStatus changes only report status and events for other, unchanged
+// resources and never touch NGINX, so they do not disqualify the fast lane.
+// They are set aside before the shape check and processed once the weight
+// update has been applied.
+//
+// It returns false, without side effects, unless the remaining changes are
+// exactly a single AddOrUpdate of the VirtualServer identified by key. Any
+// other shape -- a Delete, a cascade to another resource, or a rejected spec --
 // means the caller must fall back to processChanges, which dispatches each
 // operation explicitly and is correct for all of them.
 func (lbc *LoadBalancerController) applyWeightOnlyVSChanges(key string, changes []ResourceChange, weightUpdates []configs.WeightUpdate) bool {
-	if len(changes) != 1 || changes[0].Op != AddOrUpdate {
+	var statusUpdates, others []ResourceChange
+	for _, c := range changes {
+		if c.Op == UpdateStatus {
+			statusUpdates = append(statusUpdates, c)
+			continue
+		}
+		others = append(others, c)
+	}
+
+	if len(others) != 1 || others[0].Op != AddOrUpdate {
 		return false
 	}
 
-	impl, ok := changes[0].Resource.(*VirtualServerConfiguration)
+	impl, ok := others[0].Resource.(*VirtualServerConfiguration)
 	if !ok || getResourceKey(&impl.VirtualServer.ObjectMeta) != key {
 		return false
 	}
@@ -1748,6 +1762,10 @@ func (lbc *LoadBalancerController) applyWeightOnlyVSChanges(key string, changes 
 	lbc.updateVirtualServerStatusAndEvents(impl, configs.Warnings{}, nil)
 	for _, w := range weightUpdates {
 		lbc.configurator.UpsertSplitClientsKeyVal(w.Zone, w.Key, w.Value)
+	}
+
+	for _, c := range statusUpdates {
+		lbc.processStatusUpdate(c)
 	}
 
 	return true
@@ -1830,7 +1848,7 @@ func (lbc *LoadBalancerController) processChanges(changes []ResourceChange) {
 func (lbc *LoadBalancerController) processStatusUpdate(c ResourceChange) {
 	switch impl := c.Resource.(type) {
 	case *VirtualServerConfiguration:
-		lbc.updateVirtualServerOwnStatusAndEvents(impl, lbc.lastRenderedVirtualServerWarnings(impl), nil)
+		lbc.updateVirtualServerOwnStatusAndEvents(impl, lbc.lastRenderedVirtualServerWarnings(impl), nil, true)
 	}
 }
 
@@ -2189,13 +2207,17 @@ func (lbc *LoadBalancerController) updateRegularIngressStatusAndEvents(ingConfig
 }
 
 func (lbc *LoadBalancerController) updateVirtualServerStatusAndEvents(vsConfig *VirtualServerConfiguration, warnings configs.Warnings, operationErr error) {
-	lbc.updateVirtualServerOwnStatusAndEvents(vsConfig, warnings, operationErr)
+	lbc.updateVirtualServerOwnStatusAndEvents(vsConfig, warnings, operationErr, false)
 	lbc.updateAttachedVirtualServerRoutesStatusAndEvents(vsConfig, warnings, operationErr)
 }
 
 // updateVirtualServerOwnStatusAndEvents reports the status and event of the
-// VirtualServer itself, without touching its VirtualServerRoutes.
-func (lbc *LoadBalancerController) updateVirtualServerOwnStatusAndEvents(vsConfig *VirtualServerConfiguration, warnings configs.Warnings, operationErr error) {
+// VirtualServer itself, without touching its VirtualServerRoutes. When
+// statusOnly is set, nothing was applied to NGINX, so the event and status
+// message say the status was refreshed instead of claiming the configuration
+// was added or updated. The event reason is kept so the reported state is
+// unchanged.
+func (lbc *LoadBalancerController) updateVirtualServerOwnStatusAndEvents(vsConfig *VirtualServerConfiguration, warnings configs.Warnings, operationErr error, statusOnly bool) {
 	eventType := api_v1.EventTypeNormal
 	eventTitle := nl.EventReasonAddedOrUpdated
 	eventWarningMessage := ""
@@ -2223,6 +2245,9 @@ func (lbc *LoadBalancerController) updateVirtualServerOwnStatusAndEvents(vsConfi
 	}
 
 	msg := fmt.Sprintf("Configuration for %v was added or updated %s", getResourceKey(&vsConfig.VirtualServer.ObjectMeta), eventWarningMessage)
+	if statusOnly {
+		msg = strings.TrimSpace(fmt.Sprintf("Configuration for %v is unchanged, status updated %s", getResourceKey(&vsConfig.VirtualServer.ObjectMeta), eventWarningMessage))
+	}
 	lbc.recorder.Event(vsConfig.VirtualServer, eventType, eventTitle, msg)
 	l := lbc.Logger.With(logNamespaceKey, vsConfig.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vsConfig.VirtualServer.Name)
 

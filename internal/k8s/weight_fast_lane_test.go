@@ -1006,6 +1006,20 @@ func TestApplyWeightOnlyVSChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 			changes: []ResourceChange{{Op: UpdateStatus, Resource: vsc}},
 		},
 		{
+			name: "update-status alongside a different VirtualServer's add-or-update",
+			changes: []ResourceChange{
+				{Op: UpdateStatus, Resource: vsc},
+				{Op: AddOrUpdate, Resource: otherVSC},
+			},
+		},
+		{
+			name: "update-status alongside a delete",
+			changes: []ResourceChange{
+				{Op: UpdateStatus, Resource: otherVSC},
+				{Op: Delete, Resource: vsc},
+			},
+		},
+		{
 			name: "cascade to a second resource",
 			changes: []ResourceChange{
 				{Op: AddOrUpdate, Resource: vsc},
@@ -1036,6 +1050,84 @@ func TestApplyWeightOnlyVSChanges_RejectsUnexpectedChangeShapes(t *testing.T) {
 				t.Errorf("rejected change set still wrote %d keyvals, want 0", len(got))
 			}
 		})
+	}
+}
+
+// TestApplyWeightOnlyVSChanges_KeepsFastLaneWithUnrelatedStatusUpdate pins that
+// a warning-only UpdateStatus for another VirtualServer, which rebuildHosts can
+// report in the same batch, does not push a weight-only update off the fast
+// lane. The weight update is still applied in place and the status update is
+// still reported, without touching NGINX config.
+func TestApplyWeightOnlyVSChanges_KeepsFastLaneWithUnrelatedStatusUpdate(t *testing.T) {
+	t.Parallel()
+
+	lbc, mgr := newWeightTestLBC(t, true)
+
+	cafe := weightTestVS("cafe", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
+	seedVS(t, lbc, cafe)
+	other := weightTestVS("other", 1, []conf_v1.Route{twoWayRoute("/tea", 50, 50)})
+	seedVS(t, lbc, other)
+	drainEvents(t, lbc)
+
+	cafeVSC, ok := lbc.configuration.hosts[cafe.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not a VirtualServerConfiguration", cafe.Spec.Host)
+	}
+	otherVSC, ok := lbc.configuration.hosts[other.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not a VirtualServerConfiguration", other.Spec.Host)
+	}
+
+	writes := mgr.configWrites.Load()
+	keyvals := len(mgr.recordedKeyvals())
+	updates := []configs.WeightUpdate{{Zone: "z", Key: "k", Value: "v"}}
+
+	changes := []ResourceChange{
+		{Op: UpdateStatus, Resource: otherVSC},
+		{Op: AddOrUpdate, Resource: cafeVSC},
+	}
+	if !lbc.applyWeightOnlyVSChanges("default/cafe", changes, updates) {
+		t.Fatal("applyWeightOnlyVSChanges() = false, want true: an unrelated UpdateStatus must not disable the fast lane")
+	}
+
+	if got := len(mgr.recordedKeyvals()) - keyvals; got != 1 {
+		t.Errorf("fast lane wrote %d keyvals, want 1", got)
+	}
+	if got := mgr.configWrites.Load() - writes; got != 0 {
+		t.Errorf("fast lane wrote %d NGINX configs, want 0", got)
+	}
+
+	var cafeEvents, otherEvents int
+	for _, e := range drainEvents(t, lbc) {
+		switch {
+		case strings.Contains(e, "default/cafe"):
+			cafeEvents++
+		case strings.Contains(e, "default/other"):
+			otherEvents++
+			if !strings.Contains(e, "is unchanged, status updated") {
+				t.Errorf("status-only event for default/other has an inaccurate message: %q", e)
+			}
+		}
+	}
+	if cafeEvents != 1 || otherEvents != 1 {
+		t.Errorf("events: default/cafe=%d default/other=%d, want 1 each", cafeEvents, otherEvents)
+	}
+
+	// An UpdateStatus alongside a shape the fast lane rejects must still fall
+	// back, with nothing applied.
+	keyvals = len(mgr.recordedKeyvals())
+	rejected := []ResourceChange{
+		{Op: UpdateStatus, Resource: otherVSC},
+		{Op: AddOrUpdate, Resource: otherVSC},
+	}
+	if lbc.applyWeightOnlyVSChanges("default/cafe", rejected, updates) {
+		t.Error("applyWeightOnlyVSChanges() = true for another VirtualServer's AddOrUpdate, want false")
+	}
+	if got := len(mgr.recordedKeyvals()) - keyvals; got != 0 {
+		t.Errorf("rejected change set wrote %d keyvals, want 0", got)
+	}
+	if got := drainEvents(t, lbc); len(got) != 0 {
+		t.Errorf("rejected change set emitted events %v, want none", got)
 	}
 }
 
@@ -1355,6 +1447,12 @@ func TestProcessStatusUpdate_KeepsConfiguratorWarning(t *testing.T) {
 	}
 	if !strings.Contains(events[0], nl.EventReasonAddedOrUpdatedWithWarning) || !strings.Contains(events[0], "missing-secret") {
 		t.Errorf("UpdateStatus lost the configurator warning, got %q", events[0])
+	}
+	if strings.Contains(events[0], "was added or updated") {
+		t.Errorf("status-only update claims the configuration was added or updated: %q", events[0])
+	}
+	if !strings.Contains(events[0], "default/cafe is unchanged, status updated") {
+		t.Errorf("status-only update message is not accurate, got %q", events[0])
 	}
 	if got := mgr.configWrites.Load() - writes; got != 0 {
 		t.Errorf("UpdateStatus wrote %d NGINX configs, want 0", got)

@@ -776,9 +776,6 @@ func (cnf *Configurator) addOrUpdateVirtualServer(virtualServerEx *VirtualServer
 		changed = true
 	}
 	cnf.virtualServers[name] = virtualServerEx
-	if cnf.virtualServerWarnings == nil {
-		cnf.virtualServerWarnings = make(map[string]Warnings)
-	}
 	cnf.virtualServerWarnings[name] = warnings
 
 	if (cnf.isPlus && cnf.isPrometheusEnabled) || cnf.isLatencyMetricsEnabled {

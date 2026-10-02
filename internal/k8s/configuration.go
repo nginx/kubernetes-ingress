@@ -1409,8 +1409,11 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 }
 
 func (c *Configuration) addWarningsForVirtualServersWithMissConfiguredListeners(resources map[string]Resource) {
-	for _, r := range resources {
-		vsc, ok := r.(*VirtualServerConfiguration)
+	// Sorted so that VirtualServers sharing a host append their warnings in a
+	// stable order; otherwise slices.Equal on the warnings would flap between
+	// rebuilds and emit spurious UpdateStatus changes.
+	for _, key := range getSortedResourceKeys(resources) {
+		vsc, ok := resources[key].(*VirtualServerConfiguration)
 		if !ok {
 			continue
 		}
@@ -1615,7 +1618,6 @@ func createVirtualServerWarningChanges(oldHosts map[string]Resource, newHosts ma
 	}
 
 	var changes []ResourceChange
-	seen := make(map[string]struct{})
 
 	for _, h := range getSortedResourceKeys(newHosts) {
 		newVSC, ok := newHosts[h].(*VirtualServerConfiguration)
@@ -1625,9 +1627,6 @@ func createVirtualServerWarningChanges(oldHosts map[string]Resource, newHosts ma
 
 		key := newVSC.GetKeyWithKind()
 		if _, skip := alreadyChanged[key]; skip {
-			continue
-		}
-		if _, dup := seen[key]; dup {
 			continue
 		}
 
@@ -1645,7 +1644,6 @@ func createVirtualServerWarningChanges(oldHosts map[string]Resource, newHosts ma
 				Op:       UpdateStatus,
 				Resource: newVSC,
 			})
-			seen[key] = struct{}{}
 		}
 	}
 

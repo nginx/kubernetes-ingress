@@ -6092,6 +6092,53 @@ func TestCreateVirtualServerWarningChanges(t *testing.T) {
 	}
 }
 
+// TestMisconfiguredListenerWarnings_StableForSharedHost pins that two
+// VirtualServers sharing a host, both with a misconfigured listener, attach
+// their warnings to the winning host in a stable order. A random order makes
+// createVirtualServerWarningChanges see a warning-set change on roughly half
+// of all rebuilds and emit a spurious UpdateStatus.
+func TestMisconfiguredListenerWarnings_StableForSharedHost(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	addOrUpdateGlobalConfiguration(t, configuration, customHTTPAndHTTPSListeners, noChanges, noProblems)
+
+	const host = "cafe.example.com"
+	older := metav1.NewTime(time.Now().Add(-time.Hour))
+	newer := metav1.NewTime(time.Now())
+
+	first := createTestVirtualServerWithListeners("aaa", host, "http-bogus-a", "https-8442")
+	first.CreationTimestamp = older
+	second := createTestVirtualServerWithListeners("bbb", host, "http-bogus-b", "https-8442")
+	second.CreationTimestamp = newer
+
+	configuration.AddOrUpdateVirtualServer(first)
+	configuration.AddOrUpdateVirtualServer(second)
+
+	want := []string{
+		"Listener http-bogus-a is not defined in GlobalConfiguration",
+		"Listener http-bogus-b is not defined in GlobalConfiguration",
+	}
+
+	for i := range 100 {
+		changes, _ := configuration.rebuildHosts()
+
+		for _, c := range changes {
+			if c.Op == UpdateStatus {
+				t.Fatalf("rebuild %d emitted a spurious UpdateStatus for %s", i, c.Resource.GetKeyWithKind())
+			}
+		}
+
+		winner, ok := configuration.hosts[host].(*VirtualServerConfiguration)
+		if !ok {
+			t.Fatalf("host %s is not a VirtualServerConfiguration", host)
+		}
+		if diff := cmp.Diff(want, winner.Warnings); diff != "" {
+			t.Fatalf("rebuild %d: unexpected warnings order (-want +got):\n%s", i, diff)
+		}
+	}
+}
+
 func TestValidateVSRs(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
