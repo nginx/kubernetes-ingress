@@ -287,6 +287,7 @@ Build the args for the service binary.
 {{- end }}
 - -nginx-plus={{ .Values.controller.nginxplus }}
 - -nginx-reload-timeout={{ .Values.controller.nginxReloadTimeout }}
+- -batch-reload-window={{ .Values.controller.batchReloadWindow }}
 - -enable-app-protect={{ .Values.controller.appprotect.enable }}
 - -enable-app-protect-ip-intelligence={{ and .Values.controller.appprotect.enable .Values.controller.appprotect.ipIntelligence.enable }}
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.logLevel }}

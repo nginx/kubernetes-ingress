@@ -130,26 +130,47 @@ type metricLabelsIndex struct {
 // This allows the Ingress Controller to incrementally build the NGINX configuration during the IC start and
 // then apply it at the end of the start.
 type Configurator struct {
-	nginxManager                 nginx.Manager
-	staticCfgParams              *StaticConfigParams
-	CfgParams                    *ConfigParams
-	MgmtCfgParams                *MGMTConfigParams
-	templateExecutor             *version1.TemplateExecutor
-	templateExecutorV2           *version2.TemplateExecutor
-	ingresses                    map[string]*IngressEx
-	minions                      map[string]map[string]bool
-	mergeableIngresses           map[string]*MergeableIngresses
-	virtualServers               map[string]*VirtualServerEx
-	transportServers             map[string]*TransportServerEx
-	tlsPassthroughPairs          map[string]tlsPassthroughPair
-	isWildcardEnabled            bool
-	isPlus                       bool
-	labelUpdater                 collector.LabelUpdater
-	metricLabelsIndex            *metricLabelsIndex
-	isPrometheusEnabled          bool
-	latencyCollector             latCollector.LatencyCollector
-	isLatencyMetricsEnabled      bool
-	isReloadsEnabled             bool
+	nginxManager            nginx.Manager
+	staticCfgParams         *StaticConfigParams
+	CfgParams               *ConfigParams
+	MgmtCfgParams           *MGMTConfigParams
+	templateExecutor        *version1.TemplateExecutor
+	templateExecutorV2      *version2.TemplateExecutor
+	ingresses               map[string]*IngressEx
+	minions                 map[string]map[string]bool
+	mergeableIngresses      map[string]*MergeableIngresses
+	virtualServers          map[string]*VirtualServerEx
+	transportServers        map[string]*TransportServerEx
+	tlsPassthroughPairs     map[string]tlsPassthroughPair
+	isWildcardEnabled       bool
+	isPlus                  bool
+	labelUpdater            collector.LabelUpdater
+	metricLabelsIndex       *metricLabelsIndex
+	isPrometheusEnabled     bool
+	latencyCollector        latCollector.LatencyCollector
+	isLatencyMetricsEnabled bool
+	isReloadsEnabled        bool
+	// isPlusAPIEnabled gates NGINX Plus API upstream writes
+	// (updateServersInPlus / updateStreamServersInPlus) independently of
+	// isReloadsEnabled. Both start disabled during startup build-up (the
+	// running NGINX has no config for these upstreams yet, so an API write
+	// would fail). EnableReloads() enables both. DisableReloads() —
+	// called when the controller enters batch mode — only disables
+	// isReloadsEnabled: nginx is already running a valid config at that
+	// point, so Plus API writes may safely continue even while reloads are
+	// deferred for the rest of the batch. See
+	// https://github.com/nginx/kubernetes-ingress/issues/7778.
+	isPlusAPIEnabled bool
+	// reloadDeferred is set by Reload() whenever it no-ops because
+	// isReloadsEnabled is false, and by deferReload() when an UpdateEndpoints*
+	// call aborts after an earlier resource in the same call already wrote
+	// its config (see deferReload). It is cleared only once Reload() calls
+	// through to nginxManager.Reload and that call succeeds — a failed
+	// reload leaves it set so the retry isn't lost. ReloadForBatchUpdates
+	// consults it at batch end so a reload that was skipped or failed
+	// mid-batch is not silently dropped just because the triggering task's
+	// Kind didn't otherwise call for one.
+	reloadDeferred               bool
 	isDynamicSSLReloadEnabled    bool
 	ingressControllerReplicas    int
 	effectiveBatchExclusionCount int
@@ -318,6 +339,7 @@ func (cnf *Configurator) deleteIngressMetricsLabels(key string) {
 func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) (Warnings, error) {
 	_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 	if err != nil {
+		cnf.deferReload()
 		return warnings, fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 	}
 
@@ -554,6 +576,7 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (Warnings, error) {
 	_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngs)
 	if err != nil {
+		cnf.deferReload()
 		return warnings, fmt.Errorf("error when adding or updating ingress %v/%v: %w", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
 	}
 
@@ -701,6 +724,10 @@ func (cnf *Configurator) deleteVirtualServerMetricsLabels(key string) {
 func (cnf *Configurator) AddOrUpdateVirtualServer(virtualServerEx *VirtualServerEx) (Warnings, error) {
 	_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(virtualServerEx)
 	if err != nil {
+		// addOrUpdateVirtualServer can write the OIDC config (CreateOIDCConfig) and then
+		// fail on the VirtualServer config write itself, leaving a written-but-unapplied
+		// OIDC file on disk — same reasoning as the other two AddOrUpdate* wrappers below.
+		cnf.deferReload()
 		return warnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", virtualServerEx.VirtualServer.Namespace, virtualServerEx.VirtualServer.Name, err)
 	}
 
@@ -1237,6 +1264,7 @@ func (cnf *Configurator) UpdateEndpoints(ingExes []*IngressEx) (Warnings, error)
 	for _, ingEx := range ingExes {
 		_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 		if err != nil {
+			cnf.deferReload()
 			return allWarnings, fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 		}
 		allWarnings.Add(warnings)
@@ -1272,6 +1300,7 @@ func (cnf *Configurator) UpdateEndpointsMergeableIngress(mergeableIngresses []*M
 		mergeableIng := mergeableIngresses[i]
 		_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngresses[i])
 		if err != nil {
+			cnf.deferReload()
 			return allWarnings, fmt.Errorf("error adding or updating mergeableIngress %v/%v: %w", mergeableIngresses[i].Master.Ingress.Namespace, mergeableIngresses[i].Master.Ingress.Name, err)
 		}
 		allWarnings.Add(warnings)
@@ -1315,6 +1344,7 @@ func (cnf *Configurator) UpdateEndpointsForVirtualServers(virtualServerExes []*V
 	for _, vs := range virtualServerExes {
 		_, warnings, _, err := cnf.addOrUpdateVirtualServer(vs)
 		if err != nil {
+			cnf.deferReload()
 			return allWarnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", vs.VirtualServer.Namespace, vs.VirtualServer.Name, err)
 		}
 		allWarnings.Add(warnings)
@@ -1402,6 +1432,7 @@ func (cnf *Configurator) UpdateEndpointsForTransportServers(transportServerExes 
 		// Ignore warnings here as no new warnings should appear when updating Endpoints for TransportServers
 		_, _, err := cnf.addOrUpdateTransportServer(tsEx)
 		if err != nil {
+			cnf.deferReload()
 			return fmt.Errorf("error adding or updating TransportServer %v/%v: %w", tsEx.TransportServer.Namespace, tsEx.TransportServer.Name, err)
 		}
 		if cnf.isPlus {
@@ -1518,11 +1549,16 @@ func (cnf *Configurator) updatePlusExternalAuthEndpoints(policies map[string]*co
 }
 
 // EnableReloads enables NGINX reloads meaning that configuration changes will be followed by a reload.
+// It also (re-)enables NGINX Plus API upstream writes; see isPlusAPIEnabled.
 func (cnf *Configurator) EnableReloads() {
 	cnf.isReloadsEnabled = true
+	cnf.isPlusAPIEnabled = true
 }
 
 // DisableReloads disables NGINX reloads meaning that configuration changes will not be followed by a reload.
+// NGINX Plus API upstream writes are intentionally left enabled: DisableReloads is called when
+// entering batch mode, at which point NGINX is already running a valid config, so applying
+// endpoint changes via the Plus API during the batch is safe. See isPlusAPIEnabled.
 func (cnf *Configurator) DisableReloads() {
 	cnf.isReloadsEnabled = false
 }
@@ -1580,17 +1616,58 @@ func (cnf *Configurator) EffectiveBatchExclusionCount() int {
 	return cnf.effectiveBatchExclusionCount
 }
 
-// Reload reloads nginx if reloads is enabled
+// Reload reloads nginx if reloads is enabled. If reloads are disabled (e.g. batch mode),
+// the reload is skipped and recorded via reloadDeferred so ReloadForBatchUpdates can
+// catch up on it at batch end instead of silently dropping it. reloadDeferred is only
+// cleared once nginxManager.Reload is actually called and succeeds — a failed reload
+// leaves it set so the retry is not forgotten.
 func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 	if !cnf.isReloadsEnabled {
+		cnf.reloadDeferred = true
 		return nil
 	}
 
-	return cnf.nginxManager.Reload(isEndpointsUpdate)
+	err := cnf.nginxManager.Reload(isEndpointsUpdate)
+	cnf.reloadDeferred = err != nil
+	return err
+}
+
+// deferReload marks the batch dirty without going through Reload(). Used by the
+// UpdateEndpoints* family when they abort with an error after an earlier resource in
+// the same call already wrote its config to disk (addOrUpdate* succeeded, a later
+// resource in the loop failed): that written config would otherwise never be applied,
+// because the function returns before reaching its own Reload() call. The three public
+// AddOrUpdate* wrappers (AddOrUpdateIngress, AddOrUpdateMergeableIngress,
+// AddOrUpdateVirtualServer) call it for the same reason on their own error path: their
+// addOrUpdate* helpers can write one file (e.g. the Ingress config, or — for VirtualServer
+// — the OIDC config) and then fail on a later write in the same call (e.g.
+// syncDefaultServerConfig, or the VirtualServer config itself) before the wrapper ever
+// reaches its own Reload() call.
+//
+// Invariant: every Configurator entry point reachable from an endpointslice-only batch
+// (i.e. from LoadBalancerController.syncEndpointSlices, including the controller's own
+// Service path through updateNumberOfIngressControllerReplicas) must set reloadDeferred
+// on any error path that can follow a successful partial write — because, since #7778,
+// an endpointslice-only batch no longer unconditionally forces a reload at batch end
+// (see sync() in internal/k8s/controller.go), so ReloadForBatchUpdates relies entirely on
+// reloadDeferred to know a written-but-unapplied config is pending. As of this comment
+// that set is exactly: UpdateEndpoints, UpdateEndpointsMergeableIngress,
+// UpdateEndpointsForVirtualServers, UpdateEndpointsForTransportServers (all four already
+// route errors through this function), and the three AddOrUpdate* wrappers above. Adding
+// a new Configurator call reachable from syncEndpointSlices must preserve this invariant.
+//
+// UpdateConfig also calls it, though UpdateConfig itself is not reached from
+// syncEndpointSlices (it runs from a ConfigMap task, via updateAllConfigs). It is listed
+// here anyway because the victim is the *next* batch: if UpdateConfig writes the main
+// config and then fails before its own Reload() (e.g. syncDefaultServerConfig or the
+// resource-update loop), that write must not be lost once the ConfigMap batch ends and a
+// later endpointslice-only batch runs through with no reload of its own.
+func (cnf *Configurator) deferReload() {
+	cnf.reloadDeferred = true
 }
 
 func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, config nginx.ServerConfig) error {
-	if !cnf.isReloadsEnabled {
+	if !cnf.isPlusAPIEnabled {
 		return nil
 	}
 
@@ -1598,7 +1675,7 @@ func (cnf *Configurator) updateServersInPlus(upstream string, servers []string, 
 }
 
 func (cnf *Configurator) updateStreamServersInPlus(upstream string, servers []string) error {
-	if !cnf.isReloadsEnabled {
+	if !cnf.isPlusAPIEnabled {
 		return nil
 	}
 
@@ -1967,6 +2044,8 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	}
 
 	if err := cnf.syncDefaultServerConfig(); err != nil {
+		// Main config (above) was already written; see deferReload's invariant.
+		cnf.deferReload()
 		return allWarnings, nil, fmt.Errorf("error syncing default server config: %w", err)
 	}
 
@@ -1976,6 +2055,9 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	tasks := cnf.buildResourceUpdateTasks(resources)
 	updateRes, updateErr := cnf.applyResourceUpdates(tasks, isRollbackManager, isPostStartupRollback, resourceErrors)
 	if updateErr != nil {
+		// Fail-fast (non-rollback-manager) path: main config and possibly some
+		// resources were already written before this error; see deferReload's invariant.
+		cnf.deferReload()
 		return allWarnings, nil, updateErr
 	}
 	allWarnings.Add(updateRes.warnings)
@@ -2023,8 +2105,14 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 }
 
 // ReloadForBatchUpdates reloads NGINX after a batch event.
+// batchReloadsEnabled is set by the caller when a non-endpointslice task ran during the
+// batch (a change that always needs a reload). reloadDeferred additionally covers any
+// Reload() call that no-op'd during the batch regardless of task Kind — e.g. an NGINX
+// Plus endpoint update whose API write failed and fell back to requesting a reload
+// (see Configurator.Reload). Without consulting reloadDeferred here, that fallback
+// reload would be silently dropped whenever the triggering task was an endpointslice.
 func (cnf *Configurator) ReloadForBatchUpdates(batchReloadsEnabled bool) error {
-	if !batchReloadsEnabled {
+	if !batchReloadsEnabled && !cnf.reloadDeferred {
 		return nil
 	}
 	if err := cnf.Reload(nginx.ReloadForOtherUpdate); err != nil {
