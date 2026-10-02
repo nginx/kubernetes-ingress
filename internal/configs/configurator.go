@@ -341,6 +341,7 @@ func (cnf *Configurator) deleteIngressMetricsLabels(key string) {
 func (cnf *Configurator) AddOrUpdateIngress(ingEx *IngressEx) (Warnings, error) {
 	_, warnings, err := cnf.addOrUpdateIngress(ingEx)
 	if err != nil {
+		cnf.deferReload()
 		return warnings, fmt.Errorf("error adding or updating ingress %v/%v: %w", ingEx.Ingress.Namespace, ingEx.Ingress.Name, err)
 	}
 
@@ -577,6 +578,7 @@ func (cnf *Configurator) addOrUpdateIngress(ingEx *IngressEx) (bool, Warnings, e
 func (cnf *Configurator) AddOrUpdateMergeableIngress(mergeableIngs *MergeableIngresses) (Warnings, error) {
 	_, warnings, err := cnf.addOrUpdateMergeableIngress(mergeableIngs)
 	if err != nil {
+		cnf.deferReload()
 		return warnings, fmt.Errorf("error when adding or updating ingress %v/%v: %w", mergeableIngs.Master.Ingress.Namespace, mergeableIngs.Master.Ingress.Name, err)
 	}
 
@@ -733,6 +735,10 @@ func (cnf *Configurator) GetVirtualServerWarnings(key string) Warnings {
 func (cnf *Configurator) AddOrUpdateVirtualServer(virtualServerEx *VirtualServerEx) (Warnings, error) {
 	_, warnings, weightUpdates, err := cnf.addOrUpdateVirtualServer(virtualServerEx)
 	if err != nil {
+		// addOrUpdateVirtualServer can write the OIDC config (CreateOIDCConfig) and then
+		// fail on the VirtualServer config write itself, leaving a written-but-unapplied
+		// OIDC file on disk — same reasoning as the other two AddOrUpdate* wrappers below.
+		cnf.deferReload()
 		return warnings, fmt.Errorf("error adding or updating VirtualServer %v/%v: %w", virtualServerEx.VirtualServer.Namespace, virtualServerEx.VirtualServer.Name, err)
 	}
 
@@ -1643,7 +1649,25 @@ func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 // UpdateEndpoints* family when they abort with an error after an earlier resource in
 // the same call already wrote its config to disk (addOrUpdate* succeeded, a later
 // resource in the loop failed): that written config would otherwise never be applied,
-// because the function returns before reaching its own Reload() call.
+// because the function returns before reaching its own Reload() call. The three public
+// AddOrUpdate* wrappers (AddOrUpdateIngress, AddOrUpdateMergeableIngress,
+// AddOrUpdateVirtualServer) call it for the same reason on their own error path: their
+// addOrUpdate* helpers can write one file (e.g. the Ingress config, or — for VirtualServer
+// — the OIDC config) and then fail on a later write in the same call (e.g.
+// syncDefaultServerConfig, or the VirtualServer config itself) before the wrapper ever
+// reaches its own Reload() call.
+//
+// Invariant: every Configurator entry point reachable from an endpointslice-only batch
+// (i.e. from LoadBalancerController.syncEndpointSlices, including the controller's own
+// Service path through updateNumberOfIngressControllerReplicas) must set reloadDeferred
+// on any error path that can follow a successful partial write — because, since #7778,
+// an endpointslice-only batch no longer unconditionally forces a reload at batch end
+// (see sync() in internal/k8s/controller.go), so ReloadForBatchUpdates relies entirely on
+// reloadDeferred to know a written-but-unapplied config is pending. As of this comment
+// that set is exactly: UpdateEndpoints, UpdateEndpointsMergeableIngress,
+// UpdateEndpointsForVirtualServers, UpdateEndpointsForTransportServers (all four already
+// route errors through this function), and the three AddOrUpdate* wrappers above. Adding
+// a new Configurator call reachable from syncEndpointSlices must preserve this invariant.
 func (cnf *Configurator) deferReload() {
 	cnf.reloadDeferred = true
 }
