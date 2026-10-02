@@ -219,8 +219,12 @@ def ingress_controller_endpoint(cli_arguments, kube_apis, ingress_controller_pre
             namespace,
             f"{TEST_DATA}/common/service/loadbalancer-with-additional-ports.yaml",
         )
-        public_ip = wait_for_public_ip(kube_apis.v1, namespace)
-        print(f"The Public IP: {public_ip}")
+        if cli_arguments.get("lb-ip"):
+            public_ip = cli_arguments["lb-ip"]
+            print(f"Using provided lb-ip: {public_ip}")
+        else:
+            public_ip = wait_for_public_ip(kube_apis.v1, namespace)
+            print(f"The Public IP: {public_ip}")
         return PublicEndpoint(public_ip)
 
 
@@ -355,6 +359,11 @@ def cli_arguments(request) -> {}:
         assert node_ip is not None and node_ip != "", f"Service 'nodeport' requires a node-ip"
         result["node-ip"] = node_ip
         print(f"Tests will use the node-ip: {result['node-ip']}")
+    if result["service"] == "loadbalancer":
+        lb_ip = request.config.getoption("--lb-ip", None)
+        if lb_ip is not None and lb_ip != "":
+            result["lb-ip"] = lb_ip
+            print(f"Tests will use the lb-ip: {result['lb-ip']}")
     result["skip-fixture-teardown"] = request.config.getoption("--skip-fixture-teardown")
     assert result["skip-fixture-teardown"] == "yes" or result["skip-fixture-teardown"] == "no"
     print(
