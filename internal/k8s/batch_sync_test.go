@@ -16,6 +16,8 @@ import (
 	"github.com/nginx/kubernetes-ingress/pkg/apis/configuration/validation"
 
 	api_v1 "k8s.io/api/core/v1"
+	discovery_v1 "k8s.io/api/discovery/v1"
+	networking "k8s.io/api/networking/v1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -451,5 +453,125 @@ func BenchmarkSyncBatchChurn(b *testing.B) {
 		obj, _ := lbc.syncQueue.queue.Get()
 		lbc.sync(obj.(task))
 		lbc.syncQueue.queue.Done(obj)
+	}
+}
+
+// failOnDefaultServerManager makes CreateConfig fail only for
+// configs.DefaultServerConfigName, simulating addOrUpdateIngress succeeding on the
+// Ingress's own config write and then failing in the subsequent
+// syncDefaultServerConfig() call in the same function — a partial write, not a clean
+// failure. Embeds recordingBatchManager so reloads are still counted.
+type failOnDefaultServerManager struct {
+	*recordingBatchManager
+}
+
+func (m *failOnDefaultServerManager) CreateConfig(name string, content []byte) (bool, error) {
+	if name == configs.DefaultServerConfigName {
+		return false, fmt.Errorf("simulated CreateConfig failure for %s", name)
+	}
+	return m.FakeManager.CreateConfig(name, content)
+}
+
+// TestBatchReplicaChangeEndpointslicePartialWriteStillReloads drives the actual
+// regression end-to-end through sync(), rather than calling the Configurator
+// directly: an EndpointSlice event for the controller's own Service (detected via
+// statusUpdater.namespace/externalServiceName in syncEndpointSlices) takes an early
+// return to updateNumberOfIngressControllerReplicas, which calls
+// Configurator.AddOrUpdateIngress for every Ingress using rate-limit scaling
+// (nginx.org/limit-req-scale: "true") — not one of the UpdateEndpoints* wrappers that
+// sync() otherwise relies on.
+//
+// addOrUpdateIngress writes the Ingress's own config successfully and then fails in
+// the subsequent syncDefaultServerConfig() call, all within AddOrUpdateIngress, before
+// it ever reaches its own Reload() call. Because every task in this batch has
+// Kind == endpointslice, sync() never sets enableBatchReload (see the #7778 fix), so
+// the only thing that can carry the pending reload to batch end is
+// Configurator.reloadDeferred, set by AddOrUpdateIngress's error path.
+//
+// All three tasks are endpointslice so the batch is driven purely by queue drain
+// (lbc.batchReloadWindow is left at its zero value, i.e. disabled — see sync() in
+// controller.go), matching production behavior for a short burst of EndpointSlice
+// events that drains before the window would ever matter.
+func TestBatchReplicaChangeEndpointslicePartialWriteStillReloads(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failOnDefaultServerManager{recordingBatchManager: newRecordingBatchManager()}
+	lbc := newBatchTestLBC(t, mgr)
+
+	const (
+		controllerSvcName = "nginx-ingress-svc"
+		controllerSvcNS   = "default"
+	)
+	lbc.statusUpdater = &statusUpdater{
+		namespace:           controllerSvcNS,
+		externalServiceName: controllerSvcName,
+	}
+
+	// An Ingress that opts into rate-limit scaling, so
+	// FindIngressesWithRatelimitScaling picks it up once the controller's own
+	// replica count changes. A single Host-only rule (no HTTP paths, no TLS) is
+	// enough to pass validation and skip endpoint/secret resolution entirely in
+	// createIngressEx, keeping this fixture minimal.
+	ing := &networking.Ingress{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "scaled-ingress",
+			Namespace: controllerSvcNS,
+			Annotations: map[string]string{
+				"nginx.org/limit-req-scale": "true",
+			},
+		},
+		Spec: networking.IngressSpec{
+			Rules: []networking.IngressRule{
+				{Host: "ratelimit.example.com"},
+			},
+		},
+	}
+	lbc.configuration.AddOrUpdateIngress(ing)
+	if _, problems := lbc.configuration.CompleteStartup(); len(problems) > 0 {
+		t.Fatalf("CompleteStartup: unexpected problems: %+v", problems)
+	}
+
+	// The controller's own EndpointSlice, with two ready endpoints so
+	// countReadyEndpoints(...) != the zero-value previous replica count and
+	// updateNumberOfIngressControllerReplicas takes its "changed" branch.
+	ready := true
+	controllerEndpointSliceKey := controllerSvcNS + "/" + controllerSvcName + "-abc12"
+	epSlice := &discovery_v1.EndpointSlice{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      controllerSvcName + "-abc12",
+			Namespace: controllerSvcNS,
+			Labels:    map[string]string{"kubernetes.io/service-name": controllerSvcName},
+		},
+		Endpoints: []discovery_v1.Endpoint{
+			{Addresses: []string{"10.0.0.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &ready}},
+			{Addresses: []string{"10.0.0.2"}, Conditions: discovery_v1.EndpointConditions{Ready: &ready}},
+		},
+	}
+	nsi := lbc.getNamespacedInformer(controllerSvcNS)
+	if nsi == nil {
+		t.Fatal("test setup error: no namespacedInformer for " + controllerSvcNS)
+	}
+	if err := nsi.endpointSliceLister.Add(epSlice); err != nil {
+		t.Fatalf("test setup error: adding EndpointSlice to the lister: %v", err)
+	}
+
+	// Three endpointslice tasks so queue.Len() > 1 on the first Get() (entering
+	// batch mode) and so the real task (processed second) still has at least one
+	// task behind it — not strictly required for correctness here, since the
+	// assertion is only made after the whole batch drains, but it keeps this
+	// aligned with the "endpointslice churn either side of the real event" shape
+	// used elsewhere in this file.
+	lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: "default/unrelated-churn-1"})
+	lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: controllerEndpointSliceKey})
+	lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: "default/unrelated-churn-2"})
+
+	drainSyncQueue(t, lbc)
+
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("reload count = %d, want 1 (the replica-change Ingress config write must not be "+
+			"silently dropped just because every task in the batch was an endpointslice)", got)
+	}
+	if lbc.batchSyncEnabled {
+		t.Fatal("batchSyncEnabled still true after the queue drained")
 	}
 }

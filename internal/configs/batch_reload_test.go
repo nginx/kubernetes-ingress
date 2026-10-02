@@ -567,6 +567,100 @@ func TestBatchPartialEndpointFailureStillReloads(t *testing.T) {
 	}
 }
 
+// failOnDefaultServerManager makes CreateConfig fail only for
+// DefaultServerConfigName, simulating addOrUpdateIngress/addOrUpdateMergeableIngress
+// succeeding on their own resource's config write and then failing in the subsequent
+// syncDefaultServerConfig() call in the same function — a partial write, not a clean
+// failure.
+type failOnDefaultServerManager struct {
+	*recordingBatchManager
+}
+
+func (m *failOnDefaultServerManager) CreateConfig(name string, content []byte) (bool, error) {
+	if name == DefaultServerConfigName {
+		return false, fmt.Errorf("simulated CreateConfig failure for %s", name)
+	}
+	return m.FakeManager.CreateConfig(name, content)
+}
+
+// TestBatchModeAddOrUpdateIngressPartialWriteStillReloads pins the fix to
+// Configurator.AddOrUpdateIngress (entry point #5 of the 7 reachable from an
+// endpointslice-only batch — see the invariant documented on deferReload):
+// addOrUpdateIngress can succeed in writing the Ingress's own config and then fail in
+// the subsequent syncDefaultServerConfig() call, all inside the same function, before
+// AddOrUpdateIngress ever reaches its own Reload() call.
+//
+// This matters specifically because AddOrUpdateIngress — not one of the UpdateEndpoints*
+// wrappers — is what LoadBalancerController.updateNumberOfIngressControllerReplicas
+// calls (controller.go), which is itself reached from an endpointslice task for the
+// controller's own Service (see LoadBalancerController.syncEndpointSlices). Since
+// #7778, an endpointslice-only batch no longer unconditionally forces a reload at batch
+// end, so without deferReload() on this path, a replica-count change that updates a
+// rate-limit-scaled Ingress's config would be written to disk but never applied.
+func TestBatchModeAddOrUpdateIngressPartialWriteStillReloads(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failOnDefaultServerManager{recordingBatchManager: newRecordingBatchManager()}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = false
+
+	ingEx := createCafeIngressEx()
+
+	// sync() enters batch mode.
+	cnf.DisableReloads()
+
+	if _, err := cnf.AddOrUpdateIngress(&ingEx); err == nil {
+		t.Fatal("AddOrUpdateIngress: expected error from simulated default-server CreateConfig failure, got nil")
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("in-batch reload count = %d, want 0 (deferred during the batch)", got)
+	}
+
+	// Batch end: the Ingress's own written-but-unapplied config must still get a
+	// reload, even though the triggering call returned an error and this was an
+	// endpointslice-only batch (batchReloadsEnabled=false).
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("post-batch reload count = %d, want 1 (the partial write must not be silently dropped)", got)
+	}
+}
+
+// TestBatchModeAddOrUpdateMergeableIngressPartialWriteStillReloads is the mergeable-
+// Ingress counterpart to TestBatchModeAddOrUpdateIngressPartialWriteStillReloads (entry
+// point #6 of the 7 reachable from an endpointslice-only batch — see the invariant
+// documented on deferReload): addOrUpdateMergeableIngress has the identical
+// write-then-syncDefaultServerConfig-fails shape as addOrUpdateIngress.
+func TestBatchModeAddOrUpdateMergeableIngressPartialWriteStillReloads(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failOnDefaultServerManager{recordingBatchManager: newRecordingBatchManager()}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = false
+
+	mergeableIngs := createMergeableCafeIngress()
+
+	// sync() enters batch mode.
+	cnf.DisableReloads()
+
+	if _, err := cnf.AddOrUpdateMergeableIngress(mergeableIngs); err == nil {
+		t.Fatal("AddOrUpdateMergeableIngress: expected error from simulated default-server CreateConfig failure, got nil")
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("in-batch reload count = %d, want 0 (deferred during the batch)", got)
+	}
+
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("post-batch reload count = %d, want 1 (the partial write must not be silently dropped)", got)
+	}
+}
+
 // newBenchConfigurator builds a Configurator against the real templates,
 // suitable for both *testing.T and *testing.B callers. It intentionally
 // omits the isReloadsEnabled=true toggle that createTestConfigurator does,
