@@ -10,6 +10,8 @@ from suite.utils.resources_utils import (
     create_secret_from_yaml,
     delete_items_from_yaml,
     delete_secret,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_first_pod_name,
     wait_before_test,
     wait_until_all_pods_are_ready,
@@ -30,12 +32,13 @@ class TransportServerTlsSetup:
         ts_host (str):
     """
 
-    def __init__(self, public_endpoint: PublicEndpoint, ts_resource, name, namespace, ts_host):
+    def __init__(self, public_endpoint: PublicEndpoint, ts_resource, name, namespace, ts_host, e2e_run_id):
         self.public_endpoint = public_endpoint
         self.ts_resource = ts_resource
         self.name = name
         self.namespace = namespace
         self.ts_host = ts_host
+        self.e2e_run_id = e2e_run_id
 
 
 @pytest.fixture(scope="class")
@@ -52,17 +55,18 @@ def transport_server_tls_passthrough_setup(
     :return TransportServerTlsSetup:
     """
     print("------------------------- Deploy Transport Server with tls passthrough -----------------------------------")
+    e2e_run_id = generate_e2e_run_id()
     # deploy secure_app
     secure_app_file = f"{TEST_DATA}/{request.param['example']}/standard/secure-app.yaml"
     secure_app_secret_file = f"{TEST_DATA}/{request.param['example']}/standard/secure-app-secret.yaml"
     create_items_from_yaml(kube_apis, secure_app_secret_file, test_namespace)
-    create_items_from_yaml(kube_apis, secure_app_file, test_namespace)
+    create_items_from_yaml(kube_apis, secure_app_file, test_namespace, e2e_run_id=e2e_run_id)
 
     # deploy transport server
     transport_server_std_src = f"{TEST_DATA}/{request.param['example']}/standard/transport-server.yaml"
     ts_resource = create_ts_from_yaml(kube_apis.custom_objects, transport_server_std_src, test_namespace)
     ts_host = get_first_host_from_yaml(transport_server_std_src)
-    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
 
     def fin():
         if request.config.getoption("--skip-fixture-teardown") == "no":
@@ -79,6 +83,7 @@ def transport_server_tls_passthrough_setup(
         ts_resource["metadata"]["name"],
         test_namespace,
         ts_host,
+        e2e_run_id,
     )
 
 
@@ -124,7 +129,10 @@ class TestTransportServerTSServiceInsightHTTP:
             verify=False,
         )
         assert resp.status_code == 200
-        assert f"hello from pod {get_first_pod_name(kube_apis.v1, test_namespace)}" in resp.text
+        pod_name = get_first_pod_name(
+            kube_apis.v1, test_namespace, get_e2e_run_selector(transport_server_tls_passthrough_setup.e2e_run_id)
+        )
+        assert f"hello from pod {pod_name}" in resp.text
 
         # Service Insight test
         retry = 0

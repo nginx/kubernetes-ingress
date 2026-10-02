@@ -29,8 +29,11 @@ from suite.utils.custom_resources_utils import (
     patch_ts,
 )
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     create_items_from_yaml,
     delete_items_from_yaml,
+    generate_e2e_run_id,
+    get_e2e_run_selector,
     get_events_for_object,
     get_first_pod_name,
     get_ts_nginx_template_conf,
@@ -77,11 +80,12 @@ class TestConfigRollbackTSCreate:
     @pytest.fixture(scope="class")
     def ts_create_setup(self, kube_apis, crd_ingress_controller, test_namespace):
         """Deploy GlobalConfiguration + backend apps, clean up after class."""
+        e2e_run_id = generate_e2e_run_id()
         gc_resource = create_gc_from_yaml(kube_apis.custom_objects, gc_yaml, "nginx-ingress")
-        create_items_from_yaml(kube_apis, tcp_svc_yaml, test_namespace)
+        create_items_from_yaml(kube_apis, tcp_svc_yaml, test_namespace, e2e_run_id=e2e_run_id)
         create_items_from_yaml(kube_apis, secure_app_secret_yaml, test_namespace)
-        create_items_from_yaml(kube_apis, secure_app_yaml, test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_items_from_yaml(kube_apis, secure_app_yaml, test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         yield gc_resource
         delete_items_from_yaml(kube_apis, secure_app_yaml, test_namespace)
         delete_items_from_yaml(kube_apis, secure_app_secret_yaml, test_namespace)
@@ -129,7 +133,7 @@ class TestConfigRollbackTSCreate:
         proxy_upload_rate (a valid stream server directive not in the TS CRD spec,
         only available via snippets) with an invalid value.
         """
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         host = ingress_controller_endpoint.public_ip
         port = getattr(ingress_controller_endpoint, traffic_port_attr)
 
@@ -260,7 +264,7 @@ class TestConfigRollbackTransportServer:
         not in the TS CRD spec, only available via snippets, and not present in the
         default template config.
         """
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         host = transport_server_setup.public_endpoint.public_ip.strip("[]")
         port = transport_server_setup.public_endpoint.tcp_server_port
 
@@ -366,7 +370,7 @@ class TestConfigRollbackTransportServer:
         - stream-log-format-escaping: unknown escape value (needs stream-log-format set too)
         All cause main config nginx -t failure → main config rollback.
         """
-        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         ts_host = transport_server_setup.public_endpoint.public_ip.strip("[]")
         ts_port = transport_server_setup.public_endpoint.tcp_server_port
 

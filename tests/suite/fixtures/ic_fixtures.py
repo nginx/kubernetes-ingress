@@ -9,6 +9,7 @@ from kubernetes.client.rest import ApiException
 from settings import CRDS, DEPLOYMENTS, NGX_REG, TEST_DATA
 from suite.utils.custom_resources_utils import create_crd_from_yaml, delete_crd
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     cleanup_rbac,
     configure_rbac_with_ap,
     configure_rbac_with_dos,
@@ -308,7 +309,7 @@ def crd_ingress_controller_with_waf_v5(
                 request.param.get("extra_args", None),
             )
         try:
-            pod_name = get_first_pod_name(kube_apis.v1, namespace)
+            pod_name = get_first_pod_name(kube_apis.v1, namespace, IC_SELECTOR)
             dest_path = "/etc/app_protect/bundles/wafv5.tgz"
             src_path = f"{dir}/wafv5.tgz"
             result = subprocess.run(
@@ -423,7 +424,7 @@ def crd_ingress_controller_with_dos(
         create_items_from_yaml(kube_apis, src_accesslog_yaml, namespace)
 
         before = time.time()
-        wait_until_all_pods_are_ready(kube_apis.v1, namespace)
+        wait_until_all_pods_are_ready(kube_apis.v1, namespace, "app in (syslog,accesslog)")
         after = time.time()
         print(f"All pods came up in {int(after-before)} seconds")
         print(f"syslog and accesslog svc was created")

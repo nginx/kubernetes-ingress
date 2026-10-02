@@ -1,6 +1,7 @@
 import pytest
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.utils.resources_utils import (
+    IC_SELECTOR,
     get_events,
     get_events_for_object,
     get_file_contents,
@@ -202,8 +203,8 @@ class TestVirtualServerConfigMapNoTls:
         virtual_server_setup,
         clean_up,
     ):
-        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
 
         print("Step 1: update ConfigMap with valid keys without validation rules")
@@ -317,8 +318,8 @@ class TestVirtualServerConfigMapNoTls:
         clean_up,
     ):
         wait_before_test(1)
-        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace)
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pods_amount = get_pods_amount(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
         data_file = f"{TEST_DATA}/virtual-server-configmap-keys/configmap-validation-keys.yaml"
         data_file_invalid = f"{TEST_DATA}/virtual-server-configmap-keys/configmap-validation-keys-invalid.yaml"
@@ -396,7 +397,7 @@ class TestVirtualServerConfigMapWithTls:
         virtual_server_setup,
         clean_up,
     ):
-        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace, IC_SELECTOR)
         initial_list = get_events(kube_apis.v1, virtual_server_setup.namespace)
 
         print("Step 1: update ConfigMap with valid ssl keys")

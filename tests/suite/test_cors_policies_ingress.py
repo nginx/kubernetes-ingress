@@ -9,6 +9,7 @@ from suite.utils.resources_utils import (
     delete_items_from_yaml,
     ensure_connection_to_public_endpoint,
     ensure_response_from_backend,
+    get_e2e_run_selector,
     wait_before_test,
     wait_until_all_pods_are_ready,
 )
@@ -48,6 +49,7 @@ class TestCORSPoliciesIngress:
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        e2e_run_id,
     ):
         """
         Validate CORS policy attachment to Ingress via nginx.org/policies annotation.
@@ -56,8 +58,8 @@ class TestCORSPoliciesIngress:
         ingress_host = get_first_ingress_host_from_yaml(cors_ingress_simple_src)
         request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         create_items_from_yaml(kube_apis, cors_ingress_simple_src, test_namespace)
 
         pol_name = self.setup_cors_policy(kube_apis, test_namespace, cors_pol_simple_src)
@@ -133,6 +135,7 @@ class TestCORSPoliciesIngress:
         crd_ingress_controller,
         ingress_controller_endpoint,
         test_namespace,
+        e2e_run_id,
     ):
         """
         Validate wildcard CORS policy attachment to Ingress via nginx.org/policies annotation.
@@ -141,8 +144,8 @@ class TestCORSPoliciesIngress:
         ingress_host = get_first_ingress_host_from_yaml(cors_ingress_wildcard_src)
         request_url = f"http://{ingress_controller_endpoint.public_ip}:{ingress_controller_endpoint.port}/backend1"
 
-        create_example_app(kube_apis, "simple", test_namespace)
-        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+        create_example_app(kube_apis, "simple", test_namespace, e2e_run_id=e2e_run_id)
+        wait_until_all_pods_are_ready(kube_apis.v1, test_namespace, get_e2e_run_selector(e2e_run_id))
         create_items_from_yaml(kube_apis, cors_ingress_wildcard_src, test_namespace)
 
         pol_name = self.setup_cors_policy(kube_apis, test_namespace, cors_pol_wildcard_src)
