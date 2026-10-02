@@ -289,7 +289,7 @@ func TestNewLatencyMetricsCollectorUsesCustomBuckets(t *testing.T) {
 func TestNewLatencyMetricsCollectorFallsBackToDefaultBuckets(t *testing.T) {
 	t.Parallel()
 	got := gatherLatencyBucketBounds(t, nil)
-	if !reflect.DeepEqual(got, DefaultLatencyBuckets) {
-		t.Errorf("expected default buckets %v, got %v", DefaultLatencyBuckets, got)
+	if !reflect.DeepEqual(got, defaultLatencyBuckets) {
+		t.Errorf("expected default buckets %v, got %v", defaultLatencyBuckets, got)
 	}
 }
