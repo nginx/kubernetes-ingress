@@ -9946,12 +9946,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: latency-metrics-buckets
@@ -9983,7 +9981,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: latency-metrics-buckets-nginx-ingress
       automountServiceAccountToken: true
@@ -10027,7 +10025,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -10039,7 +10037,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -10097,9 +10094,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
