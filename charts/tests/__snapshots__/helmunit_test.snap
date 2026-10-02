@@ -5903,12 +5903,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort:
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort:
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: batch-reload-window
@@ -13240,6 +13238,7 @@ spec:
         args:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
+          - -batch-reload-window=2000
           - -enable-app-protect=false
           - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
@@ -13680,6 +13679,7 @@ spec:
         args:
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
+          - -batch-reload-window=2000
           - -enable-app-protect=false
           - -enable-app-protect-ip-intelligence=false
           - -enable-app-protect-dos=false
