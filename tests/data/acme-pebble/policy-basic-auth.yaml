@@ -1,0 +1,8 @@
+apiVersion: k8s.nginx.org/v1
+kind: Policy
+metadata:
+  name: acme-basic-auth
+spec:
+  basicAuth:
+    realm: ACME Test
+    secret: acme-htpasswd
