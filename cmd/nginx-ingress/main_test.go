@@ -518,3 +518,59 @@ func TestGetAndValidateSecret(t *testing.T) {
 		})
 	}
 }
+
+func TestGetControllerZone(t *testing.T) {
+	t.Parallel()
+
+	node := func(name string, labels map[string]string) *api_v1.Node {
+		return &api_v1.Node{ObjectMeta: meta_v1.ObjectMeta{Name: name, Labels: labels}}
+	}
+
+	tests := []struct {
+		name     string
+		nodeName string
+		objects  []runtime.Object
+		want     string
+	}{
+		{
+			name:     "zone label on the controller node",
+			nodeName: "node-1",
+			objects: []runtime.Object{
+				node("node-1", map[string]string{api_v1.LabelTopologyZone: "zone-a"}),
+				node("node-2", map[string]string{api_v1.LabelTopologyZone: "zone-b"}),
+			},
+			want: "zone-a",
+		},
+		{
+			name:     "controller node has no zone label",
+			nodeName: "node-1",
+			objects:  []runtime.Object{node("node-1", nil)},
+			want:     "",
+		},
+		{
+			name:     "controller node not found",
+			nodeName: "node-1",
+			objects:  []runtime.Object{node("node-2", map[string]string{api_v1.LabelTopologyZone: "zone-b"})},
+			want:     "",
+		},
+		{
+			name:     "empty node name",
+			nodeName: "",
+			objects:  []runtime.Object{node("node-1", map[string]string{api_v1.LabelTopologyZone: "zone-a"})},
+			want:     "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			clientset := fake.NewClientset(test.objects...)
+			ctx := nl.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+			got := getControllerZone(ctx, clientset, test.nodeName)
+			if got != test.want {
+				t.Errorf("getControllerZone() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}

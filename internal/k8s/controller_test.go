@@ -1347,7 +1347,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodInOneEndpointSlice(t *test
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1451,7 +1451,7 @@ func TestGetEndpointSlicesBySubselectedPods_GetsEndpointsOnNilValues(t *testing.
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			got := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 			if !cmp.Equal(got, test.want) {
 				t.Error(cmp.Diff(got, test.want))
 			}
@@ -1540,7 +1540,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodInTwoEndpointSlicesWithDup
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1641,7 +1641,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindTwoPodsInOneEndpointSlice(t *tes
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1752,7 +1752,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindTwoPodsInTwoEndpointSlices(t *te
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1845,7 +1845,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInOneEndpointSlice
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1948,7 +1948,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInTwoEndpointSlice
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -2011,7 +2011,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindNoPods(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -2071,12 +2071,115 @@ func TestGetEndpointSlicesBySubselectedPods_TargetPortMismatch(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices)
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
 			}
 		})
+	}
+}
+
+func TestGetEndpointSlicesBySubselectedPods_TopologyHints(t *testing.T) {
+	t.Parallel()
+
+	makePod := func(ip string) *api_v1.Pod {
+		return &api_v1.Pod{Status: api_v1.PodStatus{PodIP: ip}}
+	}
+	makeEndpoint := func(ip, zone string) discovery_v1.Endpoint {
+		return discovery_v1.Endpoint{
+			Addresses:  []string{ip},
+			Conditions: discovery_v1.EndpointConditions{Ready: new(true)},
+			Hints:      &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: zone}}},
+		}
+	}
+	makeSlices := func(endpoints ...discovery_v1.Endpoint) []discovery_v1.EndpointSlice {
+		return []discovery_v1.EndpointSlice{
+			{
+				Ports:     []discovery_v1.EndpointPort{{Port: new(int32(8080))}},
+				Endpoints: endpoints,
+			},
+		}
+	}
+
+	stable1 := makeEndpoint("10.0.0.1", "zone-a")
+	stable2 := makeEndpoint("10.0.0.2", "zone-a")
+	canaryB := makeEndpoint("10.0.0.3", "zone-b")
+	canaryA := makeEndpoint("10.0.0.4", "zone-a")
+
+	tests := []struct {
+		desc              string
+		svcEndpointSlices []discovery_v1.EndpointSlice
+		pods              []*api_v1.Pod
+		expectedEndpoints []podEndpoint
+	}{
+		{
+			// The Service has same-zone endpoints, but none of them are
+			// subselected. Topology must be evaluated against the subselected
+			// set, so the fallback fires and the canary is used.
+			desc:              "subselected pod only in another zone falls back to it",
+			svcEndpointSlices: makeSlices(stable1, stable2, canaryB),
+			pods:              []*api_v1.Pod{makePod("10.0.0.3")},
+			expectedEndpoints: []podEndpoint{{Address: "10.0.0.3:8080"}},
+		},
+		{
+			desc:              "subselected pods in multiple zones prefer the controller zone",
+			svcEndpointSlices: makeSlices(stable1, stable2, canaryB, canaryA),
+			pods:              []*api_v1.Pod{makePod("10.0.0.3"), makePod("10.0.0.4")},
+			expectedEndpoints: []podEndpoint{{Address: "10.0.0.4:8080"}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(8080, test.pods, test.svcEndpointSlices, "node-1", "zone-a")
+			if !unorderedEqual(gotEndpoints, test.expectedEndpoints) {
+				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
+			}
+		})
+	}
+}
+
+func TestGetEndpointsForPortFromEndpointSlices_TopologyHints(t *testing.T) {
+	t.Parallel()
+
+	makeEndpoint := func(ip, zone string) discovery_v1.Endpoint {
+		return discovery_v1.Endpoint{
+			Addresses:  []string{ip},
+			Conditions: discovery_v1.EndpointConditions{Ready: new(true)},
+			Hints:      &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: zone}}},
+		}
+	}
+
+	svc := &api_v1.Service{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-svc", Namespace: "default"},
+		Spec: api_v1.ServiceSpec{
+			Ports: []api_v1.ServicePort{{Name: "foo", Port: 80, TargetPort: intstr.FromInt(8080)}},
+		},
+	}
+	endpointSlices := []discovery_v1.EndpointSlice{
+		{
+			Ports: []discovery_v1.EndpointPort{{Port: new(int32(8080))}},
+			Endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", "zone-a"),
+				makeEndpoint("10.0.0.2", "zone-b"),
+			},
+		},
+	}
+
+	lbc := LoadBalancerController{
+		Logger:   nl.LoggerFromContext(context.Background()),
+		metadata: controllerMetadata{nodeName: "node-1", zone: "zone-a"},
+	}
+
+	got, err := lbc.getEndpointsForPortFromEndpointSlices(endpointSlices, networking.ServiceBackendPort{Name: "foo"}, svc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []podEndpoint{{Address: "10.0.0.1:8080"}}
+	if !unorderedEqual(got, want) {
+		t.Errorf("lbc.getEndpointsForPortFromEndpointSlices() got %v, want %v", got, want)
 	}
 }
 
@@ -2094,6 +2197,235 @@ func unorderedEqual(got, want []podEndpoint) bool {
 		}
 	}
 	return true
+}
+
+func TestFilterEndpointsByTopologyHints(t *testing.T) {
+	t.Parallel()
+
+	ready := true
+	makeEndpoint := func(addr string, hints *discovery_v1.EndpointHints) discovery_v1.Endpoint {
+		return discovery_v1.Endpoint{
+			Addresses:  []string{addr},
+			Conditions: discovery_v1.EndpointConditions{Ready: &ready},
+			Hints:      hints,
+		}
+	}
+
+	tests := []struct {
+		desc      string
+		endpoints []discovery_v1.Endpoint
+		nodeName  string
+		zone      string
+		expected  []string
+	}{
+		{
+			desc: "empty node and zone returns all",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}}}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}}}),
+			},
+			nodeName: "",
+			zone:     "",
+			expected: []string{"10.0.0.1", "10.0.0.2"},
+		},
+		{
+			desc: "no hints on any endpoint returns all",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", nil),
+				makeEndpoint("10.0.0.2", nil),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2"},
+		},
+		{
+			desc: "zone hints match our zone returns subset",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}}}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}}}),
+				makeEndpoint("10.0.0.3", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}}}),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.3"},
+		},
+		{
+			desc: "no zone hints match falls back to all",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}}}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-west-2b"}}}),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2"},
+		},
+		{
+			desc: "multi-zone hint includes our zone",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}, {Name: "us-west-2a"}}}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}}}),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1"},
+		},
+		{
+			desc: "node hints take priority over zone hints",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{
+					ForNodes: []discovery_v1.ForNode{{Name: "node-1"}},
+					ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}},
+				}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{
+					ForNodes: []discovery_v1.ForNode{{Name: "node-2"}},
+					ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}},
+				}),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1"},
+		},
+		{
+			desc: "node hints present but no match falls back to zone hints",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{
+					ForNodes: []discovery_v1.ForNode{{Name: "node-3"}},
+					ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}},
+				}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{
+					ForNodes: []discovery_v1.ForNode{{Name: "node-4"}},
+					ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}},
+				}),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2"},
+		},
+		{
+			desc: "neither node nor zone hints match falls back to all",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{
+					ForNodes: []discovery_v1.ForNode{{Name: "node-3"}},
+					ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}},
+				}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{
+					ForNodes: []discovery_v1.ForNode{{Name: "node-4"}},
+					ForZones: []discovery_v1.ForZone{{Name: "us-west-2b"}},
+				}),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2"},
+		},
+		{
+			desc: "empty ForZones treated as no hints",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{}),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2"},
+		},
+		{
+			// Hints are written by the EndpointSlice controller, so during a
+			// rollout some endpoints may not have them yet. Like kube-proxy, we
+			// must not filter unless every endpoint is hinted.
+			desc: "partially zone-hinted endpoints are not filtered",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", nil),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}}}),
+				makeEndpoint("10.0.0.3", nil),
+				makeEndpoint("10.0.0.4", nil),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"},
+		},
+		{
+			desc: "partially node-hinted endpoints are not filtered",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", nil),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForNodes: []discovery_v1.ForNode{{Name: "node-1"}}}),
+				makeEndpoint("10.0.0.3", nil),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"},
+		},
+		{
+			desc: "partially hinted endpoints with no match are not filtered",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", nil),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}}}),
+				makeEndpoint("10.0.0.3", nil),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2", "10.0.0.3"},
+		},
+		{
+			desc: "node hints on only some endpoints fall through to zone hints present on all",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{
+					ForNodes: []discovery_v1.ForNode{{Name: "node-1"}},
+					ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}},
+				}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{
+					ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}},
+				}),
+				makeEndpoint("10.0.0.3", &discovery_v1.EndpointHints{
+					ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}},
+				}),
+			},
+			nodeName: "node-1",
+			zone:     "us-east-1a",
+			expected: []string{"10.0.0.1", "10.0.0.2"},
+		},
+		{
+			desc: "zone hints on all endpoints but controller zone unknown returns all",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-east-1a"}}}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "us-west-2a"}}}),
+			},
+			nodeName: "node-1",
+			zone:     "",
+			expected: []string{"10.0.0.1", "10.0.0.2"},
+		},
+		{
+			desc: "node hints on all endpoints with only node name known returns same-node subset",
+			endpoints: []discovery_v1.Endpoint{
+				makeEndpoint("10.0.0.1", &discovery_v1.EndpointHints{ForNodes: []discovery_v1.ForNode{{Name: "node-1"}}}),
+				makeEndpoint("10.0.0.2", &discovery_v1.EndpointHints{ForNodes: []discovery_v1.ForNode{{Name: "node-2"}}}),
+			},
+			nodeName: "node-1",
+			zone:     "",
+			expected: []string{"10.0.0.1"},
+		},
+		{
+			desc:      "no endpoints returns none",
+			endpoints: nil,
+			nodeName:  "node-1",
+			zone:      "us-east-1a",
+			expected:  []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			got := filterEndpointsByTopologyHints(test.endpoints, test.nodeName, test.zone)
+			gotAddrs := make([]string, 0, len(got))
+			for _, ep := range got {
+				gotAddrs = append(gotAddrs, ep.Addresses...)
+			}
+			sort.Strings(gotAddrs)
+			expected := slices.Sorted(slices.Values(test.expected))
+			if !slices.Equal(gotAddrs, expected) {
+				t.Errorf("filterEndpointsByTopologyHints() = %v, want %v", gotAddrs, test.expected)
+			}
+		})
+	}
 }
 
 func TestGetStatusFromEventTitle(t *testing.T) {
