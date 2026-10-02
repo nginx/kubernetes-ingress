@@ -1,3 +1,6 @@
+## Labels to apply to all resources.
+commonLabels: {}
+
 controller:
   ## The name of the Ingress Controller daemonset, deployment, or statefulset.
   name: controller
