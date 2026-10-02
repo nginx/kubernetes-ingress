@@ -4738,10 +4738,8 @@ func selectEndpointSlicesForPort(targetPort int32, esx []discovery_v1.EndpointSl
 	return eps
 }
 
-// filterReadyEndpointsFrom returns ready Endpoints from given EndpointSlices,
-// then applies topology-aware filtering using hints.
-// Priority: ForNodes (same-node) > ForZones (same-zone) > all ready endpoints (fallback).
-func filterReadyEndpointsFrom(esx []discovery_v1.EndpointSlice, nodeName, zone string) []discovery_v1.Endpoint {
+// filterReadyEndpointsFrom returns ready Endpoints from given EndpointSlices.
+func filterReadyEndpointsFrom(esx []discovery_v1.EndpointSlice) []discovery_v1.Endpoint {
 	epx := make([]discovery_v1.Endpoint, 0, len(esx))
 	for _, es := range esx {
 		for _, e := range es.Endpoints {
@@ -4753,53 +4751,73 @@ func filterReadyEndpointsFrom(esx []discovery_v1.EndpointSlice, nodeName, zone s
 			}
 		}
 	}
-	return filterEndpointsByTopologyHints(epx, nodeName, zone)
+	return epx
 }
 
-// filterEndpointsByTopologyHints filters endpoints based on topology hints.
-// Priority: ForNodes (same-node) > ForZones (same-zone) > all endpoints (fallback).
+// filterEndpointsByTopologyHints narrows endpoints using the topology hints
+// that the EndpointSlice controller populates when a Service sets
+// spec.trafficDistribution. It mirrors kube-proxy's topologyModeFromHints:
 //
-// Endpoints with Hints == nil are skipped during filtering: if any hinted
-// endpoint matches, only the matching hinted set is returned (matches
-// kube-proxy semantics — absence of a hint is not "route here too"). All
-// endpoints are returned unchanged only when no hint matches at all, or
-// when nodeName and zone are both empty.
+//   - If every endpoint has a node hint and at least one is hinted for
+//     nodeName, only endpoints hinted for nodeName are returned (PreferSameNode).
+//   - Otherwise, if every endpoint has a zone hint and at least one is hinted
+//     for zone, only endpoints hinted for zone are returned (PreferSameZone).
+//   - Otherwise all endpoints are returned unchanged.
+//
+// Requiring hints on every endpoint matters: hints are written asynchronously,
+// so a partially hinted set is a transient state, and filtering on it would
+// send all traffic to whichever endpoints happened to be updated first.
+//
+// The endpoints passed in must be the final candidate set (ready, and already
+// narrowed by any subselector) so that the fallback is evaluated against the
+// endpoints that will actually be used.
 func filterEndpointsByTopologyHints(endpoints []discovery_v1.Endpoint, nodeName, zone string) []discovery_v1.Endpoint {
-	if nodeName == "" && zone == "" {
+	if len(endpoints) == 0 || (nodeName == "" && zone == "") {
 		return endpoints
 	}
 
-	var nodeFiltered, zoneFiltered []discovery_v1.Endpoint
+	allHaveNodeHints, hasEndpointForNode := true, false
+	allHaveZoneHints, hasEndpointForZone := true, false
 
 	for _, ep := range endpoints {
-		if ep.Hints == nil {
-			continue
+		if ep.Hints == nil || len(ep.Hints.ForNodes) == 0 {
+			allHaveNodeHints = false
+		} else if endpointHintedForNode(ep, nodeName) {
+			hasEndpointForNode = true
 		}
-		if nodeName != "" {
-			for _, fn := range ep.Hints.ForNodes {
-				if fn.Name == nodeName {
-					nodeFiltered = append(nodeFiltered, ep)
-					break
-				}
-			}
-		}
-		if zone != "" {
-			for _, fz := range ep.Hints.ForZones {
-				if fz.Name == zone {
-					zoneFiltered = append(zoneFiltered, ep)
-					break
-				}
-			}
+		if ep.Hints == nil || len(ep.Hints.ForZones) == 0 {
+			allHaveZoneHints = false
+		} else if endpointHintedForZone(ep, zone) {
+			hasEndpointForZone = true
 		}
 	}
 
-	if len(nodeFiltered) > 0 {
-		return nodeFiltered
+	switch {
+	case allHaveNodeHints && hasEndpointForNode:
+		return slices.DeleteFunc(slices.Clone(endpoints), func(ep discovery_v1.Endpoint) bool {
+			return !endpointHintedForNode(ep, nodeName)
+		})
+	case allHaveZoneHints && hasEndpointForZone:
+		return slices.DeleteFunc(slices.Clone(endpoints), func(ep discovery_v1.Endpoint) bool {
+			return !endpointHintedForZone(ep, zone)
+		})
+	default:
+		return endpoints
 	}
-	if len(zoneFiltered) > 0 {
-		return zoneFiltered
+}
+
+func endpointHintedForNode(ep discovery_v1.Endpoint, nodeName string) bool {
+	if nodeName == "" || ep.Hints == nil {
+		return false
 	}
-	return endpoints
+	return slices.ContainsFunc(ep.Hints.ForNodes, func(fn discovery_v1.ForNode) bool { return fn.Name == nodeName })
+}
+
+func endpointHintedForZone(ep discovery_v1.Endpoint, zone string) bool {
+	if zone == "" || ep.Hints == nil {
+		return false
+	}
+	return slices.ContainsFunc(ep.Hints.ForZones, func(fz discovery_v1.ForZone) bool { return fz.Name == zone })
 }
 
 func getEndpointsFromEndpointSlicesForSubselectedPods(targetPort int32, pods []*api_v1.Pod, svcEndpointSlices []discovery_v1.EndpointSlice, nodeName, zone string) (podEndpoints []podEndpoint) {
@@ -4829,7 +4847,21 @@ func getEndpointsFromEndpointSlicesForSubselectedPods(targetPort int32, pods []*
 		return slices.Collect(maps.Keys(endpointSet))
 	}
 
-	return makePodEndpoints(pods, filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, svcEndpointSlices), nodeName, zone))
+	// Narrow to the subselected pods before applying topology hints, so that the
+	// "no endpoint for this node/zone" fallback is evaluated against the pods the
+	// upstream will actually use rather than the whole Service.
+	podIPs := make(map[string]struct{}, len(pods))
+	for _, pod := range pods {
+		podIPs[pod.Status.PodIP] = struct{}{}
+	}
+	subselected := slices.DeleteFunc(filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, svcEndpointSlices)), func(ep discovery_v1.Endpoint) bool {
+		return !slices.ContainsFunc(ep.Addresses, func(addr string) bool {
+			_, ok := podIPs[addr]
+			return ok
+		})
+	})
+
+	return makePodEndpoints(pods, filterEndpointsByTopologyHints(subselected, nodeName, zone))
 }
 
 func ipv6SafeAddrPort(addr string, port int32) string {
@@ -4972,7 +5004,8 @@ func (lbc *LoadBalancerController) getEndpointsForPortFromEndpointSlices(endpoin
 		return slices.Collect(maps.Keys(endpointSet))
 	}
 
-	endpoints := makePodEndpoints(targetPort, filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, endpointSlices), lbc.metadata.nodeName, lbc.metadata.zone))
+	readyEndpoints := filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, endpointSlices))
+	endpoints := makePodEndpoints(targetPort, filterEndpointsByTopologyHints(readyEndpoints, lbc.metadata.nodeName, lbc.metadata.zone))
 	if len(endpoints) == 0 {
 		return nil, fmt.Errorf("no endpointslices for target port %v in service %s", targetPort, svc.Name)
 	}
