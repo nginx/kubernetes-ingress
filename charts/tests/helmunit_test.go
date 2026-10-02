@@ -237,7 +237,7 @@ func TestHelmNICTemplate(t *testing.T) {
 		"latencyMetricsBuckets": {
 			valuesFile:  "testdata/latency-metrics-buckets.yaml",
 			releaseName: "latency-metrics-buckets",
- 			namespace:   "default",
+			namespace:   "default",
 		},
 		"allowEmptyIngressHostWithoutCRs": {
 			valuesFile:  "testdata/allow-empty-ingress-host-no-crs.yaml",
