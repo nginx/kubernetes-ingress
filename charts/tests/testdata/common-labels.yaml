@@ -8,3 +8,6 @@ controller:
   pod:
     extraLabels:
       team: ingress # must win over commonLabels.team on collision
+  service:
+    extraLabels:
+      environment: canary # must win over commonLabels.environment on collision

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gkampitakis/go-snaps/snaps"
+	"sigs.k8s.io/yaml"
 )
 
 func TestMain(m *testing.M) {
@@ -252,9 +253,30 @@ func TestHelmNICTemplate(t *testing.T) {
 
 			output := renderTemplate(t, helmChartPath, tc.releaseName, options)
 
+			assertNoDuplicateYAMLKeys(t, output)
+
 			snaps.MatchSnapshot(t, output)
 			t.Log(output)
 		})
+	}
+}
+
+// assertNoDuplicateYAMLKeys fails the test if any rendered manifest contains
+// a duplicate mapping key (e.g. a label set by both commonLabels and an
+// extraLabels field). Such manifests are invalid YAML: the duplicate is
+// silently dropped by last-wins parsing instead of being rejected, so a
+// plain string/snapshot comparison would not catch it.
+func assertNoDuplicateYAMLKeys(t *testing.T, output string) {
+	t.Helper()
+
+	for _, doc := range strings.Split(output, "\n---\n") {
+		if strings.TrimSpace(doc) == "" {
+			continue
+		}
+		var out map[string]interface{}
+		if err := yaml.UnmarshalStrict([]byte(doc), &out); err != nil {
+			t.Fatalf("rendered manifest contains invalid YAML (likely a duplicate key): %v\n%s", err, doc)
+		}
 	}
 }
 
@@ -297,6 +319,12 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "appprotect-waf-plm-without-v5",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"controller.appprotect.plmStorage.url requires controller.appprotect.v5=true"},
+		},
+		"commonLabelsReserved": {
+			valuesFile:        "testdata/common-labels-reserved.yaml",
+			releaseName:       "common-labels-reserved",
+			namespace:         "default",
+			expectedErrorMsgs: []string{`label "app.kubernetes.io/name" is managed by the chart and cannot be overridden`},
 		},
 		"appProtectWAFPLMWithoutPlus": {
 			valuesFile:        "testdata/app-protect-waf-plm-without-plus.yaml",

@@ -5928,7 +5928,7 @@ metadata:
     app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
     cost-center: "12345"
-    environment: production
+    environment: canary
     team: platform
 spec:
   externalTrafficPolicy: Local
@@ -5976,7 +5976,6 @@ spec:
         app.kubernetes.io/instance: common-labels
         cost-center: "12345"
         environment: production
-        team: platform
         team: ingress
       annotations:
         prometheus.io/scrape: "true"
