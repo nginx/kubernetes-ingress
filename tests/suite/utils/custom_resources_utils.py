@@ -61,6 +61,15 @@ def delete_crd(api_extensions_v1: ApiextensionsV1Api, name) -> None:
     print(f"CRD was removed with name '{name}'")
 
 
+def cleanup_crd(api_extensions_v1: ApiextensionsV1Api, name) -> None:
+    """Delete a CRD if it exists (e.g. left behind by an interrupted run), otherwise no-op."""
+    try:
+        delete_crd(api_extensions_v1, name)
+    except ApiException as ex:
+        if ex.status != 404:
+            raise
+
+
 def read_custom_resource(
     custom_objects: CustomObjectsApi, namespace, plural, name, api_group="k8s.nginx.org"
 ) -> object:

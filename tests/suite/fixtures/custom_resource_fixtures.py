@@ -1,10 +1,21 @@
 """Describe project shared pytest fixtures related to setup of custom resources and apps."""
 
 import pytest
-from settings import TEST_DATA
+from settings import CRDS, TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
-from suite.utils.custom_resources_utils import create_gc_from_yaml, create_ts_from_yaml, delete_gc, delete_ts
+from suite.utils.custom_resources_utils import (
+    cleanup_crd,
+    create_crd_from_yaml,
+    create_gc_from_yaml,
+    create_ts_from_yaml,
+    delete_crd,
+    delete_gc,
+    delete_ts,
+)
 from suite.utils.resources_utils import (
+    cleanup_rbac,
+    configure_rbac_with_ap,
+    configure_rbac_with_dos,
     create_deployment_with_name,
     create_example_app,
     create_items_from_yaml,
@@ -26,11 +37,90 @@ from suite.utils.vs_vsr_resources_utils import (
 )
 from suite.utils.yaml_utils import (
     get_first_host_from_yaml,
+    get_name_from_yaml,
     get_namespace_from_yaml,
     get_paths_from_vs_yaml,
     get_paths_from_vsr_yaml,
     get_route_namespace_from_vs_yaml,
 )
+
+# Fixtures related to Ingress Controller setup and configuration, including App Protect and DoS modules.
+
+
+def _session_crds(kube_apis, request, label, *yaml_files) -> None:
+    """Register CRDs once per session (removing leftovers from interrupted runs first); remove them at session end."""
+    api = kube_apis.api_extensions_v1
+    crds = {get_name_from_yaml(f"{CRDS}/{f}"): f"{CRDS}/{f}" for f in yaml_files}
+    try:
+        print(f"------------------------- Register {label} CRDs -----------------------------------")
+        for name, path in crds.items():
+            cleanup_crd(api, name)
+            create_crd_from_yaml(api, name, path)
+    except Exception as ex:
+        print(f"Failed to register {label} CRDs: {ex}\nCleaning up.")
+        for name in crds:
+            cleanup_crd(api, name)
+        pytest.fail(f"{label} CRD registration failed")
+
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            print(f"------------------------- Remove {label} CRDs -----------------------------------")
+            for name in crds:
+                delete_crd(api, name)
+
+    request.addfinalizer(fin)
+
+
+def _session_rbac(kube_apis, request, label, configure_fn) -> None:
+    """Configure RBAC once per session; clean it up at session end."""
+    print(f"--------------------Create roles and bindings for {label}------------------------")
+    rbac = configure_fn(kube_apis.rbac_v1)
+
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            print(f"Remove {label} RBAC")
+            cleanup_rbac(kube_apis.rbac_v1, rbac)
+
+    request.addfinalizer(fin)
+
+
+@pytest.fixture(scope="session")
+def ap_crds(kube_apis, request) -> None:
+    _session_crds(
+        kube_apis,
+        request,
+        "AP",
+        "appprotect.f5.com_appolicies.yaml",
+        "appprotect.f5.com_aplogconfs.yaml",
+        "appprotect.f5.com_apusersigs.yaml",
+    )
+
+
+@pytest.fixture(scope="session")
+def ap_rbac(kube_apis, request) -> None:
+    _session_rbac(kube_apis, request, "AppProtect", configure_rbac_with_ap)
+
+
+@pytest.fixture(scope="session")
+def dos_crds(kube_apis, request) -> None:
+    _session_crds(
+        kube_apis,
+        request,
+        "DoS",
+        "appprotectdos.f5.com_apdospolicy.yaml",
+        "appprotectdos.f5.com_apdoslogconfs.yaml",
+        "appprotectdos.f5.com_dosprotectedresources.yaml",
+    )
+
+
+@pytest.fixture(scope="session")
+def dos_rbac(kube_apis, request) -> None:
+    _session_rbac(kube_apis, request, "AppProtect DoS", configure_rbac_with_dos)
+
+
+@pytest.fixture(scope="session")
+def ed_crds(kube_apis, request) -> None:
+    _session_crds(kube_apis, request, "DNSEndpoint", "externaldns.nginx.org_dnsendpoints.yaml")
 
 
 class VirtualServerSetup:

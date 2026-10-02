@@ -297,7 +297,6 @@ class TestIngressMtlsPolicyVS:
                     verify=False,
                 )
                 wait_before_test()
-                counter += 1
 
             except requests.exceptions.SSLError as e:
                 print(f"SSL certificate exception: {e}")
@@ -310,7 +309,7 @@ class TestIngressMtlsPolicyVS:
                 # Note: SSLError subclasses ConnectionError, so this must come after it.
                 print(f"Connection dropped during reload: {e}")
                 wait_before_test()
-                counter += 1
+            counter += 1
 
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 
@@ -468,7 +467,6 @@ class TestIngressMtlsPolicyVS:
                     verify=False,
                 )
                 wait_before_test()
-                counter += 1
             except requests.exceptions.SSLError as e:
                 print(f"SSL certificate exception: {e}")
                 ssl_exception = str(e)
@@ -480,7 +478,7 @@ class TestIngressMtlsPolicyVS:
                 # Note: SSLError subclasses ConnectionError, so this must come after it.
                 print(f"Connection dropped during reload: {e}")
                 wait_before_test()
-                counter += 1
+            counter += 1
 
         teardown_policy(kube_apis, test_namespace, tls_secret, pol_name, mtls_secret)
 

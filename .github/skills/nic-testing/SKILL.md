@@ -1,6 +1,6 @@
 ---
 name: nic-testing
-description: 'Testing patterns for NIC including Go table-driven tests, snapshot tests, and Python integration tests. Use when writing unit tests, snapshot tests, policy tests, template tests, Helm tests, or pytest integration tests for the Ingress Controller.'
+description: 'Testing patterns for NIC including Go table-driven tests, snapshot tests, Helm tests, and Python E2E integration tests. Use when writing unit tests, snapshot tests, policy tests, template tests, Helm tests, or pytest integration/E2E tests for the Ingress Controller.'
 ---
 
 # NIC Testing Patterns
@@ -9,12 +9,22 @@ description: 'Testing patterns for NIC including Go table-driven tests, snapshot
 
 | Command | Purpose |
 | --- | --- |
-| `make test` | Run all Go tests (`-tags=aws,helmunit -shuffle=on ./...`) |
+| `make test` | Run all Go unit & template tests (`-tags=aws,helmunit -shuffle=on ./...`) |
 | `make test-update-snaps` | Regenerate snapshot golden files (`UPDATE_SNAPS=always`) |
 | `make lint` | golangci-lint via Docker, diff against `origin/main` |
 | `make format` | goimports + gofumpt |
-| `make cover` | Generate test coverage report |
-| `make lint-python` | Python test formatting: isort + black |
+| `make cover` | Generate Go test coverage report |
+| `make secrets` | Generate test TLS certificates and keys required for E2E tests |
+| `make lint-python` | Python test formatting: `isort` + `black` |
+
+E2E targets in `tests/Makefile` (run from `tests/`, e.g. `make -C tests <target>`):
+
+| Command | Purpose |
+| --- | --- |
+| `make run-local-tests` | Run Python E2E test suite locally using virtual environment |
+| `make run-tests-in-kind` | Run E2E test suite inside a Kind Kubernetes cluster |
+| `make run-tests-in-minikube` | Run E2E test suite inside a Minikube Kubernetes cluster |
+| `make test-lint` | Python test formatting: `isort` + `black` |
 
 Always use `make test` over raw `go test`. Run `make test-update-snaps` when template output changes.
 
@@ -83,7 +93,7 @@ A one-sided diff is a bug only when the feature is supposed to be shared. Never 
 
 ---
 
-## Go Unit Tests
+## Go Unit & Snapshot Tests
 
 ### Table-Driven Tests (primary pattern)
 
@@ -107,20 +117,15 @@ func TestValidateMyPolicy(t *testing.T) {
 }
 ```
 
-### Naming Convention
+### Naming Conventions
 
-Two conventions are in use -- both are acceptable:
-
-**Policy/transport tests** (`policy_test.go`, `transportserver_test.go`):
-
-- `TestValidate<Thing>_PassesOnValidInput`
-- `TestValidate<Thing>_FailsOnInvalidInput`
-
-**VirtualServer/general tests** (`virtualserver_test.go` and most other files):
-
-- `TestValidate<Thing>` (valid input, often with subtests)
-- `TestValidate<Thing>Fails` (invalid input)
-- `TestGenerate<Feature>`
+- Policy/transport tests (`policy_test.go`, `transportserver_test.go`):
+  - `TestValidate<Thing>_PassesOnValidInput`
+  - `TestValidate<Thing>_FailsOnInvalidInput`
+- VirtualServer/general tests (`virtualserver_test.go`):
+  - `TestValidate<Thing>`
+  - `TestValidate<Thing>Fails`
+  - `TestGenerate<Feature>`
 
 ### Snapshot Test Mechanics
 
@@ -144,29 +149,91 @@ func TestVirtualServerForNginx(t *testing.T) {
 }
 ```
 
-### Helper Conventions
-
-- Always call `t.Parallel()` at the start
-- Use `t.Helper()` in helper functions
-- Use `github.com/google/go-cmp/cmp` for deep struct comparison
-- Use `github.com/gkampitakis/go-snaps/snaps` for snapshot tests
-
 ---
 
 ## Helm Tests
 
 Location: `charts/tests/`
 
-- `helmunit_test.go` -- Helm snapshot tests using terratest + go-snaps
+- `helmunit_test.go` -- Helm snapshot tests using terratest + go-snaps (requires `-tags=helmunit`, included in `make test`)
 - `testdata/` -- values.yaml overrides per test scenario
-
-Add a test values file in `charts/tests/testdata/<feature>.yaml` and a corresponding test case in `helmunit_test.go`.
 
 ---
 
-## Python Integration Tests
+## Python E2E & Integration Tests
 
-Location: `tests/suite/`
+Location: `tests/` (suite in `tests/suite/`, fixtures in `tests/suite/fixtures/`, utils in `tests/suite/utils/`, data in `tests/data/`)
+
+### Setup and Environment Prerequisites
+
+1. **Generate Test Secrets**: Before running tests individually, generate just-in-time test TLS certificates and keys:
+
+   ```bash
+   make secrets
+   ```
+
+2. **Setup Python Virtual Environment**:
+
+   ```bash
+   cd tests
+   make setup-venv
+   source venv/bin/activate
+   ```
+
+### Execution Workflows
+
+- **Run locally against Minikube**:
+
+  ```bash
+  cd tests
+  pytest --node-ip=$(minikube ip)
+  ```
+
+- **Run locally via Makefile**:
+
+  ```bash
+  cd tests
+  make run-local-tests NODE_IP=$(minikube ip)
+  ```
+
+- **Run in Kind cluster**:
+
+  ```bash
+  cd tests
+  make create-kind-cluster
+  make build
+  make run-tests-in-kind
+  ```
+
+- **Run in Minikube cluster**:
+
+  ```bash
+  cd tests
+  make create-mini-cluster
+  make run-tests-in-minikube
+  ```
+
+### CLI Arguments & Makefile Options
+
+| CLI Argument | Makefile Variable | Description | Default |
+| --- | --- | --- | --- |
+| `--image` | `BUILD_IMAGE` | Ingress Controller container image | `nginx/nginx-ingress:edge` |
+| `--ic-type` | `IC_TYPE` | IC variant: `nginx-ingress` or `nginx-plus-ingress` | `nginx-ingress` |
+| `--deployment-type` | `DEPLOYMENT_TYPE` | Workload type: `deployment`, `daemon-set`, `stateful-set` | `deployment` |
+| `--service` | `SERVICE` | Service type: `nodeport` or `loadbalancer` | `nodeport` |
+| `--node-ip` | `NODE_IP` | Cluster node IP address | `""` |
+| `--show-ic-logs` | `SHOW_IC_LOGS` | Output IC pod logs on test failure (`yes`/`no`) | `no` |
+| `--skip-fixture-teardown` | `N/A` | Skip teardown of test fixtures for interactive debugging | `no` |
+| `--plus-jwt` | `PLUS_JWT` | JWT token for NGINX Plus image authentication | `""` |
+| `N/A` | `PYTEST_ARGS` | Extra flags passed to pytest (e.g., `-m smoke`) | `""` |
+
+### IC Pooling & Test Collection Reordering
+
+To minimize test suite churn and execution time:
+
+- **Session-scoped IC Pool (`ICPool` in `ic_fixtures.py`)**: A single IC deployment is kept alive across consecutive test classes sharing identical `extra_args`. Changing configuration triggers an in-place IC recycle rather than per-class setup/teardown.
+- **Session-scoped CRD & RBAC Registration**: CRD schemas (`crds`, `ap_crds`, `dos_crds`, `ed_crds`) and RBAC rules (`ap_rbac`, `dos_rbac`) are registered once per session.
+- **Stable Collection Sorting (`conftest.py`)**: Pytest stably sorts items so tests are grouped by IC profile (non-IC tests first, pool-backed CRD tests grouped by `extra_args` second, inline non-pool IC tests last).
 
 ### Markers must be registered
 
@@ -176,48 +243,42 @@ pytest runs with `--strict-markers` (`pyproject.toml`, `[tool.pytest.ini_options
 
 ```python
 @pytest.mark.policies
-@pytest.mark.policies_myfeature
+@pytest.mark.policies_mtls
 @pytest.mark.parametrize(
     "crd_ingress_controller, virtual_server_setup",
-    [({"type": "complete", "extra_args": [...]},
-      {"example": "virtual-server", "app_type": "simple"})],
+    [({
+        "type": "complete",
+        "extra_args": ["-global-configuration=nginx-ingress/nginx-configuration"]
+    }, {
+        "example": "virtual-server-mtls",
+        "app_type": "simple"
+    })],
     indirect=True,
 )
-class TestMyFeaturePolicies:
-    def test_basic_functionality(self, kube_apis, crd_ingress_controller,
-                                  virtual_server_setup, test_namespace):
-        # 1. Create policy from YAML
-        pol_name = create_policy_from_yaml(
-            kube_apis.custom_objects, yaml_src, test_namespace
-        )
+class TestIngressMtlsPolicyVS:
+    def test_mtls_policy_execution(self, kube_apis, crd_ingress_controller, virtual_server_setup, test_namespace):
+        # 1. Deploy CRD/Policy resource
+        pol_name = create_policy_from_yaml(kube_apis.custom_objects, yaml_src, test_namespace)
         wait_before_test()
-        # 2. Patch VS to reference policy
-        patch_virtual_server_from_yaml(...)
-        # 3. Assert HTTP responses
-        resp = requests.get(url, headers={"host": vs_host})
+
+        # 2. Patch VirtualServer to reference policy
+        patch_virtual_server_from_yaml(kube_apis.custom_objects, virtual_server_setup.vs_name, vs_src, test_namespace)
+
+        # 3. Assert HTTP response
+        resp = requests.get(virtual_server_setup.backend_1_url_ssl, headers={"host": virtual_server_setup.vs_host}, verify=False)
         assert resp.status_code == 200
-        assert "Expected-Header" in resp.headers
-        # 4. Cleanup
+
+        # 4. Teardown
         delete_policy(kube_apis.custom_objects, pol_name, test_namespace)
-        patch_virtual_server_from_yaml(...)  # restore original
 ```
 
-### Fixtures and Utilities
+### Key Pytest Markers
 
-- Common fixtures: `kube_apis`, `crd_ingress_controller`, `virtual_server_setup`, `test_namespace`
-- Fixtures: `tests/suite/fixtures/` (setup/teardown lifecycle)
-- Utilities: `tests/suite/utils/` (`create_policy_from_yaml`, `patch_virtual_server_from_yaml`, `delete_policy`, `wait_before_test`)
-- Prefer event/status-based waits over fixed sleeps when possible
+Filter test runs with `pytest -m <marker>` or `PYTEST_ARGS="-m <marker>"`:
 
-### File Naming
-
-- `test_<feature>_policies_vs.py` -- VirtualServer policy tests
-- `test_<feature>_policies_vsr.py` -- VirtualServerRoute policy tests
-- `test_<feature>_policies_ingress.py` -- Ingress policy tests
-
-### Test Data
-
-Store YAML manifests in `tests/data/<feature>/`.
+- Core areas: `smoke`, `ingresses`, `vs`, `vsr`, `policies`, `annotations`, `ts`, `oidc`, `otel`
+- Modules: `appprotect`, `appprotect_waf_v5`, `dos`
+- Platform/Target filtering: `skip_for_nginx_oss`, `skip_for_loadbalancer`, `multi_ns`
 
 ---
 
@@ -241,6 +302,7 @@ The `verify-codegen` job in `ci.yml` re-runs each generator and diffs a **specif
 
 ## Gotchas
 
+- **Always** run `make secrets` before running individual pytest files directly.
 - **Always** run `make test-update-snaps` after changing any `.tmpl` file -- snapshot tests will fail otherwise
 - **Regenerating is not the same as testing.** If no fixture sets your new field, the golden file will not change and the feature has zero coverage. Add the test case first
 - **Never** run raw `go test` -- use `make test` which includes required build tags (`aws`, `helmunit`)
@@ -248,4 +310,4 @@ The `verify-codegen` job in `ci.yml` re-runs each generator and diffs a **specif
 - `TestMain` with `snaps.Clean(m, snaps.CleanOpts{Sort: true})` is **per package**, not per file -- adding a second one to the same package breaks the build
 - OSS and Plus templates are separate files, so they have separate snapshot entries -- a one-sided diff means you forgot the sibling template, **unless** the feature is Plus-only, in which case only the Plus golden file must change
 - New pytest markers must be registered in `pyproject.toml` -- `--strict-markers` is enabled
-- Python tests use `indirect=True` parametrize for IC + VS setup -- do not remove this
+- Python tests use `indirect=True` parametrize for IC + VS setup (this is how `extra_args` reach the IC pool) -- do not remove this

@@ -33,7 +33,6 @@ def create_virtual_server_from_yaml(custom_objects: CustomObjectsApi, yaml_manif
     :param namespace:
     :return: str
     """
-    print("Create a VirtualServer:")
     with open(yaml_manifest) as f:
         dep = yaml.safe_load(f)
 
@@ -271,7 +270,6 @@ def create_v_s_route_from_yaml(custom_objects: CustomObjectsApi, yaml_manifest, 
     :param namespace:
     :return: str
     """
-    print("Create a VirtualServerRoute:")
     with open(yaml_manifest) as f:
         dep = yaml.safe_load(f)
 
