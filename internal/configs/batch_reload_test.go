@@ -71,6 +71,19 @@ func (m *failingPlusAPIManager) UpdateServersInPlus(upstream string, _ []string,
 	return fmt.Errorf("simulated Plus API failure for upstream %s", upstream)
 }
 
+// failingStreamPlusAPIManager is the TransportServer/stream-upstream
+// counterpart to failingPlusAPIManager: it makes every
+// UpdateStreamServersInPlus call fail, simulating an NGINX Plus API error on
+// the stream (TCP/UDP) side rather than the HTTP side.
+type failingStreamPlusAPIManager struct {
+	*recordingBatchManager
+}
+
+func (m *failingStreamPlusAPIManager) UpdateStreamServersInPlus(upstream string, _ []string) error {
+	m.updateStreamServers.Add(1)
+	return fmt.Errorf("simulated stream Plus API failure for upstream %s", upstream)
+}
+
 // TestBatchModeDropsPlusEndpointUpdates pins the fix for issue #7778
 // (https://github.com/nginx/kubernetes-ingress/issues/7778): NGINX Plus
 // reloading on every endpoint churn event.
@@ -207,6 +220,142 @@ func cafeVSExWithEndpoints(endpoint string) *VirtualServerEx {
 		Endpoints: map[string][]string{
 			"default/tea-svc:80": {endpoint},
 		},
+	}
+}
+
+// dnsTSExWithEndpoints builds a minimal TransportServerEx for a single TCP
+// upstream, used by the TransportServer batch-mode Plus tests below. It uses
+// a plain TCP listener with no Host, so addOrUpdateTransportServer never
+// takes the tlsPassthroughPairs branch — only the stream upstream write via
+// updateStreamServersInPlus is exercised. endpoint is the sole backing pod
+// IP for the "dns-app" upstream.
+func dnsTSExWithEndpoints(endpoint string) *TransportServerEx {
+	return &TransportServerEx{
+		TransportServer: &conf_v1.TransportServer{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "dns", Namespace: "default"},
+			Spec: conf_v1.TransportServerSpec{
+				Listener: conf_v1.TransportServerListener{
+					Name:     "dns-tcp",
+					Protocol: "TCP",
+				},
+				Upstreams: []conf_v1.TransportServerUpstream{
+					{Name: "dns-app", Service: "dns-svc", Port: 5353},
+				},
+				Action: &conf_v1.TransportServerAction{
+					Pass: "dns-app",
+				},
+			},
+		},
+		ListenerPort: 5353,
+		Endpoints: map[string][]string{
+			"default/dns-svc:5353": {endpoint},
+		},
+	}
+}
+
+// TestBatchModeTransportServerEndpointslicesOnlyNoReloadOnPlus is the
+// TransportServer/stream-upstream counterpart to
+// TestBatchModeEndpointslicesOnlyNoReloadOnPlus: it drives repeated endpoint
+// churn for the same TransportServer through UpdateEndpointsForTransportServers
+// (the path syncEndpointSlices actually calls) and asserts that an
+// endpointslice-only batch applies every update via the Plus stream API
+// (updateStreamServersInPlus, gated by isPlusAPIEnabled — see
+// Configurator.updateStreamServersInPlus) without ever triggering a reload.
+//
+// This pins the same #7778 fix as the HTTP-upstream test, but for the stream
+// gate specifically: before the fix, updateStreamServersInPlus was gated by
+// isReloadsEnabled, so DisableReloads() at batch start would silently drop
+// every TransportServer endpoint update for the rest of the batch, leaving
+// stream upstreams stale until the batch-end reload.
+func TestBatchModeTransportServerEndpointslicesOnlyNoReloadOnPlus(t *testing.T) {
+	t.Parallel()
+
+	mgr := newRecordingBatchManager()
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = true
+
+	// Warm-up outside the batch so subsequent calls exercise the "update"
+	// branch, matching steady-state churn.
+	tsEx := dnsTSExWithEndpoints("10.0.0.1:5353")
+	if err := cnf.UpdateEndpointsForTransportServers([]*TransportServerEx{tsEx}); err != nil {
+		t.Fatalf("warm-up UpdateEndpointsForTransportServers: %v", err)
+	}
+
+	// sync() enters batch mode when the work queue has more than one item.
+	cnf.DisableReloads()
+
+	for i, ip := range []string{"10.0.0.2:5353", "10.0.0.3:5353", "10.0.0.4:5353"} {
+		tsEx.Endpoints["default/dns-svc:5353"] = []string{ip}
+		if err := cnf.UpdateEndpointsForTransportServers([]*TransportServerEx{tsEx}); err != nil {
+			t.Fatalf("in-batch update #%d: %v", i, err)
+		}
+	}
+
+	const wantAPIWrites = 4 // 1 warm-up + 3 in-batch
+	if got := mgr.updateStreamServers.Load(); got != wantAPIWrites {
+		t.Fatalf("UpdateStreamServersInPlus calls = %d, want %d "+
+			"(isPlusAPIEnabled should stay true across DisableReloads so stream endpoints keep "+
+			"propagating to the running NGINX Plus during a batch)", got, wantAPIWrites)
+	}
+	if got := mgr.updateServersInPlus.Load(); got != 0 {
+		t.Fatalf("UpdateServersInPlus (HTTP) calls = %d, want 0 (TransportServer has no HTTP upstreams)", got)
+	}
+
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("reload count = %d, want 0 (endpointslice-only TransportServer Plus batch should never reload, #7778)", got)
+	}
+}
+
+// TestBatchModeTransportServerPlusAPIFailureStillReloadsAtBatchEnd is the
+// TransportServer/stream-upstream counterpart to
+// TestBatchModePlusAPIFailureStillReloadsAtBatchEnd: on NGINX Plus,
+// UpdateEndpointsForTransportServers falls back to Reload() when the stream
+// API write fails (e.g. the upstream doesn't exist yet in the running config
+// because it was created earlier in the same batch). Because
+// Configurator.Reload tracks reloadDeferred whenever it no-ops,
+// ReloadForBatchUpdates still fires that reload at batch end even though the
+// triggering task was an endpointslice — which, after the #7778 fix, no
+// longer unconditionally requests a batch-end reload on its own. Without
+// reloadDeferred, this fallback would be silently dropped and the
+// TransportServer endpoint change lost until an unrelated event next kicks
+// the queue.
+func TestBatchModeTransportServerPlusAPIFailureStillReloadsAtBatchEnd(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failingStreamPlusAPIManager{recordingBatchManager: newRecordingBatchManager()}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = true
+
+	tsEx := dnsTSExWithEndpoints("10.0.0.1:5353")
+
+	// sync() enters batch mode.
+	cnf.DisableReloads()
+
+	// The stream Plus API write fails; UpdateEndpointsForTransportServers
+	// falls back to requesting a reload, which is deferred because reloads
+	// are disabled during the batch.
+	if err := cnf.UpdateEndpointsForTransportServers([]*TransportServerEx{tsEx}); err != nil {
+		t.Fatalf("UpdateEndpointsForTransportServers: %v", err)
+	}
+	if got := mgr.updateStreamServers.Load(); got != 1 {
+		t.Fatalf("UpdateStreamServersInPlus calls = %d, want 1 (the failed attempt)", got)
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("reload count = %d, want 0 (deferred during the batch, not dropped)", got)
+	}
+
+	// Batch end: even though this was an endpointslice-driven update,
+	// reloadDeferred carries the fallback forward so it still fires.
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("post-batch reload count = %d, want 1 (the stream Plus API failure fallback must not be silently dropped)", got)
 	}
 }
 
