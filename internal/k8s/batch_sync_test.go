@@ -596,18 +596,22 @@ func TestBatchReplicaChangeEndpointslicePartialWriteStillReloads(t *testing.T) {
 // Configurator.UpdateEndpoints always reaches Reload() once reloads are enabled —
 // a regression here is observable as reloads incrementing on every churn event
 // instead of once per window.
-func TestBatchFlushKeepsBatchingAtLowBacklog(t *testing.T) {
-	t.Parallel()
-
-	mgr := newRecordingBatchManager()
-	lbc := newBatchTestLBC(t, mgr)
-	lbc.batchReloadWindow = time.Hour // never elapses on its own; elapsed via backdating only
-	lbc.statusUpdater = &statusUpdater{}
-
-	const (
-		svcName = "churn-svc"
-		svcNS   = "default"
-	)
+// newChurnBatchFixture wires an Ingress referencing svcName into lbc's configuration
+// and returns two closures used to drive sustained EndpointSlice churn for that
+// service: addChurnEvent adds a new ready EndpointSlice to the lister and queue (each
+// call uses a fresh name — workqueue.Add dedups same-key items that are still
+// queued/unprocessed, so reusing one key across calls would silently collapse
+// back-to-back adds into a single queue entry, defeating "pin the backlog at N"
+// before any Get() has drained the previous one; the distinct name doesn't change
+// which service the event is for, since every one carries the same
+// "kubernetes.io/service-name" label), and processNext drains exactly one item from
+// the queue through lbc.sync.
+//
+// Extracted out of TestBatchFlushKeepsBatchingAtLowBacklog to keep that test's own
+// cyclomatic complexity (the five repeated reload-count/batchSyncEnabled assertion
+// pairs that are the actual point of the test) under the gocyclo threshold.
+func newChurnBatchFixture(t *testing.T, lbc *LoadBalancerController, svcNS, svcName string) (addChurnEvent, processNext func()) {
+	t.Helper()
 
 	// An Ingress that actually references svcName, so every EndpointSlice event
 	// for it takes the real UpdateEndpoints path in syncEndpointSlices rather than
@@ -652,16 +656,9 @@ func TestBatchFlushKeepsBatchingAtLowBacklog(t *testing.T) {
 	// gracefully (logged, endpoints left empty), it just can't be a nil interface.
 	nsi.svcLister = cache.NewStore(cache.MetaNamespaceKeyFunc)
 
-	// Each churn event uses a distinct key. workqueue.Add dedups same-key items
-	// that are still queued/unprocessed, so reusing one key across iterations
-	// here would silently collapse back-to-back adds into a single queue entry —
-	// defeating "pin the backlog at N" before any Get() has drained the previous
-	// one. The distinct name doesn't change which service the event is for: all
-	// of them carry the same "kubernetes.io/service-name" label, so every one
-	// independently triggers Ingress.ingressRequiresEndpointsUpdate(svcName).
 	ready := true
 	nextChurn := 0
-	addChurnEvent := func() {
+	addChurnEvent = func() {
 		name := fmt.Sprintf("%s-slice-%d", svcName, nextChurn)
 		nextChurn++
 		epSlice := &discovery_v1.EndpointSlice{
@@ -680,7 +677,7 @@ func TestBatchFlushKeepsBatchingAtLowBacklog(t *testing.T) {
 		lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: svcNS + "/" + name})
 	}
 
-	processNext := func() {
+	processNext = func() {
 		obj, quit := lbc.syncQueue.queue.Get()
 		if quit {
 			t.Fatal("queue shut down mid-test")
@@ -688,6 +685,24 @@ func TestBatchFlushKeepsBatchingAtLowBacklog(t *testing.T) {
 		lbc.sync(obj.(task))
 		lbc.syncQueue.queue.Done(obj)
 	}
+
+	return addChurnEvent, processNext
+}
+
+func TestBatchFlushKeepsBatchingAtLowBacklog(t *testing.T) {
+	t.Parallel()
+
+	mgr := newRecordingBatchManager()
+	lbc := newBatchTestLBC(t, mgr)
+	lbc.batchReloadWindow = time.Hour // never elapses on its own; elapsed via backdating only
+	lbc.statusUpdater = &statusUpdater{}
+
+	const (
+		svcName = "churn-svc"
+		svcNS   = "default"
+	)
+
+	addChurnEvent, processNext := newChurnBatchFixture(t, lbc, svcNS, svcName)
 
 	// Arm batch mode: seed one non-endpointslice task plus two churn events, so
 	// queue.Len() > 1 on the first Get().

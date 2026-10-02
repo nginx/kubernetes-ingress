@@ -351,6 +351,7 @@ func main() {
 		DynamicWeightChangesReload:   *enableDynamicWeightChangesReload,
 		InstallationFlags:            parsedFlags,
 		ShuttingDown:                 false,
+		BatchReloadWindow:            time.Duration(*batchReloadWindow) * time.Millisecond,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)

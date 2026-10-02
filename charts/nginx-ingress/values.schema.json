@@ -251,6 +251,14 @@
             60000
           ]
         },
+        "batchReloadWindow": {
+          "type": "integer",
+          "default": 2000,
+          "title": "Maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn before flushing it",
+          "examples": [
+            2000
+          ]
+        },
         "appprotect": {
           "type": "object",
           "default": {},
@@ -2196,6 +2204,7 @@
           "kind": "deployment",
           "nginxplus": false,
           "nginxReloadTimeout": 60000,
+          "batchReloadWindow": 2000,
           "appprotect": {
             "enable": false,
             "v5": false,
@@ -2823,6 +2832,7 @@
         "kind": "deployment",
         "nginxplus": false,
         "nginxReloadTimeout": 60000,
+        "batchReloadWindow": 2000,
         "appprotect": {
           "enable": false,
           "v5": false,
