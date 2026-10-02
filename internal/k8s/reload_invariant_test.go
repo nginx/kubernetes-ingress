@@ -134,7 +134,16 @@ func TestEndpointsliceReachableConfiguratorCallsAreKnown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parsing endpoint_slice.go: %v", err)
 	}
-	collectConfiguratorCalls(epFile, found)
+	// Scoped to syncEndpointSlices itself (not the whole file): a Configurator call
+	// added to an unrelated function in this file — e.g. createEndpointSliceHandlers
+	// or addEndpointSliceHandler, neither reachable from an endpointslice-only batch —
+	// must not trip this tripwire.
+	syncFn := findFuncDecl(epFile, "syncEndpointSlices")
+	if syncFn == nil {
+		t.Fatal("could not find syncEndpointSlices in endpoint_slice.go — " +
+			"has it been renamed or moved? This test's target must be updated alongside that change.")
+	}
+	collectConfiguratorCalls(syncFn, found)
 
 	ctrlFile, err := parser.ParseFile(fset, "controller.go", nil, 0)
 	if err != nil {

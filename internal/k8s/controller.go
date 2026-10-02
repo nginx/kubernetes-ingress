@@ -351,6 +351,10 @@ type NewLoadBalancerControllerInput struct {
 	DynamicWeightChangesReload   bool
 	InstallationFlags            []string
 	ShuttingDown                 bool
+	// BatchReloadWindow bounds how long batch mode can defer a pending reload under
+	// sustained EndpointSlice churn (see batchReloadWindowDefault). Zero means use
+	// batchReloadWindowDefault.
+	BatchReloadWindow time.Duration
 }
 
 // NewLoadBalancerController creates a controller
@@ -401,7 +405,11 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		wafBundlePath:                input.WAFBundlePath,
 		plmEnabled:                   input.PLMStorageSpec.Endpoint != "",
 		plmStorageSecrets:            plmStorageSecretKeys(input.PLMStorageSpec),
-		batchReloadWindow:            batchReloadWindowDefault,
+		batchReloadWindow:            input.BatchReloadWindow,
+	}
+
+	if lbc.batchReloadWindow == 0 {
+		lbc.batchReloadWindow = batchReloadWindowDefault
 	}
 
 	if input.AppProtectEnabled && input.WAFBundlePath != "" {
@@ -968,10 +976,9 @@ func (lbc *LoadBalancerController) getNamespacedInformer(ns string) *namespacedI
 // where sync() no longer forces a batch-end reload (see Configurator.deferReload's
 // invariant doc). The AddOrUpdate* calls below must keep marking the batch dirty on
 // their own error paths for that reason.
-func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(controllerEndpointSlice discovery_v1.EndpointSlice) bool {
+func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(controllerEndpointSlice discovery_v1.EndpointSlice) {
 	previous := lbc.configurator.GetIngressControllerReplicas()
 	current := countReadyEndpoints(controllerEndpointSlice)
-	found := false
 
 	if current != previous {
 		// number of active endpoints changed. Update configuration of all ingresses that depend on it
@@ -981,14 +988,12 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 		resources := lbc.configuration.FindIngressesWithRatelimitScaling(controllerEndpointSlice.Namespace)
 		resourceExes := lbc.createExtendedResources(resources)
 		for _, ingress := range resourceExes.IngressExes {
-			found = true
 			_, err := lbc.configurator.AddOrUpdateIngress(ingress)
 			if err != nil {
 				nl.Errorf(lbc.Logger.With(logNamespaceKey, ingress.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingress.Ingress.Name), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Ingress.Namespace, ingress.Ingress.Name, err)
 			}
 		}
 		for _, ingress := range resourceExes.MergeableIngresses {
-			found = true
 			_, err := lbc.configurator.AddOrUpdateMergeableIngress(ingress)
 			if err != nil {
 				nl.Errorf(lbc.Logger.With(logNamespaceKey, ingress.Master.Ingress.Namespace, logKindKey, ingressKind, logNameKey, ingress.Master.Ingress.Name), "Error updating ratelimit for Ingress %s/%s: %s", ingress.Master.Ingress.Namespace, ingress.Master.Ingress.Name, err)
@@ -1000,7 +1005,6 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 			resources = lbc.findVirtualServersUsingRatelimitScaling()
 			resourceExes = lbc.createExtendedResources(resources)
 			for _, vserver := range resourceExes.VirtualServerExes {
-				found = true
 				l := lbc.Logger.With(logNamespaceKey, vserver.VirtualServer.Namespace, logKindKey, virtualServerKind, logNameKey, vserver.VirtualServer.Name)
 				_, err := lbc.configurator.AddOrUpdateVirtualServer(vserver)
 				if err != nil {
@@ -1010,7 +1014,6 @@ func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(contr
 		}
 
 	}
-	return found
 }
 
 func (lbc *LoadBalancerController) findVirtualServersUsingRatelimitScaling() []Resource {
