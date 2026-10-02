@@ -4886,12 +4886,15 @@ func vsLocationBlock(t *testing.T, conf string, header string) string {
 const (
 	acmeChallengeTestPath     = "/.well-known/acme-challenge/tok"
 	acmeChallengeRedirectExpr = `if ($uri ~ "^/\.well-known/acme-challenge/")`
+	// acmeChallengeTestLocArg is the challenge location argument as rendered: VirtualServer
+	// challenge locations are exact-match so regex routes cannot capture the token.
+	acmeChallengeTestLocArg = `= "` + acmeChallengeTestPath + `"`
 )
 
 // acmeChallengeTestLocation returns a fresh ACME HTTP-01 challenge location.
 func acmeChallengeTestLocation() Location {
 	return Location{
-		Path:                acmeChallengeTestPath,
+		Path:                "= " + acmeChallengeTestPath,
 		ProxyConnectTimeout: "30s",
 		ProxyReadTimeout:    "31s",
 		ProxySendTimeout:    "32s",
@@ -4971,6 +4974,7 @@ func testVirtualServerACMEChallengeRedirectBypass(t *testing.T, executor *Templa
 	conf := string(data)
 
 	assertCount(t, conf, acmeChallengeRedirectExpr, 1)
+	assertCount(t, conf, "location "+acmeChallengeTestLocArg+" {", 1)
 	assertCount(t, conf, `^/\\.well-known`, 0)
 	assertCount(t, conf, "set $vs_redirect_to_https 0;", 2)
 	assertCount(t, conf, "set $vs_redirect_to_https 1;", 1)
@@ -5035,7 +5039,7 @@ func TestVirtualServerForNginxACMEChallengeWithAuth(t *testing.T) {
 	}
 	conf := string(data)
 
-	block := locationBlock(t, conf, `"`+acmeChallengeTestPath+`"`)
+	block := locationBlock(t, conf, acmeChallengeTestLocArg)
 	assertACMEChallengeLocationOSSAuthOff(t, block)
 	assertCount(t, conf, "auth_jwt", 0)
 	assertCount(t, conf, "auth_oidc", 0)
@@ -5056,7 +5060,7 @@ func TestVirtualServerForNginxPlusACMEChallengeWithAuth(t *testing.T) {
 	}
 	conf := string(data)
 
-	block := locationBlock(t, conf, `"`+acmeChallengeTestPath+`"`)
+	block := locationBlock(t, conf, acmeChallengeTestLocArg)
 	assertACMEChallengeLocationOSSAuthOff(t, block)
 	assertCount(t, block, "auth_jwt off;", 1)
 	assertCount(t, block, "auth_oidc off;", 1)
@@ -5108,7 +5112,7 @@ func TestVirtualServerForNginxPlusACMEChallengeWithJWTAndOIDC(t *testing.T) {
 	}
 	conf := string(data)
 
-	block := locationBlock(t, conf, `"`+acmeChallengeTestPath+`"`)
+	block := locationBlock(t, conf, acmeChallengeTestLocArg)
 	assertCount(t, block, "auth_jwt off;", 1)
 	assertCount(t, block, "auth_oidc off;", 1)
 	assertCount(t, block, "auth_basic off;", 1)

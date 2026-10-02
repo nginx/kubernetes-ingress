@@ -5323,7 +5323,7 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-    location "/.well-known/acme-challenge/tok" {
+    location = "/.well-known/acme-challenge/tok" {
         set $service "cm-acme-http-solver-abcde";
         auth_request off;
         auth_basic off;
@@ -5553,7 +5553,7 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-    location "/.well-known/acme-challenge/tok" {
+    location = "/.well-known/acme-challenge/tok" {
         set $service "cm-acme-http-solver-abcde";
         auth_request off;
         auth_basic off;
@@ -6218,7 +6218,7 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-    location "/.well-known/acme-challenge/tok" {
+    location = "/.well-known/acme-challenge/tok" {
         set $service "cm-acme-http-solver-abcde";
         status_zone "cm-acme-http-solver-abcde";
         auth_request off;
@@ -6480,7 +6480,7 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-    location "/.well-known/acme-challenge/tok" {
+    location = "/.well-known/acme-challenge/tok" {
         set $service "cm-acme-http-solver-abcde";
         status_zone "cm-acme-http-solver-abcde";
         auth_request off;
@@ -6761,7 +6761,7 @@ server {
         proxy_next_upstream_timeout ;
         proxy_next_upstream_tries 0;
     }
-    location "/.well-known/acme-challenge/tok" {
+    location = "/.well-known/acme-challenge/tok" {
         set $service "cm-acme-http-solver-abcde";
         status_zone "cm-acme-http-solver-abcde";
         auth_request off;

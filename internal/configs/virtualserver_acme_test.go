@@ -2,6 +2,7 @@ package configs
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/version2"
@@ -128,8 +129,8 @@ func TestGenerateVirtualServerConfigACMEChallengeRoute(t *testing.T) {
 	}
 
 	loc := findSingleACMEChallengeLocation(t, result.Server.Locations)
-	if loc.Path != acmeTestChallengePath {
-		t.Errorf("want challenge location path %q, got %q", acmeTestChallengePath, loc.Path)
+	if loc.Path != acmeTestChallengeExactPath {
+		t.Errorf("want challenge location path %q, got %q", acmeTestChallengeExactPath, loc.Path)
 	}
 	assertNoAuthOnChallengeLocation(t, loc)
 	assertChallengeUpstream(t, result.Upstreams)
@@ -268,5 +269,255 @@ func TestCreateUpstreamsForPlusIncludesChallengeRoutes(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("want upstream %q in createUpstreamsForPlus result, got %+v", acmeTestChallengeUpstream, result)
+	}
+}
+
+const acmeTestChallengeExactPath = "= " + acmeTestChallengePath
+
+func TestGenerateVirtualServerConfigACMEChallengeRouteIsExactMatch(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		syntheticPath string
+	}{
+		{name: "plain path", syntheticPath: acmeTestChallengePath},
+		{name: "exact path with space", syntheticPath: "= " + acmeTestChallengePath},
+		{name: "exact path without space", syntheticPath: "=" + acmeTestChallengePath},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			cr := newACMETestChallengeRoute()
+			cr.Spec.Subroutes[0].Path = tc.syntheticPath
+			vsEx := newACMETestVirtualServerEx([]*conf_v1.VirtualServerRoute{cr})
+			vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+			result, _ := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+			loc := findSingleACMEChallengeLocation(t, result.Server.Locations)
+			if loc.Path != acmeTestChallengeExactPath {
+				t.Errorf("want challenge location path %q, got %q", acmeTestChallengeExactPath, loc.Path)
+			}
+			if !result.Server.ACMEChallengeActive {
+				t.Error("want Server.ACMEChallengeActive true, got false")
+			}
+		})
+	}
+}
+
+func TestGenerateVirtualServerConfigACMEChallengeWithRegexCatchAll(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		specLevelPolicy bool
+	}{
+		{name: "route-level policy only", specLevelPolicy: false},
+		// Mirrors tests/data/acme-pebble/virtual-server-basic-auth.yaml.
+		{name: "spec-level and route-level policy", specLevelPolicy: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			vsEx := newACMETestVirtualServerEx([]*conf_v1.VirtualServerRoute{newACMETestChallengeRoute()})
+			if !tc.specLevelPolicy {
+				vsEx.VirtualServer.Spec.Policies = nil
+			}
+			vsEx.VirtualServer.Spec.Routes = []conf_v1.Route{
+				{
+					Path:     "~ ^/",
+					Policies: []conf_v1.PolicyReference{{Name: "basic-auth-policy"}},
+					Action:   &conf_v1.Action{Pass: "tea"},
+				},
+			}
+			vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+			result, _ := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+			loc := findSingleACMEChallengeLocation(t, result.Server.Locations)
+			if loc.Path != acmeTestChallengeExactPath {
+				t.Errorf("want challenge location path %q, got %q", acmeTestChallengeExactPath, loc.Path)
+			}
+			assertNoAuthOnChallengeLocation(t, loc)
+			if !result.Server.ACMEChallengeActive {
+				t.Error("want Server.ACMEChallengeActive true, got false")
+			}
+			if gotServerAuth := result.Server.BasicAuth != nil; gotServerAuth != tc.specLevelPolicy {
+				t.Errorf("want server-level BasicAuth set=%t, got %+v", tc.specLevelPolicy, result.Server.BasicAuth)
+			}
+
+			var sawRegex bool
+			for _, l := range result.Server.Locations {
+				if l.Path != `~ "^/"` {
+					continue
+				}
+				sawRegex = true
+				if l.BasicAuth == nil {
+					t.Error("want BasicAuth on the regex route location, got nil")
+				}
+			}
+			if !sawRegex {
+				t.Errorf("want a regex location %q, got %+v", `~ "^/"`, result.Server.Locations)
+			}
+		})
+	}
+}
+
+func TestGenerateVirtualServerConfigACMEChallengeExactCollision(t *testing.T) {
+	t.Parallel()
+
+	vsEx := newACMETestVirtualServerEx([]*conf_v1.VirtualServerRoute{newACMETestChallengeRoute()})
+	vsEx.VirtualServer.Spec.Routes = []conf_v1.Route{
+		{
+			Path:   "=" + acmeTestChallengePath,
+			Action: &conf_v1.Action{Pass: "tea"},
+		},
+	}
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+	var exact int
+	for _, l := range result.Server.Locations {
+		if l.ACMEChallenge {
+			t.Errorf("want no ACMEChallenge location on collision, got %+v", l)
+		}
+		if l.Path == acmeTestChallengeExactPath {
+			exact++
+		}
+	}
+	if exact != 1 {
+		t.Errorf("want exactly 1 location with path %q, got %d", acmeTestChallengeExactPath, exact)
+	}
+	if result.Server.ACMEChallengeActive {
+		t.Error("want Server.ACMEChallengeActive false when no challenge location is rendered, got true")
+	}
+
+	vsWarnings := warnings[vsEx.VirtualServer]
+	if len(vsWarnings) != 1 || !strings.Contains(vsWarnings[0], acmeTestChallengeExactPath) {
+		t.Errorf("want 1 VirtualServer warning mentioning %q, got %q", acmeTestChallengeExactPath, vsWarnings)
+	}
+}
+
+func TestGenerateVirtualServerConfigACMEChallengeExactCollisionWithSplitsRoute(t *testing.T) {
+	t.Parallel()
+
+	vsEx := newACMETestVirtualServerEx([]*conf_v1.VirtualServerRoute{newACMETestChallengeRoute()})
+	vsEx.VirtualServer.Spec.Routes = []conf_v1.Route{
+		{
+			Path: "=" + acmeTestChallengePath,
+			Splits: []conf_v1.Split{
+				{Weight: 50, Action: &conf_v1.Action{Pass: "tea"}},
+				{Weight: 50, Action: &conf_v1.Action{Pass: "tea"}},
+			},
+		},
+	}
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+	for _, l := range result.Server.Locations {
+		if l.ACMEChallenge {
+			t.Errorf("want no ACMEChallenge location on collision with an internal redirect location, got %+v", l)
+		}
+	}
+	if result.Server.ACMEChallengeActive {
+		t.Error("want Server.ACMEChallengeActive false, got true")
+	}
+	if len(warnings[vsEx.VirtualServer]) != 1 {
+		t.Errorf("want 1 VirtualServer warning, got %q", warnings[vsEx.VirtualServer])
+	}
+}
+
+func TestGenerateVirtualServerConfigACMEChallengePrefixRouteNoCollision(t *testing.T) {
+	t.Parallel()
+
+	vsEx := newACMETestVirtualServerEx([]*conf_v1.VirtualServerRoute{newACMETestChallengeRoute()})
+	vsEx.VirtualServer.Spec.Routes = []conf_v1.Route{
+		{
+			Path:   acmeTestChallengePath,
+			Action: &conf_v1.Action{Pass: "tea"},
+		},
+	}
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+	loc := findSingleACMEChallengeLocation(t, result.Server.Locations)
+	if loc.Path != acmeTestChallengeExactPath {
+		t.Errorf("want challenge location path %q, got %q", acmeTestChallengeExactPath, loc.Path)
+	}
+	var sawPrefix bool
+	for _, l := range result.Server.Locations {
+		if l.Path == acmeTestChallengePath && !l.ACMEChallenge {
+			sawPrefix = true
+		}
+	}
+	if !sawPrefix {
+		t.Errorf("want the user's prefix location %q, got %+v", acmeTestChallengePath, result.Server.Locations)
+	}
+	if !result.Server.ACMEChallengeActive {
+		t.Error("want Server.ACMEChallengeActive true, got false")
+	}
+	if len(warnings[vsEx.VirtualServer]) != 0 {
+		t.Errorf("want no VirtualServer warnings, got %q", warnings[vsEx.VirtualServer])
+	}
+}
+
+func TestGenerateVirtualServerConfigACMEChallengeExactCollisionWithVSRSubroute(t *testing.T) {
+	t.Parallel()
+
+	vsEx := newACMETestVirtualServerEx([]*conf_v1.VirtualServerRoute{newACMETestChallengeRoute()})
+	vsEx.VirtualServer.Spec.Routes = []conf_v1.Route{
+		{
+			Path:  "=" + acmeTestChallengePath,
+			Route: "default/acme-exact",
+		},
+	}
+	vsEx.VirtualServerRoutes = []*conf_v1.VirtualServerRoute{
+		{
+			ObjectMeta: meta_v1.ObjectMeta{Name: "acme-exact", Namespace: "default"},
+			Spec: conf_v1.VirtualServerRouteSpec{
+				Host:      "cafe.example.com",
+				Upstreams: []conf_v1.Upstream{{Name: "tea", Service: "tea-svc", Port: 80}},
+				Subroutes: []conf_v1.Route{
+					{
+						Path:   "=" + acmeTestChallengePath,
+						Action: &conf_v1.Action{Pass: "tea"},
+					},
+				},
+			},
+		},
+	}
+	vsc := newVirtualServerConfigurator(&baseCfgParams, false, false, &StaticConfigParams{}, false, &fakeBV)
+
+	result, warnings := vsc.GenerateVirtualServerConfig(&vsEx, nil, nil)
+
+	var exact []version2.Location
+	for _, l := range result.Server.Locations {
+		if l.ACMEChallenge {
+			t.Errorf("want no ACMEChallenge location on collision with a VSR subroute, got %+v", l)
+		}
+		if l.Path == acmeTestChallengeExactPath {
+			exact = append(exact, l)
+		}
+	}
+	if len(exact) != 1 {
+		t.Fatalf("want exactly 1 location with path %q, got %d", acmeTestChallengeExactPath, len(exact))
+	}
+	if !exact[0].IsVSR || exact[0].VSRName != "acme-exact" {
+		t.Errorf("want the %q location to come from VSR acme-exact, got IsVSR=%t VSRName=%q",
+			acmeTestChallengeExactPath, exact[0].IsVSR, exact[0].VSRName)
+	}
+	if result.Server.ACMEChallengeActive {
+		t.Error("want Server.ACMEChallengeActive false when no challenge location is rendered, got true")
+	}
+
+	vsWarnings := warnings[vsEx.VirtualServer]
+	if len(vsWarnings) != 1 || !strings.Contains(vsWarnings[0], acmeTestChallengeExactPath) {
+		t.Errorf("want 1 VirtualServer warning mentioning %q, got %q", acmeTestChallengeExactPath, vsWarnings)
 	}
 }

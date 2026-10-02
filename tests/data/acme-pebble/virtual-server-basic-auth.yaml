@@ -10,6 +10,7 @@ spec:
       enable: true
     cert-manager:
       cluster-issuer: pebble
+  # Spec-level auth renders auth_basic at the server level, which the challenge location must turn off.
   policies:
   - name: acme-basic-auth
   upstreams:
@@ -17,6 +18,10 @@ spec:
     service: backend1-svc
     port: 80
   routes:
-  - path: /
+  # A regex catch-all matches the challenge token path too. The challenge location is exact-match,
+  # so NGINX selects it before this route and its basic-auth policy.
+  - path: ~ ^/
+    policies:
+    - name: acme-basic-auth
     action:
       pass: backend1

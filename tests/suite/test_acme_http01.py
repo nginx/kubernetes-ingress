@@ -92,7 +92,10 @@ def setup_backend_and_auth(request, kube_apis, namespace, with_policy) -> None:
 @pytest.fixture(scope="class")
 def acme_virtual_servers_setup(request, kube_apis, ingress_controller_endpoint, test_namespace) -> dict:
     """
-    Deploy two VirtualServers with TLS redirect and the Pebble ClusterIssuer: one plain, one with a basic-auth Policy.
+    Deploy two VirtualServers with TLS redirect and the Pebble ClusterIssuer: one plain, and one with a spec-level
+    basic-auth Policy (server-level auth_basic, which the challenge location must turn off) whose only route is a
+    regex catch-all (~ ^/) with the same Policy at route level, which would capture the challenge token path unless
+    the challenge location is exact-match.
 
     :return: {"plain": ACMESetup, "basic_auth": ACMESetup}
     """
@@ -250,7 +253,7 @@ class TestACMEVirtualServer:
         print("\nStep 1: wait for the Pebble Certificate to become Ready")
         wait_for_certificate_ready(kube_apis, ingress_controller_prerequisites, setup, "vs")
 
-        print("\nStep 2: verify basic auth still protects the VirtualServer")
+        print("\nStep 2: verify basic auth still protects the regex catch-all route")
         wait_and_assert_status_code(401, setup.https_url(), setup.host, verify=False)
         wait_and_assert_status_code(200, setup.https_url(), setup.host, verify=False, auth=credentials)
 

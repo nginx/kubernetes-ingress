@@ -1151,17 +1151,40 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	// generate config for ACME challenge routes. No policies, error pages or snippets are applied,
 	// so the ACME server can always reach the solver.
+	// Challenge locations are exact-match (=) so that NGINX selects them before any regex route
+	// location, which would otherwise capture the token request. They are generated after all VS
+	// routes and VSR subroutes, so the paths collected here cover every route location: VS routes,
+	// VSR subroutes and split/match internal-redirect locations. Fixed locations added outside the
+	// route loops (for example OIDC) are out of scope.
 	acmeChallengeActive := false
+	renderedPaths := make(map[string]bool, len(locations)+len(internalRedirectLocations))
+	for _, l := range locations {
+		renderedPaths[l.Path] = true
+	}
+	for _, l := range internalRedirectLocations {
+		renderedPaths[l.Path] = true
+	}
 	for _, cr := range vsEx.ChallengeRoutes {
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, cr)
 		for _, r := range cr.Spec.Subroutes {
+			plainPath := strings.TrimLeftFunc(strings.TrimPrefix(r.Path, "="), unicode.IsSpace)
+			exactPath := "=" + plainPath
+			// NGINX rejects two exact-match locations with the same URI, which would fail the
+			// config test for every resource. Leave the user's location in place instead.
+			if renderedPath := generatePath(exactPath); renderedPaths[renderedPath] {
+				vsc.addWarningf(vsEx.VirtualServer, "ACME challenge path %s for %s/%s is already defined by a route; challenge location not generated",
+					renderedPath, cr.Namespace, cr.Name)
+				continue
+			}
+
 			upstreamName := upstreamNamer.GetNameForUpstreamFromAction(r.Action)
 			upstream := crUpstreams[upstreamName]
 			serviceNamespace, serviceName := ParseServiceReference(upstream.Service, cr.Namespace)
 			proxySSLName := generateProxySSLName(serviceName, serviceNamespace)
 
-			loc, returnLoc := generateLocation(r.Path, upstreamName, upstream, r.Action, vsc.cfgParams, errorPageDetails{owner: cr}, false,
-				proxySSLName, r.Path, "", false, len(returnLocations), true, cr.Name, cr.Namespace, vsc.warnings)
+			loc, returnLoc := generateLocation(exactPath, upstreamName, upstream, r.Action, vsc.cfgParams, errorPageDetails{owner: cr}, false,
+				proxySSLName, plainPath, "", false, len(returnLocations), true, cr.Name, cr.Namespace, vsc.warnings)
+			renderedPaths[loc.Path] = true
 			// Drop global ConfigMap location-snippets too: they could duplicate the auth-off directives
 			// rendered for challenge locations and fail the NGINX config test.
 			loc.Snippets = nil
