@@ -131,10 +131,18 @@ def test_scale_deployment_waits_on_deployment_selector(match_labels, expected_se
     apps_v1_api.read_namespaced_deployment.return_value = deployment
     apps_v1_api.read_namespaced_deployment_scale.return_value = scale_obj
     v1 = Mock()
+    pod = SimpleNamespace(metadata=SimpleNamespace(name="p", deletion_timestamp=None))
+    # first poll sees only the pre-scale pod, second sees the scaled-up set
+    v1.list_namespaced_pod.side_effect = [SimpleNamespace(items=[pod]), SimpleNamespace(items=[pod, pod])]
 
-    with patch("suite.utils.resources_utils.wait_until_all_pods_are_ready") as wait_mock:
+    with (
+        patch("suite.utils.resources_utils.wait_until_all_pods_are_ready") as wait_mock,
+        patch("suite.utils.resources_utils.wait_before_test"),
+    ):
         original = scale_deployment(v1, apps_v1_api, "test-dep", "test-ns", 2)
         assert original == 1
+        assert v1.list_namespaced_pod.call_count == 2
+        v1.list_namespaced_pod.assert_called_with("test-ns", label_selector=expected_selector)
         wait_mock.assert_called_once_with(v1, "test-ns", expected_selector)
 
 

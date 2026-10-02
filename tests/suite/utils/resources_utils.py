@@ -284,6 +284,14 @@ def scale_deployment(v1: CoreV1Api, apps_v1_api: AppsV1Api, name, namespace, val
     apps_v1_api.patch_namespaced_deployment_scale(name, namespace, body)
     if value != 0:
         now = time.time()
+        # wait for the ReplicaSet to converge first, otherwise the Ready check below only sees the pre-scale pods
+        while len(get_pod_list(v1, namespace, selector)) != value:
+            if time.time() - now >= 600:
+                raise Exception(
+                    f"Timed out after 600s waiting for {value} pod(s) matching '{selector}' in '{namespace}'"
+                )
+            print(f"Waiting for {value} pod(s) matching '{selector}' ...")
+            wait_before_test(1)
         wait_until_all_pods_are_ready(v1, namespace, selector)
         later = time.time()
         print(f"All pods came up in {int(later - now)} seconds")
@@ -1044,7 +1052,7 @@ def get_nginx_template_conf(v1: CoreV1Api, ic_namespace, ic_pod_name=None, print
     :return: str
     """
     if ic_pod_name is None:
-        ic_pod_name = get_first_pod_name(v1, ic_namespace)
+        ic_pod_name = get_first_pod_name(v1, ic_namespace, IC_SELECTOR)
     file_path = "/etc/nginx/nginx.conf"
     return get_file_contents(v1, file_path, ic_pod_name, ic_namespace, print_log)
 
