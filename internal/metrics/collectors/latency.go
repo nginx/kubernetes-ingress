@@ -16,10 +16,10 @@ import (
 
 const nginxSeparator = "nginx:"
 
-// DefaultLatencyBuckets are the histogram buckets, in milliseconds, used for the
+// defaultLatencyBuckets are the histogram buckets, in milliseconds, used for the
 // upstream_server_response_latency_ms metric when no custom buckets are configured
 // via the -latency-metrics-buckets command-line argument.
-var DefaultLatencyBuckets = []float64{
+var defaultLatencyBuckets = []float64{
 	1,
 	2,
 	3,
