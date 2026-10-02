@@ -1865,6 +1865,9 @@ func (c *Configuration) convertIngressToVSR(ing *networking.Ingress) *conf_v1.Vi
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ing.Namespace,
 			Name:      ing.Name,
+			// IsEqual compares challenge routes by generation, so an in-place solver Ingress update
+			// must change it.
+			Generation: ing.Generation,
 		},
 		Spec: conf_v1.VirtualServerRouteSpec{
 			Host: rule.Host,

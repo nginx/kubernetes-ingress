@@ -3938,6 +3938,47 @@ func assertChallengeIngressNotAttached(t *testing.T, configuration *Configuratio
 	}
 }
 
+// TestChallengeIngressInPlaceUpdateUpdatesVirtualServer verifies that editing an attached solver
+// Ingress in place (same name, new generation and challenge path) produces a VirtualServer update
+// that carries the new challenge route.
+func TestChallengeIngressInPlaceUpdateUpdatesVirtualServer(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	vs := createTestVirtualServer("virtualserver", "foo.example.com")
+	configuration.AddOrUpdateVirtualServer(vs)
+
+	ing := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/old", "cm-acme-http-solver-test")
+	ing.Generation = 1
+	configuration.AddOrUpdateIngress(ing)
+
+	updatedIng := createTestChallengeIngress("challenge", "foo.example.com", "/.well-known/acme-challenge/new", "cm-acme-http-solver-test")
+	updatedIng.CreationTimestamp = ing.CreationTimestamp
+	updatedIng.Generation = 2
+
+	expectedRoute := createTestChallengeVirtualServerRoute("challenge", "foo.example.com", "/.well-known/acme-challenge/new")
+	expectedRoute.Generation = 2
+
+	expectedChanges := []ResourceChange{
+		{
+			Op: AddOrUpdate,
+			Resource: &VirtualServerConfiguration{
+				VirtualServer:               vs,
+				VirtualServerRouteSelectors: map[string][]string{},
+				ChallengeRoutes:             []*conf_v1.VirtualServerRoute{expectedRoute},
+			},
+		},
+	}
+
+	changes, problems := configuration.AddOrUpdateIngress(updatedIng)
+	if diff := cmp.Diff(expectedChanges, changes); diff != "" {
+		t.Errorf("AddOrUpdateIngress() returned unexpected changes (-want +got):\n%s", diff)
+	}
+	if len(problems) != 0 {
+		t.Errorf("AddOrUpdateIngress() returned unexpected problems: %v", problems)
+	}
+}
+
 func TestChallengeIngressDifferentNamespaceNotAttached(t *testing.T) {
 	t.Parallel()
 	configuration := createTestConfiguration()
