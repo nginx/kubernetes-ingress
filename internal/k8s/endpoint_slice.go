@@ -58,6 +58,14 @@ func (nsi *namespacedInformer) addEndpointSliceHandler(handlers cache.ResourceEv
 	return nil
 }
 
+// Every Configurator call reachable from here (directly, or via the
+// updateNumberOfIngressControllerReplicas early return below) must mark the
+// batch dirty on its own error path when it can have already written config
+// before failing — see the invariant documented on Configurator.deferReload.
+// sync() no longer forces a reload at the end of an endpointslice-only batch
+// (https://github.com/nginx/kubernetes-ingress/issues/7778), so that
+// deferral is the only thing standing between a partially-applied write and
+// silent staleness.
 // nolint:gocyclo
 func (lbc *LoadBalancerController) syncEndpointSlices(task task) bool {
 	key := task.Key

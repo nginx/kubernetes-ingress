@@ -575,3 +575,180 @@ func TestBatchReplicaChangeEndpointslicePartialWriteStillReloads(t *testing.T) {
 		t.Fatal("batchSyncEnabled still true after the queue drained")
 	}
 }
+
+// TestBatchFlushKeepsBatchingAtLowBacklog pins the fix to the batch-end block in
+// sync(): a window-triggered flush (syncQueue.Len() != 0 but batchReloadWindow has
+// elapsed) must stay in batch mode — re-disabling reloads and re-arming batchStart —
+// rather than clearing batchSyncEnabled the way a genuine drain (Len() == 0) does.
+//
+// Without that distinction, sustained low-backlog EndpointSlice churn (arrivals
+// keeping the queue pinned at a small constant depth, e.g. 1, rather than draining to
+// 0 or piling up) regresses to a reload on every single event once the window first
+// elapses: ending batch mode means the next sync's entry check (syncQueue.Len() > 1)
+// fails at backlog 1, so reloads stay enabled and every subsequent EndpointSlice event
+// that references a real resource reaches Configurator.Reload() directly — the
+// per-event reload storm batching exists to prevent, and a regression of
+// https://github.com/nginx/kubernetes-ingress/issues/7778's symptom even though the
+// #7778 fix itself (Configurator.isPlusAPIEnabled) is untouched.
+//
+// This drives real endpoint-triggered reloads (not no-op informer misses) through an
+// Ingress that actually references the churning service, so that — on OSS, where
+// Configurator.UpdateEndpoints always reaches Reload() once reloads are enabled —
+// a regression here is observable as reloads incrementing on every churn event
+// instead of once per window.
+func TestBatchFlushKeepsBatchingAtLowBacklog(t *testing.T) {
+	t.Parallel()
+
+	mgr := newRecordingBatchManager()
+	lbc := newBatchTestLBC(t, mgr)
+	lbc.batchReloadWindow = time.Hour // never elapses on its own; elapsed via backdating only
+	lbc.statusUpdater = &statusUpdater{}
+
+	const (
+		svcName = "churn-svc"
+		svcNS   = "default"
+	)
+
+	// An Ingress that actually references svcName, so every EndpointSlice event
+	// for it takes the real UpdateEndpoints path in syncEndpointSlices rather than
+	// the empty-lister no-op used by the other churn tests in this file.
+	ing := &networking.Ingress{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "churn-ingress", Namespace: svcNS},
+		Spec: networking.IngressSpec{
+			Rules: []networking.IngressRule{
+				{
+					Host: "churn.example.com",
+					IngressRuleValue: networking.IngressRuleValue{
+						HTTP: &networking.HTTPIngressRuleValue{
+							Paths: []networking.HTTPIngressPath{
+								{
+									Path: "/",
+									Backend: networking.IngressBackend{
+										Service: &networking.IngressServiceBackend{
+											Name: svcName,
+											Port: networking.ServiceBackendPort{Number: 80},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	lbc.configuration.AddOrUpdateIngress(ing)
+	if _, problems := lbc.configuration.CompleteStartup(); len(problems) > 0 {
+		t.Fatalf("CompleteStartup: unexpected problems: %+v", problems)
+	}
+
+	nsi := lbc.getNamespacedInformer(svcNS)
+	if nsi == nil {
+		t.Fatal("test setup error: no namespacedInformer for " + svcNS)
+	}
+	// getServiceForIngressBackend does a real nsi.svcLister.GetByKey call; newBatchTestLBC
+	// doesn't wire one up (none of the other tests in this file need it), so a nil
+	// Store here would panic. An empty Store is enough — a lookup miss is handled
+	// gracefully (logged, endpoints left empty), it just can't be a nil interface.
+	nsi.svcLister = cache.NewStore(cache.MetaNamespaceKeyFunc)
+
+	// Each churn event uses a distinct key. workqueue.Add dedups same-key items
+	// that are still queued/unprocessed, so reusing one key across iterations
+	// here would silently collapse back-to-back adds into a single queue entry —
+	// defeating "pin the backlog at N" before any Get() has drained the previous
+	// one. The distinct name doesn't change which service the event is for: all
+	// of them carry the same "kubernetes.io/service-name" label, so every one
+	// independently triggers Ingress.ingressRequiresEndpointsUpdate(svcName).
+	ready := true
+	nextChurn := 0
+	addChurnEvent := func() {
+		name := fmt.Sprintf("%s-slice-%d", svcName, nextChurn)
+		nextChurn++
+		epSlice := &discovery_v1.EndpointSlice{
+			ObjectMeta: meta_v1.ObjectMeta{
+				Name:      name,
+				Namespace: svcNS,
+				Labels:    map[string]string{"kubernetes.io/service-name": svcName},
+			},
+			Endpoints: []discovery_v1.Endpoint{
+				{Addresses: []string{"10.0.0.1"}, Conditions: discovery_v1.EndpointConditions{Ready: &ready}},
+			},
+		}
+		if err := nsi.endpointSliceLister.Add(epSlice); err != nil {
+			t.Fatalf("test setup error: adding EndpointSlice to the lister: %v", err)
+		}
+		lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: svcNS + "/" + name})
+	}
+
+	processNext := func() {
+		obj, quit := lbc.syncQueue.queue.Get()
+		if quit {
+			t.Fatal("queue shut down mid-test")
+		}
+		lbc.sync(obj.(task))
+		lbc.syncQueue.queue.Done(obj)
+	}
+
+	// Arm batch mode: seed one non-endpointslice task plus two churn events, so
+	// queue.Len() > 1 on the first Get().
+	const configRelevant = 999
+	lbc.syncQueue.queue.Add(task{Kind: configRelevant, Key: "default/unrelated"})
+	addChurnEvent()
+	addChurnEvent()
+
+	processNext() // enters batch mode; queue.Len() == 2 remaining
+	processNext() // queue.Len() == 1 remaining
+
+	// Pin the backlog at exactly 1 for several syncs: add one churn event, then
+	// drain exactly one via processNext, so queue.Len() is 1 both before and after
+	// every Get() in this loop — steady low-backlog churn, never draining to 0 and
+	// never piling up.
+	pinBacklog := func(n int) {
+		for i := 0; i < n; i++ {
+			addChurnEvent()
+			processNext()
+		}
+	}
+
+	pinBacklog(3)
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("reload count = %d, want 0 (the window hasn't elapsed yet, so nothing should "+
+			"have flushed)", got)
+	}
+	if !lbc.batchSyncEnabled {
+		t.Fatal("batchSyncEnabled became false while the queue never drained — batch mode must only " +
+			"end on a genuine drain, not merely because reloads haven't happened yet")
+	}
+
+	// Force the window to have elapsed, without any real waiting.
+	lbc.batchStart = time.Now().Add(-2 * time.Hour)
+
+	// The next churn event's sync() call sees batchWindowElapsed == true with a
+	// non-empty queue: this must flush the pending reload (#1) and, per the fix,
+	// stay in batch mode rather than exiting it.
+	pinBacklog(1)
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("reload count = %d, want 1 (the elapsed window should flush exactly once)", got)
+	}
+	if !lbc.batchSyncEnabled {
+		t.Fatal("batchSyncEnabled became false after a window-triggered flush with a non-empty queue — " +
+			"the fix requires staying in batch mode here, or sustained low-backlog churn regresses to a " +
+			"reload on every event (see the comment on this test)")
+	}
+
+	// The discriminating assertion: several more syncs at the same pinned backlog,
+	// with no further backdating of batchStart, must NOT produce another reload.
+	// Before the fix, the flush above would have cleared batchSyncEnabled, so each
+	// of these would independently fail the batch-entry threshold
+	// (syncQueue.Len() == 1 is not > 1), leaving reloads enabled — and since this
+	// Ingress really does reference the churning service, each call would reach
+	// Configurator.Reload() directly, incrementing the count on every iteration.
+	pinBacklog(3)
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("reload count = %d, want 1 (sustained low-backlog churn after a window flush must stay "+
+			"batched — a count > 1 here means it regressed to a reload per event)", got)
+	}
+	if !lbc.batchSyncEnabled {
+		t.Fatal("batchSyncEnabled became false during sustained low-backlog churn")
+	}
+}

@@ -962,6 +962,12 @@ func (lbc *LoadBalancerController) getNamespacedInformer(ns string) *namespacedI
 }
 
 // finds the number of currently active endpoints for the service pointing at the ingresscontroller and updates all configs that depend on that number
+//
+// This is reached from an endpointslice task via syncEndpointSlices's early-return branch
+// for the controller's own Service — i.e. it can run inside an endpointslice-only batch,
+// where sync() no longer forces a batch-end reload (see Configurator.deferReload's
+// invariant doc). The AddOrUpdate* calls below must keep marking the batch dirty on
+// their own error paths for that reason.
 func (lbc *LoadBalancerController) updateNumberOfIngressControllerReplicas(controllerEndpointSlice discovery_v1.EndpointSlice) bool {
 	previous := lbc.configurator.GetIngressControllerReplicas()
 	current := countReadyEndpoints(controllerEndpointSlice)
@@ -1292,9 +1298,16 @@ func (lbc *LoadBalancerController) preSyncSecrets() {
 // change queued during the batch never gets its reload — the running NGINX
 // config can show already-terminated pod IPs for as long as the churn lasts
 // (see https://github.com/nginx/kubernetes-ingress/issues/10397). Once the
-// window elapses the batch ends and reloads like normal, then a new batch
-// starts on the next sync if the queue is still non-empty — capping both
-// the staleness window and the reload rate at one per window.
+// window elapses, sync() flushes the pending reload but — as long as the
+// queue hasn't actually drained — stays in batch mode and re-arms the window
+// instead of exiting it (see the batch-end block below). That flush-not-exit
+// distinction matters at low backlog: if the window instead ended batch mode
+// outright, a sustained low queue depth (e.g. steady single-digit
+// EndpointSlice churn) would never satisfy the batch-entry threshold on the
+// next sync, collapsing straight back into a reload per event — the reload
+// storm the batch was introduced to avoid in the first place. Flushing in
+// place caps both the staleness window and the reload rate at one per window
+// regardless of backlog depth.
 const batchReloadWindowDefault = 2 * time.Second
 
 func (lbc *LoadBalancerController) sync(task task) {
@@ -1463,16 +1476,27 @@ func (lbc *LoadBalancerController) sync(task task) {
 		lbc.refreshStaleVSRReferences()
 	}
 
-	// The batch also ends once batchReloadWindow has elapsed since it started,
-	// even if the queue hasn't drained. Without this, sustained EndpointSlice
-	// churn (e.g. a rolling deployment) can keep syncQueue.Len() > 0
-	// indefinitely, deferring a real config change's reload for as long as
-	// the churn lasts (https://github.com/nginx/kubernetes-ingress/issues/10397).
+	// The batch also flushes once batchReloadWindow has elapsed since it
+	// started, even if the queue hasn't drained. Without this, sustained
+	// EndpointSlice churn (e.g. a rolling deployment) can keep
+	// syncQueue.Len() > 0 indefinitely, deferring a real config change's
+	// reload for as long as the churn lasts
+	// (https://github.com/nginx/kubernetes-ingress/issues/10397).
 	// A zero batchReloadWindow disables the bound (used by tests that assert
 	// the pre-existing drain-to-zero behavior).
+	//
+	// A window-triggered flush (queueDrained is false) deliberately does not
+	// leave batch mode: it re-enables reloads just long enough to run the
+	// pending reload, then immediately re-disables them and resets
+	// batchStart, so the batch keeps coalescing further churn instead of
+	// ending. Ending the batch here instead would mean the next sync has to
+	// clear the batch-entry threshold (syncQueue.Len() > 1) from scratch —
+	// which a sustained low-backlog churn pattern (e.g. steady single-digit
+	// EndpointSlice events) may never do, collapsing back into a reload per
+	// event. Only a genuine drain (queueDrained true) exits batch mode.
+	queueDrained := lbc.syncQueue.Len() == 0
 	batchWindowElapsed := lbc.batchReloadWindow > 0 && time.Since(lbc.batchStart) >= lbc.batchReloadWindow
-	if lbc.batchSyncEnabled && (lbc.syncQueue.Len() == 0 || batchWindowElapsed) {
-		lbc.batchSyncEnabled = false
+	if lbc.batchSyncEnabled && (queueDrained || batchWindowElapsed) {
 		lbc.configurator.EnableReloads()
 		if lbc.updateAllConfigsOnBatch {
 			lbc.updateAllConfigs()
@@ -1484,7 +1508,15 @@ func (lbc *LoadBalancerController) sync(task task) {
 
 		lbc.enableBatchReload = false
 		lbc.updateAllConfigsOnBatch = false
-		nl.Debug(lbc.Logger, "Batch sync completed - disabling batch reload")
+
+		if queueDrained {
+			lbc.batchSyncEnabled = false
+			nl.Debug(lbc.Logger, "Batch sync completed - disabling batch reload")
+		} else {
+			lbc.configurator.DisableReloads()
+			lbc.batchStart = time.Now()
+			nl.Debug(lbc.Logger, "Batch reload window elapsed - flushed pending reload, continuing batch")
+		}
 	}
 }
 
