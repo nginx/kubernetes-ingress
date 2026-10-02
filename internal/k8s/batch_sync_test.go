@@ -751,4 +751,37 @@ func TestBatchFlushKeepsBatchingAtLowBacklog(t *testing.T) {
 	if !lbc.batchSyncEnabled {
 		t.Fatal("batchSyncEnabled became false during sustained low-backlog churn")
 	}
+
+	// The first flush proves reloads stay deferred after it — it does not prove
+	// pending work accumulated since that flush is ever actually applied. A
+	// regression that flushed correctly once and then silently stopped
+	// re-arming (e.g. failing to reset batchStart, or failing to re-disable
+	// reloads) would still pass every assertion above, because this test would
+	// simply end before a second window ever elapses. That's the exact failure
+	// mode this fix exists to prevent — reloadDeferred is true going into this
+	// point (set by the 3 no-op Reload() calls in the pinBacklog(3) above), so
+	// it must still result in a real reload once the next window elapses.
+	lbc.batchStart = time.Now().Add(-2 * time.Hour)
+	pinBacklog(1)
+	if got := mgr.reloads.Load(); got != 2 {
+		t.Fatalf("reload count = %d, want 2 (the same active batch must flush again after a second window "+
+			"elapses — not just once)", got)
+	}
+	if !lbc.batchSyncEnabled {
+		t.Fatal("batchSyncEnabled became false after the second window flush")
+	}
+	if lbc.syncQueue.Len() == 0 {
+		t.Fatal("test setup error: queue drained during the second flush — this would end the batch via " +
+			"the genuine-drain path instead of the window-flush path, invalidating the assertions above")
+	}
+
+	// And the same no-further-reload discriminator as after the first flush:
+	// churn following the second flush must stay deferred, not re-trigger.
+	pinBacklog(3)
+	if got := mgr.reloads.Load(); got != 2 {
+		t.Fatalf("reload count = %d, want 2 (no further reload should fire before a third window elapses)", got)
+	}
+	if !lbc.batchSyncEnabled {
+		t.Fatal("batchSyncEnabled became false during sustained low-backlog churn after the second flush")
+	}
 }
