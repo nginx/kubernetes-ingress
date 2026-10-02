@@ -3992,6 +3992,26 @@ func TestExecuteTemplate_ForIngressForNGINXPlusWithHTTP2Off(t *testing.T) {
 	snaps.MatchSnapshot(t, buf.String())
 }
 
+func TestExecuteTemplate_ForIngressWithHTTP2OnWithoutTLS(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, ingressCfgHTTP2OnNoTLS); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(buf.String(), "http2 on;") {
+				t.Error("want `http2 on;` in generated template")
+			}
+			if strings.Contains(buf.String(), "ssl") {
+				t.Error("unwant `ssl` in generated template for a server without TLS")
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithHTTP2On(t *testing.T) {
 	t.Parallel()
 
@@ -6659,6 +6679,24 @@ var (
 	}
 
 	// Ingress Config example without added annotations
+	ingressCfgHTTP2OnNoTLS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:         "test.example.com",
+				ServerTokens: "off",
+				StatusZone:   "test.example.com",
+				Ports:        []int{80},
+				HTTP2:        true,
+				Locations: []Location{{
+					Path: "/tea", Upstream: testUpstream, ProxyPass: "http://test",
+					ProxyConnectTimeout: "10s", ProxyReadTimeout: "10s", ProxySendTimeout: "10s", ClientMaxBodySize: "2m",
+				}},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+	}
+
 	ingressCfgHTTP2On = IngressNginxConfig{
 		Servers: []Server{
 			{
@@ -7923,7 +7961,6 @@ func TestExecuteTemplate_ForIngressForNGINXUpstreamVhostGRPC(t *testing.T) {
 					{
 						Name:             "cafe.example.com",
 						ServerTokens:     "off",
-						HTTP2:            true,
 						HasGRPCLocations: true,
 						Locations: []Location{
 							{
@@ -8003,7 +8040,6 @@ func TestExecuteTemplate_ForIngressForNGINXPlusUpstreamVhostGRPC(t *testing.T) {
 					{
 						Name:             "cafe.example.com",
 						ServerTokens:     "off",
-						HTTP2:            true,
 						HasGRPCLocations: true,
 						Locations: []Location{
 							{

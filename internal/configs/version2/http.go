@@ -116,13 +116,13 @@ type Server struct {
 	VSName                    string
 	DisableIPV6               bool
 	Gunzip                    bool
+	HTTP2                     bool
 	NGINXDebugLevel           string
 	AddHeaderInherit          string
 }
 
 // SSL defines SSL configuration for a server.
 type SSL struct {
-	HTTP2           bool
 	Certificate     string
 	CertificateKey  string
 	RejectHandshake bool

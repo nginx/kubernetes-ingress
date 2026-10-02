@@ -439,7 +439,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		useCustomListeners = true
 	}
 
-	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs, vsc.cfgParams)
+	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs)
+	// The http2 ConfigMap key only applies to servers with TLS; spec.http2 overrides it for any server.
+	http2 := generateBool(vsEx.VirtualServer.Spec.HTTP2, sslConfig != nil && vsc.cfgParams.HTTP2)
+	grpcSupported := sslConfig != nil && http2
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
@@ -522,7 +525,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
 		upstreams, healthChecks, statusMatches = generateUpstreams(
-			sslConfig,
+			grpcSupported,
 			vsc,
 			u,
 			vsEx.VirtualServer,
@@ -540,7 +543,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
 			upstreams, healthChecks, statusMatches = generateUpstreams(
-				sslConfig,
+				grpcSupported,
 				vsc,
 				u,
 				vsr,
@@ -595,7 +598,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		locations = append(locations, vsc.generateExternalAuthLocation(policiesCfg, proxyPassUpstream))
 
 		upstreams, healthChecks, statusMatches = generateUpstreams(
-			sslConfig,
+			grpcSupported,
 			vsc,
 			proxyURLUpstream,
 			vsEx.VirtualServer,
@@ -776,7 +779,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 				upstreams, healthChecks, statusMatches = generateUpstreams(
-					sslConfig,
+					grpcSupported,
 					vsc,
 					proxyURLUpstream,
 					vsEx.VirtualServer,
@@ -1011,7 +1014,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 					upstreams, healthChecks, statusMatches = generateUpstreams(
-						sslConfig,
+						grpcSupported,
 						vsc,
 						proxyURLUpstream,
 						vsr,
@@ -1176,6 +1179,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		Server: version2.Server{
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
+			HTTP2:                     http2,
 			AddHeaderInherit:          vsEx.VirtualServer.Spec.AddHeaderInherit,
 			StatusZone:                vsEx.VirtualServer.Spec.Host,
 			HTTPPort:                  vsEx.HTTPPort,
@@ -1332,7 +1336,7 @@ func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
 }
 
 func generateUpstreams(
-	sslConfig *version2.SSL,
+	grpcSupported bool,
 	vsc *virtualServerConfigurator,
 	u conf_v1.Upstream,
 	owner runtime.Object,
@@ -1344,7 +1348,7 @@ func generateUpstreams(
 	healthChecks []version2.HealthCheck,
 	statusMatches []version2.StatusMatch,
 ) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch) {
-	if (sslConfig == nil || !vsc.cfgParams.HTTP2) && isGRPC(u.Type) {
+	if !grpcSupported && isGRPC(u.Type) {
 		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination", u.Name)
 	}
 
@@ -2700,7 +2704,7 @@ func getNameForSourceForMatchesRouteMapFromCondition(condition conf_v1.Condition
 }
 
 func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tls *conf_v1.TLS, namespace string,
-	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 ) *version2.SSL {
 	if tls == nil {
 		return nil
@@ -2709,7 +2713,6 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 	if tls.Secret == "" {
 		if vsc.isWildcardEnabled {
 			ssl := version2.SSL{
-				HTTP2:           cfgParams.HTTP2,
 				Certificate:     pemFileNameForWildcardTLSSecret,
 				CertificateKey:  pemFileNameForWildcardTLSSecret,
 				RejectHandshake: false,
@@ -2733,7 +2736,6 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 	}
 
 	ssl := version2.SSL{
-		HTTP2:           cfgParams.HTTP2,
 		Certificate:     name,
 		CertificateKey:  name,
 		RejectHandshake: rejectHandshake,

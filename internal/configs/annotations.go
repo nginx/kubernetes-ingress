@@ -47,6 +47,10 @@ const SSLCiphersAnnotation = "nginx.org/ssl-ciphers"
 // SSLPreferServerCiphersAnnotation is the annotation where SSL prefer server ciphers is specified.
 const SSLPreferServerCiphersAnnotation = "nginx.org/ssl-prefer-server-ciphers"
 
+// HTTP2Annotation turns HTTP/2 on or off for an Ingress, replacing the http2 ConfigMap setting, which only applies to hosts with TLS.
+// For unencrypted (http://) traffic, turning HTTP/2 on also requires the ConfigMap setting.
+const HTTP2Annotation = "nginx.org/http2"
+
 // UseClusterIPAnnotation is the annotation where the use-cluster-ip boolean is specified.
 const UseClusterIPAnnotation = "nginx.org/use-cluster-ip"
 
@@ -139,6 +143,7 @@ var minionDenylist = map[string]bool{
 	"nginx.org/server-snippets":                         true,
 	"nginx.org/ssl-ciphers":                             true,
 	"nginx.org/ssl-prefer-server-ciphers":               true,
+	HTTP2Annotation:                                     true,
 	"nginx.org/app-root":                                true,
 	"appprotect.f5.com/app_protect_enable":              true,
 	"appprotect.f5.com/app_protect_policy":              true,
@@ -408,6 +413,14 @@ func parseAnnotations(ingEx *IngressEx, baseCfgParams *ConfigParams, isPlus bool
 			nl.Error(l, err)
 		} else {
 			cfgParams.ServerSSLPreferServerCiphers = sslPreferServerCiphers
+		}
+	}
+
+	if http2, exists, err := GetMapKeyAsBool(ingEx.Ingress.Annotations, HTTP2Annotation, ingEx.Ingress); exists {
+		if err != nil {
+			nl.Error(l, err)
+		} else {
+			cfgParams.ServerHTTP2 = &http2
 		}
 	}
 

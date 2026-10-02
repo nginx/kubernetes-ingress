@@ -270,7 +270,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 	healthChecks := make(map[string]version1.HealthCheck)
 
 	// HTTP2 is required for gRPC to function
-	if len(grpcServices) > 0 && !cfgParams.HTTP2 {
+	if len(grpcServices) > 0 && !generateBool(cfgParams.ServerHTTP2, cfgParams.HTTP2) {
 		nl.Errorf(l, "Ingress %s/%s: annotation nginx.org/grpc-services requires HTTP2, ignoring", ncp.ingEx.Ingress.Namespace, ncp.ingEx.Ingress.Name)
 		grpcServices = make(map[string]bool)
 	}
@@ -413,7 +413,6 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			Name:                   serverName,
 			IsDefaultServer:        isDefaultServer,
 			ServerTokens:           cfgParams.ServerTokens,
-			HTTP2:                  cfgParams.HTTP2,
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
 			SSLRedirect:            cfgParams.SSLRedirect,
 			HTTPRedirectCode:       cfgParams.HTTPRedirectCode,
@@ -474,6 +473,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			warnings := addSSLConfig(&server, ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
 			allWarnings.Add(warnings)
 		}
+
+		// The http2 ConfigMap key only applies to hosts with TLS; the annotation overrides it for any host.
+		server.HTTP2 = generateBool(cfgParams.ServerHTTP2, cfgParams.HTTP2 && server.SSL)
 
 		if policyCfg.IngressMTLS != nil {
 			if server.SSL {
@@ -1429,6 +1431,12 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
 	}
 
+	// http2 is server-level: minions share the master's server, so they use the master's annotation.
+	minionBaseCfgParams := *ncp.BaseCfgParams
+	if http2, exists, err := GetMapKeyAsBool(ncp.mergeableIngs.Master.Ingress.Annotations, HTTP2Annotation, ncp.mergeableIngs.Master.Ingress); exists && err == nil {
+		minionBaseCfgParams.ServerHTTP2 = &http2
+	}
+
 	minions := ncp.mergeableIngs.Minions
 	grpcOnly := true
 	hasGRPCLocations := false
@@ -1466,7 +1474,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 			dosResource:               dummyDosResource,
 			isMinion:                  isMinion,
 			isPlus:                    ncp.isPlus,
-			BaseCfgParams:             ncp.BaseCfgParams,
+			BaseCfgParams:             &minionBaseCfgParams,
 			isResolverConfigured:      ncp.isResolverConfigured,
 			isWildcardEnabled:         ncp.isWildcardEnabled,
 			ingressControllerReplicas: ncp.ingressControllerReplicas,

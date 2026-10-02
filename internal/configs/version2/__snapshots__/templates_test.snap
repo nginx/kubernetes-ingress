@@ -2099,6 +2099,68 @@ server {
 
 ---
 
+[TestExecuteVirtualServerTemplate_RendersHTTP2OnWithoutTLS/OSS - 1]
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    http2 on;
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
+[TestExecuteVirtualServerTemplate_RendersHTTP2OnWithoutTLS/Plus - 1]
+
+
+server {
+    listen 80;
+    listen [::]:80;
+
+
+    server_name example.com;
+    status_zone "example.com";
+    set $resource_type "virtualserver";
+    set $resource_name "";
+    set $resource_namespace "";
+    set $service "-";
+    http2 on;
+
+    server_tokens "";
+
+    
+
+    
+    location "/" {
+        set $service "";
+        status_zone "";
+
+        
+        set $default_connection_header close;
+    }
+}
+
+---
+
 [TestExecuteVirtualServerTemplate_RendersOSSTemplateWithHTTP2Off - 1]
 
 server {

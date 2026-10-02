@@ -134,6 +134,11 @@ spec:
               http-snippets:
                 description: Sets a custom snippet in the http context.
                 type: string
+              http2:
+                description: |-
+                  Turns HTTP/2 on or off for this VirtualServer, replacing the http2 ConfigMap setting, which only applies to VirtualServers with TLS.
+                  For unencrypted (http://) traffic, turning HTTP/2 on also requires the ConfigMap setting.
+                type: boolean
               ingressClassName:
                 description: Specifies which Ingress Controller must handle the VirtualServerRoute
                   resource. Must be the same as the ingressClassName of the VirtualServer

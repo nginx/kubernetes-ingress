@@ -53,6 +53,9 @@ type VirtualServerSpec struct {
 	TLS *TLS `json:"tls"`
 	// Enables or disables decompression of gzipped responses for clients. Allowed values “on”/“off”, “true”/“false” or “yes”/“no”. If the gunzip value is not set, it defaults to off.
 	Gunzip bool `json:"gunzip"`
+	// Turns HTTP/2 on or off for this VirtualServer, replacing the http2 ConfigMap setting, which only applies to VirtualServers with TLS.
+	// For unencrypted (http://) traffic, turning HTTP/2 on also requires the ConfigMap setting.
+	HTTP2 *bool `json:"http2,omitempty"`
 	// A list of policies.
 	Policies []PolicyReference `json:"policies"`
 	// A list of upstreams.
