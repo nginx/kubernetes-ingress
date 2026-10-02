@@ -331,54 +331,86 @@ func TestBatchEndsOnWindowUnderContinuousChurn(t *testing.T) {
 // then going silent again (which would just move the staleness problem
 // from "forever" to "forever after the first window").
 //
-// This is driven by real wall-clock time rather than a fixed iteration
-// count, because the thing under test — LoadBalancerController.batchStart
-// being reset on every new batch entry (see sync() in controller.go) — is
-// itself wall-clock based. A recurring non-endpointslice task is re-added
-// every iteration alongside endpointslice churn, modeling continuous real
-// Ingress/VS changes arriving throughout a rolling deployment, so every
-// window has genuine pending work to reload (pure untracked-endpoint churn
-// with nothing referencing it correctly produces zero reloads — that's the
-// #7778 fix, not a bug — so asserting repetition requires real work).
+// This is driven by a fixed number of cycles with a manually backdated
+// batchStart rather than real elapsed time, so the test has no dependency on
+// wall-clock scheduling and cannot flake under a loaded or paused CI worker.
+// batchReloadWindow is set to an hour (effectively "never elapses on its
+// own"); each cycle enqueues one "real" config-relevant task (T1) plus three
+// endpointslice tasks (T2-T4):
+//
+//   - processing T1 enters batch mode and records batchStart = time.Now().
+//   - processing T2 must NOT end the batch (reload count unchanged) — this
+//     is the baseline the backdating step is contrasted against.
+//   - batchStart is then backdated two hours into the past, which is the
+//     only way batchWindowElapsed can become true without sleeping.
+//   - processing T3 (queue still non-empty) must end the batch via the
+//     window check (not the drain check) and fire exactly one reload.
+//   - processing T4 drains the queue to 0 with batch mode already off, so it
+//     must not fire another reload and must not re-enter batch mode.
+//
+// The next cycle then re-enters batch mode on its own T1 and must record a
+// fresh (non-backdated) batchStart — if sync() failed to reset batchStart on
+// re-entry, the stale backdated value would make the new batch's window look
+// already elapsed, ending it immediately at T1 instead of surviving T2.
+// Asserting the reload count after T1 and T2 in every cycle is what proves
+// that reset happens.
 func TestBatchWindowRepeatsAcrossMultipleCycles(t *testing.T) {
 	t.Parallel()
 
 	mgr := newRecordingBatchManager()
 	lbc := newBatchTestLBC(t, mgr)
-	const window = 10 * time.Millisecond
-	const testDuration = 150 * time.Millisecond // 15x window: generous margin for slow/loaded CI runners.
-	const minReloads = 3                        // conservative: observed ~15 on a dev laptop; only prove repetition, not a precise rate.
-	lbc.batchReloadWindow = window
+	lbc.batchReloadWindow = time.Hour
 
 	const configRelevant = 999
-	lbc.syncQueue.queue.Add(task{Kind: configRelevant, Key: "default/user-ingress"})
-	for i := 0; i < 5; i++ {
-		lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: fmt.Sprintf("default/es-init-%d", i)})
-	}
+	const cycles = 3
 
-	deadline := time.Now().Add(testDuration)
-	processed := 0
-	for time.Now().Before(deadline) {
+	processNext := func() {
 		obj, quit := lbc.syncQueue.queue.Get()
 		if quit {
 			t.Fatal("queue shut down mid-test")
 		}
 		lbc.sync(obj.(task))
 		lbc.syncQueue.queue.Done(obj)
-
-		// Re-add both a recurring "real" config change and endpointslice
-		// churn every iteration, so every batch window has genuine pending
-		// work — unlike TestBatchEndsOnWindowUnderContinuousChurn, which only
-		// seeds one real task and therefore only ever proves one reload.
-		lbc.syncQueue.queue.Add(task{Kind: configRelevant, Key: fmt.Sprintf("default/real-%d", processed)})
-		lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: fmt.Sprintf("default/es-churn-%d", processed)})
-		processed++
 	}
 
-	if got := mgr.reloads.Load(); got < minReloads {
-		t.Fatalf("reload count = %d over %s of continuous real-work churn with a %s batch window, want >= %d "+
-			"(the batch must re-enter and reload again every window as long as churn continues, "+
-			"not just once)", got, testDuration, window, minReloads)
+	for cycle := 0; cycle < cycles; cycle++ {
+		lbc.syncQueue.queue.Add(task{Kind: configRelevant, Key: fmt.Sprintf("default/user-ingress-%d", cycle)})
+		for i := 0; i < 3; i++ {
+			lbc.syncQueue.queue.Add(task{Kind: endpointslice, Key: fmt.Sprintf("default/es-%d-%d", cycle, i)})
+		}
+
+		// T1: enters batch mode (queue.Len() > 1 after Get()) and sets a
+		// fresh batchStart.
+		processNext()
+		// T2: endpointslice churn; must not end the batch.
+		processNext()
+		if got := mgr.reloads.Load(); got != int32(cycle) {
+			t.Fatalf("cycle %d: reload count after T1+T2 = %d, want %d "+
+				"(the batch window must not have elapsed yet — if this fired, "+
+				"batchStart was not reset on re-entry into batch mode)", cycle, got, cycle)
+		}
+
+		// Backdate batchStart so the window check reports elapsed without
+		// any real waiting.
+		lbc.batchStart = time.Now().Add(-2 * time.Hour)
+
+		// T3: queue is still non-empty (T4 remains), so this must end the
+		// batch via the window check, not the drain check.
+		processNext()
+		if got := mgr.reloads.Load(); got != int32(cycle+1) {
+			t.Fatalf("cycle %d: reload count after T3 = %d, want %d "+
+				"(the backdated batchStart should force the window-based batch end)", cycle, got, cycle+1)
+		}
+
+		// T4: drains the queue to 0 with batch mode already off; must not
+		// fire a second reload for this cycle.
+		processNext()
+		if got := mgr.reloads.Load(); got != int32(cycle+1) {
+			t.Fatalf("cycle %d: reload count after T4 = %d, want %d (no reload should fire while batch mode is off)", cycle, got, cycle+1)
+		}
+		if lbc.batchSyncEnabled {
+			t.Fatalf("cycle %d: batchSyncEnabled still true after queue drained", cycle)
+		}
 	}
 }
 
