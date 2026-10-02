@@ -661,6 +661,57 @@ func TestBatchModeAddOrUpdateMergeableIngressPartialWriteStillReloads(t *testing
 	}
 }
 
+// TestConfigMapPartialWriteStillReloadsInLaterBatch pins the fix to
+// Configurator.UpdateConfig: a ConfigMap batch can write the main NGINX config
+// (CreateMainConfig) and then fail in syncDefaultServerConfig before UpdateConfig
+// reaches its own Reload() call — the same write-then-fail shape as
+// AddOrUpdateIngress/AddOrUpdateMergeableIngress above, but for the main config
+// instead of a per-resource one.
+//
+// UpdateConfig itself isn't reached from an endpointslice-only batch (it runs from a
+// ConfigMap task, via updateAllConfigs at batch end — see sync() in
+// internal/k8s/controller.go). The hazard is the *next* batch: since #7778, a
+// subsequent endpointslice-only batch no longer unconditionally reloads at its own
+// batch end, so if that next batch is all successful NGINX Plus API endpoint writes
+// (no Reload() call at all), the written-but-unapplied main config from the earlier
+// ConfigMap batch would never get applied without reloadDeferred carrying it forward.
+func TestConfigMapPartialWriteStillReloadsInLaterBatch(t *testing.T) {
+	t.Parallel()
+
+	mgr := &failOnDefaultServerManager{recordingBatchManager: newRecordingBatchManager()}
+	cnf := createTestConfiguratorWithManager(t, mgr)
+	cnf.isPlus = true
+
+	// Batch 1 (ConfigMap task): updateAllConfigs() runs with reloads already
+	// re-enabled (the real batch-end state - see sync() in controller.go), so any
+	// reload UpdateConfig itself triggers is not what's under test here.
+	cnf.EnableReloads()
+	if _, _, err := cnf.UpdateConfig(ExtendedResources{}); err == nil {
+		t.Fatal("UpdateConfig: expected error from simulated default-server CreateConfig failure, got nil")
+	}
+	if got := mgr.reloads.Load(); got != 0 {
+		t.Fatalf("reload count after failed UpdateConfig = %d, want 0 (no reload was ever reached)", got)
+	}
+
+	// Batch 2 (Plus, endpointslice-only): the API write succeeds, so
+	// UpdateEndpointsForVirtualServers never calls Reload() on its own.
+	cnf.DisableReloads()
+	vsEx := cafeVSExWithEndpoints("10.0.0.1:80")
+	if _, err := cnf.UpdateEndpointsForVirtualServers([]*VirtualServerEx{vsEx}); err != nil {
+		t.Fatalf("UpdateEndpointsForVirtualServers: %v", err)
+	}
+
+	// Batch 2 end: reloadDeferred from the batch-1 failure must still carry the
+	// written-but-unapplied main config forward to this reload.
+	cnf.EnableReloads()
+	if err := cnf.ReloadForBatchUpdates(false); err != nil {
+		t.Fatalf("ReloadForBatchUpdates: %v", err)
+	}
+	if got := mgr.reloads.Load(); got != 1 {
+		t.Fatalf("reload count after batch 2 = %d, want 1 (the batch-1 partial write must not be silently dropped)", got)
+	}
+}
+
 // newBenchConfigurator builds a Configurator against the real templates,
 // suitable for both *testing.T and *testing.B callers. It intentionally
 // omits the isReloadsEnabled=true toggle that createTestConfigurator does,

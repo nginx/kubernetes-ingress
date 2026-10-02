@@ -1655,6 +1655,13 @@ func (cnf *Configurator) Reload(isEndpointsUpdate bool) error {
 // UpdateEndpointsForVirtualServers, UpdateEndpointsForTransportServers (all four already
 // route errors through this function), and the three AddOrUpdate* wrappers above. Adding
 // a new Configurator call reachable from syncEndpointSlices must preserve this invariant.
+//
+// UpdateConfig also calls it, though UpdateConfig itself is not reached from
+// syncEndpointSlices (it runs from a ConfigMap task, via updateAllConfigs). It is listed
+// here anyway because the victim is the *next* batch: if UpdateConfig writes the main
+// config and then fails before its own Reload() (e.g. syncDefaultServerConfig or the
+// resource-update loop), that write must not be lost once the ConfigMap batch ends and a
+// later endpointslice-only batch runs through with no reload of its own.
 func (cnf *Configurator) deferReload() {
 	cnf.reloadDeferred = true
 }
@@ -2037,6 +2044,8 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	}
 
 	if err := cnf.syncDefaultServerConfig(); err != nil {
+		// Main config (above) was already written; see deferReload's invariant.
+		cnf.deferReload()
 		return allWarnings, nil, fmt.Errorf("error syncing default server config: %w", err)
 	}
 
@@ -2046,6 +2055,9 @@ func (cnf *Configurator) UpdateConfig(resources ExtendedResources) (Warnings, Re
 	tasks := cnf.buildResourceUpdateTasks(resources)
 	updateRes, updateErr := cnf.applyResourceUpdates(tasks, isRollbackManager, isPostStartupRollback, resourceErrors)
 	if updateErr != nil {
+		// Fail-fast (non-rollback-manager) path: main config and possibly some
+		// resources were already written before this error; see deferReload's invariant.
+		cnf.deferReload()
 		return allWarnings, nil, updateErr
 	}
 	allWarnings.Add(updateRes.warnings)
