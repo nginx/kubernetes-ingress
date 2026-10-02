@@ -83,7 +83,7 @@ type LatencyMetricsCollector struct {
 }
 
 // NewLatencyMetricsCollector creates a new LatencyMetricsCollector.
-// If buckets is empty, DefaultLatencyBuckets is used.
+// If buckets is empty, defaultLatencyBuckets is used.
 func NewLatencyMetricsCollector(
 	ctx context.Context,
 	constLabels map[string]string,
@@ -92,7 +92,7 @@ func NewLatencyMetricsCollector(
 	buckets []float64,
 ) *LatencyMetricsCollector {
 	if len(buckets) == 0 {
-		buckets = slices.Clone(DefaultLatencyBuckets)
+		buckets = slices.Clone(defaultLatencyBuckets)
 	}
 	return &LatencyMetricsCollector{
 		httpLatency: prometheus.NewHistogramVec(
