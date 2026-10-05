@@ -440,8 +440,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 
 	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs)
-	// The http2 ConfigMap key only applies to servers with TLS; spec.http2 overrides it for any server.
-	http2 := generateBool(vsEx.VirtualServer.Spec.HTTP2, sslConfig != nil && vsc.cfgParams.HTTP2)
+	http2 := generateBool(vsEx.VirtualServer.Spec.HTTP2, vsc.cfgParams.HTTP2)
 	grpcSupported := sslConfig != nil && http2
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 

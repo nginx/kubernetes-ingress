@@ -3896,7 +3896,7 @@ func TestGenerateVirtualServerConfigProxyHTTPVersionGRPC(t *testing.T) {
 }
 
 // TestGenerateVirtualServerConfigHTTP2 asserts that spec.http2 overrides the http2 ConfigMap key,
-// which only applies to VirtualServers with TLS, and that gRPC upstreams follow the result.
+// and that gRPC upstreams still require TLS as well as HTTP/2.
 func TestGenerateVirtualServerConfigHTTP2(t *testing.T) {
 	t.Parallel()
 	on, off := true, false
@@ -3910,7 +3910,8 @@ func TestGenerateVirtualServerConfigHTTP2(t *testing.T) {
 		{msg: "TLS inherits ConfigMap on", tls: true, configMap: true, want: true},
 		{msg: "TLS, spec off overrides ConfigMap on", tls: true, configMap: true, spec: &off, want: false},
 		{msg: "TLS, spec on overrides ConfigMap off", tls: true, spec: &on, want: true},
-		{msg: "no TLS ignores ConfigMap on", configMap: true, want: false},
+		{msg: "no TLS inherits ConfigMap on", configMap: true, want: true},
+		{msg: "no TLS, spec off overrides ConfigMap on", configMap: true, spec: &off, want: false},
 		{msg: "no TLS, spec on", spec: &on, want: true},
 	}
 	for _, tc := range tests {

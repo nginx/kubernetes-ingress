@@ -4456,16 +4456,15 @@ func TestGenerateNginxCfgHTTP2Annotation(t *testing.T) {
 		noTLS      bool
 		configMap  bool
 		annotation string
-		wantHTTP2  bool
-		wantGRPC   bool
+		want       bool // Server.HTTP2, and whether the gRPC locations are kept
 	}{
-		{msg: "no annotation inherits ConfigMap off", configMap: false},
-		{msg: "annotation true overrides ConfigMap off", annotation: "true", wantHTTP2: true, wantGRPC: true},
+		{msg: "no annotation inherits ConfigMap off"},
+		{msg: "no annotation inherits ConfigMap on", configMap: true, want: true},
+		{msg: "annotation true overrides ConfigMap off", annotation: "true", want: true},
 		{msg: "annotation false overrides ConfigMap on", configMap: true, annotation: "false"},
-		{msg: "invalid annotation is ignored", configMap: true, annotation: "maybe", wantHTTP2: true, wantGRPC: true},
-		// the ConfigMap key only applies to hosts with TLS; the gRPC check is unchanged and follows it
-		{msg: "no TLS ignores ConfigMap on", noTLS: true, configMap: true, wantGRPC: true},
-		{msg: "no TLS, annotation true", noTLS: true, annotation: "true", wantHTTP2: true, wantGRPC: true},
+		{msg: "invalid annotation is ignored", configMap: true, annotation: "maybe", want: true},
+		{msg: "no TLS inherits ConfigMap on", noTLS: true, configMap: true, want: true},
+		{msg: "no TLS, annotation false overrides ConfigMap on", noTLS: true, configMap: true, annotation: "false"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.msg, func(t *testing.T) {
@@ -4487,11 +4486,11 @@ func TestGenerateNginxCfgHTTP2Annotation(t *testing.T) {
 				BaseCfgParams: configParams,
 			})
 
-			if got := result.Servers[0].HTTP2; got != tc.wantHTTP2 {
-				t.Errorf("Server.HTTP2 = %v, want %v", got, tc.wantHTTP2)
+			if got := result.Servers[0].HTTP2; got != tc.want {
+				t.Errorf("Server.HTTP2 = %v, want %v", got, tc.want)
 			}
-			if got := result.Servers[0].HasGRPCLocations; got != tc.wantGRPC {
-				t.Errorf("Server.HasGRPCLocations = %v, want %v", got, tc.wantGRPC)
+			if got := result.Servers[0].HasGRPCLocations; got != tc.want {
+				t.Errorf("Server.HasGRPCLocations = %v, want %v", got, tc.want)
 			}
 		})
 	}
