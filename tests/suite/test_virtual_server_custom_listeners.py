@@ -114,7 +114,7 @@ class TestVirtualServerCustomListeners:
                 "http_listener_in_config": False,
                 "https_listener_in_config": False,
                 "expected_response_codes": [404, 404, 0, 0],
-                "expected_vs_error_msg": "Listeners defined, but no GlobalConfiguration is deployed",
+                "expected_vs_error_msg": "Listener http-8085 is not defined in GlobalConfiguration",
                 "expected_gc_error_msg": "",
             },
             {

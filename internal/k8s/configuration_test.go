@@ -5288,6 +5288,12 @@ func TestIsEqualForVirtualServers(t *testing.T) {
 			expected:  false,
 			msg:       "virtual servers with virtual server routes with different generation",
 		},
+		{
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{"path /coffee has conflicting subroutes"}),
+			expected:  true,
+			msg:       "virtual servers with different warnings remain equal for reload detection",
+		},
 	}
 
 	for _, test := range tests {
@@ -5873,12 +5879,270 @@ func TestIsEqualForVirtualServersVSR(t *testing.T) {
 			expected:  false,
 			msg:       "virtual servers with virtual server routes with different generation",
 		},
+		{
+			vsConfig1: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{}),
+			vsConfig2: NewVirtualServerConfiguration(vs, []*conf_v1.VirtualServerRoute{vsr}, nil, []string{"VirtualServerRoute default/x is invalid"}),
+			expected:  true,
+			msg:       "virtual servers with different warnings remain equal for reload detection",
+		},
 	}
 
 	for _, test := range tests {
 		result := test.vsConfig1.IsEqual(test.vsConfig2)
 		if result != test.expected {
 			t.Errorf("IsEqual() returned %v but expected %v for the case of %s", result, test.expected, test.msg)
+		}
+	}
+}
+
+func cafeRouteSelectorLabels() map[string]string {
+	return map[string]string{"route-group": "cafe"}
+}
+
+func createCafeVirtualServer() *conf_v1.VirtualServer {
+	return createTestVirtualServerWithRoutes("cafe", "cafe.example.com", []conf_v1.Route{{
+		Path: "/coffee",
+		RouteSelector: &metav1.LabelSelector{
+			MatchLabels: cafeRouteSelectorLabels(),
+		},
+	}})
+}
+
+func createCafeVirtualServerRoute(name string, paths ...string) *conf_v1.VirtualServerRoute {
+	subroutes := make([]conf_v1.Route, 0, len(paths))
+	for _, path := range paths {
+		subroutes = append(subroutes, conf_v1.Route{
+			Path: path,
+			Action: &conf_v1.Action{
+				Return: &conf_v1.ActionReturn{Body: name},
+			},
+		})
+	}
+	return &conf_v1.VirtualServerRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "default",
+			Name:      name,
+			Labels:    cafeRouteSelectorLabels(),
+		},
+		Spec: conf_v1.VirtualServerRouteSpec{
+			IngressClass: "nginx",
+			Host:         "cafe.example.com",
+			Subroutes:    subroutes,
+		},
+	}
+}
+
+func requireVirtualServerStatusUpdate(t *testing.T, changes []ResourceChange) *VirtualServerConfiguration {
+	t.Helper()
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 change, got %d: %+v", len(changes), changes)
+	}
+	if changes[0].Op != UpdateStatus {
+		t.Fatalf("expected UpdateStatus, got %v", changes[0].Op)
+	}
+	vsc, ok := changes[0].Resource.(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected VirtualServerConfiguration, got %T", changes[0].Resource)
+	}
+	return vsc
+}
+
+func TestVirtualServerWarningReportedWhenLosingVSRDoesNotChangeConfig(t *testing.T) {
+	t.Parallel()
+
+	vs := createCafeVirtualServer()
+	winner := createCafeVirtualServerRoute("coffee-a", "/coffee")
+	loser := createCafeVirtualServerRoute("coffee-b", "/coffee", "/coffee/decaf")
+
+	c := createTestConfiguration()
+	c.AddOrUpdateVirtualServer(vs)
+	c.AddOrUpdateVirtualServerRoute(winner)
+
+	changes, _ := c.AddOrUpdateVirtualServerRoute(loser)
+	vsc := requireVirtualServerStatusUpdate(t, changes)
+	if !strings.Contains(strings.Join(vsc.Warnings, "\n"), "conflicting subroutes") {
+		t.Fatalf("expected conflicting subroutes warning, got %v", vsc.Warnings)
+	}
+
+	changes, _ = c.AddOrUpdateVirtualServerRoute(loser)
+	if len(changes) != 0 {
+		t.Fatalf("expected no change when warning set is unchanged, got %+v", changes)
+	}
+
+	changes, _ = c.DeleteVirtualServerRoute("default/coffee-b")
+	vsc = requireVirtualServerStatusUpdate(t, changes)
+	if len(vsc.Warnings) != 0 {
+		t.Fatalf("expected warnings to be cleared, got %v", vsc.Warnings)
+	}
+}
+
+func TestVirtualServerWarningReportedWhenRejectedVSRDoesNotChangeConfig(t *testing.T) {
+	t.Parallel()
+
+	vs := createCafeVirtualServer()
+	winner := createCafeVirtualServerRoute("coffee-a", "/coffee")
+	invalid := createCafeVirtualServerRoute("tea", "/coffee")
+	invalid.Spec.Host = "wrong.example.com"
+
+	c := createTestConfiguration()
+	c.AddOrUpdateVirtualServer(vs)
+	c.AddOrUpdateVirtualServerRoute(winner)
+
+	changes, _ := c.AddOrUpdateVirtualServerRoute(invalid)
+	vsc := requireVirtualServerStatusUpdate(t, changes)
+	if !strings.Contains(strings.Join(vsc.Warnings, "\n"), "must be equal to 'cafe.example.com'") {
+		t.Fatalf("expected host mismatch warning, got %v", vsc.Warnings)
+	}
+}
+
+func TestVirtualServerWarningWithAcceptedSetChangeStillReloads(t *testing.T) {
+	t.Parallel()
+
+	vs := createCafeVirtualServer()
+	winner := createCafeVirtualServerRoute("coffee-a", "/coffee")
+	loser := createCafeVirtualServerRoute("coffee-b", "/coffee", "/coffee/decaf")
+
+	c := createTestConfiguration()
+	c.AddOrUpdateVirtualServer(vs)
+	c.AddOrUpdateVirtualServerRoute(loser)
+
+	changes, _ := c.AddOrUpdateVirtualServerRoute(winner)
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 change, got %d: %+v", len(changes), changes)
+	}
+	if changes[0].Op != AddOrUpdate {
+		t.Fatalf("expected AddOrUpdate when the accepted route set changes, got %v", changes[0].Op)
+	}
+	vsc, ok := changes[0].Resource.(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected VirtualServerConfiguration, got %T", changes[0].Resource)
+	}
+	if !strings.Contains(strings.Join(vsc.Warnings, "\n"), "conflicting subroutes") {
+		t.Fatalf("expected conflicting subroutes warning, got %v", vsc.Warnings)
+	}
+}
+
+// TestVirtualServerSelectorWarningsAreStableAcrossNoOpSyncs pins that several
+// per-route "is invalid" warnings from a routeSelector are sorted. They come
+// from ranging over a map, so without sorting a repeated no-op sync would
+// reorder them and emit a spurious UpdateStatus every time.
+func TestVirtualServerSelectorWarningsAreStableAcrossNoOpSyncs(t *testing.T) {
+	t.Parallel()
+
+	vs := createCafeVirtualServer()
+	c := createTestConfiguration()
+	c.AddOrUpdateVirtualServer(vs)
+
+	var invalid []*conf_v1.VirtualServerRoute
+	for _, name := range []string{"tea-a", "tea-b", "tea-c", "tea-d", "tea-e", "tea-f"} {
+		vsr := createCafeVirtualServerRoute(name, "/coffee")
+		vsr.Spec.Host = "wrong.example.com"
+		invalid = append(invalid, vsr)
+	}
+
+	for _, vsr := range invalid {
+		c.AddOrUpdateVirtualServerRoute(vsr)
+	}
+
+	vsc, ok := c.hosts[vs.Spec.Host].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("expected VirtualServerConfiguration, got %T", c.hosts[vs.Spec.Host])
+	}
+	if len(vsc.Warnings) != len(invalid) {
+		t.Fatalf("expected %d warnings, got %d: %v", len(invalid), len(vsc.Warnings), vsc.Warnings)
+	}
+	if !sort.StringsAreSorted(vsc.Warnings) {
+		t.Errorf("expected sorted warnings, got %v", vsc.Warnings)
+	}
+
+	for i := 0; i < 50; i++ {
+		for _, vsr := range invalid {
+			changes, _ := c.AddOrUpdateVirtualServerRoute(vsr)
+			if len(changes) != 0 {
+				t.Fatalf("sync %d: expected no changes for a no-op sync, got %+v", i, changes)
+			}
+		}
+		changes, _ := c.AddOrUpdateVirtualServer(vs)
+		if len(changes) != 0 {
+			t.Fatalf("sync %d: expected no changes for a no-op VirtualServer sync, got %+v", i, changes)
+		}
+	}
+}
+
+func TestCreateVirtualServerWarningChanges(t *testing.T) {
+	t.Parallel()
+
+	vs := createCafeVirtualServer()
+	oldVSC := NewVirtualServerConfiguration(vs, nil, nil, nil)
+	newVSC := NewVirtualServerConfiguration(vs, nil, nil, []string{"path /coffee has conflicting subroutes"})
+
+	oldHosts := map[string]Resource{"cafe.example.com": oldVSC}
+	newHosts := map[string]Resource{"cafe.example.com": newVSC}
+
+	changes := createVirtualServerWarningChanges(oldHosts, newHosts, nil)
+	vsc := requireVirtualServerStatusUpdate(t, changes)
+	if diff := cmp.Diff(newVSC.Warnings, vsc.Warnings); diff != "" {
+		t.Errorf("unexpected warnings (-want +got):\n%s", diff)
+	}
+
+	existing := []ResourceChange{{Op: AddOrUpdate, Resource: newVSC}}
+	if got := createVirtualServerWarningChanges(oldHosts, newHosts, existing); len(got) != 0 {
+		t.Fatalf("expected no warning-only change when a reload is already queued, got %+v", got)
+	}
+
+	sameWarnings := NewVirtualServerConfiguration(vs, nil, nil, []string{"path /coffee has conflicting subroutes"})
+	if got := createVirtualServerWarningChanges(
+		map[string]Resource{"cafe.example.com": newVSC},
+		map[string]Resource{"cafe.example.com": sameWarnings},
+		nil,
+	); len(got) != 0 {
+		t.Fatalf("expected no change when warnings are unchanged, got %+v", got)
+	}
+}
+
+// TestMisconfiguredListenerWarnings_StableForSharedHost pins that two
+// VirtualServers sharing a host, both with a misconfigured listener, attach
+// their warnings to the winning host in a stable order. A random order makes
+// createVirtualServerWarningChanges see a warning-set change on roughly half
+// of all rebuilds and emit a spurious UpdateStatus.
+func TestMisconfiguredListenerWarnings_StableForSharedHost(t *testing.T) {
+	t.Parallel()
+	configuration := createTestConfiguration()
+
+	addOrUpdateGlobalConfiguration(t, configuration, customHTTPAndHTTPSListeners, noChanges, noProblems)
+
+	const host = "cafe.example.com"
+	older := metav1.NewTime(time.Now().Add(-time.Hour))
+	newer := metav1.NewTime(time.Now())
+
+	first := createTestVirtualServerWithListeners("aaa", host, "http-bogus-a", "https-8442")
+	first.CreationTimestamp = older
+	second := createTestVirtualServerWithListeners("bbb", host, "http-bogus-b", "https-8442")
+	second.CreationTimestamp = newer
+
+	configuration.AddOrUpdateVirtualServer(first)
+	configuration.AddOrUpdateVirtualServer(second)
+
+	want := []string{
+		"Listener http-bogus-a is not defined in GlobalConfiguration",
+		"Listener http-bogus-b is not defined in GlobalConfiguration",
+	}
+
+	for i := range 100 {
+		changes, _ := configuration.rebuildHosts()
+
+		for _, c := range changes {
+			if c.Op == UpdateStatus {
+				t.Fatalf("rebuild %d emitted a spurious UpdateStatus for %s", i, c.Resource.GetKeyWithKind())
+			}
+		}
+
+		winner, ok := configuration.hosts[host].(*VirtualServerConfiguration)
+		if !ok {
+			t.Fatalf("host %s is not a VirtualServerConfiguration", host)
+		}
+		if diff := cmp.Diff(want, winner.Warnings); diff != "" {
+			t.Fatalf("rebuild %d: unexpected warnings order (-want +got):\n%s", i, diff)
 		}
 	}
 }
