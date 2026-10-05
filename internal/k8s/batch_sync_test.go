@@ -223,8 +223,9 @@ func TestBatchModeResetsUpdateAllConfigsFlag(t *testing.T) {
 //     pins the pre-fix, unbounded-drain semantics: no reload fires while
 //     queue.Len() > 0, and the batch-end reload fires exactly once when the
 //     queue finally drains. All 51 syncs run synchronously in well under the
-//     production batchReloadWindowDefault, so this is unaffected by the fix
-//     in TestBatchEndsOnWindowUnderContinuousChurn below.
+//     production default (-batch-reload-window=2000ms), so this is
+//     unaffected by the fix in TestBatchEndsOnWindowUnderContinuousChurn
+//     below.
 func TestOSSBatchNeverDrainsUnderEndpointsliceChurn(t *testing.T) {
 	t.Parallel()
 
@@ -275,9 +276,9 @@ func TestOSSBatchNeverDrainsUnderEndpointsliceChurn(t *testing.T) {
 // "real" config change (dummy Ingress) enqueued alongside endpointslice
 // churn, with a *new* endpointslice task enqueued for every task processed
 // so arrivals outpace drain and syncQueue.Len() never reaches 0 — but with
-// batchReloadWindow set to a tiny positive duration (matching what
-// NewLoadBalancerController wires up in production via
-// batchReloadWindowDefault). It asserts the fix actually closes the gap:
+// batchReloadWindow set to a tiny positive duration (standing in for the
+// production default of 2s, wired up via -batch-reload-window). It asserts
+// the fix actually closes the gap:
 // the pending reload fires well before the churn itself stops, instead of
 // being deferred for the full duration of a rolling deployment.
 func TestBatchEndsOnWindowUnderContinuousChurn(t *testing.T) {

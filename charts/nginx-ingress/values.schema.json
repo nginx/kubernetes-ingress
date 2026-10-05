@@ -253,8 +253,9 @@
         },
         "batchReloadWindow": {
           "type": "integer",
+          "minimum": 0,
           "default": 2000,
-          "title": "Maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn before flushing it",
+          "title": "Maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn before flushing it. 0 disables the bound",
           "examples": [
             2000
           ]

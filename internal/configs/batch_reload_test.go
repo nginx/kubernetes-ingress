@@ -84,7 +84,7 @@ func (m *failingStreamPlusAPIManager) UpdateStreamServersInPlus(upstream string,
 	return fmt.Errorf("simulated stream Plus API failure for upstream %s", upstream)
 }
 
-// TestBatchModeDropsPlusEndpointUpdates pins the fix for issue #7778
+// TestBatchModeKeepsPlusAPIWritesEnabled pins the fix for issue #7778
 // (https://github.com/nginx/kubernetes-ingress/issues/7778): NGINX Plus
 // reloading on every endpoint churn event.
 //
@@ -103,7 +103,7 @@ func (m *failingStreamPlusAPIManager) UpdateStreamServersInPlus(upstream string,
 // only clears the former, so the Plus API upstream write continues to apply
 // endpoint changes live during a batch while reloads stay deferred — closing
 // #7778 without reintroducing the staleness #7779 would have caused.
-func TestBatchModeDropsPlusEndpointUpdates(t *testing.T) {
+func TestBatchModeKeepsPlusAPIWritesEnabled(t *testing.T) {
 	t.Parallel()
 
 	mgr := newRecordingBatchManager()
@@ -146,7 +146,7 @@ func TestBatchModeDropsPlusEndpointUpdates(t *testing.T) {
 	}
 }
 
-// TestBatchModeSilentlyDropsOSSReload demonstrates the primitive that, without
+// TestBatchModeDefersOSSReload demonstrates the primitive that, without
 // a bounded batch window, amplifies into issue #10397
 // (https://github.com/nginx/kubernetes-ingress/issues/10397) at the
 // controller level: while batching is active, every call to
@@ -159,7 +159,7 @@ func TestBatchModeDropsPlusEndpointUpdates(t *testing.T) {
 // window disabled) and TestBatchEndsOnWindowUnderContinuousChurn (the fix)
 // in the internal/k8s package for the end-to-end behavior driven through
 // sync().
-func TestBatchModeSilentlyDropsOSSReload(t *testing.T) {
+func TestBatchModeDefersOSSReload(t *testing.T) {
 	t.Parallel()
 
 	mgr := newRecordingBatchManager()
@@ -360,7 +360,7 @@ func TestBatchModeTransportServerPlusAPIFailureStillReloadsAtBatchEnd(t *testing
 }
 
 // TestBatchModeEndpointslicesOnlyNoReloadOnPlus is the Plus-side,
-// public-API counterpart to TestBatchModeDropsPlusEndpointUpdates: it drives
+// public-API counterpart to TestBatchModeKeepsPlusAPIWritesEnabled: it drives
 // repeated endpoint churn for the same VirtualServer through
 // UpdateEndpointsForVirtualServers (the path syncEndpointSlices actually
 // calls) and asserts that an endpointslice-only batch applies every update

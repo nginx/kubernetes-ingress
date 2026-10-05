@@ -181,7 +181,7 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 		`The timeout in milliseconds which the Ingress Controller will wait for a successful NGINX reload after a change or at the initial start. (default 60000)`)
 
 	batchReloadWindow = flag.Int("batch-reload-window", 2000,
-		`The maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn (e.g. a rolling deployment) before flushing it, bounding how stale the running NGINX config can get. (default 2000)`)
+		`The maximum time in milliseconds that the Ingress Controller will defer a reload under sustained EndpointSlice churn (e.g. a rolling deployment) before flushing it, bounding how stale the running NGINX config can get. A value of 0 disables the bound, restoring unbounded deferral under churn. (default 2000)`)
 
 	wildcardTLSSecret = flag.String("wildcard-tls-secret", "",
 		`A Secret with a TLS certificate and key for TLS termination of every Ingress/VirtualServer host for which TLS termination is enabled but the Secret is not specified.
