@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"regexp"
 	"sync"
@@ -120,7 +119,7 @@ func createHostlessCafeIngressEx() IngressEx {
 	ingEx.Ingress.Spec.TLS = nil
 	ingEx.Ingress.Spec.Rules[0].Host = ""
 	ingEx.ValidHosts = map[string]bool{"": true}
-	ingEx.SecretRefs = map[string]*secrets.SecretReference{}
+	ingEx.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{}
 	return ingEx
 }
 
@@ -129,7 +128,7 @@ func createHostlessMergeableCafeIngress() *MergeableIngresses {
 	mergeableIngress.Master.Ingress.Spec.TLS = nil
 	mergeableIngress.Master.Ingress.Spec.Rules[0].Host = ""
 	mergeableIngress.Master.ValidHosts = map[string]bool{"": true}
-	mergeableIngress.Master.SecretRefs = map[string]*secrets.SecretReference{}
+	mergeableIngress.Master.SecretRefs = map[secrets.SecretRefKey]*secrets.SecretReference{}
 
 	for _, minion := range mergeableIngress.Minions {
 		minion.Ingress.Spec.Rules[0].Host = ""
@@ -651,6 +650,24 @@ func TestSyncDefaultServerConfigSuppressedByEmptyHostIngress(t *testing.T) {
 	}
 }
 
+func TestSyncDefaultServerConfigDoesNotSetServerZoneLabels(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+
+	err := cnf.syncDefaultServerConfig()
+	if err != nil {
+		t.Fatalf("syncDefaultServerConfig() returned error: %v", err)
+	}
+
+	if len(cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels) != 0 {
+		t.Fatalf("syncDefaultServerConfig() expected no server zone labels, got: %v", cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels)
+	}
+}
+
 func TestAddOrUpdateIngressReturnsErrorWhenDefaultServerSyncFails(t *testing.T) {
 	t.Parallel()
 	manager := &errorOnDefaultServerCreateManager{FakeManager: nginx.NewFakeManager("/etc/nginx")}
@@ -863,34 +880,6 @@ func TestGenerateTLSPassthroughHostsConfig(t *testing.T) {
 	resultCfg := generateTLSPassthroughHostsConfig(tlsPassthroughPairs)
 	if !reflect.DeepEqual(resultCfg, expectedCfg) {
 		t.Errorf("generateTLSPassthroughHostsConfig() returned %v but expected %v", resultCfg, expectedCfg)
-	}
-}
-
-func TestAddInternalRouteConfig(t *testing.T) {
-	t.Parallel()
-	cnf := createTestConfigurator(t)
-
-	// set service account in env
-	err := os.Setenv("POD_SERVICEACCOUNT", "nginx-ingress")
-	if err != nil {
-		t.Fatalf("Failed to set pod name in environment: %v", err)
-	}
-	// set namespace in env
-	err = os.Setenv("POD_NAMESPACE", "default")
-	if err != nil {
-		t.Fatalf("Failed to set pod name in environment: %v", err)
-	}
-
-	err = cnf.AddInternalRouteConfig()
-	if err != nil {
-		t.Errorf("AddInternalRouteConfig returned:  \n%v, but expected: \n%v", err, nil)
-	}
-
-	if !cnf.staticCfgParams.EnableInternalRoutes {
-		t.Error("AddInternalRouteConfig failed to set EnableInternalRoutes field of staticCfgParams to true")
-	}
-	if cnf.staticCfgParams.InternalRouteServerName != "nginx-ingress.default.svc" {
-		t.Error("AddInternalRouteConfig failed to set InternalRouteServerName field of staticCfgParams")
 	}
 }
 
@@ -1289,6 +1278,58 @@ func TestUpdateIngressMetricsLabels(t *testing.T) {
 	}
 	if !reflect.DeepEqual(testLatencyCollector, expectedLatencyCollector) {
 		t.Errorf("updateIngressMetricsLabels() updated latency collector labels to \n%+v but expected \n%+v", testLatencyCollector, expectedLatencyCollector)
+	}
+}
+
+func TestUpdateIngressMetricsLabelsUsesEmptyHostTokenForServerZone(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+	testLatencyCollector := newMockLatencyCollector()
+	cnf.latencyCollector = testLatencyCollector
+
+	ingEx := createHostlessCafeIngressEx()
+
+	// Empty-host ingresses render to zone "_", so storing labels under the empty string would miss the scrape path.
+	cnf.updateIngressMetricsLabels(&ingEx, nil)
+
+	got := cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels
+	want := map[string][]string{
+		emptyHostToken: {"ingress", ingEx.Ingress.Name, ingEx.Ingress.Namespace},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("updateIngressMetricsLabels() server zone labels mismatch (-want +got):\n%s", diff)
+	}
+	if _, exists := got[emptyHostName]; exists {
+		t.Fatalf("updateIngressMetricsLabels() stored labels for empty host key")
+	}
+}
+
+func TestDeleteEmptyHostIngressClearsServerZoneLabels(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+	cnf.isPlus = true
+	cnf.isPrometheusEnabled = true
+	cnf.labelUpdater = newFakeLabelUpdater()
+	testLatencyCollector := newMockLatencyCollector()
+	cnf.latencyCollector = testLatencyCollector
+
+	ingEx := createHostlessCafeIngressEx()
+	if _, err := cnf.AddOrUpdateIngress(&ingEx); err != nil {
+		t.Fatalf("AddOrUpdateIngress() returned error: %v", err)
+	}
+
+	err := cnf.DeleteIngress(generateNamespaceNameKey(&ingEx.Ingress.ObjectMeta), true)
+	if err != nil {
+		t.Fatalf("DeleteIngress() returned error: %v", err)
+	}
+
+	if len(cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels) != 0 {
+		t.Fatalf("DeleteIngress() expected server zone labels to be cleared, got: %v", cnf.labelUpdater.(*mockLabelUpdater).serverZoneLabels)
 	}
 }
 
@@ -2203,6 +2244,44 @@ func TestGetVitualServerCountsNotExistingVS(t *testing.T) {
 	}
 }
 
+func TestGetVirtualServerCountsSharedVSRCountedOnce(t *testing.T) {
+	t.Parallel()
+
+	tcnf := createTestConfigurator(t)
+
+	// A hostless VirtualServerRoute referenced by two distinct VirtualServers
+	// must be counted once in the VSR total, not twice.
+	sharedVSR := &conf_v1.VirtualServerRoute{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Name:      "coffee",
+			Namespace: "default",
+		},
+	}
+	tcnf.virtualServers = map[string]*VirtualServerEx{
+		"default/cafe": {
+			VirtualServer: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+				Spec:       conf_v1.VirtualServerSpec{Host: "cafe.example.com"},
+			},
+			VirtualServerRoutes: []*conf_v1.VirtualServerRoute{sharedVSR},
+		},
+		"default/cafe2": {
+			VirtualServer: &conf_v1.VirtualServer{
+				ObjectMeta: meta_v1.ObjectMeta{Name: "cafe2", Namespace: "default"},
+				Spec:       conf_v1.VirtualServerSpec{Host: "cafe2.example.com"},
+			},
+			VirtualServerRoutes: []*conf_v1.VirtualServerRoute{sharedVSR},
+		},
+	}
+
+	gotVS, gotVSRoutes := tcnf.GetVirtualServerCounts()
+	wantVS, wantVSRoutes := 2, 1
+
+	if gotVS != wantVS || gotVSRoutes != wantVSRoutes {
+		t.Errorf("GetVirtualServerCounts() = %d, %d, want %d, %d", gotVS, gotVSRoutes, wantVS, wantVSRoutes)
+	}
+}
+
 func TestAddOrUpdateTransportServer(t *testing.T) {
 	t.Parallel()
 	cnf := createTestConfigurator(t)
@@ -2377,12 +2456,10 @@ func TestGenerateApDosAllowListFileContent(t *testing.T) {
 
 func createTransportServerExWithHostNoTLSPassthrough() TransportServerEx {
 	return TransportServerEx{
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/echo-secret": {
-				Secret: &api_v1.Secret{
-					Type: api_v1.SecretTypeTLS,
-				},
-				Path: "secret.pem",
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/echo-secret", secrets.RoleTLS): {
+				Secret: &api_v1.Secret{},
+				Path:   "secret.pem",
 			},
 		},
 		TransportServer: &conf_v1.TransportServer{
@@ -2643,18 +2720,6 @@ http {
 
         return 418;
     }
-    {{- if .InternalRouteServer}}
-    server {
-        listen 443 ssl;
-        {{if not .DisableIPV6}}listen [::]:443 ssl;{{end}}
-        server_name {{.InternalRouteServerName}};
-        ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" .StaticSSLPath "$secret_dir_path" .DynamicSSLReloadEnabled }};
-        ssl_client_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        ssl_verify_client on;
-        ssl_verify_depth 25;
-    }
-    {{- end}}
 }
 
 stream {
@@ -2732,7 +2797,7 @@ upstream {{$upstream.Name}} {
 	{{- end}}
 	{{- range $server := $upstream.UpstreamServers}}
 	server {{$server.Address}} max_fails={{$server.MaxFails}} fail_timeout={{$server.FailTimeout}} max_conns={{$server.MaxConns}};{{end}}
-	{{- if $.Keepalive}}keepalive {{$.Keepalive}};{{end}}
+	{{- if $upstream.Keepalive}}keepalive {{$upstream.Keepalive}};{{end}}
 }
 {{end -}}
 
@@ -2742,17 +2807,10 @@ limit_req_zone {{ $limitReqZone.Key }} zone={{ $limitReqZone.Name }}:{{$limitReq
 
 {{range $server := .Servers}}
 server {
-	{{- if $server.SpiffeCerts}}
-	listen 443 ssl;
-	{{- if not $server.DisableIPV6}}listen [::]:443 ssl;{{end}}
-	ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-	ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-	{{- else}}
 	{{- if not $server.GRPCOnly}}
 	{{- range $port := $server.Ports}}
 	listen {{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}
-	{{- end}}
 	{{- end}}
 
 	{{- if $server.SSL}}
@@ -2884,28 +2942,25 @@ server {
 		{{- if $location.ProxyBufferSize}}
 		grpc_buffer_size {{$location.ProxyBufferSize}};
 		{{- end}}
-		{{- if $.SpiffeClientCerts}}
-		grpc_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		grpc_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		grpc_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-		grpc_ssl_server_name on;
-		grpc_ssl_verify on;
-		grpc_ssl_verify_depth 25;
-		grpc_ssl_name {{$location.ProxySSLName}};
-		{{- end}}
 		{{- if $location.SSL}}
 		grpc_pass grpcs://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- else}}
 		grpc_pass grpc://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{- end}}
 		{{- else}}
-		proxy_http_version 1.1;
+		{{- if $location.ProxyHTTPVersion}}
+		proxy_http_version {{$location.ProxyHTTPVersion}};
+		{{- end}}
+		{{- if eq $location.ProxyHTTPVersion "1.0"}}
+		proxy_set_header Connection close;
+		{{- else if ne $location.ProxyHTTPVersion "2"}}
 		{{- if $location.Websocket}}
 		proxy_set_header Upgrade $http_upgrade;
 		proxy_set_header Connection $connection_upgrade;
 		{{- else}}
-		{{- if $.Keepalive}}
+		{{- if $location.Upstream.Keepalive}}
 		proxy_set_header Connection "";{{end}}
+		{{- end}}
 		{{- end}}
 		{{- if $location.LocationSnippets}}
 		{{range $value := $location.LocationSnippets}}
@@ -2938,15 +2993,6 @@ server {
 		{{- end}}
 		{{- if $location.ProxyMaxTempFileSize}}
 		proxy_max_temp_file_size {{$location.ProxyMaxTempFileSize}};
-		{{- end}}
-		{{- if $.SpiffeClientCerts}}
-		proxy_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		proxy_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-		proxy_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-		proxy_ssl_server_name on;
-		proxy_ssl_verify on;
-		proxy_ssl_verify_depth 25;
-		proxy_ssl_name {{$location.ProxySSLName}};
 		{{- end}}
 		{{- if $location.SSL}}
 		proxy_pass https://{{$location.Upstream.Name}}{{$location.Rewrite}};
@@ -3123,20 +3169,10 @@ server {
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
-        {{- else if $.SpiffeCerts }}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
        {{- else }}
     ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
     ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- end }}
-    {{- else }}
-      {{- if $.SpiffeCerts }}
-    listen 443 ssl;
-    {{if not $s.DisableIPV6}}listen [::]:443 ssl;{{end}}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-      {{- end }}
     {{- end }}
 
     {{- with $s.IngressMTLS }}
@@ -3592,9 +3628,15 @@ server {
         {{ $proxyOrGRPC }}_buffer_size {{ $l.ProxyBufferSize }};
             {{- end }}
             {{- if not $l.GRPCPass }}
-        proxy_http_version 1.1;
+        {{- if $l.ProxyHTTPVersion }}
+        proxy_http_version {{ $l.ProxyHTTPVersion }};
+        {{- end }}
+        {{- if eq $l.ProxyHTTPVersion "1.0" }}
+        proxy_set_header Connection close;
+        {{- else if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
+        {{- end }}
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
             {{- end }}
 
@@ -3635,15 +3677,6 @@ server {
             {{- end }}
             {{- range $h := $l.AddHeaders }}
         add_header {{ $h.Name }} "{{ $h.Value }}" {{ if $h.Always }}always{{ end }};
-            {{- end }}
-            {{- if $.SpiffeClientCerts }}
-        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        {{ $proxyOrGRPC }}_ssl_server_name on;
-        {{ $proxyOrGRPC }}_ssl_verify on;
-        {{ $proxyOrGRPC }}_ssl_verify_depth 25;
-        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
             {{- end }}
             {{-  if $l.GRPCPass }}
         grpc_pass {{ $l.GRPCPass }};
@@ -3893,10 +3926,9 @@ func createOIDCVirtualServerEx() *VirtualServerEx {
 		Endpoints: map[string][]string{
 			"default/tea-svc:80": {"10.0.0.10:80"},
 		},
-		SecretRefs: map[string]*secrets.SecretReference{
-			"default/example-client-secret": {
+		SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+			secrets.RefKey("default/example-client-secret", secrets.RoleOIDC): {
 				Secret: &api_v1.Secret{
-					Type: secrets.SecretTypeOIDC,
 					Data: map[string][]byte{
 						"client-secret": []byte("c2VjcmV0"),
 					},
@@ -3973,5 +4005,422 @@ func TestAddOrUpdateVirtualServer_WithoutOIDCAndConfigSafetyEnabled_DoesNotWrite
 	}
 	if manager.vsCalls != 1 {
 		t.Errorf("expected exactly one CreateConfig call for the VS, got %d", manager.vsCalls)
+	}
+}
+
+// -----------------------------------------------------------------------------
+// applyResourceUpdates: shared-input early-exit behavior
+// -----------------------------------------------------------------------------
+
+// makeTask builds a resourceUpdateTask whose update() returns the given err.
+// Kind and namespace are fixed because these tests exercise the shared plumbing,
+// not per-kind or per-namespace attribution.
+func makeTask(name string, err error) resourceUpdateTask {
+	return resourceUpdateTask{
+		kind: "Ingress", namespace: "default", name: name,
+		update: func() (Warnings, []WeightUpdate, error) {
+			return nil, nil, err
+		},
+	}
+}
+
+func TestApplyResourceUpdates_AllSuccess(t *testing.T) {
+	cnf := createTestConfigurator(t)
+	tasks := []resourceUpdateTask{
+		makeTask("a", nil),
+		makeTask("b", nil),
+		makeTask("c", nil),
+	}
+	resourceErrors := make(ResourceErrors)
+
+	res, err := cnf.applyResourceUpdates(tasks, true, true, resourceErrors)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.sharedInputFailure {
+		t.Error("sharedInputFailure should be false when all tasks succeed")
+	}
+	if res.consecutiveFailures != 0 {
+		t.Errorf("consecutiveFailures = %d, want 0", res.consecutiveFailures)
+	}
+	if res.processedCount != 3 {
+		t.Errorf("processedCount = %d, want 3", res.processedCount)
+	}
+	if len(resourceErrors) != 0 {
+		t.Errorf("resourceErrors = %v, want empty", resourceErrors)
+	}
+}
+
+func TestApplyResourceUpdates_TwoConsecutiveFailuresTriggerEarlyExit(t *testing.T) {
+	cnf := createTestConfigurator(t)
+	boom := fmt.Errorf("nginx -t failed")
+	tasks := []resourceUpdateTask{
+		makeTask("a", boom),
+		makeTask("b", boom),
+		makeTask("c", nil), // should not run
+		makeTask("d", nil), // should not run
+	}
+	resourceErrors := make(ResourceErrors)
+
+	res, err := cnf.applyResourceUpdates(tasks, true, true, resourceErrors)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.sharedInputFailure {
+		t.Error("sharedInputFailure should be true after 2 consecutive failures")
+	}
+	if res.consecutiveFailures != 2 {
+		t.Errorf("consecutiveFailures = %d, want 2", res.consecutiveFailures)
+	}
+	if res.processedCount != 2 {
+		t.Errorf("processedCount = %d, want 2 (should stop after triggering early exit)", res.processedCount)
+	}
+	if len(resourceErrors) != 2 {
+		t.Errorf("resourceErrors has %d entries, want 2", len(resourceErrors))
+	}
+	for _, name := range []string{"a", "b"} {
+		if _, ok := resourceErrors[MakeResourceErrorKey("Ingress", "default", name)]; !ok {
+			t.Errorf("resourceErrors missing entry for %q", name)
+		}
+	}
+}
+
+func TestApplyResourceUpdates_SuccessResetsCounter(t *testing.T) {
+	cnf := createTestConfigurator(t)
+	boom := fmt.Errorf("nginx -t failed")
+	// Pattern: fail, success, fail, success, fail — counter should never reach 2.
+	tasks := []resourceUpdateTask{
+		makeTask("a", boom),
+		makeTask("b", nil),
+		makeTask("c", boom),
+		makeTask("d", nil),
+		makeTask("e", boom),
+	}
+	resourceErrors := make(ResourceErrors)
+
+	res, err := cnf.applyResourceUpdates(tasks, true, true, resourceErrors)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.sharedInputFailure {
+		t.Error("sharedInputFailure should be false when failures are interleaved with successes")
+	}
+	if res.processedCount != 5 {
+		t.Errorf("processedCount = %d, want 5", res.processedCount)
+	}
+	if len(resourceErrors) != 3 {
+		t.Errorf("resourceErrors has %d entries, want 3", len(resourceErrors))
+	}
+}
+
+func TestApplyResourceUpdates_EarlyExitDisabledStillRecordsErrors(t *testing.T) {
+	// Nuclear-fallback scenario: enableEarlyExit=false, all failures recorded, no break.
+	cnf := createTestConfigurator(t)
+	boom := fmt.Errorf("nginx -t failed")
+	tasks := []resourceUpdateTask{
+		makeTask("a", boom),
+		makeTask("b", boom),
+		makeTask("c", boom),
+	}
+	resourceErrors := make(ResourceErrors)
+
+	res, err := cnf.applyResourceUpdates(tasks, true, false, resourceErrors)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.sharedInputFailure {
+		t.Error("sharedInputFailure should be false when enableEarlyExit=false")
+	}
+	if res.processedCount != 3 {
+		t.Errorf("processedCount = %d, want 3 (all tasks should be attempted)", res.processedCount)
+	}
+	if len(resourceErrors) != 3 {
+		t.Errorf("resourceErrors has %d entries, want 3", len(resourceErrors))
+	}
+}
+
+func TestApplyResourceUpdates_NonRollbackManagerFailsFast(t *testing.T) {
+	// Legacy path: no rollback manager → first error propagates immediately.
+	cnf := createTestConfigurator(t)
+	boom := fmt.Errorf("hard failure")
+	tasks := []resourceUpdateTask{
+		makeTask("a", nil),
+		makeTask("b", boom),
+		makeTask("c", nil), // must not run
+	}
+	resourceErrors := make(ResourceErrors)
+
+	res, err := cnf.applyResourceUpdates(tasks, false, false, resourceErrors)
+	if err == nil {
+		t.Fatal("expected error to propagate in non-rollback-manager mode")
+	}
+	if res.processedCount != 2 {
+		t.Errorf("processedCount = %d, want 2 (a succeeded, b failed and returned)", res.processedCount)
+	}
+	if len(resourceErrors) != 0 {
+		t.Errorf("resourceErrors should be empty in non-rollback-manager mode, got %v", resourceErrors)
+	}
+}
+
+// -----------------------------------------------------------------------------
+// buildFilenameToErrorKey: empty-host + regular mapping
+// -----------------------------------------------------------------------------
+
+func TestBuildFilenameToErrorKey_EmptyHostMapsToDefaultServer(t *testing.T) {
+	// An empty-host Ingress writes to _default-server.conf (not namespace-name.conf),
+	// so batch isolation records BatchExclusion{ResourceName: "_default-server"} and
+	// the per-Ingress "namespace-name" file is never in batchFiles. The map must
+	// therefore contain the DefaultServerConfigName key and must NOT contain an
+	// entry for the per-Ingress filename (which would be dead attribution).
+	resources := ExtendedResources{
+		IngressExes: []*IngressEx{
+			{
+				Ingress: &networking.Ingress{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "empty"},
+				},
+				ValidHosts: map[string]bool{emptyHostName: true},
+			},
+			{
+				Ingress: &networking.Ingress{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "named"},
+				},
+				ValidHosts: map[string]bool{"named.example.com": true},
+			},
+		},
+	}
+
+	m := buildFilenameToErrorKey(resources)
+
+	wantEmptyKey := MakeResourceErrorKey("Ingress", "default", "empty")
+	wantNamedKey := MakeResourceErrorKey("Ingress", "default", "named")
+
+	if got := m[DefaultServerConfigName]; len(got) != 1 || got[0] != wantEmptyKey {
+		t.Errorf("m[%q] = %v, want [%q] — empty-host Ingress must map to DefaultServerConfigName", DefaultServerConfigName, got, wantEmptyKey)
+	}
+	if got, ok := m["default-empty"]; ok {
+		t.Errorf("m[default-empty] = %v, want no entry — empty-host Ingress never writes its per-Ingress file, so it must not appear in the attribution map", got)
+	}
+	if got := m["default-named"]; len(got) != 1 || got[0] != wantNamedKey {
+		t.Errorf("m[default-named] = %v, want [%q] — named Ingress must map to its file-name key", got, wantNamedKey)
+	}
+	for _, key := range m[DefaultServerConfigName] {
+		if key == wantNamedKey {
+			t.Error("DefaultServerConfigName must not map to a named-host Ingress")
+		}
+	}
+}
+
+func TestBuildFilenameToErrorKey_MergeableEmptyHostMasterMapsToDefaultServer(t *testing.T) {
+	resources := ExtendedResources{
+		MergeableIngresses: []*MergeableIngresses{
+			{
+				Master: &IngressEx{
+					Ingress: &networking.Ingress{
+						ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "master"},
+					},
+					ValidHosts: map[string]bool{emptyHostName: true},
+				},
+			},
+		},
+	}
+
+	m := buildFilenameToErrorKey(resources)
+	wantKey := MakeResourceErrorKey("Ingress", "default", "master")
+
+	if got := m[DefaultServerConfigName]; len(got) != 1 || got[0] != wantKey {
+		t.Errorf("m[%q] = %v, want [%q] — mergeable master with empty host must map to DefaultServerConfigName", DefaultServerConfigName, got, wantKey)
+	}
+}
+
+// TestBuildFilenameToErrorKey_MultipleEmptyHostIngressesAllMap covers the
+// shared-file case where multiple empty-host Ingresses collapse to a single
+// _default-server.conf. All owners must appear so the controller can emit a
+// per-resource event on each one and the readiness gate can accurately count
+// the effectively-excluded resources.
+func TestBuildFilenameToErrorKey_MultipleEmptyHostIngressesAllMap(t *testing.T) {
+	resources := ExtendedResources{
+		IngressExes: []*IngressEx{
+			{
+				Ingress: &networking.Ingress{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "empty-a"},
+				},
+				ValidHosts: map[string]bool{emptyHostName: true},
+			},
+			{
+				Ingress: &networking.Ingress{
+					ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "empty-b"},
+				},
+				ValidHosts: map[string]bool{emptyHostName: true},
+			},
+		},
+		MergeableIngresses: []*MergeableIngresses{
+			{
+				Master: &IngressEx{
+					Ingress: &networking.Ingress{
+						ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "master-c"},
+					},
+					ValidHosts: map[string]bool{emptyHostName: true},
+				},
+			},
+		},
+	}
+
+	m := buildFilenameToErrorKey(resources)
+
+	want := map[string]struct{}{
+		MakeResourceErrorKey("Ingress", "default", "empty-a"):  {},
+		MakeResourceErrorKey("Ingress", "default", "empty-b"):  {},
+		MakeResourceErrorKey("Ingress", "default", "master-c"): {},
+	}
+
+	got := m[DefaultServerConfigName]
+	if len(got) != len(want) {
+		t.Fatalf("m[%q] = %v, want %d entries (%v)", DefaultServerConfigName, got, len(want), want)
+	}
+	for _, key := range got {
+		if _, ok := want[key]; !ok {
+			t.Errorf("unexpected entry %q in m[%q]; want any of %v", key, DefaultServerConfigName, want)
+		}
+	}
+}
+
+func TestAddOrUpdateSecretMaterialization(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+
+	tests := []struct {
+		name        string
+		secret      *api_v1.Secret
+		role        secrets.SecretRole
+		wantPath    string
+		wantCRLPath string
+	}{
+		{
+			name: "TLS secret produces ssl_keypair_ prefix with .pem",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "default", Name: "my-tls"},
+				Data: map[string][]byte{
+					api_v1.TLSCertKey:       []byte("cert"),
+					api_v1.TLSPrivateKeyKey: []byte("key"),
+				},
+			},
+			role:     secrets.RoleTLS,
+			wantPath: "/etc/nginx/secrets/ssl_keypair_default_my-tls.pem",
+		},
+		{
+			name: "CA secret with CRL produces cert_bundle_ (.crt) and crl_bundle_ (.pem)",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "prod", Name: "root-ca"},
+				Data: map[string][]byte{
+					secrets.CAKey:    []byte("ca-cert"),
+					secrets.CACrlKey: []byte("ca-crl"),
+				},
+			},
+			role:        secrets.RoleCA,
+			wantPath:    "/etc/nginx/secrets/cert_bundle_prod_root-ca.crt",
+			wantCRLPath: "/etc/nginx/secrets/crl_bundle_prod_root-ca.pem",
+		},
+		{
+			name: "CA secret without CRL produces only cert_bundle_",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "prod", Name: "ca-only"},
+				Data: map[string][]byte{
+					secrets.CAKey: []byte("ca-cert"),
+				},
+			},
+			role:        secrets.RoleCA,
+			wantPath:    "/etc/nginx/secrets/cert_bundle_prod_ca-only.crt",
+			wantCRLPath: "",
+		},
+		{
+			name: "JWK secret produces jwt_key_ prefix without extension",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "auth", Name: "jwk-keys"},
+				Data: map[string][]byte{
+					secrets.JWTKeyKey: []byte(`{"keys":[]}`),
+				},
+			},
+			role:     secrets.RoleJWK,
+			wantPath: "/etc/nginx/secrets/jwt_key_auth_jwk-keys",
+		},
+		{
+			name: "BasicAuth htpasswd secret produces basic_auth_ prefix without extension",
+			secret: &api_v1.Secret{
+				ObjectMeta: meta_v1.ObjectMeta{Namespace: "secure", Name: "creds"},
+				Data: map[string][]byte{
+					secrets.HtpasswdFileKey: []byte("user:pass"),
+				},
+			},
+			role:     secrets.RoleHtpasswd,
+			wantPath: "/etc/nginx/secrets/basic_auth_secure_creds",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := cnf.AddOrUpdateSecret(tc.secret, tc.role)
+			if got.Path != tc.wantPath {
+				t.Errorf("AddOrUpdateSecret().Path = %q, want %q", got.Path, tc.wantPath)
+			}
+			if got.CRLPath != tc.wantCRLPath {
+				t.Errorf("AddOrUpdateSecret().CRLPath = %q, want %q", got.CRLPath, tc.wantCRLPath)
+			}
+
+			key := generateNamespaceNameKey(&tc.secret.ObjectMeta)
+			dryRun := cnf.SecretPaths(key, tc.role)
+			if dryRun.Path != tc.wantPath {
+				t.Errorf("SecretPaths().Path = %q, want %q", dryRun.Path, tc.wantPath)
+			}
+		})
+	}
+}
+
+func TestDualResolutionNoCollision(t *testing.T) {
+	t.Parallel()
+
+	cnf := createTestConfigurator(t)
+
+	// Single secret holding both TLS and CA data
+	secret := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{
+			Namespace: "default",
+			Name:      "dual-role-secret",
+		},
+		Data: map[string][]byte{
+			api_v1.TLSCertKey:       []byte("tls-cert"),
+			api_v1.TLSPrivateKeyKey: []byte("tls-key"),
+			secrets.CAKey:           []byte("ca-cert"),
+			secrets.CACrlKey:        []byte("ca-crl"),
+		},
+	}
+
+	tlsMat := cnf.AddOrUpdateSecret(secret, secrets.RoleTLS)
+	caMat := cnf.AddOrUpdateSecret(secret, secrets.RoleCA)
+
+	wantTLSPath := "/etc/nginx/secrets/ssl_keypair_default_dual-role-secret.pem"
+	wantCAPath := "/etc/nginx/secrets/cert_bundle_default_dual-role-secret.crt"
+	wantCRLPath := "/etc/nginx/secrets/crl_bundle_default_dual-role-secret.pem"
+
+	if tlsMat.Path != wantTLSPath {
+		t.Errorf("TLS path = %q, want %q", tlsMat.Path, wantTLSPath)
+	}
+	if caMat.Path != wantCAPath {
+		t.Errorf("CA cert path = %q, want %q", caMat.Path, wantCAPath)
+	}
+	if caMat.CRLPath != wantCRLPath {
+		t.Errorf("CA CRL path = %q, want %q", caMat.CRLPath, wantCRLPath)
+	}
+
+	// Verify paths are completely distinct (no collisions)
+	allPaths := []string{tlsMat.Path, caMat.Path, caMat.CRLPath}
+	seen := make(map[string]bool)
+	for _, p := range allPaths {
+		if seen[p] {
+			t.Errorf("collision detected on path %q", p)
+		}
+		seen[p] = true
 	}
 }

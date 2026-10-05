@@ -16,7 +16,7 @@ upstream {{ $u.Name }} {
 
 	{{- with $u.SessionCookie }}
 		{{- if .Enable }}
-    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} path={{ .Path }}{{ end }};
+    sticky cookie {{ .Name }}{{ if .Expires }} expires={{ .Expires }}{{ end }}{{ if .Domain }} domain={{ .Domain }}{{ end }}{{ if .HTTPOnly }} httponly{{ end }}{{ if .SameSite}} samesite={{.SameSite | toLower }}{{ end }}{{ if .Secure }} secure{{ end }}{{ if .Path }} {{ printf "%q" (printf "path=%s" .Path) }}{{ end }};
 		{{- end }}
 	{{- end }}
 }
@@ -58,7 +58,7 @@ server {
     {{- if $s.AddHeaderInherit }}
     add_header_inherit {{ $s.AddHeaderInherit }};
     {{- end }}
-    {{ makeHTTPListener $s | printf }}
+    {{ makeHTTPListener $s }}
 
     server_name {{ $s.ServerName }};
 
@@ -73,7 +73,7 @@ server {
     set_real_ip_from unix:;
     real_ip_header proxy_protocol;
         {{- else }}
-    {{ makeHTTPSListener $s | printf }}
+    {{ makeHTTPSListener $s }}
         {{- end }}
         {{- if $ssl.HTTP2 }}
     http2 on;
@@ -81,20 +81,10 @@ server {
 
         {{- if $ssl.RejectHandshake }}
     ssl_reject_handshake on;
-        {{- else if $.SpiffeCerts }}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- else }}
     ssl_certificate {{ makeSecretPath $ssl.Certificate $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
     ssl_certificate_key {{ makeSecretPath $ssl.CertificateKey $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
         {{- end }}
-    {{- else }}
-      {{- if $.SpiffeCerts }}
-    listen 443 ssl;
-    {{if not $s.DisableIPV6}}listen [::]:443 ssl;{{end}}
-    ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-    ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-      {{- end }}
     {{- end }}
 
     {{- with $s.IngressMTLS }}
@@ -217,7 +207,7 @@ server {
     {{- end }}
 
     {{- with $s.APIKey}}
-    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+    js_var $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
     js_var $apikey_auth_local_map "{{ .MapName}}";
     js_var $apikey_auth_token $apikey_auth_hash;
     auth_request /_validate_apikey_njs;
@@ -236,10 +226,10 @@ server {
     proxy_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
     proxy_ssl_verify_depth {{ .VerifyDepth }};
     proxy_ssl_protocols {{ .Protocols }};
-    proxy_ssl_ciphers {{ .Ciphers }};
+    proxy_ssl_ciphers {{ printf "%q" .Ciphers }};
     proxy_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
     proxy_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-    proxy_ssl_name {{ .SSLName }};
+    proxy_ssl_name {{ printf "%q" .SSLName }};
     {{- end }}
 
     {{- if $s.HSTS }}
@@ -257,11 +247,15 @@ server {
     {{- end}}
 
     {{- if $s.ExternalAuth }}
-    auth_request {{ $s.ExternalAuth.URI.InternalPath }};
+    auth_request {{ printf "%q" $s.ExternalAuth.URI.InternalPath }};
+        {{- if $s.ExternalAuth.SigninURL }}
+    set $external_auth_signin_uri {{ printf "%q" $s.ExternalAuth.SigninURL }};
+    error_page 401 = @external_auth_signin;
+        {{- end}}
     {{- end }}
 
     {{- range $e := $s.ErrorPages }}
-    error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+    error_page {{ $e.Codes }} {{ if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
     {{- end }}
 
     {{- range $snippet := $s.Snippets }}
@@ -269,7 +263,7 @@ server {
     {{- end }}
 
     {{- range $l := $s.InternalRedirectLocations }}
-    location {{ $l.Path }} {
+    location {{ makeLocationPath $l.Path }} {
         rewrite ^ {{ $l.Destination }} last;
     }
     {{- end }}
@@ -299,7 +293,7 @@ server {
     {{ end }}
 
     {{ range $l := $s.Locations }}
-    location {{ $l.Path }} {
+    location {{ makeLocationPath $l.Path }} {
         set $service "{{ $l.ServiceName }}";
         {{- if $l.IsVSR }}
         set $resource_type "virtualserverroute";
@@ -319,7 +313,13 @@ server {
         {{- if $l.AuthRequestOff }}
         auth_request off;
         {{- else if $l.ExternalAuth }}
-        auth_request {{ $l.ExternalAuth.URI.InternalPath }};
+        auth_request {{ printf "%q" $l.ExternalAuth.URI.InternalPath }};
+            {{- if $l.ExternalAuth.SigninURL }}
+        set $external_auth_signin_uri {{ printf "%q" $l.ExternalAuth.SigninURL }};
+        error_page 401 = @external_auth_signin;
+            {{- else}}
+        error_page 401 = @external_auth_unauthorized;
+            {{- end}}
         {{- end }}
 
         {{- with $l.PoliciesErrorReturn }}
@@ -364,14 +364,14 @@ server {
 
         {{- with $l.APIKey}}
         set $apikey_auth_local_map  "{{ .MapName }}";
-        set $header_query_value {{ makeHeaderQueryValue $l.APIKey | printf }};
+        set $header_query_value {{ makeHeaderQueryValue $l.APIKey }};
         set $apikey_auth_token $apikey_auth_hash;
         auth_request /_validate_apikey_njs;
         set $apikey_client_name ${{ .MapName }};
 
         {{- else }}
         {{- with $s.APIKey }}
-        set $header_query_value {{ makeHeaderQueryValue $s.APIKey | printf }};
+        set $header_query_value {{ makeHeaderQueryValue $s.APIKey }};
         {{- end }}
         {{- end }}
 
@@ -388,10 +388,10 @@ server {
         {{ $proxyOrGRPC }}_ssl_verify {{ if .VerifyServer }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_verify_depth {{ .VerifyDepth }};
         {{ $proxyOrGRPC }}_ssl_protocols {{ .Protocols }};
-        {{ $proxyOrGRPC }}_ssl_ciphers {{ .Ciphers }};
+        {{ $proxyOrGRPC }}_ssl_ciphers {{ printf "%q" .Ciphers }};
         {{ $proxyOrGRPC }}_ssl_session_reuse {{ if .SessionReuse }}on{{else}}off{{end}};
         {{ $proxyOrGRPC }}_ssl_server_name {{ if .ServerName }}on{{else}}off{{end}};
-        {{ $proxyOrGRPC }}_ssl_name {{ .SSLName }};
+        {{ $proxyOrGRPC }}_ssl_name {{ printf "%q" .SSLName }};
         {{- end }}
 
             {{- if $l.GRPCPass }}
@@ -417,7 +417,7 @@ server {
         {{- end }}
 
         {{- range $e := $l.ErrorPages }}
-        error_page {{ $e.Codes }} {{ if ne 0 $e.ResponseCode }}={{ end }}{{ if gt $e.ResponseCode 0 }}{{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
+        error_page {{ $e.Codes }} {{ if gt $e.ResponseCode 0 }}={{ $e.ResponseCode }} {{ end }}"{{ $e.Name }}";
         {{- end }}
 
         {{- if $l.ProxyInterceptErrors }}
@@ -427,7 +427,12 @@ server {
         {{- if $l.InternalProxyPass }}
         proxy_pass {{ $l.InternalProxyPass }};
         {{- end }}
+        {{- /* HTTP/2 forbids the hop-by-hop Connection header (RFC 9113 8.2.2), so the header and
+               the variable feeding it are both omitted when proxying over HTTP/2. HTTP/1.0 always
+               sends "Connection: close", so the variable is unused there too. */}}
+        {{- if and (ne $l.ProxyHTTPVersion "2") (ne $l.ProxyHTTPVersion "1.0") }}
         set $default_connection_header {{ if $l.HasKeepalive }}""{{ else }}close{{ end }};
+        {{- end }}
         {{- if or $l.ProxyPass $l.GRPCPass }}
             {{- range $r := $l.Rewrites }}
         rewrite {{ $r }};
@@ -461,9 +466,17 @@ server {
                 {{- end }}
             {{- end }}
             {{- if not $l.GRPCPass }}
-        proxy_http_version 1.1;
+        {{- if $l.ProxyHTTPVersion }}
+        proxy_http_version {{ $l.ProxyHTTPVersion }};
+        {{- end }}
+        {{- /* HTTP/1.0 has no persistent connections or Upgrade mechanism, so the connection is
+               closed explicitly (https://blog.nginx.org/blog/keep-alive-to-upstreams-is-now-default-in-nginx-1-29-7). */}}
+        {{- if eq $l.ProxyHTTPVersion "1.0" }}
+        proxy_set_header Connection close;
+        {{- else if ne $l.ProxyHTTPVersion "2" }}
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $vs_connection_header;
+        {{- end }}
         proxy_pass_request_headers {{ if $l.ProxyPassRequestHeaders }}on{{ else }}off{{ end }};
         {{- if $l.ProxyPassRequestBody }}
         proxy_pass_request_body {{ $l.ProxyPassRequestBody }};
@@ -476,20 +489,22 @@ server {
         {{ $proxyOrGRPC }}_set_header X-Real-IP $remote_addr;
         {{- end }}
 
+        {{- if not $l.DisableForwardedHeaders }}
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-For") }}
         {{ $proxyOrGRPC }}_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Host") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host $host;
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Host {{ if $l.UseForwardedHeaders }}$forwarded_host{{ else }}$host{{ end }};
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Port") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port $server_port;
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Port {{ if $l.UseForwardedHeaders }}$forwarded_port{{ else }}$server_port{{ end }};
         {{- end }}
 
         {{- if not ($custom_headers | hasCIKey "X-Forwarded-Proto") }}
-        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }};
+        {{ $proxyOrGRPC }}_set_header X-Forwarded-Proto {{ if $l.UseForwardedHeaders }}$forwarded_proto{{ else }}{{ with $s.TLSRedirect }}{{ .BasedOn }}{{ else }}$scheme{{ end }}{{ end }};
+        {{- end }}
         {{- end }}
 
         {{- range $h := $l.ProxySetHeaders }}
@@ -507,15 +522,6 @@ server {
             {{- end }}
             {{- range $h := $l.AddHeaders }}
         add_header {{ $h.Name }} {{ printf "%q" $h.Value }} {{ if $h.Always }}always{{ end }};
-            {{- end }}
-            {{- if $.SpiffeClientCerts }}
-        {{ $proxyOrGRPC }}_ssl_certificate {{ makeSecretPath "/etc/nginx/secrets/spiffe_cert.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_certificate_key {{ makeSecretPath "/etc/nginx/secrets/spiffe_key.pem" $.StaticSSLPath "$secret_dir_path" $.DynamicSSLReloadEnabled }};
-        {{ $proxyOrGRPC }}_ssl_trusted_certificate /etc/nginx/secrets/spiffe_rootca.pem;
-        {{ $proxyOrGRPC }}_ssl_server_name on;
-        {{ $proxyOrGRPC }}_ssl_verify on;
-        {{ $proxyOrGRPC }}_ssl_verify_depth 25;
-        {{ $proxyOrGRPC }}_ssl_name {{ $l.ProxySSLName }};
             {{- end }}
 
         {{- with $l.Cache }}
@@ -597,7 +603,7 @@ server {
         proxy_ssl_verify on;
         proxy_ssl_verify_depth {{ $l.ProxySSLVerifyDepth }};
         proxy_ssl_server_name on;
-        proxy_ssl_name {{ $l.ProxySSLName }};
+        proxy_ssl_name {{ printf "%q" $l.ProxySSLName }};
         {{- end }}
         {{- if $l.ProxySSLTrustedCertificate }}
         proxy_ssl_trusted_certificate {{ $l.ProxySSLTrustedCertificate }};
@@ -608,6 +614,19 @@ server {
         {{- end }}
     }
     {{- end }}
+
+    {{- if hasExternalAuthSignin $s}}
+    location @external_auth_signin {
+        auth_request off;
+        return 302 $external_auth_signin_uri;
+    }
+    {{- end}}
+    {{- if hasExternalAuthNoSignin $s}}
+    location @external_auth_unauthorized {
+        auth_request off;
+        return 401;
+    }
+    {{- end}}
 
     {{- with $ssl := $s.SSL }}
         {{ if $ssl.HTTP2 }}

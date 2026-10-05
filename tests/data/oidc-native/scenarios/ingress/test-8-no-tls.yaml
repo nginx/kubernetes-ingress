@@ -1,0 +1,26 @@
+# Test 8: Ingress without TLS.
+#
+# Verify:
+#   - Config renders successfully; server listens on 80 only.
+#   - HTTP request returns 302 to Keycloak (initial redirect works).
+#   - Full browser flow will typically fail (session cookie needs Secure/HTTPS).
+#     This test is for config-generation smoke only.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: webapp
+  annotations:
+    nginx.com/policies: "oidcnative-policy"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: webapp.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: webapp-svc
+                port:
+                  number: 80

@@ -7,8 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"regexp"
+	"strings"
 	"testing"
 
+	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	nic_glog "github.com/nginx/kubernetes-ingress/internal/logger/glog"
 	"github.com/nginx/kubernetes-ingress/internal/logger/levels"
@@ -444,6 +446,74 @@ func TestCreateHeadlessService(t *testing.T) {
 				assert.False(t, serviceUpdated, "no service update when no action is expected")
 			default:
 				t.Fatalf("Invalid expectedAction: %s", tc.expectedAction)
+			}
+		})
+	}
+}
+
+func TestGetAndValidateSecret(t *testing.T) {
+	t.Parallel()
+
+	jwkSecret := &api_v1.Secret{
+		ObjectMeta: meta_v1.ObjectMeta{Name: "jwk-secret", Namespace: "default"},
+		Type:       api_v1.SecretTypeOpaque,
+		Data:       map[string][]byte{"jwk": []byte("{}")},
+	}
+
+	tests := []struct {
+		name         string
+		secretNsName string
+		role         secrets.SecretRole
+		wantErr      string
+	}{
+		{
+			name:         "valid for the role whose required key it carries",
+			secretNsName: "default/jwk-secret",
+			role:         secrets.RoleJWK,
+		},
+		{
+			name:         "invalid for a role whose required keys it lacks",
+			secretNsName: "default/jwk-secret",
+			role:         secrets.RoleTLS,
+			wantErr:      `default/jwk-secret is invalid: secret is missing required key "tls.crt"`,
+		},
+		{
+			name:         "secret absent from the cluster",
+			secretNsName: "default/nope",
+			role:         secrets.RoleJWK,
+			wantErr:      "could not find default/nope",
+		},
+		{
+			name:         "unparseable secret reference",
+			secretNsName: "not-a-namespaced-name",
+			role:         secrets.RoleJWK,
+			wantErr:      "could not parse the not-a-namespaced-name argument",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			clientset := fake.NewClientset(jwkSecret)
+
+			secret, err := getAndValidateSecret(clientset, test.secretNsName, test.role)
+
+			if test.wantErr == "" {
+				if err != nil {
+					t.Fatalf("getAndValidateSecret() unexpected error: %v", err)
+				}
+				if secret == nil || secret.Name != "jwk-secret" {
+					t.Errorf("getAndValidateSecret() returned %v, want jwk-secret", secret)
+				}
+				return
+			}
+
+			if err == nil {
+				t.Fatalf("getAndValidateSecret() expected an error containing %q, got none", test.wantErr)
+			}
+			if !strings.Contains(err.Error(), test.wantErr) {
+				t.Errorf("getAndValidateSecret() error = %q, want it to contain %q", err.Error(), test.wantErr)
 			}
 		})
 	}

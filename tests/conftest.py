@@ -232,11 +232,16 @@ def pytest_runtest_makereport(item) -> None:
     outcome = yield
     rep = outcome.get_result()
 
+    if rep.failed:
+        file_path, line_no, _ = rep.location
+        summary = str(rep.longrepr).strip().splitlines()[-1] if rep.longrepr else "Test failed"
+        print(f"\n::error file={file_path},line={line_no + 1},title=Test Failed: {item.nodeid}::{summary}")
+
     # we only look at actual failing test calls, not setup/teardown
     if rep.when == "call" and rep.failed and item.config.getoption("--show-ic-logs") == "yes":
         pod_namespace = item.funcargs["ingress_controller_prerequisites"].namespace
         pod_name = get_first_pod_name(item.funcargs["kube_apis"].v1, pod_namespace)
-        print("\n===================== IC Logs Start =====================")
+        print("\n::group::NGINX Ingress Controller Pod Logs")
         count = 0
         while (not are_all_pods_in_ready_state(item.funcargs["kube_apis"].v1, pod_namespace)) and count < 10:
             count += 1
@@ -244,8 +249,33 @@ def pytest_runtest_makereport(item) -> None:
         pod = item.funcargs["kube_apis"].v1.read_namespaced_pod(pod_name, pod_namespace)
         container_name = pod.spec.containers[0].name
         print(item.funcargs["kube_apis"].v1.read_namespaced_pod_log(pod_name, pod_namespace, container=container_name))
-        print("\n===================== IC Logs End =====================")
+        print("::endgroup::")
 
     if rep.when == "call" and item.config.getoption("--skip-fixture-teardown") == "yes":
         print("\n===================== WARNING =====================")
         print("Make sure to remove resources from this test run manually using kubectl utility\n")
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
+    """Write failed test summary table to GITHUB_STEP_SUMMARY if running in GitHub Actions."""
+    summary_file = os.environ.get("GITHUB_STEP_SUMMARY")
+    if not summary_file or exitstatus == 0:
+        return
+
+    failed_reports = terminalreporter.stats.get("failed", [])
+    if not failed_reports:
+        return
+
+    try:
+        with open(summary_file, "a", encoding="utf-8") as f:
+            f.write("\n### ❌ Failed Tests Summary\n\n")
+            f.write("| Test Case | Failure Summary |\n")
+            f.write("| --- | --- |\n")
+            for rep in failed_reports:
+                nodeid = rep.nodeid
+                summary = str(rep.longrepr).strip().splitlines()[-1] if rep.longrepr else "Test failed"
+                summary_clean = summary.replace("|", "\\|")
+                f.write(f"| `{nodeid}` | `{summary_clean}` |\n")
+            f.write("\n")
+    except Exception as e:
+        print(f"Failed to write to GITHUB_STEP_SUMMARY: {e}")

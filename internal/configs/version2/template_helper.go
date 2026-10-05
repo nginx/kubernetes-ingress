@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs/commonhelpers"
 )
@@ -231,6 +232,31 @@ func makeServerName(s StreamServer) string {
 	return fmt.Sprintf("server_name \"%s\";", s.ServerName)
 }
 
+// makeLocationPath quotes the URI portion of an NGINX location path so that
+// user-supplied characters (spaces, semicolons, braces, etc.) cannot break the
+// generated config.  Modifier prefixes (=, ^~) are kept outside the quotes;
+// regex paths (~ / ~*) are already quoted by generatePath; named locations (@)
+// and pre-quoted paths are passed through unchanged.
+func makeLocationPath(path string) string {
+	// Named locations and already-quoted paths need no quoting.
+	if strings.HasPrefix(path, "@") || strings.HasPrefix(path, `"`) {
+		return path
+	}
+	// Exact-match and longest-prefix modifiers: quote only the URI.
+	for _, modifier := range []string{"^~", "="} {
+		if strings.HasPrefix(path, modifier) {
+			uri := strings.TrimLeftFunc(strings.TrimPrefix(path, modifier), unicode.IsSpace)
+			return modifier + " " + strconv.Quote(uri)
+		}
+	}
+	// Regex paths are already quoted by generatePath.
+	if strings.HasPrefix(path, "~") {
+		return path
+	}
+	// Plain prefix path – quote the whole thing.
+	return strconv.Quote(path)
+}
+
 // boolToInteger will do the following conversions:
 // false -> 0
 // true -> 1
@@ -248,20 +274,47 @@ func boolToInteger(b bool) int {
 	return i
 }
 
+// hasExternalAuthSignin reports whether the server needs the shared signin redirect location.
+func hasExternalAuthSignin(s Server) bool {
+	if s.ExternalAuth != nil && s.ExternalAuth.SigninURL != "" {
+		return true
+	}
+	for _, location := range s.Locations {
+		if location.ExternalAuth != nil && location.ExternalAuth.SigninURL != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// hasExternalAuthNoSignin reports whether a location needs an explicit 401 handler.
+func hasExternalAuthNoSignin(s Server) bool {
+	for _, location := range s.Locations {
+		if location.ExternalAuth != nil && location.ExternalAuth.SigninURL == "" {
+			return true
+		}
+	}
+	return false
+}
+
 var helperFunctions = template.FuncMap{
-	"headerListToCIMap":     headerListToCIMap,
-	"hasCIKey":              hasCIKey,
-	"contains":              strings.Contains,
-	"hasPrefix":             strings.HasPrefix,
-	"hasSuffix":             strings.HasSuffix,
-	"toLower":               strings.ToLower,
-	"toUpper":               strings.ToUpper,
-	"replaceAll":            strings.ReplaceAll,
-	"makeHTTPListener":      makeHTTPListener,
-	"makeHTTPSListener":     makeHTTPSListener,
-	"makeSecretPath":        commonhelpers.MakeSecretPath,
-	"makeHeaderQueryValue":  makeHeaderQueryValue,
-	"makeTransportListener": makeTransportListener,
-	"makeServerName":        makeServerName,
-	"boolToInteger":         boolToInteger,
+	"headerListToCIMap":       headerListToCIMap,
+	"hasCIKey":                hasCIKey,
+	"contains":                strings.Contains,
+	"hasPrefix":               strings.HasPrefix,
+	"hasSuffix":               strings.HasSuffix,
+	"toLower":                 strings.ToLower,
+	"toUpper":                 strings.ToUpper,
+	"replaceAll":              strings.ReplaceAll,
+	"makeHTTPListener":        makeHTTPListener,
+	"makeHTTPSListener":       makeHTTPSListener,
+	"makeSecretPath":          commonhelpers.MakeSecretPath,
+	"makeHeaderQueryValue":    makeHeaderQueryValue,
+	"makeTransportListener":   makeTransportListener,
+	"makeServerName":          makeServerName,
+	"makeLocationPath":        makeLocationPath,
+	"hasExternalAuthSignin":   hasExternalAuthSignin,
+	"hasExternalAuthNoSignin": hasExternalAuthNoSignin,
+
+	"boolToInteger": boolToInteger,
 }

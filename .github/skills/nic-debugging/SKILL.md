@@ -12,6 +12,7 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
 **Symptom:** Controller logs show "reload failed" or NGINX returns error status.
 
 **Diagnosis:**
+
 1. Check controller logs for the generated config that failed
 2. Look for `nginx -t` output in logs — shows exact syntax error and line number
 3. Common causes:
@@ -21,6 +22,7 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
    - Invalid upstream when no endpoints available
 
 **Fix pattern:**
+
 - Find the template or config generation code that produced the bad directive
 - Add validation to reject the input earlier, OR fix the template guard
 - Verify with `make test` — snapshot tests catch most template output issues
@@ -30,6 +32,7 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
 **Symptom:** User applies VirtualServer/Policy but NGINX config doesn't change.
 
 **Diagnosis:**
+
 1. Check CRD status: `kubectl get vs <name> -o yaml` — look at `.status.message`
 2. Check controller logs for sync errors on that resource
 3. Common causes:
@@ -43,6 +46,7 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
 **Symptom:** Pod restarts, panic in logs.
 
 **Diagnosis:**
+
 1. Check logs for the panic stack trace
 2. Common causes:
    - Nil pointer on optional CRD field (forgot `*bool`/`*int` check)
@@ -55,10 +59,13 @@ description: 'Debugging and troubleshooting patterns for NIC. Use when diagnosin
 **Symptom:** `make test` fails with snapshot mismatch.
 
 **Diagnosis:**
+
 1. This means template output changed — could be intentional or regression
 2. Review the diff shown in test output
-3. If change is intentional: `make test-update-snaps` to regenerate
+3. If change is intentional: `make test-update-snaps`, then re-read `git diff -- '**/__snapshots__/**'` to confirm only the expected directives moved
 4. If change is unintentional: your template edit had side effects — fix the template
+
+**The inverse failure is more dangerous:** you edited a `.tmpl` and `make test-update-snaps` produced **no** diff. That is not a pass — it means no fixture sets the field your new branch depends on. Add the fixture in `template_test.go` / `templates_test.go` and regenerate.
 
 ## Log Locations
 

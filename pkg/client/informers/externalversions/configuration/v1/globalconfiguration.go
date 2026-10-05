@@ -18,11 +18,39 @@ import (
 )
 
 // GlobalConfigurationInformer provides access to a shared informer and lister for
-// GlobalConfigurations.
+// GlobalConfigurations. Prefer using the type-safe variant (see [TypedGlobalConfigurationInformer]).
 type GlobalConfigurationInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() configurationv1.GlobalConfigurationLister
 }
+
+// TypedGlobalConfigurationInformer provides access to a shared informer and lister for
+// GlobalConfigurations, including the type-safe TypedInformer variant.
+// It is a superset of GlobalConfigurationInformer.
+type TypedGlobalConfigurationInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() GlobalConfigurationIndexInformer
+	Lister() configurationv1.GlobalConfigurationLister
+}
+
+// GlobalConfigurationIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type GlobalConfigurationIndexInformer cache.TypedSharedIndexInformer[*apisconfigurationv1.GlobalConfiguration]
+
+// GlobalConfigurationHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for GlobalConfiguration.
+type GlobalConfigurationHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apisconfigurationv1.GlobalConfiguration]
+
+// GlobalConfigurationDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for GlobalConfiguration.
+type GlobalConfigurationDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apisconfigurationv1.GlobalConfiguration]
+
+// GlobalConfigurationFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for GlobalConfiguration.
+type GlobalConfigurationFilteringHandler = cache.TypedFilteringResourceEventHandler[*apisconfigurationv1.GlobalConfiguration]
+
+// GlobalConfigurationIndexers is a specialization of [cache.TypedIndexers] for GlobalConfiguration.
+type GlobalConfigurationIndexers = cache.TypedIndexers[*apisconfigurationv1.GlobalConfiguration]
+
+// DeletedGlobalConfiguration is a specialization of [cache.DeletedObject] for GlobalConfiguration.
+type DeletedGlobalConfiguration = cache.DeletedObject[*apisconfigurationv1.GlobalConfiguration]
 
 type globalConfigurationInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -33,25 +61,49 @@ type globalConfigurationInformer struct {
 // NewGlobalConfigurationInformer constructs a new informer for GlobalConfiguration type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedGlobalConfigurationInformer]).
 func NewGlobalConfigurationInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewGlobalConfigurationInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedGlobalConfigurationInformer constructs a new informer for GlobalConfiguration type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedGlobalConfigurationInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers GlobalConfigurationIndexers) GlobalConfigurationIndexInformer {
+	return NewTypedGlobalConfigurationInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredGlobalConfigurationInformer constructs a new informer for GlobalConfiguration type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredGlobalConfigurationInformer]).
 func NewFilteredGlobalConfigurationInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return NewGlobalConfigurationInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+	return NewTypedGlobalConfigurationInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredGlobalConfigurationInformer constructs a new informer for GlobalConfiguration type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredGlobalConfigurationInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers GlobalConfigurationIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) GlobalConfigurationIndexInformer {
+	return NewTypedGlobalConfigurationInformerWithOptions(client, namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
 }
 
 // NewGlobalConfigurationInformerWithOptions constructs a new informer for GlobalConfiguration type with additional options.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedGlobalConfigurationInformerWithOptions]).
 func NewGlobalConfigurationInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedGlobalConfigurationInformerWithOptions(client, namespace, options)
+}
+
+// NewTypedGlobalConfigurationInformerWithOptions constructs a new informer for GlobalConfiguration type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedGlobalConfigurationInformerWithOptions(client versioned.Interface, namespace string, options internalinterfaces.InformerOptions) GlobalConfigurationIndexInformer {
 	gvr := schema.GroupVersionResource{Group: "k8s.nginx.org", Version: "v1", Resource: "globalconfigurations"}
 	identifier := options.InformerName.WithResource(gvr)
 	tweakListOptions := options.TweakListOptions
-	return cache.NewSharedIndexInformerWithOptions(
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.GlobalConfiguration](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
@@ -84,17 +136,57 @@ func NewGlobalConfigurationInformerWithOptions(client versioned.Interface, names
 			Indexers:     options.Indexers,
 			Identifier:   identifier,
 		},
-	)
+	))
 }
 
 func (f *globalConfigurationInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewGlobalConfigurationInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
+	return NewTypedGlobalConfigurationInformerWithOptions(client, f.namespace, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *globalConfigurationInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apisconfigurationv1.GlobalConfiguration{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *globalConfigurationInformer) TypedInformer() GlobalConfigurationIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.GlobalConfiguration](f.factory.InformerFor(&apisconfigurationv1.GlobalConfiguration{}, f.defaultInformer))
 }
 
 func (f *globalConfigurationInformer) Lister() configurationv1.GlobalConfigurationLister {
 	return configurationv1.NewGlobalConfigurationLister(f.Informer().GetIndexer())
+}
+
+// ToTypedGlobalConfigurationInformer converts an untyped informer into a TypedGlobalConfigurationInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *GlobalConfiguration. If that is not the case, calling type-safe methods of the returned
+// TypedGlobalConfigurationInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedGlobalConfigurationInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedGlobalConfigurationInformer(informer GlobalConfigurationInformer) TypedGlobalConfigurationInformer {
+	if informer, ok := informer.(TypedGlobalConfigurationInformer); ok {
+		return informer
+	}
+	return &globalConfigurationTypedInformerAdapter{informer}
+}
+
+type globalConfigurationTypedInformerAdapter struct {
+	GlobalConfigurationInformer
+}
+
+func (a *globalConfigurationTypedInformerAdapter) TypedInformer() GlobalConfigurationIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.GlobalConfiguration](a.Informer())
+}
+
+// ToGlobalConfigurationIndexInformer converts an untyped informer into a GlobalConfigurationIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *GlobalConfiguration. If that is not the case, calling type-safe methods of the returned
+// GlobalConfigurationIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a GlobalConfigurationIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToGlobalConfigurationIndexInformer(informer cache.SharedIndexInformer) GlobalConfigurationIndexInformer {
+	if informer, ok := informer.(GlobalConfigurationIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apisconfigurationv1.GlobalConfiguration](informer)
 }

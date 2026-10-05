@@ -2,16 +2,22 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"net"
+	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 
+	"github.com/nginx/kubernetes-ingress/internal/helpers"
 	internalValidation "github.com/nginx/kubernetes-ingress/internal/validation"
 	api_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -80,6 +86,28 @@ var (
 		`Sets address for App Protect v5 Enforcer. Requires -nginx-plus and -enable-app-protect.`)
 
 	appProtectIPIntelligence = flag.Bool("enable-app-protect-ip-intelligence", false, "Enable App Protect IP Intelligence. Requires -nginx-plus and -enable-app-protect.")
+
+	plmStorageURL = flag.String("plm-storage-url", "",
+		`SeaweedFS S3 endpoint URL for the F5 WAF Policy Controller (PLM). When non-empty,
+enables the PLM integration: NIC watches the appprotect.f5.com/v1 CRDs installed by the PLM
+Helm chart instead of the legacy v1beta1 CRDs. Empty (default) disables PLM.
+Must be http:// or https://. Requires -nginx-plus and -enable-app-protect.`)
+
+	plmStorageCredentialsSecret = flag.String("plm-storage-credentials-secret", "",
+		`Kubernetes Secret holding the S3 admin key for the PLM SeaweedFS filer under the
+seaweedfs_admin_secret key. Format: namespace/name. Requires -plm-storage-url.`)
+
+	plmStorageCASecret = flag.String("plm-storage-ca-secret", "",
+		`Kubernetes Secret containing a ca.crt for verifying the PLM SeaweedFS server
+certificate. Format: namespace/name. Optional. Requires -plm-storage-url.`)
+
+	plmStorageClientSSLSecret = flag.String("plm-storage-client-ssl-secret", "",
+		`Kubernetes Secret containing tls.crt and tls.key for mTLS to the PLM SeaweedFS
+filer. Format: namespace/name. Optional. Requires -plm-storage-url.`)
+
+	plmStorageInsecureSkipVerify = flag.Bool("plm-storage-insecure-skip-verify", false,
+		`Disable TLS verification of the PLM SeaweedFS server certificate. For dev/test only.
+NIC prints a startup warning when set. Requires -plm-storage-url.`)
 
 	agent              = flag.Bool("agent", false, "Enable NGINX Agent")
 	agentInstanceGroup = flag.String("agent-instance-group", "nginx-ingress-controller", "Grouping used to associate NGINX Ingress Controller instances")
@@ -192,19 +220,17 @@ var (
 
 	tlsPassthroughPort = flag.Int("tls-passthrough-port", 443, "Set custom port for TLS Passthrough. [1024 - 65535]")
 
-	spireAgentAddress = flag.String("spire-agent-address", "",
-		`Specifies the address of the running Spire agent. Requires -nginx-plus and is for use with NGINX Service Mesh only. If the flag is set,
-			but the Ingress Controller is not able to connect with the Spire Agent, the Ingress Controller will fail to start.`)
-
-	enableInternalRoutes = flag.Bool("enable-internal-routes", false,
-		`Enable support for internal routes with NGINX Service Mesh. Requires -spire-agent-address and -nginx-plus. Is for use with NGINX Service Mesh only.`)
-
 	readyStatus = flag.Bool("ready-status", true, "Enables the readiness endpoint '/nginx-ready'. The endpoint returns a success code when NGINX has loaded all the config after the startup")
 
 	readyStatusPort = flag.Int("ready-status-port", 8081, "Set the port where the readiness endpoint is exposed. [1024 - 65535]")
 
 	enableLatencyMetrics = flag.Bool("enable-latency-metrics", false,
 		"Enable collection of latency metrics for upstreams. Requires -enable-prometheus-metrics")
+
+	latencyMetricsBuckets = flag.String("latency-metrics-buckets", "",
+		`Comma-separated list of buckets in milliseconds, in strictly ascending order, for the upstream_server_response_latency_ms histogram, e.g. "5,10,25,50,100,250,500,1000". Requires -enable-latency-metrics. When not set, a default set of buckets is used. Reducing the number of buckets lowers the metric's time-series cardinality.`)
+
+	latencyBuckets []float64
 
 	enableCertManager = flag.Bool("enable-cert-manager", false,
 		"Enable cert-manager controller for VirtualServer resources. Requires -enable-custom-resources")
@@ -242,6 +268,18 @@ var (
 	startupCheckFn func() error
 )
 
+// plmSecretRefs holds the parsed PLM secret refs after mustValidateFlags
+// completes
+type plmSecretRefs struct {
+	Credentials types.NamespacedName
+	CA          types.NamespacedName
+	ClientSSL   types.NamespacedName
+}
+
+// plmRefs is populated by mustValidateFlags via validatePLMFlags. Zero-value
+// when PLM is disabled (--plm-storage-url empty).
+var plmRefs plmSecretRefs
+
 //gocyclo:ignore
 func parseFlags() {
 	flag.Parse()
@@ -266,6 +304,20 @@ func initValidate(ctx context.Context) {
 	if *enableLatencyMetrics && !*enablePrometheusMetrics {
 		nl.Warn(l, "enable-latency-metrics flag requires enable-prometheus-metrics, latency metrics will not be collected")
 		*enableLatencyMetrics = false
+	}
+
+	if *latencyMetricsBuckets != "" {
+		switch {
+		case !*enableLatencyMetrics:
+			nl.Warn(l, "latency-metrics-buckets flag requires enable-latency-metrics, the configured buckets will be ignored")
+		default:
+			parsedBuckets, err := parseLatencyBuckets(*latencyMetricsBuckets)
+			if err != nil {
+				nl.Warnf(l, "Invalid latency-metrics-buckets value %q: %v. Falling back to the default latency buckets", *latencyMetricsBuckets, err)
+			} else {
+				latencyBuckets = parsedBuckets
+			}
+		}
 	}
 
 	if *enableServiceInsight && !*nginxPlus {
@@ -355,6 +407,10 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatalf(l, "Invalid value for health-status-uri: %v", healthStatusURIValidationError)
 	}
 
+	if err := validateAppProtectEnforcerAddress(*appProtectEnforcerAddress); err != nil {
+		nl.Fatalf(l, "Invalid value for app-protect-enforcer-address: %v", err)
+	}
+
 	statusLockNameValidationError := validateResourceName(*leaderElectionLockName)
 	if statusLockNameValidationError != nil {
 		nl.Fatalf(l, "Invalid value for leader-election-lock-name: %v", statusLockNameValidationError)
@@ -425,9 +481,22 @@ func mustValidateFlags(ctx context.Context) {
 		nl.Fatal(l, "NGINX App Protect Dos memory support is for NGINX Plus and App Protect Dos is enable")
 	}
 
-	if *enableInternalRoutes && *spireAgentAddress == "" {
-		nl.Fatal(l, "enable-internal-routes flag requires spire-agent-address")
+	refs, warn, err := validatePLMFlags(
+		*plmStorageURL,
+		*plmStorageCredentialsSecret,
+		*plmStorageCASecret,
+		*plmStorageClientSSLSecret,
+		*plmStorageInsecureSkipVerify,
+		*nginxPlus,
+		*appProtect,
+	)
+	if err != nil {
+		nl.Fatal(l, err.Error())
 	}
+	if warn != "" {
+		nl.Warn(l, warn)
+	}
+	plmRefs = refs
 
 	if *enableCertManager && !*enableCustomResources {
 		nl.Fatal(l, "enable-cert-manager flag requires -enable-custom-resources")
@@ -490,6 +559,35 @@ func validateLogLevel(logLevel string) error {
 	return fmt.Errorf("invalid log level: %v", logLevel)
 }
 
+// parseLatencyBuckets parses a comma-separated list of latency histogram buckets
+// in milliseconds. The values must be positive and listed in strictly ascending
+// order, as required by Prometheus histogram bucket bounds.
+func parseLatencyBuckets(s string) ([]float64, error) {
+	parts := strings.Split(s, ",")
+	buckets := make([]float64, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return nil, fmt.Errorf("empty bucket value in %q", s)
+		}
+		v, err := strconv.ParseFloat(p, 64)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse %q as a number: %w", p, err)
+		}
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return nil, fmt.Errorf("bucket values must be finite, got %q", p)
+		}
+		if v <= 0 {
+			return nil, fmt.Errorf("bucket values must be positive, got %v", v)
+		}
+		if len(buckets) > 0 && v <= buckets[len(buckets)-1] {
+			return nil, fmt.Errorf("bucket values must be in strictly ascending order, got %v after %v", v, buckets[len(buckets)-1])
+		}
+		buckets = append(buckets, v)
+	}
+	return buckets, nil
+}
+
 // validateLogFormat makes sure a given logFormat is one of the allowed values
 func validateLogFormat(logFormat string) error {
 	switch strings.ToLower(logFormat) {
@@ -497,6 +595,105 @@ func validateLogFormat(logFormat string) error {
 		return nil
 	}
 	return fmt.Errorf("invalid log format: %v", logFormat)
+}
+
+// validatePLMSecretRef parses a --plm-storage-*-secret value into a
+// NamespacedName. Empty is accepted (returns zero value). Non-empty must be
+// "namespace/name" with DNS-1123 subdomain parts.
+func validatePLMSecretRef(flagName, value string) (types.NamespacedName, error) {
+	if value == "" {
+		return types.NamespacedName{}, nil
+	}
+	ns, name, err := helpers.ParseNamespaceName(value)
+	if err != nil {
+		return types.NamespacedName{}, fmt.Errorf("%s: %w", flagName, err)
+	}
+	if errs := validation.IsDNS1123Subdomain(ns); len(errs) > 0 {
+		return types.NamespacedName{}, fmt.Errorf("%s: invalid namespace %q: %s", flagName, ns, strings.Join(errs, "; "))
+	}
+	if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
+		return types.NamespacedName{}, fmt.Errorf("%s: invalid name %q: %s", flagName, name, strings.Join(errs, "; "))
+	}
+	return types.NamespacedName{Namespace: ns, Name: name}, nil
+}
+
+// validatePLMStorageURL parses the --plm-storage-url value and
+// returns an error if it is not a valid URL with a scheme and host.
+func validatePLMStorageURL(rawURL string) error {
+	if rawURL == "" {
+		return errors.New("plm-storage-url: must not be empty")
+	}
+	if strings.ContainsAny(rawURL, " \t\r\n") {
+		return fmt.Errorf("plm-storage-url: must not contain whitespace or control characters, got %q", rawURL)
+	}
+	if !strings.Contains(rawURL, "://") {
+		return fmt.Errorf("plm-storage-url: scheme is required (http:// or https://), got %q", rawURL)
+	}
+	if err := internalValidation.ValidateURI(rawURL); err != nil {
+		return fmt.Errorf("plm-storage-url: %w", err)
+	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("plm-storage-url: %w", err)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("plm-storage-url: host must not be empty in %q", rawURL)
+	}
+	return nil
+}
+
+// validatePLMFlags cross-validates the PLM flag family. --plm-storage-url is
+// the master switch: when empty, any auxiliary PLM flag being set is fatal.
+// All PLM flag validation (URL syntax, secret ref format) happens here.
+func validatePLMFlags(rawURL, credentialsSecret, caSecret, clientSSLSecret string, insecureSkipVerify, nginxPlus, appProtect bool) (plmSecretRefs, string, error) {
+	refs := plmSecretRefs{}
+	secretFlags := [...]struct {
+		name, val string
+		dst       *types.NamespacedName
+	}{
+		{"plm-storage-credentials-secret", credentialsSecret, &refs.Credentials},
+		{"plm-storage-ca-secret", caSecret, &refs.CA},
+		{"plm-storage-client-ssl-secret", clientSSLSecret, &refs.ClientSSL},
+	}
+
+	// PLM disabled: no auxiliary flag may be set (guards against silent typos
+	// that would otherwise leave PLM off while the operator thinks it's on).
+	if rawURL == "" {
+		for _, sec := range secretFlags {
+			if sec.val != "" {
+				return plmSecretRefs{}, "", fmt.Errorf("%s is set but plm-storage-url is not; PLM auxiliary flags require plm-storage-url", sec.name)
+			}
+		}
+		if insecureSkipVerify {
+			return plmSecretRefs{}, "", errors.New("plm-storage-insecure-skip-verify is set but plm-storage-url is not; PLM auxiliary flags require plm-storage-url")
+		}
+		return plmSecretRefs{}, "", nil
+	}
+
+	// PLM enabled: check prerequisites, validate the URL, then parse each ref.
+	switch {
+	case !nginxPlus:
+		return plmSecretRefs{}, "", errors.New("plm-storage-url requires -nginx-plus")
+	case !appProtect:
+		return plmSecretRefs{}, "", errors.New("plm-storage-url requires -enable-app-protect")
+	case credentialsSecret == "":
+		return plmSecretRefs{}, "", errors.New("plm-storage-credentials-secret must be set when plm-storage-url is set")
+	}
+	if err := validatePLMStorageURL(rawURL); err != nil {
+		return plmSecretRefs{}, "", err
+	}
+	for _, sec := range secretFlags {
+		ref, err := validatePLMSecretRef(sec.name, sec.val)
+		if err != nil {
+			return plmSecretRefs{}, "", err
+		}
+		*sec.dst = ref
+	}
+
+	if insecureSkipVerify {
+		return refs, "plm-storage-insecure-skip-verify is enabled; TLS verification of the PLM SeaweedFS filer will be skipped. This is for dev/test only.", nil
+	}
+	return refs, "", nil
 }
 
 // parseNginxStatusAllowCIDRs converts a comma separated CIDR/IP address string into an array of CIDR/IP addresses.
@@ -529,6 +726,10 @@ func validateCIDRorIP(cidr string) error {
 		return fmt.Errorf("invalid IP address: %v", cidr)
 	}
 	return nil
+}
+
+func validateAppProtectEnforcerAddress(address string) error {
+	return internalValidation.ValidateDirectiveToken(address)
 }
 
 const (

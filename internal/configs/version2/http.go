@@ -22,15 +22,18 @@ type VirtualServerConfig struct {
 	LimitReqZones           []LimitReqZone
 	Maps                    []Map
 	AuthJWTClaimSets        []AuthJWTClaimSet
+	OIDCProviders           []OIDCProvider
 	CacheZones              []CacheZone
 	Server                  Server
-	SpiffeCerts             bool
-	SpiffeClientCerts       bool
 	SplitClients            []SplitClient
 	StatusMatches           []StatusMatch
 	Upstreams               []Upstream
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
+	// templates can safely emit app_protect_enable off; in internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive
@@ -102,6 +105,7 @@ type Server struct {
 	IngressMTLS               *IngressMTLS
 	EgressMTLS                *EgressMTLS
 	OIDC                      *OIDC
+	OIDCProviderName          string
 	APIKey                    *APIKey
 	APIKeyEnabled             bool
 	WAF                       *WAF
@@ -165,6 +169,10 @@ type OIDC struct {
 	VerifyDepth           int
 	CAFile                string
 	PolicyName            string
+	// AppProtectLoadModule mirrors the controller's --enable-app-protect flag so
+	// oidc.tmpl can emit app_protect_enable off; on its internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // APIKey holds API key configuration.
@@ -199,8 +207,10 @@ type Dos struct {
 
 // Location defines a location.
 type Location struct {
-	Path                       string
-	Internal                   bool
+	Path     string
+	Internal bool
+	// DisableWAF marks subrequest targets; splits/matches internal locations carry client traffic and must keep WAF.
+	DisableWAF                 bool
 	Snippets                   []string
 	ProxyConnectTimeout        string
 	ProxyReadTimeout           string
@@ -235,6 +245,7 @@ type Location struct {
 	LimitReqOptions            LimitReqOptions
 	LimitReqs                  []LimitReq
 	JWTAuth                    *JWTAuth
+	OIDCProviderName           string
 	AuthRequestOff             bool
 	ExternalAuth               *ExternalAuth
 	BasicAuth                  *BasicAuth
@@ -252,10 +263,13 @@ type Location struct {
 	VSRNamespace               string
 	GRPCPass                   string
 	CORSEnabled                bool
+	DisableForwardedHeaders    bool
+	UseForwardedHeaders        bool
 	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
+	ProxyHTTPVersion           string
 }
 
 // ReturnLocation defines a location for returning a fixed response.
@@ -395,6 +409,53 @@ type Queue struct {
 	Timeout string
 }
 
+// OIDCProvider defines an OIDC provider for the native ngx_http_oidc_module.
+type OIDCProvider struct {
+	Name                  string
+	PolicyKey             string
+	Issuer                string
+	ClientID              string
+	ClientSecret          string //nolint:gosec // G117: internal field carrying the resolved OIDC client secret; not a credential match
+	ConfigURL             string
+	CookieName            string
+	ExtraAuthArgs         string
+	PKCE                  string
+	RedirectURI           string
+	LogoutURI             string
+	PostLogoutURI         string
+	FrontChannelLogoutURI string
+	LogoutTokenHint       bool
+	Scope                 string
+	SessionStore          string
+	SessionTimeout        string
+	SSLCrl                string
+	SSLTrustedCert        string
+	SSLVerify             bool
+	SSLName               string
+	SSLVerifyDepth        int
+	Sync                  bool
+	UserInfoEnable        bool
+	// ProxyLocation is the internal NGINX location that acts as a proxy to the IdP.
+	// The oidc_provider block references it, and a matching `location = <path>` is generated in the server block.
+	ProxyLocation string
+	// ProxyBufferSize controls proxy_buffer_size and the size of each buffer in proxy_buffers on the proxy location.
+	ProxyBufferSize string
+	// ProxyTrustedCertPath is the path to the CA cert to use for proxy_ssl_trusted_certificate on the proxy location.
+	// Empty when TLS verification is disabled or no trusted cert is provided.
+	ProxyTrustedCertPath string
+	// PostLogoutLocation, when non-nil, describes an auto-generated unauthenticated location
+	// serving a static response after logout. Nil when no such location should be generated.
+	PostLogoutLocation *AuthOIDCReturnLocation
+}
+
+// AuthOIDCReturnLocation describes an OIDC-generated location that returns a canned response
+// with auth_oidc off. Used for post-logout confirmation pages.
+type AuthOIDCReturnLocation struct {
+	Path        string
+	DefaultType string
+	Return      Return
+}
+
 // LimitReqZone defines a rate limit shared memory zone.
 type LimitReqZone struct {
 	Key           string
@@ -512,9 +573,11 @@ type BasicAuth struct {
 
 // KeyValZone defines a keyval zone.
 type KeyValZone struct {
-	Name  string
-	Size  string
-	State string
+	Name    string
+	Size    string
+	State   string
+	Sync    bool
+	Timeout string
 }
 
 // KeyVal defines a keyval.

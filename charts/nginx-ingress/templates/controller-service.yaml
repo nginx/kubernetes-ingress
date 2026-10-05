@@ -5,10 +5,7 @@ metadata:
   name: {{ include "nginx-ingress.controller.service.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nginx-ingress.labels" . | nindent 4 }}
-{{- if .Values.controller.service.extraLabels }}
-{{ toYaml .Values.controller.service.extraLabels | indent 4 }}
-{{- end }}
+    {{- include "nginx-ingress.serviceLabels" . | nindent 4 }}
 {{- if .Values.controller.service.annotations }}
   annotations:
 {{ toYaml .Values.controller.service.annotations | indent 4 }}
@@ -54,7 +51,7 @@ spec:
     targetPort: {{ .Values.controller.service.httpPort.targetPort }}
     protocol: TCP
     name: {{ .Values.controller.service.httpPort.name }}
-  {{- if or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort") }}
+  {{- if and (or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort")) (not (empty .Values.controller.service.httpPort.nodePort)) }}
     nodePort: {{ .Values.controller.service.httpPort.nodePort }}
   {{- end }}
 {{- end }}
@@ -63,7 +60,7 @@ spec:
     targetPort: {{ .Values.controller.service.httpsPort.targetPort }}
     protocol: TCP
     name: {{ .Values.controller.service.httpsPort.name }}
-  {{- if or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort") }}
+  {{- if and (or (eq .Values.controller.service.type "LoadBalancer") (eq .Values.controller.service.type "NodePort")) (not (empty .Values.controller.service.httpsPort.nodePort)) }}
     nodePort: {{ .Values.controller.service.httpsPort.nodePort }}
   {{- end }}
 {{- end }}

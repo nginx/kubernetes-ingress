@@ -13,7 +13,7 @@ import (
 //
 // DNSEndpoint is the CRD wrapper for Endpoint
 type DNSEndpointApplyConfiguration struct {
-	metav1.TypeMetaApplyConfiguration    `json:",inline"`
+	metav1.TypeMetaApplyConfiguration    `json:""`
 	*metav1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
 	Spec                                 *DNSEndpointSpecApplyConfiguration   `json:"spec,omitempty"`
 	Status                               *DNSEndpointStatusApplyConfiguration `json:"status,omitempty"`

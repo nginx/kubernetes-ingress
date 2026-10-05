@@ -49,9 +49,9 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
-Common labels
+Chart-managed labels (not user-overridable).
 */}}
-{{- define "nginx-ingress.labels" -}}
+{{- define "nginx-ingress.chartLabels" -}}
 helm.sh/chart: {{ include "nginx-ingress.chart" . }}
 {{ include "nginx-ingress.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
@@ -61,21 +61,57 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
+Merges .Values.commonLabels with a resource-specific extraLabels map, with
+extraLabels winning on key collision. Call as:
+  {{ include "nginx-ingress.userLabels" (list . $extraLabels) }}
+Fails if any resulting key is managed by the chart (helm.sh/chart,
+app.kubernetes.io/version, app.kubernetes.io/managed-by, the agent
+configuration hash, or any selector label), since those must never be
+silently duplicated or overwritten in the rendered manifest.
+*/}}
+{{- define "nginx-ingress.userLabels" -}}
+{{- $root := index . 0 -}}
+{{- $extra := index . 1 -}}
+{{- $out := dict -}}
+{{- range $k, $v := ($root.Values.commonLabels | default dict) }}{{- $_ := set $out $k $v -}}{{- end -}}
+{{- range $k, $v := ($extra | default dict) }}{{- $_ := set $out $k $v -}}{{- end -}}
+{{- $reserved := concat (list "helm.sh/chart" "app.kubernetes.io/version" "app.kubernetes.io/managed-by" "agent-configuration-revision-hash") (keys (fromYaml (include "nginx-ingress.selectorLabels" $root))) -}}
+{{- range $k, $v := $out }}
+{{- if has $k $reserved }}
+{{- fail (printf "commonLabels/extraLabels: label %q is managed by the chart and cannot be overridden" $k) }}
+{{- end }}
+{{- end }}
+{{- if $out }}
+{{ toYaml $out }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Common labels
+*/}}
+{{- define "nginx-ingress.labels" -}}
+{{- include "nginx-ingress.chartLabels" . }}
+{{- include "nginx-ingress.userLabels" (list . dict) }}
+{{- end }}
+
+{{/*
+Service labels: chart-managed labels plus commonLabels merged with
+controller.service.extraLabels.
+*/}}
+{{- define "nginx-ingress.serviceLabels" -}}
+{{- include "nginx-ingress.chartLabels" . }}
+{{- include "nginx-ingress.userLabels" (list . .Values.controller.service.extraLabels) }}
+{{- end }}
+
+{{/*
 Pod labels
 */}}
 {{- define "nginx-ingress.podLabels" -}}
 {{- include "nginx-ingress.selectorLabels" . }}
-{{- if .Values.nginxServiceMesh.enable }}
-nsm.nginx.com/enable-ingress: "true"
-nsm.nginx.com/enable-egress: "{{ .Values.nginxServiceMesh.enableEgress }}"
-nsm.nginx.com/{{ .Values.controller.kind }}: {{ include "nginx-ingress.controller.fullname" . }}
-{{- end }}
 {{- if and .Values.nginxAgent.enable (eq (.Values.nginxAgent.customConfigMap | default "") "") }}
 agent-configuration-revision-hash: {{ include "nginx-ingress.agentConfiguration" . | sha1sum | trunc 8 | quote }}
 {{- end }}
-{{- if .Values.controller.pod.extraLabels }}
-{{ toYaml .Values.controller.pod.extraLabels }}
-{{- end }}
+{{- include "nginx-ingress.userLabels" (list . .Values.controller.pod.extraLabels) }}
 {{- end }}
 
 {{/*
@@ -254,7 +290,28 @@ Create the global configuration custom namespace from the globalConfiguration.cu
 {{/*
 Build the args for the service binary.
 */}}
+{{- define "nginx-ingress.appprotect.plmStorage.validate" -}}
+{{- $plm := default (dict) .Values.controller.appprotect.plmStorage -}}
+{{- if $plm.url }}
+{{- if not .Values.controller.nginxplus }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.nginxplus=true" }}
+{{- end }}
+{{- if not .Values.controller.appprotect.enable }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.appprotect.enable=true" }}
+{{- end }}
+{{- if not .Values.controller.appprotect.v5 }}
+{{- fail "controller.appprotect.plmStorage.url requires controller.appprotect.v5=true" }}
+{{- end }}
+{{- if not $plm.credentialsSecret }}
+{{- fail "controller.appprotect.plmStorage.credentialsSecret must be set when controller.appprotect.plmStorage.url is set" }}
+{{- end }}
+{{- else if or $plm.credentialsSecret $plm.caSecret $plm.clientSSLSecret $plm.insecureSkipVerify }}
+{{- fail "controller.appprotect.plmStorage auxiliary values require controller.appprotect.plmStorage.url" }}
+{{- end }}
+{{- end }}
+
 {{- define "nginx-ingress.args" -}}
+{{- include "nginx-ingress.appprotect.plmStorage.validate" . -}}
 {{- if and .Values.controller.debug .Values.controller.debug.enable }}
 - --listen=:2345
 - --headless=true
@@ -278,6 +335,18 @@ Build the args for the service binary.
 {{ end }}
 {{- if and .Values.controller.appprotect.enable .Values.controller.appprotect.v5 }}
 - -app-protect-enforcer-address="{{ .Values.controller.appprotect.enforcer.host | default "127.0.0.1" }}:{{ .Values.controller.appprotect.enforcer.port | default 50000 }}"
+{{- end }}
+{{- $plm := default (dict) .Values.controller.appprotect.plmStorage -}}
+{{- if $plm.url }}
+- {{ printf "-plm-storage-url=%s" $plm.url | quote }}
+- {{ printf "-plm-storage-credentials-secret=%s" $plm.credentialsSecret | quote }}
+{{- if $plm.caSecret }}
+- {{ printf "-plm-storage-ca-secret=%s" $plm.caSecret | quote }}
+{{- end }}
+{{- if $plm.clientSSLSecret }}
+- {{ printf "-plm-storage-client-ssl-secret=%s" $plm.clientSSLSecret | quote }}
+{{- end }}
+- -plm-storage-insecure-skip-verify={{ $plm.insecureSkipVerify }}
 {{- end }}
 - -enable-app-protect-dos={{ .Values.controller.appprotectdos.enable }}
 {{- if .Values.controller.appprotectdos.enable }}
@@ -357,16 +426,19 @@ Build the args for the service binary.
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
 - -default-http-listener-port={{ .Values.controller.defaultHTTPListenerPort}}
 - -default-https-listener-port={{ .Values.controller.defaultHTTPSListenerPort}}
-- -allow-empty-ingress-host={{ .Values.controller.allowEmptyIngressHost }}
 {{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
 {{- else if .Values.controller.globalConfiguration.customName }}
 - -global-configuration={{ .Values.controller.globalConfiguration.customName }}
 {{- end }}
 {{- end }}
+- -allow-empty-ingress-host={{ .Values.controller.allowEmptyIngressHost }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}
 - -ready-status-port={{ .Values.controller.readyStatus.port }}
 - -enable-latency-metrics={{ .Values.controller.enableLatencyMetrics }}
+{{- if and .Values.controller.enableLatencyMetrics .Values.controller.latencyMetricsBuckets }}
+- -latency-metrics-buckets={{ .Values.controller.latencyMetricsBuckets }}
+{{- end }}
 - -ssl-dynamic-reload={{ .Values.controller.enableSSLDynamicReload }}
 - -enable-telemetry-reporting={{ .Values.controller.telemetryReporting.enable}}
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}
@@ -561,6 +633,10 @@ volumeMounts:
 {{- if .Values.controller.appprotect.ipIntelligence.securityContext }}
   securityContext:
 {{ toYaml .Values.controller.appprotect.ipIntelligence.securityContext | nindent 6 }}
+{{- end }}
+{{- if .Values.controller.appprotect.ipIntelligence.resources }}
+  resources:
+{{ toYaml .Values.controller.appprotect.ipIntelligence.resources | nindent 6 }}
 {{- end }}
   volumeMounts:
     - name: app-protect-ipi-db

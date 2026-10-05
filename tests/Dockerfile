@@ -1,11 +1,19 @@
-# syntax=docker/dockerfile:1.25
-FROM python:3.14-trixie@sha256:7a320a6d1216cd356eb4790261f2332e6e29e32f7e80646cb3e79f9e65b8e2c2
+# syntax=docker/dockerfile:1.27
+FROM python:3.14-trixie@sha256:d0ef532dea88a06a0f950a40f95c553086c1f282bf8e313d328f11d289f72582
 ARG ARCH=amd64
 
 ENV PYTHONUNBUFFERED=1
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+ENV REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
-RUN apt-get update \
+RUN --mount=type=secret,id=corp-ca,dst=/tmp/corp-ca,required=false \
+	if [ -s /tmp/corp-ca ]; then \
+		cp /tmp/corp-ca /usr/local/share/ca-certificates/corp-ca.crt; \
+	fi \
+	&& apt-get update \
 	&& apt-get install -y curl git apache2-utils ca-certificates \
+	&& update-ca-certificates \
 	&& rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/tests
