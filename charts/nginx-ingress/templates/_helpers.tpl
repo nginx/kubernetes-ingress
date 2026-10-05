@@ -49,15 +49,58 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
-Common labels
+Chart-managed labels (not user-overridable).
 */}}
-{{- define "nginx-ingress.labels" -}}
+{{- define "nginx-ingress.chartLabels" -}}
 helm.sh/chart: {{ include "nginx-ingress.chart" . }}
 {{ include "nginx-ingress.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Merges .Values.commonLabels with a resource-specific extraLabels map, with
+extraLabels winning on key collision. Call as:
+  {{ include "nginx-ingress.userLabels" (list . $extraLabels) }}
+Fails if any resulting key is managed by the chart (helm.sh/chart,
+app.kubernetes.io/version, app.kubernetes.io/managed-by, the agent
+configuration hash, or any selector label), since those must never be
+silently duplicated or overwritten in the rendered manifest.
+*/}}
+{{- define "nginx-ingress.userLabels" -}}
+{{- $root := index . 0 -}}
+{{- $extra := index . 1 -}}
+{{- $out := dict -}}
+{{- range $k, $v := ($root.Values.commonLabels | default dict) }}{{- $_ := set $out $k $v -}}{{- end -}}
+{{- range $k, $v := ($extra | default dict) }}{{- $_ := set $out $k $v -}}{{- end -}}
+{{- $reserved := concat (list "helm.sh/chart" "app.kubernetes.io/version" "app.kubernetes.io/managed-by" "agent-configuration-revision-hash") (keys (fromYaml (include "nginx-ingress.selectorLabels" $root))) -}}
+{{- range $k, $v := $out }}
+{{- if has $k $reserved }}
+{{- fail (printf "commonLabels/extraLabels: label %q is managed by the chart and cannot be overridden" $k) }}
+{{- end }}
+{{- end }}
+{{- if $out }}
+{{ toYaml $out }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Common labels
+*/}}
+{{- define "nginx-ingress.labels" -}}
+{{- include "nginx-ingress.chartLabels" . }}
+{{- include "nginx-ingress.userLabels" (list . dict) }}
+{{- end }}
+
+{{/*
+Service labels: chart-managed labels plus commonLabels merged with
+controller.service.extraLabels.
+*/}}
+{{- define "nginx-ingress.serviceLabels" -}}
+{{- include "nginx-ingress.chartLabels" . }}
+{{- include "nginx-ingress.userLabels" (list . .Values.controller.service.extraLabels) }}
 {{- end }}
 
 {{/*
@@ -68,9 +111,7 @@ Pod labels
 {{- if and .Values.nginxAgent.enable (eq (.Values.nginxAgent.customConfigMap | default "") "") }}
 agent-configuration-revision-hash: {{ include "nginx-ingress.agentConfiguration" . | sha1sum | trunc 8 | quote }}
 {{- end }}
-{{- if .Values.controller.pod.extraLabels }}
-{{ toYaml .Values.controller.pod.extraLabels }}
-{{- end }}
+{{- include "nginx-ingress.userLabels" (list . .Values.controller.pod.extraLabels) }}
 {{- end }}
 
 {{/*
@@ -395,6 +436,9 @@ Build the args for the service binary.
 - -ready-status={{ .Values.controller.readyStatus.enable }}
 - -ready-status-port={{ .Values.controller.readyStatus.port }}
 - -enable-latency-metrics={{ .Values.controller.enableLatencyMetrics }}
+{{- if and .Values.controller.enableLatencyMetrics .Values.controller.latencyMetricsBuckets }}
+- -latency-metrics-buckets={{ .Values.controller.latencyMetricsBuckets }}
+{{- end }}
 - -ssl-dynamic-reload={{ .Values.controller.enableSSLDynamicReload }}
 - -enable-telemetry-reporting={{ .Values.controller.telemetryReporting.enable}}
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}

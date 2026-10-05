@@ -10,6 +10,13 @@
     "serviceInsight"
   ],
   "properties": {
+    "commonLabels": {
+      "type": "object",
+      "default": {},
+      "title": "Common labels to apply to all chart-managed resources, including pod templates",
+      "description": "A resource's own extraLabels field takes precedence over commonLabels on key collision. Setting a chart-managed label (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label) fails the template render.",
+      "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
+    },
     "controller": {
       "type": "object",
       "default": {},
@@ -1458,6 +1465,7 @@
               "type": "object",
               "default": {},
               "title": "The extraLabels",
+              "description": "Takes precedence over commonLabels on key collision. Setting a chart-managed label (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label) fails the template render.",
               "required": [],
               "properties": {},
               "examples": [
@@ -1889,6 +1897,7 @@
             "extraLabels": {
               "default": {},
               "title": "The extraLabels Schema",
+              "description": "Takes precedence over commonLabels on key collision. Setting a chart-managed label (helm.sh/chart, app.kubernetes.io/version, app.kubernetes.io/managed-by, or a selector label) fails the template render.",
               "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
             }
           },
@@ -2066,6 +2075,15 @@
           "title": "The enableLatencyMetrics",
           "examples": [
             false
+          ]
+        },
+        "latencyMetricsBuckets": {
+          "type": "string",
+          "default": "",
+          "pattern": "^$|^[0-9]+(\\.[0-9]+)?(,[0-9]+(\\.[0-9]+)?)*$",
+          "title": "The latencyMetricsBuckets",
+          "examples": [
+            "5,10,25,50,100,250,500,1000"
           ]
         },
         "disableIPV6": {

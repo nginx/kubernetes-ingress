@@ -1,0 +1,13 @@
+commonLabels:
+  team: platform
+  environment: production
+  cost-center: "12345"
+
+controller:
+  kind: deployment
+  pod:
+    extraLabels:
+      team: ingress # must win over commonLabels.team on collision
+  service:
+    extraLabels:
+      environment: canary # must win over commonLabels.environment on collision

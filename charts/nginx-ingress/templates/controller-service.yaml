@@ -5,10 +5,7 @@ metadata:
   name: {{ include "nginx-ingress.controller.service.name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "nginx-ingress.labels" . | nindent 4 }}
-{{- if .Values.controller.service.extraLabels }}
-{{ toYaml .Values.controller.service.extraLabels | indent 4 }}
-{{- end }}
+    {{- include "nginx-ingress.serviceLabels" . | nindent 4 }}
 {{- if .Values.controller.service.annotations }}
   annotations:
 {{ toYaml .Values.controller.service.annotations | indent 4 }}
