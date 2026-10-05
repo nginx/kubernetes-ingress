@@ -245,6 +245,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "allow-empty-ingress-host-no-crs",
 			namespace:   "default",
 		},
+		"defaultListenerPortsWithoutCRs": {
+			valuesFile:  "testdata/default-listener-ports-no-crs.yaml",
+			releaseName: "default-listener-ports-no-crs",
+			namespace:   "default",
+		},
 		"commonLabels": {
 			valuesFile:  "testdata/common-labels.yaml",
 			releaseName: "common-labels",
