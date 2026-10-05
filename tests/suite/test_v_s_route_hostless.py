@@ -341,4 +341,11 @@ class TestVirtualServerRouteHostless:
             expected_reason="AddedOrUpdatedWithWarning",
             expected_messages=["doesn't exist or invalid"],
         )
-        assert_valid_vs(kube_apis, foreign_namespace_setup.namespace, "virtual-server-route-2")
+        assert_vs_status(
+            kube_apis,
+            foreign_namespace_setup.namespace,
+            "virtual-server-route-2",
+            "Warning",
+            expected_reason="AddedOrUpdatedWithWarning",
+            expected_messages=["matched no VirtualServerRoutes"],
+        )
