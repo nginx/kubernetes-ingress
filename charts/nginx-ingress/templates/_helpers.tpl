@@ -439,6 +439,7 @@ Build the args for the service binary.
 {{- if and .Values.controller.enableLatencyMetrics .Values.controller.latencyMetricsBuckets }}
 - -latency-metrics-buckets={{ .Values.controller.latencyMetricsBuckets }}
 {{- end }}
+- -enable-topology-aware-routing={{ .Values.controller.enableTopologyAwareRouting }}
 - -ssl-dynamic-reload={{ .Values.controller.enableSSLDynamicReload }}
 - -enable-telemetry-reporting={{ .Values.controller.telemetryReporting.enable}}
 - -weight-changes-dynamic-reload={{ .Values.controller.enableWeightChangesDynamicReload}}

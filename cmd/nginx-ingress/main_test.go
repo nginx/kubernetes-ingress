@@ -574,3 +574,50 @@ func TestGetControllerZone(t *testing.T) {
 		})
 	}
 }
+
+func TestGetControllerTopology(t *testing.T) {
+	t.Parallel()
+
+	pod := &api_v1.Pod{Spec: api_v1.PodSpec{NodeName: "node-1"}}
+	node := &api_v1.Node{ObjectMeta: meta_v1.ObjectMeta{
+		Name:   "node-1",
+		Labels: map[string]string{api_v1.LabelTopologyZone: "zone-a"},
+	}}
+
+	tests := []struct {
+		name         string
+		enabled      bool
+		wantNodeName string
+		wantZone     string
+		wantActions  int
+	}{
+		{
+			name:         "enabled resolves node and zone",
+			enabled:      true,
+			wantNodeName: "node-1",
+			wantZone:     "zone-a",
+			wantActions:  1,
+		},
+		{
+			name:        "disabled does not query the API",
+			enabled:     false,
+			wantActions: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			clientset := fake.NewClientset(node)
+			ctx := nl.ContextWithLogger(context.Background(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+			gotNodeName, gotZone := getControllerTopology(ctx, clientset, pod, test.enabled)
+			if gotNodeName != test.wantNodeName || gotZone != test.wantZone {
+				t.Errorf("getControllerTopology() = (%q, %q), want (%q, %q)", gotNodeName, gotZone, test.wantNodeName, test.wantZone)
+			}
+			if got := len(clientset.Actions()); got != test.wantActions {
+				t.Errorf("getControllerTopology() made %d API calls, want %d", got, test.wantActions)
+			}
+		})
+	}
+}

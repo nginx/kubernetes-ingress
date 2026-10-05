@@ -1,9 +1,11 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -1347,7 +1349,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodInOneEndpointSlice(t *test
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1451,7 +1453,7 @@ func TestGetEndpointSlicesBySubselectedPods_GetsEndpointsOnNilValues(t *testing.
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			got := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			got := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 			if !cmp.Equal(got, test.want) {
 				t.Error(cmp.Diff(got, test.want))
 			}
@@ -1540,7 +1542,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodInTwoEndpointSlicesWithDup
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1641,7 +1643,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindTwoPodsInOneEndpointSlice(t *tes
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1752,7 +1754,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindTwoPodsInTwoEndpointSlices(t *te
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1845,7 +1847,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInOneEndpointSlice
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -1948,7 +1950,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindOnePodEndpointInTwoEndpointSlice
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -2011,7 +2013,7 @@ func TestGetEndpointSlicesBySubselectedPods_FindNoPods(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -2071,7 +2073,7 @@ func TestGetEndpointSlicesBySubselectedPods_TargetPortMismatch(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, "", "")
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(test.targetPort, test.pods, test.svcEndpointSlices, nil)
 
 			if result := unorderedEqual(gotEndpoints, test.expectedEndpoints); !result {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
@@ -2133,7 +2135,11 @@ func TestGetEndpointSlicesBySubselectedPods_TopologyHints(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
-			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(8080, test.pods, test.svcEndpointSlices, "node-1", "zone-a")
+			applyHints := func(eps []discovery_v1.Endpoint) []discovery_v1.Endpoint {
+				filtered, _ := filterEndpointsByTopologyHints(eps, "node-1", "zone-a")
+				return filtered
+			}
+			gotEndpoints := getEndpointsFromEndpointSlicesForSubselectedPods(8080, test.pods, test.svcEndpointSlices, applyHints)
 			if !unorderedEqual(gotEndpoints, test.expectedEndpoints) {
 				t.Errorf("getEndpointsFromEndpointSlicesForSubselectedPods() = got %v, want %v", gotEndpoints, test.expectedEndpoints)
 			}
@@ -2168,18 +2174,104 @@ func TestGetEndpointsForPortFromEndpointSlices_TopologyHints(t *testing.T) {
 		},
 	}
 
-	lbc := LoadBalancerController{
-		Logger:   nl.LoggerFromContext(context.Background()),
-		metadata: controllerMetadata{nodeName: "node-1", zone: "zone-a"},
+	tests := []struct {
+		desc                 string
+		topologyAwareRouting bool
+		want                 []podEndpoint
+	}{
+		{
+			desc:                 "topology-aware routing enabled uses same-zone endpoints",
+			topologyAwareRouting: true,
+			want:                 []podEndpoint{{Address: "10.0.0.1:8080"}},
+		},
+		{
+			desc:                 "topology-aware routing disabled ignores hints",
+			topologyAwareRouting: false,
+			want:                 []podEndpoint{{Address: "10.0.0.1:8080"}, {Address: "10.0.0.2:8080"}},
+		},
 	}
 
-	got, err := lbc.getEndpointsForPortFromEndpointSlices(endpointSlices, networking.ServiceBackendPort{Name: "foo"}, svc)
-	if err != nil {
-		t.Fatal(err)
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			lbc := LoadBalancerController{
+				Logger:               nl.LoggerFromContext(context.Background()),
+				metadata:             controllerMetadata{nodeName: "node-1", zone: "zone-a"},
+				topologyAwareRouting: test.topologyAwareRouting,
+			}
+
+			got, err := lbc.getEndpointsForPortFromEndpointSlices(endpointSlices, networking.ServiceBackendPort{Name: "foo"}, svc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !unorderedEqual(got, test.want) {
+				t.Errorf("lbc.getEndpointsForPortFromEndpointSlices() got %v, want %v", got, test.want)
+			}
+		})
 	}
-	want := []podEndpoint{{Address: "10.0.0.1:8080"}}
-	if !unorderedEqual(got, want) {
-		t.Errorf("lbc.getEndpointsForPortFromEndpointSlices() got %v, want %v", got, want)
+}
+
+func TestApplyTopologyHints(t *testing.T) {
+	t.Parallel()
+
+	svc := &api_v1.Service{ObjectMeta: meta_v1.ObjectMeta{Name: "coffee-svc", Namespace: "default"}}
+	endpoints := []discovery_v1.Endpoint{
+		{
+			Addresses:  []string{"10.0.0.1"},
+			Conditions: discovery_v1.EndpointConditions{Ready: new(true)},
+			Hints:      &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "zone-a"}}},
+		},
+		{
+			Addresses:  []string{"10.0.0.2"},
+			Conditions: discovery_v1.EndpointConditions{Ready: new(true)},
+			Hints:      &discovery_v1.EndpointHints{ForZones: []discovery_v1.ForZone{{Name: "zone-b"}}},
+		},
+	}
+
+	tests := []struct {
+		desc                 string
+		topologyAwareRouting bool
+		wantAddrs            []string
+		wantLog              string
+	}{
+		{
+			desc:                 "enabled filters and logs the chosen mode",
+			topologyAwareRouting: true,
+			wantAddrs:            []string{"10.0.0.1"},
+			wantLog:              "PreferSameZone",
+		},
+		{
+			desc:                 "disabled returns endpoints unchanged without logging",
+			topologyAwareRouting: false,
+			wantAddrs:            []string{"10.0.0.1", "10.0.0.2"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			lbc := LoadBalancerController{
+				Logger:               slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})),
+				metadata:             controllerMetadata{nodeName: "node-1", zone: "zone-a"},
+				topologyAwareRouting: test.topologyAwareRouting,
+			}
+
+			got := lbc.applyTopologyHints(svc, 8080, endpoints)
+			gotAddrs := make([]string, 0, len(got))
+			for _, ep := range got {
+				gotAddrs = append(gotAddrs, ep.Addresses...)
+			}
+			if !slices.Equal(slices.Sorted(slices.Values(gotAddrs)), test.wantAddrs) {
+				t.Errorf("applyTopologyHints() = %v, want %v", gotAddrs, test.wantAddrs)
+			}
+			if test.wantLog == "" && buf.Len() > 0 {
+				t.Errorf("applyTopologyHints() logged %q, want no log output", buf.String())
+			}
+			if test.wantLog != "" && !strings.Contains(buf.String(), test.wantLog) {
+				t.Errorf("applyTopologyHints() log %q does not contain %q", buf.String(), test.wantLog)
+			}
+		})
 	}
 }
 
@@ -2217,6 +2309,7 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 		nodeName  string
 		zone      string
 		expected  []string
+		mode      string
 	}{
 		{
 			desc: "empty node and zone returns all",
@@ -2248,6 +2341,7 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 			nodeName: "node-1",
 			zone:     "us-east-1a",
 			expected: []string{"10.0.0.1", "10.0.0.3"},
+			mode:     "PreferSameZone",
 		},
 		{
 			desc: "no zone hints match falls back to all",
@@ -2268,6 +2362,7 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 			nodeName: "node-1",
 			zone:     "us-east-1a",
 			expected: []string{"10.0.0.1"},
+			mode:     "PreferSameZone",
 		},
 		{
 			desc: "node hints take priority over zone hints",
@@ -2284,6 +2379,7 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 			nodeName: "node-1",
 			zone:     "us-east-1a",
 			expected: []string{"10.0.0.1"},
+			mode:     "PreferSameNode",
 		},
 		{
 			desc: "node hints present but no match falls back to zone hints",
@@ -2300,6 +2396,7 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 			nodeName: "node-1",
 			zone:     "us-east-1a",
 			expected: []string{"10.0.0.1", "10.0.0.2"},
+			mode:     "PreferSameZone",
 		},
 		{
 			desc: "neither node nor zone hints match falls back to all",
@@ -2381,6 +2478,7 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 			nodeName: "node-1",
 			zone:     "us-east-1a",
 			expected: []string{"10.0.0.1", "10.0.0.2"},
+			mode:     "PreferSameZone",
 		},
 		{
 			desc: "zone hints on all endpoints but controller zone unknown returns all",
@@ -2401,6 +2499,7 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 			nodeName: "node-1",
 			zone:     "",
 			expected: []string{"10.0.0.1"},
+			mode:     "PreferSameNode",
 		},
 		{
 			desc:      "no endpoints returns none",
@@ -2414,7 +2513,10 @@ func TestFilterEndpointsByTopologyHints(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
-			got := filterEndpointsByTopologyHints(test.endpoints, test.nodeName, test.zone)
+			got, mode := filterEndpointsByTopologyHints(test.endpoints, test.nodeName, test.zone)
+			if mode != test.mode {
+				t.Errorf("filterEndpointsByTopologyHints() mode = %q, want %q", mode, test.mode)
+			}
 			gotAddrs := make([]string, 0, len(got))
 			for _, ep := range got {
 				gotAddrs = append(gotAddrs, ep.Addresses...)

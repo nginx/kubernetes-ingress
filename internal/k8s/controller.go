@@ -239,6 +239,7 @@ type LoadBalancerController struct {
 	metadata                      controllerMetadata
 	areCustomResourcesEnabled     bool
 	enableOIDC                    bool
+	topologyAwareRouting          bool
 	metricsCollector              collectors.ControllerCollector
 	globalConfigurationValidator  *validation.GlobalConfigurationValidator
 	transportServerValidator      *validation.TransportServerValidator
@@ -353,6 +354,7 @@ type NewLoadBalancerControllerInput struct {
 	ShuttingDown                 bool
 	Zone                         string
 	NodeName                     string
+	TopologyAwareRouting         bool
 }
 
 // NewLoadBalancerController creates a controller
@@ -388,6 +390,7 @@ func NewLoadBalancerController(input NewLoadBalancerControllerInput) *LoadBalanc
 		metadata:                     controllerMetadata{namespace: input.ControllerNamespace, pod: input.Pod, zone: input.Zone, nodeName: input.NodeName},
 		areCustomResourcesEnabled:    input.AreCustomResourcesEnabled,
 		enableOIDC:                   input.EnableOIDC,
+		topologyAwareRouting:         input.TopologyAwareRouting,
 		metricsCollector:             input.MetricsCollector,
 		globalConfigurationValidator: input.GlobalConfigurationValidator,
 		transportServerValidator:     input.TransportServerValidator,
@@ -4718,7 +4721,9 @@ func (lbc *LoadBalancerController) getEndpointsForServiceWithSubselector(targetP
 		return nil, err
 	}
 
-	endps = getEndpointsFromEndpointSlicesForSubselectedPods(targetPort, pods, svcEndpointSlices, lbc.metadata.nodeName, lbc.metadata.zone)
+	endps = getEndpointsFromEndpointSlicesForSubselectedPods(targetPort, pods, svcEndpointSlices, func(eps []discovery_v1.Endpoint) []discovery_v1.Endpoint {
+		return lbc.applyTopologyHints(svc, targetPort, eps)
+	})
 	return endps, nil
 }
 
@@ -4771,9 +4776,13 @@ func filterReadyEndpointsFrom(esx []discovery_v1.EndpointSlice) []discovery_v1.E
 // The endpoints passed in must be the final candidate set (ready, and already
 // narrowed by any subselector) so that the fallback is evaluated against the
 // endpoints that will actually be used.
-func filterEndpointsByTopologyHints(endpoints []discovery_v1.Endpoint, nodeName, zone string) []discovery_v1.Endpoint {
+//
+// The returned mode is the traffic distribution that was applied
+// (api_v1.ServiceTrafficDistributionPreferSameNode or PreferSameZone), or ""
+// if the endpoints were returned unfiltered.
+func filterEndpointsByTopologyHints(endpoints []discovery_v1.Endpoint, nodeName, zone string) (filtered []discovery_v1.Endpoint, mode string) {
 	if len(endpoints) == 0 || (nodeName == "" && zone == "") {
-		return endpoints
+		return endpoints, ""
 	}
 
 	allHaveNodeHints, hasEndpointForNode := true, false
@@ -4796,14 +4805,37 @@ func filterEndpointsByTopologyHints(endpoints []discovery_v1.Endpoint, nodeName,
 	case allHaveNodeHints && hasEndpointForNode:
 		return slices.DeleteFunc(slices.Clone(endpoints), func(ep discovery_v1.Endpoint) bool {
 			return !endpointHintedForNode(ep, nodeName)
-		})
+		}), api_v1.ServiceTrafficDistributionPreferSameNode
 	case allHaveZoneHints && hasEndpointForZone:
 		return slices.DeleteFunc(slices.Clone(endpoints), func(ep discovery_v1.Endpoint) bool {
 			return !endpointHintedForZone(ep, zone)
-		})
+		}), api_v1.ServiceTrafficDistributionPreferSameZone
 	default:
+		return endpoints, ""
+	}
+}
+
+// applyTopologyHints applies filterEndpointsByTopologyHints for the
+// controller's node and zone when -enable-topology-aware-routing is set, and
+// logs the decision at debug level for Services whose endpoints carry hints.
+func (lbc *LoadBalancerController) applyTopologyHints(svc *api_v1.Service, targetPort int32, endpoints []discovery_v1.Endpoint) []discovery_v1.Endpoint {
+	if !lbc.topologyAwareRouting {
 		return endpoints
 	}
+
+	filtered, mode := filterEndpointsByTopologyHints(endpoints, lbc.metadata.nodeName, lbc.metadata.zone)
+
+	hinted := slices.ContainsFunc(endpoints, func(ep discovery_v1.Endpoint) bool {
+		return ep.Hints != nil && (len(ep.Hints.ForNodes) > 0 || len(ep.Hints.ForZones) > 0)
+	})
+	if hinted {
+		if mode == "" {
+			mode = "none, hints ignored"
+		}
+		nl.Debugf(lbc.Logger, "Service %s/%s target port %d: topology mode %s (node %q, zone %q), using %d of %d ready endpoints",
+			svc.Namespace, svc.Name, targetPort, mode, lbc.metadata.nodeName, lbc.metadata.zone, len(filtered), len(endpoints))
+	}
+	return filtered
 }
 
 func endpointHintedForNode(ep discovery_v1.Endpoint, nodeName string) bool {
@@ -4820,48 +4852,47 @@ func endpointHintedForZone(ep discovery_v1.Endpoint, zone string) bool {
 	return slices.ContainsFunc(ep.Hints.ForZones, func(fz discovery_v1.ForZone) bool { return fz.Name == zone })
 }
 
-func getEndpointsFromEndpointSlicesForSubselectedPods(targetPort int32, pods []*api_v1.Pod, svcEndpointSlices []discovery_v1.EndpointSlice, nodeName, zone string) (podEndpoints []podEndpoint) {
-	// Match ready endpoints IP addresses with Pod's IP. If they match create a new podEndpoint.
-	makePodEndpoints := func(pods []*api_v1.Pod, endpoints []discovery_v1.Endpoint) []podEndpoint {
-		endpointSet := make(map[podEndpoint]struct{})
+// getEndpointsFromEndpointSlicesForSubselectedPods returns the ready endpoints
+// of the Service that belong to the subselected pods. applyTopology, if not
+// nil, is applied after narrowing to the subselected pods, so that the "no
+// endpoint for this node/zone" fallback is evaluated against the pods the
+// upstream will actually use rather than the whole Service.
+func getEndpointsFromEndpointSlicesForSubselectedPods(targetPort int32, pods []*api_v1.Pod, svcEndpointSlices []discovery_v1.EndpointSlice, applyTopology func([]discovery_v1.Endpoint) []discovery_v1.Endpoint) []podEndpoint {
+	// Endpoints are matched to pods by IP. Several pods can share an IP (host
+	// network pods on the same node), so keep all of them.
+	podsByIP := make(map[string][]*api_v1.Pod, len(pods))
+	for _, pod := range pods {
+		podsByIP[pod.Status.PodIP] = append(podsByIP[pod.Status.PodIP], pod)
+	}
+	hasPod := func(addr string) bool {
+		_, ok := podsByIP[addr]
+		return ok
+	}
 
-		for _, pod := range pods {
-			for _, endpoint := range endpoints {
-				for _, address := range endpoint.Addresses {
-					if pod.Status.PodIP == address {
-						addr := ipv6SafeAddrPort(pod.Status.PodIP, targetPort)
-						ownerType, ownerName := getPodOwnerTypeAndName(pod)
-						podEndpoint := podEndpoint{
-							Address: addr,
-							PodName: getPodName(endpoint.TargetRef),
-							MeshPodOwner: configs.MeshPodOwner{
-								OwnerType: ownerType,
-								OwnerName: ownerName,
-							},
-						}
-						endpointSet[podEndpoint] = struct{}{}
-					}
-				}
+	endpoints := slices.DeleteFunc(filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, svcEndpointSlices)), func(ep discovery_v1.Endpoint) bool {
+		return !slices.ContainsFunc(ep.Addresses, hasPod)
+	})
+	if applyTopology != nil {
+		endpoints = applyTopology(endpoints)
+	}
+
+	endpointSet := make(map[podEndpoint]struct{})
+	for _, endpoint := range endpoints {
+		for _, address := range endpoint.Addresses {
+			for _, pod := range podsByIP[address] {
+				ownerType, ownerName := getPodOwnerTypeAndName(pod)
+				endpointSet[podEndpoint{
+					Address: ipv6SafeAddrPort(address, targetPort),
+					PodName: getPodName(endpoint.TargetRef),
+					MeshPodOwner: configs.MeshPodOwner{
+						OwnerType: ownerType,
+						OwnerName: ownerName,
+					},
+				}] = struct{}{}
 			}
 		}
-		return slices.Collect(maps.Keys(endpointSet))
 	}
-
-	// Narrow to the subselected pods before applying topology hints, so that the
-	// "no endpoint for this node/zone" fallback is evaluated against the pods the
-	// upstream will actually use rather than the whole Service.
-	podIPs := make(map[string]struct{}, len(pods))
-	for _, pod := range pods {
-		podIPs[pod.Status.PodIP] = struct{}{}
-	}
-	subselected := slices.DeleteFunc(filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, svcEndpointSlices)), func(ep discovery_v1.Endpoint) bool {
-		return !slices.ContainsFunc(ep.Addresses, func(addr string) bool {
-			_, ok := podIPs[addr]
-			return ok
-		})
-	})
-
-	return makePodEndpoints(pods, filterEndpointsByTopologyHints(subselected, nodeName, zone))
+	return slices.Collect(maps.Keys(endpointSet))
 }
 
 func ipv6SafeAddrPort(addr string, port int32) string {
@@ -5005,7 +5036,7 @@ func (lbc *LoadBalancerController) getEndpointsForPortFromEndpointSlices(endpoin
 	}
 
 	readyEndpoints := filterReadyEndpointsFrom(selectEndpointSlicesForPort(targetPort, endpointSlices))
-	endpoints := makePodEndpoints(targetPort, filterEndpointsByTopologyHints(readyEndpoints, lbc.metadata.nodeName, lbc.metadata.zone))
+	endpoints := makePodEndpoints(targetPort, lbc.applyTopologyHints(svc, targetPort, readyEndpoints))
 	if len(endpoints) == 0 {
 		return nil, fmt.Errorf("no endpointslices for target port %v in service %s", targetPort, svc.Name)
 	}

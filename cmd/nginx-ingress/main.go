@@ -109,7 +109,7 @@ func main() {
 		nl.Fatalf(l, "Failed to get pod: %v", err)
 	}
 
-	controllerZone := getControllerZone(ctx, kubeClient, pod.Spec.NodeName)
+	controllerNodeName, controllerZone := getControllerTopology(ctx, kubeClient, pod, *enableTopologyAwareRouting)
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(func(format string, args ...interface{}) {
@@ -356,7 +356,8 @@ func main() {
 		InstallationFlags:            parsedFlags,
 		ShuttingDown:                 false,
 		Zone:                         controllerZone,
-		NodeName:                     pod.Spec.NodeName,
+		NodeName:                     controllerNodeName,
+		TopologyAwareRouting:         *enableTopologyAwareRouting,
 	}
 
 	lbc := k8s.NewLoadBalancerController(lbcInput)
@@ -446,6 +447,16 @@ func mustCreateConfigAndKubeClient(ctx context.Context) (*rest.Config, *kubernet
 	}
 
 	return config, kubeClient
+}
+
+// getControllerTopology returns the node name and zone used for topology-aware
+// routing. When the feature is disabled it returns empty values without
+// querying the API, so that the default behavior and RBAC needs are unchanged.
+func getControllerTopology(ctx context.Context, kubeClient kubernetes.Interface, pod *api_v1.Pod, enabled bool) (nodeName, zone string) {
+	if !enabled {
+		return "", ""
+	}
+	return pod.Spec.NodeName, getControllerZone(ctx, kubeClient, pod.Spec.NodeName)
 }
 
 // getControllerZone returns the topology.kubernetes.io/zone label of the node the

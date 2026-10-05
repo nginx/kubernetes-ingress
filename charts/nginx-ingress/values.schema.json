@@ -2206,6 +2206,14 @@
             "5,10,25,50,100,250,500,1000"
           ]
         },
+        "enableTopologyAwareRouting": {
+          "type": "boolean",
+          "default": false,
+          "title": "The enableTopologyAwareRouting",
+          "examples": [
+            false
+          ]
+        },
         "disableIPV6": {
           "type": "boolean",
           "default": false,
@@ -2549,6 +2557,7 @@
             "initialDelaySeconds": 0
           },
           "enableLatencyMetrics": false,
+          "enableTopologyAwareRouting": false,
           "disableIPV6": false,
           "defaultHTTPListenerPort": 80,
           "defaultHTTPSListenerPort": 443,
@@ -3176,6 +3185,7 @@
           "initialDelaySeconds": 0
         },
         "enableLatencyMetrics": false,
+        "enableTopologyAwareRouting": false,
         "disableIPV6": false,
         "defaultHTTPListenerPort": 80,
         "defaultHTTPSListenerPort": 443,

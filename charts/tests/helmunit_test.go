@@ -238,6 +238,11 @@ func TestHelmNICTemplate(t *testing.T) {
 			namespace:     "default",
 			templateFiles: []string{"templates/controller-additional-services.yaml"},
 		},
+		"topologyAwareRouting": {
+			valuesFile:  "testdata/topology-aware-routing.yaml",
+			releaseName: "topology-aware-routing",
+			namespace:   "default",
+		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",

@@ -232,6 +232,11 @@ NIC prints a startup warning when set. Requires -plm-storage-url.`)
 
 	latencyBuckets []float64
 
+	enableTopologyAwareRouting = flag.Bool("enable-topology-aware-routing", false,
+		`Honor EndpointSlice topology hints (set by Service spec.trafficDistribution or the service.kubernetes.io/topology-mode annotation) when selecting upstream endpoints, preferring endpoints on the same node or in the same zone as the Ingress Controller pod.
+		Spread Ingress Controller replicas across zones in proportion to client traffic, as each replica only routes to its own node or zone.
+		The zone is read from the topology.kubernetes.io/zone label of the pod's node at startup; restart the Ingress Controller if that label changes.`)
+
 	enableCertManager = flag.Bool("enable-cert-manager", false,
 		"Enable cert-manager controller for VirtualServer resources. Requires -enable-custom-resources")
 
