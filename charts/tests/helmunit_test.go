@@ -232,6 +232,12 @@ func TestHelmNICTemplate(t *testing.T) {
 			namespace:     "default",
 			templateFiles: []string{"templates/controller-additional-services.yaml"},
 		},
+		"additionalServicesCommonLabels": {
+			valuesFile:    "testdata/additional-services-common-labels.yaml",
+			releaseName:   "additional-services-common-labels",
+			namespace:     "default",
+			templateFiles: []string{"templates/controller-additional-services.yaml"},
+		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",
@@ -364,6 +370,18 @@ func TestHelmNICTemplateNegative(t *testing.T) {
 			releaseName:       "additional-service-name-collision",
 			namespace:         "default",
 			expectedErrorMsgs: []string{"additional Service name \"duplicate-service\" must not match the primary controller Service name"},
+		},
+		"additionalServiceInvalidName": {
+			valuesFile:        "testdata/additional-service-invalid-name.yaml",
+			releaseName:       "additional-service-invalid-name",
+			namespace:         "default",
+			expectedErrorMsgs: []string{"'Invalid_Name' does not match pattern"},
+		},
+		"additionalServiceReservedLabel": {
+			valuesFile:        "testdata/additional-service-reserved-label.yaml",
+			releaseName:       "additional-service-reserved-label",
+			namespace:         "default",
+			expectedErrorMsgs: []string{`label "app.kubernetes.io/managed-by" is managed by the chart and cannot be overridden`},
 		},
 		"latencyMetricsBucketsInvalid": {
 			valuesFile:        "testdata/latency-metrics-buckets-invalid.yaml",

@@ -67,6 +67,34 @@ spec:
       timeoutSeconds: 1800
 ---
 
+[TestHelmNICTemplate/additionalServicesCommonLabels - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-additional-services.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ingress-redis
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: additional-services-common-labels
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+    environment: production
+    team: data
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      protocol: TCP
+      targetPort: 6379
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: additional-services-common-labels
+---
+
 [TestHelmNICTemplate/allowEmptyIngressHost - 1]
 /-/-/-/
 # Source: nginx-ingress/templates/controller-serviceaccount.yaml

@@ -1665,64 +1665,64 @@
                   "annotations": {
                     "default": {},
                     "title": "The Service annotations",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/annotations"
                   },
                   "extraLabels": {
                     "default": {},
                     "title": "The extra Service labels",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta/properties/labels"
                   },
                   "clusterIP": {
                     "default": "",
                     "title": "The Service clusterIP",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/clusterIP"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/clusterIP"
                   },
                   "externalTrafficPolicy": {
                     "default": "",
                     "title": "The Service externalTrafficPolicy",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalTrafficPolicy"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalTrafficPolicy"
                   },
                   "loadBalancerIP": {
                     "default": "",
                     "title": "The Service loadBalancerIP",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerIP"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerIP"
                   },
                   "loadBalancerClass": {
                     "default": "",
                     "title": "The Service loadBalancerClass",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerClass"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerClass"
                   },
                   "externalIPs": {
                     "default": [],
                     "title": "The Service externalIPs",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalIPs"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/externalIPs"
                   },
                   "loadBalancerSourceRanges": {
                     "default": [],
                     "title": "The Service loadBalancerSourceRanges",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerSourceRanges"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/loadBalancerSourceRanges"
                   },
                   "allocateLoadBalancerNodePorts": {
                     "default": true,
                     "title": "Allocate NodePorts for the LoadBalancer Service",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/allocateLoadBalancerNodePorts"
                   },
                   "ipFamilyPolicy": {
                     "default": "",
                     "title": "The Service ipFamilyPolicy",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilyPolicy"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilyPolicy"
                   },
                   "ipFamilies": {
                     "default": [],
                     "title": "The Service ipFamilies",
-                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilies"
+                    "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServiceSpec/properties/ipFamilies"
                   },
                   "ports": {
                     "type": "array",
                     "title": "The Service ports",
                     "minItems": 1,
                     "items": {
-                      "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.36.1/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
+                      "$ref": "https://raw.githubusercontent.com/nginxinc/kubernetes-json-schema/master/v1.37.0/_definitions.json#/definitions/io.k8s.api.core.v1.ServicePort"
                     }
                   },
                   "sessionAffinity": {

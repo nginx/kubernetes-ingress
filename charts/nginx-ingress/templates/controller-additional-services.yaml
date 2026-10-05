@@ -9,10 +9,7 @@ metadata:
   name: {{ $name }}
   namespace: {{ $.Release.Namespace }}
   labels:
-    {{- include "nginx-ingress.labels" $ | nindent 4 }}
-    {{- with $service.extraLabels }}
-    {{- toYaml . | nindent 4 }}
-    {{- end }}
+    {{- printf "%s%s" (include "nginx-ingress.chartLabels" $) (include "nginx-ingress.userLabels" (list $ $service.extraLabels)) | nindent 4 }}
   {{- with $service.annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
