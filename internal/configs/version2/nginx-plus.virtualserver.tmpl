@@ -397,6 +397,7 @@ server {
     {{- range $index, $element := $s.JWTAuthList }}
     location = /_jwks_uri_server_{{ .Key }} {
         internal;
+        client_max_body_size 0;
         {{- if $.AppProtectLoadModule }}
         app_protect_enable off;
         {{- end }}
@@ -432,6 +433,7 @@ server {
     {{- if $s.APIKeyEnabled}}
     location = /_validate_apikey_njs {
             internal;
+            client_max_body_size 0;
             {{- if $.AppProtectLoadModule }}
             app_protect_enable off;
             {{- end }}
@@ -555,6 +557,7 @@ server {
 
     {{- range $l := $s.InternalRedirectLocations }}
     location {{ makeLocationPath $l.Path }} {
+        client_max_body_size 0;
         rewrite ^ {{ $l.Destination }} last;
     }
     {{- end }}
