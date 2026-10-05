@@ -43,22 +43,25 @@ type AppProtectLog struct {
 
 // IngressEx holds an Ingress along with the resources that are referenced in this Ingress.
 type IngressEx struct {
-	Ingress          *networking.Ingress
-	Endpoints        map[string][]string
-	HealthChecks     map[string]*api_v1.Probe
-	Policies         map[string]*conf_v1.Policy
-	ApPolRefs        map[string]*unstructured.Unstructured
-	LogConfRefs      map[string]*unstructured.Unstructured
-	PolicyWarnings   []string
-	ExternalNameSvcs map[string]bool
-	PodsByIP         map[string]PodInfo
-	ValidHosts       map[string]bool
-	ValidMinionPaths map[string]bool
-	AppProtectPolicy *unstructured.Unstructured
-	AppProtectLogs   []AppProtectLog
-	DosEx            *DosEx
-	SecretRefs       map[string]*secrets.SecretReference
-	ZoneSync         bool
+	Ingress   *networking.Ingress
+	Endpoints map[string][]string
+	// ServiceAppProtocols holds the appProtocol of the Service port backing each configured
+	// backend, keyed identically to Endpoints. Absent or unset appProtocols are not stored.
+	ServiceAppProtocols map[string]string
+	HealthChecks        map[string]*api_v1.Probe
+	Policies            map[string]*conf_v1.Policy
+	ApPolRefs           map[string]*unstructured.Unstructured
+	LogConfRefs         map[string]*unstructured.Unstructured
+	PolicyWarnings      []string
+	ExternalNameSvcs    map[string]bool
+	PodsByIP            map[string]PodInfo
+	ValidHosts          map[string]bool
+	ValidMinionPaths    map[string]bool
+	AppProtectPolicy    *unstructured.Unstructured
+	AppProtectLogs      []AppProtectLog
+	DosEx               *DosEx
+	SecretRefs          map[secrets.SecretRefKey]*secrets.SecretReference
+	ZoneSync            bool
 }
 
 // DosEx holds a DosProtectedResource and the dos policy and log confs it references.
@@ -468,7 +471,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 
 		if !isDefaultServer {
-			warnings := addSSLConfig(&server, ncp.ingEx.Ingress, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
+			warnings := addSSLConfig(&server, ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, rule.Host, ncp.ingEx.Ingress.Spec.TLS, ncp.ingEx.SecretRefs, ncp.isWildcardEnabled)
 			allWarnings.Add(warnings)
 		}
 
@@ -508,7 +511,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 		if !ncp.isMinion {
 			if cfgParams.JWTKey != "" {
-				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
+				jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
 				server.JWTAuth = jwtAuth
 				if redirectLoc != nil {
 					server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
@@ -517,7 +520,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			}
 
 			if cfgParams.BasicAuthSecret != "" {
-				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+				basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, ncp.ingEx.SecretRefs, &cfgParams)
 				server.BasicAuth = basicAuth
 				allWarnings.Add(warnings)
 			}
@@ -583,19 +586,23 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 
 			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name])
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ncp.ingEx.Ingress.Namespace)
+			proxyHTTPVersion := ncp.ingEx.proxyHTTPVersionForBackend(cfgParams.ProxyHTTPVersion, &path.Backend, isGRPCService)
+			allWarnings.Add(warnProxyHTTPVersionConflicts(ncp.ingEx.Ingress, cfgParams.ProxyHTTPVersion, proxyHTTPVersion,
+				path.Backend.Service.Name, isGRPCService, wsServices[path.Backend.Service.Name]))
 			loc := createLocation(locationParams{
-				path:          pathOrDefault(path.Path),
-				pathType:      path.PathType,
-				upstream:      upstreams[upsName],
-				cfg:           &cfgParams,
-				serviceName:   path.Backend.Service.Name,
-				websocket:     wsServices[path.Backend.Service.Name],
-				rewrite:       rewrites[path.Backend.Service.Name],
-				rewriteTarget: rewriteTarget,
-				upstreamVhost: upstreamVhost,
-				ssl:           ssl,
-				grpc:          isGRPCService,
-				proxySSLName:  proxySSLName,
+				path:             pathOrDefault(path.Path),
+				pathType:         path.PathType,
+				upstream:         upstreams[upsName],
+				cfg:              &cfgParams,
+				serviceName:      path.Backend.Service.Name,
+				websocket:        wsServices[path.Backend.Service.Name],
+				rewrite:          rewrites[path.Backend.Service.Name],
+				rewriteTarget:    rewriteTarget,
+				upstreamVhost:    upstreamVhost,
+				ssl:              ssl,
+				grpc:             isGRPCService,
+				proxySSLName:     proxySSLName,
+				proxyHTTPVersion: proxyHTTPVersion,
 			})
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Minion egress mTLS is rendered per location to match VirtualServer route policy behavior.
@@ -625,7 +632,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				server.AddHeaderInherit = "" // unset to avoid writing AddHeaderInherit to server block when the ingress is a minion, since it's only relevant for master ingresses
 
 				if cfgParams.JWTKey != "" {
-					jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
+					jwtAuth, redirectLoc, warnings := generateJWTConfig(ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, ncp.ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ncp.ingEx.Ingress))
 					loc.JWTAuth = jwtAuth
 					if redirectLoc != nil {
 						server.JWTRedirectLocations = append(server.JWTRedirectLocations, *redirectLoc)
@@ -634,7 +641,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 				}
 
 				if cfgParams.BasicAuthSecret != "" {
-					basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.SecretRefs, &cfgParams)
+					basicAuth, warnings := generateBasicAuthConfig(ncp.ingEx.Ingress, ncp.ingEx.Ingress.Namespace, ncp.ingEx.SecretRefs, &cfgParams)
 					loc.BasicAuth = basicAuth
 					allWarnings.Add(warnings)
 				}
@@ -723,19 +730,26 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			upsName := getNameForUpstream(ncp.ingEx.Ingress, emptyHostName, ncp.ingEx.Ingress.Spec.DefaultBackend)
 			ssl := isSSLEnabled(sslServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name])
 			proxySSLName := generateProxySSLName(ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, ncp.ingEx.Ingress.Namespace)
+			defaultBackendIsGRPC := grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name]
+			proxyHTTPVersion := ncp.ingEx.proxyHTTPVersionForBackend(cfgParams.ProxyHTTPVersion,
+				ncp.ingEx.Ingress.Spec.DefaultBackend, defaultBackendIsGRPC)
+			allWarnings.Add(warnProxyHTTPVersionConflicts(ncp.ingEx.Ingress, cfgParams.ProxyHTTPVersion, proxyHTTPVersion,
+				ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name, defaultBackendIsGRPC,
+				wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name]))
 			loc := createLocation(locationParams{
-				path:          pathOrDefault("/"),
-				pathType:      new(networking.PathTypePrefix),
-				upstream:      upstreams[upsName],
-				cfg:           &cfgParams,
-				serviceName:   ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name,
-				websocket:     wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				rewrite:       rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				rewriteTarget: rewriteTarget,
-				upstreamVhost: upstreamVhost,
-				ssl:           ssl,
-				grpc:          grpcServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				proxySSLName:  proxySSLName,
+				path:             pathOrDefault("/"),
+				pathType:         new(networking.PathTypePrefix),
+				upstream:         upstreams[upsName],
+				cfg:              &cfgParams,
+				serviceName:      ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name,
+				websocket:        wsServices[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
+				rewrite:          rewrites[ncp.ingEx.Ingress.Spec.DefaultBackend.Service.Name],
+				rewriteTarget:    rewriteTarget,
+				upstreamVhost:    upstreamVhost,
+				ssl:              ssl,
+				grpc:             defaultBackendIsGRPC,
+				proxySSLName:     proxySSLName,
+				proxyHTTPVersion: proxyHTTPVersion,
 			})
 			if ncp.isMinion && policyCfg.EgressMTLS != nil {
 				// Keep default-backend locations aligned with other minion locations for egress mTLS overrides.
@@ -828,15 +842,9 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		}
 	}
 
-	var keepalive string
-	if cfgParams.Keepalive > 0 {
-		keepalive = fmt.Sprint(cfgParams.Keepalive)
-	}
-
 	return version1.IngressNginxConfig{
 		Upstreams:     upstreamMapToSlice(upstreams),
 		Servers:       servers,
-		Keepalive:     keepalive,
 		CORSHeaders:   policyCfg.CORSHeaders,
 		OIDCProviders: dedupedOIDCProviders,
 		KeyValZones:   keyValZones,
@@ -849,32 +857,36 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
+		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
 	}, allWarnings
 }
 
 func generateJWTConfig(
 	owner runtime.Object,
-	secretRefs map[string]*secrets.SecretReference,
+	namespace string,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference,
 	cfgParams *ConfigParams,
 	redirectLocationName string,
 ) (*version1.JWTAuth, *version1.JWTRedirectLocation, Warnings) {
 	warnings := newWarnings()
 
-	secretRef := secretRefs[cfgParams.JWTKey]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeJWK {
-		warnings.AddWarningf(owner, "JWK secret %s is of a wrong type '%s', must be '%s'", cfgParams.JWTKey, secretType, secrets.SecretTypeJWK)
-	} else if secretRef.Error != nil {
-		warnings.AddWarningf(owner, "JWK secret %s is invalid: %v", cfgParams.JWTKey, secretRef.Error)
+	var keyPath string
+	secretRef := secretRefs[secrets.RefKey(namespace+"/"+cfgParams.JWTKey, secrets.RoleJWK)]
+	if secretRef != nil {
+		if secretRef.Error != nil {
+			warnings.AddWarningf(owner, "JWK secret %s is invalid: %v", cfgParams.JWTKey, secretRef.Error)
+		}
+		keyPath = secretRef.Path
+	} else {
+		warnings.AddWarningf(owner, "JWK secret %s is missing from secret references", cfgParams.JWTKey)
 	}
 
-	// Key is configured for all cases, including when the secret is (1) invalid or (2) of a wrong type.
-	// For (1) and (2), NGINX Plus will reject such a key at runtime and return 500 to clients.
+	// Key is configured even when the secret is missing or invalid. auth_jwt_key_file is
+	// read by NGINX Plus at request time, so an absent file yields a 500 for the affected
+	// URLs rather than a configuration load failure. Rendering an empty path here would
+	// produce "auth_jwt_key_file ;" and NGINX would reject the entire configuration.
 	jwtAuth := &version1.JWTAuth{
-		Key:   secretRef.Path,
+		Key:   keyPath,
 		Realm: cfgParams.JWTRealm,
 		Token: cfgParams.JWTToken,
 	}
@@ -892,22 +904,22 @@ func generateJWTConfig(
 	return jwtAuth, redirectLocation, warnings
 }
 
-func generateBasicAuthConfig(owner runtime.Object, secretRefs map[string]*secrets.SecretReference, cfgParams *ConfigParams) (*version1.BasicAuth, Warnings) {
+func generateBasicAuthConfig(owner runtime.Object, namespace string, secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams) (*version1.BasicAuth, Warnings) {
 	warnings := newWarnings()
 
-	secretRef := secretRefs[cfgParams.BasicAuthSecret]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
-	if secretType != "" && secretType != secrets.SecretTypeHtpasswd {
-		warnings.AddWarningf(owner, "Basic auth secret %s is of a wrong type '%s', must be '%s'", cfgParams.BasicAuthSecret, secretType, secrets.SecretTypeHtpasswd)
-	} else if secretRef.Error != nil {
-		warnings.AddWarningf(owner, "Basic auth secret %s is invalid: %v", cfgParams.BasicAuthSecret, secretRef.Error)
+	var secretPath string
+	secretRef := secretRefs[secrets.RefKey(namespace+"/"+cfgParams.BasicAuthSecret, secrets.RoleHtpasswd)]
+	if secretRef != nil {
+		if secretRef.Error != nil {
+			warnings.AddWarningf(owner, "Basic auth secret %s is invalid: %v", cfgParams.BasicAuthSecret, secretRef.Error)
+		}
+		secretPath = secretRef.Path
+	} else {
+		warnings.AddWarningf(owner, "Basic auth secret %s is missing from secret references", cfgParams.BasicAuthSecret)
 	}
 
 	basicAuth := &version1.BasicAuth{
-		Secret: secretRef.Path,
+		Secret: secretPath,
 		Realm:  cfgParams.BasicAuthRealm,
 	}
 
@@ -916,7 +928,7 @@ func generateBasicAuthConfig(owner runtime.Object, secretRefs map[string]*secret
 
 // createExternalAuthUpstream creates a version1.Upstream for the external auth service
 // from the resolved endpoints.
-func createExternalAuthUpstream(name string, endpoints []string) (version1.Upstream, string) {
+func createExternalAuthUpstream(name string, endpoints []string, cfgParams *ConfigParams) (version1.Upstream, string) {
 	if len(endpoints) == 0 {
 		return version1.NewUpstreamWithDefaultServer(name), fmt.Sprintf("No endpoints found for external auth upstream %v", name)
 	}
@@ -932,11 +944,15 @@ func createExternalAuthUpstream(name string, endpoints []string) (version1.Upstr
 	sort.Slice(upsServers, func(i, j int) bool {
 		return upsServers[i].Address < upsServers[j].Address
 	})
-	return version1.Upstream{
+	ups := version1.Upstream{
 		Name:             name,
 		UpstreamServers:  upsServers,
 		UpstreamZoneSize: "256k",
-	}, ""
+	}
+	if cfgParams.Keepalive > 0 {
+		ups.Keepalive = fmt.Sprint(cfgParams.Keepalive)
+	}
+	return ups, ""
 }
 
 // resolveExternalAuth resolves the external auth upstream and generates the
@@ -957,7 +973,7 @@ func resolveExternalAuth(
 
 	ns, svcName := ParseServiceReference(exAuth.URI.Service, ingress.Namespace)
 	endpointKey := fmt.Sprintf("%s/%s:%d", ns, svcName, port)
-	authUps, upsWarning := createExternalAuthUpstream(upsName, endpoints[endpointKey])
+	authUps, upsWarning := createExternalAuthUpstream(upsName, endpoints[endpointKey], cfgParams)
 	if upsWarning != "" {
 		if warning != "" {
 			warning = fmt.Sprintf("%s. %s", warning, upsWarning)
@@ -966,9 +982,9 @@ func resolveExternalAuth(
 		}
 	}
 	var locs []version1.Location
-	locs = append(locs, generateIngressExternalAuthLocation(exAuth, upsName, cfgParams))
+	locs = append(locs, generateIngressExternalAuthLocation(exAuth, authUps, cfgParams))
 	if exAuth.SigninURL != "" {
-		locs = append(locs, generateIngressExternalAuthOAuth2Location(exAuth, upsName, cfgParams))
+		locs = append(locs, generateIngressExternalAuthOAuth2Location(exAuth, authUps, cfgParams))
 	}
 
 	return authUps, locs, warning
@@ -976,13 +992,16 @@ func resolveExternalAuth(
 
 // generateIngressExternalAuthLocation builds a version1.Location for the
 // internal NGINX location that proxies auth subrequests to the external auth service.
-func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, upstreamName string, cfg *ConfigParams) version1.Location {
+func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, upstream version1.Upstream, cfg *ConfigParams) version1.Location {
 	var svcName string
 	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
 	loc := version1.Location{
 		Path:                     externalAuth.URI.InternalPath,
 		Internal:                 true,
-		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName, externalAuth.URI.Path),
+		Upstream:                 upstream,
+		DisableWAF:               true,
+		ProxyPass:                fmt.Sprintf("%s://%s%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstream.Name, externalAuth.URI.Path),
+		AuthRequestOff:           true,
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
@@ -991,6 +1010,7 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 		ClientMaxBodySize:        "0",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: generateTimeWithDefault(cfg.ProxyNextUpstreamTimeout, "0s"),
+		SkipCustomHTTPErrors:     true,
 		LocationSnippets:         splitSnippets(externalAuth.Snippets),
 		ServiceName:              svcName,
 	}
@@ -1005,13 +1025,14 @@ func generateIngressExternalAuthLocation(externalAuth *version2.ExternalAuth, up
 
 // generateIngressExternalAuthOAuth2Location builds a version1.Location
 // for the NGINX location that handles OAuth2 signin redirects.
-func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAuth, upstreamName string, cfg *ConfigParams) version1.Location {
+func generateIngressExternalAuthOAuth2Location(externalAuth *version2.ExternalAuth, upstream version1.Upstream, cfg *ConfigParams) version1.Location {
 	var svcName string
 	_, svcName = ParseServiceReference(externalAuth.URI.Service, "")
 	loc := version1.Location{
 		Path:                     externalAuth.SigninRedirectBasePath,
 		AuthRequestOff:           true,
-		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstreamName),
+		Upstream:                 upstream,
+		ProxyPass:                fmt.Sprintf("%s://%s", generateProxyPassProtocol(externalAuth.SSLEnabled), upstream.Name),
 		ProxySetHeaders:          []version2.Header{{Name: "X-Auth-Request-Redirect", Value: "$request_uri"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      generateTimeWithDefault(cfg.ProxyConnectTimeout, cfg.ProxyConnectTimeout),
 		ProxyReadTimeout:         generateTimeWithDefault(cfg.ProxyReadTimeout, cfg.ProxyReadTimeout),
@@ -1062,8 +1083,8 @@ func getExternalAuthServicePort(externalAuth *version2.ExternalAuth) (uint16, st
 	return 80, ""
 }
 
-func addSSLConfig(server *version1.Server, owner runtime.Object, host string, ingressTLS []networking.IngressTLS,
-	secretRefs map[string]*secrets.SecretReference, isWildcardEnabled bool,
+func addSSLConfig(server *version1.Server, owner runtime.Object, namespace string, host string, ingressTLS []networking.IngressTLS,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, isWildcardEnabled bool,
 ) Warnings {
 	warnings := newWarnings()
 
@@ -1088,19 +1109,15 @@ func addSSLConfig(server *version1.Server, owner runtime.Object, host string, in
 	var rejectHandshake bool
 
 	if tlsSecret != "" {
-		secretRef := secretRefs[tlsSecret]
-		var secretType api_v1.SecretType
-		if secretRef.Secret != nil {
-			secretType = secretRef.Secret.Type
-		}
-		if secretType != "" && secretType != api_v1.SecretTypeTLS {
-			rejectHandshake = true
-			warnings.AddWarningf(owner, "TLS secret %s is of a wrong type '%s', must be '%s'", tlsSecret, secretType, api_v1.SecretTypeTLS)
-		} else if secretRef.Error != nil {
+		secretRef := secretRefs[secrets.RefKey(namespace+"/"+tlsSecret, secrets.RoleTLS)]
+		if secretRef != nil && secretRef.Error != nil {
 			rejectHandshake = true
 			warnings.AddWarningf(owner, "TLS secret %s is invalid: %v", tlsSecret, secretRef.Error)
-		} else {
+		} else if secretRef != nil {
 			pemFile = secretRef.Path
+		} else {
+			rejectHandshake = true
+			warnings.AddWarningf(owner, "TLS secret %s is missing from secret references", tlsSecret)
 		}
 	} else if isWildcardEnabled {
 		pemFile = pemFileNameForWildcardTLSSecret
@@ -1141,6 +1158,44 @@ type locationParams struct {
 	ssl           bool
 	grpc          bool
 	proxySSLName  string
+	// proxyHTTPVersion is the already-resolved value for proxy_http_version. An empty value
+	// means the directive is not rendered, either because nothing configured it or because
+	// this is a gRPC location, which is proxied with grpc_pass.
+	proxyHTTPVersion string
+}
+
+// warnProxyHTTPVersionConflicts reports configurations that are accepted by validation but
+// cannot work: proxy_http_version has no meaning for a gRPC backend, and WebSocket relies on
+// the HTTP/1.1 Upgrade mechanism, which exists in neither HTTP/1.0 nor HTTP/2.
+func warnProxyHTTPVersionConflicts(ing *networking.Ingress, configured string, resolved string, serviceName string, isGRPC bool, isWebsocket bool) Warnings {
+	warnings := newWarnings()
+
+	if isGRPC && configured != "" {
+		warnings.AddWarningf(ing,
+			"%s is ignored for gRPC service %q; gRPC locations always use HTTP/2",
+			ProxyHTTPVersionAnnotation, serviceName)
+		return warnings
+	}
+
+	if isWebsocket && (resolved == proxyHTTPVersion10 || resolved == proxyHTTPVersion2) {
+		warnings.AddWarningf(ing,
+			"service %q is configured for WebSocket but resolves to an HTTP/%s upstream connection; WebSocket requires HTTP/1.1",
+			serviceName, resolved)
+	}
+
+	return warnings
+}
+
+// proxyHTTPVersionForBackend determines the HTTP version used for upstream connections of a
+// single Ingress location, applying the annotation > Service appProtocol > unset precedence.
+// gRPC backends are left unset: grpc_pass always uses HTTP/2 and proxy_http_version is never
+// rendered for them.
+func (ingEx *IngressEx) proxyHTTPVersionForBackend(configured string, backend *networking.IngressBackend, isGRPC bool) string {
+	if isGRPC {
+		return ""
+	}
+	key := backend.Service.Name + GetBackendPortAsString(backend.Service.Port)
+	return resolveProxyHTTPVersion(configured, ingEx.ServiceAppProtocols[key])
 }
 
 func createLocation(p locationParams) version1.Location {
@@ -1153,6 +1208,7 @@ func createLocation(p locationParams) version1.Location {
 		ProxyReadTimeout:         cfg.ProxyReadTimeout,
 		ProxySendTimeout:         cfg.ProxySendTimeout,
 		ProxySetHeaders:          cfg.ProxySetHeaders,
+		ProxyHTTPVersion:         p.proxyHTTPVersion,
 		ClientMaxBodySize:        cfg.ClientMaxBodySize,
 		ClientBodyBufferSize:     cfg.ClientBodyBufferSize,
 		Websocket:                p.websocket,
@@ -1167,6 +1223,7 @@ func createLocation(p locationParams) version1.Location {
 		ProxyBusyBuffersSize:     cfg.ProxyBusyBuffersSize,
 		ProxyMaxTempFileSize:     cfg.ProxyMaxTempFileSize,
 		DisableForwardedHeaders:  cfg.DisableForwardedHeaders,
+		UseForwardedHeaders:      cfg.UseForwardedHeaders,
 		ProxySSLName:             p.proxySSLName,
 		ProxyNextUpstream:        cfg.ProxyNextUpstream,
 		ProxyNextUpstreamTimeout: cfg.ProxyNextUpstreamTimeout,
@@ -1247,6 +1304,9 @@ func createUpstream(ingEx *IngressEx, name string, backend *networking.IngressBa
 	ups.LBMethod = cfg.LBMethod
 	ups.UpstreamZoneSize = cfg.UpstreamZoneSize
 	ups.StickyCookie = stickyCookie
+	if cfg.Keepalive > 0 {
+		ups.Keepalive = fmt.Sprint(cfg.Keepalive)
+	}
 	return ups, warning
 }
 
@@ -1318,7 +1378,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	healthChecks := make(map[string]version1.HealthCheck)
 	var limitReqZones []version1.LimitReqZone
 	var maps []version2.Map
-	var keepalive string
 	var oidcProviders []version2.OIDCProvider
 
 	// replace master with a deepcopy because we will modify it
@@ -1365,10 +1424,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 
 	upstreams = append(upstreams, masterNginxCfg.Upstreams...)
 	maps = append(maps, masterNginxCfg.Maps...)
-
-	if masterNginxCfg.Keepalive != "" {
-		keepalive = masterNginxCfg.Keepalive
-	}
 
 	if masterNginxCfg.OIDCProviders != nil {
 		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
@@ -1537,7 +1592,6 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 	return version1.IngressNginxConfig{
 		Servers:                 []version1.Server{masterServer},
 		Upstreams:               upstreams,
-		Keepalive:               keepalive,
 		OIDCProviders:           dedupedOIDCProviders,
 		KeyValZones:             keyValZones,
 		Ingress:                 masterNginxCfg.Ingress,
@@ -1545,6 +1599,7 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		StaticSSLPath:           ncp.staticParams.StaticSSLPath,
 		LimitReqZones:           limitReqZones,
 		Maps:                    removeDuplicateMaps(maps),
+		AppProtectLoadModule:    ncp.staticParams.MainAppProtectLoadModule,
 	}, warnings
 }
 

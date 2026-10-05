@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"time"
 
 	"github.com/nginx/kubernetes-ingress/internal/configs"
 	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
@@ -68,7 +67,11 @@ func (lbc *LoadBalancerController) syncTransportServer(task task) {
 
 	ns, n, _ := cache.SplitMetaNamespaceKey(key)
 	l := lbc.Logger.With(logNamespaceKey, ns, logKindKey, transportServerKind, logNameKey, n)
-	obj, tsExists, err = lbc.getNamespacedInformer(ns).transportServerLister.GetByKey(key)
+	nsi := lbc.getNamespacedInformer(ns)
+	if nsi == nil {
+		return
+	}
+	obj, tsExists, err = nsi.transportServerLister.GetByKey(key)
 	if err != nil {
 		lbc.syncQueue.Requeue(task, err)
 		return
@@ -178,9 +181,18 @@ func (lbc *LoadBalancerController) updateTransportServerStatusAndEvents(tsConfig
 
 func (lbc *LoadBalancerController) updateTransportServersStatusFromEvents() error {
 	var allErrs []error
-	for _, nsi := range lbc.namespacedInformers {
+	// Collect under the read lock; the API calls below must not run under it.
+	var groups [][]*conf_v1.TransportServer
+	lbc.namespacedInformers.ForEach(func(nsi *namespacedInformer) {
+		var group []*conf_v1.TransportServer
 		for _, obj := range nsi.transportServerLister.List() {
-			ts := obj.(*conf_v1.TransportServer)
+			group = append(group, obj.(*conf_v1.TransportServer))
+		}
+		groups = append(groups, group)
+	})
+
+	for _, group := range groups {
+		for _, ts := range group {
 
 			events, err := lbc.client.CoreV1().Events(ts.Namespace).List(context.TODO(),
 				meta_v1.ListOptions{FieldSelector: fmt.Sprintf("involvedObject.name=%v,involvedObject.uid=%v", ts.Name, ts.UID)})
@@ -189,16 +201,9 @@ func (lbc *LoadBalancerController) updateTransportServersStatusFromEvents() erro
 				break
 			}
 
-			if len(events.Items) == 0 {
+			latestEvent, found := latestEventEmittedByIngressController(events.Items)
+			if !found {
 				continue
-			}
-
-			var timestamp time.Time
-			var latestEvent api_v1.Event
-			for _, event := range events.Items {
-				if event.CreationTimestamp.After(timestamp) {
-					latestEvent = event
-				}
 			}
 
 			err = lbc.statusUpdater.UpdateTransportServerStatus(ts, getStatusFromEventTitle(latestEvent.Reason), latestEvent.Reason, latestEvent.Message)
@@ -249,17 +254,17 @@ func (lbc *LoadBalancerController) createTransportServerEx(transportServer *conf
 		}
 	}
 
-	scrtRefs := make(map[string]*secrets.SecretReference)
+	scrtRefs := make(map[secrets.SecretRefKey]*secrets.SecretReference)
 
 	if transportServer.Spec.TLS != nil && transportServer.Spec.TLS.Secret != "" {
 		scrtKey := transportServer.Namespace + "/" + transportServer.Spec.TLS.Secret
 
-		scrtRef := lbc.secretStore.GetSecret(scrtKey)
+		scrtRef := lbc.secretStore.GetSecret(scrtKey, secrets.RoleTLS)
 		if scrtRef.Error != nil {
 			nl.Warnf(logger, "Error trying to get the secret %v for TransportServer %v: %v", scrtKey, transportServer.Name, scrtRef.Error)
 		}
 
-		scrtRefs[scrtKey] = scrtRef
+		scrtRefs[secrets.RefKey(scrtKey, secrets.RoleTLS)] = scrtRef
 	}
 
 	return &configs.TransportServerEx{

@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cafe-ingress-app-protocol
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cafe.example.com
+      http:
+        paths:
+          # coffee-svc has no appProtocol, so no proxy_http_version is rendered and NGINX
+          # uses HTTP/1.1.
+          - path: /coffee
+            pathType: Prefix
+            backend:
+              service:
+                name: coffee-svc
+                port:
+                  number: 80
+          # tea-svc sets appProtocol: kubernetes.io/h2c, so this location renders
+          # proxy_http_version 2.
+          - path: /tea
+            pathType: Prefix
+            backend:
+              service:
+                name: tea-svc
+                port:
+                  number: 80

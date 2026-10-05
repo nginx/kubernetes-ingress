@@ -214,6 +214,16 @@ func TestHelmNICTemplate(t *testing.T) {
 			releaseName: "loadbalancerclass",
 			namespace:   "default",
 		},
+		"nodePort": {
+			valuesFile:  "testdata/service-nodeport.yaml",
+			releaseName: "nodeport",
+			namespace:   "default",
+		},
+		"nodePortZero": {
+			valuesFile:  "testdata/service-nodeport-zero.yaml",
+			releaseName: "nodeport-zero",
+			namespace:   "default",
+		},
 		"listConfigurations": {
 			valuesFile:  "testdata/list-configurations.yaml",
 			releaseName: "list-configs",
@@ -222,6 +232,11 @@ func TestHelmNICTemplate(t *testing.T) {
 		"allowEmptyIngressHost": {
 			valuesFile:  "testdata/allow-empty-ingress-host.yaml",
 			releaseName: "allow-empty-ingress-host",
+			namespace:   "default",
+		},
+		"allowEmptyIngressHostWithoutCRs": {
+			valuesFile:  "testdata/allow-empty-ingress-host-no-crs.yaml",
+			releaseName: "allow-empty-ingress-host-no-crs",
 			namespace:   "default",
 		},
 	}

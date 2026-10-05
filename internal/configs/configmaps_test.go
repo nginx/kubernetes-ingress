@@ -1948,6 +1948,7 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 		expectedExporterHeaderValue string
 		expectedServiceName         string
 		expectedTraceInHTTP         bool
+		expectedTraceContext        string
 		msg                         string
 	}{
 		{
@@ -2023,6 +2024,55 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 			expectedTraceInHTTP:         false,
 			msg:                         "no config",
 		},
+
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+					"otel-trace-context":     "extract",
+				},
+			},
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedTraceContext:     "extract",
+			msg:                      "endpoint set with trace context extract",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context":     "inject",
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+				},
+			},
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedTraceContext:     "inject",
+			msg:                      "trace context inject",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context":     "ignore",
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+				},
+			},
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedTraceContext:     "ignore",
+			msg:                      "trace context ignore",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context":     "propagate",
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+				},
+			},
+			expectedLoadModule:       true,
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedTraceContext:     "propagate",
+			msg:                      "trace context propagate",
+		},
 	}
 
 	isPlus := true
@@ -2057,7 +2107,24 @@ func TestOpenTelemetryConfigurationSuccess(t *testing.T) {
 			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
 				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
 			}
+			if result.MainOtelTraceContext != test.expectedTraceContext {
+				t.Errorf("MainOtelTraceContext: want %q, got %q", test.expectedTraceContext, result.MainOtelTraceContext)
+			}
 		})
+	}
+}
+
+func TestGenerateNginxMainConfigWithOtelTraceContext(t *testing.T) {
+	t.Parallel()
+
+	mainCfg := GenerateNginxMainConfig(
+		&StaticConfigParams{},
+		&ConfigParams{MainOtelTraceContext: "propagate"},
+		nil,
+	)
+
+	if mainCfg.MainOtelTraceContext != "propagate" {
+		t.Errorf("MainOtelTraceContext: want %q, got %q", "propagate", mainCfg.MainOtelTraceContext)
 	}
 }
 
@@ -2071,6 +2138,7 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 		expectedExporterHeaderValue string
 		expectedServiceName         string
 		expectedTraceInHTTP         bool
+		expectedTraceContext        string
 		msg                         string
 	}{
 		{
@@ -2255,6 +2323,29 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			expectedTraceInHTTP:         false,
 			msg:                         "invalid, subdomain is more than 63 characters long",
 		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-trace-context": "propagate",
+				},
+			},
+			expectedLoadModule:       false,
+			expectedExporterEndpoint: "",
+			expectedTraceContext:     "",
+			msg:                      "trace context set without an exporter endpoint",
+		},
+		{
+			configMap: &v1.ConfigMap{
+				Data: map[string]string{
+					"otel-exporter-endpoint": "https://otel-collector:4317",
+					"otel-trace-context":     "not-a-real-value",
+				},
+			},
+			expectedExporterEndpoint: "https://otel-collector:4317",
+			expectedLoadModule:       true,
+			expectedTraceContext:     "",
+			msg:                      "partially invalid, trace context value not recognized",
+		},
 	}
 
 	isPlus := false
@@ -2288,6 +2379,9 @@ func TestOpenTelemetryConfigurationInvalid(t *testing.T) {
 			}
 			if result.MainOtelTraceInHTTP != test.expectedTraceInHTTP {
 				t.Errorf("MainOtelTraceInHTTP: want %v, got %v", test.expectedTraceInHTTP, result.MainOtelTraceInHTTP)
+			}
+			if result.MainOtelTraceContext != test.expectedTraceContext {
+				t.Errorf("MainOtelTraceContext: want %q, got %q", test.expectedTraceContext, result.MainOtelTraceContext)
 			}
 		})
 	}
@@ -3272,6 +3366,67 @@ func TestParseConfigMapDisableForwardedHeaders(t *testing.T) {
 			}
 			if cfgParams.DisableForwardedHeaders != tc.wantDisabled {
 				t.Errorf("DisableForwardedHeaders: want %v, got %v", tc.wantDisabled, cfgParams.DisableForwardedHeaders)
+			}
+		})
+	}
+}
+
+func TestParseConfigMapUseForwardedHeaders(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		msg            string
+		data           map[string]string
+		enableSnippets bool
+		wantUsed       bool
+		wantConfigOk   bool
+	}{
+		{
+			msg:          "use-forwarded-headers true",
+			data:         map[string]string{"use-forwarded-headers": "true"},
+			wantUsed:     true,
+			wantConfigOk: true,
+		},
+		{
+			msg:          "use-forwarded-headers false",
+			data:         map[string]string{"use-forwarded-headers": "false"},
+			wantUsed:     false,
+			wantConfigOk: true,
+		},
+		{
+			msg:          "use-forwarded-headers invalid bool",
+			data:         map[string]string{"use-forwarded-headers": "notabool"},
+			wantUsed:     false,
+			wantConfigOk: false,
+		},
+		{
+			msg: "use-forwarded-headers true and disable-forwarded-headers true mutually exclusive",
+			data: map[string]string{
+				"use-forwarded-headers":     "true",
+				"disable-forwarded-headers": "true",
+			},
+			enableSnippets: true,
+			wantUsed:       false,
+			wantConfigOk:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.msg, func(t *testing.T) {
+			t.Parallel()
+			cm := &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-configmap",
+					Namespace: "default",
+				},
+				Data: tc.data,
+			}
+			recorder := makeEventLogger()
+			cfgParams, configOk := ParseConfigMap(context.Background(), cm, false, false, false, false, false, tc.enableSnippets, recorder)
+			if configOk != tc.wantConfigOk {
+				t.Errorf("configOk: want %v, got %v", tc.wantConfigOk, configOk)
+			}
+			if cfgParams.UseForwardedHeaders != tc.wantUsed {
+				t.Errorf("UseForwardedHeaders: want %v, got %v", tc.wantUsed, cfgParams.UseForwardedHeaders)
 			}
 		})
 	}
