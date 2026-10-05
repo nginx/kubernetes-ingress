@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
@@ -375,7 +376,7 @@ func (cnf *Configurator) upstreamsForVirtualServer(vsEx *VirtualServerEx) []stri
 		upstreamNames = append(upstreamNames, upstreamName)
 	}
 
-	for _, vsr := range vsEx.VirtualServerRoutes {
+	for _, vsr := range slices.Concat(vsEx.VirtualServerRoutes, vsEx.ChallengeRoutes) {
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vs, vsr)
 		for _, u := range vsr.Spec.Upstreams {
 			upstreamName := upstreamNamer.GetNameForUpstream(u.Name)

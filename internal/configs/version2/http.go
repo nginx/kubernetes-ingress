@@ -118,6 +118,8 @@ type Server struct {
 	Gunzip                    bool
 	NGINXDebugLevel           string
 	AddHeaderInherit          string
+	// ACMEChallengeActive is true when the server has at least one ACME HTTP-01 challenge location.
+	ACMEChallengeActive bool
 }
 
 // SSL defines SSL configuration for a server.
@@ -270,6 +272,8 @@ type Location struct {
 	ProxySSLVerifyDepth        int
 	ProxySSLTrustedCertificate string
 	ProxyHTTPVersion           string
+	// ACMEChallenge marks a location that serves a cert-manager ACME HTTP-01 challenge.
+	ACMEChallenge bool
 }
 
 // ReturnLocation defines a location for returning a fixed response.
