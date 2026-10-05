@@ -383,7 +383,6 @@ Build the args for the service binary.
 - -enable-cert-manager={{ .Values.controller.enableCertManager }}
 - -enable-oidc={{ .Values.controller.enableOIDC }}
 - -enable-external-dns={{ .Values.controller.enableExternalDNS }}
-- -allow-empty-ingress-host={{ .Values.controller.allowEmptyIngressHost }}
 {{- if and .Values.controller.globalConfiguration.create (not .Values.controller.globalConfiguration.customName) }}
 - -global-configuration=$(POD_NAMESPACE)/{{ include "nginx-ingress.controller.fullname" . }}
 {{- else if .Values.controller.globalConfiguration.customName }}
@@ -392,6 +391,7 @@ Build the args for the service binary.
 {{- end }}
 - -default-http-listener-port={{ .Values.controller.defaultHTTPListenerPort}}
 - -default-https-listener-port={{ .Values.controller.defaultHTTPSListenerPort}}
+- -allow-empty-ingress-host={{ .Values.controller.allowEmptyIngressHost }}
 - -ready-status={{ .Values.controller.readyStatus.enable }}
 - -ready-status-port={{ .Values.controller.readyStatus.port }}
 - -enable-latency-metrics={{ .Values.controller.enableLatencyMetrics }}
@@ -589,6 +589,10 @@ volumeMounts:
 {{- if .Values.controller.appprotect.ipIntelligence.securityContext }}
   securityContext:
 {{ toYaml .Values.controller.appprotect.ipIntelligence.securityContext | nindent 6 }}
+{{- end }}
+{{- if .Values.controller.appprotect.ipIntelligence.resources }}
+  resources:
+{{ toYaml .Values.controller.appprotect.ipIntelligence.resources | nindent 6 }}
 {{- end }}
   volumeMounts:
     - name: app-protect-ipi-db

@@ -153,9 +153,9 @@ def create_scenario_resources(kube_apis, namespace, keycloak_setup, number):
             "VirtualServerRoute": "virtualserverroutes",
         }.get(kind)
         if kind == "Secret":
-            # Kubernetes validates TLS data; retain the intentionally wrong type,
-            # while providing syntactically valid values for the API server.
-            if document["metadata"]["name"] == "test18-wrong-type":
+            # The API server requires tls.crt/tls.key to be valid base64 on a
+            # kubernetes.io/tls Secret; the scenarios leave them empty.
+            if document.get("type") == "kubernetes.io/tls":
                 document["data"] = {"tls.crt": "YQ==", "tls.key": "YQ=="}
             name = create_secret(kube_apis.v1, namespace, document)
             resources["secrets"].append(name)

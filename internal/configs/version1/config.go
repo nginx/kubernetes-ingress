@@ -17,7 +17,6 @@ type UpstreamLabels struct {
 type IngressNginxConfig struct {
 	Upstreams               []Upstream
 	Servers                 []Server
-	Keepalive               string
 	Maps                    []version2.Map
 	CORSHeaders             []version2.AddHeader
 	OIDCProviders           []version2.OIDCProvider
@@ -26,6 +25,10 @@ type IngressNginxConfig struct {
 	StaticSSLPath           string
 	LimitReqZones           []LimitReqZone
 	KeyValZones             []version2.KeyValZone
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
+	// templates can safely emit app_protect_enable off; in internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // Ingress holds information about an Ingress resource.
@@ -45,6 +48,7 @@ type Upstream struct {
 	QueueTimeout     int64
 	UpstreamZoneSize string
 	UpstreamLabels   UpstreamLabels
+	Keepalive        string
 }
 
 // UpstreamServer describes a server in an NGINX upstream.
@@ -234,10 +238,13 @@ type Location struct {
 	ServiceName             string
 	LimitReq                *LimitReq
 	DisableForwardedHeaders bool
+	UseForwardedHeaders     bool
 	CORSEnabled             bool
 
 	AuthRequestOff bool
 	Internal       bool
+	// DisableWAF marks subrequest targets such as the ExternalAuth location.
+	DisableWAF bool
 
 	MinionIngress *Ingress
 
@@ -246,6 +253,7 @@ type Location struct {
 	ProxyNextUpstreamTries   *uint64
 	ProxyRedirectFrom        string
 	ProxyRedirectTo          string
+	ProxyHTTPVersion         string
 	// CustomHTTPErrorCodes lists the upstream status codes to intercept at this
 	// location. When non-empty, the location renders proxy_intercept_errors on;
 	// and, when the parent Server has a non-empty CustomHTTPErrorBackend, an
@@ -336,6 +344,7 @@ type MainConfig struct {
 	MainOtelExporterHeaderName         string
 	MainOtelExporterHeaderValue        string
 	MainOtelServiceName                string
+	MainOtelTraceContext               string
 	ProxyProtocol                      bool
 	ResolverAddresses                  []string
 	ResolverIPV6                       bool
@@ -359,6 +368,7 @@ type MainConfig struct {
 	TLSPassthroughPort                 int
 	VariablesHashBucketSize            uint64
 	VariablesHashMaxSize               uint64
+	UseForwardedHeaders                bool
 	WorkerConnections                  string
 	WorkerCPUAffinity                  string
 	WorkerProcesses                    string

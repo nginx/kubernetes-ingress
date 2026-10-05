@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -403,6 +404,12 @@ type Configuration struct {
 	// Maintained by AddOrUpdateIngress/DeleteIngress; consumed by buildMinionConfigs.
 	minionsByHost map[string]map[string]bool
 
+	// vsrToVSConfigs indexes accepted VirtualServers by VSR key (namespace/name) in deterministic key order.
+	vsrToVSConfigs map[string][]*conf_v1.VirtualServer
+
+	// vsrsWithChangedRefs tracks reference changes from the latest rebuild even when surviving VSs are not re-rendered.
+	vsrsWithChangedRefs []*conf_v1.VirtualServerRoute
+
 	globalConfiguration *conf_v1.GlobalConfiguration
 
 	hostProblems     map[string]ConfigurationProblem
@@ -465,6 +472,7 @@ func NewConfiguration(
 		virtualServerRoutes:          make(map[string]*conf_v1.VirtualServerRoute),
 		transportServers:             make(map[string]*conf_v1.TransportServer),
 		minionsByHost:                make(map[string]map[string]bool),
+		vsrToVSConfigs:               make(map[string][]*conf_v1.VirtualServer),
 		hostProblems:                 make(map[string]ConfigurationProblem),
 		hasCorrectIngressClass:       hasCorrectIngressClass,
 		virtualServerValidator:       virtualServerValidator,
@@ -660,6 +668,14 @@ func (c *Configuration) DeleteVirtualServer(key string) ([]ResourceChange, []Con
 	return c.rebuildHosts()
 }
 
+// GetVirtualServer returns the last-applied VirtualServer with the given key,
+// or nil if none is tracked. Safe to call from any goroutine.
+func (c *Configuration) GetVirtualServer(key string) *conf_v1.VirtualServer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualServers[key]
+}
+
 // AddOrUpdateVirtualServerRoute adds or updates the VirtualServerRoute.
 func (c *Configuration) AddOrUpdateVirtualServerRoute(vsr *conf_v1.VirtualServerRoute) ([]ResourceChange, []ConfigurationProblem) {
 	c.lock.Lock()
@@ -726,6 +742,14 @@ func (c *Configuration) DeleteVirtualServerRoute(key string) ([]ResourceChange, 
 	}
 
 	return c.rebuildHosts()
+}
+
+// GetVirtualServerRoute returns the last-applied VirtualServerRoute with the given key,
+// or nil if none is tracked. Safe to call from any goroutine.
+func (c *Configuration) GetVirtualServerRoute(key string) *conf_v1.VirtualServerRoute {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.virtualServerRoutes[key]
 }
 
 // AddOrUpdateGlobalConfiguration adds or updates the GlobalConfiguration.
@@ -1215,15 +1239,17 @@ func getResourceKey(meta *metav1.ObjectMeta) string {
 
 // rebuildHosts rebuilds the Configuration and returns the changes to it and the new problems.
 func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem) {
-	newHosts, newResources := c.buildHostsAndResources()
+	newHosts, newResources, newVSRToVSConfigs := c.buildHostsAndResources()
 
 	updateActiveHostsForIngresses(newHosts, newResources)
 
 	removedHosts, updatedHosts, addedHosts := detectChangesInHosts(c.hosts, newHosts)
 	changes := createResourceChangesForHosts(removedHosts, updatedHosts, addedHosts, c.hosts, newHosts)
 
-	// safe to update hosts
+	c.vsrsWithChangedRefs = detectChangesInVSRReferences(c.vsrToVSConfigs, newVSRToVSConfigs, c.virtualServerRoutes)
+
 	c.hosts = newHosts
+	c.vsrToVSConfigs = newVSRToVSConfigs
 
 	changes = squashResourceChanges(changes)
 
@@ -1452,42 +1478,68 @@ func (c *Configuration) addProblemsForOrphanMinions(problems map[string]Configur
 	}
 }
 
+// GetVirtualServersForVirtualServerRoute returns VirtualServers accepting the VSR in sorted VS-key order.
+func (c *Configuration) GetVirtualServersForVirtualServerRoute(vsr *conf_v1.VirtualServerRoute) []*conf_v1.VirtualServer {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.vsrToVSConfigs[getResourceKey(&vsr.ObjectMeta)]
+}
+
+// GetVirtualServerRoutesWithChangedReferences returns VSRs whose referencing VS set changed in the latest rebuild.
+func (c *Configuration) GetVirtualServerRoutesWithChangedReferences() []*conf_v1.VirtualServerRoute {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.vsrsWithChangedRefs
+}
+
+// addProblemsForOrphanOrIgnoredVsrs emits orphan and ignored-route problems for VSRs.
 func (c *Configuration) addProblemsForOrphanOrIgnoredVsrs(problems map[string]ConfigurationProblem) {
 	for _, key := range getSortedVirtualServerRouteKeys(c.virtualServerRoutes) {
 		vsr := c.virtualServerRoutes[key]
+		vsrKey := getResourceKey(&vsr.ObjectMeta)
+		k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
 
-		r, exists := c.hosts[vsr.Spec.Host]
-		vsConfig, ok := r.(*VirtualServerConfiguration)
+		if vsr.Spec.Host != "" {
+			// Host-based VSR: use the host owner to report when its VirtualServer ignores the route.
+			r, exists := c.hosts[vsr.Spec.Host]
+			vsConfig, ok := r.(*VirtualServerConfiguration)
 
-		if !exists || !ok {
-			p := ConfigurationProblem{
-				Object:  vsr,
-				IsError: false,
-				Reason:  nl.EventReasonNoVirtualServerFound,
-				Message: "VirtualServer is invalid or doesn't exist",
+			if !exists || !ok {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonNoVirtualServerFound,
+					Message: "VirtualServer is invalid or doesn't exist",
+				}
+				continue
 			}
-			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
-			problems[k] = p
-			continue
-		}
 
-		found := false
-		for _, v := range vsConfig.VirtualServerRoutes {
-			if vsr.Namespace == v.Namespace && vsr.Name == v.Name {
-				found = true
-				break
+			found := false
+			for _, v := range vsConfig.VirtualServerRoutes {
+				if vsr.Namespace == v.Namespace && vsr.Name == v.Name {
+					found = true
+					break
+				}
 			}
-		}
-
-		if !found {
-			p := ConfigurationProblem{
-				Object:  vsr,
-				IsError: false,
-				Reason:  nl.EventReasonIgnored,
-				Message: fmt.Sprintf("VirtualServer %s ignores VirtualServerRoute", getResourceKey(&vsConfig.VirtualServer.ObjectMeta)),
+			if !found {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonIgnored,
+					Message: fmt.Sprintf("VirtualServer %s ignores VirtualServerRoute", getResourceKey(&vsConfig.VirtualServer.ObjectMeta)),
+				}
 			}
-			k := getResourceKeyWithKind(virtualServerRouteKind, &vsr.ObjectMeta)
-			problems[k] = p
+		} else {
+			// Hostless VSR: use the O(1) reverse index built in buildHostsAndResources.
+			// A VSR with no accepted VS is an orphan; accepted by ≥1 VS means no problem.
+			if len(c.vsrToVSConfigs[vsrKey]) == 0 {
+				problems[k] = ConfigurationProblem{
+					Object:  vsr,
+					IsError: false,
+					Reason:  nl.EventReasonNoVirtualServerFound,
+					Message: "VirtualServer is invalid or doesn't exist",
+				}
+			}
 		}
 	}
 }
@@ -1630,9 +1682,11 @@ func squashResourceChanges(changes []ResourceChange) []ResourceChange {
 	return append(deletes, updates...)
 }
 
-func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource) {
+//nolint:gocyclo // complexity is pre-existing; refactoring planned as a follow-up
+func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, newResources map[string]Resource, vsrToVSConfigs map[string][]*conf_v1.VirtualServer) {
 	newHosts = make(map[string]Resource)
 	newResources = make(map[string]Resource)
+	vsrToVSConfigs = make(map[string][]*conf_v1.VirtualServer)
 	var challengesVSR []*conf_v1.VirtualServerRoute
 
 	// Step 1 - Build hosts from Ingress resources
@@ -1698,6 +1752,12 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 
 		newResources[resource.GetKeyWithKind()] = resource
 
+		// Index accepted VirtualServers by VSR key in sorted VS order.
+		for _, vsr := range resource.VirtualServerRoutes {
+			vsrKey := getResourceKey(&vsr.ObjectMeta)
+			vsrToVSConfigs[vsrKey] = append(vsrToVSConfigs[vsrKey], vs)
+		}
+
 		holder, exists := newHosts[vs.Spec.Host]
 		if !exists {
 			newHosts[vs.Spec.Host] = resource
@@ -1744,7 +1804,7 @@ func (c *Configuration) buildHostsAndResources() (newHosts map[string]Resource, 
 		}
 	}
 
-	return newHosts, newResources
+	return newHosts, newResources, vsrToVSConfigs
 }
 
 func (c *Configuration) isChallengeIngress(ing *networking.Ingress) bool {
@@ -1901,6 +1961,12 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 		vsrSelectors[selectorStr] = make([]string, 0)
 	}
 
+	type matchedVSR struct {
+		key string
+		vsr *conf_v1.VirtualServerRoute
+	}
+	var matched []matchedVSR
+
 	for vsrKey, vsr := range c.virtualServerRoutes {
 		if sel.Matches(labels.Set(vsr.Labels)) {
 			err := c.virtualServerValidator.ValidateVirtualServerRouteForVirtualServer(vsr, vsHost, []string{r.Path})
@@ -1909,14 +1975,28 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 				warnings = append(warnings, warning)
 				continue
 			}
-			vsrs = append(vsrs, vsr)
-
-			// Add to selectors map
-			vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], vsrKey)
+			matched = append(matched, matchedVSR{key: vsrKey, vsr: vsr})
 		}
 	}
 
-	sort.Strings(vsrSelectors[selectorStr])
+	// Sort before building the output slices.  The vsrs slice ends up as
+	// VirtualServerConfiguration.VirtualServerRoutes, which
+	// GenerateVirtualServerConfig walks in order to assign split_clients
+	// indices, upstream names and location ordering, and which
+	// VirtualServerConfiguration.IsEqual compares positionally.  The loop above
+	// ranges over a map, and Go randomizes map iteration order by design, so
+	// this is the only place that ordering guarantee can be established.
+	// Without it, an unchanged VirtualServer compares as changed and gets
+	// needlessly re-rendered and reloaded.
+	sort.Slice(matched, func(i, j int) bool { return matched[i].key < matched[j].key })
+
+	for _, m := range matched {
+		vsrs = append(vsrs, m.vsr)
+		// Built in sorted order, so no separate sort of the tracking map is
+		// needed.
+		vsrSelectors[selectorStr] = append(vsrSelectors[selectorStr], m.key)
+	}
+
 	return vsrs, vsrSelectors, warnings
 }
 
@@ -2345,6 +2425,36 @@ func detectChangesInHosts(oldHosts map[string]Resource, newHosts map[string]Reso
 	}
 
 	return removedHosts, updatedHosts, addedHosts
+}
+
+// detectChangesInVSRReferences compares ordered VS identities and skips deleted VSRs with no status to refresh.
+func detectChangesInVSRReferences(
+	oldIndex map[string][]*conf_v1.VirtualServer,
+	newIndex map[string][]*conf_v1.VirtualServer,
+	vsrs map[string]*conf_v1.VirtualServerRoute,
+) []*conf_v1.VirtualServerRoute {
+	var changed []*conf_v1.VirtualServerRoute
+
+	for _, key := range getSortedVirtualServerRouteKeys(vsrs) {
+		if vsSlicesReferenceSameVirtualServers(oldIndex[key], newIndex[key]) {
+			continue
+		}
+		changed = append(changed, vsrs[key])
+	}
+
+	return changed
+}
+
+// vsSlicesReferenceSameVirtualServers reports whether two slices of
+// VirtualServers reference the same VirtualServers, in the same order,
+// identified by namespace/name.
+func vsSlicesReferenceSameVirtualServers(a, b []*conf_v1.VirtualServer) bool {
+	return slices.EqualFunc(a, b, func(x, y *conf_v1.VirtualServer) bool {
+		if x == nil || y == nil {
+			return x == y
+		}
+		return x.Namespace == y.Namespace && x.Name == y.Name
+	})
 }
 
 func detectChangesInListenerHosts(

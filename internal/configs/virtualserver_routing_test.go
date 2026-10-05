@@ -4741,3 +4741,177 @@ func TestGenerateVirtualServerConfigForVSRWithMultipleRegexSubroutes(t *testing.
 		t.Errorf("GenerateVirtualServerConfig returned unexpected warnings: %v", warnings)
 	}
 }
+
+// Pins the split_clients index sequence the generator assigns when
+// DynamicWeightChangesReload is enabled. k8s.computeVSWeightUpdates
+// re-derives these same indices to push keyval updates without a reload, so
+// the two must agree exactly or updates land on the wrong zone. Since
+// virtualServerConfigurator is unexported, the contract is pinned from both
+// sides with matching literal indices rather than compared directly; keep
+// internal/k8s's equivalent test in sync with changes here.
+func TestGenerateVirtualServerConfigSplitClientsIndexSequence(t *testing.T) {
+	t.Parallel()
+
+	twoWay := func() []conf_v1.Split {
+		return []conf_v1.Split{
+			{Weight: 50, Action: &conf_v1.Action{Pass: "tea-v1"}},
+			{Weight: 50, Action: &conf_v1.Action{Pass: "tea-v2"}},
+		}
+	}
+	threeWay := func() []conf_v1.Split {
+		return []conf_v1.Split{
+			{Weight: 34, Action: &conf_v1.Action{Pass: "tea-v1"}},
+			{Weight: 33, Action: &conf_v1.Action{Pass: "tea-v2"}},
+			{Weight: 33, Action: &conf_v1.Action{Pass: "tea-v3"}},
+		}
+	}
+	conditions := []conf_v1.Condition{{Header: "x-version", Value: "canary"}}
+
+	// Deliberately a literal: the constant is declared separately in two
+	// packages, so deriving from either would mask drift between them.
+	const step = 101
+
+	tests := []struct {
+		name string
+		// comment on each route records the index it should be assigned and
+		// how much it advances the counter.
+		routes []conf_v1.Route
+		// wantTwoWayIndexes is the SplitClientsIndex of every 2-way split, in
+		// generation order. Non-2-way splits produce no TwoWaySplitClients
+		// entry but still advance the counter.
+		wantTwoWayIndexes []int
+		// wantSplitClientBlocks is the total number of split_clients blocks
+		// emitted. Any index at or beyond this has no zone behind it.
+		wantSplitClientBlocks int
+	}{
+		{
+			name: "consecutive route-level two-way splits",
+			routes: []conf_v1.Route{
+				{Path: "/a", Splits: twoWay()}, // index 0,   +101
+				{Path: "/b", Splits: twoWay()}, // index 101, +101
+				{Path: "/c", Splits: twoWay()}, // index 202, +101
+			},
+			wantTwoWayIndexes:     []int{0, step, 2 * step},
+			wantSplitClientBlocks: 3 * step,
+		},
+		{
+			// Exercises all four accounting branches plus a route that
+			// carries both matches and route-level splits. A change to any
+			// one generator branch moves these indices.
+			name: "mixed match-level, non-two-way and route-level splits",
+			routes: []conf_v1.Route{
+				{
+					Path: "/a",
+					Matches: []conf_v1.Match{
+						{Conditions: conditions, Splits: twoWay()},   // index 0,   +101
+						{Conditions: conditions, Splits: threeWay()}, // index 101, +1
+					},
+					Splits: twoWay(), // index 102, +101
+				},
+				{Path: "/b", Splits: threeWay()}, // index 203, +1
+				{Path: "/c", Splits: twoWay()},   // index 204, +101
+			},
+			wantTwoWayIndexes:     []int{0, step + 1, 2*step + 2},
+			wantSplitClientBlocks: 3*step + 2,
+		},
+		{
+			// Non-2-way splits alone: the counter must advance by 1 each
+			// time, so the trailing 2-way split sits at index 2.
+			name: "non-two-way splits advance the counter by one each",
+			routes: []conf_v1.Route{
+				{Path: "/a", Splits: threeWay()}, // index 0, +1
+				{Path: "/b", Splits: threeWay()}, // index 1, +1
+				{Path: "/c", Splits: twoWay()},   // index 2, +101
+			},
+			wantTwoWayIndexes:     []int{2},
+			wantSplitClientBlocks: step + 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			virtualServerEx := VirtualServerEx{
+				VirtualServer: &conf_v1.VirtualServer{
+					ObjectMeta: meta_v1.ObjectMeta{Name: "cafe", Namespace: "default"},
+					Spec: conf_v1.VirtualServerSpec{
+						Host: "cafe.example.com",
+						Upstreams: []conf_v1.Upstream{
+							{Name: "tea-v1", Service: "tea-v1-svc", Port: 80},
+							{Name: "tea-v2", Service: "tea-v2-svc", Port: 80},
+							{Name: "tea-v3", Service: "tea-v3-svc", Port: 80},
+						},
+						Routes: test.routes,
+					},
+				},
+				Endpoints: map[string][]string{
+					"default/tea-v1-svc:80": {"10.0.0.20:80"},
+					"default/tea-v2-svc:80": {"10.0.0.21:80"},
+					"default/tea-v3-svc:80": {"10.0.0.22:80"},
+				},
+			}
+
+			vsc := newVirtualServerConfigurator(
+				&baseCfgParams, true, false, &StaticConfigParams{DynamicWeightChangesReload: true}, false, &fakeBV,
+			)
+
+			result, warnings := vsc.GenerateVirtualServerConfig(&virtualServerEx, nil, nil)
+			if len(warnings) != 0 {
+				t.Fatalf("GenerateVirtualServerConfig() returned unexpected warnings: %v", warnings)
+			}
+
+			var gotIndexes []int
+			for _, twsc := range result.TwoWaySplitClients {
+				gotIndexes = append(gotIndexes, twsc.SplitClientsIndex)
+			}
+			if diff := cmp.Diff(test.wantTwoWayIndexes, gotIndexes); diff != "" {
+				t.Errorf("split_clients index sequence mismatch (-want +got):\n%s", diff)
+			}
+
+			if got := len(result.SplitClients); got != test.wantSplitClientBlocks {
+				t.Errorf("generated %d split_clients blocks, want %d", got, test.wantSplitClientBlocks)
+			}
+
+			// Every 2-way index must address a real zone. A walk that
+			// overshoots yields an index with nothing behind it, which the
+			// keyval API accepts and silently drops.
+			for _, idx := range gotIndexes {
+				if idx >= test.wantSplitClientBlocks {
+					t.Errorf("split_clients index %d is beyond the %d generated blocks", idx, test.wantSplitClientBlocks)
+				}
+			}
+
+			// generateMatchesConfig walks the matches twice: once to build the
+			// main map's parameters (advancing by the
+			// splitClientAmountWhenWeightChangesDynamicReload constant) and
+			// once to generate the split_clients themselves (advancing by the
+			// number of blocks actually emitted). Those two walks are
+			// independent, and only the second one determines the indices
+			// asserted above, so a drift between them leaves the assertions
+			// green while the rendered config points a match at a map variable
+			// that was never defined.
+			//
+			// Catch that by requiring every variable a map parameter resolves
+			// to to have actually been generated.
+			defined := make(map[string]struct{})
+			for _, m := range result.Maps {
+				defined[m.Variable] = struct{}{}
+			}
+			for _, sc := range result.SplitClients {
+				defined[sc.Variable] = struct{}{}
+			}
+			for _, m := range result.Maps {
+				for _, p := range m.Parameters {
+					if !strings.HasPrefix(p.Result, "$") {
+						continue // a location path or a literal, not a variable
+					}
+					if _, ok := defined[p.Result]; !ok {
+						t.Errorf("map %q parameter %q resolves to undefined variable %q",
+							m.Variable, p.Value, p.Result)
+					}
+				}
+			}
+		})
+	}
+}

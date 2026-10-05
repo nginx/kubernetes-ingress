@@ -1,0 +1,17 @@
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServerRoute
+metadata:
+  name: coffee
+  labels:
+    app: cafe
+spec:
+  upstreams:
+  - name: coffee
+    service: coffee-svc
+    port: 80
+  subroutes:
+  - path: /coffee
+    action:
+      pass: coffee
+    policies:
+      - name: access-control-policy-allow

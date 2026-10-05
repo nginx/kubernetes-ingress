@@ -5,9 +5,6 @@ import (
 	"log/slog"
 	"reflect"
 
-	"github.com/jinzhu/copier"
-
-	"github.com/nginx/kubernetes-ingress/internal/k8s/secrets"
 	nl "github.com/nginx/kubernetes-ingress/internal/logger"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
@@ -60,10 +57,6 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 		AddFunc: func(obj interface{}) {
 			secret := obj.(*v1.Secret)
 			l := lbc.Logger.With(logNamespaceKey, secret.GetNamespace(), logKindKey, secretKind, logNameKey, secret.GetName())
-			if !secrets.IsSupportedSecretType(secret.Type) {
-				nl.Debugf(l, "Ignoring Secret %v of unsupported type %v", secret.Name, secret.Type)
-				return
-			}
 			nl.Debugf(l, "Adding Secret: %v", secret.Name)
 			lbc.AddSyncQueue(obj)
 		},
@@ -82,23 +75,19 @@ func createSecretHandlers(lbc *LoadBalancerController) cache.ResourceEventHandle
 				}
 			}
 			l := lbc.Logger.With(logNamespaceKey, secret.GetNamespace(), logKindKey, secretKind, logNameKey, secret.GetName())
-			if !secrets.IsSupportedSecretType(secret.Type) {
-				nl.Debugf(l, "Ignoring Secret %v of unsupported type %v", secret.Name, secret.Type)
-				return
-			}
 			nl.Debugf(l, "Removing Secret: %v", secret.Name)
 			lbc.AddSyncQueue(secret)
 		},
 		UpdateFunc: func(old, cur interface{}) {
-			// A secret cannot change its type. That's why we only need to check the type of the current secret.
+			// We only compare .Data: Secret.Type is irrelevant under role-based
+			// validation, and metadata-only changes (labels, annotations,
+			// resourceVersion, managedFields) do not affect NGINX configuration.
+			// This avoids reconciliation storms from noisy metadata churn.
+			oldSecret := old.(*v1.Secret)
 			curSecret := cur.(*v1.Secret)
 			l := lbc.Logger.With(logNamespaceKey, curSecret.GetNamespace(), logKindKey, secretKind, logNameKey, curSecret.GetName())
-			if !secrets.IsSupportedSecretType(curSecret.Type) {
-				nl.Debugf(l, "Ignoring Secret %v of unsupported type %v", curSecret.Name, curSecret.Type)
-				return
-			}
 
-			if !reflect.DeepEqual(old, cur) {
+			if !reflect.DeepEqual(oldSecret.Data, curSecret.Data) {
 				nl.Debugf(l, "Secret %v changed, syncing", cur.(*v1.Secret).Name)
 				lbc.AddSyncQueue(cur)
 			}
@@ -169,29 +158,6 @@ func createVirtualServerHandlers(lbc *LoadBalancerController) cache.ResourceEven
 			curVs := cur.(*conf_v1.VirtualServer)
 			oldVs := old.(*conf_v1.VirtualServer)
 			l := lbc.Logger.With(logNamespaceKey, curVs.GetNamespace(), logKindKey, virtualServerKind, logNameKey, curVs.GetName())
-			if lbc.weightChangesDynamicReload {
-				var curVsCopy, oldVsCopy conf_v1.VirtualServer
-				err := copier.CopyWithOption(&curVsCopy, curVs, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(l, "Error copying VirtualServer %v: %v for Dynamic Weight Changes", curVs.Name, err)
-					return
-				}
-
-				err = copier.CopyWithOption(&oldVsCopy, oldVs, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(lbc.Logger.With(logNamespaceKey, oldVs.GetNamespace(), logKindKey, virtualServerKind, logNameKey, oldVs.GetName()), "Error copying VirtualServer %v: %v for Dynamic Weight Changes", oldVs.Name, err)
-					return
-				}
-
-				zeroOutVirtualServerSplitWeights(&curVsCopy)
-				zeroOutVirtualServerSplitWeights(&oldVsCopy)
-
-				if reflect.DeepEqual(oldVsCopy.Spec, curVsCopy.Spec) {
-					lbc.processVSWeightChangesDynamicReload(oldVs, curVs)
-					return
-				}
-
-			}
 
 			if !reflect.DeepEqual(oldVs.Spec, curVs.Spec) {
 				nl.Debugf(l, "VirtualServer %v changed, syncing", curVs.Name)
@@ -230,30 +196,6 @@ func createVirtualServerRouteHandlers(lbc *LoadBalancerController) cache.Resourc
 			oldVsr := old.(*conf_v1.VirtualServerRoute)
 
 			l := lbc.Logger.With(logNamespaceKey, curVsr.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, curVsr.GetName())
-
-			if lbc.weightChangesDynamicReload {
-				var curVsrCopy, oldVsrCopy conf_v1.VirtualServerRoute
-				err := copier.CopyWithOption(&curVsrCopy, curVsr, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(l, "Error copying VirtualServerRoute %v: %v for Dynamic Weight Changes", curVsr.Name, err)
-					return
-				}
-
-				err = copier.CopyWithOption(&oldVsrCopy, oldVsr, copier.Option{DeepCopy: true})
-				if err != nil {
-					nl.Debugf(lbc.Logger.With(logNamespaceKey, oldVsr.GetNamespace(), logKindKey, virtualServerRouteKind, logNameKey, oldVsr.GetName()), "Error copying VirtualServerRoute %v: %v for Dynamic Weight Changes", oldVsr.Name, err)
-					return
-				}
-
-				zeroOutVirtualServerRouteSplitWeights(&curVsrCopy)
-				zeroOutVirtualServerRouteSplitWeights(&oldVsrCopy)
-
-				if reflect.DeepEqual(oldVsrCopy.Spec, curVsrCopy.Spec) {
-					lbc.processVSRWeightChangesDynamicReload(oldVsr, curVsr)
-					return
-				}
-
-			}
 
 			if !reflect.DeepEqual(oldVsr.Spec, curVsr.Spec) || !reflect.DeepEqual(oldVsr.Labels, curVsr.Labels) {
 				nl.Debugf(l, "VirtualServerRoute %v changed, syncing", curVsr.Name)

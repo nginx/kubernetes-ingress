@@ -2,7 +2,7 @@
 ARG BUILD_OS=debian
 
 # renovate: datasource=docker depName=nginx/nginx
-ARG NGINX_OSS_VERSION=1.31.4
+ARG NGINX_OSS_VERSION=1.31.6
 ARG NGINX_PLUS_VERSION=R37.1
 ARG NAP_WAF_VERSION=37.1+5.715
 ARG NAP_WAF_COMMON_VERSION=11.792
@@ -21,14 +21,14 @@ ARG DOWNLOAD_TAG=edge
 ARG DEBIAN_FRONTEND=noninteractive
 ARG PREBUILT_BASE_IMG=nginx/nginx-ingress:${DOWNLOAD_TAG}
 ARG IMAGE_NAME=nginx/nginx-ingress
-ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:2fa679d06442e2c9ccc1bc3ec33529d5b6e828e1faffd7be1ce7152b5833ad6b
+ARG UBI10_PACKAGES_IMAGE=ghcr.io/nginx/dependencies/nginx-ubi:ubi10@sha256:c79e96f7f97e857294f44d6215540e35785c3f529befdbc5790f1f02b1a41fcb
 
 
 ############################################# External dependency images #############################################
-FROM golang:1.26.6-alpine@sha256:3889b425f035be855a72fb4755265311293b6d414521f0a519d819df32222d83 AS golang-builder
+FROM golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS golang-builder
 FROM ghcr.io/nginx/alpine-fips:0.6.0-alpine3.24@sha256:2122f993efed0ba145bfc118699f042a7c7dce82274d01e7f72ed3884cdfed4b AS alpine-fips-3.24
 FROM ${UBI10_PACKAGES_IMAGE} AS ubi10-packages
-FROM redhat/ubi10-minimal:10.2-1787688243@sha256:d28951a21182cbc821da281af307a4d583dbc39d464680adc6fdffbc5a935b20 AS ubi-minimal
+FROM redhat/ubi10-minimal:10.2-1790753097@sha256:204e1531cee54562b107fb31e0b327062fc3d5d67af7cc0d2e66b2c572b9044f AS ubi-minimal
 
 
 ############################################# NGINX repo keys, .repo files, and helper scripts #############################################
@@ -110,7 +110,7 @@ RUN --mount=type=bind,from=nginx-files,src=patch-os.sh,target=/usr/local/bin/pat
 USER 101
 
 ############################################### NGINX OSS - Alpine #############################################
-FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS alpine
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS alpine
 ARG OSS_PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
@@ -141,7 +141,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 
 
 ############################################### NGINX OSS - Debian #############################################
-FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS debian
+FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a AS debian
 ARG OSS_PACKAGE_REPO
 ARG NGINX_OSS_VERSION
 ARG AGENT_V3_VERSION
@@ -248,7 +248,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/ssl/nginx/nginx-repo.crt,mode
 # Base:    alpine:3.24
 # Adds:    nginx-plus, nginx-plus-module-njs/otel/fips-check, nginx-agent v3, tracking.info
 # Used as: BUILD_OS=alpine-plus
-FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS alpine-plus
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS alpine-plus
 ARG NGINX_PLUS_VERSION
 ARG PLUS_PACKAGE_REPO
 ARG AGENT_V3_VERSION
@@ -293,7 +293,7 @@ RUN --mount=type=bind,from=alpine-fips-3.24,target=/tmp/fips/ \
 # Base:     alpine:3.24 (fresh — does not extend alpine-plus, keeps agent layer separate)
 # Installs: nginx-plus, app-protect (NAP WAF v4), attack-signatures, FIPS provider
 # Extended: alpine-plus-nap-fips (Agent v2)  •  alpine-plus-nap-fips-agent (Agent v3)
-FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS alpine-plus-nap-fips-base
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS alpine-plus-nap-fips-base
 ARG NGINX_PLUS_VERSION
 ARG NAP_WAF_VERSION
 ARG NAP_WAF_IPI_VERSION
@@ -369,7 +369,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Base:     alpine:3.24 (fresh — does not extend alpine-plus, keeps agent layer separate)
 # Installs: nginx-plus, app-protect-module-plus (NAP WAF v5), FIPS provider
 # Extended: alpine-plus-nap-v5-fips (Agent v2)  •  alpine-plus-nap-v5-fips-agent (Agent v3)
-FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b AS alpine-plus-nap-v5-fips-base
+FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6 AS alpine-plus-nap-v5-fips-base
 ARG NGINX_PLUS_VERSION
 ARG PLUS_PACKAGE_REPO
 ARG NAP_WAF_VERSION
@@ -437,7 +437,7 @@ RUN --mount=type=secret,id=nginx-repo.crt,dst=/etc/apk/cert.pem,mode=0644 \
 # Base:     debian:13-slim
 # Installs: nginx-plus, nginx-plus-module-njs/otel/fips-check, libcap2-bin, libcurl4
 # Extended: debian-plus (Agent v3)  •  debian-plus-nap-base  •  debian-plus-nap-v5-base
-FROM debian:13-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS debian-plus-only
+FROM debian:13-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a AS debian-plus-only
 ARG NGINX_PLUS_VERSION
 ARG PLUS_PACKAGE_REPO
 

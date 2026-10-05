@@ -14,7 +14,6 @@ import (
 	"github.com/nginx/kubernetes-ingress/internal/nginx"
 	"github.com/nginx/kubernetes-ingress/internal/nsutils"
 	conf_v1 "github.com/nginx/kubernetes-ingress/pkg/apis/configuration/v1"
-	api_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -22,14 +21,21 @@ import (
 )
 
 const (
-	nginx502Server                                  = "unix:/var/lib/nginx/nginx-502-server.sock"
-	internalLocationPrefix                          = "internal_location_"
-	nginx418Server                                  = "unix:/var/lib/nginx/nginx-418-server.sock"
-	specContext                                     = "spec"
-	routeContext                                    = "route"
-	subRouteContext                                 = "subroute"
-	keyvalZoneBasePath                              = "/etc/nginx/state_files"
-	splitClientsKeyValZoneSize                      = "100k"
+	nginx502Server             = "unix:/var/lib/nginx/nginx-502-server.sock"
+	internalLocationPrefix     = "internal_location_"
+	nginx418Server             = "unix:/var/lib/nginx/nginx-418-server.sock"
+	specContext                = "spec"
+	routeContext               = "route"
+	subRouteContext            = "subroute"
+	keyvalZoneBasePath         = "/etc/nginx/state_files"
+	splitClientsKeyValZoneSize = "100k"
+	// splitClientAmountWhenWeightChangesDynamicReload is how far a
+	// split_clients index advances per 2-way split when
+	// DynamicWeightChangesReload is on. It must match the `i <= 100` loop
+	// bound in generateSplitsForWeightChangesDynamicReload (the real ground
+	// truth) and its duplicate in internal/k8s/controller.go, or dynamic
+	// weight updates target the wrong keyval zone. Changing one without the
+	// others is not a compile error.
 	splitClientAmountWhenWeightChangesDynamicReload = 101
 	defaultLogOutput                                = "syslog:server=localhost:514"
 	// oidcNativeSessionZoneSize is the shared memory allocated to each
@@ -91,20 +97,23 @@ type PodInfo struct {
 
 // VirtualServerEx holds a VirtualServer along with the resources that are referenced in this VirtualServer.
 type VirtualServerEx struct {
-	VirtualServer               *conf_v1.VirtualServer
-	HTTPPort                    int
-	HTTPSPort                   int
-	HTTPIPv4                    string
-	HTTPIPv6                    string
-	HTTPSIPv4                   string
-	HTTPSIPv6                   string
-	Endpoints                   map[string][]string
+	VirtualServer *conf_v1.VirtualServer
+	HTTPPort      int
+	HTTPSPort     int
+	HTTPIPv4      string
+	HTTPIPv6      string
+	HTTPSIPv4     string
+	HTTPSIPv6     string
+	Endpoints     map[string][]string
+	// ServiceAppProtocols holds the appProtocol of the Service port backing each upstream,
+	// keyed identically to Endpoints. Absent or unset appProtocols are not stored.
+	ServiceAppProtocols         map[string]string
 	VirtualServerRoutes         []*conf_v1.VirtualServerRoute
 	VirtualServerSelectorRoutes map[string][]string
 	ExternalNameSvcs            map[string]bool
 	Policies                    map[string]*conf_v1.Policy
 	PodsByIP                    map[string]PodInfo
-	SecretRefs                  map[string]*secrets.SecretReference
+	SecretRefs                  map[secrets.SecretRefKey]*secrets.SecretReference
 	ApPolRefs                   map[string]*unstructured.Unstructured
 	LogConfRefs                 map[string]*unstructured.Unstructured
 	DosProtectedRefs            map[string]*unstructured.Unstructured
@@ -314,6 +323,7 @@ type virtualServerConfigurator struct {
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
+	appProtectLoadModule       bool
 	plmEnabled                 bool
 }
 
@@ -357,6 +367,7 @@ func newVirtualServerConfigurator(
 		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
+		appProtectLoadModule:       staticParams.MainAppProtectLoadModule,
 		plmEnabled:                 staticParams.PLMEnabled,
 	}
 }
@@ -1022,7 +1033,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 						}
 					}
 				} else {
-					vsc.addWarningf(vsr, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
+					vsc.addWarningf(vsEx.VirtualServer, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
 				}
 			}
 
@@ -1149,6 +1160,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 	addHSTSToLocationsWithAddHeaders(policiesCfg.HSTS, locations)
 
+	if policiesCfg.OIDC != nil {
+		policiesCfg.OIDC.AppProtectLoadModule = vsc.appProtectLoadModule
+	}
+
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
 		Maps:             removeDuplicateMaps(maps),
@@ -1190,7 +1205,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			LimitReqs:                 policiesCfg.RateLimit.Reqs,
 			JWTAuth:                   policiesCfg.JWTAuth.Auth,
 			ExternalAuth:              policiesCfg.ExternalAuth,
-			ErrorPages:                getServerErrorPages(policiesCfg),
 			BasicAuth:                 policiesCfg.BasicAuth,
 			JWTAuthList:               policiesCfg.JWTAuth.List,
 			JWKSAuthEnabled:           policiesCfg.JWTAuth.JWKSEnabled,
@@ -1216,6 +1230,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		KeyVals:                 keyVals,
 		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
+		AppProtectLoadModule:    vsc.appProtectLoadModule,
 	}
 
 	return vsCfg, vsc.warnings
@@ -1228,6 +1243,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 	loc := version2.Location{
 		Path:                    fmt.Sprintf("%q", policiesCfg.ExternalAuth.URI.InternalPath),
 		Internal:                true,
+		DisableWAF:              true,
 		Snippets:                generateSnippets(true, policiesCfg.ExternalAuth.Snippets, nil),
 		ProxyPass:               fmt.Sprintf("%q", proxyPass),
 		ProxyPassRequestHeaders: true,
@@ -1309,19 +1325,6 @@ func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policie
 	return loc
 }
 
-func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
-	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
-		return []version2.ErrorPage{
-			{
-				Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
-				Codes:        "401",
-				ResponseCode: version2.ErrorPageResponseCodeInherit,
-			},
-		}
-	}
-	return nil
-}
-
 func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
 	for obj, msgs := range routeWarnings {
 		vsc.addWarnings(obj, msgs)
@@ -1354,6 +1357,7 @@ func generateUpstreams(
 	ups := vsc.generateUpstream(owner, upstreamName, u, isExternalNameSvc, endpoints, backup)
 	upstreams = append(upstreams, ups)
 	u.TLS.Enable = isTLSEnabled(u)
+	u.ProxyHTTPVersion = vsc.resolveUpstreamProxyHTTPVersion(owner, ownerNamespace, u, vsEx)
 	crUpstreams[upstreamName] = u
 
 	if hc := generateHealthCheck(u, upstreamName, vsc.cfgParams); hc != nil {
@@ -1366,6 +1370,30 @@ func generateUpstreams(
 		}
 	}
 	return upstreams, healthChecks, statusMatches
+}
+
+// resolveUpstreamProxyHTTPVersion determines the HTTP version used for connections to the
+// servers of a single upstream. gRPC upstreams are left unset: they are proxied with grpc_pass,
+// which always uses HTTP/2, and never render proxy_http_version.
+func (vsc *virtualServerConfigurator) resolveUpstreamProxyHTTPVersion(
+	owner runtime.Object,
+	ownerNamespace string,
+	upstream conf_v1.Upstream,
+	vsEx *VirtualServerEx,
+) string {
+	if isGRPC(upstream.Type) {
+		if upstream.ProxyHTTPVersion != "" {
+			vsc.addWarningf(owner,
+				"proxy-http-version is ignored for upstream %s because it has type grpc, which always uses HTTP/2",
+				upstream.Name)
+		}
+		return ""
+	}
+
+	serviceNamespace, serviceName := ParseServiceReference(upstream.Service, ownerNamespace)
+	endpointsKey := GenerateEndpointsKey(serviceNamespace, serviceName, upstream.Subselector, upstream.Port)
+
+	return resolveProxyHTTPVersion(upstream.ProxyHTTPVersion, vsEx.ServiceAppProtocols[endpointsKey])
 }
 
 func generateAPIKeyClientMap(mapName string, apiKeyClients []apiKeyClient) *version2.Map {
@@ -1545,11 +1573,6 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.PoliciesErrorReturn = cfg.ErrorReturn
 
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
-		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
-			Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
-			Codes:        "401",
-			ResponseCode: version2.ErrorPageResponseCodeInherit,
-		})
 		location.ProxyInterceptErrors = true
 	}
 
@@ -1558,11 +1581,6 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.AddHeaders = append(location.AddHeaders, cfg.CORSHeaders...)
 		location.CORSEnabled = true
 	}
-}
-
-func escapeForNGINXQuotedString(value string) string {
-	quoted := fmt.Sprintf("%q", value)
-	return quoted[1 : len(quoted)-1]
 }
 
 func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {
@@ -2015,7 +2033,7 @@ func generateLocation(path string, upstreamName string, upstream conf_v1.Upstrea
 		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName), nil
 }
 
-func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
+func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool) []version2.Header {
 	var headers []version2.Header
 
 	hasHostHeader := false
@@ -2034,7 +2052,11 @@ func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
 	}
 
 	if !hasHostHeader {
-		headers = append(headers, version2.Header{Name: "Host", Value: "$host"})
+		hostVal := "$host"
+		if useForwardedHeaders {
+			hostVal = "$forwarded_host"
+		}
+		headers = append(headers, version2.Header{Name: "Host", Value: hostVal})
 	}
 
 	return headers
@@ -2119,10 +2141,11 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyNextUpstreamTries:   upstream.ProxyNextUpstreamTries,
 		ProxyInterceptErrors:     generateProxyInterceptErrors(errorPages),
 		ProxyPassRequestHeaders:  generateProxyPassRequestHeaders(proxy),
-		ProxySetHeaders:          generateProxySetHeaders(proxy),
+		ProxySetHeaders:          generateProxySetHeaders(proxy, cfgParams.UseForwardedHeaders),
 		ProxyHideHeaders:         generateProxyHideHeaders(proxy),
 		ProxyPassHeaders:         generateProxyPassHeaders(proxy),
 		ProxyIgnoreHeaders:       generateProxyIgnoreHeaders(proxy),
+		ProxyHTTPVersion:         upstream.ProxyHTTPVersion,
 		AddHeaders:               generateProxyAddHeaders(proxy),
 		ProxyPassRewrite:         generateProxyPassRewrite(path, proxy, internal),
 		Rewrites:                 generateRewrites(path, proxy, internal, originalPath, isGRPC(upstream.Type)),
@@ -2133,6 +2156,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
 		DisableForwardedHeaders:  cfgParams.DisableForwardedHeaders,
+		UseForwardedHeaders:      cfgParams.UseForwardedHeaders,
 		VSRNamespace:             vsrNamespace,
 		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, upstreamName),
 	}
@@ -2363,6 +2387,9 @@ func generateDefaultSplitsConfig(
 func generateSplitsForWeightChangesDynamicReload(splits []conf_v1.Split, scIndex int, VariableNamer *VariableNamer) ([]version2.SplitClient, version2.Map) {
 	var splitClients []version2.SplitClient
 	var mapParameters []version2.Parameter
+	// One split_clients block per whole-percent weight pair, 0/100 through
+	// 100/0, so 101 blocks — the ground truth for
+	// splitClientAmountWhenWeightChangesDynamicReload; see the comment there.
 	for i := 0; i <= 100; i++ {
 		j := 100 - i
 		var split version2.SplitClient
@@ -2673,7 +2700,7 @@ func getNameForSourceForMatchesRouteMapFromCondition(condition conf_v1.Condition
 }
 
 func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tls *conf_v1.TLS, namespace string,
-	secretRefs map[string]*secrets.SecretReference, cfgParams *ConfigParams,
+	secretRefs map[secrets.SecretRefKey]*secrets.SecretReference, cfgParams *ConfigParams,
 ) *version2.SSL {
 	if tls == nil {
 		return nil
@@ -2692,21 +2719,17 @@ func (vsc *virtualServerConfigurator) generateSSLConfig(owner runtime.Object, tl
 		return nil
 	}
 
-	secretRef := secretRefs[fmt.Sprintf("%s/%s", namespace, tls.Secret)]
-	var secretType api_v1.SecretType
-	if secretRef.Secret != nil {
-		secretType = secretRef.Secret.Type
-	}
+	secretRef := secretRefs[secrets.RefKey(fmt.Sprintf("%s/%s", namespace, tls.Secret), secrets.RoleTLS)]
 	var name string
 	var rejectHandshake bool
-	if secretType != "" && secretType != api_v1.SecretTypeTLS {
-		rejectHandshake = true
-		vsc.addWarningf(owner, "TLS secret %s is of a wrong type '%s', must be '%s'", tls.Secret, secretType, api_v1.SecretTypeTLS)
-	} else if secretRef.Error != nil {
+	if secretRef != nil && secretRef.Error != nil {
 		rejectHandshake = true
 		vsc.addWarningf(owner, "TLS secret %s is invalid: %v", tls.Secret, secretRef.Error)
-	} else {
+	} else if secretRef != nil {
 		name = secretRef.Path
+	} else {
+		rejectHandshake = true
+		vsc.addWarningf(owner, "TLS secret %s is missing from secret references", tls.Secret)
 	}
 
 	ssl := version2.SSL{

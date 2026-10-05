@@ -2007,10 +2007,9 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		{
 			msg: "apikey claim rate limits at vs spec level, no default with zonesync enabled",
 			virtualServerEx: VirtualServerEx{
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret-spec": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"premium": []byte("premiumpassword"),
 								"basic":   []byte("basicpassword"),
@@ -2304,10 +2303,9 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		{
 			msg: "apikey claim rate limits at vs spec level, no default",
 			virtualServerEx: VirtualServerEx{
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret-spec": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"premium": []byte("premiumpassword"),
 								"basic":   []byte("basicpassword"),
@@ -2598,10 +2596,9 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		{
 			msg: "apikey claim rate limits at vs spec level, with default",
 			virtualServerEx: VirtualServerEx{
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret-spec": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"premium": []byte("premiumpassword"),
 								"basic":   []byte("basicpassword"),
@@ -2898,10 +2895,9 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		{
 			msg: "apikey claim rate limits at vs route level, with default",
 			virtualServerEx: VirtualServerEx{
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret-spec": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"premium": []byte("premiumpassword"),
 								"basic":   []byte("basicpassword"),
@@ -3201,10 +3197,9 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		{
 			msg: "apikey claim rate limits at two different vs route levels, with default",
 			virtualServerEx: VirtualServerEx{
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret-spec": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"premium": []byte("premiumpassword"),
 								"basic":   []byte("basicpassword"),
@@ -3567,10 +3562,9 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		{
 			msg: "apikey rate limits at vsr /tea level, with default",
 			virtualServerEx: VirtualServerEx{
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret-spec": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"premium": []byte("premiumpassword"),
 								"basic":   []byte("basicpassword"),
@@ -3892,10 +3886,9 @@ func TestGenerateVirtualServerConfigRateLimitGroups(t *testing.T) {
 		{
 			msg: "apikey rate limits at vsr /tea level & at vs spec level, with default",
 			virtualServerEx: VirtualServerEx{
-				SecretRefs: map[string]*secrets.SecretReference{
-					"default/api-key-secret-spec": {
+				SecretRefs: map[secrets.SecretRefKey]*secrets.SecretReference{
+					secrets.RefKey("default/api-key-secret-spec", secrets.RoleAPIKey): {
 						Secret: &api_v1.Secret{
-							Type: secrets.SecretTypeAPIKey,
 							Data: map[string][]byte{
 								"premium": []byte("premiumpassword"),
 								"basic":   []byte("basicpassword"),

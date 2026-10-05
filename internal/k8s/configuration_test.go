@@ -1567,10 +1567,10 @@ func TestMakeVirtualServerRouteInvalid(t *testing.T) {
 	t.Parallel()
 	configuration, vs, vsr1, vsr2, vsr3 := setupVSRConfiguration()
 
-	// Make VirtualServerRoute-1 invalid by removing host
+	// Make VirtualServerRoute-1 invalid by making the first subroute action nil
 	invalidVSR1 := vsr1.DeepCopy()
 	invalidVSR1.Generation++
-	invalidVSR1.Spec.Host = ""
+	invalidVSR1.Spec.Subroutes[0].Action = nil
 
 	expectedChanges := []ResourceChange{
 		{
@@ -1588,7 +1588,7 @@ func TestMakeVirtualServerRouteInvalid(t *testing.T) {
 			Object:  invalidVSR1,
 			IsError: true,
 			Reason:  nl.EventReasonRejected,
-			Message: "VirtualServerRoute default/virtualserverroute-1 was rejected with error: spec.host: Required value",
+			Message: "VirtualServerRoute default/virtualserverroute-1 was rejected with error: spec.subroutes[0]: Invalid value: \"\": must specify exactly one of `action` or `splits`",
 		},
 	}
 
@@ -1826,7 +1826,7 @@ func TestDeleteVirtualServerRouteAndVirtualServer(t *testing.T) {
 	}
 }
 
-func TestAddInvalidVirtualServerRoute(t *testing.T) {
+func TestAddVirtualServerRouteNoHost(t *testing.T) {
 	configuration := createTestConfiguration()
 
 	vsr := createTestVirtualServerRoute("virtualserverroute", "default", "", "/")
@@ -1835,9 +1835,9 @@ func TestAddInvalidVirtualServerRoute(t *testing.T) {
 	expectedProblems := []ConfigurationProblem{
 		{
 			Object:  vsr,
-			IsError: true,
-			Reason:  nl.EventReasonRejected,
-			Message: "VirtualServerRoute default/virtualserverroute was rejected with error: spec.host: Required value",
+			IsError: false,
+			Reason:  nl.EventReasonNoVirtualServerFound,
+			Message: "VirtualServer is invalid or doesn't exist",
 		},
 	}
 
@@ -4254,8 +4254,9 @@ func TestAddInvalidVirtualServerRouteDuringStartup_ReportsValidationProblem(t *t
 	t.Parallel()
 	configuration := createTestConfigurationDuringStartup()
 
-	// An empty host makes the VSR invalid
-	vsr := createTestVirtualServerRoute("vsr", "default", "", "/path")
+	// Make the VSR invalid by giving it a nil action in its first subroute.
+	vsr := createTestVirtualServerRoute("vsr", "default", "foo.example.com", "/path")
+	vsr.Spec.Subroutes[0].Action = nil
 
 	changes, problems := configuration.AddOrUpdateVirtualServerRoute(vsr)
 
@@ -6074,14 +6075,9 @@ func TestValidateVSRSelectors(t *testing.T) {
 			}
 			vsrs, selectors, warnings := configuration.validateVSRSelectors(testCase.route, testCase.vsHost)
 
-			sort.Slice(testCase.expectedVSRs, func(i, j int) bool {
-				return testCase.expectedVSRs[i].Name < testCase.expectedVSRs[j].Name
-			})
-
-			sort.Slice(vsrs, func(i, j int) bool {
-				return vsrs[i].Name < vsrs[j].Name
-			})
-
+			// No sorting of either side before comparison: validateVSRSelectors
+			// guarantees namespace/name order, and expectedVSRs is written in
+			// that order.  Sorting here would mask an ordering regression.
 			if diff := cmp.Diff(testCase.expectedVSRs, vsrs); diff != "" {
 				t.Errorf("validateVSRSelectors() returned unexpected VSRs (-want +got):\n%s", diff)
 			}
@@ -6092,6 +6088,196 @@ func TestValidateVSRSelectors(t *testing.T) {
 				t.Errorf("validateVSRSelectors() returned unexpected VSR selectors (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// selectorTestVSRCount is the number of VSRs registered under a single
+// routeSelector by the determinism tests below.  Go randomizes map iteration
+// order, but the randomization is only reliably observable on a map of
+// non-trivial size: with 2-3 entries the reorder rate is low enough that a
+// test flakes rather than fails, at 12 it reorders on most calls.
+const selectorTestVSRCount = 12
+
+// selectorTestHost is the host shared by the selector VS and all its VSRs;
+// ValidateVirtualServerRouteForVirtualServer requires them to match.
+const selectorTestHost = "cafe.example.com"
+
+// registerSelectorVSRs registers selectorTestVSRCount VSRs that all match the
+// label selector {app: route}, each with a distinct subroute path so that
+// validateDuplicateVSRPaths does not prune any of them.  The namespace order
+// is deliberately the reverse of the name order, so any assertion on the
+// returned ordering pins sorting by namespace/name rather than by name alone.
+// Returns the expected namespace/name keys in sorted order.
+func registerSelectorVSRs(c *Configuration) []string {
+	keys := make([]string, 0, selectorTestVSRCount)
+	for i := range selectorTestVSRCount {
+		ns := fmt.Sprintf("ns-%02d", selectorTestVSRCount-1-i)
+		name := fmt.Sprintf("route-%02d", i)
+		vsr := createTestVirtualServerRouteWithLabels(
+			name, ns, selectorTestHost, fmt.Sprintf("/route-%02d", i), map[string]string{"app": "route"},
+		)
+		key := fmt.Sprintf("%s/%s", ns, name)
+		c.virtualServerRoutes[key] = vsr
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func vsrKeys(vsrs []*conf_v1.VirtualServerRoute) []string {
+	keys := make([]string, 0, len(vsrs))
+	for _, vsr := range vsrs {
+		keys = append(keys, fmt.Sprintf("%s/%s", vsr.Namespace, vsr.Name))
+	}
+	return keys
+}
+
+// TestValidateVSRSelectors_DeterministicOrder pins that the VSR slice returned
+// by validateVSRSelectors is stable across calls and sorted by namespace/name.
+//
+// The slice feeds VirtualServerConfiguration.VirtualServerRoutes, which
+// GenerateVirtualServerConfig walks in order to assign split_clients indices,
+// upstream names and location ordering.  Because it is sourced from
+// Configuration.virtualServerRoutes (a map), the order is randomized by Go
+// unless it is explicitly sorted.  Against the unfixed code this observes
+// several distinct orderings across the attempts below.
+func TestValidateVSRSelectors_DeterministicOrder(t *testing.T) {
+	t.Parallel()
+
+	const attempts = 40
+
+	configuration := createTestConfiguration()
+	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{}
+	wantKeys := registerSelectorVSRs(configuration)
+
+	route := &conf_v1.Route{
+		Path:          "/",
+		RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+	}
+
+	seen := make(map[string]int)
+	for i := range attempts {
+		vsrs, selectors, warnings := configuration.validateVSRSelectors(route, selectorTestHost)
+		if len(warnings) != 0 {
+			t.Fatalf("attempt %d: validateVSRSelectors() returned unexpected warnings: %v", i, warnings)
+		}
+
+		gotKeys := vsrKeys(vsrs)
+		seen[strings.Join(gotKeys, ",")]++
+
+		if diff := cmp.Diff(wantKeys, gotKeys); diff != "" {
+			t.Fatalf("attempt %d: validateVSRSelectors() returned VSRs in unexpected order (-want +got):\n%s", i, diff)
+		}
+
+		// The tracking side-channel must agree with the object slice; it was
+		// already sorted before this fix, the object slice was not.
+		if diff := cmp.Diff(wantKeys, selectors["app=route"]); diff != "" {
+			t.Errorf("attempt %d: vsrSelectors[app=route] disagrees with the returned VSR slice (-want +got):\n%s", i, diff)
+		}
+	}
+
+	if len(seen) != 1 {
+		t.Errorf("validateVSRSelectors() produced %d distinct orderings across %d calls, want 1", len(seen), attempts)
+	}
+}
+
+// TestSelectorVS_NoSpuriousChangesOnUnrelatedUpdate pins the dominant
+// production symptom of the unsorted VSR slice.
+//
+// VirtualServerConfiguration.IsEqual compares VirtualServerRoutes
+// positionally, so a reordered-but-identical VSR set compares as not equal.
+// rebuildHosts() then emits a ResourceChange for a VirtualServer that nobody
+// modified, driving a full template regen and an NGINX reload.  Every
+// unrelated resource event in the cluster becomes a coin flip on needlessly
+// reloading NGINX.
+//
+// Note that no mutation of the unrelated VS is required: every
+// AddOrUpdateVirtualServer call runs a full rebuildHosts(), which recomputes
+// the selector VS's VSR slice from scratch.  Against the unfixed code this
+// fires on the large majority of iterations.
+func TestSelectorVS_NoSpuriousChangesOnUnrelatedUpdate(t *testing.T) {
+	t.Parallel()
+
+	const attempts = 30
+
+	configuration := createTestConfiguration()
+	registerSelectorVSRs(configuration)
+
+	selectorVS := createTestVirtualServerWithRoutes("cafe", selectorTestHost, []conf_v1.Route{
+		{
+			Path:          "/",
+			RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+		},
+	})
+	if _, problems := configuration.AddOrUpdateVirtualServer(selectorVS); len(problems) != 0 {
+		t.Fatalf("AddOrUpdateVirtualServer(selectorVS) returned unexpected problems: %v", problems)
+	}
+
+	// Sanity: the fixture must actually attach all the VSRs, otherwise there is
+	// nothing to reorder and the test is vacuous.
+	selectorKey := getResourceKeyWithKind(virtualServerKind, &selectorVS.ObjectMeta)
+	vsConfig, ok := configuration.hosts[selectorTestHost].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatalf("host %s is not backed by a VirtualServerConfiguration", selectorTestHost)
+	}
+	if got := len(vsConfig.VirtualServerRoutes); got != selectorTestVSRCount {
+		t.Fatalf("selector VS attached %d VirtualServerRoutes, want %d", got, selectorTestVSRCount)
+	}
+
+	unrelated := createTestVirtualServer("unrelated", "other.example.com")
+	configuration.AddOrUpdateVirtualServer(unrelated)
+
+	spurious := 0
+	for range attempts {
+		changes, _ := configuration.AddOrUpdateVirtualServer(unrelated)
+		for _, c := range changes {
+			if c.Resource.GetKeyWithKind() == selectorKey {
+				spurious++
+			}
+		}
+	}
+
+	if spurious != 0 {
+		t.Errorf("re-adding an unrelated VirtualServer produced %d spurious changes for %s across %d iterations, want 0",
+			spurious, selectorKey, attempts)
+	}
+}
+
+// TestValidateVSRSelectors_InvalidVSRExcludedFromOrder pins that filtering
+// invalid VSRs does not perturb the ordering of the valid ones, and that an
+// excluded VSR is absent from both the object slice and the tracking map while
+// still producing a warning.
+func TestValidateVSRSelectors_InvalidVSRExcludedFromOrder(t *testing.T) {
+	t.Parallel()
+
+	configuration := createTestConfiguration()
+	configuration.virtualServerRoutes = map[string]*conf_v1.VirtualServerRoute{}
+	wantKeys := registerSelectorVSRs(configuration)
+
+	// Same selector, but a host mismatch makes it fail
+	// ValidateVirtualServerRouteForVirtualServer.
+	bad := createTestVirtualServerRouteWithLabels(
+		"route-bad", "ns-bad", "wrong.example.com", "/route-bad", map[string]string{"app": "route"},
+	)
+	configuration.virtualServerRoutes["ns-bad/route-bad"] = bad
+
+	route := &conf_v1.Route{
+		Path:          "/",
+		RouteSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "route"}},
+	}
+
+	vsrs, selectors, warnings := configuration.validateVSRSelectors(route, selectorTestHost)
+
+	if diff := cmp.Diff(wantKeys, vsrKeys(vsrs)); diff != "" {
+		t.Errorf("validateVSRSelectors() returned unexpected VSRs (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantKeys, selectors["app=route"]); diff != "" {
+		t.Errorf("validateVSRSelectors() returned unexpected vsrSelectors (-want +got):\n%s", diff)
+	}
+
+	wantWarn := `VirtualServerRoute ns-bad/route-bad is invalid: spec.host: Invalid value: "wrong.example.com": must be equal to 'cafe.example.com'`
+	if diff := cmp.Diff([]string{wantWarn}, warnings); diff != "" {
+		t.Errorf("validateVSRSelectors() returned unexpected warnings (-want +got):\n%s", diff)
 	}
 }
 
@@ -6947,4 +7133,617 @@ func TestBuildVirtualServerRoutesRegexSelector(t *testing.T) {
 			t.Errorf("expected a duplicate-VSR warning for the double reference, got warnings: %v", gotWarnings)
 		}
 	})
+}
+
+// createHostlessVSR creates the shared test VSR with no spec.host.
+func createHostlessVSR(namespace string) *conf_v1.VirtualServerRoute {
+	vsr := createTestVirtualServerRoute("coffee", namespace, "", "/coffee")
+	return vsr
+}
+
+// createHostlessVSRWithLabels creates a hostless test VSR with selector labels.
+func createHostlessVSRWithLabels(name, namespace, path string, labels map[string]string) *conf_v1.VirtualServerRoute {
+	vsr := createTestVirtualServerRoute(name, namespace, "", path)
+	vsr.Labels = labels
+	return vsr
+}
+
+// vsWithRoute creates a test VS referencing a VSR by name.
+func vsWithRoute(vsName, host, vsrKey string) *conf_v1.VirtualServer {
+	return createTestVirtualServerWithRoutes(vsName, host, []conf_v1.Route{
+		{Path: "/coffee", Route: vsrKey},
+	})
+}
+
+// TestHostlessVSR_SingleVS checks that one VS can attach to a hostless VSR.
+func TestHostlessVSR_SingleVS(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := vsWithRoute("cafe", "cafe.example.com", "default/coffee")
+	changes, problems := cfg.AddOrUpdateVirtualServer(vs)
+
+	if len(problems) != 0 {
+		t.Errorf("expected no problems, got: %v", problems)
+	}
+	if len(changes) == 0 {
+		t.Errorf("expected at least one change")
+	}
+}
+
+// TestHostlessVSR_TwoVSs_BothAttach checks that two VSs can share a hostless VSR.
+func TestHostlessVSR_TwoVSs_BothAttach(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs1 := vsWithRoute("cafe", "cafe.example.com", "default/coffee")
+	vs2 := vsWithRoute("cafe2", "cafe2.example.com", "default/coffee")
+
+	cfg.AddOrUpdateVirtualServer(vs1)
+	_, problems := cfg.AddOrUpdateVirtualServer(vs2)
+
+	if len(problems) != 0 {
+		t.Errorf("expected no problems, got: %v", problems)
+	}
+
+	// Both VS configurations must contain the shared VSR.
+	vsConfig1, ok1 := cfg.hosts["cafe.example.com"].(*VirtualServerConfiguration)
+	vsConfig2, ok2 := cfg.hosts["cafe2.example.com"].(*VirtualServerConfiguration)
+	if !ok1 || !ok2 {
+		t.Fatal("expected VirtualServerConfiguration for both hosts")
+	}
+	if len(vsConfig1.VirtualServerRoutes) != 1 {
+		t.Errorf("cafe: expected 1 VSR in config, got %d", len(vsConfig1.VirtualServerRoutes))
+	}
+	if len(vsConfig2.VirtualServerRoutes) != 1 {
+		t.Errorf("cafe2: expected 1 VSR in config, got %d", len(vsConfig2.VirtualServerRoutes))
+	}
+}
+
+// TestHostlessVSR_TwoVSs_DeleteOneVS checks that the surviving VS retains the VSR.
+func TestHostlessVSR_TwoVSs_DeleteOneVS(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs1 := vsWithRoute("cafe", "cafe.example.com", "default/coffee")
+	vs2 := vsWithRoute("cafe2", "cafe2.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vs1)
+	cfg.AddOrUpdateVirtualServer(vs2)
+
+	_, problems := cfg.DeleteVirtualServer("default/cafe2")
+
+	if len(problems) != 0 {
+		t.Errorf("expected no problems after deleting one VS, got: %v", problems)
+	}
+	// The surviving VS still owns the VSR.
+	vsConfig, ok := cfg.hosts["cafe.example.com"].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatal("expected VirtualServerConfiguration for cafe.example.com")
+	}
+	if len(vsConfig.VirtualServerRoutes) != 1 {
+		t.Errorf("expected 1 VSR in surviving VS config, got %d", len(vsConfig.VirtualServerRoutes))
+	}
+}
+
+// TestHostlessVSR_BothVSsDeleted_OrphanProblem checks that deleting all VSs orphans the VSR.
+func TestHostlessVSR_BothVSsDeleted_OrphanProblem(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs1 := vsWithRoute("cafe", "cafe.example.com", "default/coffee")
+	vs2 := vsWithRoute("cafe2", "cafe2.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vs1)
+	cfg.AddOrUpdateVirtualServer(vs2)
+
+	cfg.DeleteVirtualServer("default/cafe")
+	_, problems := cfg.DeleteVirtualServer("default/cafe2")
+
+	if len(problems) != 1 {
+		t.Fatalf("expected 1 orphan problem, got %d: %v", len(problems), problems)
+	}
+	if problems[0].Reason != nl.EventReasonNoVirtualServerFound {
+		t.Errorf("expected reason %q, got %q", nl.EventReasonNoVirtualServerFound, problems[0].Reason)
+	}
+	if problems[0].IsError {
+		t.Errorf("orphan problem should not be an error")
+	}
+}
+
+// TestHostlessVSR_OrphanFromStart checks the status of an initially unreferenced VSR.
+func TestHostlessVSR_OrphanFromStart(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	_, problems := cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	if len(problems) != 1 {
+		t.Fatalf("expected 1 problem, got %d: %v", len(problems), problems)
+	}
+	if problems[0].Reason != nl.EventReasonNoVirtualServerFound {
+		t.Errorf("expected reason %q, got %q", nl.EventReasonNoVirtualServerFound, problems[0].Reason)
+	}
+	if problems[0].IsError {
+		t.Errorf("orphan problem should not be an error (IsError=false)")
+	}
+}
+
+// TestHostlessVSR_ReverseIndexDeterminism guards against a prior nondeterministic scan over c.hosts.
+func TestHostlessVSR_ReverseIndexDeterminism(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	// Add three VSs referencing the same hostless VSR.
+	for _, name := range []string{"vs-alpha", "vs-beta", "vs-gamma"} {
+		host := name + ".example.com"
+		vs := vsWithRoute(name, host, "default/coffee")
+		cfg.AddOrUpdateVirtualServer(vs)
+	}
+
+	want := []string{"default/vs-alpha", "default/vs-beta", "default/vs-gamma"}
+
+	for i := 0; i < 20; i++ {
+		// Trigger a full rebuild by re-adding the VSR.
+		cfg.AddOrUpdateVirtualServerRoute(vsr)
+		got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+		var gotKeys []string
+		for _, vs := range got {
+			gotKeys = append(gotKeys, vs.Namespace+"/"+vs.Name)
+		}
+		if diff := cmp.Diff(want, gotKeys); diff != "" {
+			t.Fatalf("iteration %d: GetVirtualServersForVirtualServerRoute mismatch (-want +got):\n%s", i, diff)
+		}
+	}
+}
+
+// TestHostlessVSR_SelectorRoute checks selector attachment to a hostless VSR.
+func TestHostlessVSR_SelectorRoute(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSRWithLabels("coffee", "default", "/coffee", map[string]string{"app": "cafe"})
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := createTestVirtualServerWithRoutes("cafe", "cafe.example.com", []conf_v1.Route{
+		{
+			Path: "/coffee",
+			RouteSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "cafe"},
+			},
+		},
+	})
+	_, problems := cfg.AddOrUpdateVirtualServer(vs)
+
+	if len(problems) != 0 {
+		t.Errorf("expected no problems for selector-based hostless VSR, got: %v", problems)
+	}
+}
+
+// TestHostlessVSR_SelectorTwoVSs checks that two VSs can select one hostless VSR.
+func TestHostlessVSR_SelectorTwoVSs(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSRWithLabels("coffee", "default", "/coffee", map[string]string{"app": "cafe"})
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	sel := &metav1.LabelSelector{MatchLabels: map[string]string{"app": "cafe"}}
+	vs1 := createTestVirtualServerWithRoutes("cafe", "cafe.example.com", []conf_v1.Route{
+		{Path: "/coffee", RouteSelector: sel},
+	})
+	vs2 := createTestVirtualServerWithRoutes("cafe2", "cafe2.example.com", []conf_v1.Route{
+		{Path: "/coffee", RouteSelector: sel},
+	})
+	cfg.AddOrUpdateVirtualServer(vs1)
+	_, problems := cfg.AddOrUpdateVirtualServer(vs2)
+
+	if len(problems) != 0 {
+		t.Errorf("expected no problems for two-VS selector match, got: %v", problems)
+	}
+	// Both hosts must reference the VSR.
+	for _, host := range []string{"cafe.example.com", "cafe2.example.com"} {
+		vsConfig, ok := cfg.hosts[host].(*VirtualServerConfiguration)
+		if !ok {
+			t.Fatalf("expected VirtualServerConfiguration for %s", host)
+		}
+		if len(vsConfig.VirtualServerRoutes) != 1 {
+			t.Errorf("%s: expected 1 VSR, got %d", host, len(vsConfig.VirtualServerRoutes))
+		}
+	}
+}
+
+// TestHostlessVSR_HostTransition_AddHost checks that adding a host narrows attachment.
+func TestHostlessVSR_HostTransition_AddHost(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs1 := vsWithRoute("cafe", "cafe.example.com", "default/coffee")
+	vs2 := vsWithRoute("cafe2", "cafe2.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vs1)
+	cfg.AddOrUpdateVirtualServer(vs2)
+
+	// Now give the VSR a host that only matches cafe.
+	vsrWithHost := vsr.DeepCopy()
+	vsrWithHost.Spec.Host = "cafe.example.com"
+	cfg.AddOrUpdateVirtualServerRoute(vsrWithHost)
+
+	// cafe should still have the VSR.
+	vsConfig1, ok1 := cfg.hosts["cafe.example.com"].(*VirtualServerConfiguration)
+	if !ok1 {
+		t.Fatal("expected VirtualServerConfiguration for cafe.example.com")
+	}
+	if len(vsConfig1.VirtualServerRoutes) != 1 {
+		t.Errorf("cafe: expected 1 VSR, got %d", len(vsConfig1.VirtualServerRoutes))
+	}
+
+	// cafe2 should NOT have the VSR (host mismatch causes rejection).
+	vsConfig2, ok2 := cfg.hosts["cafe2.example.com"].(*VirtualServerConfiguration)
+	if !ok2 {
+		t.Fatal("expected VirtualServerConfiguration for cafe2.example.com")
+	}
+	if len(vsConfig2.VirtualServerRoutes) != 0 {
+		t.Errorf("cafe2: expected 0 VSRs after host was added, got %d", len(vsConfig2.VirtualServerRoutes))
+	}
+}
+
+// TestHostlessVSR_HostTransition_RemoveHost checks that removing a host restores attachment.
+func TestHostlessVSR_HostTransition_RemoveHost(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsrWithHost := createTestVirtualServerRoute("coffee", "default", "cafe.example.com", "/coffee")
+	cfg.AddOrUpdateVirtualServerRoute(vsrWithHost)
+
+	vs1 := vsWithRoute("cafe", "cafe.example.com", "default/coffee")
+	vs2 := vsWithRoute("cafe2", "cafe2.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vs1)
+	cfg.AddOrUpdateVirtualServer(vs2)
+
+	// Before: cafe has the VSR, cafe2 does not (host mismatch).
+	vsConfig2Before, _ := cfg.hosts["cafe2.example.com"].(*VirtualServerConfiguration)
+	if len(vsConfig2Before.VirtualServerRoutes) != 0 {
+		t.Errorf("pre-transition: cafe2 should have 0 VSRs, got %d", len(vsConfig2Before.VirtualServerRoutes))
+	}
+
+	// Remove the host — VSR becomes hostless.
+	vsrHostless := vsrWithHost.DeepCopy()
+	vsrHostless.Spec.Host = ""
+	cfg.AddOrUpdateVirtualServerRoute(vsrHostless)
+
+	vsConfig2After, _ := cfg.hosts["cafe2.example.com"].(*VirtualServerConfiguration)
+	if len(vsConfig2After.VirtualServerRoutes) != 1 {
+		t.Errorf("post-transition: cafe2 should have 1 VSR, got %d", len(vsConfig2After.VirtualServerRoutes))
+	}
+}
+
+// TestHostlessVSR_CrossNamespace checks named references across namespaces.
+func TestHostlessVSR_CrossNamespace(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("coffee-ns")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := vsWithRoute("cafe", "cafe.example.com", "coffee-ns/coffee")
+	_, problems := cfg.AddOrUpdateVirtualServer(vs)
+
+	if len(problems) != 0 {
+		t.Errorf("expected no problems for cross-namespace hostless VSR, got: %v", problems)
+	}
+	vsConfig, ok := cfg.hosts["cafe.example.com"].(*VirtualServerConfiguration)
+	if !ok {
+		t.Fatal("expected VirtualServerConfiguration for cafe.example.com")
+	}
+	if len(vsConfig.VirtualServerRoutes) != 1 {
+		t.Errorf("expected 1 VSR, got %d", len(vsConfig.VirtualServerRoutes))
+	}
+}
+
+// TestHostlessVSR_GetVirtualServersForVirtualServerRoute checks sorted accessor output.
+func TestHostlessVSR_GetVirtualServersForVirtualServerRoute(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	for _, name := range []string{"cafe-b", "cafe-a", "cafe-c"} {
+		vs := vsWithRoute(name, name+".example.com", "default/coffee")
+		cfg.AddOrUpdateVirtualServer(vs)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotNames []string
+	for _, vs := range got {
+		gotNames = append(gotNames, vs.Name)
+	}
+
+	// Expect sorted by VS key (namespace/name).
+	wantNames := []string{"cafe-a", "cafe-b", "cafe-c"}
+	if diff := cmp.Diff(wantNames, gotNames); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute order mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestHostlessVSR_VSConflictLoserRetainsVSR checks declarative references for conflict losers.
+func TestHostlessVSR_VSConflictLoserRetainsVSR(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	// vs-winner and vs-loser both claim cafe.example.com; winner was created first.
+	vsWinner := createTestVirtualServerWithRoutes("vs-winner", "cafe.example.com", []conf_v1.Route{
+		{Path: "/tea", Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "tea"}}},
+	})
+	vsWinner.CreationTimestamp = metav1.NewTime(metav1.Now().Add(-1 * 1e9))
+
+	vsLoser := vsWithRoute("vs-loser", "cafe.example.com", "default/coffee")
+	vsLoser.CreationTimestamp = metav1.Now()
+
+	cfg.AddOrUpdateVirtualServer(vsWinner)
+	_, problems := cfg.AddOrUpdateVirtualServer(vsLoser)
+
+	// The VSR must NOT be orphaned: it is referenced by the loser's VirtualServerConfiguration.
+	for _, p := range problems {
+		if p.Object == vsr && p.Reason == nl.EventReasonNoVirtualServerFound {
+			t.Errorf("VSR should not be orphaned while the conflict loser holds it; problems: %v", problems)
+		}
+	}
+
+	// GetVirtualServersForVirtualServerRoute must return the loser's VS.
+	refs := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	if len(refs) != 1 || refs[0].Name != "vs-loser" {
+		t.Errorf("expected referencedBy=[vs-loser], got %v", refs)
+	}
+}
+
+// TestHostlessVSR_TSHostDoesNotConfuse checks VSR handling when a TS owns the host.
+func TestHostlessVSR_TSHostDoesNotConfuse(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	// Simulate TransportServer host ownership without constructing a listener.
+	ts := &conf_v1.TransportServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "ts1"},
+	}
+	tsConfig := NewTransportServerConfiguration(ts)
+	cfg.hosts["cafe.example.com"] = tsConfig
+
+	vsr := createHostlessVSR("default")
+	_, problems := cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	// Orphan, not "ignored by TS": no VS accepts this VSR.
+	if len(problems) != 1 {
+		t.Fatalf("expected 1 problem, got %d: %v", len(problems), problems)
+	}
+	if problems[0].Reason != nl.EventReasonNoVirtualServerFound {
+		t.Errorf("expected NoVirtualServerFound reason, got %q", problems[0].Reason)
+	}
+}
+
+// changedRefsNames returns sorted names from the changed-reference set.
+func changedRefsNames(cfg *Configuration) []string {
+	var names []string
+	for _, vsr := range cfg.GetVirtualServerRoutesWithChangedReferences() {
+		names = append(names, vsr.Namespace+"/"+vsr.Name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// TestHostlessVSR_ReferenceSetShrinkIsDetected: deleting one VS doesn't re-render the others, so only this index catches the stale reference.
+func TestHostlessVSR_ReferenceSetShrinkIsDetected(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	for _, name := range []string{"vs-a", "vs-b", "vs-c"} {
+		vs := vsWithRoute(name, name+".example.com", "default/coffee")
+		cfg.AddOrUpdateVirtualServer(vs)
+	}
+	// Additions also change the set; the deletion is the behavior under test.
+	_, _ = cfg.DeleteVirtualServer("default/vs-c")
+
+	if diff := cmp.Diff([]string{"default/coffee"}, changedRefsNames(cfg)); diff != "" {
+		t.Errorf("GetVirtualServerRoutesWithChangedReferences mismatch after deleting vs-c (-want +got):\n%s", diff)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotNames []string
+	for _, vs := range got {
+		gotNames = append(gotNames, vs.Name)
+	}
+	if diff := cmp.Diff([]string{"vs-a", "vs-b"}, gotNames); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after deleting vs-c (-want +got):\n%s", diff)
+	}
+}
+
+// TestHostlessVSR_ReferenceSetShrinkIsDetectedCrossNamespace checks deletion across namespaces.
+func TestHostlessVSR_ReferenceSetShrinkIsDetectedCrossNamespace(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("routes-ns")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vsSpecs := []struct{ namespace, name, host string }{
+		{"default", "vs-a", "vs-a.example.com"},
+		{"apps-ns", "vs-b", "vs-b.example.com"},
+		{"other-ns", "vs-c", "vs-c.example.com"},
+	}
+	for _, s := range vsSpecs {
+		vs := &conf_v1.VirtualServer{
+			ObjectMeta: metav1.ObjectMeta{Namespace: s.namespace, Name: s.name},
+			Spec: conf_v1.VirtualServerSpec{
+				IngressClass: "nginx",
+				Host:         s.host,
+				Routes: []conf_v1.Route{
+					{Path: "/coffee", Route: "routes-ns/coffee"},
+				},
+			},
+		}
+		cfg.AddOrUpdateVirtualServer(vs)
+	}
+
+	_, _ = cfg.DeleteVirtualServer("other-ns/vs-c")
+
+	if diff := cmp.Diff([]string{"routes-ns/coffee"}, changedRefsNames(cfg)); diff != "" {
+		t.Errorf("GetVirtualServerRoutesWithChangedReferences mismatch after deleting other-ns/vs-c (-want +got):\n%s", diff)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotKeys []string
+	for _, vs := range got {
+		gotKeys = append(gotKeys, vs.Namespace+"/"+vs.Name)
+	}
+	if diff := cmp.Diff([]string{"apps-ns/vs-b", "default/vs-a"}, gotKeys); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after deleting other-ns/vs-c (-want +got):\n%s", diff)
+	}
+}
+
+// TestHostlessVSR_ReferenceSetNoChangeWhenUnaffected checks that unrelated VS changes are ignored.
+func TestHostlessVSR_ReferenceSetNoChangeWhenUnaffected(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vsA := vsWithRoute("vs-a", "vs-a.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vsA)
+
+	// Add an unrelated VS with no connection to the hostless VSR at all.
+	unrelated := createTestVirtualServer("unrelated", "unrelated.example.com")
+	cfg.AddOrUpdateVirtualServer(unrelated)
+
+	if got := changedRefsNames(cfg); len(got) != 0 {
+		t.Errorf("expected no changed VSR references from an unrelated VS add, got %v", got)
+	}
+}
+
+// Deleted VSRs have no status to refresh; orphan and ignored VSRs are reported separately.
+func TestHostlessVSR_ReferenceSetChangeSkipsDeletedVSR(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vs := vsWithRoute("vs-a", "vs-a.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vs)
+
+	_, _ = cfg.DeleteVirtualServerRoute("default/coffee")
+
+	if got := changedRefsNames(cfg); len(got) != 0 {
+		t.Errorf("expected no changed VSR references after deleting the VSR itself, got %v", got)
+	}
+}
+
+// An updated VS no longer exposes its old VSR reference through ResourceChange; detect it in the reverse index.
+func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletion(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("default")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vsA := vsWithRoute("vs-a", "vs-a.example.com", "default/coffee")
+	vsB := vsWithRoute("vs-b", "vs-b.example.com", "default/coffee")
+	cfg.AddOrUpdateVirtualServer(vsA)
+	cfg.AddOrUpdateVirtualServer(vsB)
+
+	// Edit vs-b so it no longer references the VSR at all.
+	vsBDetached := createTestVirtualServerWithRoutes("vs-b", "vs-b.example.com", []conf_v1.Route{
+		{Path: "/coffee", Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "vs-b-local"}}},
+	})
+	cfg.AddOrUpdateVirtualServer(vsBDetached)
+
+	if diff := cmp.Diff([]string{"default/coffee"}, changedRefsNames(cfg)); diff != "" {
+		t.Errorf("GetVirtualServerRoutesWithChangedReferences mismatch after detaching vs-b (-want +got):\n%s", diff)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotNames []string
+	for _, vs := range got {
+		gotNames = append(gotNames, vs.Name)
+	}
+	if diff := cmp.Diff([]string{"vs-a"}, gotNames); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after detaching vs-b (-want +got):\n%s", diff)
+	}
+}
+
+// TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace checks cross-namespace reference removal.
+func TestHostlessVSR_ReferenceSetChangeDetachWithoutDeletionCrossNamespace(t *testing.T) {
+	t.Parallel()
+	cfg := createTestConfiguration()
+
+	vsr := createHostlessVSR("routes-ns")
+	cfg.AddOrUpdateVirtualServerRoute(vsr)
+
+	vsA := &conf_v1.VirtualServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "vs-a"},
+		Spec: conf_v1.VirtualServerSpec{
+			IngressClass: "nginx",
+			Host:         "vs-a.example.com",
+			Routes:       []conf_v1.Route{{Path: "/coffee", Route: "routes-ns/coffee"}},
+		},
+	}
+	vsB := &conf_v1.VirtualServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "apps-ns", Name: "vs-b"},
+		Spec: conf_v1.VirtualServerSpec{
+			IngressClass: "nginx",
+			Host:         "vs-b.example.com",
+			Routes:       []conf_v1.Route{{Path: "/coffee", Route: "routes-ns/coffee"}},
+		},
+	}
+	cfg.AddOrUpdateVirtualServer(vsA)
+	cfg.AddOrUpdateVirtualServer(vsB)
+
+	// Edit vs-b so it no longer references the VSR.
+	vsBDetached := &conf_v1.VirtualServer{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "apps-ns", Name: "vs-b"},
+		Spec: conf_v1.VirtualServerSpec{
+			IngressClass: "nginx",
+			Host:         "vs-b.example.com",
+			Routes: []conf_v1.Route{
+				{Path: "/coffee", Action: &conf_v1.Action{Return: &conf_v1.ActionReturn{Body: "vs-b-local"}}},
+			},
+		},
+	}
+	cfg.AddOrUpdateVirtualServer(vsBDetached)
+
+	if diff := cmp.Diff([]string{"routes-ns/coffee"}, changedRefsNames(cfg)); diff != "" {
+		t.Errorf("GetVirtualServerRoutesWithChangedReferences mismatch after detaching apps-ns/vs-b (-want +got):\n%s", diff)
+	}
+
+	got := cfg.GetVirtualServersForVirtualServerRoute(vsr)
+	var gotKeys []string
+	for _, vs := range got {
+		gotKeys = append(gotKeys, vs.Namespace+"/"+vs.Name)
+	}
+	if diff := cmp.Diff([]string{"default/vs-a"}, gotKeys); diff != "" {
+		t.Errorf("GetVirtualServersForVirtualServerRoute mismatch after detaching apps-ns/vs-b (-want +got):\n%s", diff)
+	}
 }

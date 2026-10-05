@@ -278,12 +278,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: allow-empty-ingress-host
@@ -315,7 +313,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: allow-empty-ingress-host-nginx-ingress
       automountServiceAccountToken: true
@@ -359,7 +357,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -371,7 +369,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -379,7 +376,6 @@ spec:
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/allow-empty-ingress-host-nginx-ingress
           - -default-server-tls-secret=default/empty-host-tls
-          
           - -ingress-class=nginx
           - -health-status=false
           - -health-status-uri=/nginx-health
@@ -407,9 +403,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=true
           - -default-http-listener-port=8080
           - -default-https-listener-port=8443
+          - -allow-empty-ingress-host=true
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -431,9 +427,6 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -444,6 +437,422 @@ metadata:
     helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: allow-empty-ingress-host
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
+[TestHelmNICTemplate/allowEmptyIngressHostWithoutCRs - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - allow-empty-ingress-host-no-crs-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: allow-empty-ingress-host-no-crs-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: LoadBalancer
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:
+      volumes: []
+      serviceAccountName: allow-empty-ingress-host-no-crs-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.7.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/allow-empty-ingress-host-no-crs-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -enable-config-safety=false
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -external-service=allow-empty-ingress-host-no-crs-nginx-ingress-controller
+          - -enable-leader-election=true
+          - -leader-election-lock-name=allow-empty-ingress-host-no-crs-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=false
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -allow-empty-ingress-host=true
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: allow-empty-ingress-host-no-crs-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: allow-empty-ingress-host-no-crs
     app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 ---
@@ -479,7 +888,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -753,12 +1161,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-dos
@@ -790,7 +1196,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: appprotect-dos-nginx-ingress
       automountServiceAccountToken: true
@@ -834,7 +1240,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -846,7 +1252,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -856,7 +1261,6 @@ spec:
           - -app-protect-dos-max-daemons=10
           - -app-protect-dos-max-workers=5
           - -app-protect-dos-memory=1024
-          
           - -nginx-configmaps=$(POD_NAMESPACE)/appprotect-dos-nginx-ingress
           - -mgmt-configmap=$(POD_NAMESPACE)/appprotect-dos-nginx-ingress-mgmt
           - -ingress-class=nginx
@@ -886,9 +1290,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -955,7 +1359,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -1229,12 +1632,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf
@@ -1266,7 +1667,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: appprotect-waf-nginx-ingress
       automountServiceAccountToken: true
@@ -1310,7 +1711,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -1322,7 +1723,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -1357,9 +1757,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -1426,7 +1826,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -1700,12 +2099,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-waf-plm
@@ -1737,9 +2134,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - emptyDir: {}
         name: app-protect-bd-config
       - emptyDir: {}
@@ -1788,9 +2184,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: app-protect-bd-config
           mountPath: /opt/app_protect/bd_config
         - name: app-protect-config
@@ -1809,7 +2204,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -1850,16 +2244,15 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-      
       - name: waf-enforcer
         image: private-registry.nginx.com/nap/waf-enforcer:5.15.0
         imagePullPolicy: "IfNotPresent"
@@ -1875,7 +2268,6 @@ spec:
         image: private-registry.nginx.com/nap/waf-config-mgr:5.15.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
-      
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -1962,7 +2354,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       level: info
       path: ""
@@ -2268,12 +2659,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv2
@@ -2306,9 +2695,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: agent-conf
         configMap:
           name: app-protect-waf-agentv2-nginx-ingress-agent-config
@@ -2365,9 +2753,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: agent-etc
           mountPath: /etc/nginx-agent
           # needed for agent otel collector config
@@ -2389,7 +2776,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -2424,9 +2810,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -2508,25 +2894,21 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       # set log level (error, info, debug; default "info")
       level: info
       # set log path. if empty, don't log to file.
       path: ""
-    
     allowed_directories:
       - /etc/nginx
       - /usr/lib/nginx/modules
       - /etc/app_protect
-    
     features:
       - certificates
       - connection
       - metrics
       - file-watcher
       - logs-nap
-    
     ## command server settings
     command:
       server:
@@ -2536,7 +2918,6 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
-    
     ## collector settings
     collector:
       log:
@@ -2816,12 +3197,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-waf-agentv3
@@ -2854,9 +3233,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: agent-conf
         configMap:
           name: app-protect-waf-agentv3-nginx-ingress-agent-config
@@ -2909,9 +3287,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: agent-etc
           mountPath: /etc/nginx-agent
           # needed for agent otel collector config
@@ -2932,7 +3309,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -2967,9 +3343,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -3037,7 +3413,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -3311,12 +3686,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5
@@ -3348,9 +3721,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - emptyDir: {}
         name: app-protect-bd-config
       - emptyDir: {}
@@ -3401,9 +3773,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: app-protect-bd-config
           mountPath: /opt/app_protect/bd_config
         - name: app-protect-config
@@ -3422,7 +3793,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -3458,16 +3828,15 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-      
       - name: waf-enforcer
         image: my.private.reg/nap/waf-enforcer:5.15.0
         imagePullPolicy: "IfNotPresent"
@@ -3485,7 +3854,6 @@ spec:
         image: my.private.reg/nap/waf-config-mgr:5.15.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
-      
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -3503,7 +3871,6 @@ spec:
         image: my.private.reg/nap/waf-ip-intelligence:5.15.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
-      
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -3586,7 +3953,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       level: info
       path: ""
@@ -3892,12 +4258,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv2
@@ -3930,9 +4294,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - emptyDir: {}
         name: app-protect-bd-config
       - emptyDir: {}
@@ -3995,9 +4358,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: app-protect-bd-config
           mountPath: /opt/app_protect/bd_config
         - name: app-protect-config
@@ -4027,7 +4389,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -4063,9 +4424,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -4074,7 +4435,6 @@ spec:
           - -weight-changes-dynamic-reload=false
           - -agent=true
           - -agent-instance-group=app-protect-wafv5-agentv2-nginx-ingress-controller
-      
       - name: waf-enforcer
         image: my.private.reg/nap/waf-enforcer:5.15.0
         imagePullPolicy: "IfNotPresent"
@@ -4090,7 +4450,6 @@ spec:
         image: my.private.reg/nap/waf-config-mgr:5.15.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
-      
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -4177,25 +4536,21 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       # set log level (error, info, debug; default "info")
       level: info
       # set log path. if empty, don't log to file.
       path: ""
-    
     allowed_directories:
       - /etc/nginx
       - /usr/lib/nginx/modules
       - /etc/app_protect
-    
     features:
       - certificates
       - connection
       - metrics
       - file-watcher
       - logs-nap
-    
     ## command server settings
     command:
       server:
@@ -4205,7 +4560,6 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
-    
     ## collector settings
     collector:
       log:
@@ -4485,12 +4839,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: app-protect-wafv5-agentv3
@@ -4523,9 +4875,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - emptyDir: {}
         name: app-protect-bd-config
       - emptyDir: {}
@@ -4584,9 +4935,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: app-protect-bd-config
           mountPath: /opt/app_protect/bd_config
         - name: app-protect-config
@@ -4615,7 +4965,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
@@ -4651,9 +5000,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -4661,7 +5010,6 @@ spec:
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
           - -agent=true
-      
       - name: waf-enforcer
         image: my.private.reg/nap/waf-enforcer:5.15.0
         imagePullPolicy: "IfNotPresent"
@@ -4677,7 +5025,6 @@ spec:
         image: my.private.reg/nap/waf-config-mgr:5.15.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
-      
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -4751,7 +5098,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5025,12 +5371,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: appprotect-wafv5-resources
@@ -5062,15 +5406,16 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - emptyDir: {}
         name: app-protect-bd-config
       - emptyDir: {}
         name: app-protect-config
       - emptyDir: {}
         name: app-protect-bundles
+      - name: app-protect-ipi-db
+        emptyDir: {}
       serviceAccountName: appprotect-wafv5-resources-nginx-ingress
       automountServiceAccountToken: true
       securityContext:
@@ -5113,9 +5458,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: app-protect-bd-config
           mountPath: /opt/app_protect/bd_config
         - name: app-protect-config
@@ -5134,11 +5478,10 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=true
-          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-ip-intelligence=true
           - -app-protect-enforcer-address="localhost:50001"
           - -enable-app-protect-dos=false
           - -nginx-configmaps=$(POD_NAMESPACE)/appprotect-wafv5-resources-nginx-ingress
@@ -5170,21 +5513,19 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-      
       - name: waf-enforcer
         image: my.private.reg/nap/waf-enforcer:5.15.0
         imagePullPolicy: "IfNotPresent"
         resources:
-      
             limits:
               cpu: 500m
               memory: 512Mi
@@ -5199,11 +5540,12 @@ spec:
         volumeMounts:
           - name: app-protect-bd-config
             mountPath: /opt/app_protect/bd_config
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
       - name: waf-config-mgr
         image: my.private.reg/nap/waf-config-mgr:5.15.0
         imagePullPolicy: "IfNotPresent"
         securityContext:
-      
             allowPrivilegeEscalation: false
             capabilities:
               drop:
@@ -5211,7 +5553,6 @@ spec:
             runAsNonRoot: true
             runAsUser: 101
         resources:
-      
             limits:
               cpu: 250m
               memory: 256Mi
@@ -5225,6 +5566,26 @@ spec:
             mountPath: /opt/app_protect/config
           - name: app-protect-bundles
             mountPath: /etc/app_protect/bundles
+      - name: waf-ip-intelligence
+        image: my.private.reg/nap/waf-ip-intelligence:5.15.0
+        imagePullPolicy: "IfNotPresent"
+        securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - all
+            runAsNonRoot: true
+            runAsUser: 101
+        resources:
+            limits:
+              cpu: 125m
+              memory: 128Mi
+            requests:
+              cpu: 25m
+              memory: 32Mi
+        volumeMounts:
+          - name: app-protect-ipi-db
+            mountPath: /var/IpRep
 /-/-/-/
 # Source: nginx-ingress/templates/controller-ingress-class.yaml
 apiVersion: networking.k8s.io/v1
@@ -5512,12 +5873,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: custom-resources
@@ -5549,7 +5908,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: custom-resources-nginx-ingress
       automountServiceAccountToken: true
@@ -5593,7 +5952,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -5605,7 +5964,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -5637,6 +5995,7 @@ spec:
           - -disable-ipv6=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -5657,9 +6016,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -5954,12 +6310,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset
@@ -5996,7 +6350,7 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      terminationGracePeriodSeconds: 30      
+      terminationGracePeriodSeconds: 30
       volumes: []
       hostNetwork: false
       dnsPolicy: ClusterFirst
@@ -6011,7 +6365,6 @@ spec:
         - name: https
           containerPort: 443
           protocol: TCP
-
         - name: prometheus
           containerPort: 9113
         - name: readiness-port
@@ -6031,7 +6384,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -6047,7 +6400,6 @@ spec:
             cpu: 100m
             memory: 128Mi
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -6081,9 +6433,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -6104,9 +6456,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -6401,12 +6750,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: daemonset-readonly
@@ -6443,9 +6790,8 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
-      terminationGracePeriodSeconds: 30      
+      terminationGracePeriodSeconds: 30
       volumes:
-      
       - name: nginx-etc
         emptyDir: {}
       - name: nginx-lib
@@ -6469,7 +6815,6 @@ spec:
         - name: https
           containerPort: 443
           protocol: TCP
-
         - name: prometheus
           containerPort: 9113
         - name: readiness-port
@@ -6489,9 +6834,8 @@ spec:
             - ALL
           readOnlyRootFilesystem: true
           runAsNonRoot: true
-          runAsUser: 101        
+          runAsUser: 101
         volumeMounts:
-        
         - mountPath: /etc/nginx
           name: nginx-etc
         - mountPath: /var/cache/nginx
@@ -6516,7 +6860,6 @@ spec:
             cpu: 100m
             memory: 128Mi
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -6550,16 +6893,15 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-      
       initContainers:
       - name: init-nginx-ingress
         image: nginx/nginx-ingress:5.7.0
@@ -6594,9 +6936,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -6870,12 +7209,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default-listener-ports-no-crs
@@ -6907,7 +7244,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: default-listener-ports-no-crs-nginx-ingress
       automountServiceAccountToken: true
@@ -6951,7 +7288,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -6963,7 +7300,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -6995,6 +7331,7 @@ spec:
           - -disable-ipv6=false
           - -default-http-listener-port=8080
           - -default-https-listener-port=8443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -7015,9 +7352,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -7312,12 +7646,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: default
@@ -7349,7 +7681,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: default-nginx-ingress
       automountServiceAccountToken: true
@@ -7393,7 +7725,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -7405,7 +7737,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -7439,9 +7770,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -7462,9 +7793,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -7759,12 +8087,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: deployment-hpa
@@ -7795,7 +8121,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: deployment-hpa-nginx-ingress
       automountServiceAccountToken: true
@@ -7839,7 +8165,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -7851,7 +8177,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -7885,9 +8210,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -7941,9 +8266,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -8238,12 +8560,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: deployment-hpa-no-create
@@ -8274,7 +8594,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: deployment-hpa-no-create-nginx-ingress
       automountServiceAccountToken: true
@@ -8318,7 +8638,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -8330,7 +8650,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -8364,9 +8683,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -8387,9 +8706,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -8684,12 +9000,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-configuration
@@ -8721,7 +9035,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: global-configuration-nginx-ingress
       automountServiceAccountToken: true
@@ -8765,7 +9079,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -8777,7 +9091,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -8811,10 +9124,10 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -global-configuration=$(POD_NAMESPACE)/global-configuration-nginx-ingress-controller
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -8835,9 +9148,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-globalconfiguration.yaml
 apiVersion: k8s.nginx.org/v1
@@ -9153,12 +9463,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: global-config-custom-name
@@ -9190,7 +9498,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: global-config-custom-name-nginx-ingress
       automountServiceAccountToken: true
@@ -9234,7 +9542,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -9246,7 +9554,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -9280,10 +9587,10 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -global-configuration=test-namespace/my-custom-global-config
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -9304,9 +9611,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-globalconfiguration.yaml
 apiVersion: k8s.nginx.org/v1
@@ -9619,12 +9923,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: ingress-class
@@ -9656,7 +9958,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: ingress-class-nginx-ingress
       automountServiceAccountToken: true
@@ -9700,7 +10002,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -9712,7 +10014,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -9746,9 +10047,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -9771,9 +10072,6 @@ metadata:
     ingressclass.kubernetes.io/is-default-class: "true"
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -10080,17 +10378,14 @@ spec:
     port: 9001
     protocol: UDP
     targetPort: 9001
-
   - port: 80
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: list-configs
@@ -10125,7 +10420,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: list-configs-nginx-ingress
       automountServiceAccountToken: true
@@ -10175,7 +10470,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -10187,7 +10482,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -10221,9 +10515,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -10244,9 +10538,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -10542,12 +10833,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: loadbalancerclass
@@ -10579,7 +10868,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: loadbalancerclass-nginx-ingress
       automountServiceAccountToken: true
@@ -10623,7 +10912,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -10635,7 +10924,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -10669,9 +10957,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -10692,9 +10980,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -10989,12 +11274,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: namespace
@@ -11026,7 +11309,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: namespace-nginx-ingress
       automountServiceAccountToken: true
@@ -11070,7 +11353,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -11082,7 +11365,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -11116,9 +11398,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -11139,9 +11421,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -11436,12 +11715,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: network-policy-disabled
@@ -11473,7 +11750,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: network-policy-disabled-nginx-ingress
       automountServiceAccountToken: true
@@ -11517,7 +11794,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -11529,7 +11806,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -11563,9 +11839,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -11586,9 +11862,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -11911,12 +12184,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: network-policy-ingress
@@ -11948,7 +12219,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: network-policy-ingress-nginx-ingress
       automountServiceAccountToken: true
@@ -11992,7 +12263,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -12004,7 +12275,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -12038,9 +12308,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -12061,9 +12331,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -12387,12 +12654,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: network-policy-ingress-egress
@@ -12424,7 +12689,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: network-policy-ingress-egress-nginx-ingress
       automountServiceAccountToken: true
@@ -12468,7 +12733,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -12480,7 +12745,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -12514,9 +12778,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -12538,9 +12802,6 @@ metadata:
 spec:
   controller: nginx.org/ingress-controller
 /-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
-/-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
 kind: Lease
@@ -12551,6 +12812,888 @@ metadata:
     helm.sh/chart: nginx-ingress-2.8.0
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: network-policy-ingress-egress
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
+[TestHelmNICTemplate/nodePort - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nodeport-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nodeport-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nodeport-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nodeport-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nodeport-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: nodeport-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: nodeport-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nodeport-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - nodeport-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nodeport-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nodeport-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: nodeport-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodeport-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+    nodePort: 30080
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+    nodePort: 30443
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodeport-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: nodeport
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: nodeport
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:
+      volumes: []
+      serviceAccountName: nodeport-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.7.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/nodeport-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -enable-config-safety=false
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -enable-leader-election=true
+          - -leader-election-lock-name=nodeport-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: nodeport-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+---
+
+[TestHelmNICTemplate/nodePortZero - 1]
+/-/-/-/
+# Source: nginx-ingress/templates/controller-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nodeport-zero-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/controller-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nodeport-zero-nginx-ingress
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  {}
+/-/-/-/
+# Source: nginx-ingress/templates/controller-leader-election-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nodeport-zero-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrole.yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nodeport-zero-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - namespaces
+  - pods
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - list
+- apiGroups:
+  - "apps"
+  resources:
+  - replicasets
+  - daemonsets
+  - statefulsets
+  verbs:
+  - get
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingressclasses
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - update
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers
+  - virtualserverroutes
+  - globalconfigurations
+  - transportservers
+  - policies
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - k8s.nginx.org
+  resources:
+  - virtualservers/status
+  - virtualserverroutes/status
+  - policies/status
+  - transportservers/status
+  verbs:
+  - update
+/-/-/-/
+# Source: nginx-ingress/templates/clusterrolebinding.yaml
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nodeport-zero-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+subjects:
+- kind: ServiceAccount
+  name: nodeport-zero-nginx-ingress
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: nodeport-zero-nginx-ingress
+  apiGroup: rbac.authorization.k8s.io
+/-/-/-/
+# Source: nginx-ingress/templates/controller-role.yaml
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nodeport-zero-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - pods
+  - secrets
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+  - list
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  resourceNames:
+  - nodeport-zero-nginx-ingress-leader-election
+  verbs:
+  - get
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+/-/-/-/
+# Source: nginx-ingress/templates/controller-rolebinding.yaml
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nodeport-zero-nginx-ingress
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: nodeport-zero-nginx-ingress
+subjects:
+- kind: ServiceAccount
+  name: nodeport-zero-nginx-ingress
+  namespace: default
+/-/-/-/
+# Source: nginx-ingress/templates/controller-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodeport-zero-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  externalTrafficPolicy: Local
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    protocol: TCP
+    name: https
+  selector:
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+/-/-/-/
+# Source: nginx-ingress/templates/controller-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodeport-zero-nginx-ingress-controller
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nginx-ingress
+      app.kubernetes.io/instance: nodeport-zero
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nginx-ingress
+        app.kubernetes.io/instance: nodeport-zero
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9113"
+        prometheus.io/scheme: "http"
+    spec:
+      volumes: []
+      serviceAccountName: nodeport-zero-nginx-ingress
+      automountServiceAccountToken: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+      - image: nginx/nginx-ingress:5.7.0
+        name: nginx-ingress
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        - name: prometheus
+          containerPort: 9113
+        - name: readiness-port
+          containerPort: 8081
+        readinessProbe:
+          httpGet:
+            path: /nginx-ready
+            port: readiness-port
+          periodSeconds: 1
+          initialDelaySeconds: 0
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsUser: 101 #nginx
+          runAsNonRoot: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_BIND_SERVICE
+        volumeMounts: []
+        env:
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        args:
+          - -nginx-plus=false
+          - -nginx-reload-timeout=60000
+          - -enable-app-protect=false
+          - -enable-app-protect-ip-intelligence=false
+          - -enable-app-protect-dos=false
+          - -nginx-configmaps=$(POD_NAMESPACE)/nodeport-zero-nginx-ingress
+          - -ingress-class=nginx
+          - -health-status=false
+          - -health-status-uri=/nginx-health
+          - -nginx-debug=false
+          - -log-level=info
+          - -log-format=glog
+          - -enable-config-safety=false
+          - -nginx-status=true
+          - -nginx-status-port=8080
+          - -nginx-status-allow-cidrs=127.0.0.1
+          - -report-ingress-status
+          - -enable-leader-election=true
+          - -leader-election-lock-name=nodeport-zero-nginx-ingress-leader-election
+          - -enable-prometheus-metrics=true
+          - -prometheus-metrics-listen-port=9113
+          - -prometheus-tls-secret=
+          - -enable-service-insight=false
+          - -service-insight-listen-port=9114
+          - -service-insight-tls-secret=
+          - -enable-custom-resources=true
+          - -enable-snippets=false
+          - -disable-ipv6=false
+          - -enable-tls-passthrough=false
+          - -enable-cert-manager=false
+          - -enable-oidc=false
+          - -enable-external-dns=false
+          - -default-http-listener-port=80
+          - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
+          - -ready-status=true
+          - -ready-status-port=8081
+          - -enable-latency-metrics=false
+          - -ssl-dynamic-reload=true
+          - -enable-telemetry-reporting=true
+          - -weight-changes-dynamic-reload=false
+/-/-/-/
+# Source: nginx-ingress/templates/controller-ingress-class.yaml
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
+    app.kubernetes.io/version: "5.7.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  controller: nginx.org/ingress-controller
+/-/-/-/
+# Source: nginx-ingress/templates/controller-lease.yaml
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: nodeport-zero-nginx-ingress-leader-election
+  namespace: default
+  labels:
+    helm.sh/chart: nginx-ingress-2.8.0
+    app.kubernetes.io/name: nginx-ingress
+    app.kubernetes.io/instance: nodeport-zero
     app.kubernetes.io/version: "5.7.0"
     app.kubernetes.io/managed-by: Helm
 ---
@@ -12599,23 +13742,19 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       # set log level (error, info, debug; default "info")
       level: info
       # set log path. if empty, don't log to file.
       path: ""
-    
     allowed_directories:
       - /etc/nginx
       - /usr/lib/nginx/modules
-    
     features:
       - certificates
       - connection
       - metrics
       - file-watcher
-    
     ## command server settings
     command:
       server:
@@ -12625,7 +13764,6 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
-    
     ## collector settings
     collector:
       log:
@@ -12880,12 +14018,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: oss-agent
@@ -12918,9 +14054,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: agent-conf
         configMap:
           name: oss-agent-nginx-ingress-agent-config
@@ -12973,9 +14108,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: agent-etc
           mountPath: /etc/nginx-agent
           # needed for agent otel collector config
@@ -12996,7 +14130,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -13030,9 +14163,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -13100,7 +14233,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13364,12 +14496,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus
@@ -13401,7 +14531,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-nginx-ingress
       automountServiceAccountToken: true
@@ -13445,7 +14575,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -13457,7 +14587,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -13492,9 +14621,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -13561,7 +14690,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13825,12 +14953,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-debug
@@ -13862,7 +14988,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-debug-nginx-ingress
       automountServiceAccountToken: true
@@ -13906,7 +15032,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -13918,7 +15044,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - --listen=:2345
           - --headless=true
           - --log=true
@@ -13963,9 +15088,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -14032,7 +15157,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14306,12 +15430,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt
@@ -14343,7 +15465,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-mgmt-nginx-ingress
       automountServiceAccountToken: true
@@ -14387,7 +15509,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -14409,7 +15531,6 @@ spec:
               name: proxy-credentials
               key: password
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -14444,9 +15565,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -14513,7 +15634,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14778,12 +15898,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-custom-endpoint
@@ -14815,7 +15933,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-mgmt-custom-endpoint-nginx-ingress
       automountServiceAccountToken: true
@@ -14859,7 +15977,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -14871,7 +15989,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -14906,9 +16023,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -14975,7 +16092,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15240,12 +16356,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host
@@ -15277,7 +16391,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-mgmt-proxy-host-nginx-ingress
       automountServiceAccountToken: true
@@ -15321,7 +16435,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -15333,7 +16447,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -15368,9 +16481,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -15437,7 +16550,6 @@ data:
   {}
 /-/-/-/
 # Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15702,12 +16814,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-mgmt-proxy-host-auth
@@ -15739,7 +16849,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: plus-mgmt-proxy-host-auth-nginx-ingress
       automountServiceAccountToken: true
@@ -15783,7 +16893,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -15805,7 +16915,6 @@ spec:
               name: custom-credentials
               key: password
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -15840,9 +16949,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -15922,23 +17031,19 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       # set log level (error, info, debug; default "info")
       level: info
       # set log path. if empty, don't log to file.
       path: ""
-    
     allowed_directories:
       - /etc/nginx
       - /usr/lib/nginx/modules
-    
     features:
       - certificates
       - connection
       - metrics
       - file-watcher
-    
     ## command server settings
     command:
       server:
@@ -15948,7 +17053,6 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: false
-    
     ## collector settings
     collector:
       log:
@@ -16218,12 +17322,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent
@@ -16256,9 +17358,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: agent-conf
         configMap:
           name: plus-agent-nginx-ingress-agent-config
@@ -16311,9 +17412,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: agent-etc
           mountPath: /etc/nginx-agent
           # needed for agent otel collector config
@@ -16334,7 +17434,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -16369,9 +17468,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -16452,23 +17551,19 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 data:
   nginx-agent.conf: |-
-    
     log:
       # set log level (error, info, debug; default "info")
       level: debug
       # set log path. if empty, don't log to file.
       path: ""
-    
     allowed_directories:
       - /etc/nginx
       - /usr/lib/nginx/modules
-    
     features:
       - certificates
       - connection
       - metrics
       - file-watcher
-    
     ## command server settings
     command:
       server:
@@ -16478,7 +17573,6 @@ data:
         tokenpath: "/etc/nginx-agent/secrets/dataplane.key"
       tls:
         skip_verify: true
-    
     ## collector settings
     collector:
       log:
@@ -16748,12 +17842,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: plus-agent-all
@@ -16786,9 +17878,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: agent-conf
         configMap:
           name: plus-agent-all-nginx-ingress-agent-config
@@ -16841,9 +17932,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - name: agent-etc
           mountPath: /etc/nginx-agent
           # needed for agent otel collector config
@@ -16864,7 +17954,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=true
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -16899,9 +17988,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -17217,12 +18306,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: startupstatus
@@ -17254,7 +18341,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: startupstatus-nginx-ingress
       automountServiceAccountToken: true
@@ -17309,7 +18396,7 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts: []
         env:
         - name: POD_NAMESPACE
@@ -17321,7 +18408,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -17355,9 +18441,9 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
@@ -17378,9 +18464,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -17675,12 +18758,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset
@@ -17713,7 +18794,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: statefulset-nginx-ingress
       automountServiceAccountToken: true
@@ -17757,9 +18838,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - mountPath: /var/cache/nginx
           name: nginx-cache
         env:
@@ -17772,7 +18852,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -17806,16 +18885,15 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-      
   podManagementPolicy: OrderedReady
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
@@ -17843,9 +18921,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -18140,12 +19215,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-config
@@ -18178,7 +19251,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: statefulset-config-nginx-ingress
       automountServiceAccountToken: true
@@ -18222,9 +19295,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - mountPath: /var/cache/nginx
           name: nginx-cache
         env:
@@ -18237,7 +19309,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -18271,16 +19342,15 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-      
   podManagementPolicy: Parallel
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Delete
@@ -18309,9 +19379,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -18606,12 +19673,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-no-storageclass
@@ -18644,7 +19709,7 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes: []
       serviceAccountName: statefulset-no-storageclass-nginx-ingress
       automountServiceAccountToken: true
@@ -18688,9 +19753,8 @@ spec:
             drop:
             - ALL
             add:
-            - NET_BIND_SERVICE        
+            - NET_BIND_SERVICE
         volumeMounts:
-        
         - mountPath: /var/cache/nginx
           name: nginx-cache
         env:
@@ -18703,7 +19767,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -18737,16 +19800,15 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-      
   podManagementPolicy: Parallel
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Delete
@@ -18774,9 +19836,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
@@ -19071,12 +20130,10 @@ spec:
     targetPort: 80
     protocol: TCP
     name: http
-    nodePort: 
   - port: 443
     targetPort: 443
     protocol: TCP
     name: https
-    nodePort: 
   selector:
     app.kubernetes.io/name: nginx-ingress
     app.kubernetes.io/instance: statefulset-readonly
@@ -19109,9 +20166,8 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9113"
         prometheus.io/scheme: "http"
-    spec:      
+    spec:
       volumes:
-      
       - name: nginx-etc
         emptyDir: {}
       - name: nginx-lib
@@ -19162,9 +20218,8 @@ spec:
             - ALL
           readOnlyRootFilesystem: true
           runAsNonRoot: true
-          runAsUser: 101        
+          runAsUser: 101
         volumeMounts:
-        
         - mountPath: /etc/nginx
           name: nginx-etc
         - mountPath: /var/cache/nginx
@@ -19185,7 +20240,6 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         args:
-          
           - -nginx-plus=false
           - -nginx-reload-timeout=60000
           - -enable-app-protect=false
@@ -19219,16 +20273,15 @@ spec:
           - -enable-cert-manager=false
           - -enable-oidc=false
           - -enable-external-dns=false
-          - -allow-empty-ingress-host=false
           - -default-http-listener-port=80
           - -default-https-listener-port=443
+          - -allow-empty-ingress-host=false
           - -ready-status=true
           - -ready-status-port=8081
           - -enable-latency-metrics=false
           - -ssl-dynamic-reload=true
           - -enable-telemetry-reporting=true
           - -weight-changes-dynamic-reload=false
-      
       initContainers:
       - name: init-nginx-ingress
         image: nginx/nginx-ingress:5.7.0
@@ -19276,9 +20329,6 @@ metadata:
     app.kubernetes.io/managed-by: Helm
 spec:
   controller: nginx.org/ingress-controller
-/-/-/-/
-# Source: nginx-ingress/templates/controller-configmap.yaml
-/-/-/-/
 /-/-/-/
 # Source: nginx-ingress/templates/controller-lease.yaml
 apiVersion: coordination.k8s.io/v1
