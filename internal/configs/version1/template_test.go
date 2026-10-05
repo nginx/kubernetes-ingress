@@ -4012,6 +4012,25 @@ func TestExecuteTemplate_ForIngressWithHTTP2OnWithoutTLS(t *testing.T) {
 	}
 }
 
+func TestExecuteTemplate_ForIngressGRPCOnlyWithoutTLS(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXIngressTmpl, "Plus": newNGINXPlusIngressTmpl} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			buf := &bytes.Buffer{}
+			if err := newTmpl(t).Execute(buf, ingressCfgGRPCOnlyNoTLS); err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{"listen 8080 proxy_protocol;", "listen [::]:8080 proxy_protocol;", "http2 on;", "grpc_pass"} {
+				if !strings.Contains(buf.String(), want) {
+					t.Errorf("want %q in generated template", want)
+				}
+			}
+			snaps.MatchSnapshot(t, buf.String())
+		})
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXWithHTTP2On(t *testing.T) {
 	t.Parallel()
 
@@ -6678,7 +6697,28 @@ var (
 		},
 	}
 
-	// Ingress Config example without added annotations
+	// gRPC-only server without TLS: plaintext listeners must still be rendered
+	ingressCfgGRPCOnlyNoTLS = IngressNginxConfig{
+		Servers: []Server{
+			{
+				Name:             "test.example.com",
+				ServerTokens:     "off",
+				StatusZone:       "test.example.com",
+				Ports:            []int{8080},
+				ProxyProtocol:    true,
+				HTTP2:            true,
+				GRPCOnly:         true,
+				HasGRPCLocations: true,
+				Locations: []Location{{
+					Path: "/helloworld.Greeter", Upstream: testUpstream, ProxyPass: "grpc://test", GRPC: true,
+					ProxyConnectTimeout: "10s", ProxyReadTimeout: "10s", ProxySendTimeout: "10s", ClientMaxBodySize: "2m",
+				}},
+			},
+		},
+		Upstreams: []Upstream{testUpstream},
+		Ingress:   Ingress{Name: "cafe-ingress", Namespace: "default"},
+	}
+
 	ingressCfgHTTP2OnNoTLS = IngressNginxConfig{
 		Servers: []Server{
 			{

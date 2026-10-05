@@ -96,7 +96,7 @@ oidc_provider {{ $p.Name }} {
 
 {{range $server := .Servers}}
 server {
-	{{- if not $server.GRPCOnly}}
+	{{- if or (not $server.GRPCOnly) (not $server.SSL)}}
 	{{- range $port := $server.Ports}}
 	listen {{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};
 	{{- if not $server.DisableIPV6}}listen [::]:{{$port}}{{if $server.IsDefaultServer}} default_server{{end}}{{if $server.ProxyProtocol}} proxy_protocol{{end}};{{end}}

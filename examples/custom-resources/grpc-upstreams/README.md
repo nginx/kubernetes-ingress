@@ -6,7 +6,7 @@ grpc** field to an upstream. The protocol defaults to http if left unset.
 ## Prerequisites
 
 1. Run `make secrets` command to generate the necessary secrets for the example.
-1. HTTP/2 must be enabled using the `http2` [ConfigMap key](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/#listeners).
+1. HTTP/2 must be enabled using the `http2` [ConfigMap key](https://docs.nginx.com/nginx-ingress-controller/configuration/global-configuration/configmap-resource/#listeners), or for a single VirtualServer using `spec.http2: true`. This example uses the ConfigMap key.
 1. Configure TLS termination for VirtualServer and VirtualServerRoute resources.
 1. A working [`grpcurl`](https://github.com/fullstorydev/grpcurl) installation.
 1. [Install NGINX Ingress Controller using Manifests](https://docs.nginx.com/nginx-ingress-controller/install/manifests)

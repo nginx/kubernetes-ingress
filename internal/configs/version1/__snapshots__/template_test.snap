@@ -12652,3 +12652,141 @@ server {
 }
 
 ---
+
+[TestExecuteTemplate_ForIngressGRPCOnlyWithoutTLS/OSS - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0;
+}
+
+
+
+server {
+    listen 8080 proxy_protocol;listen [::]:8080 proxy_protocol;
+    http2 on;
+
+    server_tokens off;
+
+    server_name test.example.com;
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+    location "/helloworld.Greeter" {
+        set $service "";
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    error_page 400 @grpcerror400;
+    error_page 401 @grpcerror401;
+    error_page 403 @grpcerror403;
+    error_page 404 @grpcerror404;
+    error_page 405 @grpcerror405;
+    error_page 408 @grpcerror408;
+    error_page 414 @grpcerror414;
+    error_page 426 @grpcerror426;
+    error_page 500 @grpcerror500;
+    error_page 501 @grpcerror501;
+    error_page 502 @grpcerror502;
+    error_page 503 @grpcerror503;
+    error_page 504 @grpcerror504;
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---
+
+[TestExecuteTemplate_ForIngressGRPCOnlyWithoutTLS/Plus - 1]
+# configuration for default/cafe-ingress
+upstream test {
+    zone test 256k;
+    server 127.0.0.1:8181 max_fails=0 fail_timeout=1s max_conns=0 slow_start=5s;
+}
+
+
+server {
+    listen 8080 proxy_protocol;listen [::]:8080 proxy_protocol;
+    http2 on;
+
+    server_tokens "off";
+
+    server_name test.example.com;
+
+    status_zone "test.example.com";
+    set $resource_type "ingress";
+    set $resource_name "cafe-ingress";
+    set $resource_namespace "default";
+    set $service "-";
+
+    
+
+    
+    location "/helloworld.Greeter" {
+        set $service "";
+        status_zone "";
+
+        grpc_connect_timeout 10s;
+        grpc_read_timeout 10s;
+        grpc_send_timeout 10s;
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        grpc_set_header X-Forwarded-Host $host;
+        grpc_set_header X-Forwarded-Port $server_port;
+        grpc_set_header X-Forwarded-Proto $scheme;
+        grpc_pass grpc://test;
+        
+    }
+    
+    error_page 400 @grpcerror400;
+    error_page 401 @grpcerror401;
+    error_page 403 @grpcerror403;
+    error_page 404 @grpcerror404;
+    error_page 405 @grpcerror405;
+    error_page 408 @grpcerror408;
+    error_page 414 @grpcerror414;
+    error_page 426 @grpcerror426;
+    error_page 500 @grpcerror500;
+    error_page 501 @grpcerror501;
+    error_page 502 @grpcerror502;
+    error_page 503 @grpcerror503;
+    error_page 504 @grpcerror504;
+    location @grpcerror400 { default_type application/grpc; return 400 "\n"; }
+    location @grpcerror401 { default_type application/grpc; return 401 "\n"; }
+    location @grpcerror403 { default_type application/grpc; return 403 "\n"; }
+    location @grpcerror404 { default_type application/grpc; return 404 "\n"; }
+    location @grpcerror405 { default_type application/grpc; return 405 "\n"; }
+    location @grpcerror408 { default_type application/grpc; return 408 "\n"; }
+    location @grpcerror414 { default_type application/grpc; return 414 "\n"; }
+    location @grpcerror426 { default_type application/grpc; return 426 "\n"; }
+    location @grpcerror500 { default_type application/grpc; return 500 "\n"; }
+    location @grpcerror501 { default_type application/grpc; return 501 "\n"; }
+    location @grpcerror502 { default_type application/grpc; return 502 "\n"; }
+    location @grpcerror503 { default_type application/grpc; return 503 "\n"; }
+    location @grpcerror504 { default_type application/grpc; return 504 "\n"; }
+}
+
+---

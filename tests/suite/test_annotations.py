@@ -1,8 +1,11 @@
+import grpc
 import pytest
 import yaml
 from kubernetes.client import NetworkingV1Api
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
+from suite.grpc.helloworld_pb2 import HelloRequest
+from suite.grpc.helloworld_pb2_grpc import GreeterStub
 from suite.utils.custom_assertions import assert_event_count_increased
 from suite.utils.resources_utils import (
     create_example_app,
@@ -218,6 +221,53 @@ def annotations_grpc_setup(
     )
 
 
+@pytest.fixture(scope="class")
+def grpc_h2c_setup(
+    request,
+    kube_apis,
+    ingress_controller_prerequisites,
+    ingress_controller_endpoint,
+    ingress_controller,
+    test_namespace,
+) -> AnnotationsSetup:
+    print("------------------------- Deploy gRPC Ingress without TLS -----------------------------------")
+    src = f"{TEST_DATA}/annotations/grpc/h2c-ingress.yaml"
+
+    def fin():
+        if request.config.getoption("--skip-fixture-teardown") == "no":
+            print("Clean up gRPC Ingress without TLS:")
+            delete_items_from_yaml(kube_apis, src, test_namespace)
+            delete_common_app(kube_apis, "grpc", test_namespace)
+            replace_configmap_from_yaml(
+                kube_apis.v1,
+                ingress_controller_prerequisites.config_map["metadata"]["name"],
+                ingress_controller_prerequisites.namespace,
+                f"{DEPLOYMENTS}/common/nginx-config.yaml",
+            )
+
+    request.addfinalizer(fin)
+    replace_configmap_from_yaml(
+        kube_apis.v1,
+        ingress_controller_prerequisites.config_map["metadata"]["name"],
+        ingress_controller_prerequisites.namespace,
+        f"{TEST_DATA}/common/configmap-with-grpc.yaml",
+    )
+    create_example_app(kube_apis, "grpc", test_namespace)
+    create_items_from_yaml(kube_apis, src, test_namespace)
+    wait_until_all_pods_are_ready(kube_apis.v1, test_namespace)
+    ingress_name = get_name_from_yaml(src)
+    return AnnotationsSetup(
+        ingress_controller_endpoint,
+        src,
+        ingress_name,
+        get_first_ingress_host_from_yaml(src),
+        get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace),
+        test_namespace,
+        f"Configuration for {test_namespace}/{ingress_name} was added or updated",
+        f"{test_namespace}/{ingress_name} was rejected: with error",
+    )
+
+
 @pytest.mark.ingresses
 @pytest.mark.annotations
 @pytest.mark.parametrize("annotations_setup", ["standard", "mergeable"], indirect=True)
@@ -236,6 +286,7 @@ class TestAnnotations:
         assert "max_conns=0;" in result_conf
 
         assert "Strict-Transport-Security" not in result_conf
+        assert "http2 on;" not in result_conf
 
         # Without nginx.org/proxy-http-version and without a Service appProtocol, the
         # directive is omitted and NGINX applies its own default.
@@ -260,8 +311,10 @@ class TestAnnotations:
                     "nginx.org/upstream-zone-size": "124k",
                     "nginx.org/proxy-set-headers": "X-Forwarded-ABC",
                     "nginx.org/proxy-http-version": "1.0",
+                    "nginx.org/http2": "true",
                 },
                 [
+                    "http2 on;",
                     "proxy_send_timeout 10s;",
                     "max_conns=1024",
                     'set $hsts_header_val "";',
@@ -381,6 +434,8 @@ class TestAnnotations:
                     "if ($http_x_forwarded_proto = 'https')",
                     'set $hsts_header_val "max-age=2592000; preload";',
                     " 100k;",
+                    # the http2 ConfigMap key applies to hosts without TLS too
+                    "http2 on;",
                 ],
                 ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;"],
             ),
@@ -432,10 +487,11 @@ class TestAnnotations:
                     "nginx.org/hsts": "False",
                     "nginx.org/hsts-behind-proxy": "False",
                     "nginx.org/upstream-zone-size": "124k",
+                    "nginx.org/http2": "false",
                 },
                 f"{TEST_DATA}/annotations/configmap-with-keys.yaml",
                 ["proxy_send_timeout 10s;", " 124k;"],
-                ["proxy_send_timeout 33s;", "Strict-Transport-Security", " 100k;", " 256k;"],
+                ["proxy_send_timeout 33s;", "Strict-Transport-Security", " 100k;", " 256k;", "http2 on;"],
             ),
         ],
     )
@@ -528,6 +584,7 @@ class TestAnnotations:
                 "nginx.org/max-conns": "-10",
                 "nginx.org/upstream-zone-size": "-10I'm S±!@£$%^&*()invalid",
                 "nginx.org/proxy-set-headers": "abc!123",
+                "nginx.org/http2": "on",
             }
         ],
     )
@@ -554,6 +611,7 @@ class TestAnnotations:
         assert "server {" not in result_conf
         assert "No such file or directory" in result_conf
         assert_event_count_increased(annotations_setup.ingress_error_event_text, initial_count, new_events)
+        assert any('nginx.org/http2: Invalid value: "on"' in e.message for e in new_events)
 
 
 @pytest.mark.ingresses
@@ -608,6 +666,26 @@ class TestMergeableFlows:
             assert _ in result_conf
         for _ in unexpected_strings:
             assert _ not in result_conf
+
+    def test_master_http2_applies_to_minions(self, kube_apis, annotations_setup, ingress_controller_prerequisites):
+        """nginx.org/http2 is server-level: the master's value wins and a minion's value is ignored."""
+        initial_events = get_events(kube_apis.v1, annotations_setup.namespace)
+        initial_count = get_event_count(annotations_setup.ingress_event_text, initial_events)
+        print("Case 7a: master http2 annotation applies to minions")
+        replace_ingresses_from_yaml(
+            kube_apis.networking_v1, annotations_setup.namespace, f"{TEST_DATA}/annotations/mergeable/master-http2.yaml"
+        )
+        wait_before_test(1)
+        result_conf = get_ingress_nginx_template_conf(
+            kube_apis.v1,
+            annotations_setup.namespace,
+            annotations_setup.ingress_name,
+            annotations_setup.ingress_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        new_events = get_events(kube_apis.v1, annotations_setup.namespace)
+        assert_event_count_increased(annotations_setup.ingress_event_text, initial_count, new_events)
+        assert "http2 on;" in result_conf
 
 
 @pytest.mark.ingresses
@@ -692,3 +770,32 @@ class TestGrpcFlows:
             assert _ in result_conf
         for _ in unexpected_strings:
             assert _ not in result_conf
+
+
+@pytest.mark.ingresses
+@pytest.mark.annotations
+class TestGrpcWithoutTLS:
+    @pytest.mark.flaky(max_runs=3)
+    def test_h2c_grpc(self, kube_apis, grpc_h2c_setup, ingress_controller_prerequisites):
+        """With the http2 ConfigMap key on, a gRPC Ingress without TLS serves gRPC over h2c on the HTTP port."""
+        wait_before_test()
+        result_conf = get_ingress_nginx_template_conf(
+            kube_apis.v1,
+            grpc_h2c_setup.namespace,
+            grpc_h2c_setup.ingress_name,
+            grpc_h2c_setup.ingress_pod_name,
+            ingress_controller_prerequisites.namespace,
+        )
+        # a gRPC-only server without TLS must keep its plaintext listener
+        assert "listen 80;" in result_conf
+        assert "http2 on;" in result_conf
+        assert "grpc_pass" in result_conf
+
+        endpoint = grpc_h2c_setup.public_endpoint
+        options = (("grpc.default_authority", grpc_h2c_setup.ingress_host),)
+        with grpc.insecure_channel(f"{endpoint.public_ip}:{endpoint.port}", options) as channel:
+            try:
+                response = GreeterStub(channel).SayHello(HelloRequest(name="h2c"), timeout=10)
+            except grpc.RpcError as e:
+                pytest.fail(f"h2c gRPC call failed: {e.code()} {e.details()}")
+        assert "Hello h2c" in response.message

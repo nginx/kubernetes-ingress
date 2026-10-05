@@ -24,7 +24,23 @@ from suite.utils.resources_utils import (
     wait_until_all_pods_are_ready,
 )
 from suite.utils.ssl_utils import get_certificate
-from suite.utils.vs_vsr_resources_utils import patch_virtual_server_from_yaml
+from suite.utils.vs_vsr_resources_utils import patch_virtual_server, patch_virtual_server_from_yaml
+
+
+def assert_grpc_hello(virtual_server_setup) -> None:
+    """Call the Greeter service through the VirtualServer over TLS and check the reply."""
+    endpoint = virtual_server_setup.public_endpoint
+    cert = get_certificate(endpoint.public_ip, virtual_server_setup.vs_host, endpoint.port_ssl)
+    credentials = grpc.ssl_channel_credentials(root_certificates=cert.encode())
+    options = (("grpc.ssl_target_name_override", virtual_server_setup.vs_host),)
+
+    with grpc.secure_channel(f"{endpoint.public_ip}:{endpoint.port_ssl}", credentials, options) as channel:
+        try:
+            response = GreeterStub(channel).SayHello(HelloRequest(name=endpoint.public_ip))
+        except grpc.RpcError as e:
+            print(e.details())
+            pytest.fail("RPC error was not expected during call, exiting...")
+        assert f"Hello {endpoint.public_ip}" in response.message
 
 
 @pytest.fixture(scope="function")
@@ -145,25 +161,45 @@ class TestVirtualServerGrpc:
     def test_connect_grpc_backend(
         self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
     ) -> None:
-        cert = get_certificate(
-            virtual_server_setup.public_endpoint.public_ip,
-            virtual_server_setup.vs_host,
-            virtual_server_setup.public_endpoint.port_ssl,
-        )
-        target = f"{virtual_server_setup.public_endpoint.public_ip}:{virtual_server_setup.public_endpoint.port_ssl}"
-        credentials = grpc.ssl_channel_credentials(root_certificates=cert.encode())
-        options = (("grpc.ssl_target_name_override", virtual_server_setup.vs_host),)
+        assert_grpc_hello(virtual_server_setup)
 
-        with grpc.secure_channel(target, credentials, options) as channel:
-            stub = GreeterStub(channel)
-            response = ""
-            try:
-                response = stub.SayHello(HelloRequest(name=virtual_server_setup.public_endpoint.public_ip))
-                valid_message = "Hello {}".format(virtual_server_setup.public_endpoint.public_ip)
-                assert valid_message in response.message
-            except grpc.RpcError as e:
-                print(e.details())
-                pytest.fail("RPC error was not expected during call, exiting...")
+    @pytest.mark.flaky(max_runs=3)
+    @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)
+    def test_http2_field_overrides_configmap(
+        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
+    ) -> None:
+        ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+
+        def set_http2(value) -> str:
+            # a merge patch: None removes the field
+            body = {"metadata": {"name": virtual_server_setup.vs_name}, "spec": {"http2": value}}
+            patch_virtual_server(
+                kube_apis.custom_objects, virtual_server_setup.vs_name, virtual_server_setup.namespace, body
+            )
+            wait_before_test()
+            return get_vs_nginx_template_conf(
+                kube_apis.v1,
+                virtual_server_setup.namespace,
+                virtual_server_setup.vs_name,
+                ic_pod_name,
+                ingress_controller_prerequisites.namespace,
+            )
+
+        try:
+            print("spec.http2: false overrides the http2 ConfigMap key")
+            assert "http2 on;" not in set_http2(False)
+
+            print("spec.http2: true without the http2 ConfigMap key")
+            replace_configmap_from_yaml(
+                kube_apis.v1,
+                ingress_controller_prerequisites.config_map["metadata"]["name"],
+                ingress_controller_prerequisites.namespace,
+                f"{DEPLOYMENTS}/common/nginx-config.yaml",
+            )
+            assert "http2 on;" in set_http2(True)
+            assert_grpc_hello(virtual_server_setup)
+        finally:
+            set_http2(None)
 
     @pytest.mark.flaky(max_runs=3)
     @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)
