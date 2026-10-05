@@ -30,6 +30,10 @@ type VirtualServerConfig struct {
 	Upstreams               []Upstream
 	DynamicSSLReloadEnabled bool
 	StaticSSLPath           string
+	// AppProtectLoadModule mirrors the controller's -enable-app-protect flag so
+	// templates can safely emit app_protect_enable off; in internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // AuthJWTClaimSet defines the values for the `auth_jwt_claim_set` directive
@@ -165,6 +169,10 @@ type OIDC struct {
 	VerifyDepth           int
 	CAFile                string
 	PolicyName            string
+	// AppProtectLoadModule mirrors the controller's --enable-app-protect flag so
+	// oidc.tmpl can emit app_protect_enable off; on its internal sub-request
+	// locations only when the WAF module is actually loaded.
+	AppProtectLoadModule bool
 }
 
 // APIKey holds API key configuration.
@@ -199,8 +207,10 @@ type Dos struct {
 
 // Location defines a location.
 type Location struct {
-	Path                       string
-	Internal                   bool
+	Path     string
+	Internal bool
+	// DisableWAF marks subrequest targets; splits/matches internal locations carry client traffic and must keep WAF.
+	DisableWAF                 bool
 	Snippets                   []string
 	ProxyConnectTimeout        string
 	ProxyReadTimeout           string
@@ -254,6 +264,7 @@ type Location struct {
 	GRPCPass                   string
 	CORSEnabled                bool
 	DisableForwardedHeaders    bool
+	UseForwardedHeaders        bool
 	AddHeaderInherit           string
 	ProxySSLVerify             bool
 	ProxySSLVerifyDepth        int
@@ -281,12 +292,6 @@ type Return struct {
 	Code int
 	Text string
 }
-
-// ErrorPageResponseCodeInherit is the sentinel ResponseCode value that makes the
-// virtualserver template emit `error_page <codes> = "<name>";` with no explicit
-// response code, so nginx forwards the target URI's status (e.g. oauth2-proxy's
-// 302) to the client instead of the original error code.
-const ErrorPageResponseCodeInherit = -1
 
 // ErrorPage defines an error_page of a location.
 type ErrorPage struct {

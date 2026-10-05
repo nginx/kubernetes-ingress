@@ -323,6 +323,7 @@ type virtualServerConfigurator struct {
 	DynamicWeightChangesReload bool
 	bundleValidator            bundleValidator
 	IngressControllerReplicas  int
+	appProtectLoadModule       bool
 	plmEnabled                 bool
 }
 
@@ -366,6 +367,7 @@ func newVirtualServerConfigurator(
 		CABundlePath:               staticParams.DefaultCABundle,
 		DynamicWeightChangesReload: staticParams.DynamicWeightChangesReload,
 		bundleValidator:            bundleValidator,
+		appProtectLoadModule:       staticParams.MainAppProtectLoadModule,
 		plmEnabled:                 staticParams.PLMEnabled,
 	}
 }
@@ -1034,7 +1036,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 						}
 					}
 				} else {
-					vsc.addWarningf(vsr, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
+					vsc.addWarningf(vsEx.VirtualServer, "Duplicate external auth URI %s on this VirtualServer; external auth URI for route %s will be ignored.", routePoliciesCfg.ExternalAuth.URI.Path, r.Path)
 				}
 			}
 
@@ -1161,6 +1163,10 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	}
 	addHSTSToLocationsWithAddHeaders(policiesCfg.HSTS, locations)
 
+	if policiesCfg.OIDC != nil {
+		policiesCfg.OIDC.AppProtectLoadModule = vsc.appProtectLoadModule
+	}
+
 	vsCfg := version2.VirtualServerConfig{
 		Upstreams:        upstreams,
 		Maps:             removeDuplicateMaps(maps),
@@ -1203,7 +1209,6 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			LimitReqs:                 policiesCfg.RateLimit.Reqs,
 			JWTAuth:                   policiesCfg.JWTAuth.Auth,
 			ExternalAuth:              policiesCfg.ExternalAuth,
-			ErrorPages:                getServerErrorPages(policiesCfg),
 			BasicAuth:                 policiesCfg.BasicAuth,
 			JWTAuthList:               policiesCfg.JWTAuth.List,
 			JWKSAuthEnabled:           policiesCfg.JWTAuth.JWKSEnabled,
@@ -1229,6 +1234,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		KeyVals:                 keyVals,
 		SplitClients:            splitClients,
 		TwoWaySplitClients:      twoWaySplitClients,
+		AppProtectLoadModule:    vsc.appProtectLoadModule,
 	}
 
 	return vsCfg, vsc.warnings
@@ -1241,6 +1247,7 @@ func (vsc *virtualServerConfigurator) generateExternalAuthLocation(policiesCfg p
 	loc := version2.Location{
 		Path:                    fmt.Sprintf("%q", policiesCfg.ExternalAuth.URI.InternalPath),
 		Internal:                true,
+		DisableWAF:              true,
 		Snippets:                generateSnippets(true, policiesCfg.ExternalAuth.Snippets, nil),
 		ProxyPass:               fmt.Sprintf("%q", proxyPass),
 		ProxyPassRequestHeaders: true,
@@ -1320,19 +1327,6 @@ func (vsc *virtualServerConfigurator) generateExternalAuthOAuth2Location(policie
 		loc.ProxySSLName = policiesCfg.ExternalAuth.SNIName
 	}
 	return loc
-}
-
-func getServerErrorPages(cfg policiesCfg) []version2.ErrorPage {
-	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
-		return []version2.ErrorPage{
-			{
-				Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
-				Codes:        "401",
-				ResponseCode: version2.ErrorPageResponseCodeInherit,
-			},
-		}
-	}
-	return nil
 }
 
 func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
@@ -1583,11 +1577,6 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 	location.PoliciesErrorReturn = cfg.ErrorReturn
 
 	if cfg.ExternalAuth != nil && cfg.ExternalAuth.SigninURL != "" {
-		location.ErrorPages = append(location.ErrorPages, version2.ErrorPage{
-			Name:         escapeForNGINXQuotedString(cfg.ExternalAuth.SigninURL),
-			Codes:        "401",
-			ResponseCode: version2.ErrorPageResponseCodeInherit,
-		})
 		location.ProxyInterceptErrors = true
 	}
 
@@ -1596,11 +1585,6 @@ func addPoliciesCfgToLocation(cfg policiesCfg, location *version2.Location) {
 		location.AddHeaders = append(location.AddHeaders, cfg.CORSHeaders...)
 		location.CORSEnabled = true
 	}
-}
-
-func escapeForNGINXQuotedString(value string) string {
-	quoted := fmt.Sprintf("%q", value)
-	return quoted[1 : len(quoted)-1]
 }
 
 func addPoliciesCfgToLocations(cfg policiesCfg, locations []version2.Location) {
@@ -2053,7 +2037,7 @@ func generateLocation(path string, upstreamName string, upstream conf_v1.Upstrea
 		errorPages.index, proxySSLName, action.Proxy, originalPath, locationSnippets, isVSR, vsrName, vsrNamespace, serviceName), nil
 }
 
-func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
+func generateProxySetHeaders(proxy *conf_v1.ActionProxy, useForwardedHeaders bool) []version2.Header {
 	var headers []version2.Header
 
 	hasHostHeader := false
@@ -2072,7 +2056,11 @@ func generateProxySetHeaders(proxy *conf_v1.ActionProxy) []version2.Header {
 	}
 
 	if !hasHostHeader {
-		headers = append(headers, version2.Header{Name: "Host", Value: "$host"})
+		hostVal := "$host"
+		if useForwardedHeaders {
+			hostVal = "$forwarded_host"
+		}
+		headers = append(headers, version2.Header{Name: "Host", Value: hostVal})
 	}
 
 	return headers
@@ -2157,7 +2145,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		ProxyNextUpstreamTries:   upstream.ProxyNextUpstreamTries,
 		ProxyInterceptErrors:     generateProxyInterceptErrors(errorPages),
 		ProxyPassRequestHeaders:  generateProxyPassRequestHeaders(proxy),
-		ProxySetHeaders:          generateProxySetHeaders(proxy),
+		ProxySetHeaders:          generateProxySetHeaders(proxy, cfgParams.UseForwardedHeaders),
 		ProxyHideHeaders:         generateProxyHideHeaders(proxy),
 		ProxyPassHeaders:         generateProxyPassHeaders(proxy),
 		ProxyIgnoreHeaders:       generateProxyIgnoreHeaders(proxy),
@@ -2172,6 +2160,7 @@ func generateLocationForProxying(path string, upstreamName string, upstream conf
 		IsVSR:                    isVSR,
 		VSRName:                  vsrName,
 		DisableForwardedHeaders:  cfgParams.DisableForwardedHeaders,
+		UseForwardedHeaders:      cfgParams.UseForwardedHeaders,
 		VSRNamespace:             vsrNamespace,
 		GRPCPass:                 generateGRPCPass(isGRPC(upstream.Type), upstream.TLS.Enable, upstreamName),
 	}

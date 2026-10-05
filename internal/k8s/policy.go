@@ -549,24 +549,37 @@ func (lbc *LoadBalancerController) resolvePLMBundleStatus(pol *conf_v1.Policy, n
 		gvkKind = appprotect.LogConfGVK.Kind
 	}
 
-	nsi := lbc.getNamespacedInformer(ns)
-	if nsi == nil {
+	// This runs on the PLM credentials Secret handler goroutine, not the sync
+	// queue, so the namespace can be unregistered and its informers stopped at
+	// any point: take the lister read under the registry read lock. The
+	// recordPLMPending calls emit events and write status, so they stay outside
+	// the callback.
+	var (
+		store  cache.Store
+		obj    interface{}
+		exists bool
+		err    error
+	)
+	watched := lbc.namespacedInformers.WithInformer(ns, func(nsi *namespacedInformer) {
+		if kind == wafbundle.LogProfileBundle {
+			store = nsi.appProtectLogConfLister
+		} else {
+			store = nsi.appProtectPolicyLister
+		}
+		if store == nil {
+			return
+		}
+		obj, exists, err = store.GetByKey(refKey)
+	})
+	if !watched {
 		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: namespace %q is not watched", ns))
 		return nil
-	}
-
-	var store cache.Store
-	if kind == wafbundle.LogProfileBundle {
-		store = nsi.appProtectLogConfLister
-	} else {
-		store = nsi.appProtectPolicyLister
 	}
 	if store == nil {
 		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: %s informer is unavailable", gvkKind))
 		return nil
 	}
 
-	obj, exists, err := store.GetByKey(refKey)
 	if err != nil {
 		lbc.recordPLMPending(pol, fmt.Sprintf("WAF PLM bundle: cannot read %s %q: %v", gvkKind, refKey, err))
 		return nil
@@ -790,13 +803,22 @@ func (lbc *LoadBalancerController) handleBundleRefreshFailure(polKey string, fet
 		return
 	}
 
-	nsi := lbc.getNamespacedInformer(parts[0])
-	if nsi == nil {
+	// This runs on the bundle poller goroutine, not the sync queue, so take the
+	// lister read under the registry read lock. The event and status calls below
+	// stay outside the callback.
+	var (
+		obj    interface{}
+		exists bool
+		err    error
+	)
+	watched := lbc.namespacedInformers.WithInformer(parts[0], func(nsi *namespacedInformer) {
+		obj, exists, err = nsi.policyLister.GetByKey(polKey)
+	})
+	if !watched {
 		nl.Debugf(l, "skipping refresh failure status update for unwatched namespace in key %q", polKey)
 		return
 	}
 
-	obj, exists, err := nsi.policyLister.GetByKey(polKey)
 	if err != nil {
 		nl.Errorf(l, "failed to get policy %s for refresh failure handling: %v", polKey, err)
 		return

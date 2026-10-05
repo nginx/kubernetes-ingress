@@ -4975,6 +4975,7 @@ func TestGenerateNginxCfgForAppProtect(t *testing.T) {
 	expected.Servers[0].AppProtectLogConfs = []string{"/etc/nginx/waf/nac-logconfs/default_logconf syslog:server=127.0.0.1:514"}
 	expected.Servers[0].AppProtectLogEnable = "on"
 	expected.Ingress.Annotations = cafeIngressEx.Ingress.Annotations
+	expected.AppProtectLoadModule = true
 
 	result, warnings := generateNginxCfg(NginxCfgParams{
 		staticParams:         staticCfgParams,
@@ -5038,6 +5039,7 @@ func TestGenerateNginxCfgForMergeableIngressesForAppProtect(t *testing.T) {
 	expected.Servers[0].AppProtectLogConfs = []string{"/etc/nginx/waf/nac-logconfs/default_logconf syslog:server=127.0.0.1:514"}
 	expected.Servers[0].AppProtectLogEnable = "on"
 	expected.Ingress.Annotations = mergeableIngresses.Master.Ingress.Annotations
+	expected.AppProtectLoadModule = true
 
 	result, warnings := generateNginxCfgForMergeableIngresses(NginxCfgParams{
 		mergeableIngs:        mergeableIngresses,
@@ -5442,7 +5444,9 @@ func TestGenerateIngressExternalAuthLocation(t *testing.T) {
 	expected := version1.Location{
 		Path:                     "/_ext_auth_default_my-auth",
 		Internal:                 true,
+		DisableWAF:               true,
 		Upstream:                 upstream,
+		AuthRequestOff:           true,
 		ProxyPass:                "http://ext_auth_default_my-auth/auth",
 		ProxySetHeaders:          []version2.Header{{Name: "Content-Length", Value: "0"}, {Name: "X-Scheme", Value: "$scheme"}},
 		ProxyConnectTimeout:      "10s",
@@ -5452,6 +5456,7 @@ func TestGenerateIngressExternalAuthLocation(t *testing.T) {
 		ClientMaxBodySize:        "0",
 		ProxyNextUpstream:        "error timeout",
 		ProxyNextUpstreamTimeout: "5s",
+		SkipCustomHTTPErrors:     true,
 		LocationSnippets:         []string{"proxy_set_header X-Custom \"value\""},
 		ServiceName:              "auth-svc",
 	}
