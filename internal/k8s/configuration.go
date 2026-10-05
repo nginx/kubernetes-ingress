@@ -48,6 +48,9 @@ const (
 	Delete Operation = iota
 	// AddOrUpdate the config of the resource
 	AddOrUpdate
+	// UpdateStatus updates resource status and events without regenerating NGINX config.
+	// Used when a VirtualServer warning set changes but the rendered configuration does not.
+	UpdateStatus
 )
 
 // Resource represents a configuration resource.
@@ -1248,6 +1251,11 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 
 	c.vsrsWithChangedRefs = detectChangesInVSRReferences(c.vsrToVSConfigs, newVSRToVSConfigs, c.virtualServerRoutes)
 
+	// Retain the previous hosts so warning-only diffs can be detected after
+	// listener warnings are attached to newResources.
+	oldHosts := c.hosts
+
+	// safe to update hosts
 	c.hosts = newHosts
 	c.vsrToVSConfigs = newVSRToVSConfigs
 
@@ -1268,6 +1276,11 @@ func (c *Configuration) rebuildHosts() ([]ResourceChange, []ConfigurationProblem
 	c.addProblemsForOrphanMinions(newProblems)
 	c.addProblemsForOrphanOrIgnoredVsrs(newProblems)
 	c.addWarningsForVirtualServersWithMissConfiguredListeners(newResources)
+
+	// Report VirtualServer warning-set changes even when IsEqual skipped a reload.
+	// IsEqual is the reload predicate and intentionally ignores Warnings; reporting
+	// must not depend on that predicate or rejected resources stay silently Valid.
+	changes = append(changes, createVirtualServerWarningChanges(oldHosts, newHosts, changes)...)
 
 	newOrUpdatedProblems := detectChangesInProblems(newProblems, c.hostProblems)
 
@@ -1396,8 +1409,11 @@ func (c *Configuration) addProblemsForResourcesWithoutActiveHost(resources map[s
 }
 
 func (c *Configuration) addWarningsForVirtualServersWithMissConfiguredListeners(resources map[string]Resource) {
-	for _, r := range resources {
-		vsc, ok := r.(*VirtualServerConfiguration)
+	// Sorted so that VirtualServers sharing a host append their warnings in a
+	// stable order; otherwise slices.Equal on the warnings would flap between
+	// rebuilds and emit spurious UpdateStatus changes.
+	for _, key := range getSortedResourceKeys(resources) {
+		vsc, ok := resources[key].(*VirtualServerConfiguration)
 		if !ok {
 			continue
 		}
@@ -1589,6 +1605,49 @@ func createResourceChangesForHosts(removedHosts []string, updatedHosts []string,
 	// in a delete change, will be processed only after the config of the delete change is removed.
 	// That will prevent any host collisions in the NGINX config in the state between the changes.
 	return append(deleteChanges, changes...)
+}
+
+// createVirtualServerWarningChanges emits UpdateStatus changes for VirtualServers
+// whose warning set changed while IsEqual still considers the resource unchanged.
+// Resources already present in existing changes are skipped so a reload (or
+// delete) remains the single reporting path for that object.
+func createVirtualServerWarningChanges(oldHosts map[string]Resource, newHosts map[string]Resource, existing []ResourceChange) []ResourceChange {
+	alreadyChanged := make(map[string]struct{}, len(existing))
+	for _, c := range existing {
+		alreadyChanged[c.Resource.GetKeyWithKind()] = struct{}{}
+	}
+
+	var changes []ResourceChange
+
+	for _, h := range getSortedResourceKeys(newHosts) {
+		newVSC, ok := newHosts[h].(*VirtualServerConfiguration)
+		if !ok {
+			continue
+		}
+
+		key := newVSC.GetKeyWithKind()
+		if _, skip := alreadyChanged[key]; skip {
+			continue
+		}
+
+		oldR, exists := oldHosts[h]
+		if !exists {
+			continue
+		}
+		oldVSC, ok := oldR.(*VirtualServerConfiguration)
+		if !ok {
+			continue
+		}
+
+		if !slices.Equal(oldVSC.Warnings, newVSC.Warnings) {
+			changes = append(changes, ResourceChange{
+				Op:       UpdateStatus,
+				Resource: newVSC,
+			})
+		}
+	}
+
+	return changes
 }
 
 func createResourceChangesForListeners(
@@ -1978,6 +2037,12 @@ func (c *Configuration) validateVSRSelectors(r *conf_v1.Route, vsHost string) ([
 			matched = append(matched, matchedVSR{key: vsrKey, vsr: vsr})
 		}
 	}
+
+	// The loop above ranges over a map, so the per-route "is invalid" warnings
+	// arrive in a random order. Warnings are compared with slices.Equal when
+	// deciding whether to emit an UpdateStatus, so a reorder alone would look
+	// like a change and flood the status with differently ordered messages.
+	sort.Strings(warnings)
 
 	// Sort before building the output slices.  The vsrs slice ends up as
 	// VirtualServerConfiguration.VirtualServerRoutes, which
