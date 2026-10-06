@@ -229,7 +229,6 @@ type LoadBalancerController struct {
 	statusUpdater                 *statusUpdater
 	leaderElector                 *leaderelection.LeaderElector
 	leaseOwner                    *meta_v1.OwnerReference
-	leaderElectorDone             chan struct{}
 	reportIngressStatus           bool
 	isLeaderElectionEnabled       bool
 	leaderElectionLockName        string
@@ -844,7 +843,7 @@ func (lbc *LoadBalancerController) Run() {
 	}
 
 	if lbc.leaderElector != nil {
-		lbc.startLeaderElector(lbc.ctx)
+		go lbc.runLeaderElector(lbc.ctx)
 	}
 
 	if lbc.telemetryCollector != nil {
@@ -908,7 +907,6 @@ func (lbc *LoadBalancerController) Run() {
 // Stop shutsdown the load balancer controller
 func (lbc *LoadBalancerController) Stop() {
 	lbc.cancel()
-	lbc.waitForLeaderElector(leaderElectorStopTimeout)
 	if lbc.bundlePollerMgr != nil {
 		lbc.bundlePollerMgr.StopAll()
 	}
