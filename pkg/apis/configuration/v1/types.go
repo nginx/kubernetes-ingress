@@ -53,6 +53,7 @@ type VirtualServerSpec struct {
 	TLS *TLS `json:"tls"`
 	// Enables or disables decompression of gzipped responses for clients. Allowed values “on”/“off”, “true”/“false” or “yes”/“no”. If the gunzip value is not set, it defaults to off.
 	Gunzip bool `json:"gunzip"`
+	// +kubebuilder:validation:Optional
 	// Turns HTTP/2 on or off for this VirtualServer, overriding the http2 ConfigMap key.
 	// For unencrypted (h2c) traffic on the default listeners, HTTP/2 must also be enabled in the ConfigMap.
 	HTTP2 *bool `json:"http2,omitempty"`

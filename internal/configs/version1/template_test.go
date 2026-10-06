@@ -153,6 +153,9 @@ func TestExecuteMainTemplateWithHTTP2(t *testing.T) {
 				if got := strings.Contains(buf.String(), "\n    http2 on;\n"); got != http2 {
 					t.Errorf("http-level `http2 on;` present = %v, want %v", got, http2)
 				}
+				if http2 { // the http2=false output is already covered by TestExecuteMainTemplateFor{NGINX,NGINXPlus}
+					snaps.MatchSnapshot(t, buf.String())
+				}
 			})
 		}
 	}
