@@ -5,6 +5,7 @@ from suite.utils.resources_utils import (
     get_events_for_object,
     get_file_contents,
     get_first_pod_name,
+    get_nginx_template_conf,
     get_pods_amount,
     get_vs_nginx_template_conf,
     replace_configmap_from_yaml,
@@ -126,16 +127,19 @@ def assert_defaults_of_keys_with_validation_in_main_config(config, unexpected_va
     assert f"variables_hash_max_size {unexpected_values['variables-hash-max-size']};" not in config
 
 
-def assert_ssl_keys(config):
+def assert_ssl_keys(config, main_config):
     # based on f"{TEST_DATA}/virtual-server-configmap-keys/configmap-ssl-keys.yaml"
     assert "if ($schema = 'http') {" not in config
     assert "listen 443 ssl proxy_protocol;" in config
-    assert "http2 on;" in config
+    # the http2 ConfigMap key is set in the http context and inherited by the server
+    assert "http2 on;" in main_config
+    assert "http2 on;" not in config
 
 
-def assert_defaults_of_ssl_keys(config):
+def assert_defaults_of_ssl_keys(config, main_config):
     assert "if ($schema = 'http') {" not in config
     assert "listen 443 ssl;" in config
+    assert "http2 on;" not in main_config
     assert "http2 on;" not in config
 
 
@@ -416,7 +420,10 @@ class TestVirtualServerConfigMapWithTls:
             ingress_controller_prerequisites.namespace,
         )
         assert_update_event_count_increased(virtual_server_setup, step_1_events, initial_list)
-        assert_ssl_keys(step_1_config)
+        assert_ssl_keys(
+            step_1_config,
+            get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace, ic_pod_name),
+        )
 
         print("Step 2: update ConfigMap with invalid ssl keys")
         replace_configmap_from_yaml(
@@ -435,7 +442,10 @@ class TestVirtualServerConfigMapWithTls:
             ingress_controller_prerequisites.namespace,
         )
         assert_update_event_count_increased(virtual_server_setup, step_2_events, step_1_events)
-        assert_defaults_of_ssl_keys(step_2_config)
+        assert_defaults_of_ssl_keys(
+            step_2_config,
+            get_nginx_template_conf(kube_apis.v1, ingress_controller_prerequisites.namespace, ic_pod_name),
+        )
 
     def test_configmap_events(
         self,

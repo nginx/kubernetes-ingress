@@ -7,6 +7,7 @@ from suite.utils.custom_assertions import (
     assert_event,
     assert_event_starts_with_text_and_contains_errors,
     assert_grpc_entries_exist,
+    assert_h2c_grpc_hello,
     assert_proxy_entries_do_not_exist,
     assert_vs_conf_not_exists,
 )
@@ -37,10 +38,10 @@ def assert_grpc_hello(virtual_server_setup) -> None:
     with grpc.secure_channel(f"{endpoint.public_ip}:{endpoint.port_ssl}", credentials, options) as channel:
         try:
             response = GreeterStub(channel).SayHello(HelloRequest(name=endpoint.public_ip))
+            assert f"Hello {endpoint.public_ip}" in response.message
         except grpc.RpcError as e:
             print(e.details())
             pytest.fail("RPC error was not expected during call, exiting...")
-        assert f"Hello {endpoint.public_ip}" in response.message
 
 
 @pytest.fixture(scope="function")
@@ -187,7 +188,7 @@ class TestVirtualServerGrpc:
 
         try:
             print("spec.http2: false overrides the http2 ConfigMap key")
-            assert "http2 on;" not in set_http2(False)
+            assert "http2 off;" in set_http2(False)
 
             print("spec.http2: true without the http2 ConfigMap key")
             replace_configmap_from_yaml(
@@ -200,6 +201,30 @@ class TestVirtualServerGrpc:
             assert_grpc_hello(virtual_server_setup)
         finally:
             set_http2(None)
+
+    @pytest.mark.flaky(max_runs=3)
+    @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)
+    def test_grpc_without_tls(
+        self, kube_apis, ingress_controller_prerequisites, crd_ingress_controller, backend_setup, virtual_server_setup
+    ) -> None:
+        """With the http2 ConfigMap key on, a VirtualServer without TLS serves gRPC over h2c on the HTTP port."""
+        name, namespace = virtual_server_setup.vs_name, virtual_server_setup.namespace
+        try:
+            # a merge patch: None removes spec.tls
+            patch_virtual_server(
+                kube_apis.custom_objects, name, namespace, {"metadata": {"name": name}, "spec": {"tls": None}}
+            )
+            wait_before_test()
+            ic_pod_name = get_first_pod_name(kube_apis.v1, ingress_controller_prerequisites.namespace)
+            config = get_vs_nginx_template_conf(
+                kube_apis.v1, namespace, name, ic_pod_name, ingress_controller_prerequisites.namespace
+            )
+            assert "ssl_certificate" not in config
+            assert "location @grpc_deadline_exceeded" in config
+            assert_h2c_grpc_hello(virtual_server_setup.public_endpoint, virtual_server_setup.vs_host)
+        finally:
+            self.patch_valid_vs(kube_apis, virtual_server_setup)
+            wait_before_test()
 
     @pytest.mark.flaky(max_runs=3)
     @pytest.mark.parametrize("backend_setup", [{"app_type": "grpc-vs"}], indirect=True)

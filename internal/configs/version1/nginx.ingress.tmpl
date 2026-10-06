@@ -54,8 +54,8 @@ server {
 	{{- end}}
 	{{- end}}
 	{{- end}}
-	{{- if $server.HTTP2}}
-	http2 on;
+	{{- with $server.HTTP2Directive}}
+	http2 {{.}};
 	{{- end}}
 	{{- if $server.SSL}}
 	{{- if $server.SSLRejectHandshake}}

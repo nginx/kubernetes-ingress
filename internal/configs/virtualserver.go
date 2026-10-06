@@ -441,7 +441,9 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 
 	sslConfig := vsc.generateSSLConfig(vsEx.VirtualServer, vsEx.VirtualServer.Spec.TLS, vsEx.VirtualServer.Namespace, vsEx.SecretRefs)
 	http2 := generateBool(vsEx.VirtualServer.Spec.HTTP2, vsc.cfgParams.HTTP2)
-	grpcSupported := sslConfig != nil && http2
+	if sslConfig != nil {
+		sslConfig.HTTP2 = http2 // for custom templates that still use $ssl.HTTP2
+	}
 	tlsRedirectConfig := generateTLSRedirectConfig(vsEx.VirtualServer.Spec.TLS)
 
 	policyOpts := policyOptions{
@@ -524,7 +526,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 	// generate upstreams for VirtualServer
 	for _, u := range vsEx.VirtualServer.Spec.Upstreams {
 		upstreams, healthChecks, statusMatches = generateUpstreams(
-			grpcSupported,
+			http2,
 			vsc,
 			u,
 			vsEx.VirtualServer,
@@ -542,7 +544,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		upstreamNamer := NewUpstreamNamerForVirtualServerRoute(vsEx.VirtualServer, vsr)
 		for _, u := range vsr.Spec.Upstreams {
 			upstreams, healthChecks, statusMatches = generateUpstreams(
-				grpcSupported,
+				http2,
 				vsc,
 				u,
 				vsr,
@@ -597,7 +599,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 		locations = append(locations, vsc.generateExternalAuthLocation(policiesCfg, proxyPassUpstream))
 
 		upstreams, healthChecks, statusMatches = generateUpstreams(
-			grpcSupported,
+			http2,
 			vsc,
 			proxyURLUpstream,
 			vsEx.VirtualServer,
@@ -778,7 +780,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 				locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 				upstreams, healthChecks, statusMatches = generateUpstreams(
-					grpcSupported,
+					http2,
 					vsc,
 					proxyURLUpstream,
 					vsEx.VirtualServer,
@@ -1013,7 +1015,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 					locations = append(locations, vsc.generateExternalAuthLocation(routePoliciesCfg, proxyPassUpstream))
 
 					upstreams, healthChecks, statusMatches = generateUpstreams(
-						grpcSupported,
+						http2,
 						vsc,
 						proxyURLUpstream,
 						vsr,
@@ -1179,6 +1181,7 @@ func (vsc *virtualServerConfigurator) GenerateVirtualServerConfig(
 			ServerName:                vsEx.VirtualServer.Spec.Host,
 			Gunzip:                    vsEx.VirtualServer.Spec.Gunzip,
 			HTTP2:                     http2,
+			HTTP2Directive:            generateHTTP2Directive(http2, vsc.cfgParams.HTTP2),
 			AddHeaderInherit:          vsEx.VirtualServer.Spec.AddHeaderInherit,
 			StatusZone:                vsEx.VirtualServer.Spec.Host,
 			HTTPPort:                  vsEx.HTTPPort,
@@ -1335,7 +1338,7 @@ func (vsc *virtualServerConfigurator) mergeWarnings(routeWarnings Warnings) {
 }
 
 func generateUpstreams(
-	grpcSupported bool,
+	http2 bool,
 	vsc *virtualServerConfigurator,
 	u conf_v1.Upstream,
 	owner runtime.Object,
@@ -1347,8 +1350,8 @@ func generateUpstreams(
 	healthChecks []version2.HealthCheck,
 	statusMatches []version2.StatusMatch,
 ) ([]version2.Upstream, []version2.HealthCheck, []version2.StatusMatch) {
-	if !grpcSupported && isGRPC(u.Type) {
-		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2 and TLS termination", u.Name)
+	if !http2 && isGRPC(u.Type) {
+		vsc.addWarningf(owner, "gRPC cannot be configured for upstream %s. gRPC requires enabled HTTP/2", u.Name)
 	}
 
 	upstreamName := upstreamNamer.GetNameForUpstream(u.Name)
@@ -1965,6 +1968,18 @@ func generateBuffers(s *conf_v1.UpstreamBuffers, defaultS string) string {
 		return defaultS
 	}
 	return fmt.Sprintf("%v %v", s.Number, s.Size)
+}
+
+// generateHTTP2Directive returns the server-level http2 directive value, or "" when the server
+// inherits the http-level value set from the http2 ConfigMap key.
+func generateHTTP2Directive(http2, configMapHTTP2 bool) string {
+	if http2 == configMapHTTP2 {
+		return ""
+	}
+	if http2 {
+		return "on"
+	}
+	return "off"
 }
 
 func generateBool(s *bool, defaultS bool) bool {

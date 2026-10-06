@@ -116,13 +116,16 @@ type Server struct {
 	VSName                    string
 	DisableIPV6               bool
 	Gunzip                    bool
-	HTTP2                     bool
+	HTTP2                     bool   // effective value
+	HTTP2Directive            string // "on" or "off" when the server overrides the http-level http2 directive, else empty
 	NGINXDebugLevel           string
 	AddHeaderInherit          string
 }
 
 // SSL defines SSL configuration for a server.
 type SSL struct {
+	// HTTP2 mirrors Server.HTTP2 so custom templates that still use $ssl.HTTP2 keep rendering. Use Server.HTTP2.
+	HTTP2           bool
 	Certificate     string
 	CertificateKey  string
 	RejectHandshake bool

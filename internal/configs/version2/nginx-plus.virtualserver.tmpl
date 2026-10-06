@@ -242,8 +242,8 @@ server {
     {{ makeHTTPSListener $s }}
         {{- end }}
     {{- end }}
-    {{- if $s.HTTP2 }}
-    http2 on;
+    {{- with $s.HTTP2Directive }}
+    http2 {{ . }};
     {{- end }}
     {{- with $ssl := $s.SSL }}
 
@@ -1058,8 +1058,7 @@ server {
     }
     {{- end}}
 
-    {{- with $ssl := $s.SSL }}
-        {{ if $s.HTTP2 }}
+    {{- if $s.HTTP2 }}
     location @grpc_deadline_exceeded {
         default_type application/grpc;
         add_header content-type application/grpc;
@@ -1115,7 +1114,5 @@ server {
         add_header grpc-message unauthenticated;
         return 204;
     }
-
-        {{ end }}
-    {{ end }}
+    {{- end }}
 }

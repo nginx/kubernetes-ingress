@@ -137,6 +137,27 @@ func TestExecuteMainTemplateForNGINX(t *testing.T) {
 	t.Log(buf.String())
 }
 
+// The http2 ConfigMap key sets http2 in the http context; servers only override it.
+func TestExecuteMainTemplateWithHTTP2(t *testing.T) {
+	t.Parallel()
+	for name, newTmpl := range map[string]func(*testing.T) *template.Template{"OSS": newNGINXMainTmpl, "Plus": newNGINXPlusMainTmpl} {
+		for _, http2 := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/http2=%v", name, http2), func(t *testing.T) {
+				t.Parallel()
+				cfg := mainCfg
+				cfg.HTTP2 = http2
+				buf := &bytes.Buffer{}
+				if err := newTmpl(t).Execute(buf, cfg); err != nil {
+					t.Fatal(err)
+				}
+				if got := strings.Contains(buf.String(), "\n    http2 on;\n"); got != http2 {
+					t.Errorf("http-level `http2 on;` present = %v, want %v", got, http2)
+				}
+			})
+		}
+	}
+}
+
 func TestExecuteTemplate_ForIngressForNGINXPlus(t *testing.T) {
 	t.Parallel()
 
@@ -5122,7 +5143,7 @@ var (
 				Name:              "test.example.com",
 				ServerTokens:      "off",
 				StatusZone:        "test.example.com",
-				HTTP2:             true,
+				HTTP2Directive:    "on",
 				HasGRPCLocations:  true,
 				SSL:               true,
 				SSLCertificate:    "secret.pem",
@@ -5711,7 +5732,7 @@ var (
 			SSL:                 true,
 			SSLCertificate:      "/etc/nginx/secrets/default",
 			SSLCertificateKey:   "/etc/nginx/secrets/default",
-			HTTP2:               true,
+			HTTP2Directive:      "on",
 			ServerTokens:        "off",
 			DefaultServerReturn: "404",
 		}},
@@ -5790,7 +5811,7 @@ var (
 				HealthStatus:        true,
 				HealthStatusURI:     "/nginx-health",
 				AccessLogOff:        true,
-				HTTP2:               true,
+				HTTP2Directive:      "on",
 				Locations: []Location{
 					{
 						Path:                "/tea",
@@ -6706,7 +6727,7 @@ var (
 				StatusZone:       "test.example.com",
 				Ports:            []int{8080},
 				ProxyProtocol:    true,
-				HTTP2:            true,
+				HTTP2Directive:   "on",
 				GRPCOnly:         true,
 				HasGRPCLocations: true,
 				Locations: []Location{{
@@ -6722,11 +6743,11 @@ var (
 	ingressCfgHTTP2OnNoTLS = IngressNginxConfig{
 		Servers: []Server{
 			{
-				Name:         "test.example.com",
-				ServerTokens: "off",
-				StatusZone:   "test.example.com",
-				Ports:        []int{80},
-				HTTP2:        true,
+				Name:           "test.example.com",
+				ServerTokens:   "off",
+				StatusZone:     "test.example.com",
+				Ports:          []int{80},
+				HTTP2Directive: "on",
 				Locations: []Location{{
 					Path: "/tea", Upstream: testUpstream, ProxyPass: "http://test",
 					ProxyConnectTimeout: "10s", ProxyReadTimeout: "10s", ProxySendTimeout: "10s", ClientMaxBodySize: "2m",
@@ -6744,7 +6765,7 @@ var (
 				ServerTokens:      "off",
 				StatusZone:        "test.example.com",
 				SSL:               true,
-				HTTP2:             true,
+				HTTP2Directive:    "on",
 				SSLCertificate:    "secret.pem",
 				SSLCertificateKey: "secret.pem",
 				SSLPorts:          []int{443},
@@ -6787,7 +6808,7 @@ var (
 				ServerTokens:      "off",
 				StatusZone:        "test.example.com",
 				SSL:               true,
-				HTTP2:             true,
+				HTTP2Directive:    "on",
 				HasGRPCLocations:  true,
 				SSLCertificate:    "secret.pem",
 				SSLCertificateKey: "secret.pem",
@@ -6841,7 +6862,7 @@ var (
 				ServerTokens:      "off",
 				StatusZone:        "test.example.com",
 				SSL:               true,
-				HTTP2:             true,
+				HTTP2Directive:    "on",
 				GRPCOnly:          true,
 				HasGRPCLocations:  true,
 				SSLCertificate:    "secret.pem",

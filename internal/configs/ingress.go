@@ -414,6 +414,7 @@ func generateNginxCfg(ncp NginxCfgParams) (version1.IngressNginxConfig, Warnings
 			IsDefaultServer:        isDefaultServer,
 			ServerTokens:           cfgParams.ServerTokens,
 			HTTP2:                  cfgParams.HTTP2,
+			HTTP2Directive:         generateHTTP2Directive(cfgParams.HTTP2, ncp.BaseCfgParams.HTTP2),
 			RedirectToHTTPS:        cfgParams.RedirectToHTTPS,
 			SSLRedirect:            cfgParams.SSLRedirect,
 			HTTPRedirectCode:       cfgParams.HTTPRedirectCode,
@@ -1429,11 +1430,10 @@ func generateNginxCfgForMergeableIngresses(ncp NginxCfgParams) (version1.Ingress
 		oidcProviders = append(oidcProviders, masterNginxCfg.OIDCProviders...)
 	}
 
-	// http2 is server-level: minions share the master's server, so they use the master's annotation.
+	// http2 is server-level and minions share the master's server, so the minions' gRPC check
+	// must use the master's value (nginx.org/http2 is removed from minions).
 	minionBaseCfgParams := *ncp.BaseCfgParams
-	if http2, exists, err := GetMapKeyAsBool(ncp.mergeableIngs.Master.Ingress.Annotations, HTTP2Annotation, ncp.mergeableIngs.Master.Ingress); exists && err == nil {
-		minionBaseCfgParams.HTTP2 = http2
-	}
+	minionBaseCfgParams.HTTP2 = masterServer.HTTP2
 
 	minions := ncp.mergeableIngs.Minions
 	grpcOnly := true

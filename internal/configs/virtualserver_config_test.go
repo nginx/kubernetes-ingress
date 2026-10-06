@@ -3358,6 +3358,7 @@ func TestGenerateVirtualServerConfigGrpcErrorPageWarning(t *testing.T) {
 			VSName:      "cafe",
 			HTTP2:       true,
 			SSL: &version2.SSL{
+				HTTP2:          true,
 				Certificate:    "/etc/nginx/secrets/wildcard",
 				CertificateKey: "/etc/nginx/secrets/wildcard",
 			},
@@ -3896,23 +3897,26 @@ func TestGenerateVirtualServerConfigProxyHTTPVersionGRPC(t *testing.T) {
 }
 
 // TestGenerateVirtualServerConfigHTTP2 asserts that spec.http2 overrides the http2 ConfigMap key,
-// and that gRPC upstreams still require TLS as well as HTTP/2.
+// that the server-level directive is only set when it differs from the ConfigMap key,
+// and that gRPC upstreams only require HTTP/2.
 func TestGenerateVirtualServerConfigHTTP2(t *testing.T) {
 	t.Parallel()
 	on, off := true, false
 	tests := []struct {
-		msg       string
-		tls       bool
-		configMap bool
-		spec      *bool
-		want      bool
+		msg           string
+		tls           bool
+		configMap     bool
+		spec          *bool
+		want          bool
+		wantDirective string
 	}{
 		{msg: "TLS inherits ConfigMap on", tls: true, configMap: true, want: true},
-		{msg: "TLS, spec off overrides ConfigMap on", tls: true, configMap: true, spec: &off, want: false},
-		{msg: "TLS, spec on overrides ConfigMap off", tls: true, spec: &on, want: true},
+		{msg: "TLS, spec off overrides ConfigMap on", tls: true, configMap: true, spec: &off, wantDirective: "off"},
+		{msg: "TLS, spec on overrides ConfigMap off", tls: true, spec: &on, want: true, wantDirective: "on"},
+		{msg: "TLS, spec on matches ConfigMap on", tls: true, configMap: true, spec: &on, want: true},
 		{msg: "no TLS inherits ConfigMap on", configMap: true, want: true},
-		{msg: "no TLS, spec off overrides ConfigMap on", configMap: true, spec: &off, want: false},
-		{msg: "no TLS, spec on", spec: &on, want: true},
+		{msg: "no TLS, spec off overrides ConfigMap on", configMap: true, spec: &off, wantDirective: "off"},
+		{msg: "no TLS, spec on", spec: &on, want: true, wantDirective: "on"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.msg, func(t *testing.T) {
@@ -3936,9 +3940,15 @@ func TestGenerateVirtualServerConfigHTTP2(t *testing.T) {
 			if result.Server.HTTP2 != tc.want {
 				t.Errorf("Server.HTTP2 = %v, want %v", result.Server.HTTP2, tc.want)
 			}
-			grpcWarning := slices.Contains(vsc.warnings[vs], "gRPC cannot be configured for upstream grpc. gRPC requires enabled HTTP/2 and TLS termination")
-			if wantWarning := !tc.tls || !tc.want; grpcWarning != wantWarning {
-				t.Errorf("gRPC warning = %v, want %v", grpcWarning, wantWarning)
+			if result.Server.HTTP2Directive != tc.wantDirective {
+				t.Errorf("Server.HTTP2Directive = %q, want %q", result.Server.HTTP2Directive, tc.wantDirective)
+			}
+			if ssl := result.Server.SSL; tc.tls && ssl.HTTP2 != tc.want {
+				t.Errorf("SSL.HTTP2 = %v, want %v (same as Server.HTTP2)", ssl.HTTP2, tc.want)
+			}
+			grpcWarning := slices.Contains(vsc.warnings[vs], "gRPC cannot be configured for upstream grpc. gRPC requires enabled HTTP/2")
+			if grpcWarning != !tc.want {
+				t.Errorf("gRPC warning = %v, want %v", grpcWarning, !tc.want)
 			}
 		})
 	}

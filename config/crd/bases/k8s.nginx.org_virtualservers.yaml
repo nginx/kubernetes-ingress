@@ -1454,8 +1454,7 @@ spec:
                       description: The type of the upstream. Supported values are
                         http and grpc. The default is http. For gRPC, it is necessary
                         to enable HTTP/2, using the VirtualServer http2 field or the
-                        http2 ConfigMap key, and configure TLS termination in the
-                        VirtualServer.
+                        http2 ConfigMap key.
                       type: string
                     use-cluster-ip:
                       description: Enables using the Cluster IP and port of the service

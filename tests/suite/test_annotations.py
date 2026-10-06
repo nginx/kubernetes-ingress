@@ -1,12 +1,9 @@
-import grpc
 import pytest
 import yaml
 from kubernetes.client import NetworkingV1Api
 from settings import DEPLOYMENTS, TEST_DATA
 from suite.fixtures.fixtures import PublicEndpoint
-from suite.grpc.helloworld_pb2 import HelloRequest
-from suite.grpc.helloworld_pb2_grpc import GreeterStub
-from suite.utils.custom_assertions import assert_event_count_increased
+from suite.utils.custom_assertions import assert_event_count_increased, assert_h2c_grpc_hello
 from suite.utils.resources_utils import (
     create_example_app,
     create_items_from_yaml,
@@ -17,6 +14,7 @@ from suite.utils.resources_utils import (
     get_events,
     get_first_pod_name,
     get_ingress_nginx_template_conf,
+    get_nginx_template_conf,
     read_service,
     replace_configmap_from_yaml,
     replace_ingress,
@@ -434,10 +432,9 @@ class TestAnnotations:
                     "if ($http_x_forwarded_proto = 'https')",
                     'set $hsts_header_val "max-age=2592000; preload";',
                     " 100k;",
-                    # the http2 ConfigMap key applies to hosts without TLS too
-                    "http2 on;",
                 ],
-                ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;"],
+                # the http2 ConfigMap key is set in the http context (checked below), not per server
+                ["proxy_send_timeout 60s;", "if ($https = on)", " 256k;", "http2 on;"],
             ),
         ],
     )
@@ -477,6 +474,10 @@ class TestAnnotations:
             assert _ in result_conf
         for _ in unexpected_strings:
             assert _ not in result_conf
+        main_conf = get_nginx_template_conf(
+            kube_apis.v1, ingress_controller_prerequisites.namespace, annotations_setup.ingress_pod_name
+        )
+        assert "http2 on;" in main_conf
 
     @pytest.mark.parametrize(
         "annotations, configmap_file, expected_strings, unexpected_strings",
@@ -490,7 +491,7 @@ class TestAnnotations:
                     "nginx.org/http2": "false",
                 },
                 f"{TEST_DATA}/annotations/configmap-with-keys.yaml",
-                ["proxy_send_timeout 10s;", " 124k;"],
+                ["proxy_send_timeout 10s;", " 124k;", "http2 off;"],
                 ["proxy_send_timeout 33s;", "Strict-Transport-Security", " 100k;", " 256k;", "http2 on;"],
             ),
         ],
@@ -788,14 +789,10 @@ class TestGrpcWithoutTLS:
         )
         # a gRPC-only server without TLS must keep its plaintext listener
         assert "listen 80;" in result_conf
-        assert "http2 on;" in result_conf
         assert "grpc_pass" in result_conf
-
-        endpoint = grpc_h2c_setup.public_endpoint
-        options = (("grpc.default_authority", grpc_h2c_setup.ingress_host),)
-        with grpc.insecure_channel(f"{endpoint.public_ip}:{endpoint.port}", options) as channel:
-            try:
-                response = GreeterStub(channel).SayHello(HelloRequest(name="h2c"), timeout=10)
-            except grpc.RpcError as e:
-                pytest.fail(f"h2c gRPC call failed: {e.code()} {e.details()}")
-        assert "Hello h2c" in response.message
+        # HTTP/2 comes from the http context, set by the http2 ConfigMap key
+        main_conf = get_nginx_template_conf(
+            kube_apis.v1, ingress_controller_prerequisites.namespace, grpc_h2c_setup.ingress_pod_name
+        )
+        assert "http2 on;" in main_conf
+        assert_h2c_grpc_hello(grpc_h2c_setup.public_endpoint, grpc_h2c_setup.ingress_host)

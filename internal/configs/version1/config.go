@@ -107,7 +107,8 @@ type Server struct {
 	IngressMTLS            *version2.IngressMTLS
 	HasGRPCLocations       bool
 	StatusZone             string
-	HTTP2                  bool
+	HTTP2                  bool   // effective value
+	HTTP2Directive         string // "on" or "off" when the server overrides the http-level http2 directive, else empty
 	RedirectToHTTPS        bool
 	SSLRedirect            bool
 	HTTPRedirectCode       int
